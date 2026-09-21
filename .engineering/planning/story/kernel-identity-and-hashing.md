@@ -2,12 +2,13 @@
 format: aep.planning-md/1
 id: story:kernel-identity-and-hashing
 kind: story
-status: draft
+status: active
 title: Stable identity and content hashing
 relations:
 - decomposes: epic:p1-kernel-ontology-core
 - depends_on: story:workspace-crate-skeleton
 - implements: executable-system-specification:ekr-v1
+- serves: vision:o2
 scope:
 - confidence: inferred
   path: crates/ekr-core/src/canonical.rs
@@ -17,7 +18,7 @@ scope:
   path: crates/ekr-core/src/identity.rs
 - confidence: inferred
   path: crates/ekr-core/src/lib.rs
-revision: 6
+revision: 8
 ---
 ## Context
 
