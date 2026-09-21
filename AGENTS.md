@@ -92,24 +92,26 @@ not a test. `task:guards-read-source-through-a-compile-time-path` says what clos
 
 **What was observed**, on 2026-09-21 at the close of wave p1-05: after the wave's worktrees were
 removed, `task check` on the primary checkout failed reading
-`…/ekr-wave-p1-05/crates/ekr-core/src` — a path no tree had. `cargo clean -p ekr-core` cleared it and
-the gate then ran green at 337 cases. **The dangerous half is not that failure.** While both trees
+`…/ekr-wave-p1-05/crates/ekr-core/src` — a path no tree had. `cargo clean -p ekr-core` made that
+tree's gate green at 337 cases, and the probe below shows why that is not a fix: it moves the stale
+path to whichever tree did not just build. **The dangerous half is not that failure.** While both trees
 exist the guard passes while reading a different checkout's source, and every one of these guards
 holds a document against code, so one reading the wrong tree has stopped checking anything and says
 nothing.
 
-**The mechanism is under measurement and this file does not assert it.** The paragraph below says
-unit artifacts are keyed by a hash including the package's manifest path, so two trees do not
-clobber each other. That and the reuse above cannot both be true as stated, and an independent review
-argues cargo hashes path sources relative to the workspace root, in which case two checkouts write
-the same filenames. A probe is running; whichever way it lands, the rule at the top of this paragraph
-is the same and does not depend on it.
+**The mechanism, measured on 2026-09-21.** Two byte-identical crates of the same name in two
+directories, one shared build directory: `deps/` holds **one** test binary for both, and the second
+directory's `cargo test` ran the first's binary in 0.01s and reported the first's compile-time path.
+So two checkouts of this repository **do** write the same filenames, and that clobber is exactly what
+serves one tree's binary to another. `cargo clean -p <crate>` does not fix it — it moves the stale
+path to whichever tree did not just build.
 
 **Two trees that build at the same time get one directory each.** Cargo's exclusive lock makes
 concurrent compilation serialise rather than corrupt, and unit artifacts are keyed by a hash that
-includes the package's manifest path, so two trees' `deps/` do not clobber each other. Two outputs
-are not keyed that way: `doc/<crate>` is a single shared path, so `task doc-check` from two trees
-writes the same files, and the uplifted binary is one path, `debug/ekr`. Sharing is therefore not
+includes the package's manifest path. **That last clause was measured false on 2026-09-21 and is
+struck**: two checkouts of this repository write the same `deps/` filenames and do clobber each
+other, which is what the paragraph above is about. Two further outputs are not keyed by anything:
+`doc/<crate>` is a single shared path, so `task doc-check` from two trees writes the same files, and the uplifted binary is one path, `debug/ekr`. Sharing is therefore not
 merely slow for concurrent work, it is unsound for `doc-check`. A wave running more than one unit
 gives each its own directory and says so in its page.
 
