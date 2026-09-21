@@ -1,0 +1,11 @@
+error[E0451]: fields `transaction`, `validated_against` and `validation_hash` of struct `ValidatedTransaction` are private
+  --> tests/compile_fail/validated_transaction_has_no_constructor_outside_the_kernel.rs:17:9
+   |
+16 |     ValidatedTransaction {
+   |     -------------------- in this type
+17 |         transaction,
+   |         ^^^^^^^^^^^ private field
+18 |         validated_against: RevisionNumber::SEED,
+   |         ^^^^^^^^^^^^^^^^^ private field
+19 |         validation_hash: ContentHash::of(&"nothing was validated".to_owned()),
+   |         ^^^^^^^^^^^^^^^ private field
