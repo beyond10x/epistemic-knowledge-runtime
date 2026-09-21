@@ -1,0 +1,8 @@
+error[E0271]: type mismatch resolving `<CanonicalValue as ValueSpace>::NodeRef == NodeId`
+  --> tests/review_p1_compile_fail/a_canonical_edge_may_target_a_candidate_node.rs:38:27
+   |
+38 |     let into_the_forest = Edge::new(EdgeId::mint(), root.id, TypeId::mint(), held.id, candidate);
+   |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `NodeId`, found `CanonicalRef<Node>`
+   |
+   = note: expected struct `NodeId`
+              found struct `CanonicalRef<ekr_graph::Node>`

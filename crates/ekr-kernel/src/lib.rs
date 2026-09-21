@@ -5,22 +5,27 @@
 //! to an immutable committed revision, snapshot reads and the explain chain. This is the only
 //! crate that constructs a validated transaction; the domain's types live in `ekr-core`.
 //!
-//! Three modules, in dependency order:
+//! Four modules, in dependency order:
 //!
 //! * [`transaction`] — [`GraphTransaction`] and its [`GraphOperation`]s (design § 19, plus
 //!   amendment 87's `Invoke`), and [`ValidatedTransaction`], which only this crate builds.
 //! * [`issue`] — [`ValidationIssue`] and [`ValidatorName`], what a refusal says.
 //! * [`validate`] — the [`Validator`] trait of design § 20 and the
 //!   [`Pipeline`] of its first seven, deterministic, validators.
+//! * [`commit`] — [`Commit`], the one path that spends a [`ValidatedTransaction`], and
+//!   [`Validations`], the authority `ekr-store`'s fold commits on
+//!   (`architecture-decision-record:0007-the-commit-path-is-the-kernels`).
 //!
 //! # The membrane is a type, not a rule
 //!
 //! AGENTS.md invariant 1: "Only `ekr-kernel` constructs a `ValidatedTransaction`, and only a
-//! `ValidatedTransaction` commits. No other crate holds a writer to canonical state. Agents
-//! propose; they never mutate." [`ValidatedTransaction`]'s fields are private and it derives no
+//! `ValidatedTransaction` commits." [`ValidatedTransaction`]'s fields are private and it derives no
 //! `Deserialize`, so the only one that exists anywhere is one [`Pipeline::validate`] built.
 //! `tests/compile_fail/` holds both of those as build failures, because a comment saying a type
 //! cannot be built is not a thing anybody can check.
+//!
+//! The second half is [`commit`]'s, and it is **not** a type — ADR 0007 says which mechanism
+//! carries it and how far it reaches, and `AGENTS.md`'s own sentence was narrowed to match.
 //!
 //! # And no model runs in it
 //!
@@ -85,10 +90,12 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+pub mod commit;
 pub mod issue;
 pub mod transaction;
 pub mod validate;
 
+pub use commit::{Commit, CommitError, Validations};
 pub use issue::{ValidationIssue, ValidatorName};
 pub use transaction::{
     EdgeDraft, EntityMerge, GraphOperation, GraphTransaction, NodeDraft, PropertyMutation,

@@ -180,7 +180,7 @@ fn outgoing(
         .graph()
         .edges
         .values()
-        .filter(|edge| edge.source == source && edge.type_id == type_id)
+        .filter(|edge| edge.source.node() == source && edge.type_id == type_id)
         .map(|edge| edge.id)
         .collect();
     held.extend(

@@ -107,6 +107,22 @@ fn a_commit_lands_with_no_validated_transaction_anywhere_in_the_process() {
     );
 }
 
+/// The stand-in for `ekr-kernel` this case needs after ADR 0007, and the case above must not have.
+///
+/// `architecture-decision-record:0007-the-commit-path-is-the-kernels` closed the first finding by
+/// making the fold ask an authority before a commit moves canonical state — so the lineage the
+/// case above writes no longer advances *at all*, and a case about § 72's stale commit written
+/// through that same path would be green for the wrong reason. It stands behind exactly the
+/// validations `lineage::validated` writes, so the only thing left separating the two commits
+/// below is the revision each was validated against.
+struct Attesting;
+
+impl ekr_store::CommitAuthority for Attesting {
+    fn attests(&self, validation: &ekr_store::RecordedValidation) -> bool {
+        validation.validation_hash == ContentHash::of_bytes(b"seven validators, no issues")
+    }
+}
+
 /// Design § 72: a transaction is committed only against the revision it was validated against;
 /// otherwise it is stale. The fold receives `against` in `TransactionValidated` and never reads it.
 #[test]
@@ -114,7 +130,7 @@ fn a_commit_validated_against_a_revision_that_is_no_longer_the_head_replays_as_v
     let directory = TempDir::new().expect("a temporary directory");
     let ontology = fixture::ontology();
     let graph = fixture::seed_graph(&ontology);
-    let store = seeded(&directory, &ontology, &graph);
+    let store = seeded(&directory, &ontology, &graph).under(Attesting);
 
     let (first, second) = (TransactionId::mint(), TransactionId::mint());
     let root = ekr_store::knowledge_root(&graph);

@@ -15,9 +15,9 @@ use ekr_core::{
     RevisionNumber, SchemaVersionId, Timestamp, TransactionId, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalGraph, CanonicalValue, Confidence, Edge, Evidence, EvidenceSource,
-    GraphRoot, GraphSnapshot, Node, Object, Predicate, Space, Subject, TemporalRange,
-    TransactionTime, ValidationState,
+    Assertion, CanonicalGraph, CanonicalRef, CanonicalValue, Confidence, Edge, Evidence,
+    EvidenceSource, GraphRoot, GraphSnapshot, Node, Object, Predicate, Space, Subject,
+    TemporalRange, TransactionTime, ValidationState,
 };
 use ekr_kernel::{EdgeDraft, GraphOperation, GraphTransaction, NodeDraft, Pipeline};
 use ekr_ontology::{
@@ -87,7 +87,7 @@ impl World {
         let assertion = Assertion {
             id: held_assertion,
             root_id,
-            subject: Subject::Node(open),
+            subject: Subject::Node(CanonicalRef::new(open)),
             predicate: Predicate::Property(title),
             object: Object::Value(CanonicalValue::String(
                 "Adopt the eventlog store".to_owned(),
@@ -129,7 +129,13 @@ impl World {
                     .collect(),
                 edges: [(
                     existing_edge,
-                    Edge::new(existing_edge, root_id, depends_on, open, decided),
+                    Edge::new(
+                        existing_edge,
+                        root_id,
+                        depends_on,
+                        CanonicalRef::new(open),
+                        CanonicalRef::new(decided),
+                    ),
                 )]
                 .into_iter()
                 .collect(),

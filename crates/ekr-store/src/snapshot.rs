@@ -105,8 +105,8 @@ use ekr_core::{
     SchemaVersionId,
 };
 use ekr_graph::{
-    Assertion, CanonicalGraph, CanonicalValue, Edge, Evidence, GraphRoot, InadmissibleValue, Node,
-    Object, Space,
+    Assertion, CanonicalGraph, CanonicalRef, CanonicalValue, Edge, Evidence, GraphRoot,
+    InadmissibleValue, Node, Object, Space, Subject,
 };
 use ekr_ontology::{Ontology, Value};
 use serde::{Deserialize, Serialize};
@@ -439,13 +439,18 @@ fn widen_node(node: &Node<CanonicalValue>) -> Node<Value> {
 }
 
 /// A canonical edge, as a candidate's shape.
+///
+/// Its two ends lose their type on the way out and are minted back on the way in: a document
+/// carries ids, which is the serde boundary
+/// `architecture-decision-record:0008-canonical-state-references-are-typed` states rather than
+/// hides.
 fn widen_edge(edge: &Edge<CanonicalValue>) -> Edge<Value> {
     Edge {
         id: edge.id,
         root_id: edge.root_id,
         type_id: edge.type_id,
-        source: edge.source,
-        target: edge.target,
+        source: edge.source.node(),
+        target: edge.target.node(),
         properties: edge
             .properties
             .iter()
@@ -459,11 +464,15 @@ fn widen_assertion(assertion: &Assertion<CanonicalValue>) -> Assertion<Value> {
     Assertion {
         id: assertion.id,
         root_id: assertion.root_id,
-        subject: assertion.subject,
+        subject: match assertion.subject {
+            Subject::Node(node) => Subject::Node(node.node()),
+            Subject::Edge(edge) => Subject::Edge(edge),
+            Subject::Type(type_id) => Subject::Type(type_id),
+        },
         predicate: assertion.predicate,
         object: match &assertion.object {
             Object::Value(value) => Object::Value(Value::from(value.clone())),
-            Object::Node(node) => Object::Node(*node),
+            Object::Node(node) => Object::Node(node.node()),
             Object::Type(type_id) => Object::Type(*type_id),
         },
         evidence: assertion.evidence.clone(),
@@ -498,6 +507,21 @@ fn narrow_node(node: Node<Value>) -> Result<Node<CanonicalValue>, MembraneError>
 }
 
 /// A candidate's edge, as canonical state — or the refusal that says why it is not.
+///
+/// **A reference is minted here, and minting one is not resolving it.** The document carries two
+/// node ids and this is where they become `CanonicalRef<Node>` — the one place in the workspace
+/// where a canonical reference is made from bytes rather than from a node something already held.
+/// The type holds inside Rust and stops here.
+///
+/// **Nothing on this path refuses a dangling one.** This crossing is reached from
+/// [`RevisionLog::fold`](crate::RevisionLog::fold), which is below `ekr-kernel`, so the reference
+/// validator that refuses an unresolvable id on the *transaction* path is not reachable from here
+/// in any process — and a document naming an edge target it does not carry becomes canonical state
+/// holding a reference to nothing. `tests/adversary_p1_06_reference_from_bytes.rs` measures exactly
+/// that; `review-result:adversary-eventlog-store-pass-1`'s finding C is what closes it, and is not
+/// this wave's. A second validator *here* is worse than one validator in the right place, which is
+/// the section "What this crossing does not do" above.
+/// `task:the-membrane-stops-at-the-store-boundary` records the same limit for the value direction.
 fn narrow_edge(edge: Edge<Value>) -> Result<Edge<CanonicalValue>, MembraneError> {
     let edge_id = edge.id;
     let mut properties = BTreeMap::new();
@@ -513,8 +537,8 @@ fn narrow_edge(edge: Edge<Value>) -> Result<Edge<CanonicalValue>, MembraneError>
         id: edge.id,
         root_id: edge.root_id,
         type_id: edge.type_id,
-        source: edge.source,
-        target: edge.target,
+        source: CanonicalRef::new(edge.source),
+        target: CanonicalRef::new(edge.target),
         properties,
     })
 }
@@ -533,13 +557,17 @@ fn narrow_assertion(
                 }
             })?)
         }
-        Object::Node(node) => Object::Node(node),
+        Object::Node(node) => Object::Node(CanonicalRef::new(node)),
         Object::Type(type_id) => Object::Type(type_id),
     };
     Ok(Assertion {
         id: assertion.id,
         root_id: assertion.root_id,
-        subject: assertion.subject,
+        subject: match assertion.subject {
+            Subject::Node(node) => Subject::Node(CanonicalRef::new(node)),
+            Subject::Edge(edge) => Subject::Edge(edge),
+            Subject::Type(type_id) => Subject::Type(type_id),
+        },
         predicate: assertion.predicate,
         object,
         evidence: assertion.evidence,

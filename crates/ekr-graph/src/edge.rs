@@ -3,9 +3,10 @@
 use std::collections::BTreeMap;
 
 use ekr_core::canonical::{Canonical, Encoder};
-use ekr_core::{EdgeId, GraphRootId, NodeId, PropertyId, TypeId};
+use ekr_core::{EdgeId, GraphRootId, PropertyId, TypeId};
 use serde::{Deserialize, Serialize};
 
+use crate::canonical::ValueSpace;
 use crate::value::CanonicalValue;
 
 /// One directed, typed relation between two nodes.
@@ -19,8 +20,16 @@ use crate::value::CanonicalValue;
 /// Generic over the value its properties carry, defaulting to [`CanonicalValue`], for the reason
 /// and with the consequence [`Node`](crate::Node) is: canonical state holds `Edge<CanonicalValue>`
 /// and has an address for it, a transient root holds `Edge<ekr_ontology::Value>` and has none.
+///
+/// # Its two ends are references, not ids
+///
+/// `architecture-decision-record:0008-canonical-state-references-are-typed`. [`source`](Edge::source)
+/// and [`target`](Edge::target) are `V::NodeRef` — [`CanonicalRef<Node>`](crate::CanonicalRef) where
+/// the value is canonical, a bare [`NodeId`](ekr_core::NodeId) where it is a candidate's. A
+/// canonical edge into a transient root was a well-formed value of this type until then, which is
+/// the word AGENTS.md invariant 2 excludes.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Edge<V = CanonicalValue> {
+pub struct Edge<V: ValueSpace = CanonicalValue> {
     /// The edge's stable id.
     pub id: EdgeId,
     /// The graph root that owns it.
@@ -28,23 +37,23 @@ pub struct Edge<V = CanonicalValue> {
     /// The edge type it is an instance of.
     pub type_id: TypeId,
     /// The node the relation runs from.
-    pub source: NodeId,
+    pub source: V::NodeRef,
     /// The node it runs to.
-    pub target: NodeId,
+    pub target: V::NodeRef,
     /// Its property values, by the property's id — keyed as [`Node::properties`](crate::Node) is,
     /// and for the same reason.
     pub properties: BTreeMap<PropertyId, V>,
 }
 
-impl<V> Edge<V> {
+impl<V: ValueSpace> Edge<V> {
     /// An edge with no properties.
     #[must_use]
     pub fn new(
         id: EdgeId,
         root_id: GraphRootId,
         type_id: TypeId,
-        source: NodeId,
-        target: NodeId,
+        source: V::NodeRef,
+        target: V::NodeRef,
     ) -> Self {
         Self {
             id,
@@ -57,7 +66,7 @@ impl<V> Edge<V> {
     }
 }
 
-impl<V: Canonical> Canonical for Edge<V> {
+impl<V: ValueSpace + Canonical> Canonical for Edge<V> {
     /// The six fields in declaration order, structural and bounded on `V` exactly as
     /// [`Node`](crate::Node)'s is.
     fn encode(&self, out: &mut Encoder) {

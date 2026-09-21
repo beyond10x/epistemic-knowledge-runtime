@@ -26,6 +26,7 @@ fn sqlite(directory: &TempDir, ontology: &Ontology) -> SqliteStore {
         ontology.clone(),
     )
     .expect("the SQLite provider opens")
+    .under(lineage::Attesting)
 }
 
 /// Opens the file provider over a directory inside `directory`.
@@ -36,6 +37,7 @@ fn file(directory: &TempDir, ontology: &Ontology) -> FileStore {
         ontology.clone(),
     )
     .expect("the file provider opens")
+    .under(lineage::Attesting)
 }
 
 /// The acceptance statement, over whichever provider the caller opened twice.

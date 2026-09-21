@@ -28,8 +28,8 @@ use ekr_core::{
     RevisionNumber, Timestamp, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalValue, Object, Predicate, RetractionReason, Subject, TemporalRange,
-    TransactionTime, ValidationState,
+    Assertion, CanonicalRef, CanonicalValue, Object, Predicate, RetractionReason, Subject,
+    TemporalRange, TransactionTime, ValidationState,
 };
 use ekr_ontology::Value;
 
@@ -64,7 +64,7 @@ fn assertion(
 /// temporal field.
 fn every_shape() -> Vec<Assertion> {
     let subjects = [
-        Subject::Node(NodeId::mint()),
+        Subject::Node(CanonicalRef::new(NodeId::mint())),
         Subject::Edge(EdgeId::mint()),
         Subject::Type(TypeId::mint()),
     ];
@@ -77,7 +77,7 @@ fn every_shape() -> Vec<Assertion> {
             CanonicalValue::try_from(Value::String("Acme".to_owned())).expect("admissible"),
         ),
         Object::Value(CanonicalValue::Timestamp(HANDOVER)),
-        Object::Node(NodeId::mint()),
+        Object::Node(CanonicalRef::new(NodeId::mint())),
         Object::Type(TypeId::mint()),
     ];
     let validations = [
@@ -165,9 +165,9 @@ fn every_shape_of_assertion_round_trips_through_serde() {
 #[test]
 fn an_absent_bound_stays_absent() {
     let record = assertion(
-        Subject::Node(NodeId::mint()),
+        Subject::Node(CanonicalRef::new(NodeId::mint())),
         Predicate::Relation(TypeId::mint()),
-        Object::Node(NodeId::mint()),
+        Object::Node(CanonicalRef::new(NodeId::mint())),
         ValidationState::Proposed,
         TemporalRange::UNBOUNDED,
         TransactionTime::since(RECORDED),
@@ -241,7 +241,7 @@ fn serde_refuses_an_inverted_range_the_way_the_constructor_does() {
 #[test]
 fn serde_refuses_a_float_where_canonical_state_admits_none() {
     let record = assertion(
-        Subject::Node(NodeId::mint()),
+        Subject::Node(CanonicalRef::new(NodeId::mint())),
         Predicate::Property(PropertyId::mint()),
         Object::Value(CanonicalValue::Decimal("0.1".to_owned())),
         ValidationState::Proposed,

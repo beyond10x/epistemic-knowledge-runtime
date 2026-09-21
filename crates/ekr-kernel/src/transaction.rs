@@ -43,7 +43,9 @@ use ekr_core::{
     AgentId, AssertionId, ContentHash, EdgeId, EvidenceId, GraphRootId, NodeId, PropertyId,
     RevisionNumber, TransactionId, TypeId,
 };
-use ekr_graph::{Assertion, CanonicalValue, InadmissibleValue, Object};
+use ekr_graph::{
+    Assertion, CanonicalRef, CanonicalValue, InadmissibleValue, Object, Subject, ValueSpace,
+};
 use ekr_ontology::{
     Cardinality, EdgeType, Lifecycle, NodeType, OperationDefinition, PropertyDefinition,
     Transition, Value, ValueType,
@@ -117,7 +119,7 @@ pub struct EntityMerge {
 /// variant number is what separates two operations carrying the same payload shape, and moving a
 /// number moves every `validation_hash` that contains the variant.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum GraphOperation<V = Value> {
+pub enum GraphOperation<V: ValueSpace = Value> {
     /// Create a node.
     CreateNode(NodeDraft<V>),
     /// Set the values of one property of one node.
@@ -158,7 +160,7 @@ pub enum GraphOperation<V = Value> {
 /// their hash and count". This is the in-process form the validators read; the hash the domain
 /// names is what a store keeps of it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct GraphTransaction<V = Value> {
+pub struct GraphTransaction<V: ValueSpace = Value> {
     /// Its stable id.
     pub id: TransactionId,
     /// The agent that proposed it. Never the sole basis of its validation (design § 6.10).
@@ -251,7 +253,7 @@ impl ValidatedTransaction {
     }
 }
 
-impl<V: Canonical> Canonical for GraphTransaction<V> {
+impl<V: ValueSpace + Canonical> Canonical for GraphTransaction<V> {
     /// The four fields in declaration order: structural, with no discriminant, which is rule 5 of
     /// `ekr_core::canonical` for a composite that is not a sum type.
     fn encode(&self, out: &mut Encoder) {
@@ -262,7 +264,7 @@ impl<V: Canonical> Canonical for GraphTransaction<V> {
     }
 }
 
-impl<V: Canonical> Canonical for GraphOperation<V> {
+impl<V: ValueSpace + Canonical> Canonical for GraphOperation<V> {
     /// The variant marker, then the variant's payload.
     ///
     /// A sum type, so it is tagged: `DeleteEdge(EdgeId)` and `RetractAssertion(AssertionId)` carry
@@ -591,18 +593,31 @@ fn canonical_operation(
     })
 }
 
-/// One claim, with the value its object may carry made admissible.
+/// One claim, with the value its object may carry made admissible and its two node references
+/// minted.
+///
+/// **This is the only place in the workspace where a [`CanonicalRef`] is minted from a proposal's
+/// id**, and it is reached only from [`Pipeline::validate`](crate::Pipeline::validate) after every
+/// deterministic validator has accepted — `Reference` among them, which is what resolved these
+/// exact ids against the snapshot (`crates/ekr-kernel/src/validate/reference.rs`). The type holds
+/// inside Rust and this validator holds the edge **on the transaction path**; this function is that
+/// seam, and it sits *after* the validator rather than beside it. The seed path has no equivalent
+/// and refuses nothing — `ekr_graph::canonical`'s header says where that is filed.
 fn canonical_assertion(
     assertion: Assertion<Value>,
 ) -> Result<Assertion<CanonicalValue>, InadmissibleValue> {
     Ok(Assertion {
         id: assertion.id,
         root_id: assertion.root_id,
-        subject: assertion.subject,
+        subject: match assertion.subject {
+            Subject::Node(node) => Subject::Node(CanonicalRef::new(node)),
+            Subject::Edge(edge) => Subject::Edge(edge),
+            Subject::Type(type_id) => Subject::Type(type_id),
+        },
         predicate: assertion.predicate,
         object: match assertion.object {
             Object::Value(value) => Object::Value(CanonicalValue::try_from(value)?),
-            Object::Node(node) => Object::Node(node),
+            Object::Node(node) => Object::Node(CanonicalRef::new(node)),
             Object::Type(type_id) => Object::Type(type_id),
         },
         evidence: assertion.evidence,

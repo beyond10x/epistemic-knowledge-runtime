@@ -4,7 +4,7 @@
 //! the fold is a *verification* rather than a copy — `docs/roadmap.md` § 4's P1 exit criterion is
 //! that "replay from the seed reproduces the root hash", and reproducing means computing.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use ekr_core::canonical::{Canonical, Encoder};
 use ekr_core::{AssertionId, ContentHash, EdgeId, NodeId, RevisionNumber, TransactionId};
@@ -68,6 +68,78 @@ impl Canonical for KnowledgeState<'_> {
         self.edges.encode(out);
         self.assertions.encode(out);
     }
+}
+
+/// What a `ekr.kernel.TransactionValidated` event says: a **claim** that a transaction was
+/// validated, until something stands behind it.
+///
+/// The three fields of the event, and nothing derived. The fold holds one of these per validated
+/// transaction and asks its [`CommitAuthority`] about it when the commit arrives.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct RecordedValidation {
+    /// The transaction the event named.
+    pub transaction_id: TransactionId,
+    /// The revision it says the transaction was validated against — design § 71, and what makes
+    /// § 72's stale commit detectable.
+    pub against: RevisionNumber,
+    /// The address it gave the validation result.
+    pub validation_hash: ContentHash,
+}
+
+/// Whatever the fold asks before it lets a commit move canonical state.
+///
+/// `architecture-decision-record:0007-the-commit-path-is-the-kernels`. AGENTS.md invariant 1 says
+/// only a `ValidatedTransaction` commits, and until ADR 0007 nothing carried the second half:
+/// [`RevisionLog::append`] is public and takes a bare [`RevisionEvent`], and the fold treated an
+/// appended `TransactionValidated` as proof — *by anyone, carrying any hash*. The independent
+/// review of the P1 core measured a commit landing at revision 1 in a process that cannot link
+/// `ekr-kernel`.
+///
+/// # Why this is a trait here rather than a type
+///
+/// `ekr-store` sits **below** `ekr-kernel` in the workspace order (`docs/roadmap.md` § 3), so this
+/// crate cannot name `ValidatedTransaction` and [`append`](RevisionLog::append) cannot take one.
+/// Sealing does not help either: a sealed trait declared here is unimplementable *outside* here,
+/// which excludes `ekr-kernel` along with everybody else, and Rust has no way to say *only that
+/// other crate*.
+///
+/// So the guarantee is stated where it can actually hold, and ADR 0007 says so rather than
+/// implying more: **no consumer of this runtime can reach a writer to canonical state without a
+/// `ValidatedTransaction`** — `crates/ekr` declares no `ekr-store` dependency, `ekr-kernel` is the
+/// only crate that does, and the implementation of this trait it injects is one only a
+/// `ValidatedTransaction` can add to. Within the workspace that is the dependency graph and two
+/// cases that read it (`crates/ekr/tests/story_contract.rs`), not a type.
+///
+/// # And a commit it refuses is not an error
+///
+/// The fold does not apply a commit this authority declines, and **reports no failure**: the head
+/// stays where it was. That is deliberate and is the difference between a refusal of a *lineage*
+/// and a refusal of a *claim*. A log is append-only and its writer is not this crate; making an
+/// unattested commit poison the fold would let one append permanently brick every read of the
+/// lineage, which is a worse answer than the true one — that the commit did not move canonical
+/// state. `StoreError::ValidationMissing` stays for the lineage that is genuinely malformed: a
+/// commit with no validation event at all behind it, or one that was rejected.
+///
+/// A store opened without an authority therefore folds **no** commit, and
+/// [`RevisionLog::fold`] says so with [`StoreError::NoCommitAuthority`] rather than answering a
+/// state it has no basis for. After ADR 0007 the only way to a store is through `ekr-kernel`, which
+/// injects one, and this crate's own suite injects a stub whose doc says exactly which validations
+/// it stands behind.
+///
+/// # It is a port, and `systems/ekr/domains/store.yaml` does not declare it
+///
+/// This trait, [`RecordedValidation`] and `EventlogStore::under` are public surface carrying half
+/// of an `AGENTS.md` invariant, and they appear in no domain entry and in no story: the ESS domain
+/// models entities and events, and a port a neighbouring crate implements is neither. Recorded
+/// rather than left for a reader to notice, and raised by the adversary of wave p1-06; the
+/// coordinator holds the question of whether `systems/` should grow a way to say it, because
+/// `systems/` is not this crate's to edit.
+pub trait CommitAuthority {
+    /// Whether this authority stands behind `validation`.
+    ///
+    /// It is asked once per commit, about the claim the log recorded, and its answer decides
+    /// whether the lineage advances under that transaction.
+    fn attests(&self, validation: &RecordedValidation) -> bool;
 }
 
 /// What an append did: wrote the event, or recognised a request already on record.
@@ -181,7 +253,7 @@ pub trait RevisionLog {
 ///
 /// Held by the implementation while it walks the stream. Not public: what a caller gets is the
 /// graph or the head, and a half-applied lineage is neither.
-pub(crate) struct Fold {
+pub(crate) struct Fold<'a> {
     /// The state, as far as the events have moved it.
     graph: CanonicalGraph,
     /// The root of the last revision committed, or the seed's.
@@ -189,14 +261,27 @@ pub(crate) struct Fold {
     /// Transactions that have been proposed and not yet resolved, by the address of their
     /// operations — which is what a committed [`Root`] carries as its `transaction`.
     proposed: BTreeMap<TransactionId, ContentHash>,
-    /// Which of those have been validated. Design § 20 and AGENTS.md invariant 1: only a validated
-    /// transaction commits, and the fold is where the log is held to it.
-    validated: BTreeSet<TransactionId>,
+    /// What the log *claims* about each of those, for the ones a `TransactionValidated` named.
+    ///
+    /// A claim and not a conclusion, which is the whole of ADR 0007 in this struct: it was a
+    /// `BTreeSet<TransactionId>` filled by the arrival of an event, so appending one was the same
+    /// thing as being validated.
+    validated: BTreeMap<TransactionId, RecordedValidation>,
+    /// What decides whether a claim in `validated` moves canonical state, or `None` for a store
+    /// opened without one — which folds no commit at all. See [`CommitAuthority`].
+    authority: Option<&'a dyn CommitAuthority>,
+    /// The first commit this fold could not evaluate **because there was nobody to ask**, which is
+    /// a different thing from one an authority declined and is reported rather than absorbed.
+    unauthorised: Option<TransactionId>,
 }
 
-impl Fold {
+impl<'a> Fold<'a> {
     /// The fold at the seed: revision zero, no parent, the seed's own state.
-    pub(crate) fn seeded(mut graph: CanonicalGraph, seed_hash: ContentHash) -> Self {
+    pub(crate) fn seeded(
+        mut graph: CanonicalGraph,
+        seed_hash: ContentHash,
+        authority: Option<&'a dyn CommitAuthority>,
+    ) -> Self {
         graph.revision = RevisionNumber::SEED;
         let head = Root {
             revision: RevisionNumber::SEED,
@@ -213,7 +298,9 @@ impl Fold {
             graph,
             head,
             proposed: BTreeMap::new(),
-            validated: BTreeSet::new(),
+            validated: BTreeMap::new(),
+            authority,
+            unauthorised: None,
         }
     }
 
@@ -251,13 +338,27 @@ impl Fold {
             } => {
                 self.proposed.insert(*transaction_id, *operations_hash);
             }
-            RevisionEvent::TransactionValidated { transaction_id, .. } => {
+            RevisionEvent::TransactionValidated {
+                transaction_id,
+                against,
+                validation_hash,
+            } => {
                 if !self.proposed.contains_key(transaction_id) {
                     return Err(StoreError::ProposalMissing {
                         transaction_id: *transaction_id,
                     });
                 }
-                self.validated.insert(*transaction_id);
+                // Recorded, not believed. What the event says is kept whole — including the
+                // `against` the fold used to discard — and [`Fold::commit`] is where it is asked
+                // whether any of it stands.
+                self.validated.insert(
+                    *transaction_id,
+                    RecordedValidation {
+                        transaction_id: *transaction_id,
+                        against: *against,
+                        validation_hash: *validation_hash,
+                    },
+                );
             }
             RevisionEvent::TransactionRejected { transaction_id, .. }
             | RevisionEvent::TransactionStale { transaction_id, .. } => {
@@ -281,13 +382,44 @@ impl Fold {
         number: RevisionNumber,
         published: ContentHash,
     ) -> Result<(), StoreError> {
-        if !self.validated.remove(&transaction_id) {
-            return Err(StoreError::ValidationMissing { transaction_id });
-        }
+        let validation = self
+            .validated
+            .remove(&transaction_id)
+            .ok_or(StoreError::ValidationMissing { transaction_id })?;
         let operations = self
             .proposed
             .remove(&transaction_id)
             .ok_or(StoreError::ProposalMissing { transaction_id })?;
+
+        // Two different things, and the difference is whose error it is.
+        //
+        // **Nobody to ask** is the caller's: this store was opened without an authority, so it
+        // cannot say whether the commit stands. The lineage does not advance and the fold records
+        // it, and `RevisionLog::fold` turns that into `StoreError::NoCommitAuthority` rather than
+        // answering a state it has no basis for.
+        let Some(authority) = self.authority else {
+            self.unauthorised.get_or_insert(transaction_id);
+            return Ok(());
+        };
+        // **Asked and declined** is the log's, and is silent. AGENTS.md invariant 1 at the one
+        // place this crate can carry it: a validation the authority does not stand behind is a
+        // claim in an append-only log and not a commit. The transaction is resolved either way —
+        // it is out of `proposed` and `validated` above — and the lineage does not advance under
+        // it. Silent because an error here would let one append by anyone with the log brick every
+        // later read of it, which is a worse answer than the true one.
+        if !authority.attests(&validation) {
+            return Ok(());
+        }
+
+        // Design § 72: "a transaction is committed only against the revision it was validated
+        // against". The fold was handed that revision in `TransactionValidated.against` and threw
+        // it away, so a transaction validated at revision 0 that another revision landed under
+        // replayed as valid — a replay reporting as reproducible a lineage the design calls stale.
+        // It does not advance the lineage, for the reason an unattested one does not: the log
+        // records that the kernel claimed it, and the fold records that it did not take.
+        if validation.against != self.head.revision {
+            return Ok(());
+        }
 
         let expected = self
             .head
@@ -326,6 +458,11 @@ impl Fold {
             transaction: operations,
         };
         Ok(())
+    }
+
+    /// The first commit this fold had nobody to ask about, if there was one.
+    pub(crate) const fn unauthorised(&self) -> Option<TransactionId> {
+        self.unauthorised
     }
 
     /// The state the events moved.

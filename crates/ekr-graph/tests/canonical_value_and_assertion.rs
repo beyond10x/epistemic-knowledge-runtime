@@ -24,9 +24,9 @@ use ekr_core::{
     ObservationId, PropertyId, RevisionNumber, SupportId, Timestamp, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalValue, Confidence, Edge, Evidence, EvidenceSource, InadmissibleValue, Node,
-    Object, Observation, ObservationContent, Predicate, RetractionReason, Subject, Support,
-    TemporalRange, TransactionTime, ValidationState,
+    Assertion, CanonicalRef, CanonicalValue, Confidence, Edge, Evidence, EvidenceSource,
+    InadmissibleValue, Node, Object, Observation, ObservationContent, Predicate, RetractionReason,
+    Subject, Support, TemporalRange, TransactionTime, ValidationState,
 };
 use ekr_ontology::Value;
 
@@ -181,8 +181,8 @@ fn a_node_and_an_edge_property_carry_only_an_admissible_value() {
         EdgeId::mint(),
         GraphRootId::mint(),
         TypeId::mint(),
-        NodeId::mint(),
-        NodeId::mint(),
+        CanonicalRef::new(NodeId::mint()),
+        CanonicalRef::new(NodeId::mint()),
     );
     edge.properties.insert(property, held.clone());
     assert_eq!(edge.properties.get(&property), Some(&held));
@@ -198,7 +198,7 @@ fn assertion(ids: [u128; 6]) -> Assertion {
     Assertion {
         id: id(ids[0]),
         root_id: id(ids[1]),
-        subject: Subject::Node(id(ids[2])),
+        subject: Subject::Node(CanonicalRef::new(id(ids[2]))),
         predicate: Predicate::Property(id(ids[3])),
         object: Object::Value(
             CanonicalValue::try_from(Value::String("Acme".to_owned())).expect("admissible"),
@@ -270,7 +270,7 @@ const MUTATIONS: [Mutation; 30] = [
         a.subject = Subject::Edge(id::<EdgeId>(3));
     }),
     ("subject", |a| {
-        a.subject = Subject::Node(id::<NodeId>(97));
+        a.subject = Subject::Node(CanonicalRef::new(id::<NodeId>(97)));
     }),
     ("predicate", |a| {
         a.predicate = Predicate::Relation(id::<TypeId>(4));
@@ -284,7 +284,7 @@ const MUTATIONS: [Mutation; 30] = [
         );
     }),
     ("object", |a| {
-        a.object = Object::Node(id::<NodeId>(3));
+        a.object = Object::Node(CanonicalRef::new(id::<NodeId>(3)));
     }),
     ("evidence", |a| {
         a.evidence.insert(id::<EvidenceId>(7));
@@ -548,7 +548,13 @@ fn node() -> Node {
 
 /// The canonical edge every edge mutation below is a single step from.
 fn edge() -> Edge {
-    let mut edge = Edge::new(id(61), id(62), id(63), id(64), id(65));
+    let mut edge = Edge::new(
+        id(61),
+        id(62),
+        id(63),
+        CanonicalRef::new(id(64)),
+        CanonicalRef::new(id(65)),
+    );
     edge.properties
         .insert(id::<PropertyId>(66), CanonicalValue::Integer(2));
     edge
@@ -600,8 +606,8 @@ const EDGE_MUTATIONS: [EdgeMutation; 7] = [
     // Separately, and each against the base: an encoding that wrote `source` twice would leave the
     // `target` row equal to the base, and one that dropped `source` would leave the `source` row
     // equal to it.
-    ("source", |e| e.source = id::<NodeId>(99)),
-    ("target", |e| e.target = id::<NodeId>(99)),
+    ("source", |e| e.source = CanonicalRef::new(id::<NodeId>(99))),
+    ("target", |e| e.target = CanonicalRef::new(id::<NodeId>(99))),
     ("properties", |e| {
         e.properties
             .insert(id::<PropertyId>(66), CanonicalValue::Integer(3));
@@ -664,7 +670,13 @@ fn graph_state_equal_in_every_field_hashes_equally() {
     assert_eq!(other, node());
     assert_eq!(ContentHash::of(&other), ContentHash::of(&node()));
 
-    let mut same_edge = Edge::new(id(61), id(62), id(63), id(64), id(65));
+    let mut same_edge = Edge::new(
+        id(61),
+        id(62),
+        id(63),
+        CanonicalRef::new(id(64)),
+        CanonicalRef::new(id(65)),
+    );
     same_edge
         .properties
         .insert(id::<PropertyId>(66), CanonicalValue::Integer(2));
@@ -1465,18 +1477,39 @@ fn canonical_implementors(source: &str) -> Vec<String> {
         .collect()
 }
 
-/// The body of the `Canonical` implementation for one type, in whichever of the two forms it is
-/// written.
+/// The body of the `Canonical` implementation for one type, whatever bounds it carries.
 fn implementation_body(source: &str, type_name: &str) -> String {
-    for head in [
-        format!("impl Canonical for {type_name} {{"),
-        format!("impl<V: Canonical> Canonical for {type_name}<V> {{"),
-    ] {
-        if let Some(at) = source.find(&head) {
-            return block_from(source, at + head.len() - 1);
+    let at = canonical_impl_head(source, type_name)
+        .unwrap_or_else(|| panic!("the crate implements Canonical for {type_name}"));
+    block_from(source, at)
+}
+
+/// The `{` that opens `impl … Canonical for <type_name> …`, whatever bounds the implementation
+/// carries.
+///
+/// **Structural, and deliberately not a list of spellings.** The list was two —
+/// `impl Canonical for Root {` and `impl<V: Canonical> Canonical for Node<V> {` — and
+/// `architecture-decision-record:0008-canonical-state-references-are-typed` added a third,
+/// `impl<V: ValueSpace + Canonical> Canonical for Edge<V> {`, at which point a scan enumerating
+/// spellings reported the type as having *no implementation at all*. A rule enumerated by its
+/// instances has a next instance; this one reads the shape — a line beginning `impl`, naming
+/// `Canonical for` the type at an identifier boundary, and opening a block.
+fn canonical_impl_head(source: &str, type_name: &str) -> Option<usize> {
+    let needle = format!(" Canonical for {type_name}");
+    source.match_indices(&needle).find_map(|(at, _)| {
+        let line_start = source[..at].rfind('\n').map_or(0, |n| n + 1);
+        if !source[line_start..at].trim_start().starts_with("impl") {
+            return None;
         }
-    }
-    panic!("the crate implements Canonical for {type_name}")
+        // The next character after the name is what keeps `Node` from matching `NodeDraft`.
+        if !source[at + needle.len()..].starts_with(['<', ' ', '{']) {
+            return None;
+        }
+        let line_end = source[at..]
+            .find('\n')
+            .map_or(source.len(), |offset| at + offset);
+        source[at..line_end].rfind('{').map(|offset| at + offset)
+    })
 }
 
 /// The text from the `{` at `at` through the `}` that matches it.

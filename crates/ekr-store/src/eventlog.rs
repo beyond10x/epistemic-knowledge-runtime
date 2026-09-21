@@ -38,7 +38,7 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use tokio::runtime::{Builder, Runtime};
 
-use crate::log::{Appended, Fold};
+use crate::log::{Appended, CommitAuthority, Fold};
 use crate::{GraphDocument, ObjectStore, RevisionLog, StorageClass, StoreError, StoredObject};
 
 /// The stream type one tenant's revision lineage lives under.
@@ -126,6 +126,13 @@ pub struct EventlogStore<S: EventStore> {
     /// from — the same gap that leaves `Root.ontology_root` a placeholder in P1
     /// (`task:two-of-the-five-revision-sub-roots-are-placeholders`).
     ontology: Ontology,
+    /// What the fold asks before a commit moves canonical state, or `None`.
+    ///
+    /// `None` is the honest default and not an oversight: a store is opened with a path, a tenant
+    /// and a schema, none of which says anything about who may commit into it, and a fold that
+    /// assumed an absent authority meant "anyone" is the defect ADR 0007 repairs. See
+    /// [`CommitAuthority`] and [`EventlogStore::under`].
+    authority: Option<Box<dyn CommitAuthority>>,
 }
 
 impl EventlogStore<SqliteEventStore> {
@@ -181,7 +188,20 @@ impl<S: EventStore> EventlogStore<S> {
             store,
             tenant: TenantId::new(tenant)?,
             ontology,
+            authority: None,
         })
+    }
+
+    /// The same store, folding commits `authority` stands behind.
+    ///
+    /// `architecture-decision-record:0007-the-commit-path-is-the-kernels`. Its one caller in the
+    /// workspace is `ekr-kernel`, which is the only crate that declares this one; a store that
+    /// never passes through it folds no commit, which is what
+    /// `crates/ekr-store/tests/review_p1_invariant_one_at_the_store.rs` reads.
+    #[must_use]
+    pub fn under(mut self, authority: impl CommitAuthority + 'static) -> Self {
+        self.authority = Some(Box::new(authority));
+        self
     }
 
     /// Writes `graph` as a content-addressed object, under [`StorageClass::Canonical`].
@@ -269,7 +289,11 @@ impl<S: EventStore> EventlogStore<S> {
 
     /// Folds the lineage from `from`, reading `limit` events at a time, or refuses because there
     /// is no state to begin at.
-    fn fold_from(&self, from: RevisionNumber, limit: usize) -> Result<Option<Fold>, StoreError> {
+    fn fold_from(
+        &self,
+        from: RevisionNumber,
+        limit: usize,
+    ) -> Result<Option<Fold<'_>>, StoreError> {
         if from != RevisionNumber::SEED {
             return Err(StoreError::NoMaterialisedState { requested: from });
         }
@@ -285,7 +309,7 @@ impl<S: EventStore> EventlogStore<S> {
         })?;
         let seed = GraphDocument::from_bytes(&bytes)?.into_canonical(self.ontology.clone())?;
 
-        let mut fold = Fold::seeded(seed, *seed_hash);
+        let mut fold = Fold::seeded(seed, *seed_hash, self.authority.as_deref());
         for event in rest {
             fold.apply(event)?;
         }
@@ -375,6 +399,23 @@ impl<S: EventStore> EventlogStore<S> {
         }
     }
 
+    /// The state a completed fold reached, or the refusal that says this store could not evaluate
+    /// the lineage at all.
+    ///
+    /// [`RevisionLog::fold`] and [`RevisionLog::replay`] answer *what canonical state is*, and a
+    /// store opened with no [`CommitAuthority`] cannot say: it has a commit in front of it and
+    /// nobody to ask about it. [`RevisionLog::head`] deliberately does not go through here — how
+    /// far the lineage verifiably got is a question with a total answer, the seed, and the case
+    /// that reads AGENTS.md invariant 1 from a process with no `ekr-kernel` in it asks exactly
+    /// that.
+    fn state(folded: Option<Fold<'_>>) -> Result<CanonicalGraph, StoreError> {
+        let folded = folded.ok_or(StoreError::NotSeeded)?;
+        if let Some(transaction_id) = folded.unauthorised() {
+            return Err(StoreError::NoCommitAuthority { transaction_id });
+        }
+        Ok(folded.into_graph())
+    }
+
     /// Records that someone asked for `storage_class` over bytes already stored.
     ///
     /// Append-only: the earlier record is not rewritten, because an object's history is immutable
@@ -460,9 +501,7 @@ impl<S: EventStore> RevisionLog for EventlogStore<S> {
     }
 
     fn fold(&self) -> Result<CanonicalGraph, StoreError> {
-        self.fold_from(RevisionNumber::SEED, MAX_READ_LIMIT)?
-            .map(Fold::into_graph)
-            .ok_or(StoreError::NotSeeded)
+        Self::state(self.fold_from(RevisionNumber::SEED, MAX_READ_LIMIT)?)
     }
 
     fn head(&self) -> Result<Option<Root>, StoreError> {
@@ -481,9 +520,7 @@ impl<S: EventStore> RevisionLog for EventlogStore<S> {
     /// repeated an event at a page boundary would show as a disagreement rather than as a fold
     /// that quietly stopped early.
     fn replay(&self, from: RevisionNumber) -> Result<CanonicalGraph, StoreError> {
-        self.fold_from(from, 1)?
-            .map(Fold::into_graph)
-            .ok_or(StoreError::NotSeeded)
+        Self::state(self.fold_from(from, 1)?)
     }
 }
 

@@ -33,8 +33,9 @@ use ekr_core::{
     Timestamp, TypeId,
 };
 use ekr_graph::{
-    Assertion, AssertionStatus, CanonicalGraph, GraphRoot, GraphSnapshot, Node, Object, Predicate,
-    RetractionReason, Space, Subject, TemporalRange, TransactionTime, ValidationState,
+    Assertion, AssertionStatus, CanonicalGraph, CanonicalRef, GraphRoot, GraphSnapshot, Node,
+    Object, Predicate, RetractionReason, Space, Subject, TemporalRange, TransactionTime,
+    ValidationState,
 };
 use ekr_ontology::{EdgeType, NodeType, Ontology, OntologyDocument, SchemaVersion};
 
@@ -98,9 +99,9 @@ fn fixture() -> Fixture {
             Assertion {
                 id,
                 root_id,
-                subject: Subject::Node(subject),
+                subject: Subject::Node(CanonicalRef::new(subject)),
                 predicate: Predicate::Relation(ceo_of),
-                object: Object::Node(acme),
+                object: Object::Node(CanonicalRef::new(acme)),
                 evidence: BTreeSet::from([EvidenceId::mint()]),
                 proposed_by: proposer,
                 validation,
@@ -176,7 +177,7 @@ fn subject_name<'a>(graph: &'a CanonicalGraph, assertion: &Assertion) -> &'a str
     let Subject::Node(node) = assertion.subject else {
         panic!("the fixture's subjects are nodes");
     };
-    graph.nodes[&node].canonical_name.as_str()
+    graph.nodes[&node.node()].canonical_name.as_str()
 }
 
 /// **The acceptance.** `valid_at(t)` answers Alice before the handover and Bob at or after it.

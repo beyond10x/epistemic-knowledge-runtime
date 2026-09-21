@@ -38,10 +38,22 @@ fn the_sealed_reference_types_are_sound_and_canonical_state_holds_none_of_them()
     cases.compile_fail("tests/review_p1_compile_fail/*.rs");
 }
 
-/// The same crossing at run time: canonical state holding an edge into a transient root, and the
-/// only answer the crate can give is `None`.
+/// The same crossing at run time — **and after ADR 0008 there is no such value to build.**
+///
+/// This case asserted the defect: it built a `CanonicalGraph` holding an `Edge` whose `target` was
+/// a candidate's id, and asserted that resolving it answered something, so that the only way to
+/// green was for the construction to stop being a type.
+/// `architecture-decision-record:0008-canonical-state-references-are-typed` did that — `Edge`'s two
+/// ends are `CanonicalRef<Node>` where the value is canonical — and the case's own three lines stop
+/// compiling with it: `Edge::new(…, candidate_id)` is a type error, and so is
+/// `CanonicalRef::<Node>::new(edge.target)`, because `target` is already one.
+///
+/// A case staged through the path the fix closes cannot survive the fix, and the trybuild case
+/// above is the same assertion in the form that can: it *is* the build failure. What is left to
+/// read at run time is the other half of the sentence — what canonical state does hold, and what it
+/// answers for a reference it does not.
 #[test]
-fn canonical_state_holds_an_edge_into_a_transient_root_and_no_type_refuses_it() {
+fn canonical_state_resolves_the_references_it_holds_and_answers_none_for_one_it_does_not() {
     let schema = SchemaVersionId::mint();
     let ontology = Ontology::load(OntologyDocument {
         version: SchemaVersion::seed(schema, Timestamp::EPOCH),
@@ -73,24 +85,31 @@ fn canonical_state_holds_an_edge_into_a_transient_root_and_no_type_refuses_it() 
         assertions: BTreeMap::new(),
     };
 
-    // Canonical state, holding an edge whose target is that candidate.
+    // Canonical state, holding an edge between two nodes it holds. Its ends are references and not
+    // ids, so the edge into the forest the trybuild case writes is not a value of this type.
     let canonical_root = root(Space::Canonical);
     let held = Node::new(NodeId::mint(), canonical_root.id, TypeId::mint(), "held");
-    let into_the_forest = Edge::new(
+    let also_held = Node::new(
+        NodeId::mint(),
+        canonical_root.id,
+        TypeId::mint(),
+        "also-held",
+    );
+    let between = Edge::new(
         EdgeId::mint(),
         canonical_root.id,
         TypeId::mint(),
-        held.id,
-        candidate_id,
+        CanonicalRef::new(held.id),
+        CanonicalRef::new(also_held.id),
     );
     let canonical = CanonicalGraph {
         root: canonical_root,
         revision: RevisionNumber::SEED,
         ontology,
-        nodes: [(held.id, held)].into_iter().collect(),
-        edges: [(into_the_forest.id, into_the_forest)]
+        nodes: [(held.id, held), (also_held.id, also_held)]
             .into_iter()
             .collect(),
+        edges: [(between.id, between)].into_iter().collect(),
         assertions: BTreeMap::new(),
         evidence: BTreeMap::new(),
     };
@@ -107,9 +126,7 @@ fn canonical_state_holds_an_edge_into_a_transient_root_and_no_type_refuses_it() 
         "the target is a candidate of the transient root"
     );
 
-    // The edge is in canonical state and its target is that candidate. The reference types were
-    // never in the path — the edge carries a `NodeId` — so the only thing left to ask is whether
-    // canonical state resolves what it holds.
+    // What canonical state holds, it resolves.
     let target = canonical
         .edges
         .values()
@@ -117,12 +134,19 @@ fn canonical_state_holds_an_edge_into_a_transient_root_and_no_type_refuses_it() 
         .expect("the edge is held")
         .target;
     assert!(
+        canonical.resolve(&target).is_some(),
+        "canonical state resolves a reference it holds"
+    );
+
+    // And a canonical reference to an id canonical state does not hold is answered `None` — which
+    // is a *dangling* reference and a different thing from the forbidden one. The type refuses the
+    // crossing; the kernel's reference validator refuses the dangle. Minting this one is the only
+    // way to write it at all, and it is still not the crossing: nothing here says the id belongs to
+    // a transient root, and no type could, because an id does not carry which side it came from.
+    assert!(
         canonical
-            .resolve(&CanonicalRef::<Node>::new(target))
-            .is_some(),
-        "AGENTS.md invariant 2: a Canonical → Transient reference is unrepresentable at the type \
-         level; canonical state holds an edge whose target {target} is a candidate of a transient \
-         root, built from public fields with no CanonicalRef in the path, and resolution answers \
-         None rather than the crossing being a type error"
+            .resolve(&CanonicalRef::<Node>::new(candidate_id))
+            .is_none(),
+        "a reference canonical state does not hold resolves to None rather than to something"
     );
 }

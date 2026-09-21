@@ -50,7 +50,16 @@ a dependency; their data enters through the import policy in `docs/predecessors.
 Each is a claim that can be checked. Breaking one is a design change, not a refactor.
 
 1. **Only `ekr-kernel` constructs a `ValidatedTransaction`, and only a `ValidatedTransaction`
-   commits.** No other crate holds a writer to canonical state. Agents propose; they never mutate.
+   commits.** The first half is a type — the constructor is `pub(crate)` and the type derives no
+   `Deserialize` — and two compile-fail cases hold it. The second half is **not** a type and this
+   sentence no longer implies one: `ekr-store` sits below `ekr-kernel`, so its writer cannot take a
+   `ValidatedTransaction`, and a sealed trait there would exclude `ekr-kernel` along with everybody
+   else (`architecture-decision-record:0007-the-commit-path-is-the-kernels`). What holds is that no
+   consumer of this runtime can reach a writer to canonical state without a `ValidatedTransaction`:
+   `ekr-store`'s fold moves canonical state only for a validation its injected `CommitAuthority`
+   stands behind, and `ekr-kernel` is the only crate that declares `ekr-store` or implements that
+   trait in a `src/`. Both of those are read off this tree by `crates/ekr/tests/story_contract.rs`,
+   by a case and not by the compiler. Agents propose; they never mutate.
 2. **Canonical knowledge depends only on canonical knowledge or retained admissible evidence.**
    A `Canonical → Transient` reference is unrepresentable at the type level, not merely refused.
 3. **Names are not identities.** Every persistent object carries a stable id; a human-readable name

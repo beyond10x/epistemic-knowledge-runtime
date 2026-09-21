@@ -23,8 +23,8 @@ use ekr_core::{
     SchemaVersionId, Timestamp, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalGraph, GraphRoot, GraphSnapshot, Object, Predicate, RetractionReason,
-    Space, Subject, TemporalRange, TransactionTime, ValidationState,
+    Assertion, CanonicalGraph, CanonicalRef, GraphRoot, GraphSnapshot, Object, Predicate,
+    RetractionReason, Space, Subject, TemporalRange, TransactionTime, ValidationState,
 };
 use ekr_ontology::{Ontology, OntologyDocument, SchemaVersion};
 
@@ -72,9 +72,9 @@ fn assertion(valid_time: TemporalRange, validation: ValidationState) -> Assertio
     Assertion {
         id,
         root_id: GraphRootId::mint(),
-        subject: Subject::Node(NodeId::mint()),
+        subject: Subject::Node(CanonicalRef::new(NodeId::mint())),
         predicate: Predicate::Relation(TypeId::mint()),
-        object: Object::Node(NodeId::mint()),
+        object: Object::Node(CanonicalRef::new(NodeId::mint())),
         evidence: BTreeSet::from([EvidenceId::mint()]),
         proposed_by: AgentId::mint(),
         validation,
@@ -390,9 +390,9 @@ fn the_domain_requires_a_recorded_from_and_the_crate_cannot_omit_one() {
     let held: Assertion = Assertion {
         id: AssertionId::mint(),
         root_id: GraphRootId::mint(),
-        subject: Subject::Node(NodeId::mint()),
+        subject: Subject::Node(CanonicalRef::new(NodeId::mint())),
         predicate: Predicate::Relation(TypeId::mint()),
-        object: Object::Node(NodeId::mint()),
+        object: Object::Node(CanonicalRef::new(NodeId::mint())),
         evidence: BTreeSet::new(),
         proposed_by: AgentId::mint(),
         validation: ValidationState::Accepted {

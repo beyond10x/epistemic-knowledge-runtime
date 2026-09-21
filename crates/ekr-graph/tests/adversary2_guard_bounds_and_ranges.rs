@@ -22,8 +22,8 @@ use ekr_core::{
     Timestamp, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalGraph, GraphRoot, GraphSnapshot, Object, Predicate, Space, Subject,
-    TemporalRange, TransactionTime, ValidationState,
+    Assertion, CanonicalGraph, CanonicalRef, GraphRoot, GraphSnapshot, Object, Predicate, Space,
+    Subject, TemporalRange, TransactionTime, ValidationState,
 };
 use ekr_ontology::{Ontology, OntologyDocument, SchemaVersion};
 
@@ -371,9 +371,9 @@ fn accepted_assertion(valid_time: TemporalRange, transaction_time: TransactionTi
     Assertion {
         id,
         root_id: GraphRootId::mint(),
-        subject: Subject::Node(NodeId::mint()),
+        subject: Subject::Node(CanonicalRef::new(NodeId::mint())),
         predicate: Predicate::Relation(TypeId::mint()),
-        object: Object::Node(NodeId::mint()),
+        object: Object::Node(CanonicalRef::new(NodeId::mint())),
         evidence: BTreeSet::from([EvidenceId::mint()]),
         proposed_by: AgentId::mint(),
         validation: ValidationState::Accepted {
