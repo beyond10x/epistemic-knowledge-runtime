@@ -47,8 +47,13 @@ types:
       - Canonical
       - Transient
 
-  # Design § 17 and § 36, flattened to the state names. The payload of each state (validators,
-  # issues, competing assertions, the superseding assertion) lives in the fields beside it.
+  # Design § 17 and § 36, flattened to the state names. Only one state's payload has a carrier
+  # beside it: a Superseded names the superseding assertion in Assertion.superseded_by. The
+  # validators of an Accepted, the issues of a Rejected, the competing assertions of a Disputed,
+  # and the reason and revision of a Retracted have no field here — ess/1 has no sum type with
+  # per-variant payloads, and a repeated field per state would be four nullable columns that
+  # contradict each other. `crates/ekr-graph/src/assertion.rs` carries those payloads in the
+  # variant, which is where design § 17 puts them.
   - name: ekr.graph.ValidationState
     kind: enum
     variants:

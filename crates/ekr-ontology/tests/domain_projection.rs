@@ -127,3 +127,115 @@ fn the_domain_carries_node_ref_and_enum_parameters_and_no_other_compound_kind() 
         "value.rs must not quote the document's four-kind claim as its justification"
     );
 }
+
+/// Every declaration of the domain, as `(type name, field name, declared type)`.
+fn declared_fields() -> Vec<(String, String, String)> {
+    let document: serde_yaml_ng::Value =
+        serde_yaml_ng::from_str(&domain_text()).expect("the ESS domain parses");
+    let mut found = Vec::new();
+    for declared in ["types", "entities", "views"]
+        .into_iter()
+        .filter_map(|section| document.get(section))
+        .filter_map(serde_yaml_ng::Value::as_sequence)
+        .flatten()
+    {
+        let Some(owner) = declared.get("name").and_then(serde_yaml_ng::Value::as_str) else {
+            continue;
+        };
+        let Some(fields) = declared
+            .get("fields")
+            .and_then(serde_yaml_ng::Value::as_sequence)
+        else {
+            continue;
+        };
+        for field in fields {
+            let (Some(name), Some(declared_type)) = (
+                field.get("name").and_then(serde_yaml_ng::Value::as_str),
+                field.get("type").and_then(serde_yaml_ng::Value::as_str),
+            ) else {
+                continue;
+            };
+            found.push((owner.to_owned(), name.to_owned(), declared_type.to_owned()));
+        }
+    }
+    assert!(
+        found.len() > 10,
+        "the field scan is broken, not the domain: {found:?}"
+    );
+    found
+}
+
+/// Every `.rs` file of this crate's `src/`, as one string.
+fn crate_source() -> String {
+    let directory = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
+    std::fs::read_dir(directory)
+        .expect("the crate has a src/")
+        .map(|entry| entry.expect("a directory entry").path())
+        .filter(|path| path.extension().is_some_and(|e| e == "rs"))
+        .map(|path| std::fs::read_to_string(&path).expect("a source file"))
+        .collect()
+}
+
+/// No field this domain declares as a `Timestamp` is carried here as a bare integer.
+///
+/// `architecture-decision-record:0004-timestamp-in-ekr-core` made `Timestamp` an `ekr-core`
+/// newtype over `i64` milliseconds *because* `ontology.yaml` declares one and `ekr-ontology` does
+/// not depend on `ekr-graph`, where the roadmap had put the type: one domain scalar would
+/// otherwise have two unrelated Rust representations, which is the drift this file exists to
+/// catch.
+///
+/// The check is over the *class* rather than over `created_at`: the domain is read for every field
+/// it declares as a `Timestamp`, and each is required to be a `Timestamp` here. A later domain
+/// field cannot arrive as a bare `i64` and wait for a reviewer to notice.
+#[test]
+fn every_timestamp_the_domain_declares_is_carried_as_a_timestamp() {
+    let source = crate_source();
+    let mut checked = 0usize;
+
+    for (owner, field, declared_type) in declared_fields() {
+        if !declared_type.contains("Timestamp") {
+            continue;
+        }
+        checked += 1;
+        let declaration = format!("pub {field}: ");
+        let at = source.find(&declaration).unwrap_or_else(|| {
+            panic!("{owner}.{field} is declared {declared_type} and this crate declares no field named {field}")
+        });
+        let carried = source[at + declaration.len()..]
+            .lines()
+            .next()
+            .expect("a field declaration is a line")
+            .trim_end_matches(',')
+            .trim();
+        assert!(
+            carried.contains("Timestamp"),
+            "{owner}.{field} is declared {declared_type} and this crate carries it as {carried:?}. \
+             ADR 0004 makes ekr_core::Timestamp the one representation of that scalar."
+        );
+    }
+
+    assert!(
+        checked > 0,
+        "the domain declares no Timestamp field, so this case is checking nothing — \
+         ontology.yaml moved and ADR 0004's premise with it"
+    );
+}
+
+/// The runtime value of a `Timestamp` property is a `Timestamp` too, not only the schema field.
+///
+/// `ekr.ontology.ValueKind` declares `Timestamp` as one of the kinds a property may have, and the
+/// value that inhabits it is `Value::Timestamp`. That variant has no field name, so the case above
+/// cannot see it; this one names it directly. Both halves of ADR 0004's adoption are then held:
+/// the schema's own `created_at`, and the values the schema describes.
+#[test]
+fn a_timestamp_value_carries_a_timestamp() {
+    let source = crate_source();
+    assert!(
+        source.contains("Timestamp(Timestamp)"),
+        "Value::Timestamp carries a bare integer; ADR 0004 adopts ekr_core::Timestamp there too"
+    );
+    assert!(
+        !source.contains("Timestamp(i64)"),
+        "a bare epoch integer survives in this crate"
+    );
+}

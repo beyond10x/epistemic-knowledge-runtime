@@ -21,7 +21,7 @@
 
 use std::collections::BTreeMap;
 
-use ekr_core::{PropertyId, SchemaVersionId, TypeId};
+use ekr_core::{PropertyId, SchemaVersionId, Timestamp, TypeId};
 use ekr_ontology::{
     Cardinality, DeclarationSite, EdgeType, Lifecycle, NodeType, Ontology, OntologyDocument,
     OntologyError, OperationDefinition, PropertyDefinition, SchemaVersion, Transition, ValueKind,
@@ -42,7 +42,7 @@ fn document_with(value_type: ValueType) -> (OntologyDocument, PropertyId) {
 
     (
         OntologyDocument {
-            version: SchemaVersion::seed(SchemaVersionId::mint(), 0),
+            version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
             node_types: vec![subject_type, NodeType::new(other, "Other")],
             edge_types: Vec::new(),
         },
@@ -147,7 +147,7 @@ fn a_node_ref_to_a_type_the_ontology_does_not_declare_is_refused_at_load() {
 
     assert_eq!(
         Ontology::load(OntologyDocument {
-            version: SchemaVersion::seed(SchemaVersionId::mint(), 0),
+            version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
             node_types: vec![subject_type, NodeType::new(other, "Other")],
             edge_types: Vec::new(),
         })
@@ -167,7 +167,7 @@ fn a_parent_the_ontology_does_not_declare_is_refused_at_load() {
 
     assert_eq!(
         Ontology::load(OntologyDocument {
-            version: SchemaVersion::seed(SchemaVersionId::mint(), 0),
+            version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
             node_types: vec![subject_type],
             edge_types: Vec::new(),
         })
@@ -188,7 +188,7 @@ fn a_cycle_in_the_parent_graph_is_refused_at_load() {
     second.parents.insert(a);
 
     let refused = Ontology::load(OntologyDocument {
-        version: SchemaVersion::seed(SchemaVersionId::mint(), 0),
+        version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
         node_types: vec![first, second],
         edge_types: Vec::new(),
     })
@@ -204,7 +204,7 @@ fn a_type_declared_twice_is_refused_at_load() {
     let twice = TypeId::mint();
     assert_eq!(
         Ontology::load(OntologyDocument {
-            version: SchemaVersion::seed(SchemaVersionId::mint(), 0),
+            version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
             node_types: vec![NodeType::new(twice, "A"), NodeType::new(twice, "B")],
             edge_types: Vec::new(),
         })
@@ -224,7 +224,7 @@ fn an_edge_type_with_no_source_or_no_target_types_is_refused_at_load() {
         declared.target_types = targets.into_iter().collect();
         declared.cardinality = Cardinality::Many;
         OntologyDocument {
-            version: SchemaVersion::seed(SchemaVersionId::mint(), 0),
+            version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
             node_types: vec![NodeType::new(node, "Person")],
             edge_types: vec![declared],
         }
@@ -260,7 +260,7 @@ fn a_lifecycle_naming_a_state_it_does_not_have_is_refused_at_load() {
         let mut declared = NodeType::new(subject, "Decision");
         declared.lifecycle = Some(lifecycle);
         OntologyDocument {
-            version: SchemaVersion::seed(SchemaVersionId::mint(), 0),
+            version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
             node_types: vec![declared],
             edge_types: Vec::new(),
         }
@@ -309,7 +309,7 @@ fn an_operation_whose_move_the_lifecycle_does_not_declare_is_refused_at_load() {
         declared.lifecycle = Some(lifecycle.clone());
         declared.operations.insert("reopen".to_owned(), reopen);
         OntologyDocument {
-            version: SchemaVersion::seed(SchemaVersionId::mint(), 0),
+            version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
             node_types: vec![declared],
             edge_types: Vec::new(),
         }
@@ -340,7 +340,7 @@ fn an_operation_with_a_transition_and_no_lifecycle_at_all_is_refused_at_load() {
 
     assert_eq!(
         Ontology::load(OntologyDocument {
-            version: SchemaVersion::seed(SchemaVersionId::mint(), 0),
+            version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
             node_types: vec![declared],
             edge_types: Vec::new(),
         })

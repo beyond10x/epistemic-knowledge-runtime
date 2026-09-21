@@ -143,3 +143,97 @@ proptest! {
         }
     }
 }
+
+/// Two variants of one sum type, carrying byte-identical payloads.
+///
+/// `canonical.rs` rule 5: "two variants carrying the same payload shape would collide, and nothing
+/// about their position distinguishes them, so a sum type carries a variant tag written by
+/// `Encoder::variant` and by nothing else." This is that case, in its smallest form — the whole
+/// payload of each variant is one id, and the two ids are the same one.
+///
+/// `RevisionEvent` in `ekr-graph` is the runtime's first sum type and the reason the writer exists;
+/// the case is written here because the rule and the writer are this crate's.
+#[derive(Debug)]
+enum Either {
+    Left(NodeId),
+    Right(NodeId),
+}
+
+impl Canonical for Either {
+    fn encode(&self, out: &mut ekr_core::Encoder) {
+        match self {
+            Self::Left(node) => {
+                out.variant(0);
+                node.encode(out);
+            }
+            Self::Right(node) => {
+                out.variant(1);
+                node.encode(out);
+            }
+        }
+    }
+}
+
+/// The bytes a variant marker occupies: the tag, then the index as four big-endian bytes.
+const MARKER: usize = 5;
+
+#[test]
+fn two_variants_with_byte_identical_payloads_encode_differently() {
+    let node = NodeId::mint();
+    let left = Either::Left(node).canonical_bytes();
+    let right = Either::Right(node).canonical_bytes();
+
+    assert_eq!(
+        &left[MARKER..],
+        &right[MARKER..],
+        "the case is only worth anything if the payloads really are byte-identical"
+    );
+    assert_ne!(
+        left, right,
+        "two variants of one sum type share an encoding: the variant tag is not being written"
+    );
+    assert_ne!(
+        &left[..MARKER],
+        &right[..MARKER],
+        "the marker is what separates them, and it does not"
+    );
+}
+
+#[test]
+fn a_variant_marker_is_its_own_shape() {
+    let mut encoder = ekr_core::Encoder::new();
+    encoder.variant(0);
+    let marker = encoder.finish();
+    assert_eq!(
+        marker.len(),
+        MARKER,
+        "the marker is a tag and four index bytes"
+    );
+
+    // A variant index is not an integer, an id or anything else the encoder writes: rule 1 says
+    // every value starts with a byte naming its shape, and a variant marker has its own.
+    for write in [
+        (|out: &mut ekr_core::Encoder| out.unsigned(0)) as fn(&mut ekr_core::Encoder),
+        |out: &mut ekr_core::Encoder| out.signed(0),
+        |out: &mut ekr_core::Encoder| out.id(0),
+        |out: &mut ekr_core::Encoder| out.unit(),
+        |out: &mut ekr_core::Encoder| out.boolean(false),
+        |out: &mut ekr_core::Encoder| out.string(""),
+        |out: &mut ekr_core::Encoder| out.bytes(b""),
+        |out: &mut ekr_core::Encoder| out.option(None::<&u64>),
+        |out: &mut ekr_core::Encoder| out.list([&0u64; 0].into_iter()),
+    ] {
+        let mut other = ekr_core::Encoder::new();
+        write(&mut other);
+        let other = other.finish();
+        assert_ne!(
+            marker[0], other[0],
+            "the variant tag collides with another shape"
+        );
+    }
+
+    // Index zero and index one are different markers, or an enum's first two variants collide.
+    let mut one = ekr_core::Encoder::new();
+    one.variant(1);
+    assert_ne!(marker, one.finish());
+}

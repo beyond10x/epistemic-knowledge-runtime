@@ -10,7 +10,7 @@ use std::fmt;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use ekr_core::{PropertyId, SchemaVersionId, TypeId};
+use ekr_core::{PropertyId, SchemaVersionId, Timestamp, TypeId};
 use serde::{Deserialize, Serialize};
 
 use crate::lifecycle::Transition;
@@ -27,14 +27,15 @@ pub struct SchemaVersion {
     /// The version this one was derived from, or `None` for the seed.
     #[serde(default)]
     pub parent: Option<SchemaVersionId>,
-    /// When it was created, as an epoch offset.
-    pub created_at: i64,
+    /// When it was created: `ekr.ontology.SchemaVersion.created_at`, declared `Timestamp` by
+    /// `systems/ekr/domains/ontology.yaml` and carried as the `ekr-core` newtype ADR 0004 settled.
+    pub created_at: Timestamp,
 }
 
 impl SchemaVersion {
     /// The seed version: number zero, no parent.
     #[must_use]
-    pub const fn seed(id: SchemaVersionId, created_at: i64) -> Self {
+    pub const fn seed(id: SchemaVersionId, created_at: Timestamp) -> Self {
         Self {
             id,
             number: 0,
