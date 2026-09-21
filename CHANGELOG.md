@@ -6,6 +6,14 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Added
 
+- `ekr-graph`: the graph model. Nodes, edges, bitemporal assertions with their evidence, graph and
+  revision roots, and the six-variant revision event vocabulary the kernel publishes and the
+  store persists. `GraphSnapshot` answers one read, `valid_at(Timestamp)` — the current-world
+  query at the caller's now, the historical query at any other instant, because the runtime has no
+  clock. A `Canonical` reference cannot target a transient type: the bound is sealed and three
+  `trybuild` cases hold it (wave p1-04).
+- `ekr-core`: `Timestamp`, an `i64` millisecond newtype, and `Encoder::variant`, the variant tag a
+  sum type carries under the canonical encoding (wave p1-04).
 - `ekr-ontology`: the ontology document and its type checker. Node and edge types with parents,
   properties and cardinality; a `ValueType`/`Value` pair that makes `employer = NodeRef(..)`
   checkable and `employer = "OpenAI"` not; per-type lifecycles and named operations. A document

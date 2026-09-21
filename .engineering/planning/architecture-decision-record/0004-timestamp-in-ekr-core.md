@@ -6,7 +6,7 @@ status: accepted
 title: ADR 0004 — Timestamp is an ekr-core newtype over i64 milliseconds
 relations:
 - decides: story:graph-model-and-assertions
-revision: 2
+revision: 3
 ---
 ## Status
 
@@ -21,10 +21,9 @@ epoch in UTC**. It carries a `Canonical` impl that is structural over the intege
 discriminant, per `task:canonical-newtype-discriminant` — and a decimal text form through `Display`
 and `FromStr`, matching how `RevisionNumber` is treated in `crates/ekr-core/src/identity.rs`.
 
-`ekr-ontology` adopts it at its three existing sites: `Value::Timestamp`,
-`ValueKind::Timestamp`'s payload, and `SchemaVersion::created_at`
-(`crates/ekr-ontology/src/value.rs:208`, `crates/ekr-ontology/src/schema.rs:31`), all of which are
-bare `i64` today.
+`ekr-ontology` adopts it at its two existing sites: `Value::Timestamp`
+(`crates/ekr-ontology/src/value.rs:208`) and `SchemaVersion::created_at`
+(`crates/ekr-ontology/src/schema.rs:31`), both of which are bare `i64` today.
 
 ## Why `ekr-core` and not `ekr-graph`
 
@@ -60,3 +59,14 @@ at the bottom of it.
   Design § 19–20 makes the transaction the thing that stamps a record, and that is P1's later
   waves.
 - No leap-second or monotonicity claim. The type is an integer with an origin and a unit.
+
+
+## Correction, 2026-09-21
+
+This record said **three** `ekr-ontology` sites when it was accepted. There are two. The third it
+named, `ValueKind::Timestamp` / `ValueType::Timestamp` (`value.rs:78`, `value.rs:149`), are unit
+variants carrying no payload, so there was nothing there to change. Measured by the implementor of
+wave p1-04 against the tree; corrected above.
+
+`Value::Duration(i64)` is left as a bare integer and is not covered by this decision. A duration is
+a length of time rather than an instant, and no `Duration` newtype exists.

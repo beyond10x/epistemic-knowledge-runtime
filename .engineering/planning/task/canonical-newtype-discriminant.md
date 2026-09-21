@@ -2,14 +2,14 @@
 format: aep.planning-md/1
 id: task:canonical-newtype-discriminant
 kind: task
-status: active
+status: implemented
 title: The canonical encoding tags sum types and stays structural for newtypes
 relations:
 - informed_by: review-result:adversary-identity-pass-1
 - derived_from: story:kernel-identity-and-hashing
 - informed_by: story:graph-model-and-assertions
 - serves: vision:o2
-revision: 5
+revision: 7
 ---
 ## Context
 
@@ -28,7 +28,7 @@ The two halves of the original question turn out to have different answers becau
 different blast radii.
 
 **Sum types: a tag, enforced by a helper.** `RevisionEvent` (`story:graph-model-and-assertions`,
-wave p1-04) has seven variants. Under a structural encoding, two variants carrying the same payload
+wave p1-04) has six variants. Under a structural encoding, two variants carrying the same payload
 shape encode identically unless every `encode` implementation remembers to write a discriminating
 byte, and nothing enforces that. A convention an implementation can forget is the class of defect
 `Encoder` exists to remove — its own module doc says the helpers are there "so an implementation
@@ -70,3 +70,20 @@ The mechanism lands in wave p1-04, with `story:graph-model-and-assertions`, beca
 tested against a real shape. That story's scope and its shipped tests carry it. The `blocks` edge on
 `story:commit-and-revision-lineage` is therefore taken back: what blocked that story was the
 undecided question, and it is decided.
+
+
+## Closed, 2026-09-21, wave p1-04
+
+`tag::VARIANT` and `Encoder::variant` landed with `story:graph-model-and-assertions`, the writer's
+first caller. `RevisionEvent` calls it for each of its six variants, and
+`crates/ekr-core/tests/canonical_encoding.rs` holds the acceptance: two variants carrying
+byte-identical payloads encode differently.
+
+Two things the adversary of that wave found and the correction closed, which the decision did not
+anticipate. The index `Encoder::variant` writes is **positional in the declaration and
+hand-maintained in a match**, so the hazard is a variant renumbered rather than a variant reordered
+— the doc said the opposite and was corrected. And the case that pins the numbering read only
+struct variants, so a tuple or unit variant inserted mid-list was invisible to it; it now scans all
+three forms and checks the numbers are `0..n` with no gaps.
+
+The count above read "seven variants" when this was written and there are six.
