@@ -2,12 +2,12 @@
 format: aep.planning-md/1
 id: epic:p1-kernel-ontology-core
 kind: epic
-status: draft
+status: active
 title: P1 — Kernel, ontology, canonical core
 relations:
 - decomposes: initiative:epistemic-knowledge-runtime
 - depends_on: epic:p0-bootstrap
-revision: 1
+revision: 3
 ---
 ## Context
 

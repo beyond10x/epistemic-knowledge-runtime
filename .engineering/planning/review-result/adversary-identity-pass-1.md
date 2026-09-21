@@ -1,0 +1,205 @@
+---
+format: aep.planning-md/1
+id: review-result:adversary-identity-pass-1
+kind: review-result
+status: active
+title: Adversary, story:kernel-identity-and-hashing, pass 1
+tags:
+- adversary:aep-drive:adversary
+relations:
+- reviews: story:kernel-identity-and-hashing
+revision: 1
+---
+```
+unit: story:kernel-identity-and-hashing — working tree $HOME/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-impl-kernel-identity (uncommitted, base 2f2acec)
+verdict: NEEDS-CHANGE
+cases: executed 61→70, red 6
+origin: introduced 5 / pre-existing 0 / undecided 0
+wrote-outside-worktree: 10 paths (part 6)
+needs-coordinator: whether the acceptance statement may be carried forward to story:graph-model-and-assertions unverified, or must be restated here
+```
+
+## 1. Scope of what I touched
+
+`git --no-pager diff --stat` is **not** proof of scope in this tree: the whole implementation is uncommitted and three of its four source files are *untracked*, so a diff against the base shows only the implementor's tracked edit.
+
+```
+$ git --no-pager diff --stat
+ crates/ekr-core/src/lib.rs | 30 ++++++++++++++++++++++++++++++
+ 1 file changed, 30 insertions(+)        <- the implementor's, not mine
+```
+
+The scope proof is the untracked list plus mtimes (my session began 12:59):
+
+```
+crates/ekr-core/src/{canonical,hash,identity}.rs   12:57:17 / 12:58:01   untouched
+crates/ekr-core/src/lib.rs                         12:57:17             untouched
+crates/ekr-core/tests/{canonical_encoding,content_hash,identity_serde,rename_stability}.rs
+                                                   12:54–12:57          untouched, none deleted/weakened
+crates/ekr-core/tests/adversary_id_text_form.rs    13:01:05   added by me
+crates/ekr-core/tests/adversary_encoding_vector.rs 13:01:24   added by me
+crates/ekr-core/tests/adversary_encoder_order.rs   13:02:27   added by me
+```
+
+Every path I added is a test file. No implementation file was edited; every mutation was done on a copy in scratch.
+
+## 2. The cases I added, and their red output when written
+
+**`crates/ekr-core/tests/adversary_id_text_form.rs`** — 3 cases, all **RED now**. Asserts an id parses and deserialises from the form `Display` writes and from no other. Run alone, before any suite run:
+
+```
+running 3 tests
+test a_second_spelling_does_not_round_trip_to_itself ... FAILED
+test an_id_parses_from_the_form_it_writes_and_from_no_other ... FAILED
+test serde_reads_the_form_it_writes_and_no_other ... FAILED
+
+---- an_id_parses_from_the_form_it_writes_and_from_no_other stdout ----
+thread 'an_id_parses_from_the_form_it_writes_and_from_no_other' panicked at crates/ekr-core/tests/adversary_id_text_form.rs:55:5:
+assertion `left == right` failed: FromStr read spellings Display never writes
+  left: ["uppercase hyphenated", "simple, unhyphenated", "simple, uppercase", "braced", "urn"]
+ right: []
+---- serde_reads_the_form_it_writes_and_no_other stdout ----
+panicked at crates/ekr-core/tests/adversary_id_text_form.rs:72:5:
+assertion `left == right` failed: a stored record carrying a second spelling of an id was accepted
+  left: ["uppercase hyphenated", "simple, unhyphenated", "simple, uppercase", "braced", "urn"]
+ right: []
+---- a_second_spelling_does_not_round_trip_to_itself stdout ----
+panicked at crates/ekr-core/tests/adversary_id_text_form.rs:87:5:
+assertion `left == right` failed: an id that was read from one text writes a different text
+  left: "\"01a0c3a0-7889-7395-b687-b771f5ae3aa7\""
+ right: "\"urn:uuid:01a0c3a0-7889-7395-b687-b771f5ae3aa7\""
+
+test result: FAILED. 0 passed; 3 failed
+```
+
+**`crates/ekr-core/tests/adversary_encoder_order.rs`** — 3 cases, all **RED now**. Asserts `Encoder::map`/`Encoder::set` impose the order they document:
+
+```
+running 3 tests
+test a_set_encodes_in_sorted_order_whatever_order_it_is_handed ... FAILED
+test a_map_encodes_in_key_order_whatever_order_it_is_handed ... FAILED
+test the_btreemap_path_is_not_what_makes_the_encoding_ordered ... FAILED
+
+---- a_map_encodes_in_key_order_whatever_order_it_is_handed stdout ----
+panicked at crates/ekr-core/tests/adversary_encoder_order.rs:36:5:
+assertion `left == right` failed: Encoder::map wrote the writer's order, not the key order it documents
+  left: [10, 0,0,0,0,0,0,0,2, 6,...,97,108,112,104,97, 4,...,1, 6,...,98,101,116,97, 4,...,2]
+ right: [10, 0,0,0,0,0,0,0,2, 6,...,98,101,116,97, 4,...,2, 6,...,97,108,112,104,97, 4,...,1]
+
+test result: FAILED. 0 passed; 3 failed
+```
+
+**`crates/ekr-core/tests/adversary_encoding_vector.rs`** — 3 cases, **GREEN now, by design**. It pins the canonical encoding to a byte vector I derived by hand from `canonical.rs`'s documented rules and to a digest computed with `sha256sum` outside the crate; the implementation matched both exactly. It exists because it is the case that catches the mutant in finding 2 — proved on the scratch copy:
+
+```
+# scratch copy, tag::STRING 0x06 -> 0x16
+implementor's suite:  8 passed / 6 passed / 3 passed   (all green)
+my vector:            the_canonical_encoding_matches_its_published_bytes ... FAILED
+                      a_content_address_matches_its_published_digest   ... FAILED
+                        left: "14c400b0a1396b05e7b556aca053b477fb97938266aec3656618dd749ba19995"
+# scratch copy, ContentHash::to_hex -> hex::encode_upper
+implementor's suite:  8 / 6 / 3 all green
+my vector:            to_hex_is_the_form_from_str_reads ... FAILED
+                        left: "E0F895872D65B2528FEEC97350A3A212B3D4AB88748E25D022A34641D338216B"
+# scratch copy, mint() -> Self(0)   (identity destroyed entirely)
+rename_stability:     a_thousand_renames_never_change_the_id      ... ok   <- the acceptance
+                      renaming_to_arbitrary_names_never_changes_the_id ... ok
+                      two_things_sharing_a_name_do_not_share_an_id ... FAILED
+```
+
+## 3. The suite run — `task check`, after the cases existed
+
+```
+$ cd <worktree> && export CARGO_TARGET_DIR=$HOME/.cache/b10x-target/epistemic-knowledge-runtime && task check
+...
+failures:
+    a_map_encodes_in_key_order_whatever_order_it_is_handed
+    a_set_encodes_in_sorted_order_whatever_order_it_is_handed
+    the_btreemap_path_is_not_what_makes_the_encoding_ordered
+
+test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p ekr-core --test adversary_encoder_order`
+task: Failed to run task "check": task: Failed to run task "test": exit status 101
+EXIT=201
+```
+
+`fmt-check`, `clippy`, `doc-check`, `spec-check`, `plan-check` each run alone: **EXIT=0**. The only red gate step is `test`, and the only red cases are mine.
+
+Counts, from `cargo test --workspace --locked --no-fail-fast` (EXIT=101) **after** my cases existed: 70 executed, 6 failed. Deselecting my three files (`adversary_id_text_form`, `adversary_encoding_vector`, `adversary_encoder_order`, 9 cases) gives **before = 61**.
+
+## 4. Findings
+
+| # | file:line | What is wrong | What was measured | What reaches it | Verdict | Origin |
+|---|---|---|---|---|---|---|
+| 1 | `crates/ekr-core/src/identity.rs:81` (and `:90`, `:108`) | `Display` is documented as "the hyphenated lowercase UUID form — what serde writes and `FromStr` reads", but `FromStr` delegates to `Uuid::parse_str`, which accepts five further spellings — uppercase hyphenated, simple, simple-uppercase, braced, `urn:uuid:`. The sibling type in the same unit refuses exactly this and says why (`hash.rs:92`: "two spellings of one address are two addresses to everything that compares text") | `adversary_id_text_form.rs:55/72/87`, 3 red; `left: ["uppercase hyphenated","simple, unhyphenated","simple, uppercase","braced","urn"]`; a urn-form record deserialises and re-serialises as a *different* string | the public `Deserialize` impl, which the story's own third shipped test names as the boundary an id crosses ("a stored record, an event payload, a CLI argument"). Input comes from outside; no in-tree caller yet | CONFIRMED | introduced |
+| 2 | `crates/ekr-core/tests/content_hash.rs:18-20` | The file states the principle — "A published vector proves it across runs, releases and machines" — then publishes vectors only for `of_bytes` (FIPS SHA-256). Nothing pins the bytes `ContentHash::of` hashes, so every tag, length prefix and field order can change with the suite green, while every recorded content address silently becomes a different address. `ContentHash::to_hex` (`hash.rs:58`) is public, documented lowercase, and called by no case | scratch copy, `tag::STRING 0x06→0x16`: implementor's 17 cases all green; `to_hex→hex::encode_upper`: all green. My `adversary_encoding_vector.rs` catches both | any future change to `canonical.rs`, and any `hex` crate upgrade — this is the suite's blind spot, not a live defect | NEEDS-CHANGE | introduced |
+| 3 | `crates/ekr-core/src/canonical.rs:175` (`map`), `:166` (`set`) | Documented as "the count, then each key and value **in key order**" and "in the set's own sorted order"; neither sorts. Rule 3 of the module doc ("Ordered by the value, not by the writer") is kept by `BTreeMap`'s iterator, not by the `Encoder` the module says exists "so an implementation cannot forget a tag or a length" | `adversary_encoder_order.rs:36/48/67`, 3 red — same entries, two orders, two byte strings | **nothing found in this tree.** I built the unsorted iterator. The documented consumer is a later crate's `impl Canonical for MyStruct` over a `HashMap` field, which is what the brief says the trait is published for | INFEASIBLE (constructed state; no in-tree caller) | introduced |
+| 4 | `crates/ekr-core/tests/rename_stability.rs:39` | The acceptance case cannot fail. `NamedThing::rename` assigns `self.canonical_name` and the assertion compares a `Copy` field to a copy of itself; the case exercises `ekr-core` only through one `NodeId::mint()` call | scratch copy with `mint() -> Self(0)` — identity destroyed for every type — and `a_thousand_renames_never_change_the_id` plus the 1000-name proptest **both still pass**. Only the sibling case `two_things_sharing_a_name_do_not_share_an_id`, which is not the acceptance statement, goes red | the acceptance statement itself: "A property test renames a node's `canonical_name` a thousand times and its `NodeId` never changes." No non-vacuous form is expressible in `ekr-core` — `Node` and `canonical_name` arrive in `story:graph-model-and-assertions` | NEEDS-CHANGE | introduced |
+| 5 | `crates/ekr-core/src/canonical.rs:317` vs `:205`, and `identity.rs:117` | Distinct newtypes share a canonical encoding: `RevisionNumber(7)` encodes byte-identically to `7u64`, and a `NodeId` and an `EdgeId` of the same bits encode identically. A later struct that changes a field from `u64` to `RevisionNumber`, or `NodeId` to `EdgeId`, keeps its content address across a type change the compiler otherwise treats as significant | scratch probe: `ContentHash::of(&RevisionNumber::new(7)) == ContentHash::of(&7u64)`; `NodeId::from_uuid(u).canonical_bytes() == EdgeId::from_uuid(u).canonical_bytes()` — both assertions pass | no composite type exists yet to hold either field; `ekr-graph` is a later story | INFEASIBLE (no consumer exists yet) | introduced |
+
+**Named fixes** (I did not apply any): (1) give the id macro a strict `FromStr` — require `text.len() == 36`, lowercase, then `Uuid::parse_str` — matching `ContentHash::from_str`; (2) add the literal vector case to the suite (mine is already written, `adversary_encoding_vector.rs`); (3) have `Encoder::map`/`set` collect and sort by encoded key bytes, or take `BTreeMap`/`BTreeSet` rather than a bare iterator; (4) coordinator's call — see header; (5) tag newtype encodings with a type discriminant, or accept and document it.
+
+All findings cover the uncommitted working tree above. Origin is `introduced` for all five with certainty: `git show 2f2acec:crates/ekr-core/src/identity.rs` → *"exists on disk, but not in '2f2acec'"*; the base `lib.rs` declares none of these modules.
+
+## 5. Attacked and could not break
+
+- **Determinism of the encoding.** No float, clock, pointer, allocation or hash-seed path reaches the bytes through any `Canonical` impl in the crate; `usize`/`isize` widen, so the encoding is word-size independent.
+- **Ambiguity of the encoding.** The format is prefix-free and self-delimiting for every implemented shape — I walked the decoder by hand across all 14 tags; concatenation, empty string, empty map, empty list, nested `Option`, `None` vs `[]` all separate correctly. My hand-derived vector matched the implementation byte for byte on the first run.
+- **Id uniqueness.** 100,000 mints in a burst: all distinct; two ids minted in one millisecond differ below the 48-bit timestamp. `uuid` 1.26.1 `now_v7`.
+- **`FromStr`/`Display` round-trip.** Round-trips for all 2^128 bits per the implementor's proptest; I found no bit pattern where it does not.
+- **ESS contract.** The 14 `kind: newtype, of: Uuid` declarations across `kernel.yaml`, `ontology.yaml`, `graph.yaml` match `identity.rs` exactly; `RevisionNumber` is `of: Integer` and is a `u64`; `ekr.store.SnapshotId` is correctly absent. The implementor's `every_ess_id_type_exists_in_the_crate` is a real contract test and it holds.
+- **`ContentHash` text form.** Short, long, odd-length, non-hex, uppercase, JSON number/null/array all refused; hex round-trips for arbitrary digests.
+- **`RevisionNumber` serde.** `"7"`, `-1`, `null`, `7.5`, `[]`, `u64::MAX+1` all refused; `next()` saturates correctly at `u64::MAX`.
+
+## 6. Paths written outside the worktree
+
+All under my assigned scratch `$HOME/.cache/ekr-wave-p1-02/unit-scratch/`:
+
+```
+adv-mutant/                        mutable copy of crates/ekr-core (Cargo.toml, src/*.rs, tests/*.rs)
+adv-mutant/tests/probe_mint.rs     scratch probe, mine
+adv-mutant/tests/probe_newtype_collision.rs   scratch probe, mine
+adv-gate.log  adv-fulltest.log  adv-fmt-check.log  adv-clippy.log
+adv-doc-check.log  adv-spec-check.log  adv-plan-check.log
+```
+
+`adv-mutant/src/*.rs` is left restored to the implementor's bytes (all three mutations reverted). `$HOME/.cache/ekr-wave-p1-02/unit-scratch/adv-target/` (332M scratch build dir) was created and **deleted by me**. The shared `$HOME/.cache/b10x-target/epistemic-knowledge-runtime` was used as the brief directs and left in place. No planning-store write, no `aep plan artifact` write verb, no commit, no branch or worktree command. Lease `ekr-adversary-identity-1` acquired at start and released.
+
+```findings
+- file: crates/ekr-core/src/identity.rs
+  line: 81
+  category: contract-drift
+  severity: blocker
+  verdict: CONFIRMED
+  origin: introduced
+  message: "Display is documented as the form FromStr reads, but FromStr accepts five further UUID spellings (uppercase, simple, simple-uppercase, braced, urn), so one id has eight text forms while the sibling ContentHash in the same unit refuses exactly that."
+- file: crates/ekr-core/tests/content_hash.rs
+  line: 18
+  category: mutant
+  severity: warning
+  verdict: NEEDS-CHANGE
+  origin: introduced
+  message: "The suite publishes vectors for SHA-256 but none for the canonical encoding, so changing a tag byte leaves all 17 implementor cases green while every recorded content address changes; ContentHash::to_hex is public and called by no case."
+- file: crates/ekr-core/src/canonical.rs
+  line: 175
+  category: property
+  severity: warning
+  verdict: INFEASIBLE
+  origin: introduced
+  message: "Encoder::map and Encoder::set document an order they do not impose - determinism rests on BTreeMap's iterator, not on the Encoder - but no caller in this tree hands them an unsorted iterator, so the red case constructs the state."
+- file: crates/ekr-core/tests/rename_stability.rs
+  line: 39
+  category: acceptance
+  severity: warning
+  verdict: NEEDS-CHANGE
+  origin: introduced
+  message: "The acceptance case cannot fail - it still passes when mint() is mutated to return a constant for every id - so the story's acceptance statement is asserted by the fixture rather than verified against ekr-core."
+- file: crates/ekr-core/src/canonical.rs
+  line: 317
+  category: judgement
+  severity: note
+  verdict: INFEASIBLE
+  origin: introduced
+  message: "RevisionNumber encodes identically to a bare u64 and NodeId identically to EdgeId of the same bits, so a later field type change would preserve a content address it should move; no composite type exists yet to hold such a field."
+```

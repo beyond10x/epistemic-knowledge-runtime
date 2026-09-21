@@ -31,7 +31,7 @@ scope:
   path: crates/ekr-graph/src/transient.rs
 - confidence: inferred
   path: crates/ekr-graph/tests/compile_fail
-revision: 7
+revision: 8
 ---
 ## Context
 
@@ -53,6 +53,9 @@ answers `active()` with Bob.
 - A `trybuild` compile-fail test: `CanonicalGraph` cannot hold a `TransientRef`.
 - Neither `active()` nor `valid_at` returns a `Retracted` or `Superseded` assertion.
 - `RevisionEvent` round-trips through serde for every variant.
+- A `Node` renamed a thousand times keeps its `NodeId` (design § 6.4). This is the invariant
+  `story:kernel-identity-and-hashing` could not state: `Node` did not exist in `ekr-core`, so its
+  fixture stood in for one and the case could not fail. It is checkable here, against the real type.
 
 ## Scope
 
