@@ -59,8 +59,8 @@
 //!
 //! use ekr_core::{AgentId, AssertionId, GraphRootId, NodeId, RevisionNumber, SchemaVersionId,
 //!                Timestamp, TypeId};
-//! use ekr_graph::{Assertion, CanonicalGraph, GraphRoot, GraphSnapshot, Node, Object, Predicate,
-//!                 Space, Subject, TemporalRange, TransactionTime, ValidationState};
+//! use ekr_graph::{Assertion, CanonicalGraph, CanonicalRef, GraphRoot, GraphSnapshot, Node, Object,
+//!                 Predicate, Space, Subject, TemporalRange, TransactionTime, ValidationState};
 //! use ekr_ontology::{Ontology, OntologyDocument, SchemaVersion};
 //!
 //! let (root_id, schema) = (GraphRootId::mint(), SchemaVersionId::mint());
@@ -71,9 +71,9 @@
 //! let held = Assertion {
 //!     id: AssertionId::mint(),
 //!     root_id,
-//!     subject: Subject::Node(alice),
+//!     subject: Subject::Node(CanonicalRef::new(alice)),
 //!     predicate: Predicate::Relation(ceo_of),
-//!     object: Object::Node(acme),
+//!     object: Object::Node(CanonicalRef::new(acme)),
 //!     evidence: BTreeSet::new(),
 //!     proposed_by: AgentId::mint(),
 //!     validation: ValidationState::Accepted { validators: BTreeSet::new() },
@@ -127,7 +127,9 @@ pub use assertion::{
     Assertion, AssertionStatus, InvertedRange, Object, Predicate, RetractionReason, Subject,
     TemporalRange, TransactionTime, ValidationState,
 };
-pub use canonical::{CanonicalDependency, CanonicalGraph, CanonicalRef, CanonicalTarget};
+pub use canonical::{
+    CanonicalDependency, CanonicalGraph, CanonicalRef, CanonicalTarget, ValueSpace,
+};
 pub use edge::Edge;
 pub use events::RevisionEvent;
 pub use evidence::{

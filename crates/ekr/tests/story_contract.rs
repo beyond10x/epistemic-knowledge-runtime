@@ -9,6 +9,24 @@
 //! that changed nothing, and no product test may read what the planning store owns. Amending the
 //! story amends these tables, in the same change.
 //!
+//! # `ekr-kernel`'s `tempfile`, added by ADR 0007 in wave p1-06
+//!
+//! `ekr-kernel` gained the commit path, and a commit path is exercised over a lineage on disk:
+//! `ekr-store`'s fold is `pub(crate)`, so a store this crate could hold in memory could not answer
+//! `head` or `fold` and a case over one would assert nothing. `tempfile` is already this
+//! workspace's temporary directory — `ekr-store` and `ekr` both declare it — and it is a
+//! dev-dependency, so nothing the runtime ships gains an edge.
+//!
+//! # `ekr`'s edge to `ekr-store`, removed by ADR 0007 in wave p1-06
+//!
+//! `architecture-decision-record:0007-the-commit-path-is-the-kernels` drops it, and the table below
+//! moves in the same change because this file's own rule says it must. The reason is the invariant:
+//! `RevisionLog::append` is a public port that takes a bare event, so a binary that declares
+//! `ekr-store` reaches a writer to canonical state without passing a `ValidatedTransaction` through
+//! anything. After the ADR, `ekr-kernel` is the only crate in the workspace that declares the store,
+//! and [`crate_dependency_edges_match_the_story`] is what holds that — it is not a type, and the
+//! ADR says so.
+//!
 //! # `ekr-store`, amended by ADR 0006 in wave p1-05
 //!
 //! `architecture-decision-record:0006-ekr-store-bridges-the-async-port` widened `ekr-store`'s
@@ -20,11 +38,28 @@
 //! is therefore out of date and is amended in the planning store alongside this change; this file
 //! is the tree's copy of it, and the two move together.
 
+mod authority_scan;
+
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
+/// The workspace root, located at **run time**.
+///
+/// `std::env::var` and not `env!`. `AGENTS.md` § The gate, added in `c4e436e` — the commit this
+/// branch forked from — forbids a test locating this repository with the compile-time macro,
+/// because it is baked into the binary: with the shared `CARGO_TARGET_DIR` the same document
+/// mandates, a binary compiled in one checkout keeps reading that checkout whatever tree later
+/// runs it, and *a guard reading the wrong tree reports clean*.
+///
+/// This file is the first of the twenty sites the ban names to be fixed, ahead of
+/// `task:guards-read-source-through-a-compile-time-path`, because
+/// [`only_the_kernel_implements_the_commit_authority`] and
+/// [`crate_dependency_edges_match_the_story`] are what `AGENTS.md` invariant 1 says holds its
+/// second half — so this one guard cannot wait for that wave. The other nineteen still do.
 fn workspace_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
+    let manifest = std::env::var("CARGO_MANIFEST_DIR")
+        .expect("cargo sets CARGO_MANIFEST_DIR for a test process at run time");
+    Path::new(&manifest)
         .parent()
         .and_then(Path::parent)
         .expect("crates/ekr has a workspace root two levels up")
@@ -53,13 +88,7 @@ const EDGES: [(&str, &[&str]); 6] = [
     ("ekr-store", &["ekr-core", "ekr-graph", "ekr-ontology"]),
     (
         "ekr",
-        &[
-            "ekr-core",
-            "ekr-kernel",
-            "ekr-ontology",
-            "ekr-graph",
-            "ekr-store",
-        ],
+        &["ekr-core", "ekr-kernel", "ekr-ontology", "ekr-graph"],
     ),
 ];
 
@@ -74,7 +103,7 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
     (
         "ekr-kernel",
         &["serde", "serde_json", "serde_yaml_ng", "thiserror"],
-        &["proptest", "trybuild"],
+        &["proptest", "tempfile", "trybuild"],
     ),
     (
         "ekr-ontology",
@@ -256,6 +285,87 @@ fn crate_dependency_edges_match_the_story() {
         failures.is_empty(),
         "the crate edges and story:workspace-crate-skeleton disagree:\n  {}",
         failures.join("\n  ")
+    );
+}
+
+/// The scan's matcher, held to both spellings and to the boundary that separates them from a
+/// different trait.
+///
+/// The scan that carries half of invariant 1 is only as good as this predicate, and a predicate
+/// exercised only by the tree it happens to walk is one that passes for whatever that tree
+/// contains today. Each sample is assembled from the same parts the matcher assembles, so that no
+/// line of this file is itself an implementation head — the guard walks this file too.
+#[test]
+fn the_commit_authority_matcher_reads_a_head_by_shape_and_not_by_spelling() {
+    let name = authority_scan::trait_name();
+
+    for accepted in [
+        format!("impl {name} for Validations {{"),
+        format!("    impl {name} for Validations {{"),
+        format!("impl ekr_store::{name} for Attesting {{"),
+        format!("impl crate::{name} for Attesting {{"),
+        format!("impl<S> {name} for Shared<S> {{"),
+    ] {
+        assert!(
+            authority_scan::implements_commit_authority(&accepted),
+            "a legal spelling of the head the guard must see: {accepted}"
+        );
+    }
+
+    for refused in [
+        // Not an implementation of this trait.
+        format!("impl My{name} for Validations {{"),
+        format!("impl store{name} for Validations {{"),
+        // Not an implementation at all.
+        format!("pub trait {name} {{"),
+        format!("use ekr_store::{name};"),
+        format!("/// impl {name} for Validations"),
+        format!("    // impl {name} for Validations"),
+    ] {
+        assert!(
+            !authority_scan::implements_commit_authority(&refused),
+            "not a head of this trait, and a guard that counted it would report a second authority \
+             that is not there: {refused}"
+        );
+    }
+}
+
+/// The other half of AGENTS.md invariant 1, which is not a type and is read here.
+///
+/// `architecture-decision-record:0007-the-commit-path-is-the-kernels`. `ekr-store`'s fold commits
+/// only what a `CommitAuthority` stands behind, and that trait is declared *below* `ekr-kernel`, so
+/// Rust cannot say "only that other crate implements it". What holds is this: **the only
+/// implementation in any crate's `src/` is `ekr-kernel`'s**, beside the edge case above, which says
+/// the only crate that can reach `ekr-store` at all is `ekr-kernel`. Together they are the
+/// mechanism the ADR names, stated as two cases rather than as a sentence.
+///
+/// The walk and the rule are [`authority_scan`], shared with
+/// `adversary_p1_06_authority_guard.rs`, which runs the same code over a tree it plants a second
+/// implementation into. A guard and a case that reads it must not be two bodies of code: the case
+/// that used to read this one re-derived its needle instead, and so could go green for a scan this
+/// file does not run.
+#[test]
+fn only_the_kernel_implements_the_commit_authority() {
+    let root = workspace_root();
+    let (found, visited) = authority_scan::implementations(&root);
+
+    let floor = CRATES.len() + 1;
+    assert!(
+        visited >= floor,
+        "the walk read {visited} .rs file(s), fewer than the {floor} root sources the workspace \
+         has; a walk that reaches nothing reports clean"
+    );
+    assert!(
+        found.iter().any(|at| at.contains("/tests/")),
+        "no test in the workspace implements the commit authority, so nothing exercises the rule \
+         this case is about and the scan may be reading for a name that has moved: {found:?}"
+    );
+    assert!(
+        authority_scan::second_authorities(&found).is_empty(),
+        "AGENTS.md invariant 1 and ADR 0007: the only implementation of ekr-store's \
+         CommitAuthority in a crate's src/ is ekr-kernel's, and a second one is a second thing \
+         the fold will commit for: {:?}",
+        authority_scan::second_authorities(&found)
     );
 }
 

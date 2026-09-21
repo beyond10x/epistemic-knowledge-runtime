@@ -19,9 +19,9 @@ use ekr_core::{
     RevisionNumber, SchemaVersionId, Timestamp, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalGraph, CanonicalValue, Confidence, Edge, Evidence, EvidenceSource,
-    GraphRoot, Node, Object, Predicate, Space, Subject, TemporalRange, TransactionTime,
-    ValidationState,
+    Assertion, CanonicalGraph, CanonicalRef, CanonicalValue, Confidence, Edge, Evidence,
+    EvidenceSource, GraphRoot, Node, Object, Predicate, Space, Subject, TemporalRange,
+    TransactionTime, ValidationState,
 };
 use ekr_ontology::{Ontology, OntologyDocument, SchemaVersion};
 
@@ -40,11 +40,25 @@ pub fn ontology() -> Ontology {
     .expect("a document with no declarations coheres")
 }
 
-/// A seed with a node, an edge, an assertion and the evidence it rests on.
+/// A seed with two nodes, an edge, an assertion and the evidence it rests on.
 ///
 /// Content in all four maps, so that `knowledge_root` and `evidence_root` are functions of
 /// something rather than constants: an empty seed would make every "the address is the same"
 /// assertion below pass for a store that lost the lot.
+///
+/// # Both ends of the edge are here, and one of them was not
+///
+/// The edge's `target` named a node this map did not hold — a dangling reference inside canonical
+/// state, found by reading in the independent review of the P1 core and *now found by building*:
+/// under `architecture-decision-record:0008-canonical-state-references-are-typed` the two ends are
+/// [`CanonicalRef<Node>`](ekr_graph::CanonicalRef), so wrapping the same absent id would have been
+/// a deliberate act rather than an oversight. It is a seed of canonical state, and design § 21 says
+/// canonical state is referentially complete, so the missing node is added rather than the
+/// reference being pointed somewhere convenient.
+///
+/// **The type does not catch this and is not claimed to.** `CanonicalRef::new` takes any id;
+/// what the type refuses is a reference into a *transient* root. The seed path runs no validator at
+/// all, which is the review's separate finding C and is not this wave's.
 #[must_use]
 pub fn seed_graph(ontology: &Ontology) -> CanonicalGraph {
     let root_id = GraphRootId::mint();
@@ -57,8 +71,15 @@ pub fn seed_graph(ontology: &Ontology) -> CanonicalGraph {
     observed
         .properties
         .insert(property, CanonicalValue::Decimal("1.0".to_owned()));
+    let reached = Node::new(object, root_id, type_id, "revision-lineage-target");
 
-    let mut holds = Edge::new(EdgeId::mint(), root_id, type_id, subject, object);
+    let mut holds = Edge::new(
+        EdgeId::mint(),
+        root_id,
+        type_id,
+        CanonicalRef::new(subject),
+        CanonicalRef::new(object),
+    );
     holds
         .properties
         .insert(property, CanonicalValue::Enum("canonical".to_owned()));
@@ -78,9 +99,9 @@ pub fn seed_graph(ontology: &Ontology) -> CanonicalGraph {
     let assertion = Assertion {
         id: AssertionId::mint(),
         root_id,
-        subject: Subject::Node(subject),
+        subject: Subject::Node(CanonicalRef::new(subject)),
         predicate: Predicate::Relation(type_id),
-        object: Object::Node(object),
+        object: Object::Node(CanonicalRef::new(object)),
         evidence: [evidence_id].into_iter().collect::<BTreeSet<_>>(),
         proposed_by: AgentId::mint(),
         validation: ValidationState::Accepted {
@@ -100,7 +121,7 @@ pub fn seed_graph(ontology: &Ontology) -> CanonicalGraph {
         },
         revision: RevisionNumber::SEED,
         ontology: ontology.clone(),
-        nodes: [(subject, observed)]
+        nodes: [(subject, observed), (object, reached)]
             .into_iter()
             .collect::<BTreeMap<_, _>>(),
         edges: [(holds.id, holds)].into_iter().collect::<BTreeMap<_, _>>(),

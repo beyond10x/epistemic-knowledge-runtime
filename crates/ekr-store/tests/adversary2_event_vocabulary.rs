@@ -19,8 +19,32 @@ mod fixture;
 
 use ekr_core::{AgentId, ContentHash, RevisionId, RevisionNumber, Timestamp, TransactionId};
 use ekr_graph::RevisionEvent;
-use ekr_store::{Appended, ObjectStore, RevisionLog, SqliteStore, StorageClass};
+use ekr_store::{
+    Appended, CommitAuthority, ObjectStore, RecordedValidation, RevisionLog, SqliteStore,
+    StorageClass,
+};
 use tempfile::TempDir;
+
+/// The two validation results this file's case writes, in the order it writes them.
+const RESULTS: [&[u8]; 2] = [b"a first validation result", b"a second validation result"];
+
+/// Stands behind exactly the two validations this file writes, and nothing else.
+///
+/// `architecture-decision-record:0007-the-commit-path-is-the-kernels` made a commit need one:
+/// `ekr-store`'s fold no longer reads an appended `TransactionValidated` as proof. This case is
+/// about the *event vocabulary* — two facts sharing an encoding — and not about who may commit, so
+/// it supplies the authority its own lineage needs rather than becoming a second case about ADR
+/// 0007. That rule is read by `fold_rules.rs` and by
+/// `review_p1_invariant_one_at_the_store.rs`, whose store deliberately has no authority at all.
+struct Attesting;
+
+impl CommitAuthority for Attesting {
+    fn attests(&self, validation: &RecordedValidation) -> bool {
+        RESULTS
+            .iter()
+            .any(|result| validation.validation_hash == ContentHash::of_bytes(result))
+    }
+}
 
 /// A store over a fresh SQLite database, typed by `ontology`.
 fn store(directory: &TempDir, ontology: &ekr_ontology::Ontology) -> SqliteStore {
@@ -30,6 +54,7 @@ fn store(directory: &TempDir, ontology: &ekr_ontology::Ontology) -> SqliteStore 
         ontology.clone(),
     )
     .expect("the SQLite provider opens")
+    .under(Attesting)
 }
 
 /// A rejection the store cannot tell from an earlier one is **reported**, not silently dropped.
@@ -98,7 +123,7 @@ fn a_second_rejection_of_a_re_proposed_transaction_is_not_swallowed_as_a_retry()
     // The first attempt: proposed, validated, refused. Each is a new fact and each is written.
     for (event, what) in [
         (propose(b"the first operations"), "proposed"),
-        (validate(b"a first validation result"), "validated"),
+        (validate(RESULTS[0]), "validated"),
         (rejected.clone(), "rejected"),
     ] {
         assert_eq!(
@@ -112,7 +137,7 @@ fn a_second_rejection_of_a_re_proposed_transaction_is_not_swallowed_as_a_retry()
     // from the first attempt's, so both are written.
     for (event, what) in [
         (propose(b"the second operations"), "proposed again"),
-        (validate(b"a second validation result"), "validated again"),
+        (validate(RESULTS[1]), "validated again"),
     ] {
         assert_eq!(
             store.append(&event).expect(what),

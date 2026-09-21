@@ -24,8 +24,8 @@ use ekr_core::{
     RevisionNumber, SchemaVersionId, Timestamp, TransactionId, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalGraph, CanonicalValue, GraphRoot, GraphSnapshot, Object, Predicate, Space,
-    Subject, TemporalRange, TransactionTime, ValidationState,
+    Assertion, CanonicalGraph, CanonicalRef, CanonicalValue, GraphRoot, GraphSnapshot, Object,
+    Predicate, Space, Subject, TemporalRange, TransactionTime, ValidationState, ValueSpace,
 };
 use ekr_kernel::{
     EdgeDraft, EntityMerge, GraphOperation, GraphTransaction, NodeDraft, Pipeline,
@@ -71,7 +71,7 @@ fn canonical_value() -> impl Strategy<Value = CanonicalValue> {
         (0i64..3).prop_map(CanonicalValue::Integer),
         (0i64..3).prop_map(CanonicalValue::Duration),
         "(0|1)[.]0".prop_map(CanonicalValue::Decimal),
-        (0usize..3).prop_map(|at| CanonicalValue::NodeRef(POOL.nodes[at])),
+        (0usize..3).prop_map(|at| CanonicalValue::NodeRef(CanonicalRef::new(POOL.nodes[at]))),
         (0i64..3).prop_map(|at| CanonicalValue::Timestamp(Timestamp::from_millis(at))),
     ];
     leaf.prop_recursive(2, 6, 2, |inner| {
@@ -182,7 +182,7 @@ fn edge_type() -> impl Strategy<Value = EdgeType> {
 }
 
 /// An assertion over `V`.
-fn assertion<V: std::fmt::Debug + Clone + 'static>(
+fn assertion<V: ValueSpace + std::fmt::Debug + Clone + 'static>(
     value: impl Strategy<Value = V>,
 ) -> impl Strategy<Value = Assertion<V>> {
     (
@@ -200,7 +200,7 @@ fn assertion<V: std::fmt::Debug + Clone + 'static>(
                 Assertion {
                     id: POOL.assertions[assertion_at],
                     root_id: POOL.roots[root_at],
-                    subject: Subject::Node(POOL.nodes[node_at]),
+                    subject: Subject::Node(V::node_ref(POOL.nodes[node_at])),
                     predicate: Predicate::Property(POOL.properties[property_at]),
                     object: Object::Value(value),
                     evidence: if has_evidence {
@@ -220,7 +220,7 @@ fn assertion<V: std::fmt::Debug + Clone + 'static>(
 /// One operation over `V`, drawing its values from `value()` each time it needs one.
 fn operation<V, S, F>(value: F) -> impl Strategy<Value = GraphOperation<V>>
 where
-    V: std::fmt::Debug + Clone + 'static,
+    V: ValueSpace + std::fmt::Debug + Clone + 'static,
     S: Strategy<Value = V> + 'static,
     F: Fn() -> S + Clone + 'static,
 {
@@ -309,7 +309,7 @@ where
 /// A transaction over `V`.
 fn transaction<V, S, F>(value: F) -> impl Strategy<Value = GraphTransaction<V>>
 where
-    V: std::fmt::Debug + Clone + 'static,
+    V: ValueSpace + std::fmt::Debug + Clone + 'static,
     S: Strategy<Value = V> + 'static,
     F: Fn() -> S + Clone + 'static,
 {

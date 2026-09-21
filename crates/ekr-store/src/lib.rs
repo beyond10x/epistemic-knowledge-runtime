@@ -30,6 +30,13 @@
 //! reach. A lineage is checked by replaying it, which is what `docs/roadmap.md` § 4 means by
 //! "replay from the seed reproduces the root hash".
 //!
+//! **An appended `ekr.kernel.TransactionValidated` is not that record**, which is
+//! `architecture-decision-record:0007-the-commit-path-is-the-kernels`: [`RevisionLog::append`] is
+//! public and takes a bare event, so the fold treating one as proof made a commit reachable by
+//! anyone holding a store. It now asks a [`CommitAuthority`] injected at construction — a store
+//! opened without one folds no commit — and `ekr-kernel` is the only crate in the workspace that
+//! declares this one.
+//!
 //! # Where the membrane stops
 //!
 //! `task:the-membrane-stops-at-the-store-boundary`, decided in [`snapshot`]: the store never
@@ -42,7 +49,10 @@ pub mod objects;
 pub mod snapshot;
 
 pub use eventlog::{EventlogStore, FileStore, SqliteStore};
-pub use log::{evidence_root, knowledge_root, Appended, RevisionLog, PLACEHOLDER_SUB_ROOT};
+pub use log::{
+    evidence_root, knowledge_root, Appended, CommitAuthority, RecordedValidation, RevisionLog,
+    PLACEHOLDER_SUB_ROOT,
+};
 pub use objects::{ObjectStore, StorageClass, StoredObject};
 pub use snapshot::{Entity, GraphDocument, MembraneError};
 
@@ -97,6 +107,28 @@ pub enum StoreError {
     #[error("transaction {transaction_id} committed without a standing validation")]
     ValidationMissing {
         /// The transaction.
+        transaction_id: TransactionId,
+    },
+
+    /// The lineage holds a commit and this store was opened with nobody to ask about it.
+    ///
+    /// **A caller's error, not a lineage's**, and that is why it is an error at all when a commit
+    /// the authority *declines* is silent: declining is an answer about one claim in a log this
+    /// crate did not write, and making it poison the fold would let one append brick every read
+    /// forever. Having no authority is a store that was constructed wrong, and the caller who
+    /// constructed it is the one who can act on it — see [`CommitAuthority`] and
+    /// [`EventlogStore::under`].
+    ///
+    /// Raised by [`RevisionLog::fold`] and [`RevisionLog::replay`], which answer *what canonical
+    /// state is*, and not by [`RevisionLog::head`], which answers how far the lineage verifiably
+    /// got and has a total answer either way. Without this, the default construction of a public
+    /// store — `SqliteStore::sqlite`, with `under` opt-in — folded every commit away and reported
+    /// nothing at all; measured by the adversary of wave p1-06.
+    #[error(
+        "no commit authority was injected, so this store cannot say whether transaction          {transaction_id} committed: open it with EventlogStore::under"
+    )]
+    NoCommitAuthority {
+        /// The first commit the fold could not evaluate.
         transaction_id: TransactionId,
     },
 

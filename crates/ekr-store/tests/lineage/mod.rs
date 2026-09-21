@@ -6,7 +6,14 @@
 
 use ekr_core::{AgentId, ContentHash, RevisionId, RevisionNumber, Timestamp, TransactionId};
 use ekr_graph::{CanonicalGraph, RevisionEvent};
-use ekr_store::{Appended, GraphDocument, ObjectStore, RevisionLog, StorageClass, StoreError};
+use ekr_store::{
+    Appended, CommitAuthority, GraphDocument, ObjectStore, RecordedValidation, RevisionLog,
+    StorageClass, StoreError,
+};
+
+/// The bytes [`validated`] gives a validation result, and the only address [`Attesting`] stands
+/// behind.
+const VALIDATION_RESULT: &[u8] = b"seven validators, no issues";
 
 /// The seed event, naming the state at `seed_hash`.
 #[must_use]
@@ -33,7 +40,27 @@ pub fn validated(transaction: TransactionId, against: RevisionNumber) -> Revisio
     RevisionEvent::TransactionValidated {
         transaction_id: transaction,
         against,
-        validation_hash: ContentHash::of_bytes(b"seven validators, no issues"),
+        validation_hash: ContentHash::of_bytes(VALIDATION_RESULT),
+    }
+}
+
+/// The stand-in for `ekr-kernel` in this crate's own suite:
+/// `architecture-decision-record:0007-the-commit-path-is-the-kernels`.
+///
+/// `ekr-store` sits below `ekr-kernel` and cannot depend on it, so a case here that needs a
+/// lineage to advance needs something to stand behind its validations. This does, and **only for
+/// the validations [`validated`] wrote**: a hand-written event carrying any other address is a
+/// claim this authority does not answer for, which is what
+/// `tests/fold_rules.rs::a_commit_whose_validation_this_authority_does_not_stand_behind_does_not_advance_the_lineage`
+/// reads.
+///
+/// It is not a second writer to canonical state and no `src/` implements this trait but the
+/// kernel's, which `crates/ekr/tests/story_contract.rs` holds.
+pub struct Attesting;
+
+impl CommitAuthority for Attesting {
+    fn attests(&self, validation: &RecordedValidation) -> bool {
+        validation.validation_hash == ContentHash::of_bytes(VALIDATION_RESULT)
     }
 }
 

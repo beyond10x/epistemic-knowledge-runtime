@@ -17,7 +17,6 @@ ekr-core.workspace = true
 ekr-graph.workspace = true
 ekr-kernel.workspace = true
 ekr-ontology.workspace = true
-ekr-store.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]

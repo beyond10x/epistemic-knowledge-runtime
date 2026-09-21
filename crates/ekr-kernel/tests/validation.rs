@@ -23,9 +23,9 @@ use ekr_core::{
     RevisionNumber, SchemaVersionId, Timestamp, TransactionId, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalGraph, CanonicalValue, Confidence, Edge, Evidence, EvidenceSource,
-    GraphRoot, GraphSnapshot, Node, Object, Predicate, RetractionReason, Space, Subject,
-    TemporalRange, TransactionTime, ValidationState,
+    Assertion, CanonicalGraph, CanonicalRef, CanonicalValue, Confidence, Edge, Evidence,
+    EvidenceSource, GraphRoot, GraphSnapshot, Node, Object, Predicate, RetractionReason, Space,
+    Subject, TemporalRange, TransactionTime, ValidationState,
 };
 use ekr_kernel::{
     Authorization, Cardinality as CardinalityValidator, EdgeDraft, EntityMerge, GraphOperation,
@@ -123,12 +123,18 @@ impl World {
             CanonicalValue::String("Hash canonical state only".to_owned()),
         );
 
-        let edge = Edge::new(existing_edge, root_id, depends_on, open, decided);
+        let edge = Edge::new(
+            existing_edge,
+            root_id,
+            depends_on,
+            CanonicalRef::new(open),
+            CanonicalRef::new(decided),
+        );
 
         let assertion = Assertion {
             id: held_assertion,
             root_id,
-            subject: Subject::Node(open),
+            subject: Subject::Node(CanonicalRef::new(open)),
             predicate: Predicate::Property(title),
             object: Object::Value(CanonicalValue::String(
                 "Adopt the eventlog store".to_owned(),
@@ -1524,9 +1530,17 @@ fn the_eleven_operation_numbers_are_the_domains_and_the_declarations() {
     );
 
     let source = read_workspace_file("crates/ekr-kernel/src/transaction.rs");
+    // The declaration is found by its shape and not by its exact generics: it was written
+    // `pub enum GraphOperation<V = Value> {` and ADR 0008 made it
+    // `pub enum GraphOperation<V: ValueSpace = Value> {`, at which point a scan spelling the
+    // parameter out reported the enum as undeclared rather than as having changed.
+    let declaration = source
+        .lines()
+        .find(|line| line.starts_with("pub enum GraphOperation") && line.trim_end().ends_with('{'))
+        .expect("the crate declares GraphOperation");
     let body = source
-        .split_once("pub enum GraphOperation<V = Value> {")
-        .expect("the crate declares GraphOperation")
+        .split_once(declaration)
+        .expect("the declaration is in the source it came from")
         .1;
     // A variant head is a line at one level of indentation inside the enum, in any of the three
     // forms the enum uses: `Name(`, `Name {` and a bare `Name,`. `rustfmt` runs in the gate, so
@@ -1556,9 +1570,17 @@ fn the_eleven_operation_numbers_are_the_domains_and_the_declarations() {
     // its `out.variant(N)`. Anchored on the impl block and closed at the end of it, so that the
     // other five `Canonical` implementations in this file — one of which writes a variant marker
     // of its own — are outside the scan.
+    // Anchored by the shape of the head rather than by its exact bounds, for the reason the
+    // declaration above is: the bounds moved once already.
+    let head = source
+        .lines()
+        .find(|line| {
+            line.starts_with("impl") && line.contains(" Canonical for GraphOperation<V> {")
+        })
+        .expect("GraphOperation implements Canonical");
     let encode = source
-        .split_once("impl<V: Canonical> Canonical for GraphOperation<V> {")
-        .expect("GraphOperation implements Canonical")
+        .split_once(head)
+        .expect("the head is in the source it came from")
         .1
         .split_once("\n}")
         .expect("the impl block closes")
@@ -1638,7 +1660,7 @@ fn one_of_each_operation(world: &World) -> Vec<GraphOperation<CanonicalValue>> {
         GraphOperation::AddAssertion(Box::new(Assertion {
             id: AssertionId::mint(),
             root_id: world.root_id,
-            subject: Subject::Node(node),
+            subject: Subject::Node(CanonicalRef::new(node)),
             predicate: Predicate::Property(world.title),
             object: Object::Value(CanonicalValue::String("one".to_owned())),
             evidence: BTreeSet::new(),

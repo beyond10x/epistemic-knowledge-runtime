@@ -11,7 +11,7 @@ mod fixture;
 mod lineage;
 
 use ekr_core::{ContentHash, RevisionNumber, Timestamp, TransactionId};
-use ekr_graph::RevisionEvent;
+use ekr_graph::{CanonicalGraph, RevisionEvent};
 use ekr_store::{Appended, ObjectStore, RevisionLog, SqliteStore, StorageClass, StoreError};
 use tempfile::TempDir;
 
@@ -29,6 +29,7 @@ fn store(directory: &TempDir, ontology: &ekr_ontology::Ontology) -> SqliteStore 
         ontology.clone(),
     )
     .expect("the SQLite provider opens")
+    .under(lineage::Attesting)
 }
 
 #[test]
@@ -612,5 +613,254 @@ fn two_stores_seeded_from_different_state_have_different_heads() {
         first.head().expect("folds").expect("has a head"),
         second.head().expect("folds").expect("has a head"),
         "a head root is a function of the state it was seeded from"
+    );
+}
+
+/// Seeds a fresh lineage from `graph` and answers the store holding it.
+///
+/// The three cases below all need a seeded lineage and then a *hand-written* sequence after it,
+/// which `lineage::seed_and_commit` cannot give them: it writes the commit too.
+fn seeded(
+    directory: &TempDir,
+    ontology: &ekr_ontology::Ontology,
+    graph: &CanonicalGraph,
+) -> SqliteStore {
+    let store = store(directory, ontology);
+    let document = ekr_store::GraphDocument::of(graph)
+        .to_bytes()
+        .expect("the seed serialises");
+    let seed = store
+        .put(StorageClass::Canonical, &document, Timestamp::EPOCH)
+        .expect("the seed lands");
+    assert_eq!(
+        store
+            .append(&lineage::seed_event(seed.content_hash))
+            .expect("seeded"),
+        Appended::Written,
+        "a new fact, not a retry: seeded"
+    );
+    store
+}
+
+/// AGENTS.md invariant 1, at the fold: a validation nothing stands behind does not commit.
+///
+/// `architecture-decision-record:0007-the-commit-path-is-the-kernels`. Every event here is
+/// well-formed and every one is written — the append is not the check — and the transaction is
+/// proposed before it is validated and validated before it is committed, so every earlier rule in
+/// this file is satisfied. The one thing wrong with it is the thing that used not to be checked at
+/// all: the validation names an address [`lineage::Attesting`] does not stand behind, so the
+/// authority declines and the lineage does not move.
+///
+/// **And the fold reports no error.** That is the rule and not an omission: a log is append-only
+/// and its writer is not this crate, so a commit nobody stands behind is a claim the lineage holds
+/// and did not act on — where an error would let one append brick every read of it forever.
+/// `a_commit_of_a_transaction_that_was_never_validated_is_refused` above is the other half: a
+/// lineage that is *malformed* is still a `StoreError`.
+#[test]
+fn a_commit_whose_validation_the_authority_does_not_stand_behind_does_not_advance_the_lineage() {
+    let directory = TempDir::new().expect("a temporary directory");
+    let ontology = fixture::ontology();
+    let graph = fixture::seed_graph(&ontology);
+    let store = seeded(&directory, &ontology, &graph);
+
+    let transaction = TransactionId::mint();
+    for event in [
+        lineage::proposed(transaction),
+        RevisionEvent::TransactionValidated {
+            transaction_id: transaction,
+            against: RevisionNumber::SEED,
+            validation_hash: ContentHash::of_bytes(
+                b"a validation this suite's authority never did",
+            ),
+        },
+        lineage::committed(
+            transaction,
+            RevisionNumber::new(1),
+            ekr_store::knowledge_root(&graph),
+        ),
+    ] {
+        assert_eq!(
+            store
+                .append(&event)
+                .expect("the append itself is not the check"),
+            Appended::Written,
+            "{} is a new fact, not a retry",
+            event.name()
+        );
+    }
+
+    assert_eq!(
+        store
+            .head()
+            .expect("the log folds rather than failing")
+            .expect("a seeded lineage has a head")
+            .revision,
+        RevisionNumber::SEED,
+        "the commit named a validation the authority does not stand behind, so the lineage stayed \
+         where it was"
+    );
+}
+
+/// The same lineage with the validation the authority *does* stand behind, which advances.
+///
+/// The case above is one field away from this one, and without this one it would pass for a fold
+/// that refused every commit — including the one it is supposed to accept.
+#[test]
+fn a_commit_whose_validation_the_authority_stands_behind_advances_the_lineage() {
+    let directory = TempDir::new().expect("a temporary directory");
+    let ontology = fixture::ontology();
+    let graph = fixture::seed_graph(&ontology);
+    let store = seeded(&directory, &ontology, &graph);
+
+    let transaction = TransactionId::mint();
+    for event in [
+        lineage::proposed(transaction),
+        lineage::validated(transaction, RevisionNumber::SEED),
+        lineage::committed(
+            transaction,
+            RevisionNumber::new(1),
+            ekr_store::knowledge_root(&graph),
+        ),
+    ] {
+        assert_eq!(
+            store
+                .append(&event)
+                .expect("the append itself is not the check"),
+            Appended::Written,
+            "{} is a new fact, not a retry",
+            event.name()
+        );
+    }
+
+    assert_eq!(
+        store
+            .head()
+            .expect("the log folds")
+            .expect("a seeded lineage has a head")
+            .revision,
+        RevisionNumber::new(1),
+        "the authority stands behind this validation, so the commit moved the lineage"
+    );
+}
+
+/// Design § 72: a transaction is committed only against the revision it was validated against.
+///
+/// The fold was handed that revision in `TransactionValidated.against` and discarded it, so a
+/// commit the design calls **stale** replayed as valid — which is the worse half, because a replay
+/// is what `docs/roadmap.md` § 4's exit criterion rests on: a lineage that reproduces is a lineage
+/// a reader has checked, and one that reproduces a stale commit has checked nothing about it.
+///
+/// Both transactions are validated against the seed and both validations are ones the authority
+/// stands behind, so the only thing separating them is the revision the lineage had reached when
+/// each commit arrived.
+#[test]
+fn a_commit_validated_against_a_revision_the_lineage_has_moved_past_does_not_advance_it() {
+    let directory = TempDir::new().expect("a temporary directory");
+    let ontology = fixture::ontology();
+    let graph = fixture::seed_graph(&ontology);
+    let store = seeded(&directory, &ontology, &graph);
+
+    let (first, second) = (TransactionId::mint(), TransactionId::mint());
+    let root = ekr_store::knowledge_root(&graph);
+    for event in [
+        lineage::proposed(first),
+        lineage::proposed(second),
+        lineage::validated(first, RevisionNumber::SEED),
+        lineage::validated(second, RevisionNumber::SEED),
+        // The second commits first, so revision 1 lands under it.
+        lineage::committed(second, RevisionNumber::new(1), root),
+        // And the first was validated against revision 0, which the lineage has moved past.
+        lineage::committed(first, RevisionNumber::new(2), root),
+    ] {
+        assert_eq!(
+            store
+                .append(&event)
+                .expect("the append itself is not the check"),
+            Appended::Written,
+            "{} is a new fact, not a retry",
+            event.name()
+        );
+    }
+
+    assert_eq!(
+        store
+            .head()
+            .expect("the log folds")
+            .expect("a seeded lineage has a head")
+            .revision,
+        RevisionNumber::new(1),
+        "transaction {first} was validated against revision 0 and revision 1 landed under it; the \
+         fold reads the `against` it is handed and leaves the lineage where the commit it did \
+         honour put it"
+    );
+}
+
+/// A store nobody gave an authority to says so, rather than folding every commit away in silence.
+///
+/// The two refusals in this file's other cases are about a *lineage*: a commit with no validation
+/// behind it, a revision out of order, a published root the fold does not reach. This one is about
+/// the **caller**, and the difference is who can act on it. `SqliteStore::sqlite` is public and
+/// `under` is opt-in, so before this the default construction of a public store folded every commit
+/// away and reported nothing at all — a head that did not move being every signal a consumer got,
+/// while the hand-written bad lineage beside it returned an error.
+///
+/// `head` deliberately still answers: how far the lineage verifiably got has a total answer, and
+/// `review_p1_invariant_one_at_the_store.rs` asks exactly that question from a process that has no
+/// `ekr-kernel` in it.
+#[test]
+fn a_store_with_no_commit_authority_refuses_to_say_what_canonical_state_is() {
+    let directory = TempDir::new().expect("a temporary directory");
+    let ontology = fixture::ontology();
+    let graph = fixture::seed_graph(&ontology);
+
+    // Deliberately not this file's `store`, which is opened under `lineage::Attesting`.
+    let store = SqliteStore::sqlite(
+        &directory.path().join("revisions.db"),
+        "ekr",
+        ontology.clone(),
+    )
+    .expect("the SQLite provider opens");
+    lineage::seed_and_commit(&store, &graph).expect("the lineage is appendable");
+
+    let transaction = match store.fold() {
+        Err(StoreError::NoCommitAuthority { transaction_id }) => transaction_id,
+        other => panic!(
+            "a store opened with nobody to ask about a commit cannot say what canonical state is, \
+             and said: {:?}",
+            other.map(|graph| graph.revision)
+        ),
+    };
+    assert_eq!(
+        store.replay(RevisionNumber::SEED),
+        Err(StoreError::NoCommitAuthority {
+            transaction_id: transaction
+        }),
+        "replay answers the same question and refuses it the same way"
+    );
+    assert_eq!(
+        store
+            .head()
+            .expect("how far the lineage got is a question with a total answer")
+            .expect("a seeded lineage has a head")
+            .revision,
+        RevisionNumber::SEED,
+        "and the head is the seed's, because no commit was evaluated"
+    );
+
+    // The same lineage under an authority that stands behind it folds.
+    let authorised = SqliteStore::sqlite(
+        &directory.path().join("revisions.db"),
+        "ekr",
+        ontology.clone(),
+    )
+    .expect("the SQLite provider reopens")
+    .under(lineage::Attesting);
+    assert_eq!(
+        authorised
+            .fold()
+            .expect("the same bytes, with somebody to ask")
+            .revision,
+        RevisionNumber::new(1),
+        "the refusal is about the store's construction and not about the lineage"
     );
 }

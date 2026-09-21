@@ -149,9 +149,8 @@ fn crate_sources() -> Vec<String> {
 /// types are the ones `ekr.graph.GraphRoot` owns: nodes, edges and assertions. An assertion alone
 /// is not graph state, so an address computed over assertions alone is not the graph's.
 ///
-/// Both spellings of the head are accepted, because the amended ADR makes the three generic and a
-/// bounded implementation is written `impl<V: Canonical> Canonical for Node<V> {`. The claim is
-/// unchanged — each type has an implementation — and
+/// The head is matched by its shape rather than by a list of spellings — see
+/// [`canonical_impl_head`]. The claim is unchanged — each type has an implementation — and
 /// `tests/compile_fail/transient_state_has_no_content_address.rs` is what holds the bound itself,
 /// which a text scan cannot.
 #[test]
@@ -160,13 +159,9 @@ fn every_part_of_graph_state_has_a_canonical_encoding() {
     let missing: Vec<&str> = ["Node", "Edge", "Assertion"]
         .into_iter()
         .filter(|type_name| {
-            let heads = [
-                format!("impl Canonical for {type_name} {{"),
-                format!("impl<V: Canonical> Canonical for {type_name}<V> {{"),
-            ];
             !sources
                 .iter()
-                .any(|text| heads.iter().any(|head| text.contains(head)))
+                .any(|text| canonical_impl_head(text, type_name).is_some())
         })
         .collect();
 
@@ -177,4 +172,32 @@ fn every_part_of_graph_state_has_a_canonical_encoding() {
          no Canonical implementation, so the address of graph state cannot be computed from graph \
          state"
     );
+}
+
+/// The `{` that opens `impl … Canonical for <type_name> …`, whatever bounds the implementation
+/// carries.
+///
+/// **Structural, and deliberately not a list of spellings.** The list was two —
+/// `impl Canonical for Root {` and `impl<V: Canonical> Canonical for Node<V> {` — and
+/// `architecture-decision-record:0008-canonical-state-references-are-typed` added a third,
+/// `impl<V: ValueSpace + Canonical> Canonical for Edge<V> {`, at which point a scan enumerating
+/// spellings reported the type as having *no implementation at all*. A rule enumerated by its
+/// instances has a next instance; this one reads the shape — a line beginning `impl`, naming
+/// `Canonical for` the type at an identifier boundary, and opening a block.
+fn canonical_impl_head(source: &str, type_name: &str) -> Option<usize> {
+    let needle = format!(" Canonical for {type_name}");
+    source.match_indices(&needle).find_map(|(at, _)| {
+        let line_start = source[..at].rfind('\n').map_or(0, |n| n + 1);
+        if !source[line_start..at].trim_start().starts_with("impl") {
+            return None;
+        }
+        // The next character after the name is what keeps `Node` from matching `NodeDraft`.
+        if !source[at + needle.len()..].starts_with(['<', ' ', '{']) {
+            return None;
+        }
+        let line_end = source[at..]
+            .find('\n')
+            .map_or(source.len(), |offset| at + offset);
+        source[at..line_end].rfind('{').map(|offset| at + offset)
+    })
 }

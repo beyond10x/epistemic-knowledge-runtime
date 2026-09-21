@@ -4,7 +4,7 @@ id: task:trybuild-stderr-is-toolchain-pinned
 kind: task
 status: draft
 title: The compile-fail expectations are pinned to one rustc's diagnostic wording
-revision: 1
+revision: 2
 ---
 ## What is wrong
 
@@ -25,3 +25,20 @@ the commit.
 
 Until then, a red `membrane` lane after a toolchain change is to be read as this task before it is
 read as a regression.
+
+## It is not only a toolchain bump, 2026-09-21
+
+Wave p1-06 hit this without changing the toolchain. A hand-written generic `Deserialize` impl on
+`CanonicalRef<T>` flipped rustc's incidental *"the following other types implement trait"* help from
+the short form to `` `X` implements `Y` ``, and
+`crates/ekr-kernel/tests/compile_fail/validated_transaction_cannot_be_deserialised.stderr` had to be
+regenerated. The error code, the message and the span were byte-identical; only those eight help
+lines moved.
+
+**So the trigger is wider than this task assumed.** Any new impl of a trait a compile-fail case
+mentions changes what rustc lists as implementors of that trait, and every one of those lists is
+pinned byte for byte. A crate two modules away implementing `Deserialize` can turn a membrane case
+red without touching the membrane.
+
+That strengthens the case for matching on the error code rather than the full text, which is the
+second option above — a `rust-toolchain.toml` pins the compiler and does nothing about this.

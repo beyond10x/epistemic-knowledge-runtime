@@ -44,13 +44,26 @@ a dependency; their data enters through the import policy in `docs/predecessors.
   is part of `task check` once the first exists.
 - `.engineering/planning/` — governed through `aep plan artifact`. Never hand-edit its records or
   journal. Before an agent writes, set `AEP_ACTOR` to the agent's execution identity.
+- `.engineering/waves/COORDINATOR.md` — **read before opening a wave and again before its closing
+  commit.** Seven checks, each with a command, each written because it was skipped and cost
+  something named. Across waves p1-01 to p1-06 the implementors and adversaries found twenty-eight
+  coordinator errors, and every one of these checks catches one of them mechanically.
 
 ## Invariants
 
 Each is a claim that can be checked. Breaking one is a design change, not a refactor.
 
 1. **Only `ekr-kernel` constructs a `ValidatedTransaction`, and only a `ValidatedTransaction`
-   commits.** No other crate holds a writer to canonical state. Agents propose; they never mutate.
+   commits.** The first half is a type — the constructor is `pub(crate)` and the type derives no
+   `Deserialize` — and two compile-fail cases hold it. The second half is **not** a type and this
+   sentence no longer implies one: `ekr-store` sits below `ekr-kernel`, so its writer cannot take a
+   `ValidatedTransaction`, and a sealed trait there would exclude `ekr-kernel` along with everybody
+   else (`architecture-decision-record:0007-the-commit-path-is-the-kernels`). What holds is that no
+   consumer of this runtime can reach a writer to canonical state without a `ValidatedTransaction`:
+   `ekr-store`'s fold moves canonical state only for a validation its injected `CommitAuthority`
+   stands behind, and `ekr-kernel` is the only crate that declares `ekr-store` or implements that
+   trait in a `src/`. Both of those are read off this tree by `crates/ekr/tests/story_contract.rs`,
+   by a case and not by the compiler. Agents propose; they never mutate.
 2. **Canonical knowledge depends only on canonical knowledge or retained admissible evidence.**
    A `Canonical → Transient` reference is unrepresentable at the type level, not merely refused.
 3. **Names are not identities.** Every persistent object carries a stable id; a human-readable name
@@ -81,11 +94,37 @@ Set `CARGO_TARGET_DIR=$HOME/.cache/b10x-target/epistemic-knowledge-runtime`. One
 shares that directory with every other tree of this repository, which is what keeps a second
 checkout from paying for a second full build.
 
+**A test that reads this repository's own source must not locate it with
+`env!("CARGO_MANIFEST_DIR")`.** That macro is a compile-time constant: a test binary compiled in one
+checkout keeps reading that checkout's path, whatever tree later runs it. Use
+`std::env::var("CARGO_MANIFEST_DIR")`, which cargo sets per process for `cargo test` and `cargo run`,
+or walk up from `current_dir()` to the directory holding `Cargo.lock`.
+
+**Twenty files carry the pattern, in thirty-nine places**, including `xtask/src/main.rs:32`, which is
+not a test. `task:guards-read-source-through-a-compile-time-path` says what closes it.
+
+**What was observed**, on 2026-09-21 at the close of wave p1-05: after the wave's worktrees were
+removed, `task check` on the primary checkout failed reading
+`…/ekr-wave-p1-05/crates/ekr-core/src` — a path no tree had. `cargo clean -p ekr-core` made that
+tree's gate green at 337 cases, and the probe below shows why that is not a fix: it moves the stale
+path to whichever tree did not just build. **The dangerous half is not that failure.** While both trees
+exist the guard passes while reading a different checkout's source, and every one of these guards
+holds a document against code, so one reading the wrong tree has stopped checking anything and says
+nothing.
+
+**The mechanism, measured on 2026-09-21.** Two byte-identical crates of the same name in two
+directories, one shared build directory: `deps/` holds **one** test binary for both, and the second
+directory's `cargo test` ran the first's binary in 0.01s and reported the first's compile-time path.
+So two checkouts of this repository **do** write the same filenames, and that clobber is exactly what
+serves one tree's binary to another. `cargo clean -p <crate>` does not fix it — it moves the stale
+path to whichever tree did not just build.
+
 **Two trees that build at the same time get one directory each.** Cargo's exclusive lock makes
 concurrent compilation serialise rather than corrupt, and unit artifacts are keyed by a hash that
-includes the package's manifest path, so two trees' `deps/` do not clobber each other. Two outputs
-are not keyed that way: `doc/<crate>` is a single shared path, so `task doc-check` from two trees
-writes the same files, and the uplifted binary is one path, `debug/ekr`. Sharing is therefore not
+includes the package's manifest path. **That last clause was measured false on 2026-09-21 and is
+struck**: two checkouts of this repository write the same `deps/` filenames and do clobber each
+other, which is what the paragraph above is about. Two further outputs are not keyed by anything:
+`doc/<crate>` is a single shared path, so `task doc-check` from two trees writes the same files, and the uplifted binary is one path, `debug/ekr`. Sharing is therefore not
 merely slow for concurrent work, it is unsound for `doc-check`. A wave running more than one unit
 gives each its own directory and says so in its page.
 

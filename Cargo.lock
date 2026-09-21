@@ -236,7 +236,6 @@ dependencies = [
  "ekr-graph",
  "ekr-kernel",
  "ekr-ontology",
- "ekr-store",
  "serde_json",
  "tempfile",
 ]
@@ -277,6 +276,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml_ng",
+ "tempfile",
  "thiserror",
  "trybuild",
 ]

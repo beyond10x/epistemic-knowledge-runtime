@@ -29,9 +29,12 @@
 use std::collections::BTreeMap;
 
 use ekr_core::canonical::{Canonical, Encoder};
-use ekr_core::{NodeId, Timestamp};
+use ekr_core::Timestamp;
 use ekr_ontology::{Value, ValuePath};
 use serde::{Deserialize, Serialize};
+
+use crate::canonical::CanonicalRef;
+use crate::node::Node;
 
 /// A value canonical state admits: every kind [`Value`] has except `Float`, at every depth.
 ///
@@ -53,8 +56,15 @@ pub enum CanonicalValue {
     Timestamp(Timestamp),
     /// A length of time.
     Duration(i64),
-    /// A reference to a node.
-    NodeRef(NodeId),
+    /// A reference to a node canonical state holds.
+    ///
+    /// A [`CanonicalRef`] and not a bare id:
+    /// `architecture-decision-record:0008-canonical-state-references-are-typed`. Design § 11.3
+    /// gives a node reference its own value kind precisely so that it is *checkable*, and a value
+    /// inside canonical state reaching a candidate is the crossing AGENTS.md invariant 2 says is
+    /// unrepresentable. It writes and reads as the bare id it wraps, so the wire shape — a
+    /// [`Value::NodeRef`] — is unchanged.
+    NodeRef(CanonicalRef<Node>),
     /// One variant of an enumeration.
     Enum(String),
     /// A sequence of values, each itself admissible.
@@ -135,7 +145,7 @@ impl TryFrom<Value> for CanonicalValue {
             Value::Decimal(text) => Ok(Self::Decimal(text)),
             Value::Timestamp(at) => Ok(Self::Timestamp(at)),
             Value::Duration(millis) => Ok(Self::Duration(millis)),
-            Value::NodeRef(node) => Ok(Self::NodeRef(node)),
+            Value::NodeRef(node) => Ok(Self::NodeRef(CanonicalRef::new(node))),
             Value::Enum(name) => Ok(Self::Enum(name)),
             Value::List(items) => items
                 .into_iter()
@@ -170,7 +180,7 @@ impl From<CanonicalValue> for Value {
             CanonicalValue::Decimal(text) => Self::Decimal(text),
             CanonicalValue::Timestamp(at) => Self::Timestamp(at),
             CanonicalValue::Duration(millis) => Self::Duration(millis),
-            CanonicalValue::NodeRef(node) => Self::NodeRef(node),
+            CanonicalValue::NodeRef(node) => Self::NodeRef(node.node()),
             CanonicalValue::Enum(name) => Self::Enum(name),
             CanonicalValue::List(items) => Self::List(items.into_iter().map(Self::from).collect()),
             CanonicalValue::Record(fields) => Self::Record(

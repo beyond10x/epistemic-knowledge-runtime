@@ -5,29 +5,45 @@ use std::collections::BTreeSet;
 
 use ekr_core::canonical::{Canonical, Encoder};
 use ekr_core::{
-    AgentId, AssertionId, EdgeId, EvidenceId, GraphRootId, IssueId, NodeId, PropertyId,
-    RevisionNumber, Timestamp, TypeId,
+    AgentId, AssertionId, EdgeId, EvidenceId, GraphRootId, IssueId, PropertyId, RevisionNumber,
+    Timestamp, TypeId,
 };
 use serde::{Deserialize, Serialize};
 
+use crate::canonical::{CanonicalRef, ValueSpace};
+use crate::node::Node;
 use crate::value::CanonicalValue;
 
 /// What an assertion is about: `ekr.graph.SubjectKind` plus the identity it names.
+///
+/// Generic over the reference its node arm carries, defaulting to
+/// [`CanonicalRef<Node>`](crate::CanonicalRef):
+/// `architecture-decision-record:0008-canonical-state-references-are-typed`. The parameter is the
+/// *reference* and not the value, because that is all this type holds — an
+/// [`Assertion`] instantiates it as `Subject<V::NodeRef>` for the space its value belongs to, and
+/// a canonical claim about a candidate is therefore not a value of this type.
+///
+/// **It carries no value, so it cannot carry [`Object`]'s defect**, which was a reference default
+/// disagreeing with a value parameter beside it. There is nothing here for a default to disagree
+/// with: `Subject` on its own is canonical state's, exactly as [`Node`] and [`Edge`](crate::Edge)
+/// on their own are, and a transient root's is `Subject<NodeId>`. Rust has no
+/// way to give this type `Object`'s shape either — a `V` it never held would be a parameter that is
+/// never used, which does not compile.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub enum Subject {
+pub enum Subject<R = CanonicalRef<Node>> {
     /// A node.
-    Node(NodeId),
+    Node(R),
     /// An edge.
     Edge(EdgeId),
     /// A type in the ontology — a schema-level claim shares the provenance model of every other.
     Type(TypeId),
 }
 
-impl Canonical for Subject {
+impl<R: Canonical> Canonical for Subject<R> {
     /// The variant marker, then the id it names.
     ///
     /// The marker is what separates the three, and is not optional: rule 5 of
-    /// `ekr_core::canonical` makes a newtype structural, so a [`NodeId`], an [`EdgeId`] and a
+    /// `ekr_core::canonical` makes a newtype structural, so a [`NodeId`](ekr_core::NodeId), an [`EdgeId`] and a
     /// [`TypeId`] over one UUID encode identically. Without the tag, an assertion about a node
     /// and an assertion about the edge that happened to share its bits would share an address.
     fn encode(&self, out: &mut Encoder) {
@@ -80,17 +96,30 @@ impl Canonical for Predicate {
 /// content-addressed and `Value::Float` has no encoding, so `Object` on its own admits no float;
 /// a candidate claim in a transient root is `Object<ekr_ontology::Value>` and may say something
 /// approximate.
+/// # Its node arm carries a reference, and the default is the one its value's space holds
+///
+/// `architecture-decision-record:0008-canonical-state-references-are-typed`. The second parameter
+/// defaults **through [`ValueSpace`]** rather than to [`CanonicalRef<Node>`] outright, and that is
+/// not a stylistic choice: `R` and `V` are the only two parameters in this crate that can disagree
+/// about which side of the membrane a value is on, and a default naming the canonical reference
+/// makes `Object<ekr_ontology::Value>` — the spelling this type's own documentation gives for a
+/// claim in a transient root — a transient claim demanding a canonical reference. Measured by the
+/// adversary of wave p1-06. Tying the default to the trait that binds a value to its reference
+/// makes the pair unable to disagree unless a caller writes both out.
+///
+/// [`Assertion`] writes `Object<V, V::NodeRef>` explicitly and was never affected, which is why
+/// nothing else caught it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Object<V = CanonicalValue> {
+pub enum Object<V: ValueSpace = CanonicalValue, R = <V as ValueSpace>::NodeRef> {
     /// A literal value, typed by the ontology.
     Value(V),
     /// Another node.
-    Node(NodeId),
+    Node(R),
     /// A type in the ontology.
     Type(TypeId),
 }
 
-impl<V: Canonical> Canonical for Object<V> {
+impl<V: ValueSpace + Canonical, R: Canonical> Canonical for Object<V, R> {
     /// The variant marker, then the payload — tagged for the reason [`Subject`] is.
     ///
     /// Bounded on `V`: an object carrying a value canonical state does not admit has no encoding
@@ -540,20 +569,20 @@ pub enum AssertionStatus {
 /// as a transaction the kernel commits.
 ///
 /// Generic over the value its object may carry, defaulting to [`CanonicalValue`], with the same
-/// consequence [`Node`](crate::Node) carries: `Assertion<CanonicalValue>` has a content address
+/// consequence [`Node`] carries: `Assertion<CanonicalValue>` has a content address
 /// and `Assertion<ekr_ontology::Value>` — what a transient root holds — does not.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Assertion<V = CanonicalValue> {
+pub struct Assertion<V: ValueSpace = CanonicalValue> {
     /// The assertion's stable id.
     pub id: AssertionId,
     /// The graph root that owns it.
     pub root_id: GraphRootId,
     /// What it is about.
-    pub subject: Subject,
+    pub subject: Subject<V::NodeRef>,
     /// What it says.
     pub predicate: Predicate,
     /// What it says it about.
-    pub object: Object<V>,
+    pub object: Object<V, V::NodeRef>,
     /// The evidence it rests on. Design § 13; `graph.yaml` gives each link its own
     /// [`Support`](crate::Support) entity so that one can be addressed and withdrawn.
     pub evidence: BTreeSet<EvidenceId>,
@@ -568,7 +597,7 @@ pub struct Assertion<V = CanonicalValue> {
     pub transaction_time: TransactionTime,
 }
 
-impl<V> Assertion<V> {
+impl<V: ValueSpace> Assertion<V> {
     /// Whether canonical state removed it: design § 36.
     ///
     /// `Retracted` and `Superseded` map to themselves; every other validation state maps to
@@ -612,7 +641,7 @@ impl<V> Assertion<V> {
     }
 }
 
-impl<V: Canonical> Canonical for Assertion<V> {
+impl<V: ValueSpace + Canonical> Canonical for Assertion<V> {
     /// The ten fields in declaration order.
     ///
     /// Structural, with no discriminant, for the reason [`Root`](crate::Root) has none: an

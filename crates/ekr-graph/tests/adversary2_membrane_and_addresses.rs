@@ -116,13 +116,9 @@ fn every_entity_canonical_state_holds_has_a_content_address() {
     let missing: Vec<&str> = ["Node", "Edge", "Assertion", "Evidence"]
         .into_iter()
         .filter(|type_name| {
-            let heads = [
-                format!("impl Canonical for {type_name} {{"),
-                format!("impl<V: Canonical> Canonical for {type_name}<V> {{"),
-            ];
             !modules
                 .iter()
-                .any(|(_, text)| heads.iter().any(|head| text.contains(head)))
+                .any(|(_, text)| canonical_impl_head(text, type_name).is_some())
         })
         .collect();
 
@@ -134,4 +130,32 @@ fn every_entity_canonical_state_holds_has_a_content_address() {
          round — and the same argument that landed Node and Edge here, that unit 1 must not have \
          to edit this crate, applies to it unchanged"
     );
+}
+
+/// The `{` that opens `impl … Canonical for <type_name> …`, whatever bounds the implementation
+/// carries.
+///
+/// **Structural, and deliberately not a list of spellings.** The list was two —
+/// `impl Canonical for Root {` and `impl<V: Canonical> Canonical for Node<V> {` — and
+/// `architecture-decision-record:0008-canonical-state-references-are-typed` added a third,
+/// `impl<V: ValueSpace + Canonical> Canonical for Edge<V> {`, at which point a scan enumerating
+/// spellings reported the type as having *no implementation at all*. A rule enumerated by its
+/// instances has a next instance; this one reads the shape — a line beginning `impl`, naming
+/// `Canonical for` the type at an identifier boundary, and opening a block.
+fn canonical_impl_head(source: &str, type_name: &str) -> Option<usize> {
+    let needle = format!(" Canonical for {type_name}");
+    source.match_indices(&needle).find_map(|(at, _)| {
+        let line_start = source[..at].rfind('\n').map_or(0, |n| n + 1);
+        if !source[line_start..at].trim_start().starts_with("impl") {
+            return None;
+        }
+        // The next character after the name is what keeps `Node` from matching `NodeDraft`.
+        if !source[at + needle.len()..].starts_with(['<', ' ', '{']) {
+            return None;
+        }
+        let line_end = source[at..]
+            .find('\n')
+            .map_or(source.len(), |offset| at + offset);
+        source[at..line_end].rfind('{').map(|offset| at + offset)
+    })
 }
