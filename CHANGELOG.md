@@ -6,6 +6,9 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Added
 
+- `ekr-core`: stable identity (fifteen newtypes, one text form each), content hashing in two
+  address domains that cannot collide, and a deterministic canonical encoding the encoder imposes
+  rather than the caller (wave p1-02).
 - The six P1 crates — `ekr-core`, `ekr-kernel`, `ekr-ontology`, `ekr-graph`, `ekr-store`, `ekr` — as
   empty workspace members in the acyclic order `docs/roadmap.md` § 3 gives, every P1 dependency
   declared, `rust-version` 1.91, and contract tests holding the manifests, the lockfile, README and
