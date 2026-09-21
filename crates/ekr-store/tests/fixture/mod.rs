@@ -1,0 +1,114 @@
+//! The state the store's cases write, read back and fold.
+//!
+//! Shared by all three test binaries, because each needs a seed with real content in it: a fold
+//! whose graph is empty reports the same address whatever the log did, and a case built on one
+//! cannot tell a store that persisted from a store that did not.
+//!
+//! The *events* that move a lineage are in `lineage/mod.rs` rather than here, because
+//! `membrane_boundary.rs` needs the state and not the lineage — and an integration test binary
+//! compiles every shared module it declares, so a helper with no caller in one binary is dead code
+//! in that binary and `-D warnings` says so. Two modules, each wholly used by whoever declares it.
+//!
+//! Every name here is the runtime's own vocabulary. AGENTS.md: customer or personal data is not
+//! copied into fixtures.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use ekr_core::{
+    AgentId, AssertionId, ContentHash, EdgeId, EvidenceId, GraphRootId, NodeId, PropertyId,
+    RevisionNumber, SchemaVersionId, Timestamp, TypeId,
+};
+use ekr_graph::{
+    Assertion, CanonicalGraph, CanonicalValue, Confidence, Edge, Evidence, EvidenceSource,
+    GraphRoot, Node, Object, Predicate, Space, Subject, TemporalRange, TransactionTime,
+    ValidationState,
+};
+use ekr_ontology::{Ontology, OntologyDocument, SchemaVersion};
+
+/// An ontology with no types.
+///
+/// The store type-checks nothing — `AGENTS.md` invariant 7 puts type validity in the kernel — so
+/// the declarations would be decoration here. What the fixture needs from the ontology is that it
+/// exists, because a [`CanonicalGraph`] carries one.
+#[must_use]
+pub fn ontology() -> Ontology {
+    Ontology::load(OntologyDocument {
+        version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
+        node_types: Vec::new(),
+        edge_types: Vec::new(),
+    })
+    .expect("a document with no declarations coheres")
+}
+
+/// A seed with a node, an edge, an assertion and the evidence it rests on.
+///
+/// Content in all four maps, so that `knowledge_root` and `evidence_root` are functions of
+/// something rather than constants: an empty seed would make every "the address is the same"
+/// assertion below pass for a store that lost the lot.
+#[must_use]
+pub fn seed_graph(ontology: &Ontology) -> CanonicalGraph {
+    let root_id = GraphRootId::mint();
+    let type_id = TypeId::mint();
+    let property = PropertyId::mint();
+    let (subject, object) = (NodeId::mint(), NodeId::mint());
+    let evidence_id = EvidenceId::mint();
+
+    let mut observed = Node::new(subject, root_id, type_id, "revision-lineage");
+    observed
+        .properties
+        .insert(property, CanonicalValue::Decimal("1.0".to_owned()));
+
+    let mut holds = Edge::new(EdgeId::mint(), root_id, type_id, subject, object);
+    holds
+        .properties
+        .insert(property, CanonicalValue::Enum("canonical".to_owned()));
+
+    let evidence = Evidence {
+        id: evidence_id,
+        source: EvidenceSource::Document {
+            document_id: "docs/roadmap.md".to_owned(),
+            section: Some("P1".to_owned()),
+        },
+        content_hash: ContentHash::of_bytes(b"the roadmap's P1 exit criterion"),
+        extracted_by: AgentId::mint(),
+        observed_at: Timestamp::EPOCH,
+        confidence: Confidence::CERTAIN,
+    };
+
+    let assertion = Assertion {
+        id: AssertionId::mint(),
+        root_id,
+        subject: Subject::Node(subject),
+        predicate: Predicate::Relation(type_id),
+        object: Object::Node(object),
+        evidence: [evidence_id].into_iter().collect::<BTreeSet<_>>(),
+        proposed_by: AgentId::mint(),
+        validation: ValidationState::Accepted {
+            validators: BTreeSet::new(),
+        },
+        valid_time: TemporalRange::since(Timestamp::EPOCH),
+        transaction_time: TransactionTime::since(Timestamp::EPOCH),
+    };
+
+    CanonicalGraph {
+        root: GraphRoot {
+            id: root_id,
+            space: Space::Canonical,
+            schema_version_id: ontology.version().id,
+            parent: None,
+            created_at: Timestamp::EPOCH,
+        },
+        revision: RevisionNumber::SEED,
+        ontology: ontology.clone(),
+        nodes: [(subject, observed)]
+            .into_iter()
+            .collect::<BTreeMap<_, _>>(),
+        edges: [(holds.id, holds)].into_iter().collect::<BTreeMap<_, _>>(),
+        assertions: [(assertion.id, assertion)]
+            .into_iter()
+            .collect::<BTreeMap<_, _>>(),
+        evidence: [(evidence_id, evidence)]
+            .into_iter()
+            .collect::<BTreeMap<_, _>>(),
+    }
+}

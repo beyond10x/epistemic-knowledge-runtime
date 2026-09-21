@@ -8,6 +8,17 @@
 //! time — a case whose expected values live in prose another branch may amend goes red in a tree
 //! that changed nothing, and no product test may read what the planning store owns. Amending the
 //! story amends these tables, in the same change.
+//!
+//! # `ekr-store`, amended by ADR 0006 in wave p1-05
+//!
+//! `architecture-decision-record:0006-ekr-store-bridges-the-async-port` widened `ekr-store`'s
+//! declarations after the skeleton story was written: `eventlog-core`'s `EventStore` is async and
+//! `eventlog-sqlite` needs a tokio runtime context, so the store owns a current-thread runtime and
+//! bridges to a synchronous surface. `tokio` is that runtime; `time` is `CommandMeta.occurred_at`,
+//! which the envelope requires and no consumer can build without naming the crate; `ekr-ontology`
+//! is `CanonicalGraph.ontology`, which `RevisionLog::fold` returns. The skeleton story's own table
+//! is therefore out of date and is amended in the planning store alongside this change; this file
+//! is the tree's copy of it, and the two move together.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -39,7 +50,7 @@ const EDGES: [(&str, &[&str]); 6] = [
     ),
     ("ekr-ontology", &["ekr-core"]),
     ("ekr-graph", &["ekr-core", "ekr-ontology"]),
-    ("ekr-store", &["ekr-core", "ekr-graph"]),
+    ("ekr-store", &["ekr-core", "ekr-graph", "ekr-ontology"]),
     (
         "ekr",
         &[
@@ -80,6 +91,8 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
             "serde",
             "serde_json",
             "thiserror",
+            "time",
+            "tokio",
         ],
         &["tempfile"],
     ),
