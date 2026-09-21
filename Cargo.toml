@@ -1,6 +1,12 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/ekr",
+    "crates/ekr-core",
+    "crates/ekr-graph",
+    "crates/ekr-kernel",
+    "crates/ekr-ontology",
+    "crates/ekr-store",
     "xtask",
 ]
 
@@ -9,13 +15,29 @@ version = "0.0.0"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/beyond10x/epistemic-knowledge-runtime"
-rust-version = "1.85"
+rust-version = "1.91"
 
 [workspace.dependencies]
+assert_cmd = "2"
 clap = { version = "4.6", features = ["derive"] }
+ekr-core = { path = "crates/ekr-core" }
+ekr-graph = { path = "crates/ekr-graph" }
+ekr-kernel = { path = "crates/ekr-kernel" }
+ekr-ontology = { path = "crates/ekr-ontology" }
+ekr-store = { path = "crates/ekr-store" }
+eventlog-core = { git = "https://github.com/beyond10x/eventlog", tag = "0.2.1" }
+eventlog-file = { git = "https://github.com/beyond10x/eventlog", tag = "0.2.1" }
+eventlog-sqlite = { git = "https://github.com/beyond10x/eventlog", tag = "0.2.1" }
+hex = "0.4"
+proptest = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+serde_yaml_ng = "0.10"
+sha2 = "0.10"
+tempfile = "3"
 thiserror = "2"
+trybuild = "1"
+uuid = { version = "1", features = ["v7"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
