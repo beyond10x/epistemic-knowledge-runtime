@@ -1,0 +1,364 @@
+domain: ekr.graph
+
+summary: >-
+  Graph roots, nodes, edges, bitemporal assertions with their validation state, evidence and
+  observations. Design § 13–17, § 21–23, § 36. This domain has no commands: every change to it is an
+  operation inside a transaction the kernel commits, which is why validation state and per-type
+  lifecycle state are fields here rather than ESS lifecycles — one commit applies many operations,
+  and an outcome causes one move.
+
+naming:
+  wire: graph
+  display: Graph
+
+types:
+  - name: ekr.graph.GraphRootId
+    kind: newtype
+    of: Uuid
+
+  - name: ekr.graph.NodeId
+    kind: newtype
+    of: Uuid
+
+  - name: ekr.graph.EdgeId
+    kind: newtype
+    of: Uuid
+
+  - name: ekr.graph.AssertionId
+    kind: newtype
+    of: Uuid
+
+  - name: ekr.graph.SupportId
+    kind: newtype
+    of: Uuid
+
+  - name: ekr.graph.EvidenceId
+    kind: newtype
+    of: Uuid
+
+  - name: ekr.graph.ObservationId
+    kind: newtype
+    of: Uuid
+
+  # Design § 23.
+  - name: ekr.graph.Space
+    kind: enum
+    variants:
+      - Canonical
+      - Transient
+
+  # Design § 17 and § 36, flattened to the state names. The payload of each state (validators,
+  # issues, competing assertions, the superseding assertion) lives in the fields beside it.
+  - name: ekr.graph.ValidationState
+    kind: enum
+    variants:
+      - Proposed
+      - Validating
+      - Accepted
+      - Rejected
+      - Disputed
+      - Superseded
+      - Retracted
+
+  # Design § 13.
+  - name: ekr.graph.SubjectKind
+    kind: enum
+    variants:
+      - Node
+      - Edge
+      - Type
+
+  - name: ekr.graph.PredicateKind
+    kind: enum
+    variants:
+      - Property
+      - Relation
+
+  - name: ekr.graph.ObjectKind
+    kind: enum
+    variants:
+      - Value
+      - Node
+      - Type
+
+  # Design § 16 `EvidenceSource`, by kind; the locator fields live on Evidence.
+  - name: ekr.graph.EvidenceKind
+    kind: enum
+    variants:
+      - Url
+      - Document
+      - DatabaseRecord
+      - GraphAssertion
+      - Observation
+      - HumanStatement
+
+  # Design § 15 `ObservationContent`, plus `Blob` from amendment 86.
+  - name: ekr.graph.ObservationKind
+    kind: enum
+    variants:
+      - Document
+      - ApiResponse
+      - DatabaseRecord
+      - FeedItem
+      - GraphFragment
+      - MessageBatch
+      - GitDiff
+      - Blob
+
+  # Design § 11.3 `Value`. The runtime value is recursive (List, Record); ESS types are not, so a
+  # value is carried as its kind plus its canonical textual encoding. The encoding is the same
+  # bytes the content hashes are computed over.
+  - name: ekr.graph.TypedValue
+    kind: struct
+    fields:
+      - name: kind
+        type: ekr.ontology.ValueKind
+      - name: canonical
+        type: String
+
+entities:
+  # Design § 22–23, § 69 `GraphRoot`. In P1 there is exactly one root, the canonical core.
+  # The KnowledgeState ladder of § 29 is added in P3 together with the commands that move a root.
+  - name: ekr.graph.GraphRoot
+    identity:
+      name: root_id
+      type: ekr.graph.GraphRootId
+    fields:
+      - name: space
+        type: ekr.graph.Space
+      - name: schema_version_id
+        type: ekr.ontology.SchemaVersionId
+      - name: parent
+        type: Optional<ekr.graph.GraphRootId>
+      - name: created_at
+        type: Timestamp
+    relations:
+      - name: nodes
+        kind: owns
+        target: ekr.graph.Node
+        cardinality: many
+        via: root_id
+      - name: edges
+        kind: owns
+        target: ekr.graph.Edge
+        cardinality: many
+        via: root_id
+      - name: assertions
+        kind: owns
+        target: ekr.graph.Assertion
+        cardinality: many
+        via: root_id
+    lifecycle:
+      initial: Active
+      states: [Active]
+      terminal: [Active]
+
+  # Design § 10 and amendment 87. `state` is the per-type lifecycle state the ontology declares for
+  # this node's type; the ontology-constraint validator, not ESS, checks its transitions.
+  - name: ekr.graph.Node
+    identity:
+      name: node_id
+      type: ekr.graph.NodeId
+    fields:
+      - name: root_id
+        type: ekr.graph.GraphRootId
+      - name: type_id
+        type: ekr.ontology.TypeId
+      - name: canonical_name
+        type: String
+      - name: aliases
+        type: List<String>
+      - name: type_state
+        type: Optional<String>
+      - name: properties
+        type: Map<String, ekr.graph.TypedValue>
+    relations:
+      - name: type
+        kind: references
+        target: ekr.ontology.NodeType
+        cardinality: one
+        via: type_id
+    lifecycle:
+      initial: Present
+      states: [Present]
+      terminal: [Present]
+
+  # Design § 12.
+  - name: ekr.graph.Edge
+    identity:
+      name: edge_id
+      type: ekr.graph.EdgeId
+    fields:
+      - name: root_id
+        type: ekr.graph.GraphRootId
+      - name: type_id
+        type: ekr.ontology.TypeId
+      - name: source
+        type: ekr.graph.NodeId
+      - name: target
+        type: ekr.graph.NodeId
+      - name: properties
+        type: Map<String, ekr.graph.TypedValue>
+    relations:
+      - name: type
+        kind: references
+        target: ekr.ontology.EdgeType
+        cardinality: one
+        via: type_id
+      - name: from
+        kind: references
+        target: ekr.graph.Node
+        cardinality: one
+        via: source
+      - name: to
+        kind: references
+        target: ekr.graph.Node
+        cardinality: one
+        via: target
+    lifecycle:
+      initial: Present
+      states: [Present]
+      terminal: [Present]
+
+  # Design § 13–14, § 17, § 36. Subject, predicate and object are typed by kind plus identity or
+  # value. Valid time is the world's; recorded time is the runtime's.
+  - name: ekr.graph.Assertion
+    identity:
+      name: assertion_id
+      type: ekr.graph.AssertionId
+    fields:
+      - name: root_id
+        type: ekr.graph.GraphRootId
+      - name: subject_kind
+        type: ekr.graph.SubjectKind
+      - name: subject
+        type: Uuid
+      - name: predicate_kind
+        type: ekr.graph.PredicateKind
+      - name: predicate
+        type: Uuid
+      - name: object_kind
+        type: ekr.graph.ObjectKind
+      - name: object_value
+        type: Optional<ekr.graph.TypedValue>
+      - name: object_ref
+        type: Optional<Uuid>
+      - name: proposed_by
+        type: ekr.kernel.AgentId
+      - name: validation
+        type: ekr.graph.ValidationState
+      - name: superseded_by
+        type: Optional<ekr.graph.AssertionId>
+      - name: valid_from
+        type: Optional<Timestamp>
+      - name: valid_to
+        type: Optional<Timestamp>
+      - name: recorded_from
+        type: Timestamp
+      - name: recorded_to
+        type: Optional<Timestamp>
+    relations:
+      - name: support
+        kind: owns
+        target: ekr.graph.Support
+        cardinality: many
+        via: assertion_id
+    lifecycle:
+      initial: Recorded
+      states: [Recorded]
+      terminal: [Recorded]
+
+  # The link from an assertion to one piece of evidence. Design § 13 `evidence: BTreeSet<EvidenceId>`.
+  - name: ekr.graph.Support
+    identity:
+      name: support_id
+      type: ekr.graph.SupportId
+    fields:
+      - name: assertion_id
+        type: ekr.graph.AssertionId
+      - name: evidence_id
+        type: ekr.graph.EvidenceId
+    relations:
+      - name: evidence
+        kind: references
+        target: ekr.graph.Evidence
+        cardinality: one
+        via: evidence_id
+    lifecycle:
+      initial: Linked
+      states: [Linked]
+      terminal: [Linked]
+
+  # Design § 16. Confidence in basis points, so it is an integer a suite can compare.
+  - name: ekr.graph.Evidence
+    identity:
+      name: evidence_id
+      type: ekr.graph.EvidenceId
+    fields:
+      - name: kind
+        type: ekr.graph.EvidenceKind
+      - name: locator
+        type: String
+      - name: section
+        type: Optional<String>
+      - name: content_hash
+        type: ekr.kernel.ContentHash
+      - name: extracted_by
+        type: ekr.kernel.AgentId
+      - name: observed_at
+        type: Timestamp
+      - name: confidence_bp
+        type: Integer
+      # An evidence of kind Observation names its observation here; other kinds have none. ESS
+      # relations are total, so this optional link is a field, checked by the reference validator.
+      - name: observation_id
+        type: Optional<ekr.graph.ObservationId>
+    invariants:
+      - confidence_bp >= 0
+      - confidence_bp <= 10000
+    lifecycle:
+      initial: Retained
+      states: [Retained]
+      terminal: [Retained]
+
+  # Design § 15. Immutable; what was received, not what it means. P2 adds the source adapters
+  # and checkpoints around it.
+  - name: ekr.graph.Observation
+    identity:
+      name: observation_id
+      type: ekr.graph.ObservationId
+    fields:
+      - name: source
+        type: String
+      - name: source_native_id
+        type: Optional<String>
+      - name: kind
+        type: ekr.graph.ObservationKind
+      - name: content_hash
+        type: ekr.kernel.ContentHash
+      - name: captured_at
+        type: Timestamp
+    lifecycle:
+      initial: Recorded
+      states: [Recorded]
+      terminal: [Recorded]
+
+views:
+  # Design § 47: the default application query is canonical active knowledge.
+  - name: ekr.graph.Assertions
+    source: ekr.graph.Assertion
+    consistency: read_your_writes
+    order_by:
+      - recorded_from desc
+    fields:
+      - name: assertion_id
+        type: ekr.graph.AssertionId
+      - name: root_id
+        type: ekr.graph.GraphRootId
+      - name: validation
+        type: ekr.graph.ValidationState
+      - name: recorded_from
+        type: Timestamp
+    naming:
+      wire: assertions
+      display: Assertions

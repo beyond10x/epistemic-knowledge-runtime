@@ -1,0 +1,53 @@
+components:
+  - component: ekr-kernel
+    summary: >-
+      Identity and reference rules, the transaction boundary from proposal through validation to
+      an immutable committed revision, snapshot reads and the explain chain. The only component
+      that constructs a validated transaction. Implemented by two crates: ekr-core holds the
+      domain's types, ekr-kernel its commands.
+    owns:
+      domains:
+        - ekr.kernel
+    accepts:
+      commands:
+        - ekr.kernel.Seed
+        - ekr.kernel.Propose
+        - ekr.kernel.Validate
+        - ekr.kernel.Commit
+        - ekr.kernel.Snapshot
+        - ekr.kernel.Explain
+    publishes:
+      events:
+        - ekr.kernel.Seeded
+        - ekr.kernel.TransactionProposed
+        - ekr.kernel.TransactionValidated
+        - ekr.kernel.TransactionRejected
+        - ekr.kernel.TransactionStale
+        - ekr.kernel.RevisionCommitted
+        - ekr.kernel.SnapshotTaken
+        - ekr.kernel.Explained
+
+  - component: ekr-ontology
+    summary: >-
+      The type system of a graph as data: schema versions, node and edge types with their
+      properties, per-type lifecycles and named operations. Evolves only through schema
+      transactions the kernel commits.
+    owns:
+      domains:
+        - ekr.ontology
+
+  - component: ekr-graph
+    summary: >-
+      Graph roots, nodes, edges, bitemporal assertions with their validation state, evidence and
+      observations. Holds no writer of its own; every change arrives as a committed transaction.
+    owns:
+      domains:
+        - ekr.graph
+
+  - component: ekr-store
+    summary: >-
+      Persistence through eventlog: content-addressed objects by storage class, and snapshots of
+      committed revisions.
+    owns:
+      domains:
+        - ekr.store

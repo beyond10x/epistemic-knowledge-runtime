@@ -1,0 +1,217 @@
+domain: ekr.ontology
+
+summary: >-
+  The type system of a graph, held as data: schema versions, node and edge types, property
+  definitions with typed values, and the per-type lifecycles and named operations of amendment 87.
+  Design § 11–12, § 26, § 50–52. In P1 the seed schema is the only version; schema transactions
+  arrive in P5 together with the commands that move a version.
+
+naming:
+  wire: ontology
+  display: Ontology
+
+types:
+  - name: ekr.ontology.TypeId
+    kind: newtype
+    of: Uuid
+
+  - name: ekr.ontology.PropertyId
+    kind: newtype
+    of: Uuid
+
+  - name: ekr.ontology.SchemaVersionId
+    kind: newtype
+    of: Uuid
+
+  # Design § 11.3 `ValueType`, by kind. The parameters of the compound kinds — the allowed types
+  # of a NodeRef, the variants of an Enum, the element type of a List, the fields of a Record —
+  # are carried by PropertyDefinition below.
+  - name: ekr.ontology.ValueKind
+    kind: enum
+    variants:
+      - String
+      - Boolean
+      - Integer
+      - Float
+      - Decimal
+      - Timestamp
+      - Duration
+      - NodeRef
+      - Enum
+      - List
+      - Record
+
+  # Design § 11.2 `Cardinality` and § 12 `EdgeCardinality` are both named and neither is defined.
+  # UNMAPPED: whether EdgeCardinality carries more than One/Many (for example OneToMany with a
+  # per-source bound) is not in the design; this enum serves both until the design says otherwise.
+  - name: ekr.ontology.Cardinality
+    kind: enum
+    variants:
+      - One
+      - Many
+
+  # Amendment 87: a transition of a per-type lifecycle.
+  - name: ekr.ontology.Transition
+    kind: struct
+    fields:
+      - name: from
+        type: String
+      - name: to
+        type: String
+
+  # Amendment 87: a named operation on a node type. Preconditions are constraint expressions over
+  # the node's properties and arguments; their language is UNMAPPED — design § 11.2 names
+  # `Constraint` and does not define it. Kept as text until a constraint language is decided.
+  - name: ekr.ontology.OperationDefinition
+    kind: struct
+    fields:
+      - name: name
+        type: String
+      - name: arguments
+        type: Map<String, ekr.ontology.ValueKind>
+      - name: preconditions
+        type: List<String>
+      - name: transition
+        type: Optional<ekr.ontology.Transition>
+      - name: emits
+        type: List<String>
+
+entities:
+  # Design § 69 `SchemaRegistry`. One version is canonical at a time; P1 has exactly the seed.
+  - name: ekr.ontology.SchemaVersion
+    identity:
+      name: schema_version_id
+      type: ekr.ontology.SchemaVersionId
+    fields:
+      - name: number
+        type: Integer
+      - name: parent
+        type: Optional<ekr.ontology.SchemaVersionId>
+      - name: created_at
+        type: Timestamp
+    invariants:
+      - number >= 0
+    relations:
+      - name: node_types
+        kind: owns
+        target: ekr.ontology.NodeType
+        cardinality: many
+        via: schema_version_id
+      - name: edge_types
+        kind: owns
+        target: ekr.ontology.EdgeType
+        cardinality: many
+        via: schema_version_id
+      - name: properties
+        kind: owns
+        target: ekr.ontology.PropertyDefinition
+        cardinality: many
+        via: schema_version_id
+    lifecycle:
+      initial: Canonical
+      states: [Canonical]
+      terminal: [Canonical]
+
+  # Design § 11.1 plus amendment 87. Properties are owned by the schema version and name their
+  # owning type in `owner_type_id`, because a property may belong to a node type or an edge type
+  # and one thing has one owner.
+  - name: ekr.ontology.NodeType
+    identity:
+      name: type_id
+      type: ekr.ontology.TypeId
+    fields:
+      - name: schema_version_id
+        type: ekr.ontology.SchemaVersionId
+      - name: name
+        type: String
+      - name: parents
+        type: List<ekr.ontology.TypeId>
+      - name: abstract_type
+        type: Boolean
+      - name: lifecycle_initial
+        type: Optional<String>
+      - name: lifecycle_states
+        type: List<String>
+      - name: lifecycle_transitions
+        type: List<ekr.ontology.Transition>
+      - name: operations
+        type: List<ekr.ontology.OperationDefinition>
+    lifecycle:
+      initial: Declared
+      states: [Declared]
+      terminal: [Declared]
+
+  # Design § 12.
+  - name: ekr.ontology.EdgeType
+    identity:
+      name: type_id
+      type: ekr.ontology.TypeId
+    fields:
+      - name: schema_version_id
+        type: ekr.ontology.SchemaVersionId
+      - name: name
+        type: String
+      - name: source_types
+        type: List<ekr.ontology.TypeId>
+      - name: target_types
+        type: List<ekr.ontology.TypeId>
+      - name: cardinality
+        type: ekr.ontology.Cardinality
+      - name: inverse
+        type: Optional<ekr.ontology.TypeId>
+      - name: symmetric
+        type: Boolean
+      - name: transitive
+        type: Boolean
+    lifecycle:
+      initial: Declared
+      states: [Declared]
+      terminal: [Declared]
+
+  # Design § 11.2.
+  - name: ekr.ontology.PropertyDefinition
+    identity:
+      name: property_id
+      type: ekr.ontology.PropertyId
+    fields:
+      - name: schema_version_id
+        type: ekr.ontology.SchemaVersionId
+      - name: owner_type_id
+        type: ekr.ontology.TypeId
+      - name: name
+        type: String
+      - name: value_kind
+        type: ekr.ontology.ValueKind
+      - name: ref_allowed_types
+        type: List<ekr.ontology.TypeId>
+      - name: enum_variants
+        type: List<String>
+      - name: cardinality
+        type: ekr.ontology.Cardinality
+      - name: required
+        type: Boolean
+      # UNMAPPED: design § 11.2 `constraints: Vec<Constraint>` — the constraint language is not
+      # defined. Held as text until it is.
+      - name: constraints
+        type: List<String>
+    lifecycle:
+      initial: Declared
+      states: [Declared]
+      terminal: [Declared]
+
+views:
+  - name: ekr.ontology.NodeTypesByVersion
+    source: ekr.ontology.NodeType
+    consistency: read_your_writes
+    order_by:
+      - name asc
+    fields:
+      - name: type_id
+        type: ekr.ontology.TypeId
+      - name: schema_version_id
+        type: ekr.ontology.SchemaVersionId
+      - name: name
+        type: String
+    naming:
+      wire: node-types
+      display: Node types

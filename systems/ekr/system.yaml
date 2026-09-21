@@ -1,0 +1,15 @@
+format: ess/1
+system: ekr
+version: v1
+
+summary: >-
+  The Epistemic Knowledge Runtime's own contract: what its verbs accept, what each outcome means,
+  and which crate answers which command. Written before the crates, so the Rust implements this
+  document and a conformance suite can hold it to it. Nothing here names a domain concept such as a
+  person or a project; those are graph state typed by an ontology the runtime carries as data.
+
+domains:
+  - ekr.kernel
+  - ekr.ontology
+  - ekr.graph
+  - ekr.store

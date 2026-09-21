@@ -1,0 +1,69 @@
+domain: ekr.store
+
+summary: >-
+  Persistence through eventlog. A committed revision is an event; the graph is a fold; snapshots
+  are eventlog snapshots; bytes are content-addressed and carry a storage class that decides their
+  retention. Design § 34, § 37, § 57. Reclamation (§ 38–39) arrives in P6 with the commands that
+  move an object toward deletion.
+
+naming:
+  wire: store
+  display: Store
+
+types:
+  - name: ekr.store.SnapshotId
+    kind: newtype
+    of: Uuid
+
+  # Design § 37.
+  - name: ekr.store.StorageClass
+    kind: enum
+    variants:
+      - Canonical
+      - Provenance
+      - Incubating
+      - Cache
+      - Ephemeral
+
+entities:
+  # Design § 57. Identity is the content hash; two writes of the same bytes are one object.
+  - name: ekr.store.StoredObject
+    identity:
+      name: content_hash
+      type: ekr.kernel.ContentHash
+    fields:
+      - name: storage_class
+        type: ekr.store.StorageClass
+      - name: byte_len
+        type: Integer
+      - name: stored_at
+        type: Timestamp
+    invariants:
+      - byte_len >= 0
+    lifecycle:
+      initial: Stored
+      states: [Stored]
+      terminal: [Stored]
+
+  # Design § 71. A materialised fold at one revision.
+  - name: ekr.store.Snapshot
+    identity:
+      name: snapshot_id
+      type: ekr.store.SnapshotId
+    fields:
+      - name: revision_id
+        type: ekr.kernel.RevisionId
+      - name: knowledge_root
+        type: ekr.kernel.ContentHash
+      - name: taken_at
+        type: Timestamp
+    relations:
+      - name: revision
+        kind: references
+        target: ekr.kernel.Revision
+        cardinality: one
+        via: revision_id
+    lifecycle:
+      initial: Taken
+      states: [Taken]
+      terminal: [Taken]

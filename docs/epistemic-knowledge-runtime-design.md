@@ -1,0 +1,3463 @@
+# Epistemic Knowledge Runtime
+## Conceptual System Design
+
+**Status:** Conceptual architecture  
+**Purpose:** Define a self-maintaining epistemic knowledge system that continuously ingests observations, interprets them into structured knowledge, validates and integrates trustworthy knowledge into a canonical core, incubates knowledge that does not yet fit, evolves its ontology under controlled rules, and forgets or compacts data over time.
+
+---
+
+# 1. Executive Summary
+
+This document specifies a conceptual architecture for an **Epistemic Knowledge Runtime**: a continuously operating system that transforms heterogeneous observations into structured, typed, provenance-aware, revisable knowledge.
+
+The system is not merely a knowledge graph. A graph is one of its storage and representation mechanisms. The larger system defines a complete **lifecycle of knowing**:
+
+1. observe,
+2. interpret,
+3. propose,
+4. resolve,
+5. validate,
+6. integrate,
+7. depend upon,
+8. revise,
+9. consolidate,
+10. forget,
+11. investigate again.
+
+The architecture distinguishes strongly between:
+
+- **observed information** and **accepted knowledge**,
+- **candidate assertions** and **canonical assertions**,
+- **transient interpretations** and **integrated knowledge**,
+- **confidence** and **validity**,
+- **schema compatibility** and **semantic usefulness**,
+- **semantic retraction** and **physical deletion**.
+
+The system has a strongly governed **Canonical Core** surrounded by an **Incubation Forest**. New information enters through an **Observation Layer**, is transformed by agent-driven interpretation, and may either be integrated into the Canonical Core or parked in transient graph roots where it can accumulate structure until later passes make integration possible.
+
+A central principle is:
+
+> Failure to integrate is itself information.
+
+Repeated patterns in non-canonical knowledge may reveal missing concepts, missing edge types, insufficient constraints, or gaps in the ontology. The system can therefore propose schema evolution from accumulated evidence, while keeping schema changes subject to stronger validation than ordinary knowledge changes.
+
+The system is best thought of as a **knowledge runtime** with an explicit epistemic boundary and a continuously executing **Epistemic Loop**.
+
+---
+
+# 2. Core Concept
+
+The runtime maintains a structured answer to the question:
+
+> What does the system currently know, why does it believe it, how may other parts of the system depend on it, and under what conditions should that knowledge be revised or forgotten?
+
+The system should never conflate all ingested data with truth.
+
+At minimum, it distinguishes:
+
+```text
+bytes
+  ↓
+observation
+  ↓
+interpretation
+  ↓
+candidate assertion
+  ↓
+validated assertion
+  ↓
+integrated canonical knowledge
+```
+
+Each transition has different semantics, guarantees, and retention policies.
+
+The primary abstraction is not the graph itself.
+
+The primary abstraction is the state transition:
+
+```text
+State
+  + Observation
+  → Interpretation
+  → Proposal
+  → Validation
+  → Integration / Parking
+  → Maintenance
+  → New State
+```
+
+Formally:
+
+```text
+Sₙ₊₁ = F(Sₙ, Oₙ)
+```
+
+Where:
+
+- `Sₙ` is the complete epistemic state at revision `n`,
+- `Oₙ` is a set of new observations,
+- `F` is the governed epistemic transition process,
+- `Sₙ₊₁` is the next committed state.
+
+---
+
+# 3. What the System Is
+
+The system is a combination of several architectural ideas.
+
+## 3.1 An epistemic system
+
+It represents not just facts, but epistemic status:
+
+- observed,
+- interpreted,
+- proposed,
+- corroborated,
+- disputed,
+- accepted,
+- superseded,
+- retracted,
+- stale,
+- archived.
+
+It therefore models both knowledge and the system's relationship to that knowledge.
+
+## 3.2 A knowledge runtime
+
+It continuously executes operations over knowledge:
+
+- entity resolution,
+- type checking,
+- reference validation,
+- provenance verification,
+- contradiction detection,
+- schema validation,
+- integration planning,
+- schema migration,
+- consolidation,
+- expiry,
+- garbage collection.
+
+The runtime analogy is intentional.
+
+| Programming runtime | Knowledge runtime |
+|---|---|
+| values | entities / assertions |
+| types | ontology |
+| references | edges |
+| heap | knowledge fabric |
+| type checker | schema validator |
+| garbage collector | retention / reclamation |
+| compiler inference | schema inference |
+| event loop | epistemic loop |
+| exceptions | contradictions / invalid states |
+| immutable log | revision history |
+
+## 3.3 A self-maintaining graph system
+
+The system does not rely on humans to manually curate every new piece of information.
+
+Agents may:
+
+- identify missing knowledge,
+- gather observations,
+- infer entities and relations,
+- resolve references,
+- propose assertions,
+- validate assertions,
+- detect conflicts,
+- propose schema extensions,
+- reconsider parked knowledge,
+- identify obsolete material.
+
+However, agents are not privileged writers to canonical state.
+
+## 3.4 A self-structuring knowledge system
+
+Knowledge is required to conform to the ontology, but recurring non-conforming knowledge may provide evidence that the ontology itself is insufficient.
+
+Therefore the relationship is bidirectional:
+
+```text
+ontology constrains knowledge
+
+and
+
+observed knowledge pressures ontology to evolve
+```
+
+Schema evolution is controlled and explicit rather than implicit.
+
+---
+
+# 4. What the System Is Not
+
+## 4.1 Not merely a knowledge graph
+
+A graph database can store nodes and edges, but it does not by itself define:
+
+- how observations become trusted facts,
+- provenance requirements,
+- validation gates,
+- transient knowledge spaces,
+- schema discovery,
+- forgetting,
+- retraction,
+- agent governance.
+
+The graph is a representation substrate, not the whole system.
+
+## 4.2 Not merely an ontology
+
+The ontology is the type and semantic constraint system used by the runtime.
+
+It is one layer within the larger epistemic architecture.
+
+## 4.3 Not merely RAG
+
+Retrieval-augmented generation may be used by agents, but RAG does not inherently provide:
+
+- canonicality,
+- durable identity,
+- referential integrity,
+- temporal semantics,
+- contradiction handling,
+- graph integration,
+- schema evolution.
+
+## 4.4 Not merely an agent swarm
+
+Agents are replaceable workers.
+
+The integrity of the system must not depend on any single model or prompt behaving correctly.
+
+The runtime remains valid even if agent implementations change.
+
+## 4.5 Not merely AI memory
+
+Memory implies persistence and recall.
+
+This system also performs:
+
+- epistemic classification,
+- semantic integration,
+- validation,
+- revision,
+- ontology evolution,
+- consolidation,
+- forgetting.
+
+---
+
+# 5. Terminology
+
+## 5.1 Knowledge Runtime
+
+The entire software system.
+
+It coordinates ingestion, agents, validation, graph management, ontology management, maintenance, storage, and retrieval.
+
+## 5.2 Knowledge Fabric
+
+The complete persisted knowledge substrate.
+
+It may contain many graph roots, stores, schemas, histories, mappings, and evidence collections.
+
+## 5.3 Canonical Core
+
+The main strongly validated graph.
+
+Knowledge in the Canonical Core satisfies the system's highest integrity requirements and may safely be depended upon by canonical computations.
+
+## 5.4 Incubation Forest
+
+The collection of non-canonical graph roots containing interpretations or structures that have not yet met canonical integration requirements.
+
+These graph roots may be internally coherent and strongly typed according to local schemas without being accepted by the canonical ontology.
+
+## 5.5 Observation Layer
+
+Immutable records of external information entering the runtime.
+
+Examples:
+
+- documents,
+- Slack message diffs,
+- email messages,
+- API responses,
+- Git commits,
+- database changes,
+- crawler results,
+- human input.
+
+## 5.6 Epistemic Loop
+
+The continuous process through which the runtime:
+
+- discovers,
+- observes,
+- interprets,
+- validates,
+- integrates,
+- revisits,
+- consolidates,
+- forgets.
+
+## 5.7 Integration
+
+The controlled derivation and commitment of canonical knowledge from non-canonical knowledge.
+
+Integration does not destroy the source interpretation.
+
+## 5.8 Consolidation
+
+Reduction of redundant or intermediate representations while preserving useful knowledge and required provenance.
+
+## 5.9 Retraction
+
+Semantic removal of a canonical assertion from the active world view without necessarily destroying historical evidence.
+
+## 5.10 Physical Reclamation
+
+Actual deletion of persisted bytes after they are no longer required by retention, provenance, audit, legal, or system constraints.
+
+---
+
+# 6. Fundamental Invariants
+
+The following invariants define the integrity model.
+
+## 6.1 Canonical dependency invariant
+
+> Canonical knowledge may depend only on canonical knowledge or retained admissible evidence.
+
+A canonical object may never depend directly on an unresolved transient object.
+
+Allowed:
+
+```text
+Transient → Canonical
+Transient → Transient
+Canonical → Canonical
+```
+
+Forbidden:
+
+```text
+Canonical → unresolved Transient
+```
+
+This creates a one-way integrity membrane.
+
+## 6.2 No dangling references
+
+Every committed reference must resolve to an existing object within its allowed dependency domain.
+
+Examples:
+
+```text
+NodeRef → existing Node
+Edge.source → existing Node
+Edge.target → existing Node
+TypeRef → existing Type
+PropertyRef → existing Property
+EvidenceRef → existing Evidence
+```
+
+## 6.3 Type validity
+
+Every committed value must satisfy its declared type.
+
+Every relation must satisfy its source and target type constraints.
+
+## 6.4 Stable identity
+
+Human-readable names are not identities.
+
+All persistent entities, types, properties, edges, assertions, schemas, and evidence objects use stable IDs.
+
+Renaming must not change identity.
+
+## 6.5 Provenance
+
+Every canonical assertion must have sufficient provenance according to policy.
+
+"An agent said so" is not sufficient provenance.
+
+## 6.6 Confidence is not validity
+
+Agent confidence is metadata.
+
+It does not bypass deterministic or policy-driven validation.
+
+## 6.7 No direct agent mutation
+
+Agents cannot directly mutate the Canonical Core.
+
+They can only propose transactions.
+
+## 6.8 Immutable historical transitions
+
+Committed revisions are immutable.
+
+Later changes produce new revisions, retractions, supersessions, or migrations.
+
+## 6.9 Schema changes are transactions
+
+Ontology evolution occurs through explicit schema transactions and stronger review gates.
+
+## 6.10 A transaction cannot validate itself
+
+The same actor or process that proposes a transaction cannot be the sole basis for its validation.
+
+---
+
+# 7. High-Level Architecture
+
+```text
+                     External World
+                           │
+             ┌─────────────┼─────────────┐
+             │             │             │
+          Slack          Docs          APIs
+             │             │             │
+             └─────────────┼─────────────┘
+                           ▼
+                 ┌───────────────────┐
+                 │ Observation Layer │
+                 └─────────┬─────────┘
+                           ▼
+                 ┌───────────────────┐
+                 │ Interpretation    │
+                 │ Agents            │
+                 └─────────┬─────────┘
+                           ▼
+                 ┌───────────────────┐
+                 │ Candidate Graphs  │
+                 │ / Assertions      │
+                 └─────────┬─────────┘
+                           ▼
+                 ┌───────────────────┐
+                 │ Resolution        │
+                 │ + Validation      │
+                 └─────────┬─────────┘
+                           ▼
+                ┌──────────┴──────────┐
+                │                     │
+                ▼                     ▼
+       ┌─────────────────┐   ┌──────────────────┐
+       │ Canonical Core  │   │ Incubation Forest│
+       └────────┬────────┘   └─────────┬────────┘
+                │                      │
+                │         structure / │
+                │          conflicts  │
+                │          / patterns │
+                │                      ▼
+                │             Schema Proposals
+                │                      │
+                └──────────────┬───────┘
+                               ▼
+                      Ontology Evolution
+                               │
+                               ▼
+                     Re-integration Pass
+                               │
+                               ↺
+```
+
+A maintenance path runs alongside all active processing:
+
+```text
+reconcile
+  ↓
+compress
+  ↓
+expire
+  ↓
+archive
+  ↓
+garbage collect
+```
+
+---
+
+# 8. The Seed
+
+The system begins from a minimal trusted seed.
+
+The seed is not expected to contain a complete world ontology.
+
+It contains only enough structure to begin safely extending knowledge.
+
+Conceptually:
+
+```rust
+pub struct Seed {
+    pub kernel: Kernel,
+    pub ontology: Ontology,
+    pub validators: Vec<ValidatorSpec>,
+    pub agent_roles: Vec<AgentRole>,
+    pub initial_assertions: Vec<Assertion>,
+}
+```
+
+The seed should be as small as practical.
+
+A smaller seed reduces the trusted computing base.
+
+---
+
+# 9. Trusted Kernel
+
+The kernel contains rules that are not casually mutable by the ordinary knowledge loop.
+
+Conceptually:
+
+```rust
+pub struct Kernel {
+    pub identity_rules: IdentityRules,
+    pub reference_rules: ReferenceRules,
+    pub transaction_rules: TransactionRules,
+    pub validation_rules: ValidationRules,
+    pub provenance_rules: ProvenanceRules,
+}
+```
+
+The kernel defines:
+
+- what constitutes identity,
+- how references resolve,
+- what makes a transaction structurally valid,
+- what validators must run,
+- which dependencies are permitted,
+- which state transitions are legal,
+- how revision lineage works.
+
+The kernel should not encode domain ontology such as "Person", "Project", or "Company".
+
+Those belong to evolvable graph state.
+
+---
+
+# 10. Identity Model
+
+Stable identity is central.
+
+Suggested ID classes:
+
+```rust
+pub struct NodeId(pub u128);
+pub struct EdgeId(pub u128);
+pub struct TypeId(pub u128);
+pub struct PropertyId(pub u128);
+pub struct AssertionId(pub u128);
+pub struct EvidenceId(pub u128);
+pub struct ObservationId(pub u128);
+pub struct AgentId(pub u128);
+pub struct SchemaVersionId(pub u128);
+pub struct GraphRootId(pub u128);
+pub struct TransactionId(pub u128);
+```
+
+Production implementations may use UUIDv7, content-derived identifiers where appropriate, or another stable scheme.
+
+Human-readable names remain attributes:
+
+```rust
+pub struct Node {
+    pub id: NodeId,
+    pub canonical_name: String,
+    // ...
+}
+```
+
+Identity must survive:
+
+- renames,
+- aliases,
+- schema migration,
+- merges,
+- external source changes.
+
+---
+
+# 11. Ontology and Type System
+
+The ontology defines the semantic type system of a graph.
+
+## 11.1 Node types
+
+```rust
+pub struct NodeType {
+    pub id: TypeId,
+    pub name: String,
+    pub parents: BTreeSet<TypeId>,
+    pub properties: BTreeMap<PropertyId, PropertyDefinition>,
+    pub abstract_type: bool,
+}
+```
+
+## 11.2 Property definitions
+
+```rust
+pub struct PropertyDefinition {
+    pub id: PropertyId,
+    pub name: String,
+    pub value_type: ValueType,
+    pub cardinality: Cardinality,
+    pub required: bool,
+    pub constraints: Vec<Constraint>,
+}
+```
+
+## 11.3 Typed values
+
+Values should not default to arbitrary JSON.
+
+```rust
+pub enum ValueType {
+    String,
+    Boolean,
+    Integer,
+    Float,
+    Decimal,
+    Timestamp,
+    Duration,
+
+    NodeRef {
+        allowed_types: BTreeSet<TypeId>,
+    },
+
+    Enum {
+        variants: BTreeSet<String>,
+    },
+
+    List(Box<ValueType>),
+
+    Record(BTreeMap<String, ValueType>),
+}
+```
+
+Runtime values mirror the declared type:
+
+```rust
+pub enum Value {
+    String(String),
+    Boolean(bool),
+    Integer(i64),
+    Float(f64),
+    Decimal(String),
+    Timestamp(i64),
+    Duration(i64),
+    NodeRef(NodeId),
+    Enum(String),
+    List(Vec<Value>),
+    Record(BTreeMap<String, Value>),
+}
+```
+
+This prevents ambiguous representations.
+
+For example:
+
+```text
+employer = "OpenAI"
+```
+
+is semantically weaker than:
+
+```text
+employer = NodeRef(organization/openai)
+```
+
+The second representation can be reference-checked and type-checked.
+
+---
+
+# 12. Typed Edges
+
+Relations have schemas just like nodes.
+
+```rust
+pub struct EdgeType {
+    pub id: TypeId,
+    pub name: String,
+
+    pub source_types: BTreeSet<TypeId>,
+    pub target_types: BTreeSet<TypeId>,
+
+    pub cardinality: EdgeCardinality,
+
+    pub properties: BTreeMap<PropertyId, PropertyDefinition>,
+
+    pub inverse: Option<TypeId>,
+    pub symmetric: bool,
+    pub transitive: bool,
+}
+```
+
+A concrete edge:
+
+```rust
+pub struct Edge {
+    pub id: EdgeId,
+    pub type_id: TypeId,
+    pub source: NodeId,
+    pub target: NodeId,
+    pub properties: BTreeMap<PropertyId, PropertyValue>,
+    pub provenance: Vec<EvidenceId>,
+    pub validation: ValidationState,
+}
+```
+
+An edge may only commit if:
+
+```text
+source exists
+target exists
+edge type exists
+source.type is compatible with edge.source_types
+target.type is compatible with edge.target_types
+edge properties satisfy schema
+all required references resolve
+```
+
+---
+
+# 13. Assertions as a Fundamental Primitive
+
+The most general form of knowledge is an assertion.
+
+```rust
+pub struct Assertion {
+    pub id: AssertionId,
+
+    pub subject: Subject,
+    pub predicate: Predicate,
+    pub object: Object,
+
+    pub evidence: BTreeSet<EvidenceId>,
+    pub proposed_by: AgentId,
+
+    pub validation: ValidationState,
+
+    pub valid_time: TemporalRange,
+    pub transaction_time: TemporalRange,
+}
+```
+
+Possible subjects:
+
+```rust
+pub enum Subject {
+    Node(NodeId),
+    Edge(EdgeId),
+    Type(TypeId),
+}
+```
+
+Predicates:
+
+```rust
+pub enum Predicate {
+    Property(PropertyId),
+    Relation(TypeId),
+}
+```
+
+Objects:
+
+```rust
+pub enum Object {
+    Value(Value),
+    Node(NodeId),
+    Type(TypeId),
+}
+```
+
+This allows node properties, relations, metadata, and schema-level claims to share a common provenance and lifecycle model.
+
+---
+
+# 14. Temporal Model
+
+The Canonical Core should support bitemporal semantics where useful.
+
+Two time dimensions are distinct.
+
+## 14.1 Valid time
+
+When the assertion was true in the represented world.
+
+## 14.2 Transaction time
+
+When the system believed or stored the assertion.
+
+Example:
+
+```text
+Alice CEO_OF Acme
+valid_time: 2024-01-01 → 2026-03-12
+transaction_time: 2024-01-02 → present history
+```
+
+A later fact can supersede the active world view without deleting historical knowledge.
+
+---
+
+# 15. Observations
+
+Observations represent what the system received from the external world.
+
+They should be immutable.
+
+```rust
+pub struct Observation {
+    pub id: ObservationId,
+    pub source: SourceRef,
+    pub content_hash: ContentHash,
+    pub captured_at: Timestamp,
+    pub content: ObservationContent,
+}
+```
+
+Possible forms:
+
+```rust
+pub enum ObservationContent {
+    Document(Document),
+    ApiResponse(StructuredValue),
+    DatabaseRecord(StructuredValue),
+    FeedItem(Document),
+    GraphFragment(Vec<ExternalTriple>),
+    MessageBatch(MessageBatch),
+    GitDiff(GitDiff),
+}
+```
+
+An observation says:
+
+> These bytes or structured values were observed from this source at this time.
+
+It does not say:
+
+> The semantic claims contained within them are true.
+
+---
+
+# 16. Evidence
+
+Evidence is structured and independently referenceable.
+
+```rust
+pub struct Evidence {
+    pub id: EvidenceId,
+    pub source: EvidenceSource,
+    pub content_hash: [u8; 32],
+    pub extracted_by: AgentId,
+    pub timestamp: i64,
+    pub confidence: Confidence,
+}
+```
+
+Possible source kinds:
+
+```rust
+pub enum EvidenceSource {
+    Url(String),
+
+    Document {
+        document_id: String,
+        section: Option<String>,
+    },
+
+    DatabaseRecord {
+        database: String,
+        table: String,
+        key: String,
+    },
+
+    GraphAssertion(AssertionId),
+
+    Observation(ObservationId),
+
+    HumanStatement {
+        identity: Option<String>,
+    },
+}
+```
+
+Evidence should preserve enough information to audit or reproduce the derivation where policy requires it.
+
+---
+
+# 17. Validation State
+
+Validation should not be represented as a single boolean.
+
+```rust
+pub enum ValidationState {
+    Proposed,
+
+    Validating {
+        completed: u32,
+        required: u32,
+    },
+
+    Accepted {
+        validators: BTreeSet<AgentId>,
+    },
+
+    Rejected {
+        reasons: Vec<ValidationIssue>,
+    },
+
+    Disputed {
+        competing_assertions: Vec<AssertionId>,
+    },
+
+    Superseded {
+        by: AssertionId,
+    },
+
+    Retracted {
+        reason: RetractionReason,
+    },
+}
+```
+
+Validation state is explicit and inspectable.
+
+---
+
+# 18. Agents
+
+Agents are runtime workers, not canonical authorities.
+
+```rust
+pub struct Agent {
+    pub id: AgentId,
+    pub name: String,
+    pub capabilities: BTreeSet<Capability>,
+    pub trust: TrustProfile,
+}
+```
+
+Capabilities may include:
+
+```rust
+pub enum Capability {
+    ExtractFacts,
+    ResolveEntities,
+    ValidateReferences,
+    ValidateTypes,
+    ValidateOntology,
+    DetectContradictions,
+    VerifyEvidence,
+    DiscoverSchema,
+    ApproveSchemaChange,
+    PlanCrawl,
+    ConsolidateKnowledge,
+}
+```
+
+Agents can be implemented by:
+
+- language models,
+- deterministic code,
+- external services,
+- rules engines,
+- human reviewers,
+- hybrid systems.
+
+The architecture should not depend on the implementation.
+
+---
+
+# 19. Transaction Model
+
+No agent receives direct canonical mutation privileges.
+
+Agents propose graph transactions.
+
+```rust
+pub struct GraphTransaction {
+    pub id: TransactionId,
+    pub proposer: AgentId,
+    pub operations: Vec<GraphOperation>,
+    pub evidence: BTreeSet<EvidenceId>,
+}
+```
+
+Operations may include:
+
+```rust
+pub enum GraphOperation {
+    CreateNode(NodeDraft),
+    UpdateProperty(PropertyMutation),
+    CreateEdge(EdgeDraft),
+    DeleteEdge(EdgeId),
+
+    AddAssertion(Assertion),
+    RetractAssertion(AssertionId),
+
+    DefineNodeType(NodeType),
+    DefineEdgeType(EdgeType),
+    ModifyProperty(PropertyDefinition),
+
+    MergeEntity(EntityMerge),
+}
+```
+
+Validation produces a distinct type:
+
+```rust
+pub struct ValidatedTransaction {
+    pub tx: GraphTransaction,
+    pub validated_against_revision: u64,
+    pub validation_hash: [u8; 32],
+}
+```
+
+Only a `ValidatedTransaction` may be committed.
+
+This uses Rust's type system as part of the integrity boundary.
+
+---
+
+# 20. Validation Pipeline
+
+The validation pipeline should combine deterministic checks and policy checks.
+
+```rust
+pub trait Validator {
+    fn validate(
+        &self,
+        graph: &GraphSnapshot,
+        tx: &GraphTransaction,
+    ) -> Result<(), Vec<ValidationIssue>>;
+}
+```
+
+Typical validators:
+
+1. structural validator,
+2. reference validator,
+3. type validator,
+4. cardinality validator,
+5. ontology constraint validator,
+6. provenance validator,
+7. authorization validator,
+8. contradiction validator,
+9. temporal consistency validator,
+10. policy validator.
+
+The deterministic subset should be rerunnable independently of AI agents.
+
+---
+
+# 21. Canonical Core
+
+The Canonical Core contains integrated knowledge that has crossed the system's highest integrity boundary.
+
+Characteristics:
+
+- strongly typed,
+- schema valid,
+- referentially complete,
+- provenance compliant,
+- transactionally committed,
+- revisioned,
+- queryable as dependable state.
+
+A simple representation:
+
+```rust
+pub struct CanonicalGraph {
+    pub revision: u64,
+    pub ontology: Ontology,
+    pub nodes: BTreeMap<NodeId, Node>,
+    pub edges: BTreeMap<EdgeId, Edge>,
+    pub assertions: BTreeMap<AssertionId, Assertion>,
+    pub evidence: BTreeMap<EvidenceId, Evidence>,
+}
+```
+
+The production representation may be distributed across multiple stores.
+
+The conceptual guarantee matters more than the physical format.
+
+---
+
+# 22. The Incubation Forest
+
+Information that cannot yet be represented canonically should not be discarded and should not be forced into an inappropriate schema.
+
+Instead it enters a non-canonical graph root.
+
+Examples of why integration might fail:
+
+- unknown entity identity,
+- insufficient provenance,
+- missing relation type,
+- unsupported property,
+- unresolved contradiction,
+- ambiguous semantics,
+- ontology mismatch,
+- insufficient validation.
+
+Each transient root may use its own stable schema.
+
+Example:
+
+```text
+Transient Slack Schema
+    SlackMessage
+    Thread
+    Reaction
+    TentativeAction
+    SocialCommitment
+    Mention
+```
+
+The canonical ontology might only contain:
+
+```text
+Person
+Project
+Task
+Decision
+```
+
+The transient schema can still be stable and internally typed without being canonical.
+
+---
+
+# 23. Knowledge Spaces
+
+The architecture should distinguish knowledge domains explicitly.
+
+```rust
+pub enum KnowledgeSpace {
+    Canonical,
+    Transient(TransientRootId),
+}
+```
+
+At the Rust API level, stronger typing is preferred:
+
+```rust
+pub struct CanonicalGraph {
+    root: GraphRoot,
+}
+
+pub struct TransientGraph {
+    root: GraphRoot,
+}
+```
+
+References can encode dependency restrictions:
+
+```rust
+pub struct CanonicalRef<T> {
+    id: NodeId,
+    _marker: PhantomData<T>,
+}
+
+pub enum TransientRef<T> {
+    Canonical(CanonicalRef<T>),
+    Local(LocalRef<T>),
+}
+```
+
+No equivalent `CanonicalGraph -> TransientRef` should exist.
+
+Invalid dependency states should be difficult or impossible to represent.
+
+---
+
+# 24. Interpretation of Incoming Data
+
+Consider a dump of recent Slack messages.
+
+The initial flow is:
+
+```text
+Slack diff
+   ↓
+Observation
+   ↓
+TransientRoot
+   ↓
+Message nodes
+   ↓
+Entity candidates
+   ↓
+Action candidates
+   ↓
+Relations
+```
+
+Interpretation is intentionally separated from integration.
+
+Example message:
+
+```text
+"Sarah said deployment should move to Tuesday."
+```
+
+Possible transient interpretation:
+
+```text
+Message
+  ├── speaker → SarahCandidate
+  ├── mentions → DeploymentCandidate
+  └── proposes
+       └── RescheduleCandidate
+             └── date → Tuesday
+```
+
+The runtime then attempts resolution and integration.
+
+If all required identities and schema mappings exist, a canonical transaction can be proposed.
+
+If not, the interpretation remains parked.
+
+---
+
+# 25. Failure to Integrate as Information
+
+A major architectural principle is:
+
+> Repeated integration failure can reveal missing ontology.
+
+Example transient observations:
+
+```text
+Project A → health "amber"
+Project B → health "green"
+Project C → health "red"
+Project D → health "amber"
+```
+
+Suppose the canonical ontology has no project health concept.
+
+The runtime should not immediately create an arbitrary canonical field.
+
+Instead, transient roots accumulate evidence.
+
+A later schema-discovery pass may infer a recurring structure:
+
+```text
+Project
+  └── project-health
+        ├── green
+        ├── amber
+        └── red
+```
+
+This can produce a schema proposal.
+
+---
+
+# 26. Schema Evolution
+
+Schema evolution uses the same transactional philosophy as ordinary knowledge, but with stronger gates.
+
+Example proposal:
+
+```rust
+pub struct SchemaProposal {
+    pub source_roots: Vec<GraphRootId>,
+    pub operations: Vec<SchemaOperation>,
+    pub supporting_evidence: Vec<EvidenceId>,
+    pub migration_plan: Option<MigrationPlan>,
+}
+```
+
+A proposal might:
+
+- add a type,
+- add an edge type,
+- add a property,
+- relax or tighten a constraint,
+- define a subtype,
+- define a mapping from transient schema to canonical schema.
+
+Schema validation may require:
+
+- multiple independent signals,
+- compatibility analysis,
+- migration analysis,
+- collision detection,
+- proof that existing canonical state remains valid,
+- human approval for high-impact changes.
+
+---
+
+# 27. Integration Plans
+
+Integration should be explicit.
+
+A transient graph is not copied wholesale into the Canonical Core.
+
+Instead the runtime derives an integration plan.
+
+```rust
+pub struct IntegrationPlan {
+    pub source_root: TransientRootId,
+    pub source_schema: SchemaVersionId,
+    pub target_schema: SchemaVersionId,
+
+    pub mappings: Vec<Mapping>,
+    pub transactions: Vec<CanonicalTransaction>,
+}
+```
+
+An integration mapping may be conditional.
+
+Example:
+
+```text
+Slack.TentativeAction
+    → Canonical.Task
+
+only if:
+    actor identity resolves
+    action is explicit enough
+    action has not been superseded
+    project reference resolves
+    task schema requirements are satisfied
+```
+
+This makes integration resemble a semantic compiler.
+
+---
+
+# 28. Integration Does Not Move Data
+
+When knowledge is integrated, the source interpretation is not conceptually "moved" into the canonical graph.
+
+The system creates a canonical derivation.
+
+```text
+Observation
+   ↓
+Transient Interpretation
+   ↓
+Integration Plan
+   ↓
+Canonical Assertion
+```
+
+The provenance chain remains inspectable.
+
+Example:
+
+```text
+Canonical Task #791
+   ↑ derived_from
+Integration #221
+   ↑ interpreted_from
+Transient Node #882
+   ↑ extracted_from
+Slack Observation #991
+```
+
+This makes schema changes, audits, and reprocessing possible.
+
+---
+
+# 29. Knowledge Lifecycle
+
+A useful lifecycle is:
+
+```text
+RAW
+  ↓
+OBSERVED
+  ↓
+INTERPRETED
+  ↓
+INCUBATING
+  ↓
+INTEGRATABLE
+  ↓
+INTEGRATED
+```
+
+Alternate terminal states include:
+
+```text
+REJECTED
+ARCHIVED
+EXPIRED
+```
+
+Possible representation:
+
+```rust
+pub enum KnowledgeState {
+    Observation,
+    Transient,
+    Incubating,
+    Integratable,
+    Integrated,
+    Rejected,
+    Archived,
+    Expired,
+}
+```
+
+These are lifecycle states, not separate truth systems.
+
+At the highest integrity level, the system still has two trust domains:
+
+```text
+Canonical
+NonCanonical
+```
+
+---
+
+# 30. Knowledge Crawler
+
+The crawler is the sensory acquisition subsystem.
+
+It should not directly write facts.
+
+It emits observations.
+
+```rust
+pub trait KnowledgeCrawler {
+    async fn crawl(
+        &self,
+        ctx: &CrawlContext,
+    ) -> Result<Vec<Observation>, CrawlError>;
+}
+```
+
+Crawler sources may include:
+
+- web,
+- APIs,
+- internal databases,
+- Slack,
+- email,
+- Git,
+- filesystems,
+- feeds,
+- event streams,
+- external graphs.
+
+---
+
+# 31. Semantic Frontier
+
+A conventional crawler operates from a URL frontier.
+
+This runtime should operate from a **knowledge frontier**.
+
+```rust
+pub struct KnowledgeFrontier {
+    pub tasks: Vec<KnowledgeTask>,
+}
+```
+
+Tasks may include:
+
+```rust
+pub enum KnowledgeTask {
+    DiscoverEntity {
+        query: String,
+    },
+
+    FillProperty {
+        entity: NodeId,
+        property: PropertyId,
+    },
+
+    VerifyAssertion {
+        assertion: AssertionId,
+    },
+
+    ResolveConflict {
+        assertions: Vec<AssertionId>,
+    },
+
+    DiscoverRelations {
+        entity: NodeId,
+        relation_type: TypeId,
+    },
+
+    ExpandTopic {
+        concept: NodeId,
+    },
+
+    RefreshStaleKnowledge {
+        entity: NodeId,
+    },
+
+    RevisitTransientRoot {
+        root: GraphRootId,
+    },
+}
+```
+
+The graph itself therefore drives future observation.
+
+The crawler asks:
+
+- what do we not know?
+- what is weakly supported?
+- what is stale?
+- what is disputed?
+- what repeatedly fails integration?
+- which unresolved transient structures look valuable?
+
+---
+
+# 32. Frontier Prioritization
+
+Crawl work should be ranked by expected value.
+
+Possible factors:
+
+```rust
+pub struct FrontierItem {
+    pub task: KnowledgeTask,
+    pub importance: f32,
+    pub uncertainty: f32,
+    pub staleness: f32,
+    pub expected_information_gain: f32,
+    pub integration_potential: f32,
+    pub estimated_cost: f32,
+}
+```
+
+A conceptual priority function:
+
+```text
+priority =
+    importance
+  × uncertainty
+  × information_gain
+  × freshness_need
+  × integration_potential
+  ÷ expected_cost
+```
+
+The exact function is a policy choice.
+
+---
+
+# 33. The Epistemic Loop
+
+The system continuously executes:
+
+```text
+canonical state
+      ↓
+detect gaps / stale knowledge / conflicts
+      ↓
+plan frontier
+      ↓
+observe
+      ↓
+interpret
+      ↓
+resolve identities
+      ↓
+validate candidates
+      ↓
+          ┌───────────────┐
+          │               │
+        fits          does not fit
+          │               │
+          ▼               ▼
+     integrate           park
+          │               │
+          │           accumulate
+          │               │
+          │         infer structure
+          │               │
+          │       propose schema change
+          │               │
+          └───────◄───────┘
+                  │
+                  ▼
+              maintain
+                  │
+                  ▼
+             next revision
+                  │
+                  ↺
+```
+
+A simplified Rust sketch:
+
+```rust
+loop {
+    let snapshot = runtime.snapshot();
+
+    let frontier = planner.plan(&snapshot)?;
+
+    let observations =
+        crawler.crawl(&CrawlContext {
+            graph: &snapshot,
+            frontier: &frontier,
+            budget,
+        }).await?;
+
+    let interpretations =
+        interpreter.interpret(&snapshot, observations).await?;
+
+    let resolved =
+        resolver.resolve(&snapshot, interpretations).await?;
+
+    let plans =
+        integrator.plan(&snapshot, resolved).await?;
+
+    let validated =
+        validators.validate(&snapshot, plans)?;
+
+    runtime.commit(validated)?;
+
+    runtime.maintain()?;
+}
+```
+
+---
+
+# 34. Revision Model
+
+Each successful commit produces a new immutable root.
+
+```rust
+pub struct Root {
+    pub revision: u64,
+    pub parent: Option<RootHash>,
+
+    pub ontology_root: Hash,
+    pub knowledge_root: Hash,
+    pub evidence_root: Hash,
+    pub agent_root: Hash,
+
+    pub transaction: TransactionHash,
+}
+```
+
+Revision lineage:
+
+```text
+Seed
+ ↓
+Root₀
+ ↓
+Root₁
+ ↓
+Root₂
+ ↓
+Root₃
+```
+
+This provides:
+
+- reproducibility,
+- auditability,
+- rollback analysis,
+- deterministic replay,
+- schema migration traceability.
+
+---
+
+# 35. Removal and Forgetting
+
+A system that only appends knowledge will eventually become unusable.
+
+Forgetting must be a first-class subsystem.
+
+There are three distinct forms.
+
+## 35.1 Semantic removal
+
+The active system should no longer treat a fact as true.
+
+Usually represented by:
+
+- retraction,
+- supersession,
+- end of valid-time interval.
+
+## 35.2 Retention removal
+
+Intermediate data is no longer useful enough to retain.
+
+Examples:
+
+- failed interpretations,
+- stale transient roots,
+- temporary model outputs,
+- obsolete extraction structures.
+
+## 35.3 Physical reclamation
+
+Persisted bytes are actually deleted from storage.
+
+This occurs only after reachability, policy, retention, and audit requirements permit it.
+
+---
+
+# 36. Canonical Retraction
+
+Canonical knowledge is usually not physically erased when it ceases to be active.
+
+```rust
+pub enum AssertionStatus {
+    Active,
+
+    Retracted {
+        at_revision: u64,
+        reason: RetractionReason,
+    },
+
+    Superseded {
+        by: AssertionId,
+    },
+}
+```
+
+Historical knowledge remains reconstructable.
+
+Current queries can expose only active assertions by default.
+
+---
+
+# 37. Storage Classes
+
+Different information deserves different durability.
+
+```rust
+pub enum StorageClass {
+    Canonical,
+    Provenance,
+    Incubating,
+    Cache,
+    Ephemeral,
+}
+```
+
+Suggested semantics:
+
+## Canonical
+
+- durable,
+- revisioned,
+- strongly governed,
+- semantically retracted rather than casually deleted.
+
+## Provenance
+
+- retained while required to verify, audit, or reproduce canonical assertions.
+
+## Incubating
+
+- retained while it has meaningful integration or schema-discovery potential.
+
+## Cache
+
+- reproducible and freely deletable.
+
+## Ephemeral
+
+- short-lived agent and runtime working state.
+
+---
+
+# 38. Garbage Collection
+
+Physical reclamation should be based partly on reachability.
+
+Root set examples:
+
+```text
+current canonical root
+audit holds
+legal holds
+pinned evidence
+active transient roots
+schema migration dependencies
+explicitly retained historical roots
+```
+
+The collector traces all required references.
+
+Everything unreachable becomes a reclamation candidate.
+
+Conceptually:
+
+```rust
+fn collect(
+    roots: &[ObjectId],
+    store: &Store,
+) -> GarbageSet {
+    let reachable = trace_references(roots, store);
+
+    store
+        .all_objects()
+        .filter(|id| !reachable.contains(id))
+        .collect()
+}
+```
+
+Unreachable does not necessarily mean immediately deletable.
+
+---
+
+# 39. Reclamation Grace Period
+
+Physical deletion should normally pass through:
+
+```text
+unreachable
+   ↓
+candidate
+   ↓
+quarantine
+   ↓
+grace period
+   ↓
+physical deletion
+```
+
+This protects against:
+
+- delayed references,
+- bugs,
+- mistaken schema migrations,
+- accidental policy changes,
+- temporary disconnection.
+
+---
+
+# 40. Decay of Incubating Knowledge
+
+The Incubation Forest needs explicit decay pressure.
+
+Otherwise it will become the dominant storage cost.
+
+Possible root utility metadata:
+
+```rust
+pub struct RootUtility {
+    pub last_accessed: Timestamp,
+    pub last_changed: Timestamp,
+    pub integration_progress: f32,
+    pub information_gain: f32,
+    pub canonical_references: u32,
+    pub unresolved_conflicts: u32,
+    pub schema_signal_strength: f32,
+    pub storage_cost: u64,
+}
+```
+
+The maintenance loop can ask:
+
+- has this root produced useful canonical knowledge?
+- has it revealed schema structure?
+- is it still changing?
+- does another root subsume it?
+- is unique evidence stored here?
+- is anyone depending on it?
+- is expected future integration value above cost?
+
+Low-value roots may be archived, compressed, or deleted.
+
+---
+
+# 41. Consolidation
+
+The system should be able to forget representations without forgetting knowledge.
+
+Consider:
+
+```text
+10,000 Slack messages
+2,800 transient entities
+430 candidate assertions
+73 canonical assertions
+```
+
+After integration, the runtime may no longer need:
+
+- every prompt,
+- every extraction variant,
+- all failed parse structures,
+- redundant embeddings,
+- duplicate candidate entities,
+- obsolete transient edges.
+
+It may retain:
+
+- 73 canonical assertions,
+- minimal required provenance,
+- content hashes,
+- selected source fragments,
+- unresolved residual knowledge.
+
+---
+
+# 42. Semantic Compression
+
+Some transient structures may be too valuable to delete but too expensive to retain in full.
+
+They can be summarized into a smaller graph.
+
+Example:
+
+```text
+50,000 messages
+       ↓
+semantic consolidation
+       ↓
+Project Atlas
+ ├── recurring topic: migration
+ ├── unresolved decision: provider choice
+ ├── inferred vocabulary:
+ │      amber/green/red = project health
+ └── selected evidence references
+```
+
+The bulk interpretation graph can then be reclaimed according to policy.
+
+---
+
+# 43. Maintenance Loop
+
+The complete runtime loop includes both epistemic growth and decay.
+
+```text
+observe
+   ↓
+interpret
+   ↓
+integrate / park
+   ↓
+reconcile
+   ↓
+schema-discover
+   ↓
+compress
+   ↓
+expire
+   ↓
+archive
+   ↓
+garbage collect
+   ↓
+repeat
+```
+
+Growth without maintenance is considered an invalid long-term operating mode.
+
+---
+
+# 44. Contradictions
+
+Contradictory assertions should not automatically destroy one another.
+
+The system may represent competing claims explicitly.
+
+Example:
+
+```text
+Assertion A:
+    ProjectAtlas.launch_date = Oct 12
+    evidence = source X
+
+Assertion B:
+    ProjectAtlas.launch_date = Oct 19
+    evidence = source Y
+```
+
+The contradiction subsystem can:
+
+- mark assertions disputed,
+- assess source freshness,
+- inspect temporal context,
+- seek additional evidence,
+- identify supersession,
+- escalate to human review.
+
+Contradiction is a state to investigate, not merely an error to suppress.
+
+---
+
+# 45. Entity Resolution
+
+Entity resolution is one of the highest-risk semantic operations.
+
+Transient interpretation may create:
+
+```text
+SarahCandidate#1
+SarahCandidate#2
+"Sarah"
+```
+
+The runtime must determine whether these correspond to:
+
+```text
+Canonical Person: Sarah Chen
+```
+
+Possible signals:
+
+- source identity,
+- explicit IDs,
+- email or account references,
+- contextual relationships,
+- temporal overlap,
+- matching attributes,
+- human confirmation.
+
+Incorrect merges can corrupt large portions of a knowledge graph.
+
+Therefore merges should be explicit transactions with provenance.
+
+---
+
+# 46. Merge and Split Semantics
+
+Entities sometimes need to merge or split.
+
+## Merge
+
+```text
+candidate A
+candidate B
+   ↓
+same canonical entity
+```
+
+The runtime should preserve alias and historical lineage rather than rewriting identity blindly.
+
+## Split
+
+A previously merged entity may later be discovered to represent multiple real entities.
+
+The runtime needs a migration transaction that:
+
+- creates distinct entities,
+- rewrites affected references,
+- preserves historical provenance,
+- flags uncertain assignments.
+
+---
+
+# 47. Query Semantics
+
+Queries should be explicit about epistemic scope.
+
+Examples:
+
+```text
+canonical only
+canonical + disputed
+canonical as of revision N
+canonical valid at time T
+include incubating roots
+source-specific interpretation
+all claims regardless of acceptance
+```
+
+The default application query should generally use canonical active knowledge.
+
+Research or debugging tools may expose broader scopes.
+
+---
+
+# 48. Trust and Agent Reliability
+
+Agent reliability can be tracked but should never substitute for evidence.
+
+```rust
+pub struct TrustProfile {
+    pub evidence_extraction: f32,
+    pub entity_resolution: f32,
+    pub ontology_reasoning: f32,
+}
+```
+
+Trust profiles can influence:
+
+- review intensity,
+- scheduling,
+- fallback requirements,
+- whether another validator is required.
+
+They should not independently convert assertions into truth.
+
+---
+
+# 49. Consensus
+
+Some changes may require multiple independent validations.
+
+For example:
+
+```text
+Extractor Agent A
+      ↓
+Candidate
+      ↓
+Reference Validator B
+      ↓
+Evidence Validator C
+      ↓
+Ontology Validator D
+      ↓
+Commit Gate
+```
+
+Independence can be logical rather than necessarily model-level.
+
+For high-impact changes, different models or humans may be required.
+
+---
+
+# 50. Schema Governance
+
+Not all schema changes are equal.
+
+Possible risk classes:
+
+## Low risk
+
+- new optional property,
+- new subtype with no migration,
+- local alias mapping.
+
+## Medium risk
+
+- new relation semantics,
+- cardinality expansion,
+- non-breaking constraint change.
+
+## High risk
+
+- changing identity rules,
+- narrowing cardinality,
+- changing property type,
+- modifying canonical dependency semantics,
+- altering validation requirements.
+
+Higher-risk classes require stronger approval policies.
+
+---
+
+# 51. Meta-Ontology
+
+Eventually the ontology itself may be represented using graph primitives.
+
+Example:
+
+```text
+Type
+ ├── has_property → Property
+ ├── subtype_of → Type
+ └── constrained_by → Constraint
+
+Property
+ ├── range → Type
+ ├── cardinality → Cardinality
+ └── value_kind → ValueKind
+```
+
+This creates:
+
+```text
+Meta-schema
+    ↓ describes
+Ontology
+    ↓ types
+Knowledge Graph
+```
+
+The meta-schema belongs close to the trusted kernel and should evolve cautiously.
+
+---
+
+# 52. Schema Compatibility
+
+Transient schemas do not need to equal canonical schemas.
+
+The system should support explicit schema compatibility mappings.
+
+Examples:
+
+```text
+Slack.Thread → Canonical.Conversation
+Slack.TentativeAction → maybe Canonical.Task
+Document.PersonMention → Canonical.Person reference
+```
+
+Mappings may be:
+
+- exact,
+- lossy,
+- conditional,
+- one-to-many,
+- many-to-one,
+- non-integratable.
+
+Mappings themselves should be versioned.
+
+---
+
+# 53. Local Stability vs Canonical Acceptance
+
+A transient schema can be stable without becoming canonical.
+
+This distinction matters.
+
+Example:
+
+```text
+Slack Interpretation Schema v4
+```
+
+may remain useful indefinitely for interpreting Slack observations.
+
+It need not be merged into the universal ontology.
+
+Canonical ontology should avoid becoming a dumping ground for source-specific implementation details.
+
+---
+
+# 54. Source Adapters
+
+Source ingestion should be modular.
+
+Possible adapter interface:
+
+```rust
+pub trait SourceAdapter {
+    async fn poll(
+        &self,
+        checkpoint: SourceCheckpoint,
+    ) -> Result<ObservationBatch, SourceError>;
+}
+```
+
+Examples:
+
+- Slack adapter,
+- Gmail adapter,
+- Git adapter,
+- filesystem adapter,
+- HTTP crawler,
+- database CDC adapter.
+
+Each adapter should preserve source-native identifiers when available.
+
+---
+
+# 55. Checkpoints and Incremental Ingestion
+
+The system should favor deltas over full re-ingestion.
+
+Examples:
+
+```text
+Slack:
+    messages after timestamp X
+
+Git:
+    commits after hash H
+
+Database:
+    CDC offset O
+
+Document:
+    content hash changed
+```
+
+Checkpoint state should be durable but not confused with canonical knowledge.
+
+---
+
+# 56. Idempotency
+
+Repeated ingestion must not create duplicate semantic objects merely because the same source was observed twice.
+
+Useful mechanisms include:
+
+- source-native IDs,
+- content hashes,
+- transaction IDs,
+- deterministic observation IDs,
+- deduplication indexes.
+
+Idempotency should exist at both the observation and integration layers.
+
+---
+
+# 57. Content Addressing
+
+Raw source payloads and immutable artifacts benefit from content addressing.
+
+Example:
+
+```rust
+pub struct ContentHash([u8; 32]);
+```
+
+Advantages:
+
+- deduplication,
+- integrity verification,
+- reproducible provenance,
+- immutable evidence references,
+- efficient storage.
+
+---
+
+# 58. Security and Authorization
+
+The runtime may ingest knowledge from sources with different access controls.
+
+Canonical integration must not erase source authorization semantics.
+
+Questions include:
+
+- who may read an assertion?
+- who may read its provenance?
+- may derived knowledge be exposed more broadly than the source?
+- what happens when source access is revoked?
+
+Authorization should therefore be attached to:
+
+- observations,
+- evidence,
+- transient roots,
+- canonical assertions where necessary.
+
+---
+
+# 59. Derived Knowledge and Information Leakage
+
+A canonical assertion derived from restricted source material may itself reveal restricted information.
+
+Therefore integration must perform an access-policy derivation step.
+
+A safe rule is not necessarily:
+
+```text
+canonical = universally visible
+```
+
+Instead:
+
+```text
+canonical = epistemically accepted
+```
+
+while access control remains orthogonal.
+
+---
+
+# 60. Deletion Requests and Data Governance
+
+Physical deletion may be required independently of epistemic history.
+
+The runtime therefore needs policy-aware deletion.
+
+Examples:
+
+- user deletion request,
+- source revocation,
+- contractual retention limits,
+- legal requirements,
+- privacy policy.
+
+When evidence must be deleted, dependent canonical assertions may need to:
+
+- retain only an allowed derived form,
+- lose provenance status,
+- become disputed,
+- be revalidated from alternate evidence,
+- be retracted.
+
+---
+
+# 61. Observability
+
+The runtime should expose metrics for epistemic health.
+
+Examples:
+
+## Canonical metrics
+
+- total active assertions,
+- unresolved contradictions,
+- assertions without sufficient provenance,
+- schema validation failures,
+- stale assertions,
+- retractions per period.
+
+## Incubation metrics
+
+- number of transient roots,
+- storage size,
+- average root age,
+- integration rate,
+- abandoned root rate,
+- emergent schema proposal count.
+
+## Agent metrics
+
+- proposal acceptance rate,
+- false merge corrections,
+- validation disagreement rate,
+- extraction failure rate.
+
+## Maintenance metrics
+
+- reclaimed bytes,
+- consolidation ratio,
+- expired observations,
+- unreachable object count.
+
+---
+
+# 62. Explainability
+
+Every canonical assertion should be explainable through a chain such as:
+
+```text
+Why is this true?
+
+Canonical Assertion
+    ↓
+Accepted Transaction
+    ↓
+Validation Results
+    ↓
+Integration Plan
+    ↓
+Transient Interpretation
+    ↓
+Evidence
+    ↓
+Observation
+    ↓
+External Source
+```
+
+The exact chain may vary, but provenance should never end at "the model inferred it" for high-trust knowledge.
+
+---
+
+# 63. Example: Slack-to-Canonical Flow
+
+Input message:
+
+```text
+"Sarah: Let's move the Atlas deployment to Tuesday."
+```
+
+## Step 1: Observation
+
+```text
+Observation O991
+source = Slack channel X
+message_id = M123
+timestamp = ...
+content_hash = ...
+```
+
+## Step 2: Interpretation
+
+```text
+TransientRoot T201
+
+Message M123
+    speaker → SarahCandidate
+    refers_to → AtlasCandidate
+    proposes → RescheduleCandidate
+    target_date → Tuesday
+```
+
+## Step 3: Resolution
+
+```text
+SarahCandidate
+    → Canonical Person Sarah
+
+AtlasCandidate
+    → Canonical Project Atlas
+```
+
+## Step 4: Semantic decision
+
+The system determines that the sentence expresses a proposal, not necessarily a completed schedule change.
+
+It may therefore integrate:
+
+```text
+Sarah
+    proposed_reschedule
+        → AtlasDeployment
+```
+
+rather than:
+
+```text
+AtlasDeployment.date = Tuesday
+```
+
+unless additional evidence indicates a committed decision.
+
+## Step 5: Provenance
+
+The canonical assertion retains provenance to `O991`.
+
+## Step 6: Later message
+
+```text
+"Confirmed, Atlas deploy is Tuesday."
+```
+
+A later observation may allow:
+
+```text
+AtlasDeployment.date = Tuesday
+```
+
+to cross the canonical gate.
+
+---
+
+# 64. Example: Ontology Discovery
+
+Repeated transient facts:
+
+```text
+Atlas.health = "amber"
+Nova.health = "green"
+Orion.health = "red"
+```
+
+Canonical ontology lacks `ProjectHealth`.
+
+The schema-discovery loop detects a recurring pattern.
+
+Proposal:
+
+```text
+Type: ProjectHealth
+Enum: Green | Amber | Red
+Property: Project.health -> ProjectHealth
+```
+
+After schema approval:
+
+```text
+Schema v17 → Schema v18
+```
+
+The runtime revisits parked roots.
+
+Previously incompatible facts can now be integrated.
+
+---
+
+# 65. Example: Retraction
+
+Canonical state:
+
+```text
+Alice CEO_OF Acme
+```
+
+New evidence shows:
+
+```text
+Bob became CEO on 2026-03-12
+```
+
+The system does not delete Alice's historical relationship.
+
+Instead:
+
+```text
+Alice CEO_OF Acme
+valid_to = 2026-03-12
+
+Bob CEO_OF Acme
+valid_from = 2026-03-12
+```
+
+The current-world query returns Bob.
+
+Historical query remains possible.
+
+---
+
+# 66. Example: Transient Root Expiry
+
+A temporary source dump produces:
+
+```text
+TransientRoot T982
+age: 120 days
+integration_progress: 0
+schema_signal_strength: low
+unique evidence: none
+canonical dependencies: none
+last_accessed: 90 days ago
+```
+
+Maintenance policy may:
+
+1. mark root as expired,
+2. place it in quarantine,
+3. retain metadata and hashes briefly,
+4. physically reclaim underlying graph objects.
+
+---
+
+# 67. Example: Consolidation
+
+A large document collection produces 80,000 transient nodes.
+
+After integration:
+
+```text
+425 canonical assertions
+38 unresolved claims
+6 schema signals
+```
+
+Consolidation may preserve:
+
+- the 425 canonical assertions,
+- their required evidence,
+- the 38 unresolved claims,
+- the 6 schema signals,
+- selected representative examples.
+
+Most intermediate graph structure can be reclaimed.
+
+---
+
+# 68. Rust Domain Sketch
+
+A conceptual module layout:
+
+```text
+epistemic_runtime/
+├── kernel/
+│   ├── identity.rs
+│   ├── references.rs
+│   ├── transactions.rs
+│   └── invariants.rs
+│
+├── ontology/
+│   ├── types.rs
+│   ├── properties.rs
+│   ├── edges.rs
+│   ├── constraints.rs
+│   └── migration.rs
+│
+├── graph/
+│   ├── canonical.rs
+│   ├── transient.rs
+│   ├── snapshot.rs
+│   ├── revision.rs
+│   └── root.rs
+│
+├── assertion/
+│   ├── assertion.rs
+│   ├── temporal.rs
+│   ├── provenance.rs
+│   └── validation_state.rs
+│
+├── observation/
+│   ├── observation.rs
+│   ├── evidence.rs
+│   └── source.rs
+│
+├── agents/
+│   ├── agent.rs
+│   ├── capabilities.rs
+│   ├── extraction.rs
+│   ├── resolution.rs
+│   ├── validation.rs
+│   └── schema_discovery.rs
+│
+├── integration/
+│   ├── plan.rs
+│   ├── mapping.rs
+│   ├── promotion.rs
+│   └── reconciliation.rs
+│
+├── crawler/
+│   ├── crawler.rs
+│   ├── frontier.rs
+│   ├── planner.rs
+│   └── budget.rs
+│
+├── maintenance/
+│   ├── retention.rs
+│   ├── consolidation.rs
+│   ├── expiry.rs
+│   └── gc.rs
+│
+└── runtime/
+    ├── loop.rs
+    ├── scheduler.rs
+    ├── store.rs
+    └── metrics.rs
+```
+
+---
+
+# 69. Suggested Rust Core Types
+
+```rust
+pub struct RuntimeState {
+    pub canonical: CanonicalGraph,
+    pub incubation: IncubationForest,
+    pub observations: ObservationStore,
+    pub evidence: EvidenceStore,
+    pub schemas: SchemaRegistry,
+    pub revision: u64,
+}
+```
+
+```rust
+pub struct IncubationForest {
+    pub roots: BTreeMap<TransientRootId, TransientGraph>,
+}
+```
+
+```rust
+pub struct GraphRoot {
+    pub id: GraphRootId,
+    pub schema: SchemaVersionId,
+    pub parent: Option<GraphRootId>,
+    pub created_at: Timestamp,
+    pub lifecycle: KnowledgeState,
+}
+```
+
+```rust
+pub struct SchemaRegistry {
+    pub canonical: SchemaVersionId,
+    pub schemas: BTreeMap<SchemaVersionId, Ontology>,
+}
+```
+
+---
+
+# 70. Runtime API Boundary
+
+The runtime should expose a small controlled interface.
+
+```rust
+pub trait KnowledgeRuntime {
+    fn snapshot(&self) -> RuntimeSnapshot;
+
+    fn ingest(
+        &mut self,
+        observations: Vec<Observation>,
+    ) -> Result<IngestResult, RuntimeError>;
+
+    fn propose(
+        &self,
+        proposal: GraphTransaction,
+    ) -> Result<ProposalId, RuntimeError>;
+
+    fn validate(
+        &self,
+        proposal: ProposalId,
+    ) -> Result<ValidatedTransaction, ValidationReport>;
+
+    fn commit(
+        &mut self,
+        tx: ValidatedTransaction,
+    ) -> Result<CommitResult, CommitError>;
+
+    fn maintain(
+        &mut self,
+    ) -> Result<MaintenanceReport, RuntimeError>;
+}
+```
+
+Agents operate through this boundary.
+
+---
+
+# 71. Snapshot Semantics
+
+Readers should normally operate on immutable snapshots.
+
+```rust
+pub struct GraphSnapshot<'a> {
+    graph: &'a CanonicalGraph,
+    revision: u64,
+}
+```
+
+Advantages:
+
+- consistent reads,
+- deterministic validation,
+- clear conflict detection,
+- concurrency safety,
+- reproducibility.
+
+A validated transaction records which revision it was validated against.
+
+If canonical state changes before commit, revalidation may be required.
+
+---
+
+# 72. Concurrency
+
+Many agents may operate simultaneously.
+
+The runtime should therefore support optimistic concurrency.
+
+Typical flow:
+
+```text
+read snapshot R100
+   ↓
+build proposal
+   ↓
+validate against R100
+   ↓
+canonical becomes R101
+   ↓
+commit attempt notices mismatch
+   ↓
+rebase / revalidate
+```
+
+Canonical commits remain serialized or otherwise globally ordered.
+
+---
+
+# 73. Deterministic vs Agentic Components
+
+A useful design principle is:
+
+> Use agents where interpretation is necessary; use deterministic code where invariants can be expressed precisely.
+
+Deterministic:
+
+- identity format,
+- reference existence,
+- type checking,
+- cardinality,
+- transaction integrity,
+- revision lineage,
+- dependency boundaries,
+- retention rules.
+
+Agentic:
+
+- entity resolution under ambiguity,
+- semantic extraction,
+- contradiction interpretation,
+- ontology proposal discovery,
+- integration mapping discovery,
+- prioritization under uncertainty.
+
+---
+
+# 74. Failure Modes
+
+## 74.1 Ontology overgrowth
+
+Every new phrase becomes a new type.
+
+Mitigation:
+
+- strong schema governance,
+- pattern thresholds,
+- preference for mappings,
+- ontology simplicity metrics.
+
+## 74.2 Canonical contamination
+
+Weak transient interpretations leak into trusted state.
+
+Mitigation:
+
+- hard dependency boundary,
+- explicit integration plans,
+- typed canonical references,
+- validation gates.
+
+## 74.3 Permanent incubation landfill
+
+Parked data grows forever.
+
+Mitigation:
+
+- decay scoring,
+- expiry,
+- consolidation,
+- GC,
+- storage budgets.
+
+## 74.4 Entity merge corruption
+
+Two entities are incorrectly unified.
+
+Mitigation:
+
+- explicit merge transactions,
+- reversible lineage,
+- merge confidence thresholds,
+- stronger validation for high-degree entities.
+
+## 74.5 Circular provenance
+
+Assertion A supports B while B supports A.
+
+Mitigation:
+
+- provenance DAG rules,
+- evidence-class distinction,
+- cycle detection.
+
+## 74.6 Schema migration breakage
+
+A new schema invalidates existing canonical knowledge.
+
+Mitigation:
+
+- migration simulation,
+- compatibility validation,
+- revision snapshots,
+- atomic schema commits.
+
+## 74.7 Agent collusion by shared error
+
+Multiple validators reproduce the same model error.
+
+Mitigation:
+
+- deterministic validators where possible,
+- heterogeneous validators,
+- source verification,
+- independence requirements for critical claims.
+
+---
+
+# 75. Epistemic Health
+
+The system should measure not only quantity of knowledge but quality.
+
+Possible indicators:
+
+```text
+coverage
+provenance completeness
+contradiction density
+staleness
+schema stability
+integration latency
+transient-to-canonical conversion rate
+retraction frequency
+unresolved identity ambiguity
+maintenance cost
+```
+
+The objective should not be maximal graph size.
+
+The objective is useful, dependable, maintainable knowledge.
+
+---
+
+# 76. Design Philosophy
+
+Several principles guide the system.
+
+## 76.1 Preserve ambiguity until justified
+
+Do not force uncertain knowledge into overly precise canonical structures.
+
+## 76.2 Make trust boundaries explicit
+
+Do not let UI labels or confidence scores substitute for architectural isolation.
+
+## 76.3 Prefer immutable derivation
+
+Generate new revisions rather than mutating historical meaning in place.
+
+## 76.4 Integrate knowledge, not raw representations
+
+Canonical state should capture useful semantics, not mirror every source format.
+
+## 76.5 Let ontology evolve slowly
+
+Knowledge can arrive quickly.
+
+Schema should evolve more cautiously.
+
+## 76.6 Treat forgetting as healthy
+
+Deletion, decay, and consolidation are necessary system behaviors.
+
+## 76.7 Preserve evidence where it matters
+
+The system should always be able to answer "why do we believe this?" for high-value canonical knowledge.
+
+---
+
+# 77. Conceptual Identity of the System
+
+The most precise conceptual description is:
+
+> A self-maintaining epistemic knowledge runtime that continuously transforms observations into typed, provenance-aware, validated, revisable knowledge.
+
+A more architectural description is:
+
+> A Knowledge Fabric maintained by an Epistemic Loop, with a strongly validated Canonical Core surrounded by an Incubation Forest of transient knowledge.
+
+A concise product-oriented description is:
+
+> A self-evolving knowledge runtime.
+
+---
+
+# 78. Naming Vocabulary
+
+Recommended internal vocabulary:
+
+| Concept | Preferred Name |
+|---|---|
+| whole system | Epistemic Knowledge Runtime |
+| all stored knowledge spaces | Knowledge Fabric |
+| highest-integrity graph | Canonical Core |
+| non-canonical graph roots | Incubation Forest |
+| incoming source records | Observation Layer |
+| semantic acquisition planner | Knowledge Frontier |
+| continuous state process | Epistemic Loop |
+| promotion into canonical state | Integration |
+| removal of redundant representation | Consolidation |
+| invalidating active belief | Retraction |
+| physical deletion | Reclamation |
+| schema/type system | Ontology |
+| immutable system history | Revision Lineage |
+
+---
+
+# 79. Minimal Operating Loop
+
+At its simplest, the architecture can be reduced to:
+
+```text
+SEED
+  ↓
+observe
+  ↓
+interpret
+  ↓
+validate
+  ↓
+integrate or park
+  ↓
+reconcile
+  ↓
+evolve schema if justified
+  ↓
+compress / expire / collect
+  ↓
+new state
+  ↺
+```
+
+The system should remain conceptually understandable in this form even if the implementation becomes distributed and complex.
+
+---
+
+# 80. Final Architectural Principle
+
+The defining feature of this system is not that AI agents operate on a graph.
+
+It is that the runtime formalizes the lifecycle of knowledge:
+
+```text
+see
+ ↓
+interpret
+ ↓
+believe tentatively
+ ↓
+cross-check
+ ↓
+integrate
+ ↓
+depend upon
+ ↓
+reconsider
+ ↓
+retract or reinforce
+ ↓
+compress
+ ↓
+forget
+ ↓
+observe again
+```
+
+The graph is the memory substrate.
+
+The ontology is the type system.
+
+The agents are interpreters and workers.
+
+The validators form the integrity membrane.
+
+The incubation forest is working memory.
+
+The canonical core is dependable long-term knowledge.
+
+The epistemic loop is the organism-like process that continuously connects them.
+
+That loop—not any individual graph representation—is the central object of the architecture.
+
+---
+
+# Amendments — 2026-09-21
+
+Sections 1–80 are the original design. The sections below add what the two predecessor systems,
+`company-brain` (v1) and `org-brain` (v2), proved necessary and the original does not say. The
+survey behind them, with the paths and counts, is `docs/predecessors.md`; the ids A1–A15 there
+name the capabilities each amendment carries. An amendment adds; it does not rewrite. Where one
+extends an earlier section it says so.
+
+---
+
+# 81. Operator Surface
+
+*Carries A1. Extends § 18 and § 44.*
+
+The runtime has a person in its loop. § 18 lists human reviewers among the agent implementations
+and § 44 escalates contradictions to human review, but neither says how a question reaches a person
+or how an answer returns. Both predecessors converged on the same protocol: a rendered page of
+numbered items, and an answer addressed by number.
+
+## 81.1 Attention items
+
+An attention item is something the runtime cannot resolve without a human signal:
+
+```rust
+pub struct AttentionItem {
+    pub id: AttentionId,
+    pub number: String,           // stable within one rendered page, e.g. "5c"
+    pub kind: AttentionKind,
+    pub subject: Subject,
+    pub options: Vec<AttentionOption>,
+    pub rendered_at_revision: u64,
+}
+
+pub enum AttentionKind {
+    Disputed { assertions: Vec<AssertionId> },
+    UnresolvedIdentity { candidates: Vec<NodeId> },
+    SchemaProposal { proposal: SchemaProposalId, risk: RiskClass },
+    ObligationDue { obligation: NodeId },
+    IntegrationBlocked { root: GraphRootId, reason: IntegrationBlock },
+    ApprovalRequested { write: OutwardWriteId },
+}
+```
+
+The queue is a projection over a snapshot (§ 82). It is not a store of its own: an item exists
+because the canonical or incubating state has the shape that produces it, and it disappears when
+that shape changes.
+
+## 81.2 Answers
+
+An answer is an observation, not a privileged write:
+
+```rust
+pub struct HumanStatement {
+    pub identity: AgentId,        // an authenticated person, never a free-text name
+    pub answers: AttentionId,
+    pub seen_at_revision: u64,
+    pub statement: Statement,     // ChooseOption | Assert(Value) | Reject { reason } | Defer { until }
+}
+```
+
+The statement becomes `EvidenceSource::HumanStatement` (§ 16), and the operator-surface agent
+proposes the transaction it implies. That transaction passes the validation pipeline like any other.
+What the human signal changes is provenance: policy may state that a `HumanStatement` from an
+authenticated identity is sufficient provenance for a class of assertions, where an agent's
+inference is not (§ 6.5).
+
+An answer records the revision it was given against. If canonical state moved in between, the
+proposal is revalidated (§ 72), and the person is not asked the same question twice for the same
+subject unless the evidence changed.
+
+---
+
+# 82. Projections and Views
+
+*Carries A2. Extends § 47.*
+
+The original stops at query scopes. Both predecessors were read through rendered pages: an
+attention page, a personal brief, a digest, an explain page. These are projections.
+
+```rust
+pub struct View {
+    pub template: TemplateId,       // versioned
+    pub scope: QueryScope,          // § 47
+    pub revision: u64,
+    pub content_hash: ContentHash,
+}
+```
+
+Rules:
+
+- A view is a deterministic function of a snapshot at a revision, a template version and a query
+  scope. Two renders of the same triple are byte-identical.
+- Views are `StorageClass::Cache` (§ 37): reproducible and freely deletable.
+- Every fact a view renders carries the id of the assertion it came from, so a reader can ask
+  "why is this here?" and reach § 62.
+- A fact past its horizon (§ 84) renders as unknown, never as false and never silently as current.
+- Delivering a view anywhere outside the runtime — posting it to a channel, sending it as a message
+  — is an outward write under § 83. Rendering is not delivery.
+
+---
+
+# 83. Invariant 6.11 — Outward Writes
+
+*Carries A3. Adds an invariant to § 6.*
+
+> **6.11 The runtime reads the world. Every outward write is an approved transaction.**
+
+An outward write is any effect beyond the runtime's own stores: a message sent, a ticket changed, a
+page published, a call to any API that is not read-only. Both predecessors held this rule — v1
+never sent a draft automatically; v2 refused `communication.send` without an approval record — and
+both treated it as the boundary that made the rest safe to run unattended.
+
+```rust
+pub struct OutwardWrite {
+    pub id: OutwardWriteId,
+    pub target: EffectTarget,
+    pub payload_hash: ContentHash,
+    pub approval: ApprovalRef,
+}
+
+pub enum ApprovalRef {
+    Statement(EvidenceId),         // a HumanStatement of kind Approve for this write
+    StandingPolicy(NodeId),        // a canonical node granting a scoped standing approval
+}
+```
+
+Consequences:
+
+- `SourceAdapter` (§ 54) is read-only by construction; its trait exposes `poll` and nothing that
+  writes. Effects go through a separate `EffectAdapter` that accepts only a `ValidatedTransaction`
+  containing an `OutwardWrite` whose `approval` resolved during validation.
+- The authorization validator (§ 20, item 7) refuses an `OutwardWrite` whose approval does not
+  resolve, is out of scope, or has expired.
+- A draft is knowledge: a `Draft` node whose content is never delivered until an `OutwardWrite`
+  cites it with an approval.
+- A standing policy is canonical knowledge with a scope (target, kind, until) and is itself
+  proposed, validated and revisable.
+
+---
+
+# 84. Obligations and Horizons
+
+*Carries A4. Extends § 14 and § 31.*
+
+Bitemporal validity says when a fact was true and when the runtime believed it. It does not say
+that something is owed, or that a belief has gone stale. Both predecessors carried both.
+
+## 84.1 Obligations
+
+The seed ontology includes an obligation type:
+
+```rust
+Obligation
+    owner:   NodeRef(Person | Agent)
+    subject: NodeRef(any)
+    due:     Timestamp | Recurrence
+    state:   Enum { open, met, missed, waived }
+```
+
+Commitments, replies owed, deadlines and recurring duties are obligations. The runtime's clock is
+an input to the loop, never read inside the kernel; comparing `due` with the supplied `now` yields
+the frontier task:
+
+```rust
+KnowledgeTask::ObligationDue { obligation: NodeId }
+```
+
+which surfaces as `AttentionKind::ObligationDue` (§ 81) when the owner is a person.
+
+## 84.2 Horizons
+
+Every assertion derived from an external source carries a horizon:
+
+```rust
+pub struct Horizon {
+    pub observed_at: Timestamp,
+    pub valid_for: Duration,      // from the source's policy
+}
+```
+
+Past `observed_at + valid_for` without re-observation, the assertion is stale: queries mark it,
+views render it as unknown (`?`), and the frontier emits `RefreshStaleKnowledge` (§ 31). A stale
+assertion is neither retracted nor false; it is a belief whose currency the runtime can no longer
+vouch for. This is distinct from valid time: the world may not have changed, but the runtime has
+not looked.
+
+---
+
+# 85. Interpretation Session Contract
+
+*Carries A5. Extends § 18 and § 24.*
+
+Agents are abstract in the original. The predecessor that ran a paid model unattended (v2) arrived
+at a contract that makes a model session auditable and its output admissible, and the shape is the
+same for any interpreter, model or not.
+
+```rust
+pub struct InterpretationRequest {
+    pub id: RequestId,
+    pub context_digest: ContentHash,          // over every byte the interpreter sees
+    pub signals: Vec<ObservationId>,          // the exact input set
+    pub held: Vec<HeldSubject>,               // current canonical subjects the interpreter may compare against, with revisions
+    pub schema: SchemaVersionId,
+    pub byte_bound: u64,
+    pub effort: Effort,
+}
+
+pub struct InterpretationResult {
+    pub request: ContentHash,                 // digest of the request it answers
+    pub dispositions: Vec<Disposition>,       // exactly one per input signal, ids copied verbatim
+}
+
+pub enum Disposition {
+    Propose { signal: ObservationId, tx: GraphTransaction },
+    NoOp    { signal: ObservationId, basis: NoOpBasis },
+}
+
+pub enum NoOpBasis {
+    Noise,
+    InsufficientEvidence,
+    Privacy,
+    AlreadyHeld        { comparisons: Vec<HeldComparison> },
+    ComparisonWithheld { comparisons: Vec<HeldComparison> },
+}
+
+pub struct Receipt {
+    pub request: ContentHash,
+    pub result: ContentHash,
+    pub completed_at: Timestamp,
+    pub cost: Cost,
+}
+```
+
+Rules, all deterministic and checked before any proposal enters § 20:
+
+- The request is immutable and content-addressed; the interpreter sees the request and nothing
+  else. Source material inside it is data, never instruction.
+- The result names every input signal exactly once, by the request's own identifier. A missing,
+  extra or renamed identity refuses the whole result.
+- A no-op carries a basis. `AlreadyHeld` and `ComparisonWithheld` cite exact held subjects and
+  revisions from the request; a comparison against a subject created in the same result refuses.
+- A receipt binds request digest, result digest, completion and cost. No receipt, no admission.
+- A request has a bounded number of visits. A failed session has no edge back to interpretation
+  except through an explicit, recorded recovery.
+- Sensitive held fields are withheld from the request and named in `ComparisonWithheld`; credential
+  redaction runs before the request is sealed (predecessors A6).
+
+Cost is recorded per receipt and aggregated by the scheduler (§ 32 gains a real ledger in the
+roadmap's P5).
+
+---
+
+# 86. Blob Evidence
+
+*Carries A12. Extends § 15.*
+
+`ObservationContent` gains a variant for bytes the runtime stores but does not parse:
+
+```rust
+ObservationContent::Blob {
+    hash: ContentHash,
+    media_type: String,
+    byte_len: u64,
+}
+```
+
+Bytes live in the content-addressed store under `StorageClass::Provenance` while any canonical
+assertion cites them, else `Cache`. Extraction from a blob — text from a PDF, a transcript from
+audio — is an interpretation (§ 85) whose evidence is the blob's hash and the extractor's identity.
+Blobs are subject to § 60 deletion like any evidence.
+
+---
+
+# 87. Per-Type Lifecycles and Operations
+
+*Carries A13. Extends § 11 and § 19.*
+
+The original ontology gives a node type properties and constraints. v2 proved that the form people
+review and the form that refuses a wrong move is a type with a lifecycle and named operations: a
+decision that is `open` may become `decided`; a `decided` decision may not become `moot` through a
+generic property update.
+
+```rust
+pub struct NodeType {
+    // ... § 11.1
+    pub lifecycle: Option<Lifecycle>,
+    pub operations: BTreeMap<String, OperationDefinition>,
+}
+
+pub struct Lifecycle {
+    pub initial: String,
+    pub states: BTreeSet<String>,
+    pub transitions: BTreeSet<(String, String)>,
+}
+
+pub struct OperationDefinition {
+    pub arguments: BTreeMap<String, ValueType>,
+    pub preconditions: Vec<Constraint>,
+    pub transition: Option<(String, String)>,
+    pub sets: BTreeMap<PropertyId, ValueTemplate>,
+    pub emits: Vec<EventType>,
+}
+```
+
+`GraphOperation` (§ 19) gains:
+
+```rust
+GraphOperation::Invoke {
+    node: NodeId,
+    operation: String,
+    arguments: BTreeMap<String, Value>,
+}
+```
+
+The ontology-constraint validator (§ 20, item 5) refuses an `Invoke` whose precondition fails or
+whose transition is not declared. A node's lifecycle state is a typed property `state: Enum` over
+the lifecycle's states.
+
+This is the world's lifecycle — whether a decision is decided, whether a person has departed. It is
+orthogonal to `KnowledgeState` (§ 29), which is about knowing — whether the runtime has integrated
+the node. One node carries both.
+
+Lifecycles and operations are part of the schema and evolve through § 26 schema transactions at the
+risk class § 50 assigns: a new optional operation is low risk; removing a transition existing nodes
+have taken is high risk.

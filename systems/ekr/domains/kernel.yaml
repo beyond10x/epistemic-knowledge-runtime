@@ -1,0 +1,509 @@
+domain: ekr.kernel
+
+summary: >-
+  The trusted kernel: stable identity, the transaction boundary and the revision lineage. A
+  proposal becomes a validated transaction only through the validators this domain names, and only
+  a validated transaction commits a revision. Design § 9–10, § 19–20, § 34, § 70–72.
+
+naming:
+  wire: kernel
+  display: Kernel
+
+types:
+  - name: ekr.kernel.AgentId
+    kind: newtype
+    of: Uuid
+
+  - name: ekr.kernel.TransactionId
+    kind: newtype
+    of: Uuid
+
+  - name: ekr.kernel.RevisionId
+    kind: newtype
+    of: Uuid
+
+  - name: ekr.kernel.IssueId
+    kind: newtype
+    of: Uuid
+
+  - name: ekr.kernel.RevisionNumber
+    kind: newtype
+    of: Integer
+
+  # Hex-encoded SHA-256 over canonical bytes. Design § 57.
+  - name: ekr.kernel.ContentHash
+    kind: newtype
+    of: String
+
+  # Design § 19 `GraphOperation`, plus `Invoke` from amendment 87.
+  - name: ekr.kernel.OperationKind
+    kind: enum
+    variants:
+      - CreateNode
+      - UpdateProperty
+      - CreateEdge
+      - DeleteEdge
+      - AddAssertion
+      - RetractAssertion
+      - DefineNodeType
+      - DefineEdgeType
+      - ModifyProperty
+      - MergeEntity
+      - Invoke
+
+  # Design § 20 items 1–7. Items 8–10 (contradiction, temporal consistency, policy) arrive with the
+  # subsystems that need them and are added here together with the outcome that runs them.
+  - name: ekr.kernel.ValidatorName
+    kind: enum
+    variants:
+      - Structural
+      - Reference
+      - Type
+      - Cardinality
+      - OntologyConstraint
+      - Provenance
+      - Authorization
+
+entities:
+  # Design § 18. TrustProfile (§ 48) is a P5 concern and is not typed here yet.
+  - name: ekr.kernel.Agent
+    identity:
+      name: agent_id
+      type: ekr.kernel.AgentId
+    fields:
+      - name: name
+        type: String
+      - name: capabilities
+        type: List<String>
+    relations:
+      - name: proposals
+        kind: owns
+        target: ekr.kernel.GraphTransaction
+        cardinality: many
+        via: proposer
+    lifecycle:
+      initial: Registered
+      states: [Registered]
+      terminal: [Registered]
+
+  # Design § 19. The operations themselves travel as content-addressed bytes; the kernel holds
+  # their hash and count, and the issues validation raised.
+  - name: ekr.kernel.GraphTransaction
+    identity:
+      name: transaction_id
+      type: ekr.kernel.TransactionId
+    fields:
+      - name: proposer
+        type: ekr.kernel.AgentId
+      - name: operations_hash
+        type: ekr.kernel.ContentHash
+      - name: operation_count
+        type: Integer
+      - name: evidence_hash
+        type: ekr.kernel.ContentHash
+      - name: validated_against
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: validation_hash
+        type: Optional<ekr.kernel.ContentHash>
+    invariants:
+      - operation_count >= 1
+    relations:
+      - name: issues
+        kind: owns
+        target: ekr.kernel.ValidationIssue
+        cardinality: many
+        via: transaction_id
+    lifecycle:
+      initial: Proposed
+      states: [Proposed, Validated, Committed, Rejected, Stale]
+      terminal: [Committed, Rejected, Stale]
+      transitions:
+        - name: validate
+          from: [Proposed]
+          to: Validated
+        - name: reject
+          from: [Proposed]
+          to: Rejected
+        - name: commit
+          from: [Validated]
+          to: Committed
+        - name: stale
+          from: [Validated]
+          to: Stale
+
+  - name: ekr.kernel.ValidationIssue
+    identity:
+      name: issue_id
+      type: ekr.kernel.IssueId
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: validator
+        type: ekr.kernel.ValidatorName
+      - name: code
+        type: String
+      - name: message
+        type: String
+    lifecycle:
+      initial: Raised
+      states: [Raised]
+      terminal: [Raised]
+
+  # Design § 34. Immutable once committed. `Seed` creates the first; `Commit` announces every later
+  # one in `RevisionCommitted` — an outcome causes one subject change, and Commit's is the
+  # transaction's move, so the revision it produces is read from the event and the view below.
+  - name: ekr.kernel.Revision
+    identity:
+      name: revision_id
+      type: ekr.kernel.RevisionId
+    fields:
+      - name: number
+        type: ekr.kernel.RevisionNumber
+      - name: parent
+        type: Optional<ekr.kernel.RevisionId>
+      - name: ontology_root
+        type: ekr.kernel.ContentHash
+      - name: knowledge_root
+        type: ekr.kernel.ContentHash
+      - name: evidence_root
+        type: ekr.kernel.ContentHash
+      - name: agent_root
+        type: ekr.kernel.ContentHash
+      - name: transaction_id
+        type: Optional<ekr.kernel.TransactionId>
+      - name: committed_at
+        type: Timestamp
+    lifecycle:
+      initial: Committed
+      states: [Committed]
+      terminal: [Committed]
+
+# Design § 6.10: the actor that proposes is never the sole basis of validation. Three actors, so a
+# conformance suite can hold an implementation to the separation.
+actors:
+  - name: ekr.kernel.Proposer
+    may:
+      - ekr.kernel.Propose
+    naming:
+      display: Proposing agent
+
+  - name: ekr.kernel.Validator
+    may:
+      - ekr.kernel.Validate
+    naming:
+      display: Validator
+
+  - name: ekr.kernel.Committer
+    may:
+      - ekr.kernel.Commit
+    naming:
+      display: Commit gate
+
+  - name: ekr.kernel.Operator
+    may:
+      - ekr.kernel.Seed
+      - ekr.kernel.Snapshot
+      - ekr.kernel.Explain
+    naming:
+      display: Operator
+
+errors:
+  - name: ekr.kernel.AlreadySeeded
+    summary: The store already holds a revision; a seed is accepted once.
+    fields:
+      - name: current
+        type: ekr.kernel.RevisionNumber
+
+  - name: ekr.kernel.StructurallyInvalid
+    summary: The proposal is not a well-formed transaction; nothing was recorded.
+    fields:
+      - name: reason
+        type: String
+
+  - name: ekr.kernel.TransactionStateConflict
+    summary: The transaction is not in a state this command acts from, so nothing moved.
+    fields:
+      - name: state
+        type: ekr.kernel.GraphTransaction.State
+
+  - name: ekr.kernel.RevisionNotFound
+    summary: No committed revision carries that number.
+    fields:
+      - name: requested
+        type: ekr.kernel.RevisionNumber
+
+  - name: ekr.kernel.AssertionNotFound
+    summary: No assertion carries that identity in the canonical core.
+    fields:
+      - name: requested
+        type: ekr.graph.AssertionId
+
+commands:
+  # Design § 8. The seed is the minimal trusted starting state; loading it produces revision 0.
+  - name: ekr.kernel.Seed
+    naming:
+      wire: seed
+      display: Load the seed
+    input:
+      - name: seed_hash
+        type: ekr.kernel.ContentHash
+    outcomes:
+      - name: seeded
+        creates: ekr.kernel.Revision
+        instance: revision_id
+        emits:
+          - ekr.kernel.Seeded
+        payload:
+          ekr.kernel.Seeded:
+            seed_hash: input.seed_hash
+        summary: Revision 0 exists; its ontology root is the seed's ontology and it has no parent.
+      - name: already-seeded
+        external: a committed revision already exists
+        error: ekr.kernel.AlreadySeeded
+        summary: Nothing was written; the store keeps its lineage.
+
+  # Design § 19. Structural validity is checked at the door; every other validator runs in Validate.
+  - name: ekr.kernel.Propose
+    naming:
+      wire: propose
+      display: Propose a transaction
+    input:
+      - name: proposer
+        type: ekr.kernel.AgentId
+      - name: operations_hash
+        type: ekr.kernel.ContentHash
+      - name: operation_count
+        type: Integer
+      - name: evidence_hash
+        type: ekr.kernel.ContentHash
+    outcomes:
+      - name: proposed
+        when: operation_count >= 1
+        creates: ekr.kernel.GraphTransaction
+        instance: transaction_id
+        emits:
+          - ekr.kernel.TransactionProposed
+        payload:
+          ekr.kernel.TransactionProposed:
+            proposer: input.proposer
+            operations_hash: input.operations_hash
+        sets:
+          proposer: input.proposer
+          operations_hash: input.operations_hash
+          operation_count: input.operation_count
+          evidence_hash: input.evidence_hash
+        summary: The transaction exists in Proposed; nothing canonical changed.
+      - name: malformed
+        error: ekr.kernel.StructurallyInvalid
+        summary: The proposal had no operations or did not parse; nothing was recorded.
+
+  # Design § 20. Deterministic validators 1–7 run against one snapshot; the revision they ran
+  # against is recorded so Commit can notice movement.
+  - name: ekr.kernel.Validate
+    naming:
+      wire: validate
+      display: Validate a transaction
+    input:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: against
+        type: ekr.kernel.RevisionNumber
+    outcomes:
+      - name: validated
+        moves: ekr.kernel.GraphTransaction.validate
+        instance: transaction_id
+        emits:
+          - ekr.kernel.TransactionValidated
+        payload:
+          ekr.kernel.TransactionValidated:
+            transaction_id: input.transaction_id
+            against: input.against
+        sets:
+          validated_against: input.against
+        summary: Every validator passed against the named revision; the transaction is Validated.
+      - name: rejected
+        external: at least one deterministic validator raised an issue against the named revision
+        moves: ekr.kernel.GraphTransaction.reject
+        instance: transaction_id
+        emits:
+          - ekr.kernel.TransactionRejected
+        payload:
+          ekr.kernel.TransactionRejected:
+            transaction_id: input.transaction_id
+        summary: At least one validator raised an issue; the issues are recorded and the transaction is Rejected.
+      - name: wrong-state
+        wrong_state: true
+        error: ekr.kernel.TransactionStateConflict
+        summary: The transaction is not Proposed, so nothing was validated.
+
+  # Design § 19, § 34, § 72. Only a Validated transaction commits, and only against the revision it
+  # was validated against; otherwise it is Stale and a new proposal is needed.
+  - name: ekr.kernel.Commit
+    naming:
+      wire: commit
+      display: Commit a validated transaction
+    input:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+    outcomes:
+      - name: committed
+        moves: ekr.kernel.GraphTransaction.commit
+        instance: transaction_id
+        emits:
+          - ekr.kernel.RevisionCommitted
+        payload:
+          ekr.kernel.RevisionCommitted:
+            transaction_id: input.transaction_id
+        summary: A new immutable revision exists whose parent is the one validated against.
+      - name: stale
+        external: the canonical revision moved since the transaction was validated
+        moves: ekr.kernel.GraphTransaction.stale
+        instance: transaction_id
+        emits:
+          - ekr.kernel.TransactionStale
+        payload:
+          ekr.kernel.TransactionStale:
+            transaction_id: input.transaction_id
+        summary: Canonical state moved since validation; nothing committed and the transaction is Stale.
+      - name: wrong-state
+        wrong_state: true
+        error: ekr.kernel.TransactionStateConflict
+        summary: The transaction is not Validated, so nothing committed.
+
+  # Design § 71. A read over an immutable revision; the default is the newest.
+  - name: ekr.kernel.Snapshot
+    naming:
+      wire: snapshot
+      display: Read a snapshot
+    input:
+      - name: at
+        type: Optional<ekr.kernel.RevisionNumber>
+    outcomes:
+      - name: taken
+        emits:
+          - ekr.kernel.SnapshotTaken
+        summary: The snapshot is consistent as of one revision and records which.
+      - name: not-found
+        external: no revision carries the requested number
+        error: ekr.kernel.RevisionNotFound
+        summary: Nothing was read.
+
+  # Design § 62. Why is this true: assertion → transaction → validation → evidence → observation.
+  - name: ekr.kernel.Explain
+    naming:
+      wire: explain
+      display: Explain an assertion
+    input:
+      - name: assertion_id
+        type: ekr.graph.AssertionId
+    outcomes:
+      - name: explained
+        emits:
+          - ekr.kernel.Explained
+        payload:
+          ekr.kernel.Explained:
+            assertion_id: input.assertion_id
+        summary: The chain from the assertion to its external sources, one link per line.
+      - name: not-found
+        external: the canonical core holds no such assertion
+        error: ekr.kernel.AssertionNotFound
+        summary: Nothing was explained.
+
+events:
+  - name: ekr.kernel.Seeded
+    fields:
+      - name: revision_id
+        type: ekr.kernel.RevisionId
+      - name: seed_hash
+        type: ekr.kernel.ContentHash
+
+  - name: ekr.kernel.TransactionProposed
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: proposer
+        type: ekr.kernel.AgentId
+      - name: operations_hash
+        type: ekr.kernel.ContentHash
+
+  - name: ekr.kernel.TransactionValidated
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: against
+        type: ekr.kernel.RevisionNumber
+      - name: validation_hash
+        type: ekr.kernel.ContentHash
+
+  - name: ekr.kernel.TransactionRejected
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: issues
+        type: Integer
+
+  - name: ekr.kernel.TransactionStale
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: validated_against
+        type: ekr.kernel.RevisionNumber
+      - name: current
+        type: ekr.kernel.RevisionNumber
+
+  - name: ekr.kernel.RevisionCommitted
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: revision_id
+        type: ekr.kernel.RevisionId
+      - name: number
+        type: ekr.kernel.RevisionNumber
+      - name: knowledge_root
+        type: ekr.kernel.ContentHash
+
+  - name: ekr.kernel.SnapshotTaken
+    fields:
+      - name: number
+        type: ekr.kernel.RevisionNumber
+      - name: knowledge_root
+        type: ekr.kernel.ContentHash
+
+  - name: ekr.kernel.Explained
+    fields:
+      - name: assertion_id
+        type: ekr.graph.AssertionId
+      - name: links
+        type: Integer
+
+views:
+  - name: ekr.kernel.CurrentRevision
+    source: ekr.kernel.Revision
+    consistency: read_your_writes
+    order_by:
+      - number desc
+    fields:
+      - name: revision_id
+        type: ekr.kernel.RevisionId
+      - name: number
+        type: ekr.kernel.RevisionNumber
+      - name: knowledge_root
+        type: ekr.kernel.ContentHash
+    naming:
+      wire: current-revision
+      display: Current revision
+
+  - name: ekr.kernel.PendingTransactions
+    source: ekr.kernel.GraphTransaction
+    consistency: read_your_writes
+    filter: state == Proposed
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: proposer
+        type: ekr.kernel.AgentId
+      - name: operation_count
+        type: Integer
+    naming:
+      wire: pending
+      display: Pending transactions

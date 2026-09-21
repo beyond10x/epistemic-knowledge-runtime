@@ -1,0 +1,49 @@
+version: '3'
+
+tasks:
+  check:
+    desc: The full gate; land nothing until it exits zero
+    cmds:
+      - task: fmt-check
+      - task: clippy
+      - task: test
+      - task: doc-check
+      - task: spec-check
+      - task: plan-check
+
+  fmt-check:
+    desc: rustfmt, check only
+    cmds:
+      - cargo fmt --all -- --check
+
+  clippy:
+    desc: clippy over every target, warnings are errors
+    cmds:
+      - cargo clippy --workspace --all-targets --locked -- -D warnings
+
+  test:
+    desc: every unit, integration and doc test
+    cmds:
+      - cargo test --workspace --locked
+
+  doc-check:
+    desc: rustdoc with broken intra-doc links as errors
+    env:
+      RUSTDOCFLAGS: -D warnings
+    cmds:
+      - cargo doc --workspace --no-deps --locked
+
+  spec-check:
+    desc: the runtime's own ESS contract validates
+    cmds:
+      - ess specify validate --path systems/ekr
+
+  plan-check:
+    desc: the planning store validates
+    cmds:
+      - aep plan artifact validate
+
+  fmt:
+    desc: rustfmt, in place
+    cmds:
+      - cargo fmt --all
