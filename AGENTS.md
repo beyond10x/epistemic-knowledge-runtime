@@ -81,6 +81,30 @@ Set `CARGO_TARGET_DIR=$HOME/.cache/b10x-target/epistemic-knowledge-runtime`. One
 shares that directory with every other tree of this repository, which is what keeps a second
 checkout from paying for a second full build.
 
+**A test that reads this repository's own source must not locate it with
+`env!("CARGO_MANIFEST_DIR")`.** That macro is a compile-time constant: a test binary compiled in one
+checkout keeps reading that checkout's path, whatever tree later runs it. Use
+`std::env::var("CARGO_MANIFEST_DIR")`, which cargo sets per process for `cargo test` and `cargo run`,
+or walk up from `current_dir()` to the directory holding `Cargo.lock`.
+
+**Twenty files carry the pattern, in thirty-nine places**, including `xtask/src/main.rs:32`, which is
+not a test. `task:guards-read-source-through-a-compile-time-path` says what closes it.
+
+**What was observed**, on 2026-09-21 at the close of wave p1-05: after the wave's worktrees were
+removed, `task check` on the primary checkout failed reading
+`…/ekr-wave-p1-05/crates/ekr-core/src` — a path no tree had. `cargo clean -p ekr-core` cleared it and
+the gate then ran green at 337 cases. **The dangerous half is not that failure.** While both trees
+exist the guard passes while reading a different checkout's source, and every one of these guards
+holds a document against code, so one reading the wrong tree has stopped checking anything and says
+nothing.
+
+**The mechanism is under measurement and this file does not assert it.** The paragraph below says
+unit artifacts are keyed by a hash including the package's manifest path, so two trees do not
+clobber each other. That and the reuse above cannot both be true as stated, and an independent review
+argues cargo hashes path sources relative to the workspace root, in which case two checkouts write
+the same filenames. A probe is running; whichever way it lands, the rule at the top of this paragraph
+is the same and does not depend on it.
+
 **Two trees that build at the same time get one directory each.** Cargo's exclusive lock makes
 concurrent compilation serialise rather than corrupt, and unit artifacts are keyed by a hash that
 includes the package's manifest path, so two trees' `deps/` do not clobber each other. Two outputs
