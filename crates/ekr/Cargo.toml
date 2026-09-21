@@ -1,0 +1,28 @@
+[package]
+name = "ekr"
+description = "The command-line surface of the Epistemic Knowledge Runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "ekr"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+ekr-core.workspace = true
+ekr-graph.workspace = true
+ekr-kernel.workspace = true
+ekr-ontology.workspace = true
+ekr-store.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+assert_cmd.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

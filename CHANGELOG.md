@@ -6,6 +6,10 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Added
 
+- The six P1 crates — `ekr-core`, `ekr-kernel`, `ekr-ontology`, `ekr-graph`, `ekr-store`, `ekr` — as
+  empty workspace members in the acyclic order `docs/roadmap.md` § 3 gives, every P1 dependency
+  declared, `rust-version` 1.91, and contract tests holding the manifests, the lockfile, README and
+  the doc comments to the story (wave p1-01).
 - Repository bootstrap: Cargo workspace with `xtask`, the shared source gate, the AEP planning
   store, and the roadmap and predecessor analysis under `docs/`.
 - `systems/ekr/`: the runtime's own executable system specification (`ess/1`), four domains —

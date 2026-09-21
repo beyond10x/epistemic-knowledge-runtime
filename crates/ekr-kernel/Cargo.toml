@@ -1,0 +1,25 @@
+[package]
+name = "ekr-kernel"
+description = "The transaction boundary: proposal, validation, commit, snapshot and explain"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ekr-core.workspace = true
+ekr-graph.workspace = true
+ekr-ontology.workspace = true
+ekr-store.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml_ng.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+trybuild.workspace = true
+
+[lints]
+workspace = true

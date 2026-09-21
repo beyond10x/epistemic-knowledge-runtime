@@ -2,40 +2,49 @@
 format: aep.planning-md/1
 id: story:workspace-crate-skeleton
 kind: story
-status: draft
-title: 'P1 crate skeleton: five empty workspace members'
+status: implemented
+title: 'P1 crate skeleton: six empty workspace members'
 relations:
 - decomposes: epic:p1-kernel-ontology-core
+- serves: vision:o2
 scope:
-- confidence: inferred
+- confidence: cited
   path: Cargo.lock
-- confidence: inferred
+- confidence: cited
   path: Cargo.toml
-- confidence: inferred
+- confidence: cited
+  path: README.md
+- confidence: cited
   path: crates/ekr-core/Cargo.toml
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-core/src/lib.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-graph/Cargo.toml
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-graph/src/lib.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-kernel/Cargo.toml
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-kernel/src/lib.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-ontology/Cargo.toml
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-ontology/src/lib.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-store/Cargo.toml
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-store/src/lib.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr/Cargo.toml
-- confidence: inferred
+- confidence: cited
   path: crates/ekr/src/main.rs
-revision: 6
+- confidence: cited
+  path: crates/ekr/tests/adversary_docs_contract.rs
+- confidence: cited
+  path: crates/ekr/tests/msrv_contract.rs
+- confidence: cited
+  path: crates/ekr/tests/story_contract.rs
+revision: 15
 ---
 ## Context
 
@@ -58,9 +67,11 @@ and `ekr` present as workspace members.
 
 ## Constraints the scope carries
 
-- Each crate has a crate-level doc comment naming the ESS domain it implements
-  (`systems/ekr/domains/<domain>.yaml`; `ekr-core` and `ekr-kernel` both name `kernel`);
-  `missing_docs` under clippy `-D warnings` makes this part of the acceptance's exit code.
+- Each library crate has a crate-level doc comment naming the ESS domain it implements
+  (`systems/ekr/domains/<domain>.yaml`; `ekr-core` and `ekr-kernel` both name `kernel`); the
+  binary `ekr` names `systems/ekr/components.yaml`, the composition it runs. `missing_docs`
+  under clippy `-D warnings` makes the comment's presence part of the acceptance's exit code; a
+  contract test makes its content part.
 - No code beyond the doc comment and, for `ekr`, an empty clap `main`.
 - Crate dependency edges, declared now:
   - `ekr-core`: none
@@ -71,27 +82,44 @@ and `ekr` present as workspace members.
   - `ekr`: all five
 - External dependencies, declared now per crate, even though unused until later stories:
   - `ekr-core`: `uuid` (v7), `sha2`, `hex`, `serde`, `serde_json`, `thiserror`; dev `proptest`
-  - `ekr-ontology`: `serde`, `serde_json`, `serde_yaml`, `thiserror`; dev `proptest`
+  - `ekr-ontology`: `serde`, `serde_json`, `serde_yaml_ng`, `thiserror`; dev `proptest`
   - `ekr-graph`: `serde`, `thiserror`; dev `trybuild`
-  - `ekr-kernel`: `serde`, `serde_json`, `serde_yaml`, `thiserror`; dev `proptest`, `trybuild`
-  - `ekr-store`: `eventlog-core`, `eventlog-sqlite`, `eventlog-file` (git tag, read from
-    `beyond10x/eventlog`'s `Cargo.toml`), `serde`, `serde_json`, `thiserror`; dev `tempfile`
+  - `ekr-kernel`: `serde`, `serde_json`, `serde_yaml_ng`, `thiserror`; dev `proptest`, `trybuild`
+  - `ekr-store`: `eventlog-core`, `eventlog-sqlite`, `eventlog-file` (git tag `0.2.1`), `serde`,
+    `serde_json`, `thiserror`; dev `tempfile`
   - `ekr`: `clap`, `serde_json`; dev `assert_cmd`, `tempfile`
+- `rust-version` is `1.91`, the minimum the pinned eventlog tag requires (found by the adversary,
+  pass 1; the story said nothing about the floor before).
 - A later P1 story that needs a dependency not listed here adds `Cargo.lock` to its scope and
   says so, which makes the collision visible to `aep plan artifact waves`.
 
 ## Scope
 
-- `Cargo.toml`, `Cargo.lock`
-- `crates/ekr-core/{Cargo.toml,src/lib.rs}`
-- `crates/ekr-kernel/{Cargo.toml,src/lib.rs}`
-- `crates/ekr-ontology/{Cargo.toml,src/lib.rs}`
-- `crates/ekr-graph/{Cargo.toml,src/lib.rs}`
-- `crates/ekr-store/{Cargo.toml,src/lib.rs}`
-- `crates/ekr/{Cargo.toml,src/main.rs}`
+As implemented and confirmed by the implementor's report and the adversary's two passes (wave
+p1-01, merge `d5b163b`). Every line the draft inferred was confirmed; the lines marked *added*
+were not in the draft.
+
+- `Cargo.toml`, `Cargo.lock` — confirmed
+- `crates/ekr-core/{Cargo.toml,src/lib.rs}` — confirmed
+- `crates/ekr-kernel/{Cargo.toml,src/lib.rs}` — confirmed
+- `crates/ekr-ontology/{Cargo.toml,src/lib.rs}` — confirmed
+- `crates/ekr-graph/{Cargo.toml,src/lib.rs}` — confirmed
+- `crates/ekr-store/{Cargo.toml,src/lib.rs}` — confirmed
+- `crates/ekr/{Cargo.toml,src/main.rs}` — confirmed
+- `README.md` — *added*: the unit changed the toolchain floor, the member list and the layout,
+  and README states all three (adversary pass 2, findings 1–2)
+- `crates/ekr/tests/msrv_contract.rs` — *added* by the adversary: the lockfile's `rust_version`
+  ceiling against the declared floor
+- `crates/ekr/tests/story_contract.rs` — *added* by the adversary, hardened in two correction
+  rounds: members, edges, external dependencies and their qualifiers, lints opt-in, no manifest
+  comment, no Rust source reading the planning store
+- `crates/ekr/tests/adversary_docs_contract.rs` — *added* by the adversary: README against the
+  workspace, doc comments against `systems/ekr`
 
 ## Notes
 
 Component map: `systems/ekr/components.yaml`; the `ekr-kernel` component is two crates,
 `ekr-core` (types) and `ekr-kernel` (commands), for the layering reason above. Every crate opts
-into `[lints] workspace = true`.
+into `[lints] workspace = true`. Known weak case, filed as `task:readme-status-case`:
+`the_readme_status_matches_the_workspace_members` asserts the absence of three stale phrases
+rather than comparing README's Status to the member list.

@@ -1,0 +1,20 @@
+[package]
+name = "ekr-graph"
+description = "Graph roots, nodes, edges and bitemporal assertions with their evidence"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ekr-core.workspace = true
+ekr-ontology.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+trybuild.workspace = true
+
+[lints]
+workspace = true
