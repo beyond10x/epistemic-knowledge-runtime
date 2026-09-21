@@ -12,10 +12,11 @@ What they proved necessary and how their data enters this runtime is written dow
 
 ## Status
 
-Bootstrap. The workspace holds `xtask` only; no runtime crate exists yet. The order in which the
-runtime is built, and the evidence that closes each phase, is
-[`docs/roadmap.md`](docs/roadmap.md). Work is planned in `.engineering/planning/` through the AEP
-CLI.
+Bootstrap. The workspace holds the six P1 crates — `ekr-core`, `ekr-kernel`, `ekr-ontology`,
+`ekr-graph`, `ekr-store` and the `ekr` binary — as empty members alongside `xtask`; no runtime
+logic exists yet. The order in which the runtime is built, and the evidence that closes each
+phase, is [`docs/roadmap.md`](docs/roadmap.md). Work is planned in `.engineering/planning/`
+through the AEP CLI.
 
 ## Documents
 
@@ -28,7 +29,7 @@ CLI.
 
 ## Build and check
 
-Rust 1.85 or later, Cargo, and [`task`](https://taskfile.dev):
+Rust 1.91 or later, Cargo, and [`task`](https://taskfile.dev):
 
 ```console
 cargo check --workspace
@@ -42,6 +43,7 @@ store's own validation.
 
 ```text
 Cargo.toml              the workspace; every crate opts into [workspace.lints]
+crates/                 the six P1 crates; ekr is the binary, the rest are libraries
 xtask/                  repository tasks that are not the product
 docs/                   design, roadmap, predecessor analysis
 systems/                ESS domains, one per crate, added as the crates arrive

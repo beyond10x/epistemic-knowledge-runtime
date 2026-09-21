@@ -1,0 +1,24 @@
+[package]
+name = "ekr-store"
+description = "Persistence through eventlog: content-addressed objects and committed snapshots"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ekr-core.workspace = true
+ekr-graph.workspace = true
+eventlog-core.workspace = true
+eventlog-file.workspace = true
+eventlog-sqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true
