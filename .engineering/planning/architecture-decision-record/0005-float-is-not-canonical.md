@@ -7,7 +7,7 @@ title: ADR 0005 — A Float is not admissible in canonical state
 relations:
 - decides: story:eventlog-store
 - decides: story:transaction-and-validators
-revision: 2
+revision: 3
 ---
 ## Status
 
@@ -73,3 +73,31 @@ persisted, so no address moves.
 Later: every address the store has written and every `validation_hash` the kernel has recorded,
 plus a migration for both. `story:commit-and-revision-lineage` in wave p1-06 writes the first root
 hash anybody keeps.
+
+
+## Amendment, 2026-09-21, after adversary pass 1 on unit 0
+
+The decision said "`Float` stays legal in `ekr_ontology::Value` and in the transient graph. Nothing
+there is content-addressed." The first implementation made that sentence false, and the adversary
+measured it: `TransientGraph` is composed of the same `Node`, `Edge` and `Assertion` that canonical
+state holds (`crates/ekr-graph/src/transient.rs:124-128`), so moving those three to the admissible
+newtype made a float unholdable anywhere, incubation forest included.
+
+That is the wrong answer. The incubation forest exists to hold candidate knowledge that is not yet
+canonical, and an imported approximate measurement is exactly such a candidate. Refusing it at the
+boundary would mean refusing an import for carrying a number the runtime cannot yet address, which
+inverts what the forest is for.
+
+**`Node`, `Edge` and `Assertion` are generic over the value they carry**, defaulting to the
+admissible newtype. `CanonicalGraph` holds the default. `TransientGraph` holds the same three types
+over `ekr_ontology::Value`, so a candidate may carry a float.
+
+`Canonical` is implemented only where the value parameter is itself `Canonical`. That is the part
+worth stating plainly: **the address exists exactly where canonical state does**, so "only canonical
+state can be content-addressed" stops being a convention and becomes a property of the type system —
+the same shape `AGENTS.md` invariant 2 already asks for on the reference direction. The generic was
+proposed by the adversary as the more expensive of its two options; it is taken because the cheaper
+one, amending this sentence away, would have made the membrane weaker rather than described it.
+
+The other option was to say the constraint is global. It is rejected: nothing about transient state
+needs it, and the sentence this amendment is fixing was right about why.

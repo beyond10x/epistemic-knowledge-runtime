@@ -6,6 +6,18 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Added
 
+- `ekr-kernel`: the integrity membrane. A `GraphTransaction` is a proposal; seven deterministic
+  validators turn it into a `ValidatedTransaction`, which only this crate can construct and which
+  is the only thing that commits. A transaction is read as a set rather than a sequence, so no
+  verdict depends on the order the operations arrive in. A proposal states a claim and never the
+  verdict on it (wave p1-05).
+- `ekr-store`: persistence through the eventlog. A revision log with a fold, a replay and two
+  providers, content-addressed objects that record the strongest retention class ever asked of
+  them, and one named crossing into canonical state that reads every field of a document which has
+  something to disagree with. The log is synchronous over an asynchronous port (wave p1-05).
+- `ekr-graph`: the value a canonical record may carry admits no float, and the graph types are
+  generic over the value they hold, so the canonical encoding exists exactly where canonical state
+  does and an incubation-forest candidate has no address at all (wave p1-05).
 - `ekr-graph`: the graph model. Nodes, edges, bitemporal assertions with their evidence, graph and
   revision roots, and the six-variant revision event vocabulary the kernel publishes and the
   store persists. `GraphSnapshot` answers one read, `valid_at(Timestamp)` — the current-world

@@ -44,7 +44,7 @@ scope:
   path: crates/ekr/tests/msrv_contract.rs
 - confidence: cited
   path: crates/ekr/tests/story_contract.rs
-revision: 15
+revision: 16
 ---
 ## Context
 
@@ -78,7 +78,7 @@ and `ekr` present as workspace members.
   - `ekr-ontology`: `ekr-core`
   - `ekr-graph`: `ekr-core`, `ekr-ontology`
   - `ekr-kernel`: `ekr-core`, `ekr-ontology`, `ekr-graph`, `ekr-store`
-  - `ekr-store`: `ekr-core`, `ekr-graph`
+  - `ekr-store`: `ekr-core`, `ekr-graph`, `ekr-ontology` (widened in wave p1-05, see below)
   - `ekr`: all five
 - External dependencies, declared now per crate, even though unused until later stories:
   - `ekr-core`: `uuid` (v7), `sha2`, `hex`, `serde`, `serde_json`, `thiserror`; dev `proptest`
@@ -86,7 +86,8 @@ and `ekr` present as workspace members.
   - `ekr-graph`: `serde`, `thiserror`; dev `trybuild`
   - `ekr-kernel`: `serde`, `serde_json`, `serde_yaml_ng`, `thiserror`; dev `proptest`, `trybuild`
   - `ekr-store`: `eventlog-core`, `eventlog-sqlite`, `eventlog-file` (git tag `0.2.1`), `serde`,
-    `serde_json`, `thiserror`; dev `tempfile`
+    `serde_json`, `thiserror`, `time`, `tokio` (the last two widened in wave p1-05, see below); dev
+    `tempfile`
   - `ekr`: `clap`, `serde_json`; dev `assert_cmd`, `tempfile`
 - `rust-version` is `1.91`, the minimum the pinned eventlog tag requires (found by the adversary,
   pass 1; the story said nothing about the floor before).
@@ -123,3 +124,25 @@ Component map: `systems/ekr/components.yaml`; the `ekr-kernel` component is two 
 into `[lints] workspace = true`. Known weak case, filed as `task:readme-status-case`:
 `the_readme_status_matches_the_workspace_members` asserts the absence of three stale phrases
 rather than comparing README's Status to the member list.
+
+
+## Amended on 2026-09-21, in wave p1-05
+
+`ekr-store`'s two dependency lines above are wider than this story left them, and the tables in
+`crates/ekr/tests/story_contract.rs` move with them in the same change, as that file's own doc
+requires.
+
+`architecture-decision-record:0006-ekr-store-bridges-the-async-port` and its amendment carry the
+reasons. In short: `eventlog-core`'s `EventStore` trait is async and its providers need a tokio
+runtime context, so `tokio` is the runtime `ekr-store` owns; `time` is
+`eventlog_core::CommandMeta.occurred_at`, a `time::OffsetDateTime` on a struct with no constructor,
+no `Default` and no builder, which no consumer can build without naming the crate; and
+`ekr-ontology` is `CanonicalGraph.ontology`, which `RevisionLog::fold` returns.
+
+Neither of the first two adds a package to `Cargo.lock` beyond `tokio` itself — `time 0.3.55` was
+already resolved transitively. The crate edge is inside the acyclic order `docs/roadmap.md` § 3
+gives and adds no cycle.
+
+This story is `implemented` and stays so. Amending a closed story's constraint table is the right
+move here rather than leaving it wrong: `story_contract.rs` reads these tables as ground truth, so
+a stale table is a red gate for whoever touches the manifest next.

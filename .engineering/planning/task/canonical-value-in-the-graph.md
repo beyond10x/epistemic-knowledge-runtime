@@ -2,13 +2,13 @@
 format: aep.planning-md/1
 id: task:canonical-value-in-the-graph
 kind: task
-status: active
+status: implemented
 title: A value admissible in canonical state, so an assertion can be content-addressed
 relations:
 - blocks: story:eventlog-store
 - blocks: story:transaction-and-validators
 - serves: vision:o2
-revision: 3
+revision: 4
 ---
 ## What this implements
 
