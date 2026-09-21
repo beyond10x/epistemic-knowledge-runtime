@@ -6,6 +6,15 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Added
 
+- **Invariants 1 and 2 are now true.** An independent review found both claimed and carried by
+  nothing. Only the kernel reaches a writer to canonical state: the binary no longer declares the
+  store, the kernel holds the only public commit path, and the fold learns validation through a
+  trait the kernel implements rather than from an event anyone could append. And canonical state
+  references by a typed reference rather than a bare identifier, so an edge into the incubation
+  forest does not compile (wave p1-06).
+- `ekr-store`: a commit validated against a revision the lineage has moved past is refused on
+  replay, and a store opened with no commit authority refuses to say what canonical state is
+  rather than folding nothing and reporting success (wave p1-06).
 - `ekr-kernel`: the integrity membrane. A `GraphTransaction` is a proposal; seven deterministic
   validators turn it into a `ValidatedTransaction`, which only this crate can construct and which
   is the only thing that commits. A transaction is read as a set rather than a sequence, so no

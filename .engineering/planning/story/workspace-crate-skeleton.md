@@ -44,7 +44,7 @@ scope:
   path: crates/ekr/tests/msrv_contract.rs
 - confidence: cited
   path: crates/ekr/tests/story_contract.rs
-revision: 16
+revision: 17
 ---
 ## Context
 
@@ -79,12 +79,14 @@ and `ekr` present as workspace members.
   - `ekr-graph`: `ekr-core`, `ekr-ontology`
   - `ekr-kernel`: `ekr-core`, `ekr-ontology`, `ekr-graph`, `ekr-store`
   - `ekr-store`: `ekr-core`, `ekr-graph`, `ekr-ontology` (widened in wave p1-05, see below)
-  - `ekr`: all five
+  - `ekr`: `ekr-core`, `ekr-graph`, `ekr-kernel`, `ekr-ontology` — **four, not five**; it lost its
+    `ekr-store` edge in wave p1-06, see below
 - External dependencies, declared now per crate, even though unused until later stories:
   - `ekr-core`: `uuid` (v7), `sha2`, `hex`, `serde`, `serde_json`, `thiserror`; dev `proptest`
   - `ekr-ontology`: `serde`, `serde_json`, `serde_yaml_ng`, `thiserror`; dev `proptest`
   - `ekr-graph`: `serde`, `thiserror`; dev `trybuild`
-  - `ekr-kernel`: `serde`, `serde_json`, `serde_yaml_ng`, `thiserror`; dev `proptest`, `trybuild`
+  - `ekr-kernel`: `serde`, `serde_json`, `serde_yaml_ng`, `thiserror`; dev `proptest`, `trybuild`,
+    `tempfile` (the last added in wave p1-06, see below)
   - `ekr-store`: `eventlog-core`, `eventlog-sqlite`, `eventlog-file` (git tag `0.2.1`), `serde`,
     `serde_json`, `thiserror`, `time`, `tokio` (the last two widened in wave p1-05, see below); dev
     `tempfile`
@@ -146,3 +148,29 @@ gives and adds no cycle.
 This story is `implemented` and stays so. Amending a closed story's constraint table is the right
 move here rather than leaving it wrong: `story_contract.rs` reads these tables as ground truth, so
 a stale table is a red gate for whoever touches the manifest next.
+
+
+## Amended again on 2026-09-21, in wave p1-06
+
+Two more of this story's constraint lines moved, and `crates/ekr/tests/story_contract.rs` moves with
+them in the same change, as that file's own doc requires.
+
+**`ekr` no longer declares `ekr-store`.** `architecture-decision-record:0007-the-commit-path-is-the-kernels`
+repairs `AGENTS.md` invariant 1, whose second half — "only a `ValidatedTransaction` commits; no other
+crate holds a writer to canonical state" — was carried by nothing. An independent review measured a
+commit landing at revision 1 in a process that could not link `ekr-kernel`, on three hand-written
+events through the public `RevisionLog::append`, with `ValidatedTransaction` holding zero consumers
+in any `src/`.
+
+The store sits **below** the kernel, so its writer cannot take a `ValidatedTransaction`, and a sealed
+trait in the store would exclude the kernel along with everybody else. So the guarantee is stated
+where it can hold: the binary reaches persistence only through `ekr-kernel`, and that is a property
+of this edge table, read by a case rather than by the compiler.
+
+**`ekr-kernel` gains `tempfile` as a dev-dependency.** `ekr_store::Fold` is `pub(crate)`, so an
+in-memory store the kernel could hold cannot answer `head` or `fold`, and a case over one would
+assert nothing. `tempfile` is already this workspace's temporary directory, in `ekr-store` and `ekr`.
+
+This story is `implemented` and stays so. Amending a closed story's constraint table is right here
+for the reason wave p1-05 gave: `story_contract.rs` reads these tables as ground truth, so a stale
+table is a red gate for whoever touches a manifest next.

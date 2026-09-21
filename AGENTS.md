@@ -44,6 +44,10 @@ a dependency; their data enters through the import policy in `docs/predecessors.
   is part of `task check` once the first exists.
 - `.engineering/planning/` — governed through `aep plan artifact`. Never hand-edit its records or
   journal. Before an agent writes, set `AEP_ACTOR` to the agent's execution identity.
+- `.engineering/waves/COORDINATOR.md` — **read before opening a wave and again before its closing
+  commit.** Seven checks, each with a command, each written because it was skipped and cost
+  something named. Across waves p1-01 to p1-06 the implementors and adversaries found twenty-eight
+  coordinator errors, and every one of these checks catches one of them mechanically.
 
 ## Invariants
 

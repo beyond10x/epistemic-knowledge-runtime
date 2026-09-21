@@ -2,11 +2,11 @@
 format: aep.planning-md/1
 id: task:canonical-state-references-are-typed
 kind: task
-status: active
+status: implemented
 title: Canonical state references by bare ids, so the membrane is refused rather than unrepresentable
 relations:
 - serves: vision:o2
-revision: 3
+revision: 4
 ---
 ## What this implements
 

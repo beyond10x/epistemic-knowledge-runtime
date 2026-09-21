@@ -6,7 +6,7 @@ status: accepted
 title: ADR 0008 — Canonical state references by a typed reference, not a bare id
 relations:
 - decides: task:canonical-state-references-are-typed
-revision: 2
+revision: 3
 ---
 ## Status
 
@@ -61,10 +61,23 @@ state by hand — principally `crates/ekr-store/tests/fixture/mod.rs`, which the
 seeding a dangling edge target. `ekr-kernel`'s reference validator keeps its refusal for the ids that
 arrive from outside Rust, through serde, where no type can help.
 
-The serde boundary is the honest limit and it is stated rather than hidden: a document deserialises
-into whatever type the caller names, so the guarantee holds inside Rust and the kernel's refusal is
-what holds at the edge. `task:the-membrane-stops-at-the-store-boundary` already records that for the
-value direction.
+The serde boundary is the honest limit. **The sentence that first stood here was false and is
+corrected**: it said the kernel's reference validator keeps the refusal for ids arriving from outside
+Rust. The only path ids arrive by is the seed fold — `EventlogStore::fold_from` →
+`GraphDocument::into_canonical` — and that sits **below** `ekr-kernel` and can reach no validator in
+any process. The adversary of this wave put a document whose edge targets a node it does not carry
+through it and got canonical state holding a reference to nothing.
+
+What is true: the guarantee holds **inside Rust**, and on the **transaction** path the kernel's
+reference validator refuses a dangling id. **The seed path refuses nothing today.** The independent
+review's finding C — recorded in `review-result:independent-review-p1-core` — is that the seed path
+runs no validator at all, and closing it is the debt wave's, with an ADR deciding who validates a
+seed. `task:the-membrane-stops-at-the-store-boundary` records the same limit for the value direction.
+
+A case pins this rather than a sentence:
+`crates/ekr-store/tests/adversary_p1_06_reference_from_bytes.rs` asserts the crossing produces a
+reference to a node the document does not carry with nothing refusing it, and goes red the day
+finding C closes.
 
 ## The exit criterion
 
