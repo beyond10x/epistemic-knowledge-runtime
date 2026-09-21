@@ -36,9 +36,9 @@
 //!    reached — a durable cost against a collision the runtime cannot reach. A **sum type** is
 //!    the other way round: two variants carrying the same payload shape would collide, and
 //!    nothing about their position distinguishes them, so a sum type carries a variant tag
-//!    written by `Encoder::variant` and by nothing else. Settled on 2026-09-21 by
-//!    `task:canonical-newtype-discriminant`; the writer lands with the first sum type that needs
-//!    it, `RevisionEvent`.
+//!    written by [`Encoder::variant`] and by nothing else. Settled on 2026-09-21 by
+//!    `task:canonical-newtype-discriminant`; the writer landed with the first sum type that needed
+//!    it, `ekr-graph`'s `RevisionEvent`.
 //!
 //! The bytes are an internal format, not a wire format: nothing outside this runtime reads them,
 //! and they are not a serialisation — there is no decoder, because a hash never needs one.
@@ -64,6 +64,7 @@ mod tag {
     pub(super) const SOME: u8 = 0x0c;
     pub(super) const ID: u8 = 0x0d;
     pub(super) const HASH: u8 = 0x0e;
+    pub(super) const VARIANT: u8 = 0x0f;
 }
 
 /// A value with one deterministic byte encoding.
@@ -226,6 +227,27 @@ impl Encoder {
             key.encode(self);
             self.bytes.extend_from_slice(&value);
         }
+    }
+
+    /// The marker that opens a sum type's variant: the tag, then `index` as four big-endian
+    /// bytes. The variant's own fields follow it.
+    ///
+    /// This is the one exception to rule 5, and the only path in the workspace that writes a
+    /// discriminant. A newtype is structural because its field's position already distinguishes
+    /// it inside the value that holds it; two variants of one sum type have *the same* position,
+    /// so two variants carrying the same payload shape would collide and a hash equality would be
+    /// a lie. Settled by `task:canonical-newtype-discriminant` on 2026-09-21.
+    ///
+    /// `index` identifies the variant, and it is part of the contract: **changing a variant's
+    /// number moves every content address that contains it.** It is whatever the implementing
+    /// type passes — this encoder derives nothing from a declaration order and cannot, so a type
+    /// whose numbering and whose variant list disagree is a type with a silent defect rather than
+    /// a compile error. The obligation is on the implementor to pin its own mapping;
+    /// `crates/ekr-graph/tests/revision_events.rs` does that for `RevisionEvent`, both by
+    /// transcribing the six numbers and by reading its source for the declaration order.
+    pub fn variant(&mut self, index: u32) {
+        self.tag(tag::VARIANT);
+        self.bytes.extend_from_slice(&index.to_be_bytes());
     }
 
     /// An optional value. Absence is not emptiness and does not encode as it.

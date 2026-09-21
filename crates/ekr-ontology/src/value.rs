@@ -14,7 +14,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use ekr_core::{NodeId, TypeId};
+use ekr_core::{NodeId, Timestamp, TypeId};
 use serde::{Deserialize, Serialize};
 
 /// How many values a property may carry: `ekr.ontology.Cardinality` of
@@ -204,8 +204,8 @@ pub enum Value {
     Float(f64),
     /// An exact number, as text.
     Decimal(String),
-    /// A point in time, as an epoch offset.
-    Timestamp(i64),
+    /// A point in time, as the milliseconds-since-epoch newtype ADR 0004 settled.
+    Timestamp(Timestamp),
     /// A length of time.
     Duration(i64),
     /// A reference to a node.

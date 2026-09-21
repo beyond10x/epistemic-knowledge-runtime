@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-use ekr_core::{NodeId, PropertyId, SchemaVersionId, TypeId};
+use ekr_core::{NodeId, PropertyId, SchemaVersionId, Timestamp, TypeId};
 use ekr_ontology::{
     CheckReason, NodeType, Ontology, OntologyDocument, PropertyDefinition, SchemaVersion, Value,
     ValueType,
@@ -51,7 +51,7 @@ fn hierarchy() -> Hierarchy {
 
     Hierarchy {
         ontology: Ontology::load(OntologyDocument {
-            version: SchemaVersion::seed(SchemaVersionId::mint(), 0),
+            version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
             node_types: vec![
                 thing_type,
                 organisation_type,
@@ -160,7 +160,7 @@ fn a_node_ref_accepts_a_node_whose_type_conforms_to_an_allowed_type() {
     );
 
     let mut document = OntologyDocument {
-        version: SchemaVersion::seed(SchemaVersionId::mint(), 0),
+        version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
         node_types: vec![subject_type],
         edge_types: Vec::new(),
     };

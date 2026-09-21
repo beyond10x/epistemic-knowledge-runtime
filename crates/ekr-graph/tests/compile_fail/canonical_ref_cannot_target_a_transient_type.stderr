@@ -1,0 +1,62 @@
+error[E0277]: the trait bound `TransientRef<ekr_graph::Node>: CanonicalTarget` is not satisfied
+  --> tests/compile_fail/canonical_ref_cannot_target_a_transient_type.rs:16:6
+   |
+16 | ) -> CanonicalRef<TransientRef<Node>> {
+   |      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `CanonicalTarget` is not implemented for `TransientRef<ekr_graph::Node>`
+   |
+   = help: the following other types implement trait `CanonicalTarget`:
+             Assertion
+             Evidence
+             GraphRoot
+             Support
+             ekr_graph::Edge
+             ekr_graph::Node
+             ekr_graph::Observation
+note: required by a bound in `CanonicalRef`
+  --> src/canonical.rs
+   |
+   | pub struct CanonicalRef<T: CanonicalTarget> {
+   |                            ^^^^^^^^^^^^^^^ required by this bound in `CanonicalRef`
+
+error[E0277]: the trait bound `TransientRef<ekr_graph::Node>: CanonicalTarget` is not satisfied
+  --> tests/compile_fail/canonical_ref_cannot_target_a_transient_type.rs:17:5
+   |
+17 |     CanonicalRef::new(node)
+   |     ^^^^^^^^^^^^ the trait `CanonicalTarget` is not implemented for `TransientRef<ekr_graph::Node>`
+   |
+   = help: the following other types implement trait `CanonicalTarget`:
+             Assertion
+             Evidence
+             GraphRoot
+             Support
+             ekr_graph::Edge
+             ekr_graph::Node
+             ekr_graph::Observation
+note: required by a bound in `CanonicalRef`
+  --> src/canonical.rs
+   |
+   | pub struct CanonicalRef<T: CanonicalTarget> {
+   |                            ^^^^^^^^^^^^^^^ required by this bound in `CanonicalRef`
+
+error[E0277]: the trait bound `TransientRef<ekr_graph::Node>: CanonicalTarget` is not satisfied
+  --> tests/compile_fail/canonical_ref_cannot_target_a_transient_type.rs:17:5
+   |
+17 |     CanonicalRef::new(node)
+   |     ^^^^^^^^^^^^^^^^^^^^^^^ the trait `CanonicalTarget` is not implemented for `TransientRef<ekr_graph::Node>`
+   |
+   = help: the following other types implement trait `CanonicalTarget`:
+             Assertion
+             Evidence
+             GraphRoot
+             Support
+             ekr_graph::Edge
+             ekr_graph::Node
+             ekr_graph::Observation
+note: required by a bound in `CanonicalRef::<T>::new`
+  --> src/canonical.rs
+   |
+   | impl<T: CanonicalTarget> CanonicalRef<T> {
+   |         ^^^^^^^^^^^^^^^ required by this bound in `CanonicalRef::<T>::new`
+...
+   |     pub const fn new(node: NodeId) -> Self {
+   |                  --- required by a bound in this associated function

@@ -10,6 +10,8 @@
 //!   property, never an identity, so an id survives every rename.
 //! * [`canonical`] — the deterministic byte encoding a value has, whatever built it.
 //! * [`hash`] — the SHA-256 of those bytes, which is how design § 57 addresses content.
+//! * [`time`] — [`Timestamp`], the point-in-time scalar every domain above dates its records
+//!   with (`architecture-decision-record:0004-timestamp-in-ekr-core`).
 //!
 //! This crate names no domain concept and no graph concept — `AGENTS.md` invariant 8 — and
 //! depends on no other crate of the workspace.
@@ -25,6 +27,7 @@
 pub mod canonical;
 pub mod hash;
 pub mod identity;
+pub mod time;
 
 pub use canonical::{Canonical, Encoder};
 pub use hash::{ContentHash, ContentHashParseError};
@@ -33,3 +36,4 @@ pub use identity::{
     ObservationId, PropertyId, RevisionId, RevisionNumber, RevisionNumberParseError,
     SchemaVersionId, SupportId, TransactionId, TypeId,
 };
+pub use time::{Timestamp, TimestampParseError};

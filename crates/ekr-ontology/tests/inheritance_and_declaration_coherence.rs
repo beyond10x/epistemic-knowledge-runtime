@@ -6,7 +6,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use ekr_core::{NodeId, PropertyId, TypeId};
+use ekr_core::{NodeId, PropertyId, Timestamp, TypeId};
 use ekr_ontology::{
     EdgeType, Lifecycle, NodeType, Ontology, OntologyDocument, OntologyError, OperationDefinition,
     PropertyDefinition, SchemaVersion, Value, ValueKind, ValueType,
@@ -33,7 +33,7 @@ fn seed() -> SchemaVersion {
         "018f2a00-0000-7000-8000-0000000000f0"
             .parse()
             .expect("a canonical uuid"),
-        0,
+        Timestamp::EPOCH,
     )
 }
 

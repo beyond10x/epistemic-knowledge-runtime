@@ -216,6 +216,10 @@ fn the_encoder_writes_each_shape_it_publishes() {
         |out: &mut Encoder| out.list([&1u64, &2u64].into_iter()),
         |out: &mut Encoder| out.set([&1u64, &2u64].into_iter()),
         |out: &mut Encoder| out.map([(&1u64, &2u64)].into_iter()),
+        // The variant marker, added with `RevisionEvent` — the first sum type the runtime
+        // encodes. Two indices, because a sum type's first two variants must not collide either.
+        |out: &mut Encoder| out.variant(0),
+        |out: &mut Encoder| out.variant(1),
     ] {
         let mut encoder = Encoder::new();
         write(&mut encoder);

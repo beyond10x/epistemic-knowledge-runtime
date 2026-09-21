@@ -13,7 +13,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use ekr_core::{NodeId, PropertyId, SchemaVersionId, TypeId};
+use ekr_core::{NodeId, PropertyId, SchemaVersionId, Timestamp, TypeId};
 use ekr_ontology::{
     Cardinality, CheckReason, NodeType, Ontology, OntologyDocument, PropertyDefinition,
     SchemaVersion, Value, ValueKind, ValueType,
@@ -187,7 +187,7 @@ fn fixture(specs: &[PropSpec]) -> Fixture {
     }
 
     let document = OntologyDocument {
-        version: SchemaVersion::seed(SchemaVersionId::mint(), 0),
+        version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
         node_types,
         edge_types: Vec::new(),
     };
@@ -208,7 +208,7 @@ fn scalar_value() -> impl Strategy<Value = Value> {
         any::<i64>().prop_map(Value::Integer),
         (-1.0e6f64..1.0e6).prop_map(Value::Float),
         "[0-9]{1,6}".prop_map(Value::Decimal),
-        any::<i64>().prop_map(Value::Timestamp),
+        any::<i64>().prop_map(|millis| Value::Timestamp(Timestamp::from_millis(millis))),
         any::<i64>().prop_map(Value::Duration),
     ]
 }
@@ -420,7 +420,7 @@ fn a_well_typed_value_checks_ok() {
     );
 
     let ontology = Ontology::load(OntologyDocument {
-        version: SchemaVersion::seed(SchemaVersionId::mint(), 0),
+        version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
         node_types: vec![subject_type, NodeType::new(target, "Organisation")],
         edge_types: Vec::new(),
     })
@@ -441,7 +441,10 @@ fn a_well_typed_value_checks_ok() {
             period,
             vec![Value::Record(
                 [
-                    ("from".to_owned(), Value::Timestamp(1)),
+                    (
+                        "from".to_owned(),
+                        Value::Timestamp(Timestamp::from_millis(1)),
+                    ),
                     ("days".to_owned(), Value::Duration(2)),
                 ]
                 .into_iter()
@@ -489,7 +492,7 @@ fn a_refusal_names_the_property_and_the_reason() {
         .insert(reference, reference_definition);
 
     let ontology = Ontology::load(OntologyDocument {
-        version: SchemaVersion::seed(SchemaVersionId::mint(), 0),
+        version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
         node_types: vec![
             subject_type,
             NodeType::new(allowed_type, "Organisation"),
@@ -606,7 +609,7 @@ fn enum_variants_and_record_fields_are_enforced_inside_a_compound_value() {
     );
 
     let ontology = Ontology::load(OntologyDocument {
-        version: SchemaVersion::seed(SchemaVersionId::mint(), 0),
+        version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
         node_types: vec![subject_type],
         edge_types: Vec::new(),
     })
@@ -659,8 +662,14 @@ fn enum_variants_and_record_fields_are_enforced_inside_a_compound_value() {
                 period,
                 vec![Value::Record(
                     [
-                        ("from".to_owned(), Value::Timestamp(1)),
-                        ("until".to_owned(), Value::Timestamp(2)),
+                        (
+                            "from".to_owned(),
+                            Value::Timestamp(Timestamp::from_millis(1)),
+                        ),
+                        (
+                            "until".to_owned(),
+                            Value::Timestamp(Timestamp::from_millis(2)),
+                        ),
                     ]
                     .into_iter()
                     .collect(),
@@ -684,7 +693,7 @@ fn enum_variants_and_record_fields_are_enforced_inside_a_compound_value() {
 #[test]
 fn a_value_is_checkable_against_a_type_on_its_own() {
     let ontology = Ontology::load(OntologyDocument {
-        version: SchemaVersion::seed(SchemaVersionId::mint(), 0),
+        version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
         node_types: Vec::new(),
         edge_types: Vec::new(),
     })
@@ -718,7 +727,7 @@ fn an_abstract_or_unknown_type_is_not_instantiable() {
     declared.abstract_type = true;
 
     let ontology = Ontology::load(OntologyDocument {
-        version: SchemaVersion::seed(SchemaVersionId::mint(), 0),
+        version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
         node_types: vec![declared],
         edge_types: Vec::new(),
     })
@@ -769,7 +778,7 @@ fn every_value_kind_mirrors_its_value_type() {
         (ValueType::Integer, Value::Integer(0)),
         (ValueType::Float, Value::Float(0.0)),
         (ValueType::Decimal, Value::Decimal("0".to_owned())),
-        (ValueType::Timestamp, Value::Timestamp(0)),
+        (ValueType::Timestamp, Value::Timestamp(Timestamp::EPOCH)),
         (ValueType::Duration, Value::Duration(0)),
         (
             ValueType::NodeRef {

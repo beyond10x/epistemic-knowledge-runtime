@@ -20,7 +20,7 @@
 //! ```
 //! use std::collections::BTreeMap;
 //!
-//! use ekr_core::{NodeId, PropertyId, SchemaVersionId, TypeId};
+//! use ekr_core::{NodeId, PropertyId, SchemaVersionId, Timestamp, TypeId};
 //! use ekr_ontology::{
 //!     NodeType, Ontology, OntologyDocument, PropertyDefinition, SchemaVersion, Value, ValueType,
 //! };
@@ -37,7 +37,7 @@
 //! );
 //!
 //! let ontology = Ontology::load(OntologyDocument {
-//!     version: SchemaVersion::seed(SchemaVersionId::mint(), 0),
+//!     version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
 //!     node_types: vec![person_type, NodeType::new(organisation, "Organisation")],
 //!     edge_types: Vec::new(),
 //! })?;
