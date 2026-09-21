@@ -2,10 +2,11 @@
 format: aep.planning-md/1
 id: story:workspace-crate-skeleton
 kind: story
-status: draft
+status: active
 title: 'P1 crate skeleton: five empty workspace members'
 relations:
 - decomposes: epic:p1-kernel-ontology-core
+- serves: vision:o2
 scope:
 - confidence: inferred
   path: Cargo.lock
@@ -35,7 +36,7 @@ scope:
   path: crates/ekr/Cargo.toml
 - confidence: inferred
   path: crates/ekr/src/main.rs
-revision: 6
+revision: 8
 ---
 ## Context
 
