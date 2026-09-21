@@ -218,6 +218,73 @@ pub enum Value {
     Record(BTreeMap<String, Value>),
 }
 
+/// Where a value sits inside the value that contains it: what a refusal names.
+///
+/// Written as the value itself and one step per level below it — `value`, `value[2]`,
+/// `value.samples[0].mean`. A field name that is not a bare identifier is quoted, so
+/// `value."mean reading"` is not read as two steps.
+///
+/// Its own type rather than a `String` because it is built from the bottom up: a refusal is raised
+/// where the offending value is and gains a step as each level above it declines to hold it, which
+/// is what [`inside_element`](ValuePath::inside_element) and
+/// [`inside_field`](ValuePath::inside_field) do.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ValuePath(Vec<Step>);
+
+/// One step down into a compound value.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum Step {
+    /// Into a [`Value::List`], at this position.
+    Element(usize),
+    /// Into a [`Value::Record`], at this field.
+    Field(String),
+}
+
+impl ValuePath {
+    /// The value itself, with nothing above it.
+    #[must_use]
+    pub const fn root() -> Self {
+        Self(Vec::new())
+    }
+
+    /// This path, seen from the list one level above it: `value` becomes `value[3]`.
+    #[must_use]
+    pub fn inside_element(mut self, index: usize) -> Self {
+        self.0.insert(0, Step::Element(index));
+        self
+    }
+
+    /// This path, seen from the record one level above it: `value` becomes `value.reading`.
+    #[must_use]
+    pub fn inside_field(mut self, field: impl Into<String>) -> Self {
+        self.0.insert(0, Step::Field(field.into()));
+        self
+    }
+}
+
+impl fmt::Display for ValuePath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("value")?;
+        for step in &self.0 {
+            match step {
+                Step::Element(index) => write!(f, "[{index}]")?,
+                Step::Field(field) if is_bare_identifier(field) => write!(f, ".{field}")?,
+                Step::Field(field) => write!(f, ".{field:?}")?,
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Whether a field name can be written after a dot without being mistaken for two steps.
+fn is_bare_identifier(field: &str) -> bool {
+    !field.is_empty()
+        && !field.starts_with(|c: char| c.is_ascii_digit())
+        && field
+            .chars()
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+}
+
 impl Value {
     /// The kind this value has, which is what its declared type must also have.
     #[must_use]
@@ -234,6 +301,63 @@ impl Value {
             Self::Enum(_) => ValueKind::Enum,
             Self::List(_) => ValueKind::List,
             Self::Record(_) => ValueKind::Record,
+        }
+    }
+
+    /// Where, if anywhere, this value holds something canonical state does not admit —
+    /// `architecture-decision-record:0005-float-is-not-canonical`.
+    ///
+    /// `ekr_core::canonical` rule 4 admits no float: `NaN` is not equal to itself, `0.0 == -0.0`
+    /// holds for two different bit patterns, and no encoding of either is both total and faithful
+    /// to equality. A quantity that must be hashed is carried as an [`Integer`](Value::Integer) or
+    /// a [`Decimal`](Value::Decimal), which is what [`ValueKind`] distinguishes the two for.
+    ///
+    /// **Recursive, and that is the whole point.** A [`List`](Value::List) or a
+    /// [`Record`](Value::Record) is admissible exactly when everything inside it is, at any depth,
+    /// so a float one level down does not pass because the value around it is a record. The answer
+    /// is the [`ValuePath`] of the first such value in the value's *own* order — position in a
+    /// list, key order in a record — rather than a bare "no", because a caller holding a hundred
+    /// fields cannot act on one.
+    ///
+    /// `Float` stays legal here and in the transient graph. Nothing there is content-addressed,
+    /// and an approximate measurement is a reasonable thing to hold before it becomes canonical;
+    /// what this answers is whether it may cross into state that is.
+    ///
+    /// # It has no caller yet, deliberately
+    ///
+    /// `ekr_graph::CanonicalValue` does **not** call it: that conversion refuses structurally as it
+    /// converts, and consulting a predicate first would be a second walk that can disagree with the
+    /// first (`crates/ekr-graph/src/value.rs` says so where it converts). The caller that lands is
+    /// the kernel's type validator, `story:transaction-and-validators`, which holds a `Value` it is
+    /// not converting and must refuse an operation carrying an inadmissible one.
+    ///
+    /// It is here before that caller because this crate owns [`Value`] and should own the statement
+    /// of what canonical state admits of one — and because
+    /// `crates/ekr-graph/tests/canonical_value_and_assertion.rs` holds this answer equal to the
+    /// conversion's, which is what keeps two independent walks of the same rule from drifting. That
+    /// case is the justification; without it this would be a public item with nothing to say
+    /// whether it is right.
+    #[must_use]
+    pub fn inadmissible_in_canonical_state(&self) -> Option<ValuePath> {
+        match self {
+            Self::Float(_) => Some(ValuePath::root()),
+            Self::List(items) => items.iter().enumerate().find_map(|(index, item)| {
+                item.inadmissible_in_canonical_state()
+                    .map(|path| path.inside_element(index))
+            }),
+            Self::Record(fields) => fields.iter().find_map(|(field, value)| {
+                value
+                    .inadmissible_in_canonical_state()
+                    .map(|path| path.inside_field(field.clone()))
+            }),
+            Self::String(_)
+            | Self::Boolean(_)
+            | Self::Integer(_)
+            | Self::Decimal(_)
+            | Self::Timestamp(_)
+            | Self::Duration(_)
+            | Self::NodeRef(_)
+            | Self::Enum(_) => None,
         }
     }
 }

@@ -310,20 +310,15 @@ fn crate_modules() -> Vec<(String, String)> {
 /// before the one that closes the item.
 fn type_region(type_name: &str) -> String {
     let mut region = String::new();
-    let heads = [
-        format!("pub struct {type_name} {{"),
-        format!("pub enum {type_name} {{"),
-        format!("impl {type_name} {{"),
-    ];
 
     for (_, text) in crate_modules() {
-        for head in &heads {
-            let mut from = 0;
-            while let Some(offset) = text[from..].find(head.as_str()) {
-                let at = from + offset;
-                from = at + head.len();
-                region.push_str(&block_at(&text, at + head.len() - 1));
+        let mut at = 0;
+        for line in text.lines() {
+            if opens_item(line, type_name) {
+                let open = at + line.find('{').expect("an item head opens a block");
+                region.push_str(&block_at(&text, open));
             }
+            at += line.len() + 1;
         }
     }
 
@@ -333,6 +328,72 @@ fn type_region(type_name: &str) -> String {
          crate does not have"
     );
     region
+}
+
+/// Whether `line` opens the declaration of `type_name` or an inherent `impl` block on it.
+///
+/// A match on the head rather than on three literal strings, because
+/// `architecture-decision-record:0005-float-is-not-canonical`, as amended, made `Node`, `Edge`,
+/// `Object` and `Assertion` generic over the value they carry: their heads read
+/// `pub struct Node<V = CanonicalValue> {` and `impl<V> Node<V> {`, and the literal form matched
+/// neither — the scanner found no region at all for `Node` and said so, which is why this arrived
+/// as a red case rather than as a guard quietly covering nothing.
+///
+/// A *trait* impl is deliberately not an item head: `impl<V: Canonical> Canonical for Node<V> {`
+/// names `Canonical`, not `Node`. That is the behaviour before this change as well — the region is
+/// the fields and inherent methods the domain projection is checked against.
+///
+/// **Stated bounds**, neither reachable in this crate today and both written down rather than
+/// worked around:
+///
+/// * the head has to be on one line, which `cargo fmt` makes true for every item here;
+/// * an item head carrying a `where` clause is missed, because what follows the name is then
+///   `where …` rather than `{`. The miss is quiet — `type_region` asserts only that the region it
+///   built is non-empty, so a *second* item of a type that already has one would vanish from the
+///   region without a word.
+fn opens_item(line: &str, type_name: &str) -> bool {
+    let line = line.trim();
+    let rest = if let Some(rest) = line.strip_prefix("pub struct ") {
+        rest
+    } else if let Some(rest) = line.strip_prefix("pub enum ") {
+        rest
+    } else if let Some(rest) = line.strip_prefix("impl") {
+        after_generics(rest).trim_start()
+    } else {
+        return false;
+    };
+
+    let name: String = rest
+        .chars()
+        .take_while(|c| c.is_alphanumeric() || *c == '_')
+        .collect();
+    if name != type_name {
+        return false;
+    }
+    after_generics(&rest[name.len()..])
+        .trim_start()
+        .starts_with('{')
+}
+
+/// The text after a balanced `<…>` at the start of `text`, or `text` unchanged when it has none.
+fn after_generics(text: &str) -> &str {
+    if !text.starts_with('<') {
+        return text;
+    }
+    let mut depth = 0usize;
+    for (at, character) in text.char_indices() {
+        match character {
+            '<' => depth += 1,
+            '>' => {
+                depth -= 1;
+                if depth == 0 {
+                    return &text[at + character.len_utf8()..];
+                }
+            }
+            _ => {}
+        }
+    }
+    text
 }
 
 /// The text from the `{` at `open` through its matching `}`.
@@ -368,8 +429,8 @@ const PROJECTIONS: [(&str, &[&str], &str); 9] = [
         "ekr.graph.TypedValue",
         &[],
         "the ess/1 flattening of ekr.ontology.Value — a kind plus the value's canonical text — \
-         which exists because ess types are not recursive. The crate holds the recursive \
-         ekr_ontology::Value that the type checker needs, so there is no Rust type to bind to",
+         which exists because ess types are not recursive. The crate holds a recursive value \
+         instead, CanonicalValue, so there is no Rust type to bind to this flattening",
     ),
     ("ekr.graph.GraphRoot", &["GraphRoot"], ""),
     ("ekr.graph.Node", &["Node"], ""),
@@ -409,9 +470,9 @@ const FUSIONS: [(&str, &str, &str); 11] = [
     (
         "ekr.graph.TypedValue",
         "canonical",
-        "the crate holds ekr_ontology::Value itself; TypedValue is the ess/1 flattening of it, \
-         needed because ess types are not recursive, and nothing in the crate needs the flattened \
-         text",
+        "the crate holds the recursive value itself — CanonicalValue, the kinds canonical state \
+         admits; TypedValue is the ess/1 flattening of it, needed because ess types are not \
+         recursive, and nothing in the crate needs the flattened text",
     ),
     (
         "ekr.graph.Assertion",

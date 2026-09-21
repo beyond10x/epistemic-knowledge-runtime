@@ -6,7 +6,8 @@
 //!
 //! Five modules, in dependency order:
 //!
-//! * [`value`] — [`ValueType`] and the [`Value`] that mirrors it (design § 11.3), and
+//! * [`value`] — [`ValueType`] and the [`Value`] that mirrors it (design § 11.3), [`ValuePath`]
+//!   — where a value canonical state does not admit sits inside the one that carries it — and
 //!   [`Cardinality`].
 //! * [`types`] — [`NodeType`], [`EdgeType`], [`PropertyDefinition`] (design § 11.1–11.2, § 12).
 //! * [`lifecycle`] — [`Lifecycle`], [`Transition`], [`OperationDefinition`] (amendment 87).
@@ -65,4 +66,4 @@ pub use check::{CheckError, CheckReason, NodeTypes};
 pub use lifecycle::{Lifecycle, LifecycleError, OperationDefinition, Transition};
 pub use schema::{DeclarationSite, Ontology, OntologyDocument, OntologyError, SchemaVersion};
 pub use types::{EdgeType, NodeType, PropertyDefinition};
-pub use value::{Cardinality, Value, ValueKind, ValueType};
+pub use value::{Cardinality, Value, ValueKind, ValuePath, ValueType};

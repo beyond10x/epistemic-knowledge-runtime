@@ -16,9 +16,10 @@
 //!   rather than as an error or a zero.
 //! * **The sum types.** `Subject`, `Predicate`, `Object` and all seven `ValidationState` variants,
 //!   including the two whose payloads are collections.
-//! * **The refusals the constructors make.** `TemporalRange` and `TransactionTime` deserialise
-//!   through `TryFrom`, so a document carrying an inverted range is refused at the same boundary a
-//!   Rust caller is — otherwise the invariant holds only against callers who use the constructor.
+//! * **The refusals the constructors make.** `TemporalRange`, `TransactionTime` and
+//!   `CanonicalValue` deserialise through `TryFrom`, so a document carrying an inverted range — or
+//!   a float, which canonical state does not admit — is refused at the same boundary a Rust caller
+//!   is. Otherwise the invariant holds only against callers who use the constructor.
 
 use std::collections::BTreeSet;
 
@@ -27,8 +28,8 @@ use ekr_core::{
     RevisionNumber, Timestamp, TypeId,
 };
 use ekr_graph::{
-    Assertion, Object, Predicate, RetractionReason, Subject, TemporalRange, TransactionTime,
-    ValidationState,
+    Assertion, CanonicalValue, Object, Predicate, RetractionReason, Subject, TemporalRange,
+    TransactionTime, ValidationState,
 };
 use ekr_ontology::Value;
 
@@ -72,8 +73,10 @@ fn every_shape() -> Vec<Assertion> {
         Predicate::Relation(TypeId::mint()),
     ];
     let objects = [
-        Object::Value(Value::String("Acme".to_owned())),
-        Object::Value(Value::Timestamp(HANDOVER)),
+        Object::Value(
+            CanonicalValue::try_from(Value::String("Acme".to_owned())).expect("admissible"),
+        ),
+        Object::Value(CanonicalValue::Timestamp(HANDOVER)),
         Object::Node(NodeId::mint()),
         Object::Type(TypeId::mint()),
     ];
@@ -223,4 +226,49 @@ fn serde_refuses_an_inverted_range_the_way_the_constructor_does() {
         serde_json::from_value::<TemporalRange>(empty).expect("[t, t) is a value"),
         TemporalRange::new(Some(HANDOVER), Some(HANDOVER)).expect("the empty interval")
     );
+}
+
+/// A document carrying a float where canonical state admits none is refused, not read.
+///
+/// The same reasoning as the case above, for the refusal
+/// `architecture-decision-record:0005-float-is-not-canonical` makes: `Object::Value` carries a
+/// `CanonicalValue`, so a Rust caller cannot build a float-valued assertion — and serde is the
+/// other construction path. Without it the type would hold against callers and not against the
+/// store reading records back, which in P1 is the caller that will exist first.
+///
+/// It is also where the wire shape is pinned: a canonical value serialises as the
+/// `ekr_ontology::Value` it came from, so this type existing moved no bytes.
+#[test]
+fn serde_refuses_a_float_where_canonical_state_admits_none() {
+    let record = assertion(
+        Subject::Node(NodeId::mint()),
+        Predicate::Property(PropertyId::mint()),
+        Object::Value(CanonicalValue::Decimal("0.1".to_owned())),
+        ValidationState::Proposed,
+        TemporalRange::UNBOUNDED,
+        TransactionTime::since(RECORDED),
+    );
+
+    let mut document: serde_json::Value =
+        serde_json::to_value(&record).expect("an assertion serialises");
+    assert_eq!(
+        document.get("object"),
+        Some(&serde_json::json!({ "Value": { "value_kind": "Decimal", "value": "0.1" } })),
+        "a canonical value is on the wire as the ekr_ontology::Value it came from"
+    );
+
+    document["object"] = serde_json::json!({ "Value": { "value_kind": "Float", "value": 0.1 } });
+    let refused = serde_json::from_value::<Assertion>(document)
+        .expect_err("a float does not enter canonical state through a document either");
+    assert!(
+        refused.to_string().contains("Float"),
+        "the refusal must say what is wrong: {refused}"
+    );
+
+    // The kind that carries the same quantity exactly does read back.
+    let mut document: serde_json::Value =
+        serde_json::to_value(&record).expect("an assertion serialises");
+    document["object"] = serde_json::json!({ "Value": { "value_kind": "Integer", "value": 3 } });
+    let back: Assertion = serde_json::from_value(document).expect("an integer is admissible");
+    assert_eq!(back.object, Object::Value(CanonicalValue::Integer(3)));
 }

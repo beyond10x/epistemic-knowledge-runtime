@@ -1,0 +1,74 @@
+error[E0277]: the trait bound `ekr_ontology::Value: ekr_core::Canonical` is not satisfied
+  --> tests/compile_fail/transient_state_has_no_content_address.rs:17:21
+   |
+17 |     ContentHash::of(node)
+   |     --------------- ^^^^ the trait `ekr_core::Canonical` is not implemented for `ekr_ontology::Value`
+   |     |
+   |     required by a bound introduced by this call
+   |
+   = help: the following other types implement trait `ekr_core::Canonical`:
+             &T
+             ()
+             AgentId
+             Assertion<V>
+             AssertionId
+             BTreeMap<K, V>
+             BTreeSet<T>
+             Box<T>
+           and $N others
+   = note: required for `ekr_graph::Node<ekr_ontology::Value>` to implement `ekr_core::Canonical`
+note: required by a bound in `ContentHash::of`
+  --> $WORKSPACE/crates/ekr-core/src/hash.rs
+   |
+   |     pub fn of<T: Canonical + ?Sized>(value: &T) -> Self {
+   |                  ^^^^^^^^^ required by this bound in `ContentHash::of`
+
+error[E0277]: the trait bound `ekr_ontology::Value: ekr_core::Canonical` is not satisfied
+  --> tests/compile_fail/transient_state_has_no_content_address.rs:21:21
+   |
+21 |     ContentHash::of(edge)
+   |     --------------- ^^^^ the trait `ekr_core::Canonical` is not implemented for `ekr_ontology::Value`
+   |     |
+   |     required by a bound introduced by this call
+   |
+   = help: the following other types implement trait `ekr_core::Canonical`:
+             &T
+             ()
+             AgentId
+             Assertion<V>
+             AssertionId
+             BTreeMap<K, V>
+             BTreeSet<T>
+             Box<T>
+           and $N others
+   = note: required for `ekr_graph::Edge<ekr_ontology::Value>` to implement `ekr_core::Canonical`
+note: required by a bound in `ContentHash::of`
+  --> $WORKSPACE/crates/ekr-core/src/hash.rs
+   |
+   |     pub fn of<T: Canonical + ?Sized>(value: &T) -> Self {
+   |                  ^^^^^^^^^ required by this bound in `ContentHash::of`
+
+error[E0277]: the trait bound `ekr_ontology::Value: ekr_core::Canonical` is not satisfied
+  --> tests/compile_fail/transient_state_has_no_content_address.rs:25:21
+   |
+25 |     ContentHash::of(assertion)
+   |     --------------- ^^^^^^^^^ the trait `ekr_core::Canonical` is not implemented for `ekr_ontology::Value`
+   |     |
+   |     required by a bound introduced by this call
+   |
+   = help: the following other types implement trait `ekr_core::Canonical`:
+             &T
+             ()
+             AgentId
+             Assertion<V>
+             AssertionId
+             BTreeMap<K, V>
+             BTreeSet<T>
+             Box<T>
+           and $N others
+   = note: required for `Assertion<ekr_ontology::Value>` to implement `ekr_core::Canonical`
+note: required by a bound in `ContentHash::of`
+  --> $WORKSPACE/crates/ekr-core/src/hash.rs
+   |
+   |     pub fn of<T: Canonical + ?Sized>(value: &T) -> Self {
+   |                  ^^^^^^^^^ required by this bound in `ContentHash::of`

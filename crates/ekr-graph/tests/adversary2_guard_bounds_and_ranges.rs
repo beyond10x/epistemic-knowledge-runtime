@@ -117,11 +117,6 @@ fn the_current_rule(types: &[&str], field: &str) -> bool {
 /// one of its own.
 fn type_region(type_name: &str) -> String {
     let directory = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
-    let heads = [
-        format!("pub struct {type_name} {{"),
-        format!("pub enum {type_name} {{"),
-        format!("impl {type_name} {{"),
-    ];
     let mut region = String::new();
     for entry in std::fs::read_dir(directory).expect("the crate has a src/") {
         let path = entry.expect("a directory entry").path();
@@ -129,20 +124,19 @@ fn type_region(type_name: &str) -> String {
             continue;
         }
         let text = std::fs::read_to_string(&path).expect("a source file");
-        for head in &heads {
-            let mut from = 0;
-            while let Some(offset) = text[from..].find(head.as_str()) {
-                let open = from + offset + head.len() - 1;
-                from = open + 1;
+        let mut at = 0;
+        for line in text.lines() {
+            if opens_item(line, type_name) {
+                let open = at + line.find('{').expect("an item head opens a block");
                 let bytes = text.as_bytes();
                 let mut depth = 0usize;
-                for (at, byte) in bytes[open..].iter().enumerate() {
+                for (offset, byte) in bytes[open..].iter().enumerate() {
                     match byte {
                         b'{' => depth += 1,
                         b'}' => {
                             depth -= 1;
                             if depth == 0 {
-                                region.push_str(&text[open..=open + at]);
+                                region.push_str(&text[open..=open + offset]);
                                 break;
                             }
                         }
@@ -150,10 +144,77 @@ fn type_region(type_name: &str) -> String {
                     }
                 }
             }
+            at += line.len() + 1;
         }
     }
     assert!(!region.is_empty(), "no region found for `{type_name}`");
     region
+}
+
+/// Whether `line` opens the declaration of `type_name` or an inherent `impl` block on it.
+///
+/// A match on the head rather than on three literal strings, because
+/// `architecture-decision-record:0005-float-is-not-canonical`, as amended, made `Node`, `Edge`,
+/// `Object` and `Assertion` generic over the value they carry: their heads read
+/// `pub struct Node<V = CanonicalValue> {` and `impl<V> Node<V> {`, and the literal form matched
+/// neither — the scanner found no region at all for `Node` and said so, which is why this arrived
+/// as a red case rather than as a guard quietly covering nothing.
+///
+/// A *trait* impl is deliberately not an item head: `impl<V: Canonical> Canonical for Node<V> {`
+/// names `Canonical`, not `Node`. That is the behaviour before this change as well — the region is
+/// the fields and inherent methods the domain projection is checked against.
+///
+/// **Stated bounds**, neither reachable in this crate today and both written down rather than
+/// worked around:
+///
+/// * the head has to be on one line, which `cargo fmt` makes true for every item here;
+/// * an item head carrying a `where` clause is missed, because what follows the name is then
+///   `where …` rather than `{`. The miss is quiet — `type_region` asserts only that the region it
+///   built is non-empty, so a *second* item of a type that already has one would vanish from the
+///   region without a word.
+fn opens_item(line: &str, type_name: &str) -> bool {
+    let line = line.trim();
+    let rest = if let Some(rest) = line.strip_prefix("pub struct ") {
+        rest
+    } else if let Some(rest) = line.strip_prefix("pub enum ") {
+        rest
+    } else if let Some(rest) = line.strip_prefix("impl") {
+        after_generics(rest).trim_start()
+    } else {
+        return false;
+    };
+
+    let name: String = rest
+        .chars()
+        .take_while(|c| c.is_alphanumeric() || *c == '_')
+        .collect();
+    if name != type_name {
+        return false;
+    }
+    after_generics(&rest[name.len()..])
+        .trim_start()
+        .starts_with('{')
+}
+
+/// The text after a balanced `<…>` at the start of `text`, or `text` unchanged when it has none.
+fn after_generics(text: &str) -> &str {
+    if !text.starts_with('<') {
+        return text;
+    }
+    let mut depth = 0usize;
+    for (at, character) in text.char_indices() {
+        match character {
+            '<' => depth += 1,
+            '>' => {
+                depth -= 1;
+                if depth == 0 {
+                    return &text[at + character.len_utf8()..];
+                }
+            }
+            _ => {}
+        }
+    }
+    text
 }
 
 /// Add one field to one declaration of the document, in memory.
@@ -496,4 +557,48 @@ fn the_guard_against_a_returning_open_ended_read_covers_the_whole_crate() {
             );
         }
     }
+}
+
+/// The item scanner exists byte-identically in two files, and this is what says so.
+///
+/// `type_region` above is transcribed from `domain_projection.rs::type_region` so that this file
+/// measures *that* scanner rather than a stricter one of its own — which only holds while the two
+/// are the same text. Nothing asserted it, and the helper has now been rewritten twice: once for
+/// the generic heads `architecture-decision-record:0005-float-is-not-canonical` introduced, once
+/// for the bounds in its doc. A copy that drifts turns this file into a case about itself.
+#[test]
+fn the_item_scanner_is_the_same_text_in_both_files() {
+    /// From the head of `opens_item`'s doc comment through the end of `after_generics`.
+    fn scanner(file: &str) -> String {
+        let source =
+            std::fs::read_to_string(format!("{}/tests/{file}", env!("CARGO_MANIFEST_DIR")))
+                .unwrap_or_else(|e| panic!("reading {file}: {e}"));
+        let start = source
+            .find("/// Whether `line` opens the declaration of `type_name`")
+            .unwrap_or_else(|| panic!("{file} carries the item scanner"));
+        let last = source[start..]
+            .find("fn after_generics(text: &str) -> &str {")
+            .unwrap_or_else(|| panic!("{file} carries after_generics beside it"))
+            + start;
+        let end = source[last..]
+            .find("\n}\n")
+            .unwrap_or_else(|| panic!("after_generics closes in {file}"))
+            + last
+            + 3;
+        source[start..end].to_owned()
+    }
+
+    let here = scanner("adversary2_guard_bounds_and_ranges.rs");
+    let there = scanner("domain_projection.rs");
+    assert!(
+        here.len() > 500,
+        "the extraction is broken, not the files: {} bytes",
+        here.len()
+    );
+    assert_eq!(
+        here, there,
+        "the two copies of the item scanner have drifted, so this file no longer measures the \
+         guard in domain_projection.rs — it measures a different scanner that happens to live \
+         beside it"
+    );
 }
