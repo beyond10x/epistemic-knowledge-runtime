@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc eb6fcee59d8eb3303f0ba57bfda2f89a6b443827ea02e8137dc3fadf45d0ab4b # shrinks to specs = [PropSpec { spec: Scalar(String("")), cardinality: Many, required: false }], target = 0, choice = 0

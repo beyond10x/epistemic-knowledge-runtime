@@ -23,9 +23,19 @@ types:
     kind: newtype
     of: Uuid
 
-  # Design § 11.3 `ValueType`, by kind. The parameters of the compound kinds — the allowed types
-  # of a NodeRef, the variants of an Enum, the element type of a List, the fields of a Record —
-  # are carried by PropertyDefinition below.
+  # Design § 11.3 `ValueType`, by kind. Two of the compound kinds carry their parameters on
+  # PropertyDefinition below: a NodeRef's allowed types as `ref_allowed_types`, an Enum's variants
+  # as `enum_variants`. Both flatten because their parameter is a list of ids or of names.
+  #
+  # A List's element type and a Record's field types do not flatten: each is itself a ValueType,
+  # and `ess/1` has no recursive type. So this document declares no carrier for them, and a List
+  # or Record property type has no representation here — while `ekr-ontology` constructs and loads
+  # one. That gap is `task:ess-domain-carries-compound-value-types`, which must be settled no later
+  # than P3, the first wave whose store persists a PropertyDefinition.
+  #
+  # This comment claimed all four kinds were carried until 2026-09-21. The adversary of wave p1-03
+  # found the claim by comparing the document with the crate, which nothing else does: `ess specify
+  # validate` checks this document against itself, and the suite checks the crate against itself.
   - name: ekr.ontology.ValueKind
     kind: enum
     variants:

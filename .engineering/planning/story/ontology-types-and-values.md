@@ -2,26 +2,41 @@
 format: aep.planning-md/1
 id: story:ontology-types-and-values
 kind: story
-status: draft
+status: implemented
 title: 'Ontology: types, typed values, lifecycles, and the type checker'
 relations:
 - decomposes: epic:p1-kernel-ontology-core
 - depends_on: story:kernel-identity-and-hashing
 - implements: executable-system-specification:ekr-v1
+- serves: vision:o2
 scope:
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-ontology/src/check.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-ontology/src/lib.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-ontology/src/lifecycle.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-ontology/src/schema.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-ontology/src/types.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-ontology/src/value.rs
-revision: 4
+- confidence: cited
+  path: crates/ekr-ontology/tests/domain_projection.rs
+- confidence: cited
+  path: crates/ekr-ontology/tests/hierarchy_specificity.rs
+- confidence: cited
+  path: crates/ekr-ontology/tests/inheritance_and_declaration_coherence.rs
+- confidence: cited
+  path: crates/ekr-ontology/tests/lifecycle_transitions.rs
+- confidence: cited
+  path: crates/ekr-ontology/tests/ontology_load.rs
+- confidence: cited
+  path: crates/ekr-ontology/tests/type_hierarchy.rs
+- confidence: cited
+  path: crates/ekr-ontology/tests/value_type_checking.rs
+revision: 10
 ---
 ## Context
 
@@ -33,8 +48,7 @@ this story delivers is what validators 3–5 of design § 20 call.
 
 ## Acceptance
 
-For every `(Value, ValueType)` pair the property suite generates, `Ontology::check` returns `Ok`
-exactly when the value satisfies the declared type.
+A value generated to violate exactly one property of its declared type is refused.
 
 ## Tests the story ships
 
@@ -57,6 +71,20 @@ exactly when the value satisfies the declared type.
 - `crates/ekr-ontology/src/check.rs` — the type checker
 - `crates/ekr-ontology/src/lib.rs`
 
+Test files, written during wave p1-03 and read from the merged tree:
+
+- `crates/ekr-ontology/tests/value_type_checking.rs` — the acceptance, the two `NodeRef`/`Enum`
+  enforcement cases, and the property that a value broken in exactly one place is refused
+- `crates/ekr-ontology/tests/ontology_load.rs` — what a document must satisfy to load at all
+- `crates/ekr-ontology/tests/type_hierarchy.rs` — parents, ancestry and `conforms_to`
+- `crates/ekr-ontology/tests/hierarchy_specificity.rs` — property resolution by the specialisation
+  order, and the cases where `AmbiguousProperty` may and may not fire
+- `crates/ekr-ontology/tests/inheritance_and_declaration_coherence.rs` — declaration coherence, and
+  which fault a two-fault document reports
+- `crates/ekr-ontology/tests/lifecycle_transitions.rs` — declared and undeclared moves
+- `crates/ekr-ontology/tests/domain_projection.rs` — the crate's citations of
+  `systems/ekr/domains/ontology.yaml` stay true in both directions
+
 ## Notes
 
 Depends on `story:kernel-identity-and-hashing` for the id types. `Constraint` (design § 11.2) has
@@ -64,3 +92,11 @@ no defined language; carry it as an opaque string and refuse nothing on it yet, 
 `UNMAPPED:` marker in `ontology.yaml`. Schema versions are data in this story; the transactions
 that change them are P5. Uses only dependencies `story:workspace-crate-skeleton` declared for
 `ekr-ontology`.
+
+The acceptance was restated on 2026-09-21, before wave p1-03 dispatched. It read "for every
+`(Value, ValueType)` pair the property suite generates, `Ontology::check` returns `Ok` exactly when
+the value satisfies the declared type" — and "satisfies the declared type" is what `check` decides,
+so the case had no oracle independent of the thing it tests. Generating a value *from* a type, then
+breaking exactly one of that type's properties, gives the generator as the oracle; a checker that
+answers `Ok` to everything now dies. The opposite failure — a checker that refuses everything — is
+killed by the shipped case that a well-typed value checks `Ok`.

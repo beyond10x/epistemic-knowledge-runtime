@@ -77,8 +77,17 @@ Each is a claim that can be checked. Breaking one is a design change, not a refa
 errors, the planning store's validation. Land nothing until it exits zero. Prefer `cargo check -p`
 and `cargo test -p` on touched crates while working; run the whole gate before claiming a phase.
 
-Set `CARGO_TARGET_DIR=$HOME/.cache/b10x-target/epistemic-knowledge-runtime` so every worktree of
-this repository shares one build directory.
+Set `CARGO_TARGET_DIR=$HOME/.cache/b10x-target/epistemic-knowledge-runtime`. One tree at a time
+shares that directory with every other tree of this repository, which is what keeps a second
+checkout from paying for a second full build.
+
+**Two trees that build at the same time get one directory each.** Cargo's exclusive lock makes
+concurrent compilation serialise rather than corrupt, and unit artifacts are keyed by a hash that
+includes the package's manifest path, so two trees' `deps/` do not clobber each other. Two outputs
+are not keyed that way: `doc/<crate>` is a single shared path, so `task doc-check` from two trees
+writes the same files, and the uplifted binary is one path, `debug/ekr`. Sharing is therefore not
+merely slow for concurrent work, it is unsound for `doc-check`. A wave running more than one unit
+gives each its own directory and says so in its page.
 
 ## What must not happen here
 

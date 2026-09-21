@@ -21,7 +21,7 @@ scope:
   path: crates/ekr-kernel/tests/compile_fail
 - confidence: inferred
   path: crates/ekr-kernel/tests/validate_properties.rs
-revision: 7
+revision: 8
 ---
 ## Context
 
@@ -33,10 +33,7 @@ story is the integrity membrane.
 
 ## Acceptance
 
-For arbitrary generated transactions, `validate` never returns `Ok` when any operation carries a
-reference that does not resolve in the snapshot, a value that fails its type, a cardinality the
-edge type forbids, an `Invoke` the lifecycle does not declare, or a canonical assertion with no
-evidence.
+A transaction carrying exactly one of the five defects is refused, and the issue names that defect.
 
 ## Tests the story ships
 
@@ -71,3 +68,11 @@ only that the validating actor differs from the proposer (§ 6.10); the outward-
 amendment 83 is P4. Validators 8–10 arrive with P3 and P5. `proptest` and `trybuild` are declared
 for `ekr-kernel` by `story:workspace-crate-skeleton`; this story adds no dependency and does not
 touch `Cargo.lock`, so it can run beside `story:eventlog-store`.
+
+The acceptance was restated on 2026-09-21, before wave p1-03 dispatched. It read "`validate` never
+returns `Ok` when any operation carries a reference that does not resolve …" — which a `validate`
+that answers `Err` to everything satisfies completely. Naming the five defects one at a time, and
+requiring the issue to name the one it found, cannot be satisfied that way. The shipped case that a
+valid transaction validates `Ok` is what closes the other direction. The five defects are unchanged:
+an unresolvable reference, a value that fails its type, a cardinality the edge type forbids, an
+`Invoke` the lifecycle does not declare, and a canonical assertion with no evidence.

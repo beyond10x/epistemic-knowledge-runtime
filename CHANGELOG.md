@@ -6,6 +6,11 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Added
 
+- `ekr-ontology`: the ontology document and its type checker. Node and edge types with parents,
+  properties and cardinality; a `ValueType`/`Value` pair that makes `employer = NodeRef(..)`
+  checkable and `employer = "OpenAI"` not; per-type lifecycles and named operations. A document
+  loads only when every declaration is coherent, and an inherited property is resolved by the
+  specialisation order the document declares rather than by distance or by id (wave p1-03).
 - `ekr-core`: stable identity (fifteen newtypes, one text form each), content hashing in two
   address domains that cannot collide, and a deterministic canonical encoding the encoder imposes
   rather than the caller (wave p1-02).
