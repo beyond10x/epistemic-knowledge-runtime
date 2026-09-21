@@ -2,12 +2,13 @@
 format: aep.planning-md/1
 id: story:eventlog-store
 kind: story
-status: draft
+status: active
 title: 'Eventlog-backed store: revision log, fold, snapshots, content-addressed objects'
 relations:
 - decomposes: epic:p1-kernel-ontology-core
 - depends_on: story:graph-model-and-assertions
 - implements: executable-system-specification:ekr-v1
+- serves: vision:o2
 scope:
 - confidence: inferred
   path: crates/ekr-store/src/eventlog.rs
@@ -21,7 +22,7 @@ scope:
   path: crates/ekr-store/src/snapshot.rs
 - confidence: inferred
   path: crates/ekr-store/tests/providers.rs
-revision: 6
+revision: 8
 ---
 ## Context
 

@@ -2,12 +2,13 @@
 format: aep.planning-md/1
 id: story:transaction-and-validators
 kind: story
-status: draft
+status: active
 title: Transactions and deterministic validators 1–7
 relations:
 - decomposes: epic:p1-kernel-ontology-core
 - depends_on: story:graph-model-and-assertions
 - implements: executable-system-specification:ekr-v1
+- serves: vision:o2
 scope:
 - confidence: inferred
   path: crates/ekr-kernel/src/issue.rs
@@ -21,7 +22,7 @@ scope:
   path: crates/ekr-kernel/tests/compile_fail
 - confidence: inferred
   path: crates/ekr-kernel/tests/validate_properties.rs
-revision: 8
+revision: 10
 ---
 ## Context
 
