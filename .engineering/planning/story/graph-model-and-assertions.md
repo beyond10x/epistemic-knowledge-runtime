@@ -2,17 +2,24 @@
 format: aep.planning-md/1
 id: story:graph-model-and-assertions
 kind: story
-status: draft
+status: active
 title: 'Graph model: nodes, edges, bitemporal assertions, evidence, the canonical/transient membrane'
 relations:
 - decomposes: epic:p1-kernel-ontology-core
 - depends_on: story:ontology-types-and-values
 - implements: executable-system-specification:ekr-v1
+- serves: vision:o2
 scope:
 - confidence: inferred
   path: crates/ekr-core/src/canonical.rs
+- confidence: cited
+  path: crates/ekr-core/src/lib.rs
+- confidence: inferred
+  path: crates/ekr-core/src/time.rs
 - confidence: inferred
   path: crates/ekr-core/tests/canonical_encoding.rs
+- confidence: inferred
+  path: crates/ekr-core/tests/timestamp.rs
 - confidence: inferred
   path: crates/ekr-graph/src/assertion.rs
 - confidence: inferred
@@ -35,7 +42,13 @@ scope:
   path: crates/ekr-graph/src/transient.rs
 - confidence: inferred
   path: crates/ekr-graph/tests/compile_fail
-revision: 10
+- confidence: cited
+  path: crates/ekr-ontology/src/schema.rs
+- confidence: cited
+  path: crates/ekr-ontology/src/value.rs
+- confidence: inferred
+  path: crates/ekr-ontology/tests/domain_projection.rs
+revision: 15
 ---
 ## Context
 
@@ -86,6 +99,19 @@ answers `active()` with Bob.
 - `crates/ekr-graph/src/lib.rs`
 - `crates/ekr-graph/tests/compile_fail/` (trybuild)
 
+Added on 2026-09-21, before wave p1-04 dispatched, by
+`architecture-decision-record:0004-timestamp-in-ekr-core`:
+
+- `crates/ekr-core/src/time.rs` — `Timestamp`, a newtype over `i64` milliseconds since the Unix
+  epoch, with its `Canonical` impl and its decimal text form
+- `crates/ekr-core/src/lib.rs` — the re-export
+- `crates/ekr-core/tests/timestamp.rs` — its cases, which the workspace public-surface guard
+  requires
+- `crates/ekr-ontology/src/value.rs`, `schema.rs` — the three sites that carry a bare `i64` today:
+  `Value::Timestamp`, `ValueKind::Timestamp`'s payload, and `SchemaVersion::created_at`
+- `crates/ekr-ontology/tests/domain_projection.rs` — the guard that this crate's citations of
+  `systems/ekr/domains/ontology.yaml` stay true, which the change above moves
+
 ## Notes
 
 Depends on `story:ontology-types-and-values`. Crate dependencies, as the skeleton declared them:
@@ -102,3 +128,9 @@ variant tag, newtypes carry no discriminant. `RevisionEvent` is the first sum ty
 encodes, so this story adds `Encoder::variant` and `tag::VARIANT` to
 `crates/ekr-core/src/canonical.rs` and the case above to that crate's tests. No existing encoding
 changes — nothing in the workspace is a sum type today, so no recorded address moves.
+
+`Timestamp` was settled before dispatch by
+`architecture-decision-record:0004-timestamp-in-ekr-core`: an `ekr-core` newtype over `i64`
+milliseconds. The roadmap had put it in `ekr-graph`; `ontology.yaml:100-101` declares
+`SchemaVersion.created_at` of type `Timestamp` and `ekr-ontology` does not depend on `ekr-graph`,
+so `ekr-graph` would have left one domain scalar with two unrelated Rust representations.
