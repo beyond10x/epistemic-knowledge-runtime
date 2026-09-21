@@ -5,9 +5,11 @@
 
 use std::collections::BTreeMap;
 
+use ekr_core::canonical::{Canonical, Encoder};
 use ekr_core::{GraphRootId, NodeId, PropertyId, TypeId};
-use ekr_ontology::Value;
 use serde::{Deserialize, Serialize};
+
+use crate::value::CanonicalValue;
 
 /// One node of a graph root: `ekr.graph.Node` of `systems/ekr/domains/graph.yaml`.
 ///
@@ -23,15 +25,28 @@ use serde::{Deserialize, Serialize};
 ///   `Map<String, ekr.graph.TypedValue>`. A map keyed by the property's *name* makes the name an
 ///   identity, which AGENTS.md invariant 3 says it is not — a property renamed in a schema
 ///   transaction would silently orphan every value stored under the old key.
-/// * a property's value is an [`ekr_ontology::Value`], where the domain carries a
-///   `TypedValue { kind, canonical }`. That is the same flattening `ekr.ontology.PropertyDefinition`
-///   applies to `ValueType`, and for the same stated reason: `ess/1` types are not recursive, so a
-///   `List` or a `Record` value cannot be expressed there. The crate holds the recursive value the
-///   type checker needs.
+/// * a property's value is a `V`, where the domain carries a `TypedValue { kind, canonical }`.
+///   That is the same flattening `ekr.ontology.PropertyDefinition` applies to `ValueType`, and for
+///   the same stated reason: `ess/1` types are not recursive, so a `List` or a `Record` value
+///   cannot be expressed there. The crate holds the recursive value the type checker needs.
 ///
 /// Both are reported rather than reconciled; `systems/` is not this crate's to edit.
+///
+/// # Why the value is a parameter
+///
+/// `architecture-decision-record:0005-float-is-not-canonical`, as amended after adversary pass 1.
+/// Canonical state holds [`CanonicalValue`], which has no float at any depth, and that is the
+/// default — `Node` on its own is `Node<CanonicalValue>` and every canonical use reads unchanged.
+/// [`TransientGraph`](crate::TransientGraph) holds `Node<ekr_ontology::Value>`, because a candidate
+/// that has not crossed the integrity boundary may carry an approximate measurement and refusing
+/// one at the incubation boundary would invert what that boundary is for.
+///
+/// **[`Canonical`] is implemented only where `V` is**, which is the part the parameter buys:
+/// `Node<CanonicalValue>` has a content address and `Node<Value>` does not, so *only canonical
+/// state can be content-addressed* is a property of the type system rather than a convention.
+/// `tests/compile_fail/transient_state_has_no_content_address.rs` is that as a build failure.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Node {
+pub struct Node<V = CanonicalValue> {
     /// The node's stable id, minted once and never derived from anything a person can edit.
     pub id: NodeId,
     /// The graph root that owns it.
@@ -50,10 +65,10 @@ pub struct Node {
     /// is a different ladder and arrives in P3.
     pub type_state: Option<String>,
     /// Its property values, by the property's id.
-    pub properties: BTreeMap<PropertyId, Value>,
+    pub properties: BTreeMap<PropertyId, V>,
 }
 
-impl Node {
+impl<V> Node<V> {
     /// A node with a name and nothing else: no aliases, no lifecycle state, no properties.
     ///
     /// The fields are public, so a caller that needs more sets it. There is no writer here and no
@@ -75,5 +90,27 @@ impl Node {
             type_state: None,
             properties: BTreeMap::new(),
         }
+    }
+}
+
+impl<V: Canonical> Canonical for Node<V> {
+    /// The seven fields in declaration order.
+    ///
+    /// Structural, with no discriminant: a node is not a sum type, and rule 5 of
+    /// `ekr_core::canonical` says a composite value's own field structure is what distinguishes
+    /// it. The order is the contract — moving a field moves every address that contains this node,
+    /// and `Root.knowledge_root` is an address over graph state, which is a root's nodes, its
+    /// edges and its assertions.
+    ///
+    /// Bounded on `V`, so this exists for `Node<CanonicalValue>` and not for `Node<Value>`: the
+    /// address exists exactly where canonical state does.
+    fn encode(&self, out: &mut Encoder) {
+        self.id.encode(out);
+        self.root_id.encode(out);
+        self.type_id.encode(out);
+        self.canonical_name.encode(out);
+        self.aliases.encode(out);
+        out.option(self.type_state.as_ref());
+        self.properties.encode(out);
     }
 }

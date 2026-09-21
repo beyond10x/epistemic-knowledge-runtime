@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 508ee4bb703b92bd6bb7efd38dabc8d01bc1a843aea37aaee009d01302d62ffe # shrinks to proposal = GraphTransaction { id: TransactionId(2163984292236669972939289901614754483), proposer: AgentId(2163984292236669972939289909333935846), operations: [UpdateProperty(PropertyMutation { node: NodeId(2163984292236669972939289927021671612), property: PropertyId(2163984292236669972939289971960313507), values: [Float(0.0)] })], evidence: {} }

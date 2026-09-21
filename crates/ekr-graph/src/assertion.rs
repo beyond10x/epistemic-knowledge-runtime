@@ -3,12 +3,14 @@
 
 use std::collections::BTreeSet;
 
+use ekr_core::canonical::{Canonical, Encoder};
 use ekr_core::{
     AgentId, AssertionId, EdgeId, EvidenceId, GraphRootId, IssueId, NodeId, PropertyId,
     RevisionNumber, Timestamp, TypeId,
 };
-use ekr_ontology::Value;
 use serde::{Deserialize, Serialize};
+
+use crate::value::CanonicalValue;
 
 /// What an assertion is about: `ekr.graph.SubjectKind` plus the identity it names.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -21,6 +23,31 @@ pub enum Subject {
     Type(TypeId),
 }
 
+impl Canonical for Subject {
+    /// The variant marker, then the id it names.
+    ///
+    /// The marker is what separates the three, and is not optional: rule 5 of
+    /// `ekr_core::canonical` makes a newtype structural, so a [`NodeId`], an [`EdgeId`] and a
+    /// [`TypeId`] over one UUID encode identically. Without the tag, an assertion about a node
+    /// and an assertion about the edge that happened to share its bits would share an address.
+    fn encode(&self, out: &mut Encoder) {
+        match self {
+            Self::Node(node) => {
+                out.variant(0);
+                node.encode(out);
+            }
+            Self::Edge(edge) => {
+                out.variant(1);
+                edge.encode(out);
+            }
+            Self::Type(type_id) => {
+                out.variant(2);
+                type_id.encode(out);
+            }
+        }
+    }
+}
+
 /// What is being said about the subject: `ekr.graph.PredicateKind` plus the identity it names.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Predicate {
@@ -30,15 +57,60 @@ pub enum Predicate {
     Relation(TypeId),
 }
 
+impl Canonical for Predicate {
+    /// The variant marker, then the id it names — tagged for the reason [`Subject`] is.
+    fn encode(&self, out: &mut Encoder) {
+        match self {
+            Self::Property(property) => {
+                out.variant(0);
+                property.encode(out);
+            }
+            Self::Relation(type_id) => {
+                out.variant(1);
+                type_id.encode(out);
+            }
+        }
+    }
+}
+
 /// What the predicate relates the subject to: `ekr.graph.ObjectKind` plus its payload.
+///
+/// Generic over the literal it may carry, defaulting to [`CanonicalValue`]:
+/// `architecture-decision-record:0005-float-is-not-canonical` as amended. A canonical claim is
+/// content-addressed and `Value::Float` has no encoding, so `Object` on its own admits no float;
+/// a candidate claim in a transient root is `Object<ekr_ontology::Value>` and may say something
+/// approximate.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum Object {
+pub enum Object<V = CanonicalValue> {
     /// A literal value, typed by the ontology.
-    Value(Value),
+    Value(V),
     /// Another node.
     Node(NodeId),
     /// A type in the ontology.
     Type(TypeId),
+}
+
+impl<V: Canonical> Canonical for Object<V> {
+    /// The variant marker, then the payload — tagged for the reason [`Subject`] is.
+    ///
+    /// Bounded on `V`: an object carrying a value canonical state does not admit has no encoding
+    /// at all, rather than an encoding that refuses at run time.
+    fn encode(&self, out: &mut Encoder) {
+        match self {
+            Self::Value(value) => {
+                out.variant(0);
+                value.encode(out);
+            }
+            Self::Node(node) => {
+                out.variant(1);
+                node.encode(out);
+            }
+            Self::Type(type_id) => {
+                out.variant(2);
+                type_id.encode(out);
+            }
+        }
+    }
 }
 
 /// A half-open interval of valid time, `[from, to)`, with either end optionally unbounded:
@@ -105,6 +177,19 @@ impl TemporalRange {
     #[must_use]
     pub fn contains(&self, at: Timestamp) -> bool {
         self.from.is_none_or(|from| from <= at) && self.to.is_none_or(|to| at < to)
+    }
+}
+
+impl Canonical for TemporalRange {
+    /// The two bounds, in declaration order, each as an option.
+    ///
+    /// Structural and untagged: a struct, not a sum type, so rule 5 of `ekr_core::canonical`
+    /// leaves its field order to distinguish it. Absence is not emptiness —
+    /// [`Encoder::option`](ekr_core::canonical::Encoder::option) writes a different tag for
+    /// `None` than for any `Some`, so an unbounded range and one bounded at the epoch do not meet.
+    fn encode(&self, out: &mut Encoder) {
+        out.option(self.from.as_ref());
+        out.option(self.to.as_ref());
     }
 }
 
@@ -229,6 +314,17 @@ impl TryFrom<TransactionTimeFields> for TransactionTime {
     }
 }
 
+impl Canonical for TransactionTime {
+    /// The start, then the end as an option — the two fields in declaration order.
+    ///
+    /// The start is not an option and does not encode as one: `recorded_from` is required, which
+    /// is the difference between this type and [`TemporalRange`].
+    fn encode(&self, out: &mut Encoder) {
+        self.recorded_from.encode(out);
+        out.option(self.recorded_to.as_ref());
+    }
+}
+
 /// Why a canonical assertion was retracted.
 ///
 /// Design § 36 names the type and gives it no variants, and nothing else in the design or in
@@ -250,6 +346,14 @@ impl RetractionReason {
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+impl Canonical for RetractionReason {
+    /// The bytes of the text it wraps, with no discriminant: a newtype is structural, which is
+    /// rule 5 of `ekr_core::canonical`.
+    fn encode(&self, out: &mut Encoder) {
+        self.0.encode(out);
     }
 }
 
@@ -350,6 +454,56 @@ impl ValidationState {
     }
 }
 
+impl Canonical for ValidationState {
+    /// The variant marker, then the variant's fields in declaration order.
+    ///
+    /// Tagged for the reason [`Subject`] is, and here the collision is not hypothetical:
+    /// `Superseded { by }` and a one-element `Disputed { competing_assertions }` both come down to
+    /// one [`AssertionId`], and `Proposed` carries nothing at all. The state an assertion is in is
+    /// part of what it *is*, so it is part of its address.
+    fn encode(&self, out: &mut Encoder) {
+        match self {
+            Self::Proposed => {
+                out.variant(0);
+            }
+            Self::Validating {
+                completed,
+                required,
+            } => {
+                out.variant(1);
+                completed.encode(out);
+                required.encode(out);
+            }
+            Self::Accepted { validators } => {
+                out.variant(2);
+                validators.encode(out);
+            }
+            Self::Rejected { issues } => {
+                out.variant(3);
+                issues.encode(out);
+            }
+            Self::Disputed {
+                competing_assertions,
+            } => {
+                out.variant(4);
+                competing_assertions.encode(out);
+            }
+            Self::Superseded { by } => {
+                out.variant(5);
+                by.encode(out);
+            }
+            Self::Retracted {
+                at_revision,
+                reason,
+            } => {
+                out.variant(6);
+                at_revision.encode(out);
+                reason.encode(out);
+            }
+        }
+    }
+}
+
 /// Whether canonical state *removed* an assertion: design § 36.
 ///
 /// A narrower question than it looks, and a different one from [`ValidationState`]. § 36 is about
@@ -384,8 +538,12 @@ pub enum AssertionStatus {
 /// No constructor: every field is required and several are unordered collections, so a caller
 /// builds it as a literal. There is no writer in this crate — mutation of canonical state arrives
 /// as a transaction the kernel commits.
+///
+/// Generic over the value its object may carry, defaulting to [`CanonicalValue`], with the same
+/// consequence [`Node`](crate::Node) carries: `Assertion<CanonicalValue>` has a content address
+/// and `Assertion<ekr_ontology::Value>` — what a transient root holds — does not.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Assertion {
+pub struct Assertion<V = CanonicalValue> {
     /// The assertion's stable id.
     pub id: AssertionId,
     /// The graph root that owns it.
@@ -395,7 +553,7 @@ pub struct Assertion {
     /// What it says.
     pub predicate: Predicate,
     /// What it says it about.
-    pub object: Object,
+    pub object: Object<V>,
     /// The evidence it rests on. Design § 13; `graph.yaml` gives each link its own
     /// [`Support`](crate::Support) entity so that one can be addressed and withdrawn.
     pub evidence: BTreeSet<EvidenceId>,
@@ -410,7 +568,7 @@ pub struct Assertion {
     pub transaction_time: TransactionTime,
 }
 
-impl Assertion {
+impl<V> Assertion<V> {
     /// Whether canonical state removed it: design § 36.
     ///
     /// `Retracted` and `Superseded` map to themselves; every other validation state maps to
@@ -451,5 +609,34 @@ impl Assertion {
     #[must_use]
     pub fn is_current(&self) -> bool {
         self.validation.is_accepted() && self.transaction_time.is_open()
+    }
+}
+
+impl<V: Canonical> Canonical for Assertion<V> {
+    /// The ten fields in declaration order.
+    ///
+    /// Structural, with no discriminant, for the reason [`Root`](crate::Root) has none: an
+    /// assertion is not a sum type, and rule 5 of `ekr_core::canonical` says a composite value's
+    /// own field structure is what distinguishes it. The order is the contract — moving a field
+    /// moves every address that has ever named this assertion, and
+    /// `story:commit-and-revision-lineage` writes the first one anybody keeps.
+    ///
+    /// **Total**, with no fallible path. It is total because it exists only where `V` is
+    /// [`Canonical`], and the `V` canonical state holds is [`CanonicalValue`], which has no float
+    /// in it at any depth: the one thing that could not be encoded cannot be present, so nothing
+    /// here has to decide what to do about it.
+    /// `crates/ekr-graph/tests/canonical_value_and_assertion.rs` holds every field to reaching
+    /// these bytes, by reading the declaration rather than by a list kept beside it.
+    fn encode(&self, out: &mut Encoder) {
+        self.id.encode(out);
+        self.root_id.encode(out);
+        self.subject.encode(out);
+        self.predicate.encode(out);
+        self.object.encode(out);
+        self.evidence.encode(out);
+        self.proposed_by.encode(out);
+        self.validation.encode(out);
+        self.valid_time.encode(out);
+        self.transaction_time.encode(out);
     }
 }

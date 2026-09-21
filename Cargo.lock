@@ -299,6 +299,7 @@ version = "0.0.0"
 dependencies = [
  "ekr-core",
  "ekr-graph",
+ "ekr-ontology",
  "eventlog-core",
  "eventlog-file",
  "eventlog-sqlite",
@@ -306,6 +307,8 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror",
+ "time",
+ "tokio",
 ]
 
 [[package]]

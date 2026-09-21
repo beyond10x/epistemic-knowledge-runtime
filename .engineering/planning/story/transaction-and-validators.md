@@ -2,26 +2,61 @@
 format: aep.planning-md/1
 id: story:transaction-and-validators
 kind: story
-status: draft
+status: implemented
 title: Transactions and deterministic validators 1–7
 relations:
 - decomposes: epic:p1-kernel-ontology-core
 - depends_on: story:graph-model-and-assertions
 - implements: executable-system-specification:ekr-v1
+- serves: vision:o2
 scope:
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-kernel/src/issue.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-kernel/src/lib.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-kernel/src/transaction.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-kernel/src/validate
-- confidence: inferred
+- confidence: cited
+  path: crates/ekr-kernel/src/validate/authorization.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/validate/cardinality.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/validate/mod.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/validate/ontology.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/validate/provenance.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/validate/reference.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/validate/structural.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/validate/types.rs
+- confidence: cited
+  path: crates/ekr-kernel/tests/adversary_membrane.rs
+- confidence: cited
+  path: crates/ekr-kernel/tests/adversary_membrane_pass_two.rs
+- confidence: cited
   path: crates/ekr-kernel/tests/compile_fail
-- confidence: inferred
+- confidence: cited
+  path: crates/ekr-kernel/tests/compile_fail/validated_transaction_cannot_be_deserialised.rs
+- confidence: cited
+  path: crates/ekr-kernel/tests/compile_fail/validated_transaction_cannot_be_deserialised.stderr
+- confidence: cited
+  path: crates/ekr-kernel/tests/compile_fail/validated_transaction_has_no_constructor_outside_the_kernel.rs
+- confidence: cited
+  path: crates/ekr-kernel/tests/compile_fail/validated_transaction_has_no_constructor_outside_the_kernel.stderr
+- confidence: cited
+  path: crates/ekr-kernel/tests/encoding_field_order.rs
+- confidence: cited
+  path: crates/ekr-kernel/tests/validate_properties.proptest-regressions
+- confidence: cited
   path: crates/ekr-kernel/tests/validate_properties.rs
-revision: 8
+- confidence: cited
+  path: crates/ekr-kernel/tests/validation.rs
+revision: 14
 ---
 ## Context
 

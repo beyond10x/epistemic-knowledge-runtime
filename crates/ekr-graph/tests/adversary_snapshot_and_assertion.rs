@@ -387,7 +387,7 @@ fn the_domain_requires_a_recorded_from_and_the_crate_cannot_omit_one() {
 
     // The record `crates/ekr-graph/src/lib.rs` publishes, field for field. It no longer compiles
     // without a `recorded_from`, which is the whole of the fix: the state is gone, not filtered.
-    let held = Assertion {
+    let held: Assertion = Assertion {
         id: AssertionId::mint(),
         root_id: GraphRootId::mint(),
         subject: Subject::Node(NodeId::mint()),

@@ -4,6 +4,7 @@
 //! An observation says *these bytes were received from this source at this time*. Evidence says
 //! *this claim rests on that*. Neither says the claim is true; that is what validation is for.
 
+use ekr_core::canonical::{Canonical, Encoder};
 use ekr_core::{
     AgentId, AssertionId, ContentHash, EvidenceId, ObservationId, SupportId, Timestamp,
 };
@@ -63,6 +64,57 @@ pub enum EvidenceSource {
         /// Who said it, where the source's authorisation permits recording that.
         identity: Option<String>,
     },
+}
+
+impl Canonical for EvidenceSource {
+    /// The variant marker, then the variant's fields in declaration order.
+    ///
+    /// A sum type, so it carries a tag: rule 5 of `ekr_core::canonical`. The collision it prevents
+    /// is in front of us — `GraphAssertion(AssertionId)` and `Observation(ObservationId)` are two
+    /// id newtypes, which rule 5 makes encode identically, and `Url(String)` would meet a
+    /// `Document` carrying no section.
+    ///
+    /// The index is a literal and it is the contract: changing a number moves every content
+    /// address that contains that variant, and reordering the declaration moves nothing.
+    /// `crates/ekr-graph/tests/canonical_value_and_assertion.rs` holds the two in step.
+    fn encode(&self, out: &mut Encoder) {
+        match self {
+            Self::Url(url) => {
+                out.variant(0);
+                url.encode(out);
+            }
+            Self::Document {
+                document_id,
+                section,
+            } => {
+                out.variant(1);
+                document_id.encode(out);
+                out.option(section.as_ref());
+            }
+            Self::DatabaseRecord {
+                database,
+                table,
+                key,
+            } => {
+                out.variant(2);
+                database.encode(out);
+                table.encode(out);
+                key.encode(out);
+            }
+            Self::GraphAssertion(assertion) => {
+                out.variant(3);
+                assertion.encode(out);
+            }
+            Self::Observation(observation) => {
+                out.variant(4);
+                observation.encode(out);
+            }
+            Self::HumanStatement { identity } => {
+                out.variant(5);
+                out.option(identity.as_ref());
+            }
+        }
+    }
 }
 
 impl EvidenceSource {
@@ -153,6 +205,15 @@ impl Confidence {
     }
 }
 
+impl Canonical for Confidence {
+    /// The basis points it wraps, with no discriminant: a newtype is structural, which is rule 5
+    /// of `ekr_core::canonical`. Basis points are exactly why this type is not an `f64` — rule 4
+    /// admits no float, and evidence is content-addressed.
+    fn encode(&self, out: &mut Encoder) {
+        self.0.encode(out);
+    }
+}
+
 impl From<Confidence> for u16 {
     fn from(confidence: Confidence) -> Self {
         confidence.0
@@ -187,6 +248,22 @@ pub struct Evidence {
     pub observed_at: Timestamp,
     /// How much weight the extractor puts on it.
     pub confidence: Confidence,
+}
+
+impl Canonical for Evidence {
+    /// The six fields in declaration order, structural and untagged.
+    ///
+    /// `Root.evidence_root` is "the retained evidence at this revision" (design § 34), and this is
+    /// what it is an address over. `content_hash` is the address of what was *read* and is a field
+    /// like any other here: it says the source has not changed, not that this record has not.
+    fn encode(&self, out: &mut Encoder) {
+        self.id.encode(out);
+        self.source.encode(out);
+        self.content_hash.encode(out);
+        self.extracted_by.encode(out);
+        self.observed_at.encode(out);
+        self.confidence.encode(out);
+    }
 }
 
 /// The form of an observation's content: `ekr.graph.ObservationKind`.
@@ -251,6 +328,56 @@ pub enum ObservationContent {
     },
 }
 
+impl Canonical for ObservationContent {
+    /// The variant marker, then the payload.
+    ///
+    /// Seven of the eight variants carry one [`ContentHash`] and nothing else, so without the tag
+    /// a document and an API response over the same bytes would be one value. That is the exact
+    /// collision rule 5 of `ekr_core::canonical` describes, and here it is seven-fold.
+    fn encode(&self, out: &mut Encoder) {
+        match self {
+            Self::Document(hash) => {
+                out.variant(0);
+                hash.encode(out);
+            }
+            Self::ApiResponse(hash) => {
+                out.variant(1);
+                hash.encode(out);
+            }
+            Self::DatabaseRecord(hash) => {
+                out.variant(2);
+                hash.encode(out);
+            }
+            Self::FeedItem(hash) => {
+                out.variant(3);
+                hash.encode(out);
+            }
+            Self::GraphFragment(hash) => {
+                out.variant(4);
+                hash.encode(out);
+            }
+            Self::MessageBatch(hash) => {
+                out.variant(5);
+                hash.encode(out);
+            }
+            Self::GitDiff(hash) => {
+                out.variant(6);
+                hash.encode(out);
+            }
+            Self::Blob {
+                hash,
+                media_type,
+                byte_len,
+            } => {
+                out.variant(7);
+                hash.encode(out);
+                media_type.encode(out);
+                byte_len.encode(out);
+            }
+        }
+    }
+}
+
 impl ObservationContent {
     /// The kind, as `ekr.graph.Observation.kind` carries it.
     #[must_use]
@@ -303,6 +430,21 @@ pub struct Observation {
     pub captured_at: Timestamp,
 }
 
+impl Canonical for Observation {
+    /// The five fields in declaration order, structural and untagged.
+    ///
+    /// `kind` and `content_hash` are not written: they are answered *from* `content`, which is
+    /// written whole, so encoding them too would put the same bytes in twice and make a derived
+    /// field part of an address.
+    fn encode(&self, out: &mut Encoder) {
+        self.id.encode(out);
+        self.source.encode(out);
+        out.option(self.source_native_id.as_ref());
+        self.content.encode(out);
+        self.captured_at.encode(out);
+    }
+}
+
 impl Observation {
     /// The kind, as `ekr.graph.Observation.kind` carries it.
     #[must_use]
@@ -330,4 +472,17 @@ pub struct Support {
     pub assertion_id: AssertionId,
     /// The evidence it rests on.
     pub evidence_id: EvidenceId,
+}
+
+impl Canonical for Support {
+    /// The three fields in declaration order, structural and untagged.
+    ///
+    /// All three are id newtypes, which rule 5 of `ekr_core::canonical` makes encode identically —
+    /// so what distinguishes a support link from another with the ids permuted is their positions,
+    /// which is exactly what rule 5 says a composite value's field structure is for.
+    fn encode(&self, out: &mut Encoder) {
+        self.id.encode(out);
+        self.assertion_id.encode(out);
+        self.evidence_id.encode(out);
+    }
 }

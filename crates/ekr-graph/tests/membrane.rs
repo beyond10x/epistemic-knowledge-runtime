@@ -13,14 +13,22 @@
 //! * a `TransientRef` cannot be handed to canonical state — `compile_fail/canonical_graph_rejects_a_transient_ref.rs`;
 //! * and the trait that says so is **sealed**, so a crate above this one cannot answer the first
 //!   case by implementing its way past it — `compile_fail/canonical_dependency_is_sealed.rs`.
+//!
+//! A fourth build failure in the same directory is about the other direction the membrane runs in,
+//! and arrived with `architecture-decision-record:0005-float-is-not-canonical` as amended: the
+//! three types both spaces hold are generic over their value, `Canonical` is implemented only
+//! where that value is, and so transient state has no content address —
+//! `compile_fail/transient_state_has_no_content_address.rs`. It is run by the same case below,
+//! which globs the directory.
 
 use std::collections::BTreeMap;
 
 use ekr_core::{GraphRootId, NodeId, RevisionNumber, SchemaVersionId, Timestamp, TypeId};
 use ekr_graph::{
-    CanonicalDependency, CanonicalGraph, CanonicalRef, GraphRoot, LocalRef, Node, Space,
+    CanonicalDependency, CanonicalGraph, CanonicalRef, GraphRoot, LocalRef, Node, Resolved, Space,
     TransientGraph, TransientRef,
 };
+use ekr_ontology::Value;
 use ekr_ontology::{Ontology, OntologyDocument, SchemaVersion};
 
 fn root(space: Space) -> GraphRoot {
@@ -112,17 +120,84 @@ fn transient_state_may_depend_on_canonical_state_and_on_its_own() {
     assert_eq!(local.node(), candidate);
     assert_eq!(borrowed.node(), alice);
 
-    assert_eq!(
-        transient.resolve(&local, &canonical).map(|node| node.id),
-        Some(candidate),
-        "a transient root resolves its own nodes"
-    );
-    assert_eq!(
-        transient.resolve(&borrowed, &canonical).map(|node| node.id),
-        Some(alice),
-        "the permitted direction of the membrane: transient may depend on canonical"
-    );
+    match transient.resolve(&local, &canonical) {
+        Some(Resolved::Local(node)) => assert_eq!(node.id, candidate),
+        other => panic!("a transient root resolves its own nodes, as candidates: {other:?}"),
+    }
+    match transient.resolve(&borrowed, &canonical) {
+        Some(Resolved::Canonical(node)) => assert_eq!(node.id, alice),
+        other => panic!(
+            "the permitted direction of the membrane: transient may depend on canonical, and what \
+             comes back from that direction is a canonical node: {other:?}"
+        ),
+    }
     assert_eq!(transient.root.space, Space::Transient);
+}
+
+/// Which side a reference resolved to is part of the answer, and an id does not carry it.
+///
+/// `TransientRef`'s `PartialEq` compares by what is pointed at **and** which side it is on,
+/// "because a candidate that happens to carry the same id as a canonical node is not that node".
+/// This is that sentence over the resolver: one id, held by a candidate in a transient root and by
+/// a node in canonical state, resolves to two different variants over two different types — and the
+/// two records are not the same record.
+///
+/// The case exists because `Resolved` briefly had an `id()` that answered from both arms, and both
+/// callers in this file used it, so nothing here asserted which side came back. The public-surface
+/// guard could not notice: it counts any `.id` in the suite as a use of the accessor.
+#[test]
+fn a_candidate_and_a_canonical_node_that_share_an_id_do_not_resolve_alike() {
+    let canonical_root = root(Space::Canonical);
+    let transient_root = root(Space::Transient);
+    let shared = NodeId::mint();
+
+    let canonical = CanonicalGraph {
+        root: canonical_root,
+        revision: RevisionNumber::SEED,
+        ontology: empty_ontology(),
+        nodes: [(
+            shared,
+            Node::new(shared, canonical_root.id, TypeId::mint(), "Alice"),
+        )]
+        .into_iter()
+        .collect(),
+        edges: BTreeMap::new(),
+        assertions: BTreeMap::new(),
+        evidence: BTreeMap::new(),
+    };
+    let transient = TransientGraph {
+        root: transient_root,
+        nodes: [(
+            shared,
+            Node::<Value>::new(shared, transient_root.id, TypeId::mint(), "A. Smith?"),
+        )]
+        .into_iter()
+        .collect(),
+        edges: BTreeMap::new(),
+        assertions: BTreeMap::new(),
+    };
+
+    let local: TransientRef<Node> = TransientRef::Local(LocalRef::new(shared));
+    let borrowed: TransientRef<Node> = TransientRef::Canonical(CanonicalRef::new(shared));
+    assert_ne!(
+        local, borrowed,
+        "the two references are not equal, which is what this case is about"
+    );
+    assert_eq!(local.node(), borrowed.node(), "and they carry one id");
+
+    match (
+        transient.resolve(&local, &canonical),
+        transient.resolve(&borrowed, &canonical),
+    ) {
+        (Some(Resolved::Local(candidate)), Some(Resolved::Canonical(node))) => {
+            assert_eq!(candidate.id, node.id, "one id");
+            assert_ne!(
+                candidate.canonical_name, node.canonical_name,
+                "and not one node"
+            );
+        }
+        other => panic!("one id resolved to two sides, and did not come back as two: {other:?}"),
+    }
 }
 
 /// The trait is a statement about which references canonical state may hold, so it is asked
@@ -139,9 +214,14 @@ fn a_canonical_reference_is_the_only_canonical_dependency() {
     assert_eq!(only_canonical(&reference), node);
 }
 
-/// The guarantee, as a build failure rather than a review comment.
+/// Every guarantee in `tests/compile_fail/`, as a build failure rather than a review comment.
+///
+/// The directory is globbed, so a case added there is run without this file changing. Four today:
+/// three about which references canonical state may hold, and one about which state has a content
+/// address. Each names in its own doc comment what it is about; this case asserts only that each
+/// fails to compile with the message recorded beside it.
 #[test]
-fn canonical_state_cannot_hold_a_transient_reference() {
+fn the_membrane_is_a_set_of_build_failures() {
     let cases = trybuild::TestCases::new();
     cases.compile_fail("tests/compile_fail/*.rs");
 }

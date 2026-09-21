@@ -67,3 +67,44 @@ entities:
       initial: Taken
       states: [Taken]
       terminal: [Taken]
+
+events:
+  # Added 2026-09-21 in wave p1-05. A StoredObject's identity is its content hash, so two writes
+  # of the same bytes are one object — and the two writes may ask for different retention. The
+  # store records the strongest class ever requested rather than the first or the last, so that
+  # bytes canonical state depends on are never freely deletable because an earlier caller wanted
+  # less. The raise is an event rather than an update because the object store is append-only and
+  # the class has to survive a reopen.
+  #
+  # `from` and `to` are both carried so a reader can see the ladder was climbed and not descended.
+  - name: ekr.store.ObjectRetentionRaised
+    fields:
+      - name: content_hash
+        type: ekr.kernel.ContentHash
+      - name: from
+        type: ekr.store.StorageClass
+      - name: to
+        type: ekr.store.StorageClass
+
+  # Added 2026-09-21 in wave p1-05, correction round 2, by story:eventlog-store. The event above
+  # was declared and this one was not, and they are written by the same code path — so the guard
+  # that holds one to its declaration found the other missing. Both are bytes a later reader gets.
+  #
+  # `content_hash` is redundant with the stream this event is read from, and is carried for the
+  # reason the raise carries it: a body that only makes sense beside its stream stops making sense
+  # the moment anything exports one.
+  - name: ekr.store.ObjectStored
+    fields:
+      - name: content_hash
+        type: ekr.kernel.ContentHash
+      - name: storage_class
+        type: ekr.store.StorageClass
+      - name: byte_len
+        type: Integer
+      - name: stored_at
+        type: Timestamp
+      # ess/1 has no byte-string type and this is the first declaration in this system that
+      # needs one, so a byte is carried as an Integer with nothing saying it is one of 256.
+      # task:ess-has-no-byte-string-type carries what would close it.
+      - name: bytes
+        type: List<Integer>

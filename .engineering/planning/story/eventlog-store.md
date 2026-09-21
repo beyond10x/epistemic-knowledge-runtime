@@ -2,26 +2,57 @@
 format: aep.planning-md/1
 id: story:eventlog-store
 kind: story
-status: draft
+status: implemented
 title: 'Eventlog-backed store: revision log, fold, snapshots, content-addressed objects'
 relations:
 - decomposes: epic:p1-kernel-ontology-core
 - depends_on: story:graph-model-and-assertions
 - implements: executable-system-specification:ekr-v1
+- serves: vision:o2
 scope:
-- confidence: inferred
+- confidence: cited
+  path: Cargo.lock
+- confidence: cited
+  path: Cargo.toml
+- confidence: cited
+  path: crates/ekr-store/Cargo.toml
+- confidence: cited
   path: crates/ekr-store/src/eventlog.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-store/src/lib.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-store/src/log.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-store/src/objects.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-store/src/snapshot.rs
-- confidence: inferred
+- confidence: cited
+  path: crates/ekr-store/tests/adversary2_event_vocabulary.rs
+- confidence: cited
+  path: crates/ekr-store/tests/adversary2_membrane_bounds.rs
+- confidence: cited
+  path: crates/ekr-store/tests/adversary2_retention_event_contract.rs
+- confidence: cited
+  path: crates/ekr-store/tests/adversary_membrane_and_schema.rs
+- confidence: cited
+  path: crates/ekr-store/tests/adversary_objects_and_append.rs
+- confidence: cited
+  path: crates/ekr-store/tests/domain_projection.rs
+- confidence: cited
+  path: crates/ekr-store/tests/fixture/mod.rs
+- confidence: cited
+  path: crates/ekr-store/tests/fold_rules.rs
+- confidence: cited
+  path: crates/ekr-store/tests/lineage/mod.rs
+- confidence: cited
+  path: crates/ekr-store/tests/membrane_boundary.rs
+- confidence: cited
   path: crates/ekr-store/tests/providers.rs
-revision: 6
+- confidence: cited
+  path: crates/ekr/tests/story_contract.rs
+- confidence: cited
+  path: systems/ekr/domains/store.yaml
+revision: 14
 ---
 ## Context
 
@@ -61,5 +92,21 @@ defines no event shape of its own — the kernel, above this crate, fills and pu
 (`systems/ekr/components.yaml`). The fold applies committed events only; it does not re-run
 validation. Tenancy: one tenant per store in P1, named in the stream coordinate as eventlog
 requires. The eventlog crates and `tempfile` are declared for `ekr-store` by
-`story:workspace-crate-skeleton`; this story adds no dependency and does not touch `Cargo.lock`,
-so it can run beside `story:transaction-and-validators`.
+`story:workspace-crate-skeleton`.
+
+**Corrected on 2026-09-21, before wave p1-05 dispatched.** This paragraph said the story adds no
+dependency and does not touch `Cargo.lock`, and that was the basis for running it beside
+`story:transaction-and-validators`. It is false. `eventlog-core`'s `EventStore` trait is async —
+every method returns a `BoxFuture` — and `eventlog-sqlite` wraps a synchronous `rusqlite` behind a
+`tokio` runtime context, so a future driven outside one panics rather than failing. This workspace
+declares no runtime at all.
+
+`architecture-decision-record:0006-ekr-store-bridges-the-async-port` settles it: `tokio` joins the
+workspace dependencies with the `rt` feature, `ekr-store` owns a current-thread runtime, and its
+`RevisionLog` is synchronous so that `ekr-kernel`, the CLI and everything above stay synchronous.
+`Cargo.toml`, `Cargo.lock` and `crates/ekr-store/Cargo.toml` are therefore in this story's scope,
+for that change and no other.
+
+The parallel-safety conclusion survives the correction: `story:transaction-and-validators` touches
+none of those three files, so the two units are still disjoint on every file. It now rests on a
+reading of the dependency rather than on this paragraph's wrong sentence.

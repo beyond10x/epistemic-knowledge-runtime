@@ -2,9 +2,11 @@
 
 use std::collections::BTreeMap;
 
+use ekr_core::canonical::{Canonical, Encoder};
 use ekr_core::{EdgeId, GraphRootId, NodeId, PropertyId, TypeId};
-use ekr_ontology::Value;
 use serde::{Deserialize, Serialize};
+
+use crate::value::CanonicalValue;
 
 /// One directed, typed relation between two nodes.
 ///
@@ -13,8 +15,12 @@ use serde::{Deserialize, Serialize};
 /// [`Assertion`](crate::Assertion) — which carries its evidence, its validation state and its two
 /// time dimensions, and can be retracted without the edge ceasing to have existed.
 /// `graph.yaml`'s `ekr.graph.Edge` declares neither either.
+///
+/// Generic over the value its properties carry, defaulting to [`CanonicalValue`], for the reason
+/// and with the consequence [`Node`](crate::Node) is: canonical state holds `Edge<CanonicalValue>`
+/// and has an address for it, a transient root holds `Edge<ekr_ontology::Value>` and has none.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Edge {
+pub struct Edge<V = CanonicalValue> {
     /// The edge's stable id.
     pub id: EdgeId,
     /// The graph root that owns it.
@@ -27,10 +33,10 @@ pub struct Edge {
     pub target: NodeId,
     /// Its property values, by the property's id — keyed as [`Node::properties`](crate::Node) is,
     /// and for the same reason.
-    pub properties: BTreeMap<PropertyId, Value>,
+    pub properties: BTreeMap<PropertyId, V>,
 }
 
-impl Edge {
+impl<V> Edge<V> {
     /// An edge with no properties.
     #[must_use]
     pub fn new(
@@ -48,5 +54,18 @@ impl Edge {
             target,
             properties: BTreeMap::new(),
         }
+    }
+}
+
+impl<V: Canonical> Canonical for Edge<V> {
+    /// The six fields in declaration order, structural and bounded on `V` exactly as
+    /// [`Node`](crate::Node)'s is.
+    fn encode(&self, out: &mut Encoder) {
+        self.id.encode(out);
+        self.root_id.encode(out);
+        self.type_id.encode(out);
+        self.source.encode(out);
+        self.target.encode(out);
+        self.properties.encode(out);
     }
 }

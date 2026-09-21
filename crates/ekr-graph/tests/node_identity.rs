@@ -12,7 +12,7 @@ use ekr_graph::Node;
 fn a_node_renamed_a_thousand_times_keeps_its_id() {
     let id = NodeId::mint();
     let root = GraphRootId::mint();
-    let mut node = Node::new(id, root, TypeId::mint(), "Acme");
+    let mut node: Node = Node::new(id, root, TypeId::mint(), "Acme");
 
     for generation in 0..1000 {
         let previous = std::mem::replace(&mut node.canonical_name, format!("Acme {generation}"));
@@ -34,8 +34,8 @@ fn a_node_renamed_a_thousand_times_keeps_its_id() {
 fn two_nodes_that_share_a_name_do_not_share_an_id() {
     let root = GraphRootId::mint();
     let type_id = TypeId::mint();
-    let one = Node::new(NodeId::mint(), root, type_id, "Acme");
-    let other = Node::new(NodeId::mint(), root, type_id, "Acme");
+    let one: Node = Node::new(NodeId::mint(), root, type_id, "Acme");
+    let other: Node = Node::new(NodeId::mint(), root, type_id, "Acme");
 
     assert_eq!(one.canonical_name, other.canonical_name);
     assert_ne!(one.id, other.id, "a name became an identity");
@@ -46,7 +46,7 @@ fn two_nodes_that_share_a_name_do_not_share_an_id() {
 #[test]
 fn the_lifecycle_state_of_a_node_is_a_property_and_not_its_identity() {
     let id = NodeId::mint();
-    let mut node = Node::new(id, GraphRootId::mint(), TypeId::mint(), "Adopt eventlog");
+    let mut node: Node = Node::new(id, GraphRootId::mint(), TypeId::mint(), "Adopt eventlog");
 
     assert_eq!(
         node.type_state, None,
