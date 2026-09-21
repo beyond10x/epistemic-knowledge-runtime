@@ -24,15 +24,21 @@
 //!    patterns, and no encoding of either can be both total and faithful to equality. A quantity
 //!    that must be hashed is carried as an integer or a decimal string, which is also what
 //!    `ekr.ontology.ValueKind` distinguishes `Float` from `Decimal` for.
-//! 5. **Structural, not nominal.** A value encodes as the *shape* it has, and a newtype encodes
-//!    as the thing it wraps: `RevisionNumber(7)` produces the bytes of `7u64`, and a `NodeId`
-//!    produces the bytes of an `EdgeId` over the same UUID. Two distinct types over one shape
-//!    therefore share a content address. Nothing in this crate is wrong today — no composite
-//!    type exists yet to hold such a field — but a later struct that changes a field from `u64`
-//!    to `RevisionNumber`, or from `NodeId` to `EdgeId`, would keep an address that ought to
-//!    move. Whether the encoding grows a per-type discriminant is decided by
-//!    `task:canonical-newtype-discriminant`, which blocks `story:commit-and-revision-lineage`;
-//!    until it is, treat the address of a bare primitive as saying nothing about its type.
+//! 5. **Structural for newtypes, tagged for sum types.** A value encodes as the *shape* it has,
+//!    so a newtype encodes as the thing it wraps: `RevisionNumber(7)` produces the bytes of
+//!    `7u64`, and a `NodeId` produces the bytes of an `EdgeId` over the same UUID. That is the
+//!    contract rather than an oversight. Every artefact this runtime content-addresses — an
+//!    observation, a piece of evidence, an assertion, a transaction, a revision root — is a
+//!    structured value whose own encoding carries its field structure, so a field's position
+//!    already distinguishes it from a field of another type in the same position, and no artefact
+//!    is a bare newtype. A per-type discriminant would cost a stable tag per type forever, and a
+//!    rename or a reordering of that registry would silently move every address the type ever
+//!    reached — a durable cost against a collision the runtime cannot reach. A **sum type** is
+//!    the other way round: two variants carrying the same payload shape would collide, and
+//!    nothing about their position distinguishes them, so a sum type carries a variant tag
+//!    written by `Encoder::variant` and by nothing else. Settled on 2026-09-21 by
+//!    `task:canonical-newtype-discriminant`; the writer lands with the first sum type that needs
+//!    it, `RevisionEvent`.
 //!
 //! The bytes are an internal format, not a wire format: nothing outside this runtime reads them,
 //! and they are not a serialisation — there is no decoder, because a hash never needs one.

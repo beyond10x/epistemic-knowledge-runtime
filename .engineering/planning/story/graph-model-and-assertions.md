@@ -10,6 +10,10 @@ relations:
 - implements: executable-system-specification:ekr-v1
 scope:
 - confidence: inferred
+  path: crates/ekr-core/src/canonical.rs
+- confidence: inferred
+  path: crates/ekr-core/tests/canonical_encoding.rs
+- confidence: inferred
   path: crates/ekr-graph/src/assertion.rs
 - confidence: inferred
   path: crates/ekr-graph/src/canonical.rs
@@ -31,7 +35,7 @@ scope:
   path: crates/ekr-graph/src/transient.rs
 - confidence: inferred
   path: crates/ekr-graph/tests/compile_fail
-revision: 8
+revision: 10
 ---
 ## Context
 
@@ -53,6 +57,9 @@ answers `active()` with Bob.
 - A `trybuild` compile-fail test: `CanonicalGraph` cannot hold a `TransientRef`.
 - Neither `active()` nor `valid_at` returns a `Retracted` or `Superseded` assertion.
 - `RevisionEvent` round-trips through serde for every variant.
+- Two `RevisionEvent` variants carrying byte-identical payloads encode differently, because each
+  carries a variant tag. `Encoder::variant` is added in `ekr-core` for this story and is the only
+  path in the workspace that writes one.
 - A `Node` renamed a thousand times keeps its `NodeId` (design § 6.4). This is the invariant
   `story:kernel-identity-and-hashing` could not state: `Node` did not exist in `ekr-core`, so its
   fixture stood in for one and the case could not fail. It is checkable here, against the real type.
@@ -89,3 +96,9 @@ membrane is typed from the start; the incubation forest that uses it, and the `K
 ladder of design § 29 on `GraphRoot`, are P3. The `QueryScope` selector of design § 47 is P4;
 P1's snapshot answers only the two reads above. Uses only dependencies
 `story:workspace-crate-skeleton` declared for `ekr-graph`.
+
+`task:canonical-newtype-discriminant` was settled on 2026-09-21, in wave p1-03: sum types carry a
+variant tag, newtypes carry no discriminant. `RevisionEvent` is the first sum type the runtime
+encodes, so this story adds `Encoder::variant` and `tag::VARIANT` to
+`crates/ekr-core/src/canonical.rs` and the case above to that crate's tests. No existing encoding
+changes — nothing in the workspace is a sum type today, so no recorded address moves.

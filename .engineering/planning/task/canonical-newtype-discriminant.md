@@ -2,13 +2,14 @@
 format: aep.planning-md/1
 id: task:canonical-newtype-discriminant
 kind: task
-status: draft
-title: Decide whether the canonical encoding carries a type discriminant
+status: active
+title: The canonical encoding tags sum types and stays structural for newtypes
 relations:
 - informed_by: review-result:adversary-identity-pass-1
 - derived_from: story:kernel-identity-and-hashing
-- blocks: story:commit-and-revision-lineage
-revision: 1
+- informed_by: story:graph-model-and-assertions
+- serves: vision:o2
+revision: 5
 ---
 ## Context
 
@@ -18,34 +19,54 @@ canonical encoding of `ekr-core` is structural: a newtype encodes as the shape i
 bytes as an `EdgeId` over the same UUID. Verified by a scratch probe:
 `ContentHash::of(&RevisionNumber::new(7)) == ContentHash::of(&7u64)`.
 
-Nothing is wrong today, and that is why it is a task rather than a finding on the unit: no
-composite type exists yet to hold such a field. The first one arrives with
-`story:graph-model-and-assertions`.
+## Decision, 2026-09-21, wave p1-03
 
-## Why it matters when it matters
+**Sum types carry a required variant tag. Newtypes carry no discriminant, and that is the stated
+contract rather than an open question.**
 
-A content address is supposed to move when the value it addresses changes. Under a structural
-encoding, a later change of a struct field from `u64` to `RevisionNumber`, or from `NodeId` to
-`EdgeId`, keeps the address — a type change the compiler treats as significant and the address
-does not. The revision root is a hash over that encoding, so two revisions that differ only in
-such a field would be indistinguishable by root.
+The two halves of the original question turn out to have different answers because they have
+different blast radii.
+
+**Sum types: a tag, enforced by a helper.** `RevisionEvent` (`story:graph-model-and-assertions`,
+wave p1-04) has seven variants. Under a structural encoding, two variants carrying the same payload
+shape encode identically unless every `encode` implementation remembers to write a discriminating
+byte, and nothing enforces that. A convention an implementation can forget is the class of defect
+`Encoder` exists to remove — its own module doc says the helpers are there "so an implementation
+cannot forget a tag or a length". So `Encoder` gains a `variant` writer, and it becomes the only
+sanctioned way to encode a sum type.
+
+**Newtypes: no discriminant.** The hazard requires hashing a *bare* newtype at top level and
+comparing it against a bare primitive. Every artefact this runtime content-addresses — an
+observation, a piece of evidence, an assertion, a transaction, a revision root — is a structured
+value whose own encoding carries its field structure, and a field's position already distinguishes
+it from a field of another type in the same position. No artefact is a bare `RevisionNumber`.
+
+Against that narrow and unreachable hazard, a per-type discriminant costs a stable tag per type,
+permanently. Derived from the Rust type name, a rename silently moves every address that type ever
+reached. Hand-assigned, it is a registry that can never be reordered or reused, maintained across
+every crate that implements `Canonical`. That is a durable cost for a collision the runtime's own
+artefacts cannot reach.
+
+**This decision moves no recorded address.** No sum type is encoded anywhere in the crate today —
+`Option` already carries its own `NONE`/`SOME` tags — so adding the writer changes no existing
+bytes and no pinned digest. Deciding it in p1-03 rather than p1-06 is what makes it free; by p1-06
+the graph, the store's folds and the kernel's validation hashes would all rest on it.
 
 ## Acceptance
 
-`ContentHash::of(&RevisionNumber::new(7))` differs from `ContentHash::of(&7u64)`, and the two
-id types over one UUID differ from each other.
-
-## Notes
-
-The obvious shape is a type discriminant in the encoding — a stable name or number per newtype,
-written before the wrapped value. It is a breaking change to every recorded address, so it is
-cheapest before the first canonical commit exists and most expensive after. Decide it no later
-than `story:commit-and-revision-lineage`, which is what first writes a root hash anybody keeps.
-
-The alternative is to accept the structural encoding and document it as the contract, which is
-what `canonical.rs` does today at the coordinator's instruction. That choice is not yet made.
+Two sum-type values whose variants differ but whose payloads are byte-identical encode differently,
+and `Encoder`'s variant writer is the only path in the crate that produces a variant tag.
 
 ## Scope
 
-- `crates/ekr-core/src/canonical.rs`
-- `crates/ekr-core/tests/canonical_encoding.rs`
+- `crates/ekr-core/src/canonical.rs` — `tag::VARIANT`, `Encoder::variant`, and rule 5 rewritten
+  from an open question to the settled contract
+- `crates/ekr-core/tests/canonical_encoding.rs` — the acceptance above
+
+## Notes
+
+The mechanism lands in wave p1-04, with `story:graph-model-and-assertions`, because
+`RevisionEvent` is the first sum type to need it and a helper with no caller is a helper nobody has
+tested against a real shape. That story's scope and its shipped tests carry it. The `blocks` edge on
+`story:commit-and-revision-lineage` is therefore taken back: what blocked that story was the
+undecided question, and it is decided.
