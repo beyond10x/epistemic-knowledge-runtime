@@ -112,3 +112,29 @@ coordinator commit is merged. Every other product source/test remains with the
 single implementor. This explicit narrow split supersedes the earlier exclusive
 test ownership for this file only; it adds no second product implementation.
 The coordinator uses its separate existing target, never the active unit target.
+
+The revision-event test commit is now integrated into the unit and ownership
+returns to its implementor. The coordinator next owns only
+crates/ekr-graph/tests/domain_projection.rs and
+crates/ekr-ontology/tests/domain_projection.rs for bounded migration against the
+frozen current carriers. No other product source or fixture ownership changes.
+Original graph projection failures are retained before editing; an already
+passing ontology target requires no change merely because it was assigned.
+
+## Unknown publication recovery correction
+
+The implementor reproduced a new occurrence and sampled time after an exhausted
+UnknownCommit in unresolved_publication_cannot_be_replaced_by_a_new_occurrence.
+Its application-red-unknown report is the original red evidence. The independent
+publication recovery design review identified the related exact-native-request
+loss and reviewed a private CAS-selected journal. Both are kernel/provider-port
+analysis, not native crash evidence.
+
+ADR 0009 and DESIGN 94 select that mechanism. The store ESS declares its private
+command keys, complete preparations, native request fields and operational
+resolution. The coordinator applied the same DESIGN/ESS files to all active
+trees immediately and compared them. Released ESS validation, compilation and
+kernel synthesis succeeded; these are specification checks, not executed
+recovery acceptance. The private preparation journal remains within the coupled
+format/writer unit. The original red must pass unfiltered, alongside both-provider
+crash/unknown/concurrency controls and the full integrated gate.

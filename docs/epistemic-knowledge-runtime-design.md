@@ -4036,3 +4036,117 @@ valid but different host anchor and corrupt retained state. Seed maps the former
 to AlreadySeeded as §91.2 requires, without admitting or exposing state under the
 changed anchor; ordinary commands and reads refuse it. Recovering the ontology
 from the retained seed does not authorize replacement host configuration.
+
+---
+
+# 94. Durable Publication Preparation and Recovery
+
+*Added 2026-09-22 after the writer's executable unknown-outcome probe. This
+implements the cross-call and restart obligation in §91.6; ordinary revision,
+receipt, graph and seed formats retain their versions.*
+
+`unresolved_publication_cannot_be_replaced_by_a_new_occurrence` reproduced the
+loss of a prepared occurrence after UnknownCommit: a later Commit sampled a new
+time and minted new occurrence/revision identities. The probe wraps a real SQLite
+store at the kernel port; it is not native interruption evidence. The independent
+publication recovery review also found that retaining Publication alone loses
+the provider request's exact object appends, expectations and attempt identity.
+The current Eventlog atomic-group port resolves an uncertain result only by
+retrying that original request. A successful empty history read is no absence
+fence for an in-flight request.
+
+## 94.1 Selection before publication
+
+Use a private Eventlog-backed preparation journal, with no filesystem sidecar or
+second persistence engine. A command first looks up its preparation slot, before
+sampling a clock. The slot key is Bootstrap for the entire tenant lineage;
+Propose plus transaction identity; Validate plus transaction identity and the
+retained proposal occurrence/address; or Commit plus transaction identity and
+the retained validation occurrence/address. Input, actor, basis and seed hashes
+do not create additional slots for competing inputs to the same logical command.
+
+The selected record separately binds a value-domain logical input hash. Seed
+binds its parsed complete input, context and actual authority anchor; Propose
+binds exact document bytes and trusted submitter; Validate binds the transaction,
+retained proposal, requested basis and actual validator; Commit binds the
+transaction, retained validation and actual committer. Every command also binds
+the actual host context/authority. The input hash excludes freshly sampled time
+and identities. Different input cannot resume an elected decision.
+
+Elect the initial immutable preparation using Expected::NoStream on that slot.
+Retain its complete decision and initial native request in one atomic private
+blob-and-selection-metadata group. Publish the domain occurrence only after
+acknowledging that selection or reading and verifying its actual winner. A
+preparation with UnknownCommit grants no publication authority. A retry may
+compete only for the same conditional slot and must adopt its matching winner;
+it cannot publish a local candidate because a read returned empty. Losing
+preparations commit neither their metadata nor private blob binding.
+
+Unelected candidates may allocate IDs/time that are discarded. Once elected,
+the actual actor, timestamp, occurrence/revision identities, record bytes and
+result are immutable. This qualifies §91.6's once-per-decision rule: it refers
+to the elected decision, not every unsuccessful conditional candidate.
+
+## 94.2 Exact native attempts
+
+The private format is `ekr.publication-preparation/1`. It carries command_key,
+input_hash, decision, attempt_number, previous_attempt_hash, native_request and
+native_fingerprint. Its strict typed carriers are declared in the store ESS.
+The decision contains the complete RevisionEvent/2, staged object bytes with
+their retention/time and expected revision-stream version. The native request
+contains tenant, ordered stream appends, exact expectations, complete NewEvents,
+every CommandMeta field and ordered blob digest/byte bindings. Preserve provider
+time's nanoseconds and offset losslessly. Atomically appended groups require
+claim=None; a present claim is refused. Event data is retained as exact JSON
+object bytes, decoded without integer rounding or duplicate-key loss. Validate
+the reconstructed request with the provider's actual fingerprint algorithm and
+compare the retained fingerprint before use. No fields are regenerated.
+
+The first attempt has no predecessor. Every successor is a conditional append
+at the preceding slot version, binds its predecessor address and increases the
+attempt number. Missing, malformed, mismatched or unsupported journal records
+refuse recovery. The private selection metadata uses
+`ekr.store.PublicationPrepared` with backend schema1 and carries only the
+preparation address and attempt-chain coordinates. Its blob key is in a
+distinct private namespace; it creates no public ObjectStored record or
+canonical object lookup binding. Journal records never replace kernel admission.
+Every elected decision is still checked by the real kernel authority before
+new publication; a forged preparation is not a ValidatedTransaction.
+
+Resume the exact unresolved native attempt before reconsidering canonical
+staleness or rebuilding object appends. UnknownCommit retains the same attempt.
+Only retrying that exact request and receiving a definitive conflict authorizes
+a conditional successor; a changed history length alone does not. With an
+unchanged canonical basis, retain the domain occurrence/time and prepare a new
+native attempt. With a competing canonical winner, a distinct Stale decision
+may follow the resolved unsuccessful Commit and retains its original sampled
+time. An unresolved Commit can never be converted into Stale.
+
+## 94.3 Outcomes, visibility and acceptance
+
+Confirmed publication of the corresponding decision resolves recovery, including
+Proposed, Validated, Rejected and Stale decisions which create no canonical
+revision. Preserve existing public retry behavior: Seed and Committed return
+their original retained success; other existing terminal/state refusals stay
+as declared. A pending slot with different input returns typed operational
+publication conflict/uncertainty. It is not an invented transaction state or
+AlreadySeeded before a seed is published. Named no-write input/state refusals
+are decided before creating a preparation. Read commands never recover by
+writing. Retained success is resolved before clock sampling or journal writes.
+
+Private preparation is retained recovery information, not canonical knowledge
+or a public object; canonical record/object publication remains atomic. The
+maintenance path must not erase unresolved preparation or payload needed for
+exact reconciliation. An exact successful retry must not restore erased public
+bindings. Do not delete data to clear an uncertain result.
+
+Required controls, unexecuted at declaration except the original red probe:
+unknown/crash before and after preparation acknowledgement, publication and
+resolution; concurrent same-slot preparers; different bootstrap inputs sharing
+one slot; restart with identical native fingerprint, actor, IDs, time and receipt;
+unrelated object/proposal movement; canonical head advancement during uncertainty;
+missing/corrupt private bytes; input mismatch; exact retry following erasure;
+and zero committed bindings from losing preparations. Exercise both native
+providers, all decision kinds and real kernel authority. Fault wrappers must be
+labelled separately from actual provider interruption evidence. Preserve the
+original red and require its unfiltered passing result before writer closure.
