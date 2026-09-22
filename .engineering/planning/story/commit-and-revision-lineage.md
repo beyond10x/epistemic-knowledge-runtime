@@ -17,6 +17,8 @@ scope:
 - confidence: cited
   path: crates/ekr-core/src/lib.rs
 - confidence: inferred
+  path: crates/ekr-core/tests/decode.rs
+- confidence: inferred
   path: crates/ekr-kernel/src/apply.rs
 - confidence: inferred
   path: crates/ekr-kernel/src/commit.rs
@@ -38,7 +40,7 @@ scope:
   path: crates/ekr-kernel/tests/transaction_document.rs
 - confidence: cited
   path: crates/ekr-ontology/src/types.rs
-revision: 16
+revision: 17
 ---
 ## Context
 
