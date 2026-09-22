@@ -94,6 +94,44 @@ This first transaction document version is independent of graph/seed/event versi
 two. The implementation must bind parser shape and exact-byte rejection readback
 to executable cases; those cases are unexecuted at this decision.
 
+### Frozen parser profile for transaction-document/1
+
+Adopt the bounded route and counting rules in
+`.engineering/reviews/p1-transaction-parser-readiness.md`. These are conservative
+policy choices, not measured capacity claims. Inclusive maxima are: 262,144 raw
+input bytes; one document; container depth 32; 32,768 expanded nodes; 4,096 entries
+per mapping or sequence; 65,536 bytes per decoded string; 4,096 bytes per decoded
+key; 1,048,576 cumulative expanded string bytes; 256 operations; and 1,024 input
+evidence-manifest elements. Operations must be nonempty. Alias occurrences charge
+their expanded position and content; counters use checked arithmetic.
+
+Check the raw byte limit before parser entry or unrestricted reads. A shared
+budgeted representation pass checks nesting and expansion before application
+allocation, then strict typed decoding uses the original bytes. It must not
+silently change typed string semantics through generic Value conversion. Reject
+duplicates at semantic fields and after actual map-key decoding, before decoding
+a duplicate's value. Unique Record keys stay data, including reserved-looking
+names and merge-key text; do not invoke YAML merge processing. Required containers
+need actual map/sequence syntax, so an empty plain scalar cannot become an empty
+collection by coercion. Preserve explicit empty inner Lists and Records.
+
+This version uses the typed YAML operation tags supplied by the selected parser,
+such as `!CreateNode`; an untagged JSON object around an operation name is not an
+alternative encoding. JSON-compatible scalar and collection syntax remains usable
+where that typed YAML grammar accepts it. A typed convenience must serialize the
+same documented wire shape. Exact original bytes, including permitted nonfinite
+Float spellings, remain the proposal's evidence.
+
+The pinned loader buffers YAML events before visiting the representation. The raw
+byte cap bounds that input and the visitor bounds expanded application values;
+neither is an exact allocator-byte guarantee or a claim of pre-loader scalar/event
+quotas. Do not add an ad hoc YAML lexer or another upstream dependency to claim one.
+The format version selects this frozen profile in proposal, validation and replay.
+A stricter host upload limit affects new ingress only, never historical validity.
+Any changed frozen profile requires a new explicit version decision. All boundary,
+duplicate/shape, alias and restart controls listed by the readiness report remain
+required and unexecuted until the writer implements them.
+
 ## Retained decisions, replay and application
 
 Adopt the preparation report's ValidationReceiptV1, CommitReceiptV1, SeedResultV1,
