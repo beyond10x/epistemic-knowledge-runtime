@@ -70,7 +70,9 @@ verifiable retained history or migration refuses with the affected assertion ide
 decision does not produce another fact. Implementation is unexecuted at preparation.*
 
 Every new revision-log fact is enclosed in a strict versioned record with an EventId:
-format "ekr.revision-event/2", event_id, payload. EventId is a UUID-backed stable identity,
+format "ekr.revision-event/2", event_id, record_hash, payload. The mandatory record_hash
+addresses the complete strict retained record for that event kind; duplicate identities,
+counts and hashes in the event and retained record must agree. EventId is a UUID-backed stable identity,
 allocated once by the kernel for the occurrence. The payload keeps the existing six event names
 and variant indices. Include the envelope format and occurrence identity in canonical encoding.
 Store the record with backend schema version 2; preserve backend event identity, stream position,
@@ -99,7 +101,7 @@ New assertion shape requires explicit graph-document format dispatch. The compat
 | ekr-seed-envelope/1 | input is ekr-seed/1; retained bootstrap context | legacy inventory and verified migration only |
 | ekr.graph-document/2 | graph contains the new assertion assessment and lifecycle | new-format graph decoder |
 | ekr-seed/2 | graph is an ekr.graph-document/2 envelope; ontology and evidence_payloads remain explicit | new kernel seed admission |
-| ekr-seed-envelope/2 | input is ekr-seed/2; context retains operator and validator | new kernel seed replay admission |
+| ekr-seed-envelope/2 | input is ekr-seed/2; context, full authority state and committed_at are retained | new kernel seed replay admission |
 
 The graph envelope is {format: "ekr.graph-document/2", graph: <graph fields>}. A seed's graph
 field holds that complete envelope, not its inner graph. A persisted seed envelope holds the
@@ -107,6 +109,19 @@ complete versioned seed input in input. Every layer is strict. Unknown versions,
 nesting, new graph shape under an old seed tag and unknown semantic fields refuse. Preserve
 user-defined record keys as data. Successful conversion of a verifiable seed/1 is a migration
 with an explicit address map, never normal ingestion under new defaults.
+
+New-format node and edge properties store an ordered outer collection of values for each
+PropertyId. A property's multiplicity counts that outer collection, preserving order and
+duplicates. A single List value remains one outer member even when its inner list is empty.
+Canonical absence represents zero members; an explicitly stored empty outer collection refuses.
+A validated draft may clear an optional property, and application removes its key. Legacy scalar
+properties become exactly one outer member only after the original bytes and hash verify.
+
+Activation is coordinated with atomic provider blob publication. Frozen legacy verification
+may be prepared while the original API remains available; new graph and seed formats must
+not become the production write path until their retained payloads publish atomically with
+metadata-only log events. No temporary new inline-payload event or independently committed
+blob put is an acceptable activation path.
 
 # 90. Preservation-First Store Migration
 
