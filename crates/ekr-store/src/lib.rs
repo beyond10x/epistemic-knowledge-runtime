@@ -127,15 +127,6 @@ pub enum StoreError {
     #[error("a second seed would restart a lineage that is already running")]
     SeedIsNotFirst,
 
-    /// The seed names bytes this store does not hold.
-    #[error(
-        "the seed at {seed_hash} is not stored: the lineage names a beginning it does not have"
-    )]
-    SeedNotStored {
-        /// The address the seed event named.
-        seed_hash: ContentHash,
-    },
-
     /// A transaction was validated or committed without ever having been proposed.
     #[error("transaction {transaction_id} was never proposed")]
     ProposalMissing {
@@ -151,30 +142,8 @@ pub enum StoreError {
         transaction_id: TransactionId,
     },
 
-    /// The lineage holds a commit and this store was opened with nobody to ask about it.
-    ///
-    /// **A caller's error, not a lineage's**, and that is why it is an error at all when a commit
-    /// the authority *declines* is silent: declining is an answer about one claim in a log this
-    /// crate did not write, and making it poison the fold would let one append brick every read
-    /// forever. Having no authority is a store that was constructed wrong, and the caller who
-    /// constructed it is the one who can act on it — see [`CommitAuthority`] and
-    /// [`EventlogStore::under`].
-    ///
-    /// Raised by [`RevisionLog::fold`] and [`RevisionLog::replay`], which answer *what canonical
-    /// state is*, and not by [`RevisionLog::head`], which answers how far the lineage verifiably
-    /// got and has a total answer either way. Without this, the default construction of a public
-    /// store — `SqliteStore::sqlite`, with `under` opt-in — folded every commit away and reported
-    /// nothing at all; measured by the adversary of wave p1-06.
-    #[error(
-        "no commit authority was injected, so this store cannot say whether transaction          {transaction_id} committed: open it with EventlogStore::under"
-    )]
-    NoCommitAuthority {
-        /// The first commit the fold could not evaluate.
-        transaction_id: TransactionId,
-    },
-
     /// A commit claimed a revision that is not the next one in the lineage.
-    #[error("the lineage is at {expected} and a commit claimed {found}")]
+    #[error("the lineage expected revision {expected} next and a commit claimed {found}")]
     RevisionOutOfOrder {
         /// The revision the lineage was ready for.
         expected: RevisionNumber,
