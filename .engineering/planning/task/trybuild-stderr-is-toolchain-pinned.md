@@ -2,9 +2,12 @@
 format: aep.planning-md/1
 id: task:trybuild-stderr-is-toolchain-pinned
 kind: task
-status: draft
+status: active
 title: The compile-fail expectations are pinned to one rustc's diagnostic wording
-revision: 2
+relations:
+- serves: vision:o2
+- derived_from: story:source-guard-debt
+revision: 5
 ---
 ## What is wrong
 
@@ -42,3 +45,14 @@ red without touching the membrane.
 
 That strengthens the case for matching on the error code rather than the full text, which is the
 second option above — a `rust-toolchain.toml` pins the compiler and does nothing about this.
+
+## Closure policy, 2026-09-22
+
+The original absent-pin premise is obsolete: rust-toolchain.toml and the
+correctness workflow already select the same exact compiler. The later
+same-compiler trait-help churn is real. AGENTS.md now documents a bounded review
+and refresh policy: compare the forbidden operation, primary diagnostic, code and
+source expression; refresh only an affected target; review its diff and rerun
+without overwrite. Successful compilation or an unrelated error never qualifies.
+Existing snapshots need no change for this repair. The complete integration gate
+must execute the existing graph and kernel compile-fail targets before closure.

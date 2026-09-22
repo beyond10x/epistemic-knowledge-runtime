@@ -113,6 +113,16 @@ The remaining sites include `xtask/src/main.rs`, which is not a test.
 `task:guards-read-source-through-a-compile-time-path` says what closes them. Measure executable
 uses separately from comments when reporting a count; a text search includes both.
 
+Compile-fail snapshots are part of the membrane evidence. The exact compiler is pinned in
+`rust-toolchain.toml` and the correctness workflow, but a new trait implementation can still
+change rustc's incidental help text. Before refreshing a snapshot, inspect the old and new
+diagnostics: the same forbidden operation must fail at the same source expression with the
+same error code and primary message. A successful compilation, unrelated error, changed primary
+diagnostic or missing case requires investigation, not a blanket `TRYBUILD=overwrite` run.
+Refresh only the affected target after that comparison, review the `.stderr` diff, and rerun
+the target with overwrite disabled. A deliberate compiler upgrade must likewise review the
+primary diagnostics and preserve every forbidden-operation case. The full gate remains required.
+
 **What was observed**, on 2026-09-21 at the close of wave p1-05: after the wave's worktrees were
 removed, `task check` on the primary checkout failed reading
 `…/ekr-wave-p1-05/crates/ekr-core/src` — a path no tree had. `cargo clean -p ekr-core` made that
