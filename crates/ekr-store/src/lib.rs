@@ -50,8 +50,9 @@ pub mod snapshot;
 
 pub use eventlog::{EventlogStore, FileStore, SqliteStore};
 pub use log::{
-    evidence_root, knowledge_root, Appended, CommitAuthority, Initialize, RecordedValidation,
-    RevisionLog, PLACEHOLDER_SUB_ROOT,
+    evidence_root, knowledge_root, AdmittedRevision, Appended, CommitAuthority, Initialize,
+    Publication, PublicationObject, RecordedOccurrence, RetainedHistory, RetainedObject,
+    RevisionLog,
 };
 pub use objects::{ObjectStore, StorageClass, StoredObject};
 pub use snapshot::{Entity, GraphDocument, MembraneError};
@@ -66,6 +67,15 @@ use ekr_core::{ContentHash, RevisionNumber, TransactionId};
 /// from a broken chain cannot act on either.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum StoreError {
+    /// Conditional publication lost a stream race; no new occurrence was published.
+    #[error("revision stream moved before publication")]
+    Conflict,
+    /// Publication may have committed. Resolve the same immutable occurrence; never delete it.
+    #[error("publication outcome is unknown; resolve the exact retained occurrence")]
+    UnknownCommit,
+    /// Retained bootstrap context or authority differs from the independently supplied anchor.
+    #[error("bootstrap-authority-mismatch")]
+    AuthorityMismatch,
     /// Synchronous persistence cannot run on a thread entered into a Tokio runtime.
     #[error("synchronous store access requires a thread outside a Tokio runtime")]
     RuntimeContext,
@@ -197,7 +207,11 @@ impl From<eventlog_core::EventLogError> for StoreError {
     /// it matters, inside [`ObjectStore::put`], and is not re-exported as a shape callers would
     /// have to match on.
     fn from(error: eventlog_core::EventLogError) -> Self {
-        Self::Backend(error.to_string())
+        match error {
+            eventlog_core::EventLogError::UnknownCommit => Self::UnknownCommit,
+            eventlog_core::EventLogError::Conflict { .. } => Self::Conflict,
+            other => Self::Backend(other.to_string()),
+        }
     }
 }
 /// Frozen original-format data and supplied-byte verification.

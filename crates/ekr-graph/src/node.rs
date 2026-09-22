@@ -66,7 +66,27 @@ pub struct Node<V = CanonicalValue> {
     /// is a different ladder and arrives in P3.
     pub type_state: Option<String>,
     /// Its property values, by the property's id.
-    pub properties: BTreeMap<PropertyId, V>,
+    #[serde(
+        deserialize_with = "crate::node::property_values",
+        bound(deserialize = "V: Deserialize<'de>")
+    )]
+    pub properties: BTreeMap<PropertyId, Vec<V>>,
+}
+
+pub(crate) fn property_values<'de, D, V>(
+    decoder: D,
+) -> Result<BTreeMap<PropertyId, Vec<V>>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    V: Deserialize<'de>,
+{
+    let values: BTreeMap<PropertyId, Vec<V>> = ekr_core::decode::unique_map(decoder)?;
+    if values.values().any(Vec::is_empty) {
+        return Err(serde::de::Error::custom(
+            "empty outer property values must be absent",
+        ));
+    }
+    Ok(values)
 }
 
 impl<V> Node<V> {

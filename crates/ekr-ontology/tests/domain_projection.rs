@@ -16,12 +16,13 @@
 //! `Ontology::load` accepts it, so a store persisting a `PropertyDefinition` in P3 meets a type
 //! with nowhere to go, and the one sentence that should have warned it said the opposite.
 //!
-//! Both halves are now corrected rather than reconciled — the document's comment by the
-//! coordinator in the closing commit, the crate's sentence by this unit — and the underlying gap
-//! is filed as `task:ess-domain-carries-compound-value-types`. The case below pins the true
-//! statement from both sides, so that neither half can drift again without the other noticing.
+//! The durable format activation closes that historical gap with a recursive projection.
+//! The case below now checks its actual parameter carriers and the matching strict codec.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
+
+use ekr_core::{Canonical, TypeId};
+use ekr_ontology::ValueType;
 
 /// `systems/ekr/domains/ontology.yaml`, as text.
 fn domain_text() -> String {
@@ -60,75 +61,72 @@ fn fields_of(type_name: &str) -> BTreeSet<String> {
         .unwrap_or_default()
 }
 
-/// The domain carries the parameters of `NodeRef` and `Enum`, and of no other compound kind — and
-/// `value.rs` says exactly that.
-///
-/// This is the adversary's pass-2 case, re-aimed. It was written as
-/// `every_compound_kind_the_domain_says_property_definition_carries_it_actually_carries`, asserting
-/// that `ekr.ontology.PropertyDefinition` carries the parameters of all four compound kinds,
-/// because the document's own comment claimed it did and `value.rs` quoted the claim. The finding
-/// was right and the claim was false, on both sides: the document carries two of the four.
-///
-/// The coordinator's decision is that both halves are corrected rather than reconciled — the
-/// document's comment, in the closing commit, to name the two it carries and to say a `List` or
-/// `Record` property has no domain representation yet; and the sentence in `value.rs`, here. The
-/// gap itself is real and is filed as `task:ess-domain-carries-compound-value-types`; it is not
-/// closed by this unit and is not papered over by it either.
-///
-/// So the case now pins the true statement from both sides. It goes red if the crate stops saying
-/// the projection is partial, and it goes red if someone "fixes" the document by adding a carrier
-/// for `List` or `Record` without telling the crate — which is the drift that would otherwise
-/// leave `value.rs` describing a gap that had been closed.
+/// Replacement for the historical partial-projection assertion: every compound parameter has
+/// a typed recursive carrier, and nested parameters survive the current codec and hash.
 #[test]
-fn the_domain_carries_node_ref_and_enum_parameters_and_no_other_compound_kind() {
+fn the_domain_and_current_codec_retain_all_recursive_compound_parameters() {
     let fields = fields_of("ekr.ontology.PropertyDefinition");
-    let carried = |needle: &str| fields.iter().any(|field| field.contains(needle));
-
-    // The two the projection covers. `value_kind` is the discriminant they hang off.
-    assert!(
-        carried("value_kind"),
-        "the projection needs its discriminant: {fields:?}"
-    );
-    for (kind, needle) in [("NodeRef", "allowed_types"), ("Enum", "variants")] {
-        assert!(
-            carried(needle),
-            "ekr.ontology.PropertyDefinition carries a {kind}'s parameters in a field naming \
-             {needle:?}, and declares {fields:?}"
-        );
-    }
-
-    // The two it does not. If this stops holding, the domain grew a carrier and `value.rs` is
-    // describing a gap that is no longer there.
-    for (kind, needle) in [("List", "element"), ("Record", "field")] {
-        assert!(
-            !carried(needle),
-            "the domain has grown a carrier for a {kind}'s parameters (a field naming {needle:?} \
-             in {fields:?}). That closes the gap value.rs describes and \
-             task:ess-domain-carries-compound-value-types carries — update both, then this case."
-        );
-    }
-
-    // And the crate says so, rather than claiming a projection that covers everything.
-    let value_rs = {
-        let path = std::path::PathBuf::from(
-            std::env::var("CARGO_MANIFEST_DIR")
-                .expect("Cargo supplies the runtime manifest directory"),
+    assert!(fields.contains("value_type"));
+    assert_eq!(
+        fields_of("ekr.ontology.ValueTypeProjection"),
+        BTreeSet::from(
+            ["kind", "allowed_types", "variants", "element", "fields"].map(str::to_owned)
         )
-        .join("src/value.rs");
-        std::fs::read_to_string(path).expect("the crate's own source")
-    };
-    assert!(
-        value_rs.contains("task:ess-domain-carries-compound-value-types"),
-        "value.rs must name the task that carries the List/Record gap"
     );
-    assert!(
-        value_rs.contains("The projection is partial"),
-        "value.rs must say the projection is partial rather than justify itself by a claim to \
-         cover all four compound kinds"
-    );
-    assert!(
-        !value_rs.contains("are carried by PropertyDefinition below"),
-        "value.rs must not quote the document's four-kind claim as its justification"
+    let declarations = declared_fields();
+    for (owner, field, ty) in [
+        (
+            "ekr.ontology.PropertyDefinition",
+            "value_type",
+            "ekr.ontology.ValueTypeProjection",
+        ),
+        (
+            "ekr.ontology.ValueTypeProjection",
+            "allowed_types",
+            "Optional<List<ekr.ontology.TypeId>>",
+        ),
+        (
+            "ekr.ontology.ValueTypeProjection",
+            "variants",
+            "Optional<List<String>>",
+        ),
+        (
+            "ekr.ontology.ValueTypeProjection",
+            "element",
+            "Optional<ekr.ontology.ValueTypeProjection>",
+        ),
+        (
+            "ekr.ontology.ValueTypeProjection",
+            "fields",
+            "Optional<Map<String, ekr.ontology.ValueTypeProjection>>",
+        ),
+    ] {
+        assert!(
+            declarations.contains(&(owner.into(), field.into(), ty.into())),
+            "missing {owner}.{field}: {ty}"
+        );
+    }
+    let original = ValueType::List(Box::new(ValueType::Record(BTreeMap::from([
+        (
+            "link".into(),
+            ValueType::NodeRef {
+                allowed_types: BTreeSet::from([TypeId::mint()]),
+            },
+        ),
+        (
+            "kind".into(),
+            ValueType::Enum {
+                variants: BTreeSet::from(["alpha".into(), "beta".into()]),
+            },
+        ),
+    ]))));
+    let encoded = serde_json::to_vec(&original).unwrap();
+    let decoded: ValueType = serde_json::from_slice(&encoded).unwrap();
+    assert_eq!(decoded, original);
+    assert_eq!(decoded.canonical_bytes(), original.canonical_bytes());
+    assert_ne!(
+        ValueType::List(Box::new(ValueType::String)).canonical_bytes(),
+        original.canonical_bytes()
     );
 }
 

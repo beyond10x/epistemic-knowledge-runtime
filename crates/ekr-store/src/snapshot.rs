@@ -13,7 +13,7 @@ use ekr_graph::{
     Object, Space, Subject,
 };
 use ekr_ontology::Value;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::StoreError;
 
@@ -21,8 +21,7 @@ use crate::StoreError;
 ///
 /// Holds the **transient** instantiation of every graph type, which is what makes the crossing a
 /// place rather than a habit. See the module documentation for why that is the shape.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct GraphDocument {
     /// The root the state hangs off.
     pub root: GraphRoot,
@@ -39,6 +38,64 @@ pub struct GraphDocument {
     /// Not generic and not widened: [`Evidence`] carries no value at all, so there is no transient
     /// instantiation of it and nothing for the crossing to refuse.
     pub evidence: BTreeMap<EvidenceId, Evidence>,
+}
+
+// The remote derive preserves the useful in-memory graph shape while requiring a complete,
+// explicitly versioned envelope at every serialization boundary, including nested seed input.
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "GraphDocument", deny_unknown_fields)]
+struct GraphFields {
+    root: GraphRoot,
+    revision: RevisionNumber,
+    #[serde(deserialize_with = "ekr_core::decode::unique_map")]
+    nodes: BTreeMap<NodeId, Node<Value>>,
+    #[serde(deserialize_with = "ekr_core::decode::unique_map")]
+    edges: BTreeMap<EdgeId, Edge<Value>>,
+    #[serde(deserialize_with = "ekr_core::decode::unique_map")]
+    assertions: BTreeMap<AssertionId, Assertion<Value>>,
+    #[serde(deserialize_with = "ekr_core::decode::unique_map")]
+    evidence: BTreeMap<EvidenceId, Evidence>,
+}
+
+#[derive(Serialize, Deserialize)]
+enum GraphFormat {
+    #[serde(rename = "ekr.graph-document/2")]
+    Current,
+}
+
+#[derive(Serialize)]
+struct GraphEnvelopeRef<'a> {
+    format: GraphFormat,
+    #[serde(with = "GraphFields")]
+    graph: &'a GraphDocument,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct GraphEnvelope {
+    format: GraphFormat,
+    #[serde(with = "GraphFields")]
+    graph: GraphDocument,
+}
+
+impl Serialize for GraphDocument {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        GraphEnvelopeRef {
+            format: GraphFormat::Current,
+            graph: self,
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for GraphDocument {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let GraphEnvelope {
+            format: GraphFormat::Current,
+            graph,
+        } = GraphEnvelope::deserialize(deserializer)?;
+        Ok(graph)
+    }
 }
 
 impl GraphDocument {
@@ -228,7 +285,7 @@ fn widen_node(node: &Node<CanonicalValue>) -> Node<Value> {
         properties: node
             .properties
             .iter()
-            .map(|(id, value)| (*id, Value::from(value.clone())))
+            .map(|(id, value)| (*id, value.iter().cloned().map(Value::from).collect()))
             .collect(),
     }
 }
@@ -249,7 +306,7 @@ fn widen_edge(edge: &Edge<CanonicalValue>) -> Edge<Value> {
         properties: edge
             .properties
             .iter()
-            .map(|(id, value)| (*id, Value::from(value.clone())))
+            .map(|(id, value)| (*id, value.iter().cloned().map(Value::from).collect()))
             .collect(),
     }
 }
@@ -272,7 +329,8 @@ fn widen_assertion(assertion: &Assertion<CanonicalValue>) -> Assertion<Value> {
         },
         evidence: assertion.evidence.clone(),
         proposed_by: assertion.proposed_by,
-        validation: assertion.validation.clone(),
+        assessment: assertion.assessment.clone(),
+        lifecycle: assertion.lifecycle.clone(),
         valid_time: assertion.valid_time,
         transaction_time: assertion.transaction_time,
     }

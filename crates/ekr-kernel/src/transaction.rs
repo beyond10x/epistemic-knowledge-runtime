@@ -44,12 +44,10 @@ use ekr_core::{
     RevisionNumber, TransactionId, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalRef, CanonicalValue, InadmissibleValue, Object, Subject, ValueSpace,
+    Assertion, CanonicalRef, CanonicalValue, InadmissibleValue, Object, RetractionReason, Subject,
+    ValueSpace,
 };
-use ekr_ontology::{
-    Cardinality, EdgeType, Lifecycle, NodeType, OperationDefinition, PropertyDefinition,
-    Transition, Value, ValueType,
-};
+use ekr_ontology::{EdgeType, NodeType, PropertyDefinition, Value};
 use serde::{Deserialize, Serialize};
 
 /// A node an operation proposes to create: the `NodeDraft` of design § 19.
@@ -124,6 +122,40 @@ pub struct EntityMerge {
     pub into: NodeId,
 }
 
+/// Reasoned withdrawal, encoded at the original operation index five.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Retraction {
+    /// Assertion to withdraw.
+    pub assertion: AssertionId,
+    /// Retained statement of why.
+    pub reason: RetractionReason,
+}
+/// Supported replacement at a half-open valid-time boundary.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Supersession {
+    /// Earlier assertion.
+    pub assertion: AssertionId,
+    /// Accepted replacement, possibly added in the same unordered transaction.
+    pub by: AssertionId,
+    /// Replacement's required valid-time start.
+    pub effective_from: ekr_core::Timestamp,
+}
+impl Canonical for Retraction {
+    fn encode(&self, out: &mut Encoder) {
+        self.assertion.encode(out);
+        self.reason.encode(out);
+    }
+}
+impl Canonical for Supersession {
+    fn encode(&self, out: &mut Encoder) {
+        self.assertion.encode(out);
+        self.by.encode(out);
+        self.effective_from.encode(out);
+    }
+}
+
 /// One change a transaction proposes: design § 19, plus `Invoke` from amendment 87.
 ///
 /// Eleven variants, which are the eleven `ekr.kernel.OperationKind` names of
@@ -146,7 +178,7 @@ pub enum GraphOperation<V: ValueSpace = Value> {
     /// enum is as large as its largest variant.
     AddAssertion(Box<Assertion<V>>),
     /// Retract an assertion, which does not erase it (design § 36).
-    RetractAssertion(AssertionId),
+    RetractAssertion(Retraction),
     /// Declare a node type. Boxed for the reason [`GraphOperation::AddAssertion`] is.
     DefineNodeType(Box<NodeType>),
     /// Declare an edge type. Boxed for the same reason.
@@ -168,6 +200,8 @@ pub enum GraphOperation<V: ValueSpace = Value> {
         )]
         arguments: BTreeMap<String, V>,
     },
+    /// Replace an accepted assertion without erasing its assessment or former valid interval.
+    SupersedeAssertion(Supersession),
 }
 
 /// What an agent proposes: design § 19, and `ekr.kernel.GraphTransaction`.
@@ -319,15 +353,15 @@ impl<V: ValueSpace + Canonical> Canonical for GraphOperation<V> {
             }
             Self::DefineNodeType(declared) => {
                 out.variant(6);
-                DeclaredNodeType(declared).encode(out);
+                declared.encode(out);
             }
             Self::DefineEdgeType(declared) => {
                 out.variant(7);
-                DeclaredEdgeType(declared).encode(out);
+                declared.encode(out);
             }
             Self::ModifyProperty(declared) => {
                 out.variant(8);
-                Definition(declared).encode(out);
+                declared.encode(out);
             }
             Self::MergeEntity(merge) => {
                 out.variant(9);
@@ -342,6 +376,10 @@ impl<V: ValueSpace + Canonical> Canonical for GraphOperation<V> {
                 node.encode(out);
                 operation.encode(out);
                 out.map(arguments.iter());
+            }
+            Self::SupersedeAssertion(supersession) => {
+                out.variant(11);
+                supersession.encode(out);
             }
         }
     }
@@ -385,148 +423,6 @@ impl Canonical for EntityMerge {
     fn encode(&self, out: &mut Encoder) {
         self.absorbed.encode(out);
         self.into.encode(out);
-    }
-}
-
-/// A declared type, borrowed, so that the kernel can encode a type it does not own.
-struct Declared<'a>(&'a ValueType);
-
-/// A property definition, borrowed, for the same reason.
-struct Definition<'a>(&'a PropertyDefinition);
-
-/// A node type, borrowed, for the same reason.
-struct DeclaredNodeType<'a>(&'a NodeType);
-
-/// An edge type, borrowed, for the same reason.
-struct DeclaredEdgeType<'a>(&'a EdgeType);
-
-/// A lifecycle, borrowed, for the same reason.
-struct DeclaredLifecycle<'a>(&'a Lifecycle);
-
-/// One declared move, borrowed. Ordered by the move it wraps, because a lifecycle holds a set of
-/// them and [`Encoder::set`] imposes the element order.
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
-struct Move<'a>(&'a Transition);
-
-/// A named operation, borrowed, for the same reason [`Declared`] is.
-struct Operation<'a>(&'a OperationDefinition);
-
-/// How many values a property may carry, borrowed by value — it is `Copy`.
-struct Count(Cardinality);
-
-impl Canonical for Count {
-    /// The variant marker. Two variants carrying nothing, so the marker is the whole encoding.
-    fn encode(&self, out: &mut Encoder) {
-        out.variant(match self.0 {
-            Cardinality::One => 0,
-            Cardinality::Many => 1,
-        });
-    }
-}
-
-impl Canonical for Declared<'_> {
-    /// The variant marker, then the variant's parameters, in the declaration order of
-    /// `ekr_ontology::ValueType`.
-    fn encode(&self, out: &mut Encoder) {
-        match self.0 {
-            ValueType::String => out.variant(0),
-            ValueType::Boolean => out.variant(1),
-            ValueType::Integer => out.variant(2),
-            ValueType::Float => out.variant(3),
-            ValueType::Decimal => out.variant(4),
-            ValueType::Timestamp => out.variant(5),
-            ValueType::Duration => out.variant(6),
-            ValueType::NodeRef { allowed_types } => {
-                out.variant(7);
-                out.set(allowed_types.iter());
-            }
-            ValueType::Enum { variants } => {
-                out.variant(8);
-                out.set(variants.iter());
-            }
-            ValueType::List(element) => {
-                out.variant(9);
-                Self(element).encode(out);
-            }
-            ValueType::Record(fields) => {
-                out.variant(10);
-                let declared: Vec<Self> = fields.values().map(Self).collect();
-                out.map(fields.keys().zip(declared.iter()));
-            }
-        }
-    }
-}
-
-impl Canonical for Definition<'_> {
-    /// The six fields of `ekr_ontology::PropertyDefinition`, in declaration order.
-    fn encode(&self, out: &mut Encoder) {
-        self.0.id.encode(out);
-        self.0.name.encode(out);
-        Declared(&self.0.value_type).encode(out);
-        Count(self.0.cardinality).encode(out);
-        self.0.required.encode(out);
-        out.list(self.0.constraints.iter());
-    }
-}
-
-impl Canonical for Move<'_> {
-    /// The two fields of `ekr_ontology::Transition`, in declaration order.
-    fn encode(&self, out: &mut Encoder) {
-        self.0.from.encode(out);
-        self.0.to.encode(out);
-    }
-}
-
-impl Canonical for DeclaredLifecycle<'_> {
-    /// The three fields of `ekr_ontology::Lifecycle`, in declaration order.
-    fn encode(&self, out: &mut Encoder) {
-        self.0.initial.encode(out);
-        out.set(self.0.states.iter());
-        let moves: Vec<Move<'_>> = self.0.transitions.iter().map(Move).collect();
-        out.set(moves.iter());
-    }
-}
-
-impl Canonical for Operation<'_> {
-    /// The five fields of `ekr_ontology::OperationDefinition`, in declaration order.
-    fn encode(&self, out: &mut Encoder) {
-        self.0.name.encode(out);
-        let arguments: Vec<Declared<'_>> = self.0.arguments.values().map(Declared).collect();
-        out.map(self.0.arguments.keys().zip(arguments.iter()));
-        out.list(self.0.preconditions.iter());
-        out.option(self.0.transition.as_ref().map(Move).as_ref());
-        out.list(self.0.emits.iter());
-    }
-}
-
-impl Canonical for DeclaredNodeType<'_> {
-    /// The seven fields of `ekr_ontology::NodeType`, in declaration order.
-    fn encode(&self, out: &mut Encoder) {
-        self.0.id.encode(out);
-        self.0.name.encode(out);
-        out.set(self.0.parents.iter());
-        let properties: Vec<Definition<'_>> = self.0.properties.values().map(Definition).collect();
-        out.map(self.0.properties.keys().zip(properties.iter()));
-        self.0.abstract_type.encode(out);
-        out.option(self.0.lifecycle.as_ref().map(DeclaredLifecycle).as_ref());
-        let operations: Vec<Operation<'_>> = self.0.operations.values().map(Operation).collect();
-        out.map(self.0.operations.keys().zip(operations.iter()));
-    }
-}
-
-impl Canonical for DeclaredEdgeType<'_> {
-    /// The nine fields of `ekr_ontology::EdgeType`, in declaration order.
-    fn encode(&self, out: &mut Encoder) {
-        self.0.id.encode(out);
-        self.0.name.encode(out);
-        out.set(self.0.source_types.iter());
-        out.set(self.0.target_types.iter());
-        Count(self.0.cardinality).encode(out);
-        let properties: Vec<Definition<'_>> = self.0.properties.values().map(Definition).collect();
-        out.map(self.0.properties.keys().zip(properties.iter()));
-        out.option(self.0.inverse.as_ref());
-        self.0.symmetric.encode(out);
-        self.0.transitive.encode(out);
     }
 }
 
@@ -592,6 +488,9 @@ fn canonical_operation(
             GraphOperation::AddAssertion(Box::new(canonical_assertion(*assertion)?))
         }
         GraphOperation::RetractAssertion(assertion) => GraphOperation::RetractAssertion(assertion),
+        GraphOperation::SupersedeAssertion(supersession) => {
+            GraphOperation::SupersedeAssertion(supersession)
+        }
         GraphOperation::DefineNodeType(declared) => GraphOperation::DefineNodeType(declared),
         GraphOperation::DefineEdgeType(declared) => GraphOperation::DefineEdgeType(declared),
         GraphOperation::ModifyProperty(declared) => GraphOperation::ModifyProperty(declared),
@@ -640,7 +539,8 @@ fn canonical_assertion(
         },
         evidence: assertion.evidence,
         proposed_by: assertion.proposed_by,
-        validation: assertion.validation,
+        assessment: assertion.assessment,
+        lifecycle: assertion.lifecycle,
         valid_time: assertion.valid_time,
         transaction_time: assertion.transaction_time,
     })

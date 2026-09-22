@@ -95,8 +95,8 @@ fn a_burst_of_mints_is_all_distinct() {
 }
 
 /// The class the acceptance is one member of: no id type mints a constant. Stated over every one
-/// of the fourteen, because "`NodeId` mints distinct values" is a property of the macro they all
-/// come from, and a defect in it would reach all fourteen at once.
+/// of the declared identity types, because "`NodeId` mints distinct values" is a property of
+/// the macro they all come from.
 #[test]
 fn no_id_type_mints_a_constant() {
     macro_rules! assert_mints_distinct {
@@ -126,5 +126,6 @@ fn no_id_type_mints_a_constant() {
         SupportId,
         EvidenceId,
         ObservationId,
+        EventId,
     );
 }

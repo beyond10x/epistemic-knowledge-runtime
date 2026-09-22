@@ -114,24 +114,11 @@ impl fmt::Display for ValueKind {
 /// document reads `value_kind: NodeRef` with `parameters: { allowed_types: [...] }`, and a scalar
 /// kind carries no parameters at all. **That shape is this crate's own.**
 ///
-/// `systems/ekr/domains/ontology.yaml` carries a *flattened projection* of it and declares no
-/// `parameters` key: its `ekr.ontology.PropertyDefinition` has `value_kind` beside
-/// `ref_allowed_types` and `enum_variants`, with no recursive `value_type` field at all. The
-/// flattening is a limit of `ess/1`, whose types are not recursive, so a `ValueType` containing
-/// another `ValueType` cannot be expressed there; `graph.yaml` flattens `TypedValue` the same way
-/// for the same reason.
-///
-/// **The projection is partial, and covers two of the four compound kinds.** `ref_allowed_types`
-/// carries a `NodeRef`'s parameters and `enum_variants` carries an `Enum`'s. There is no field for
-/// a `List`'s element type and none for a `Record`'s fields, so a property whose declared type is
-/// a `List` or a `Record` is constructible here, is accepted by
-/// [`Ontology::load`](crate::schema::Ontology::load), and has no representation in the domain
-/// today — which is a
-/// gap a store persisting a `PropertyDefinition` will meet.
-/// `task:ess-domain-carries-compound-value-types` carries it.
-///
-/// So this is a boundary that is doing its job for `NodeRef` and `Enum` and is incomplete for
-/// `List` and `Record` — not drift to be reconciled by making the two shapes identical.
+/// `systems/ekr/domains/ontology.yaml` declares the complete recursive
+/// `ValueTypeProjection`: `kind` selects `allowed_types`, `variants`, `element` or `fields`.
+/// Its `PropertyDefinition.value_type` retains all four compound kinds. The projection's
+/// field names differ from this strict tagged codec; neither loses nested List or Record
+/// parameters. Canonical encoding includes every recursive parameter.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "value_kind", content = "parameters", deny_unknown_fields)]
 pub enum ValueType {

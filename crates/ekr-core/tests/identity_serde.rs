@@ -105,6 +105,7 @@ id_cases! {
     support_id => SupportId,
     evidence_id => EvidenceId,
     observation_id => ObservationId,
+    event_id => EventId,
 }
 
 fn workspace_root() -> PathBuf {

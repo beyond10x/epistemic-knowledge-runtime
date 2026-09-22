@@ -1,16 +1,16 @@
 //! Kernel-owned bootstrap admission, without a preceding committed revision.
 use std::collections::{BTreeMap, BTreeSet};
 
-use ekr_core::{AgentId, ContentHash, GraphRootId, RevisionNumber, TransactionId};
+use ekr_core::{AgentId, ContentHash, GraphRootId, RevisionNumber, Timestamp, TransactionId};
 use ekr_graph::{
-    Assertion, CanonicalGraph, CanonicalRef, CanonicalValue, Edge, EvidenceSource, GraphSnapshot,
-    Node, Object, Space, Subject, ValidationState,
+    Assertion, Assessment, CanonicalGraph, CanonicalRef, CanonicalValue, Edge, EvidenceSource,
+    GraphSnapshot, Node, Object, Space, Subject,
 };
 use ekr_ontology::{Ontology, OntologyDocument, Value};
 use ekr_store::{Entity, GraphDocument, MembraneError, StoreError};
 use serde::{Deserialize, Serialize};
 
-use crate::{EdgeDraft, GraphOperation, GraphTransaction, NodeDraft, Pipeline};
+use crate::{AuthorityStateV1, EdgeDraft, GraphOperation, GraphTransaction, NodeDraft, Pipeline};
 
 /// Independently authenticated execution identities, supplied by the host, never the seed input.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -22,17 +22,18 @@ pub struct BootstrapContext {
     pub validator: AgentId,
 }
 
-/// Version one seed input. A graph format change must also change this version.
+/// Version two seed input. A graph format change must also change this version.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct SeedDocument {
-    /// Must be `ekr-seed/1`.
+    /// Must be `ekr-seed/2`.
     pub format: String,
     /// Complete ontology, retained rather than reconstructed from a schema identity.
     pub ontology: OntologyDocument,
     /// Proposed graph records, before the kernel attributes acceptance.
     pub graph: GraphDocument,
     /// Exact retained HumanStatement bytes, keyed by their content address.
+    #[serde(deserialize_with = "ekr_core::decode::unique_map")]
     pub evidence_payloads: BTreeMap<ContentHash, Vec<u8>>,
 }
 
@@ -49,7 +50,7 @@ impl SeedDocument {
     }
 
     fn check_version(&self) -> Result<(), SeedError> {
-        if self.format != "ekr-seed/1" {
+        if self.format != "ekr-seed/2" {
             return invalid("unsupported-seed-format");
         }
         Ok(())
@@ -67,53 +68,29 @@ pub enum SeedError {
     Store(#[from] StoreError),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct SeedEnvelope {
-    format: String,
-    input: SeedDocument,
-    context: BootstrapContext,
-}
-
-/// Private capability: a caller cannot construct accepted bootstrap input.
-pub(crate) struct ValidatedSeed {
-    bytes: Vec<u8>,
-}
-
-impl ValidatedSeed {
-    pub(crate) fn bytes(self) -> Vec<u8> {
-        self.bytes
-    }
+pub(crate) struct SeedEnvelope {
+    pub(crate) format: String,
+    pub(crate) input: SeedDocument,
+    pub(crate) context: BootstrapContext,
+    pub(crate) authority: AuthorityStateV1,
+    pub(crate) committed_at: Timestamp,
 }
 
 fn invalid<T>(code: &str) -> Result<T, SeedError> {
     Err(SeedError::Invalid(code.to_owned()))
 }
 
-pub(crate) fn validate(
-    input: SeedDocument,
-    context: BootstrapContext,
-) -> Result<ValidatedSeed, SeedError> {
-    admitted_graph(&input, context)?;
-    let envelope = SeedEnvelope {
-        format: "ekr-seed-envelope/1".to_owned(),
-        input,
-        context,
-    };
-    let bytes = serde_json::to_vec(&envelope)
-        .map_err(|error| SeedError::Invalid(format!("seed-encode: {error}")))?;
-    Ok(ValidatedSeed { bytes })
-}
-
-fn envelope(bytes: &[u8]) -> Result<SeedEnvelope, StoreError> {
+pub(crate) fn envelope(bytes: &[u8]) -> Result<SeedEnvelope, StoreError> {
     let shape: serde_json::Value = serde_json::from_slice(bytes)
         .map_err(|error| StoreError::InvalidSeed(format!("seed-decode: {error}")))?;
     if shape.get("format").is_none() && shape.get("root").is_some() {
         return Err(StoreError::SeedMigrationRequired);
     }
-    let envelope: SeedEnvelope = serde_json::from_value(shape)
+    let envelope: SeedEnvelope = serde_json::from_slice(bytes)
         .map_err(|error| StoreError::InvalidSeed(format!("seed-decode: {error}")))?;
-    if envelope.format != "ekr-seed-envelope/1" {
+    if envelope.format != "ekr-seed-envelope/2" {
         return Err(StoreError::InvalidSeed(
             "unsupported-seed-envelope".to_owned(),
         ));
@@ -125,14 +102,14 @@ pub(crate) fn replay(
     bytes: &[u8],
     ontology: &Ontology,
     context: BootstrapContext,
+    authority: &AuthorityStateV1,
 ) -> Result<CanonicalGraph, StoreError> {
     let envelope = envelope(bytes)?;
-    if envelope.context != context {
-        return Err(StoreError::InvalidSeed(
-            "bootstrap-authority-mismatch".to_owned(),
-        ));
+    authority.check(context)?;
+    if envelope.context != context || envelope.authority != *authority {
+        return Err(StoreError::AuthorityMismatch);
     }
-    let graph = admitted_graph(&envelope.input, context)
+    let graph = admitted_graph(&envelope.input, context, envelope.committed_at)
         .map_err(|error| StoreError::InvalidSeed(error.to_string()))?;
     if graph.ontology != *ontology {
         return Err(StoreError::InvalidSeed("seed-ontology-mismatch".to_owned()));
@@ -140,14 +117,10 @@ pub(crate) fn replay(
     Ok(graph)
 }
 
-pub(crate) fn content(bytes: &[u8], hash: &ContentHash) -> Result<Option<Vec<u8>>, StoreError> {
-    let envelope = envelope(bytes)?;
-    Ok(envelope.input.evidence_payloads.get(hash).cloned())
-}
-
-fn admitted_graph(
+pub(crate) fn admitted_graph(
     input: &SeedDocument,
     context: BootstrapContext,
+    committed_at: Timestamp,
 ) -> Result<CanonicalGraph, SeedError> {
     input.check_version()?;
     let ontology = Ontology::load(input.ontology.clone())
@@ -169,6 +142,9 @@ fn admitted_graph(
         return invalid("proposer-is-validator");
     }
     for (key, node) in &document.nodes {
+        if node.properties.values().any(Vec::is_empty) {
+            return invalid("seed-empty-property-values");
+        }
         filing(
             Entity::Node(*key),
             Entity::Node(node.id),
@@ -184,6 +160,9 @@ fn admitted_graph(
         }
     }
     for (key, edge) in &document.edges {
+        if edge.properties.values().any(Vec::is_empty) {
+            return invalid("seed-empty-property-values");
+        }
         filing(
             Entity::Edge(*key),
             Entity::Edge(edge.id),
@@ -248,11 +227,7 @@ fn admitted_graph(
                 root_id: node.root_id,
                 type_id: node.type_id,
                 canonical_name: node.canonical_name.clone(),
-                properties: node
-                    .properties
-                    .iter()
-                    .map(|(key, value)| (*key, vec![value.clone()]))
-                    .collect(),
+                properties: node.properties.clone(),
             })
         })
         .chain(document.edges.values().map(|edge| {
@@ -262,11 +237,7 @@ fn admitted_graph(
                 type_id: edge.type_id,
                 source: edge.source,
                 target: edge.target,
-                properties: edge
-                    .properties
-                    .iter()
-                    .map(|(key, value)| (*key, vec![value.clone()]))
-                    .collect(),
+                properties: edge.properties.clone(),
             })
         }))
         .chain(
@@ -318,9 +289,10 @@ fn admitted_graph(
         .iter()
         .map(|(id, assertion)| {
             let mut admitted = narrow_assertion(assertion.clone())?;
-            admitted.validation = ValidationState::Accepted {
+            admitted.assessment = Assessment::Accepted {
                 validators: BTreeSet::from([context.validator]),
             };
+            admitted.transaction_time = ekr_graph::TransactionTime::since(committed_at);
             Ok((*id, admitted))
         })
         .collect::<Result<_, MembraneError>>()
@@ -356,11 +328,16 @@ fn narrow_node(node: Node<Value>) -> Result<Node<CanonicalValue>, MembraneError>
     let node_id = node.id;
     let mut properties = BTreeMap::new();
     for (property, value) in node.properties {
-        let value = CanonicalValue::try_from(value).map_err(|cause| MembraneError::Node {
-            node_id,
-            property,
-            cause,
-        })?;
+        let value = value
+            .into_iter()
+            .map(|value| {
+                CanonicalValue::try_from(value).map_err(|cause| MembraneError::Node {
+                    node_id,
+                    property,
+                    cause,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         properties.insert(property, value);
     }
     Ok(Node {
@@ -381,11 +358,16 @@ fn narrow_edge(edge: Edge<Value>) -> Result<Edge<CanonicalValue>, MembraneError>
     let edge_id = edge.id;
     let mut properties = BTreeMap::new();
     for (property, value) in edge.properties {
-        let value = CanonicalValue::try_from(value).map_err(|cause| MembraneError::Edge {
-            edge_id,
-            property,
-            cause,
-        })?;
+        let value = value
+            .into_iter()
+            .map(|value| {
+                CanonicalValue::try_from(value).map_err(|cause| MembraneError::Edge {
+                    edge_id,
+                    property,
+                    cause,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         properties.insert(property, value);
     }
     Ok(Edge {
@@ -427,7 +409,8 @@ fn narrow_assertion(
         object,
         evidence: assertion.evidence,
         proposed_by: assertion.proposed_by,
-        validation: assertion.validation,
+        assessment: assertion.assessment,
+        lifecycle: assertion.lifecycle,
         valid_time: assertion.valid_time,
         transaction_time: assertion.transaction_time,
     })
