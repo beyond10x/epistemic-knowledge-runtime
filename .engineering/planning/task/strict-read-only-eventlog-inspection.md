@@ -7,6 +7,7 @@ title: Provide a nonmutating provider entry for preserving migration inventory
 relations:
 - derived_from: story:version-persisted-contracts
 - blocks: story:version-persisted-contracts
+- blocks: story:commit-and-revision-lineage
 revision: 1
 ---
 ## Context
