@@ -2485,3 +2485,46 @@ fn opaque_edge_property_constraints_refuse_creation_and_assertions() {
         );
     }
 }
+
+/// Loading serialized operation effects must not erase them before validation.
+#[test]
+fn a_serialized_lifecycle_invokes_but_unsupported_sets_refuse_at_decode() {
+    let mut world = World::new();
+    let document = OntologyDocument {
+        version: world.graph.ontology.version().clone(),
+        node_types: vec![world
+            .graph
+            .ontology
+            .node_type(world.decision)
+            .unwrap()
+            .clone()],
+        edge_types: vec![world
+            .graph
+            .ontology
+            .edge_type(world.depends_on)
+            .unwrap()
+            .clone()],
+    };
+    let mut serialized = serde_json::to_value(document).unwrap();
+    let supported_yaml = serde_yaml_ng::to_string(&serialized).unwrap();
+    world.graph.ontology = Ontology::from_yaml(&supported_yaml).unwrap();
+    let proposal = world.proposal(vec![GraphOperation::Invoke {
+        node: world.open,
+        operation: "decide".into(),
+        arguments: BTreeMap::new(),
+    }]);
+    assert!(world
+        .pipeline()
+        .validate(&world.snapshot(), &proposal)
+        .is_ok());
+
+    serialized["node_types"][0]["operations"]["decide"]["sets"] =
+        serde_json::json!({(world.title.to_string()): "requested assignment"});
+    let unsupported_yaml = serde_yaml_ng::to_string(&serialized).unwrap();
+    let refused = Ontology::from_yaml(&unsupported_yaml)
+        .expect_err("sets must be refused rather than discarded before Invoke");
+    assert!(
+        matches!(refused, ekr_ontology::OntologyError::Syntax(ref message) if message.contains("sets")),
+        "{refused:?}"
+    );
+}

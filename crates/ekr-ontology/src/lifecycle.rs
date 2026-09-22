@@ -24,6 +24,7 @@ use crate::value::ValueType;
 /// One declared move of a lifecycle: `ekr.ontology.Transition` of
 /// `systems/ekr/domains/ontology.yaml`.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Transition {
     /// The state a node must be in for this move.
     pub from: String,
@@ -44,6 +45,7 @@ impl Transition {
 
 /// The lifecycle of a node type: amendment 87.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Lifecycle {
     /// The state a newly created node of this type is in. Must be one of `states`.
     pub initial: String,
@@ -107,6 +109,7 @@ impl Lifecycle {
 /// `GraphOperation::Invoke` names one, and the ontology-constraint validator (design § 20, item 5)
 /// refuses an invocation whose transition is not declared.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OperationDefinition {
     /// The operation's name, as `GraphOperation::Invoke` names it.
     pub name: String,
