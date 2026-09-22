@@ -31,12 +31,14 @@ scope:
 - confidence: cited
   path: crates/ekr-kernel/src/transaction.rs
 - confidence: inferred
+  path: crates/ekr-kernel/tests/adversary_transaction_document.rs
+- confidence: inferred
   path: crates/ekr-kernel/tests/replay.rs
 - confidence: inferred
   path: crates/ekr-kernel/tests/transaction_document.rs
 - confidence: cited
   path: crates/ekr-ontology/src/types.rs
-revision: 15
+revision: 16
 ---
 ## Context
 
