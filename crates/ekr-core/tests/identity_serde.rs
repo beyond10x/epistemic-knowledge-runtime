@@ -108,11 +108,13 @@ id_cases! {
 }
 
 fn workspace_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(Path::parent)
-        .expect("crates/ekr-core has a workspace root two levels up")
-        .to_path_buf()
+    std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .parent()
+    .and_then(Path::parent)
+    .expect("crates/ekr-core has a workspace root two levels up")
+    .to_path_buf()
 }
 
 /// Every `kind: newtype, of: Uuid` declaration of one ESS domain file, by its bare Rust name.

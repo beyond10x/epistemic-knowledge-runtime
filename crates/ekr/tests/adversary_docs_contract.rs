@@ -9,12 +9,17 @@
 
 use std::path::{Path, PathBuf};
 
+#[path = "support/workspace_manifest.rs"]
+mod workspace_manifest;
+
 fn workspace_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(Path::parent)
-        .expect("crates/ekr has a workspace root two levels up")
-        .to_path_buf()
+    std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .parent()
+    .and_then(Path::parent)
+    .expect("crates/ekr has a workspace root two levels up")
+    .to_path_buf()
 }
 
 fn read(relative: &str) -> String {
@@ -41,15 +46,9 @@ fn declared_rust_version() -> String {
 
 /// The workspace members this unit added, as paths under `crates/`.
 fn crate_members() -> Vec<String> {
-    read("Cargo.toml")
-        .split_once("members = [")
-        .expect("the workspace manifest has a members list")
-        .1
-        .split_once(']')
-        .expect("the members list is closed")
-        .0
-        .split(',')
-        .map(|m| m.trim().trim_matches('"').to_string())
+    workspace_manifest::members(&read("Cargo.toml"))
+        .expect("workspace member grammar must be supported before checking the README")
+        .into_iter()
         .filter(|m| m.starts_with("crates/"))
         .collect()
 }
@@ -99,34 +98,113 @@ fn the_readme_states_the_workspace_rust_version() {
 /// `README.md` § Status describes the workspace's contents. This unit changed those contents.
 #[test]
 fn the_readme_status_matches_the_workspace_members() {
-    let members = crate_members();
-    let readme = read("README.md");
-
-    let stale = [
-        "holds `xtask` only",
-        "no runtime crate exists yet",
-        "The workspace holds `xtask` only",
-    ];
-
-    let offenders: Vec<String> = readme
-        .lines()
-        .enumerate()
-        .filter_map(|(i, line)| {
-            stale
-                .iter()
-                .find(|needle| line.contains(*needle))
-                .map(|needle| format!("README.md:{}: {needle}", i + 1))
+    let members: Vec<String> = crate_members()
+        .iter()
+        .map(|member| {
+            read(&format!("{member}/Cargo.toml"))
+                .split_once("[package]")
+                .expect("a workspace member has a package")
+                .1
+                .split('[')
+                .next()
+                .expect("the package section")
+                .lines()
+                .find_map(|line| line.trim().strip_prefix("name = "))
+                .expect("a product package declares its name")
+                .trim_matches('"')
+                .to_owned()
         })
         .collect();
+    let readme = read("README.md");
 
-    assert!(
-        offenders.is_empty(),
-        "the workspace now holds {} crate member(s) ({}), and README.md still tells the reader it \
-         holds none:\n  {}",
-        members.len(),
-        members.join(", "),
-        offenders.join("\n  ")
-    );
+    status_matches_members(&readme, &members).expect("README Status must match product members");
+}
+
+/// Only the explicit product and utility declarations inside Status establish membership.
+fn status_matches_members(readme: &str, members: &[String]) -> Result<(), String> {
+    let mut sections = readme
+        .match_indices("## Status\n")
+        .filter(|(at, _)| *at == 0 || readme.as_bytes()[at - 1] == b'\n');
+    let (at, heading) = sections.next().ok_or("README has no Status section")?;
+    if sections.next().is_some() {
+        return Err("README has more than one Status section".to_owned());
+    }
+    let offset = at + heading.len();
+    let status = readme[offset..]
+        .split("\n## ")
+        .next()
+        .expect("a section exists");
+    let names_after = |label: &str| -> Result<Vec<String>, String> {
+        let (_, after) = status
+            .split_once(label)
+            .ok_or_else(|| format!("Status has no {label}"))?;
+        if after.contains(label) {
+            return Err(format!("Status repeats {label}"));
+        }
+        let paragraph = after.split("\n\n").next().expect("a paragraph exists");
+        let pieces: Vec<&str> = paragraph.split('`').collect();
+        if pieces.len().is_multiple_of(2) {
+            return Err(format!("{label} has an unclosed code name"));
+        }
+        Ok(pieces
+            .iter()
+            .skip(1)
+            .step_by(2)
+            .map(|name| (*name).to_owned())
+            .collect())
+    };
+    let actual = names_after("Product crates:")?;
+    let wanted: std::collections::BTreeSet<&str> = members.iter().map(String::as_str).collect();
+    let found: std::collections::BTreeSet<&str> = actual.iter().map(String::as_str).collect();
+    if wanted.is_empty() || found != wanted || found.len() != actual.len() {
+        return Err(format!(
+            "Status product crates {actual:?} differ from Cargo packages {members:?}"
+        ));
+    }
+    let utilities = names_after("Repository utility:")?;
+    if utilities != ["xtask"] {
+        return Err(format!(
+            "Status must identify xtask separately as a repository utility: {utilities:?}"
+        ));
+    }
+    Ok(())
+}
+
+#[test]
+fn status_membership_refuses_absence_omission_and_invented_crates() {
+    let members = vec!["ekr".to_owned(), "ekr-core".to_owned()];
+    let valid = "## Status\n\nProduct crates: `ekr`, `ekr-core`.\n\nRepository utility: `xtask`.\n\n## More\n";
+    assert!(status_matches_members(valid, &members).is_ok());
+    for invalid in [
+        "# Readme\nNo status.",
+        "Not a heading: ## Status\n\nProduct crates: `ekr`, `ekr-core`.\n\nRepository utility: `xtask`.",
+        "## Status\n\nProduct crates: `ekr`.\n\nRepository utility: `xtask`.",
+        "## Status\n\nProduct crates: `ekr`, `ekr-core`, `ekr-invented`.\n\nRepository utility: `xtask`.",
+        "## Status\n\nProduct crates: `ekr`, `ekr-core`, `xtask`.",
+        "## Status\n\nProduct crates: `ekr`.\n\nRepository utility: `xtask`.\n\n## Elsewhere\n`ekr-core`",
+    ] {
+        assert!(status_matches_members(invalid, &members).is_err(), "{invalid}");
+    }
+}
+
+#[test]
+fn adversary_readme_membership_requires_one_unambiguous_product_inventory() {
+    let members = vec!["ekr".to_owned(), "ekr-core".to_owned()];
+    for status in [
+        "## Status\n\nProduct crates: `ekr`, `ekr-core`, `ekr`.\n\nRepository utility: `xtask`.\n",
+        "## Status\n\nProduct crates: `ekr`, `ekr-core`.\n\nRepository utility: `xtask`.\n\n## Status\n",
+        "## Status\n\nProduct crates: `ekr`, `ekr-core`.\n\nProduct crates: `ekr`.\n\nRepository utility: `xtask`.\n",
+        "## Status\n\nProduct crates: `ekr`, `ekr-core`.\n\nRepository utility: `xtask`, `ekr-extra`.\n",
+        "## Status\n\nProduct crates: `ekr`, `ekr-core`.\n\n## More\nRepository utility: `xtask`.\n",
+        "## Status\n\nProduct crates: `ekr`, `ekr-core.\n\nRepository utility: `xtask`.\n",
+    ] {
+        assert!(status_matches_members(status, &members).is_err(), "{status}");
+    }
+    assert!(status_matches_members(
+        "## Status\n\nProduct crates: `ekr-core`, `ekr`.\n\nRepository utility: `xtask`.\n",
+        &members,
+    )
+    .is_ok());
 }
 
 /// The crates in the workspace, and the root source file of each.

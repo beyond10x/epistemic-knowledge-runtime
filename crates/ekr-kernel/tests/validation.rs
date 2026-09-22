@@ -1364,7 +1364,8 @@ fn the_pipeline_runs_the_seven_deterministic_validators_in_order() {
     // it without this going red.
     assert_eq!(Structural.name(), ValidatorName::Structural);
     assert_eq!(Reference.name(), ValidatorName::Reference);
-    assert_eq!(Types.name(), ValidatorName::Type);
+    let types: &dyn Validator = &Types;
+    assert_eq!(types.name(), ValidatorName::Type);
     assert_eq!(CardinalityValidator.name(), ValidatorName::Cardinality);
     assert_eq!(OntologyConstraint.name(), ValidatorName::OntologyConstraint);
     assert_eq!(Provenance.name(), ValidatorName::Provenance);

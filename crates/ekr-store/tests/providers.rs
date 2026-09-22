@@ -19,7 +19,10 @@ use tempfile::TempDir;
 const TENANT: &str = "ekr";
 
 /// Opens the SQLite provider over a database file inside `directory`.
-fn sqlite(directory: &TempDir, ontology: &Ontology) -> SqliteStore {
+fn sqlite(
+    directory: &TempDir,
+    ontology: &Ontology,
+) -> ekr_store::EventlogStore<eventlog_sqlite::SqliteEventStore> {
     SqliteStore::sqlite(
         &directory.path().join("revisions.db"),
         TENANT,
@@ -95,7 +98,7 @@ fn a_file_store_reopened_folds_to_the_same_head_root() {
 fn identical_bytes_store_once<S: ObjectStore>(store: &S) {
     let bytes = b"a payload the runtime did not choose";
 
-    let first = store
+    let first: ekr_store::StoredObject = store
         .put(StorageClass::Provenance, bytes, Timestamp::EPOCH)
         .expect("the first write lands");
     let second = store

@@ -16,7 +16,10 @@
 use std::path::{Path, PathBuf};
 
 fn crate_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).to_path_buf()
+    std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .to_path_buf()
 }
 
 /// Every `.rs` file at or below a directory, read, with its file name.

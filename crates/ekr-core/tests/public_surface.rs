@@ -30,7 +30,10 @@ use ekr_core::canonical::{Canonical, Encoder};
 use ekr_core::{ContentHash, NodeId, RevisionNumber};
 
 fn crate_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).to_path_buf()
+    std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .to_path_buf()
 }
 
 /// Every `.rs` file at or below a directory, read — `src/` is flat today and a later module
@@ -280,15 +283,16 @@ fn the_encoder_writes_each_shape_it_publishes() {
 
 #[test]
 fn a_refusal_carries_the_text_it_refused() {
-    let id = "urn:uuid:01a0c3a0-7889-7395-b687-b771f5ae3aa7"
+    let id: ekr_core::IdParseError = "urn:uuid:01a0c3a0-7889-7395-b687-b771f5ae3aa7"
         .parse::<NodeId>()
         .expect_err("a second spelling is refused");
     assert_eq!(id.text(), "urn:uuid:01a0c3a0-7889-7395-b687-b771f5ae3aa7");
 
-    let hash = "ABC".parse::<ContentHash>().expect_err("not a hash");
+    let hash: ekr_core::ContentHashParseError =
+        "ABC".parse::<ContentHash>().expect_err("not a hash");
     assert_eq!(hash.text(), "ABC");
 
-    let number = "+7"
+    let number: ekr_core::RevisionNumberParseError = "+7"
         .parse::<RevisionNumber>()
         .expect_err("a second spelling is refused");
     assert_eq!(number.text(), "+7");

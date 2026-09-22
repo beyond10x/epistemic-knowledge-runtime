@@ -16,11 +16,12 @@
 //! Both are read from the source rather than from a trait bound, because a missing implementation
 //! is a compile error at a use site and a compile error is not a case anybody can run.
 
-use std::path::Path;
-
 /// Every `.rs` file of `ekr-graph`'s `src/`, by file name, sorted.
 fn crate_modules() -> Vec<(String, String)> {
-    let directory = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
+    let directory = std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .join("src");
     let mut found: Vec<(String, String)> = std::fs::read_dir(directory)
         .expect("the crate has a src/")
         .map(|entry| entry.expect("a directory entry").path())

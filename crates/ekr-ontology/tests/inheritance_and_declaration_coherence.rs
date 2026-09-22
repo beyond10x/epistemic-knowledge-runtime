@@ -286,10 +286,10 @@ fn every_domain_name_this_crate_cites_is_declared_by_the_domain() {
 
 /// Every name `systems/ekr/domains/ontology.yaml` declares for a type, field or variant.
 fn declared_names_of_the_domain() -> BTreeSet<String> {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../systems/ekr/domains/ontology.yaml"
-    );
+    let path = std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .join("../../systems/ekr/domains/ontology.yaml");
     let text = std::fs::read_to_string(path).expect("the ESS domain is beside the crates");
     let document: serde_yaml_ng::Value =
         serde_yaml_ng::from_str(&text).expect("the ESS domain parses");
@@ -300,7 +300,10 @@ fn declared_names_of_the_domain() -> BTreeSet<String> {
 
 /// One of this crate's own source files, read as text.
 fn read_source(file: &str) -> String {
-    let path = format!("{}/src/{file}", env!("CARGO_MANIFEST_DIR"));
+    let path = format!(
+        "{}/src/{file}",
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory")
+    );
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {path}: {e}"))
 }
 
@@ -784,4 +787,15 @@ fn the_crate_declares_no_value_type_field_the_walk_does_not_reach() {
          Ontology::load. A field here that is not in the walked set is a declaration that loads \
          uninhabitable; extend check_value_type's callers and add it to this set."
     );
+}
+
+#[test]
+fn the_public_node_type_index_distinguishes_present_and_absent_nodes() {
+    let present = NodeId::mint();
+    let absent = NodeId::mint();
+    let kind = type_id("01");
+    let nodes = BTreeMap::from([(present, kind)]);
+    let index: &dyn ekr_ontology::NodeTypes = &nodes;
+    assert_eq!(index.type_of(present), Some(kind));
+    assert_eq!(index.type_of(absent), None);
 }

@@ -215,8 +215,14 @@ fn an_event_encodes_as_a_function_of_its_value() {
 /// finding variants, the lists stop matching the fixtures.
 #[test]
 fn the_declaration_order_of_the_variants_equals_their_numbering() {
-    let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/events.rs"))
-        .expect("the crate's own source");
+    let source = std::fs::read_to_string(
+        std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR")
+                .expect("Cargo supplies the runtime manifest directory"),
+        )
+        .join("src/events.rs"),
+    )
+    .expect("the crate's own source");
 
     let declaration = source
         .split_once("pub enum RevisionEvent {")
