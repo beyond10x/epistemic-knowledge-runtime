@@ -107,3 +107,5 @@ pub use validate::{
     Authorization, Cardinality, OntologyConstraint, Pipeline, Provenance, Reference, Structural,
     Types, Validator,
 };
+/// Frozen original-format seed and transaction verification.
+pub mod legacy;

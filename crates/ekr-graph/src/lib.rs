@@ -141,3 +141,5 @@ pub use root::{GraphRoot, Root, Space};
 pub use snapshot::GraphSnapshot;
 pub use transient::{LocalRef, Resolved, TransientGraph, TransientRef};
 pub use value::{CanonicalValue, InadmissibleValue};
+/// Frozen original-format data; decoding grants no canonical authority.
+pub mod legacy;
