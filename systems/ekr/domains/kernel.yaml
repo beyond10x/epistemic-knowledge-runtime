@@ -208,6 +208,14 @@ actors:
       display: Operator
 
 errors:
+  - name: ekr.kernel.InvalidSeed
+    summary: Seed admission refused before canonical state or its lineage was written.
+    fields:
+      - name: code
+        type: String
+      - name: reason
+        type: String
+
   - name: ekr.kernel.AlreadySeeded
     summary: The store already holds a revision; a seed is accepted once.
     fields:
@@ -261,6 +269,10 @@ commands:
         external: a committed revision already exists
         error: ekr.kernel.AlreadySeeded
         summary: Nothing was written; the store keeps its lineage.
+      - name: invalid-seed
+        external: deterministic bootstrap validation refuses the seed
+        error: ekr.kernel.InvalidSeed
+        summary: Nothing was written; the refusal identifies the violated bootstrap rule.
 
   # Design § 19. Structural validity is checked at the door; every other validator runs in Validate.
   - name: ekr.kernel.Propose

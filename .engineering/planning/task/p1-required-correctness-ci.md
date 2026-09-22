@@ -2,12 +2,12 @@
 format: aep.planning-md/1
 id: task:p1-required-correctness-ci
 kind: task
-status: active
+status: implemented
 title: Run and require repository correctness on pull requests
 relations:
 - derived_from: epic:p1-kernel-ontology-core
 - serves: vision:o2
-revision: 4
+revision: 5
 ---
 ## Context
 

@@ -1,0 +1,330 @@
+{
+  "waves": [
+    {
+      "wave": 1,
+      "artifacts": [
+        {
+          "id": "story:kernel-validated-seed",
+          "inferred": true,
+          "scope": [
+            {
+              "confidence": "cited",
+              "path": "AGENTS.md"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/assertion.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/canonical.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/edge.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/evidence.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/node.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/root.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/commit.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/lib.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/src/seed.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/commit_path.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/tests/fixtures/seed-minimal.yaml"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/tests/seed.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/eventlog.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/lib.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/log.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/snapshot.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr/tests/story_contract.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "systems/ekr/domains/kernel.yaml"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "wave": 2,
+      "artifacts": [
+        {
+          "id": "story:version-persisted-contracts",
+          "inferred": false,
+          "scope": [
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/assertion.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/events.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/snapshot.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/commit.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/transaction.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate/provenance.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/eventlog.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/log.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "docs/epistemic-knowledge-runtime-design.md"
+            },
+            {
+              "confidence": "cited",
+              "path": "systems/ekr/domains/graph.yaml"
+            },
+            {
+              "confidence": "cited",
+              "path": "systems/ekr/domains/kernel.yaml"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "wave": 3,
+      "artifacts": [
+        {
+          "id": "story:commit-and-revision-lineage",
+          "inferred": true,
+          "scope": [
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/src/apply.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/src/commit.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/src/revision.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/tests/replay.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "wave": 4,
+      "artifacts": [
+        {
+          "id": "story:seed-and-explain",
+          "inferred": true,
+          "scope": [
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/src/explain.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/src/seed.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/tests/fixtures/seed-minimal.yaml"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/tests/seed.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "wave": 5,
+      "artifacts": [
+        {
+          "id": "story:ekr-cli",
+          "inferred": true,
+          "scope": [
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr/src/cli"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr/src/exit.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr/src/main.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr/tests/fixtures"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr/tests/retraction_example.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "wave": 6,
+      "artifacts": [
+        {
+          "id": "story:ess-conformance-kernel",
+          "inferred": true,
+          "scope": [
+            {
+              "confidence": "inferred",
+              "path": "Taskfile.yml"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr/src/conformance.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr/tests/conformance.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "systems/ekr/conformance/suite.json"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "collisions": [
+    {
+      "a": "story:commit-and-revision-lineage",
+      "b": "story:kernel-validated-seed",
+      "path": "crates/ekr-kernel/src/commit.rs",
+      "confidence": "inferred"
+    },
+    {
+      "a": "story:commit-and-revision-lineage",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-kernel/src/commit.rs",
+      "confidence": "inferred"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:seed-and-explain",
+      "path": "crates/ekr-kernel/src/seed.rs",
+      "confidence": "inferred"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:seed-and-explain",
+      "path": "crates/ekr-kernel/tests/fixtures/seed-minimal.yaml",
+      "confidence": "inferred"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:seed-and-explain",
+      "path": "crates/ekr-kernel/tests/seed.rs",
+      "confidence": "inferred"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-graph/src/assertion.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-kernel/src/commit.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-store/src/eventlog.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-store/src/log.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:version-persisted-contracts",
+      "path": "systems/ekr/domains/kernel.yaml",
+      "confidence": "cited"
+    }
+  ],
+  "unassessed": [],
+  "cycles": []
+}

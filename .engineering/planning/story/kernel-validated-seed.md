@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:kernel-validated-seed
 kind: story
-status: draft
+status: active
 title: Initialize and reopen seeds through kernel validation
 relations:
 - decomposes: epic:p1-kernel-ontology-core
@@ -54,7 +54,7 @@ scope:
   path: crates/ekr/tests/story_contract.rs
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 16
+revision: 18
 ---
 ## Context
 
