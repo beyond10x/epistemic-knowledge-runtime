@@ -47,6 +47,8 @@ scope:
 - confidence: cited
   path: crates/ekr-graph/tests/compile_fail/transient_state_has_no_content_address.stderr
 - confidence: cited
+  path: crates/ekr-kernel/Cargo.toml
+- confidence: cited
   path: crates/ekr-kernel/src
 - confidence: cited
   path: crates/ekr-kernel/src/commit.rs
@@ -120,7 +122,7 @@ scope:
   path: systems/ekr/domains/store.yaml
 - confidence: cited
   path: systems/ekr/system.yaml
-revision: 46
+revision: 47
 ---
 ## Context
 

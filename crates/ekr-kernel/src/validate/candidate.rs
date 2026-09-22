@@ -52,8 +52,8 @@ impl Candidate {
                     (
                         *id,
                         node.properties
-                            .keys()
-                            .map(|property| (*property, 1))
+                            .iter()
+                            .map(|(property, values)| (*property, values.len()))
                             .collect(),
                     )
                 })

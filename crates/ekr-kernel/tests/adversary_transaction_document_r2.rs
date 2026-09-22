@@ -156,7 +156,7 @@ fn assertion_object_enum_boundaries_contribute_semantic_depth() {
         for _ in 0..12 {
             value = format!("{{value_kind: List, value: [{value}]}}");
         }
-        let operation = format!("!AddAssertion {{id: {ID}, root_id: {ID}, subject: !Node {ID}, predicate: !Property {PROPERTY}, object: !Value {value}, evidence: [], proposed_by: {ID}, validation: Proposed, valid_time: {{from: 0, to: null}}, transaction_time: {{recorded_from: 0, recorded_to: null}}}}");
+        let operation = format!("!AddAssertion {{id: {ID}, root_id: {ID}, subject: !Node {ID}, predicate: !Property {PROPERTY}, object: !Value {value}, evidence: [], proposed_by: {ID}, assessment: Proposed, lifecycle: Active, valid_time: {{from: 0, to: null}}, transaction_time: {{recorded_from: 0, recorded_to: null}}}}");
         document(&operation)
     };
     // Root, transaction, operations, operation enum, operation map, object enum:

@@ -1,349 +1,350 @@
-//! The commit path: the one caller a [`ValidatedTransaction`] has ever had.
-//!
-//! `architecture-decision-record:0007-the-commit-path-is-the-kernels`. AGENTS.md invariant 1 has
-//! two halves. "Only `ekr-kernel` constructs a `ValidatedTransaction`" was held by two compile-fail
-//! cases from the first day. "Only a `ValidatedTransaction` commits" was held by **nothing**: the
-//! independent review of the P1 core landed a commit at revision 1 in a process that cannot link
-//! this crate, on three hand-written events through the public `RevisionLog::append`, and found
-//! that `ValidatedTransaction` had zero consumers in any `src/` in the workspace.
-//!
-//! This module is that consumer, and [`Commit::commit`] takes one **by value**.
-//!
-//! # What holds it, and what does not
-//!
-//! Not a type, and ADR 0007 says so rather than implying otherwise. `ekr-store` sits below this
-//! crate, so its writer cannot take a `ValidatedTransaction`, and a sealed trait declared there
-//! would exclude this crate along with everybody else. What holds is:
-//!
-//! * `ekr-store`'s fold asks a [`CommitAuthority`] before a commit moves canonical state, and a
-//!   store opened without one folds no commit at all;
-//! * the implementation this crate injects — [`Validations`] — can only be added to from a
-//!   `ValidatedTransaction`, because `Validations::record` is `pub(crate)` and takes one;
-//! * no crate outside this one declares `ekr-store`, which
-//!   `crates/ekr/tests/story_contract.rs` reads off the manifests, and no `src/` outside this one
-//!   implements `CommitAuthority`, which the same file reads off the sources.
-//!
-//! # This commit moves a revision and not the graph
-//!
-//! Stated here because it is easy to read a green commit as more than it is. No `RevisionEvent`
-//! variant carries an operation, so `ekr-store`'s fold applies none, and the knowledge root this
-//! path publishes is **the one the folded log already reaches**. A transaction's operations are
-//! validated, content-addressed and recorded by address — and they do not change canonical state
-//! yet. `story:commit-and-revision-lineage` is what applies them, through the trait this wave
-//! added for the fold to learn validation through; `ekr-store`'s `Fold::apply` carries the same
-//! statement from the other side.
-
-use std::cell::RefCell;
-use std::collections::BTreeSet;
-use std::rc::Rc;
-
-use ekr_core::{ContentHash, RevisionId, RevisionNumber, TransactionId};
-use ekr_graph::{CanonicalGraph, RevisionEvent, Root};
+//! Kernel-owned admission, immutable retained results and replay authority.
+use crate::seed::{self, BootstrapContext, SeedDocument, SeedEnvelope, SeedError};
+use crate::{AuthorityStateV1, SeedResultV1};
+use ekr_core::{ContentHash, EventId, RevisionId, RevisionNumber, Timestamp, TransactionId};
+use ekr_graph::{CanonicalGraph, RevisionEvent, RevisionPayload, Root};
 use ekr_store::{
-    knowledge_root, Appended, CommitAuthority, ObjectStore, RecordedValidation, RevisionLog,
-    StoreError,
+    evidence_root, knowledge_root, AdmittedRevision, CommitAuthority, Initialize, ObjectStore,
+    Publication, PublicationObject, RetainedHistory, RevisionLog, StorageClass, StoreError,
 };
+use std::collections::BTreeSet;
 
-use crate::seed::{self, BootstrapContext, SeedDocument, SeedError};
-use crate::transaction::ValidatedTransaction;
-
-/// The validations this kernel performed, and the only thing `ekr-store`'s fold will commit on.
-///
-/// A set of [`RecordedValidation`]s, shared with the store the [`Commit`] was opened over — the
-/// store holds it as its [`CommitAuthority`] and this crate holds it to add to. **The only way in
-/// is `Validations::record`, which is `pub(crate)` and takes a
-/// [`ValidatedTransaction`]**, so a member of this set is a transaction some
-/// [`Pipeline::validate`](crate::Pipeline::validate) produced.
-///
-/// # What it is not
-///
-/// It is not persistence. A process that reopens a lineage it did not commit attests nothing, so
-/// its fold reports the seed as the head — the log records the addresses of validations and P1 has
-/// no way to re-derive one, because `ekr.kernel.TransactionProposed` carries the operations' address
-/// and not the operations. `story:commit-and-revision-lineage` writes the first lineage anybody
-/// keeps and is where that is answered; naming the gap is cheaper than a fold that trusts the log
-/// again.
-#[derive(Clone, Default)]
-pub struct Validations {
-    transactions: Rc<RefCell<BTreeSet<RecordedValidation>>>,
-    bootstrap: Option<BootstrapContext>,
+/// The immutable trusted anchor installed by the kernel; retained records never replace it.
+#[derive(Clone)]
+pub struct KernelAuthority {
+    pub(crate) context: BootstrapContext,
+    pub(crate) anchor: AuthorityStateV1,
 }
-
-impl Validations {
-    /// An authority that stands behind nothing yet.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Records that this kernel validated `transaction`, against the revision it names.
-    ///
-    /// `pub(crate)` and taking a [`ValidatedTransaction`], which together are the whole of
-    /// invariant 1 in this file: a crate that cannot build one of those cannot put anything here,
-    /// and the fold commits on nothing else.
-    pub(crate) fn record(&self, transaction: &ValidatedTransaction) {
-        self.transactions.borrow_mut().insert(RecordedValidation {
-            transaction_id: transaction.transaction().id,
-            against: transaction.validated_against(),
-            validation_hash: transaction.validation_hash(),
-        });
-    }
-}
-
-impl CommitAuthority for Validations {
-    fn admit_seed(
+impl CommitAuthority for KernelAuthority {
+    fn required_objects(
         &self,
-        bytes: &[u8],
-        ontology: &ekr_ontology::Ontology,
-    ) -> Result<CanonicalGraph, StoreError> {
-        seed::replay(
-            bytes,
-            ontology,
-            self.bootstrap.ok_or(StoreError::NoSeedAuthority)?,
-        )
+        history: &RetainedHistory,
+    ) -> Result<BTreeSet<ContentHash>, StoreError> {
+        let Some(first) = history.occurrences.first() else {
+            return Ok(BTreeSet::new());
+        };
+        let RevisionPayload::Seeded { seed_hash, .. } = first.event.payload else {
+            return Err(StoreError::NotSeeded);
+        };
+        let envelope = seed::envelope(history.content(seed_hash, StorageClass::Canonical)?)?;
+        seed::admitted_graph(&envelope.input, envelope.context, envelope.committed_at)
+            .map_err(|error| StoreError::InvalidSeed(error.to_string()))?;
+        Ok(envelope.input.evidence_payloads.keys().copied().collect())
     }
-    /// Whether this kernel performed exactly the validation the log recorded.
-    ///
-    /// All three fields, because any two of them leave the third free: the transaction alone would
-    /// stand behind a commit at any revision, and the hash alone would stand behind it under any
-    /// transaction id.
-    fn attests(&self, validation: &RecordedValidation) -> bool {
-        self.transactions.borrow().contains(validation)
+    fn replay(
+        &self,
+        history: &RetainedHistory,
+        ontology: Option<&ekr_ontology::Ontology>,
+        revision: Option<RevisionNumber>,
+    ) -> Result<Option<AdmittedRevision>, StoreError> {
+        Ok(self
+            .reconstruct(history, ontology, revision)?
+            .map(|state| state.head().clone()))
+    }
+}
+impl KernelAuthority {
+    pub(crate) fn seed_state(
+        &self,
+        history: &RetainedHistory,
+        ontology: Option<&ekr_ontology::Ontology>,
+    ) -> Result<Option<AdmittedRevision>, StoreError> {
+        self.anchor.check(self.context)?;
+        let Some(first) = history.occurrences.first() else {
+            return Ok(None);
+        };
+        let RevisionPayload::Seeded {
+            revision_id,
+            seed_hash,
+        } = first.event.payload
+        else {
+            return Err(StoreError::NotSeeded);
+        };
+        if first.version != 1 || first.event.format != RevisionEvent::FORMAT {
+            return Err(StoreError::Document("seed-occurrence-envelope".into()));
+        }
+        let bytes = history.content(seed_hash, StorageClass::Canonical)?;
+        let envelope = seed::envelope(bytes)?;
+        let graph = seed::replay(bytes, ontology, self.context, &self.anchor)?;
+        for (hash, original) in &envelope.input.evidence_payloads {
+            if history.content(*hash, StorageClass::Provenance)? != original {
+                return Err(StoreError::InvalidSeed(
+                    "seed-evidence-payload-mismatch".into(),
+                ));
+            }
+        }
+        let record = SeedResultV1::from_bytes(
+            history.content(first.event.record_hash, StorageClass::Canonical)?,
+        )?;
+        let root = seed_root(&graph, seed_hash, &self.anchor);
+        if record.event_id != first.event.event_id
+            || record.revision_id != revision_id
+            || record.seed_hash != seed_hash
+            || record.authority_root != root.agent_root
+            || record.committed_at != envelope.committed_at
+            || record.result != root
+            || record.result_hash != ContentHash::of(&root)
+        {
+            return Err(StoreError::Document("seed-result-disagrees".into()));
+        }
+        let result = AdmittedRevision {
+            graph,
+            root,
+            revision_id,
+            event_id: record.event_id,
+            record_hash: first.event.record_hash,
+            committed_at: record.committed_at,
+        };
+        Ok(Some(result))
+    }
+}
+fn seed_root(graph: &CanonicalGraph, seed_hash: ContentHash, anchor: &AuthorityStateV1) -> Root {
+    Root {
+        revision: RevisionNumber::SEED,
+        parent: None,
+        ontology_root: ContentHash::of(&graph.ontology),
+        knowledge_root: knowledge_root(graph),
+        evidence_root: evidence_root(graph),
+        agent_root: ContentHash::of(anchor),
+        transaction: seed_hash,
     }
 }
 
-/// Everything the commit path refuses, and what a caller must tell apart.
-#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+/// Durable command refusals; missing records are never fabricated transaction states.
+#[derive(Debug, thiserror::Error)]
 pub enum CommitError {
-    /// The store could not answer, or the lineage it holds does not fold.
+    /// Bounded proposal input failed before a proposal could be recorded.
+    #[error(transparent)]
+    Document(#[from] crate::DocumentError),
+    /// The trusted submitter is unregistered or differs from the document's attribution.
+    #[error("proposal attribution does not match registered submitter {actor}")]
+    ProposalAttribution {
+        /// Independently supplied host identity.
+        actor: ekr_core::AgentId,
+    },
+    /// The requested revision has no retained committed basis.
+    #[error("revision {against} does not exist")]
+    RevisionNotFound {
+        /// Requested canonical revision.
+        against: RevisionNumber,
+    },
+    /// A retained transaction is in a state that cannot perform this command.
+    #[error("transaction {transaction_id} is {state:?}")]
+    TransactionStateConflict {
+        /// Requested transaction identity.
+        transaction_id: TransactionId,
+        /// Its actual retained state.
+        state: crate::replay::TransactionState,
+    },
+    /// Storage or retained-history verification refused.
     #[error(transparent)]
     Store(#[from] StoreError),
-
-    /// There is no lineage to commit into.
-    #[error("the lineage has no seed: there is no revision for a commit to follow")]
+    /// No seed exists.
+    #[error("the lineage has no seed")]
     NotSeeded,
-
-    /// Design § 72: canonical state moved under the transaction while it was being validated.
-    ///
-    /// The refusal, and not a `TransactionStale` event. Publishing one is
-    /// `story:commit-and-revision-lineage`'s: `ekr.kernel.TransactionStale` carries a transaction
-    /// and two revision numbers and nothing else, so a transaction that goes stale twice against
-    /// the same pair publishes two byte-identical events and the store's idempotency key reads the
-    /// second as a retry — `task:two-revision-events-have-no-discriminator`, which blocks that
-    /// story. A write known to be lossy is worse than a refusal the caller can act on.
-    #[error("transaction {transaction} was validated against revision {validated_against} and the lineage is at {head}")]
-    Stale {
-        /// The transaction that did not commit.
-        transaction: TransactionId,
-        /// The revision it was validated against.
-        validated_against: RevisionNumber,
-        /// The revision the lineage is at now.
-        head: RevisionNumber,
-    },
-
-    /// The lineage has no next revision number.
-    #[error("the lineage is at {at}, which has no successor")]
-    LineageExhausted {
-        /// The revision it is at.
-        at: RevisionNumber,
-    },
-
-    /// An event this commit wrote was already in the log, so the commit is a repeat of one that
-    /// already happened rather than a new fact.
-    ///
-    /// Acted on rather than discarded, which is why `RevisionLog::append` answers
-    /// [`Appended`] instead of `()`: an `Ok` a caller cannot tell from a write is lossy exactly
-    /// when the caller did not intend a retry, and a commit never does.
-    #[error("{event} was already on record: this commit repeats one the lineage already holds")]
-    AlreadyRecorded {
-        /// The event that was recognised rather than written.
-        event: &'static str,
+    /// The well-formed transaction identity has no retained proposal.
+    #[error("transaction {transaction_id} does not exist")]
+    TransactionNotFound {
+        /// The requested identity.
+        transaction_id: TransactionId,
     },
 }
 
-/// The commit path over one store.
-///
-/// Generic over the store, so the properties its cases prove are proved against one body of code:
-/// the two `ekr-store` providers are two instantiations, as they are there.
+/// The shared synchronous command handler. It does not expose the raw store or a writer.
 pub struct Commit<S: RevisionLog + ObjectStore> {
-    store: S,
-    validations: Validations,
+    pub(crate) store: S,
+    pub(crate) authority: KernelAuthority,
 }
-
 impl<S: RevisionLog + ObjectStore> Commit<S> {
-    /// The commit path over a store opened **under this path's own validations**.
-    ///
-    /// The store is built by the caller and the authority is not, which is the coupling stated as
-    /// a signature: a `Commit` cannot be handed a store that answers to somebody else's
-    /// validations, because the only [`Validations`] it holds is the one it passed in.
-    ///
-    /// ```
-    /// # use ekr_kernel::Commit;
-    /// # use ekr_store::{FileStore, StoreError};
-    /// # fn open(path: &std::path::Path, ontology: ekr_ontology::Ontology)
-    /// #     -> Result<Commit<FileStore>, StoreError> {
-    /// Commit::over(|validations| {
-    ///     Ok(FileStore::file(path, "ekr", ontology)?.under(validations))
-    /// })
-    /// # }
-    /// ```
-    ///
+    /// Opens under an explicit host identity registry and exact validation profile.
     /// # Errors
-    ///
-    /// Whatever `open` returned.
-    pub fn over<E>(open: impl FnOnce(Validations) -> Result<S, E>) -> Result<Self, E> {
-        let validations = Validations::new();
-        Ok(Self {
-            store: open(validations.clone())?,
-            validations,
-        })
-    }
-
-    /// Opens a runtime with independently supplied bootstrap attribution.
-    /// The same context must be supplied when reopening that seed.
-    ///
-    /// # Errors
-    /// Whatever the provider constructor returns.
-    pub fn over_with_bootstrap<E>(
+    /// Invalid host anchor or provider opening failure.
+    pub fn over_with_authority(
         context: BootstrapContext,
-        open: impl FnOnce(Validations) -> Result<S, E>,
-    ) -> Result<Self, E> {
-        let validations = Validations {
-            bootstrap: Some(context),
-            ..Validations::default()
-        };
-        Ok(Self {
-            store: open(validations.clone())?,
-            validations,
-        })
+        anchor: AuthorityStateV1,
+        open: impl FnOnce(KernelAuthority) -> Result<S, StoreError>,
+    ) -> Result<Self, StoreError> {
+        anchor.check(context)?;
+        let authority = KernelAuthority { context, anchor };
+        let store = open(authority.clone())?;
+        Ok(Self { store, authority })
     }
-
-    /// Reads the admitted lineage head.
-    ///
+    /// The complete verified current root, if initialized.
     /// # Errors
-    /// A provider or replay admission refusal.
+    /// Any required retained record fails verification.
     pub fn head(&self) -> Result<Option<Root>, StoreError> {
         self.store.head()
     }
-
-    /// Reads the admitted graph at the current revision.
-    ///
+    /// Current canonical state reconstructed through this kernel's authority.
     /// # Errors
-    /// A provider or replay admission refusal.
+    /// Missing seed or invalid retained history.
     pub fn snapshot(&self) -> Result<CanonicalGraph, StoreError> {
         self.store.fold()
     }
-
-    /// Replays from a materialised revision.
-    ///
+    /// Reconstructs a selected committed revision.
     /// # Errors
-    /// A provider or replay admission refusal.
-    pub fn replay(&self, from: RevisionNumber) -> Result<CanonicalGraph, StoreError> {
-        self.store.replay(from)
+    /// A missing revision or invalid required history.
+    pub fn replay(&self, revision: RevisionNumber) -> Result<CanonicalGraph, StoreError> {
+        self.store.replay(revision)
     }
-
-    /// Resolves retained content, including bootstrap statement payloads.
-    ///
+    /// Verified retained payload bytes after validating the lineage that refers to them.
     /// # Errors
-    /// A provider or replay admission refusal. Seed payloads are revalidated before lookup.
+    /// Invalid retained history or corrupt native content.
     pub fn content(&self, hash: &ContentHash) -> Result<Option<Vec<u8>>, StoreError> {
-        if let Some(bytes) = self.store.seed_bytes()? {
-            self.store.fold()?;
-            if let Some(payload) = seed::content(&bytes, hash)? {
-                return Ok(Some(payload));
-            }
-        }
+        self.store.history()?;
         self.store.get(hash)
     }
-
-    /// Commits `validated`, and answers the revision the lineage reached.
-    ///
-    /// Design § 19 and § 72, and AGENTS.md invariant 1. Takes the transaction **by value**: a
-    /// `ValidatedTransaction` is spent by committing it, and a caller holding one after the fact
-    /// could otherwise present the same validation at a later revision, which is exactly what § 72
-    /// calls stale.
-    ///
-    /// Three events, in the order `systems/ekr/domains/kernel.yaml` declares them and the store's
-    /// fold requires: the proposal with the operations' address, the validation with its own, and
-    /// the commit with the knowledge root the fold reaches. See this module's header for why that
-    /// last one is the *unchanged* root in P1.
-    ///
-    /// # Errors
-    ///
-    /// [`CommitError::NotSeeded`] when there is no lineage, [`CommitError::Stale`] when canonical
-    /// state moved under the transaction (§ 72), [`CommitError::LineageExhausted`] at the end of
-    /// the revision numbers, [`CommitError::AlreadyRecorded`] when an event this commit wrote was
-    /// already on record, and [`CommitError::Store`] for whatever the store refused.
-    pub fn commit(&self, validated: ValidatedTransaction) -> Result<Root, CommitError> {
-        let head = self.store.head()?.ok_or(CommitError::NotSeeded)?;
-        let transaction = validated.transaction();
-
-        // § 72, before anything is written: "a transaction is committed only against the revision
-        // it was validated against". The store's fold repeats this check when it replays the log,
-        // which is the difference between a rule enforced at write time and a rule a reader can
-        // repeat.
-        if validated.validated_against() != head.revision {
-            return Err(CommitError::Stale {
-                transaction: transaction.id,
-                validated_against: validated.validated_against(),
-                head: head.revision,
-            });
+    fn retained_seed(&self, document: &SeedDocument) -> Result<Option<SeedResultV1>, SeedError> {
+        let history = match self.store.history() {
+            Err(StoreError::AuthorityMismatch) => return Err(StoreError::AlreadySeeded.into()),
+            result => result?,
+        };
+        let Some(first) = history.occurrences.first() else {
+            return Ok(None);
+        };
+        let RevisionPayload::Seeded { seed_hash, .. } = first.event.payload else {
+            return Err(StoreError::NotSeeded.into());
+        };
+        let envelope = seed::envelope(history.content(seed_hash, StorageClass::Canonical)?)?;
+        if envelope.input != *document
+            || envelope.context != self.authority.context
+            || envelope.authority != self.authority.anchor
+        {
+            return Err(StoreError::AlreadySeeded.into());
         }
-        let number = head
-            .revision
-            .next()
-            .ok_or(CommitError::LineageExhausted { at: head.revision })?;
-
-        let events = [
-            RevisionEvent::TransactionProposed {
-                transaction_id: transaction.id,
-                proposer: transaction.proposer,
-                operations_hash: ContentHash::of(&transaction.operations),
-            },
-            RevisionEvent::TransactionValidated {
-                transaction_id: transaction.id,
-                against: validated.validated_against(),
-                validation_hash: validated.validation_hash(),
-            },
-            RevisionEvent::RevisionCommitted {
-                transaction_id: transaction.id,
-                revision_id: RevisionId::mint(),
-                number,
-                knowledge_root: knowledge_root(&self.store.fold()?),
-            },
-        ];
-
-        // Recorded before the events are written, because the fold reads the log and the log is
-        // what a reader has: an event on record that this authority does not stand behind is a
-        // commit that does not move canonical state, and the window where that is true is not one
-        // to leave open across three appends.
-        self.validations.record(&validated);
-
-        for event in &events {
-            if self.store.append(event)? == Appended::AlreadyRecorded {
-                return Err(CommitError::AlreadyRecorded {
-                    event: event.name(),
-                });
-            }
-        }
-
-        self.store.head()?.ok_or(CommitError::NotSeeded)
+        Ok(Some(SeedResultV1::from_bytes(history.content(
+            first.event.record_hash,
+            StorageClass::Canonical,
+        )?)?))
     }
 }
-
-impl<S: RevisionLog + ObjectStore + ekr_store::Initialize> Commit<S> {
-    /// Validates and atomically publishes revision zero. There is no preceding revision.
-    ///
+impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
+    /// Validates and publishes a complete seed, or returns its exact original retained result.
+    /// The host clock is invoked only after own-result lookup, never during a retry or replay.
     /// # Errors
-    /// Invalid bootstrap input, missing authority, existing lineage or provider failure.
-    pub fn seed(&self, document: SeedDocument) -> Result<Root, SeedError> {
-        let context = self
-            .validations
-            .bootstrap
-            .ok_or(StoreError::NoSeedAuthority)?;
-        let at = document.graph.root.created_at;
-        let validated = seed::validate(document, context)?;
-        self.store.initialize(&validated.bytes(), at)?;
-        self.store.head()?.ok_or(StoreError::NotSeeded.into())
+    /// Invalid input/anchor, an existing different seed or failed atomic publication.
+    pub fn seed(
+        &self,
+        document: SeedDocument,
+        now: impl FnOnce() -> Timestamp,
+    ) -> Result<SeedResultV1, SeedError> {
+        if let Some(result) = self.retained_seed(&document)? {
+            return Ok(result);
+        }
+        let key = ekr_store::PublicationCommandKey {
+            kind: ekr_store::PublicationCommandKind::Bootstrap,
+            transaction_id: None,
+            predecessor_event_id: None,
+            predecessor_record_hash: None,
+        };
+        let material =
+            serde_json::to_vec(&document).map_err(|error| SeedError::Invalid(error.to_string()))?;
+        let input = crate::commands::input_hash(
+            "Seed",
+            &material,
+            self.authority.context.operator,
+            &self.authority,
+        );
+        if let Some(pending) = self.store.preparation(&key)? {
+            if pending.input_hash != input {
+                return Err(StoreError::PublicationInputConflict.into());
+            }
+            return self.finish_seed(pending, &document);
+        }
+        let committed_at = now();
+        let graph = seed::admitted_graph(&document, self.authority.context, committed_at)?;
+        let envelope = SeedEnvelope {
+            format: "ekr-seed-envelope/2".into(),
+            input: document.clone(),
+            context: self.authority.context,
+            authority: self.authority.anchor.clone(),
+            committed_at,
+        };
+        let bytes = serde_json::to_vec(&envelope).map_err(|e| SeedError::Invalid(e.to_string()))?;
+        let seed_hash = ContentHash::of_bytes(&bytes);
+        let root = seed_root(&graph, seed_hash, &self.authority.anchor);
+        let record = SeedResultV1 {
+            format: SeedResultV1::FORMAT.into(),
+            event_id: EventId::mint(),
+            revision_id: RevisionId::mint(),
+            seed_hash,
+            authority_root: root.agent_root,
+            committed_at,
+            result: root,
+            result_hash: ContentHash::of(&root),
+        };
+        let record_bytes = record.to_bytes()?;
+        let record_hash = ContentHash::of_bytes(&record_bytes);
+        let mut objects = std::collections::BTreeMap::new();
+        objects.insert(
+            seed_hash,
+            PublicationObject {
+                storage_class: StorageClass::Canonical,
+                stored_at: committed_at,
+                bytes,
+            },
+        );
+        objects.insert(
+            record_hash,
+            PublicationObject {
+                storage_class: StorageClass::Canonical,
+                stored_at: committed_at,
+                bytes: record_bytes,
+            },
+        );
+        for (hash, payload) in document.evidence_payloads {
+            objects.entry(hash).or_insert(PublicationObject {
+                storage_class: StorageClass::Provenance,
+                stored_at: committed_at,
+                bytes: payload,
+            });
+        }
+        let publication = Publication {
+            event: RevisionEvent {
+                format: RevisionEvent::FORMAT.into(),
+                event_id: record.event_id,
+                record_hash,
+                payload: RevisionPayload::Seeded {
+                    revision_id: record.revision_id,
+                    seed_hash,
+                },
+            },
+            objects,
+            expected_version: 0,
+        };
+        let selected = self.store.prepare(&key, input, &publication, None)?;
+        self.finish_seed(selected, &envelope.input)
+    }
+    fn finish_seed(
+        &self,
+        mut selected: ekr_store::PublicationPreparationV1,
+        document: &SeedDocument,
+    ) -> Result<SeedResultV1, SeedError> {
+        for _ in 0..16 {
+            match self.store.resume(&selected) {
+                Ok(_) => {
+                    let bytes = selected
+                        .decision
+                        .objects
+                        .get(&selected.decision.event.record_hash)
+                        .ok_or_else(|| {
+                            StoreError::Document("elected-seed-record-missing".into())
+                        })?;
+                    return Ok(SeedResultV1::from_bytes(&bytes.bytes)?);
+                }
+                Err(StoreError::Conflict) => {
+                    if let Some(result) = self.retained_seed(document)? {
+                        return Ok(result);
+                    }
+                    selected = self.store.prepare(
+                        &selected.command_key,
+                        selected.input_hash,
+                        &selected.decision,
+                        Some(&selected),
+                    )?;
+                }
+                Err(error) => return Err(error.into()),
+            }
+        }
+        Err(StoreError::Conflict.into())
     }
 }

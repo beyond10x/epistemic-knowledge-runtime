@@ -76,7 +76,7 @@ impl<'a> GraphSnapshot<'a> {
         self.graph
             .assertions
             .values()
-            .filter(|assertion| assertion.is_current() && assertion.valid_time.contains(at))
+            .filter(|assertion| assertion.valid_at(at))
             .collect()
     }
 }

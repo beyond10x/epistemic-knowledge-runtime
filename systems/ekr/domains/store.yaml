@@ -25,6 +25,171 @@ types:
       - Cache
       - Ephemeral
 
+  # DESIGN 94: private recovery carriers, not canonical transaction states.
+  # Runtime recovery controls remain unexecuted at declaration.
+  - name: ekr.store.PublicationCommandKind
+    kind: enum
+    variants: [Bootstrap, Propose, Validate, Commit]
+
+  - name: ekr.store.PublicationCommandKey
+    kind: struct
+    fields:
+      - name: kind
+        type: ekr.store.PublicationCommandKind
+      - name: transaction_id
+        type: Optional<ekr.kernel.TransactionId>
+      - name: predecessor_event_id
+        type: Optional<ekr.kernel.EventId>
+      - name: predecessor_record_hash
+        type: Optional<ekr.kernel.ContentHash>
+
+  - name: ekr.store.PublicationObject
+    kind: struct
+    fields:
+      - name: storage_class
+        type: ekr.store.StorageClass
+      - name: stored_at
+        type: Timestamp
+      - name: bytes
+        type: Bytes
+
+  - name: ekr.store.Publication
+    kind: struct
+    fields:
+      - name: event
+        type: ekr.kernel.RevisionEventV2
+      - name: objects
+        type: Map<String, ekr.store.PublicationObject>
+      - name: expected_version
+        type: Integer
+
+  - name: ekr.store.NativeExpectedKind
+    kind: enum
+    variants: [Any, NoStream, Exact]
+
+  - name: ekr.store.NativeExpected
+    kind: struct
+    fields:
+      - name: kind
+        type: ekr.store.NativeExpectedKind
+      - name: version
+        type: Optional<Integer>
+
+  - name: ekr.store.NativeStreamId
+    kind: struct
+    fields:
+      - name: tenant
+        type: String
+      - name: stream_type
+        type: String
+      - name: stream_id
+        type: String
+
+  - name: ekr.store.NativeNewEvent
+    kind: struct
+    fields:
+      - name: name
+        type: String
+      - name: schema_version
+        type: Integer
+      - name: data
+        type: Bytes
+
+  - name: ekr.store.NativeStreamAppend
+    kind: struct
+    fields:
+      - name: stream
+        type: ekr.store.NativeStreamId
+      - name: expected
+        type: ekr.store.NativeExpected
+      - name: events
+        type: List<ekr.store.NativeNewEvent>
+
+  - name: ekr.store.NativeClaim
+    kind: struct
+    fields:
+      - name: scope
+        type: String
+      - name: key
+        type: String
+      - name: digest
+        type: String
+
+  - name: ekr.store.NativeCommandMeta
+    kind: struct
+    fields:
+      - name: idempotency_key
+        type: String
+      - name: request_hash
+        type: String
+      - name: subject
+        type: String
+      - name: actor
+        type: String
+      - name: request_id
+        type: String
+      - name: trace_id
+        type: String
+      - name: causation_id
+        type: Optional<String>
+      - name: causation_depth
+        type: Integer
+      - name: occurred_at_unix_nanos
+        type: String
+      - name: occurred_at_offset_seconds
+        type: Integer
+      - name: claim
+        type: Optional<ekr.store.NativeClaim>
+
+  - name: ekr.store.NativeBlobWrite
+    kind: struct
+    fields:
+      - name: digest
+        type: String
+      - name: bytes
+        type: Bytes
+
+  - name: ekr.store.NativePublicationRequest
+    kind: struct
+    fields:
+      - name: tenant
+        type: String
+      - name: appends
+        type: List<ekr.store.NativeStreamAppend>
+      - name: meta
+        type: ekr.store.NativeCommandMeta
+      - name: blobs
+        type: List<ekr.store.NativeBlobWrite>
+
+  - name: ekr.store.PublicationPreparationFormatV1
+    kind: enum
+    variants: [ekr.publication-preparation/1]
+
+  - name: ekr.store.PublicationPreparationV1
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.store.PublicationPreparationFormatV1
+      - name: command_key
+        type: ekr.store.PublicationCommandKey
+      - name: input_hash
+        type: ekr.kernel.ContentHash
+      - name: decision
+        type: ekr.store.Publication
+      - name: attempt_number
+        type: Integer
+      - name: previous_attempt_hash
+        type: Optional<ekr.kernel.ContentHash>
+      - name: native_request
+        type: ekr.store.NativePublicationRequest
+      - name: native_fingerprint
+        type: String
+
+  # Operational resolution; UnknownCommit does not move a domain transaction state.
+  - name: ekr.store.PublicationResolution
+    kind: enum
+    variants: [Written, AlreadyRecorded, Conflict, UnknownCommit]
+
 entities:
   # Design § 57. Identity is the content hash; two writes of the same bytes are one object.
   - name: ekr.store.StoredObject
@@ -69,6 +234,16 @@ entities:
       terminal: [Taken]
 
 events:
+  # Private selection metadata, backend schema1; payload is a private native blob.
+  - name: ekr.store.PublicationPrepared
+    fields:
+      - name: preparation_hash
+        type: ekr.kernel.ContentHash
+      - name: attempt_number
+        type: Integer
+      - name: previous_attempt_hash
+        type: Optional<ekr.kernel.ContentHash>
+
   # Added 2026-09-21 in wave p1-05. A StoredObject's identity is its content hash, so two writes
   # of the same bytes are one object — and the two writes may ask for different retention. The
   # store records the strongest class ever requested rather than the first or the last, so that
@@ -78,6 +253,7 @@ events:
   #
   # `from` and `to` are both carried so a reader can see the ladder was climbed and not descended.
   - name: ekr.store.ObjectRetentionRaised
+    # Unchanged event: backend schema1 remains the exact current discriminator.
     fields:
       - name: content_hash
         type: ekr.kernel.ContentHash
@@ -93,6 +269,14 @@ events:
   # `content_hash` is redundant with the stream this event is read from, and is carried for the
   # reason the raise carries it: a body that only makes sense beside its stream stops making sense
   # the moment anything exports one.
+  # §89/91 activation: bytes are atomically published through provider blob bindings addressed
+  # by content_hash. This event is metadata only; standalone put-then-append is not an atomic
+  # publication. Generic storage carries no kernel receipt or validation-authority semantics.
+  # Metadata-only ObjectStored uses backend schema2. Original inline ObjectStored/schema1
+  # is frozen verification/migration-only after activation. Dispatch by exact event name and
+  # backend schema; refuse unknown versions, inline/schema2, metadata/schema1, extra/missing
+  # semantic fields and mismatched/missing blob bindings. Do not infer a format from bytes absence.
+  # ObjectRetentionRaised stays schema1; this is a per-event version rule, not a blanket bump.
   - name: ekr.store.ObjectStored
     fields:
       - name: content_hash
@@ -103,8 +287,3 @@ events:
         type: Integer
       - name: stored_at
         type: Timestamp
-      # ess/1 has no byte-string type and this is the first declaration in this system that
-      # needs one, so a byte is carried as an Integer with nothing saying it is one of 256.
-      # task:ess-has-no-byte-string-type carries what would close it.
-      - name: bytes
-        type: List<Integer>

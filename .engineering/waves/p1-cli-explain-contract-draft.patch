@@ -1,0 +1,118 @@
+--- a/systems/ekr/domains/kernel.yaml
++++ b/systems/ekr/domains/kernel.yaml
+@@ -626,6 +626,84 @@
+       - name: payload
+         type: ekr.kernel.RevisionPayload
+ 
++  # Proposed command-result projections only; no new persisted records or identities.
++  - name: ekr.kernel.CommitCommandResult
++    kind: union
++    tag: kind
++    variants:
++      Committed: ekr.kernel.CommitReceiptV1
++      Stale: ekr.kernel.StaleRecordV1
++
++  - name: ekr.kernel.SnapshotResult
++    kind: struct
++    fields:
++      - name: revision_id
++        type: ekr.kernel.RevisionId
++      - name: root
++        type: ekr.graph.RevisionRoot
++      - name: graph
++        type: ekr.graph.GraphDocumentV2Projection
++      - name: valid_at
++        type: Optional<Timestamp>
++      - name: matching_assertions
++        type: Optional<List<ekr.graph.AssertionId>>
++
++  - name: ekr.kernel.ExplainedSeed
++    kind: struct
++    fields:
++      - name: result
++        type: ekr.kernel.SeedResultV1
++      - name: context
++        type: ekr.kernel.BootstrapContext
++      - name: validation_profile
++        type: ekr.kernel.P1ValidationProfileV1
++      - name: record_hash
++        type: ekr.kernel.ContentHash
++
++  - name: ekr.kernel.ExplainedValidation
++    kind: struct
++    fields:
++      - name: receipt
++        type: ekr.kernel.ValidationReceiptV1
++      - name: validation_profile
++        type: ekr.kernel.P1ValidationProfileV1
++      - name: record_hash
++        type: ekr.kernel.ContentHash
++
++  - name: ekr.kernel.ExplainedLifecycle
++    kind: struct
++    fields:
++      - name: assertion_id
++        type: ekr.graph.AssertionId
++      - name: lifecycle
++        type: ekr.graph.AssertionLifecycleProjection
++      - name: receipt
++        type: ekr.kernel.CommitReceiptV1
++      - name: record_hash
++        type: ekr.kernel.ContentHash
++
++  - name: ekr.kernel.ExplanationLink
++    kind: union
++    tag: kind
++    variants:
++      Assertion: ekr.graph.AssertionRecord
++      Seed: ekr.kernel.ExplainedSeed
++      Proposal: ekr.kernel.ProposalRecordV1
++      Validation: ekr.kernel.ExplainedValidation
++      Commit: ekr.kernel.CommitReceiptV1
++      Lifecycle: ekr.kernel.ExplainedLifecycle
++      Evidence: ekr.graph.EvidenceRecord
++
++  - name: ekr.kernel.ExplanationResult
++    kind: struct
++    fields:
++      - name: assertion_id
++        type: ekr.graph.AssertionId
++      - name: at
++        type: ekr.kernel.RevisionNumber
++      - name: links
++        type: List<ekr.kernel.ExplanationLink>
++
+ entities:
+   # Design § 18. TrustProfile (§ 48) is a P5 concern and is not typed here yet.
+   - name: ekr.kernel.Agent
+@@ -957,7 +1035,7 @@
+         type: ekr.kernel.TransactionId
+     response:
+       - name: result
+-        type: ekr.kernel.CommitReceiptV1
++        type: ekr.kernel.CommitCommandResult
+     outcomes:
+       - name: committed
+         when_subject_state: Validated
+@@ -1008,6 +1086,11 @@
+     input:
+       - name: at
+         type: Optional<ekr.kernel.RevisionNumber>
++      - name: valid_at
++        type: Optional<Timestamp>
++    response:
++      - name: result
++        type: ekr.kernel.SnapshotResult
+     outcomes:
+       - name: taken
+         emits:
+@@ -1030,6 +1113,9 @@
+     input:
+       - name: assertion_id
+         type: ekr.graph.AssertionId
++    response:
++      - name: result
++        type: ekr.kernel.ExplanationResult
+     outcomes:
+       - name: explained
+         emits:

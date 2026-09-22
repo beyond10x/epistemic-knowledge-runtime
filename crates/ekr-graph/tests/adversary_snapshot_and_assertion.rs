@@ -8,7 +8,7 @@
 //! | original finding | what the case holds now |
 //! |---|---|
 //! | `active()` is `valid_at(i64::MAX)` | no public read answers "valid time with no known end" |
-//! | the `AssertionStatus` conjunct is unreachable | `is_current()` is exactly its two conjuncts |
+//! | the `AssertionStatus` conjunct is unreachable | `is_current()` is exactly its three conjuncts |
 //! | `recorded_from` is required and the doctest omits it | the omission is not representable |
 //! | `is_open` reads only the upper bound | there is no lower bound to read |
 //!
@@ -23,8 +23,9 @@ use ekr_core::{
     SchemaVersionId, Timestamp, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalGraph, CanonicalRef, GraphRoot, GraphSnapshot, Object, Predicate,
-    RetractionReason, Space, Subject, TemporalRange, TransactionTime, ValidationState,
+    Assertion, AssertionLifecycle, Assessment, CanonicalGraph, CanonicalRef, GraphRoot,
+    GraphSnapshot, Object, Predicate, RetractionReason, Space, Subject, TemporalRange,
+    TransactionTime,
 };
 use ekr_ontology::{Ontology, OntologyDocument, SchemaVersion};
 
@@ -69,8 +70,17 @@ fn empty_ontology(schema: SchemaVersionId) -> Ontology {
     .expect("an empty ontology coheres")
 }
 
-/// One assertion with the valid time and validation state given, and an open transaction time.
-fn assertion(valid_time: TemporalRange, validation: ValidationState) -> Assertion {
+/// One active assertion with the valid time and assessment given, and an open transaction time.
+fn assertion(valid_time: TemporalRange, assessment: Assessment) -> Assertion {
+    assertion_with(valid_time, assessment, AssertionLifecycle::Active)
+}
+
+/// One assertion with the valid time, assessment and lifecycle given, and an open transaction time.
+fn assertion_with(
+    valid_time: TemporalRange,
+    assessment: Assessment,
+    lifecycle: AssertionLifecycle,
+) -> Assertion {
     let id = AssertionId::mint();
     Assertion {
         id,
@@ -80,14 +90,15 @@ fn assertion(valid_time: TemporalRange, validation: ValidationState) -> Assertio
         object: Object::Node(CanonicalRef::new(NodeId::mint())),
         evidence: BTreeSet::from([EvidenceId::mint()]),
         proposed_by: AgentId::mint(),
-        validation,
+        assessment,
+        lifecycle,
         valid_time,
         transaction_time: TransactionTime::since(TENURE_BEGAN),
     }
 }
 
-fn accepted() -> ValidationState {
-    ValidationState::Accepted {
+fn accepted() -> Assessment {
+    Assessment::Accepted {
         validators: [AgentId::mint()].into_iter().collect(),
     }
 }
@@ -113,25 +124,34 @@ fn graph_of(assertions: Vec<Assertion>) -> CanonicalGraph {
     }
 }
 
-/// Every validation state the domain declares, one value each.
-fn every_validation_state() -> Vec<ValidationState> {
+/// Every assessment the domain declares, one value each.
+fn every_assessment() -> Vec<Assessment> {
     vec![
-        ValidationState::Proposed,
-        ValidationState::Validating {
+        Assessment::Proposed,
+        Assessment::Validating {
             completed: 1,
             required: 2,
         },
         accepted(),
-        ValidationState::Rejected {
+        Assessment::Rejected {
             issues: vec![IssueId::mint()],
         },
-        ValidationState::Disputed {
+        Assessment::Disputed {
             competing_assertions: vec![AssertionId::mint()],
         },
-        ValidationState::Superseded {
+    ]
+}
+
+/// Every lifecycle the domain declares, one value each.
+fn every_lifecycle() -> Vec<AssertionLifecycle> {
+    vec![
+        AssertionLifecycle::Active,
+        AssertionLifecycle::Superseded {
             by: AssertionId::mint(),
+            at_revision: RevisionNumber::new(5),
+            effective_from: HANDOVER,
         },
-        ValidationState::Retracted {
+        AssertionLifecycle::Retracted {
             at_revision: RevisionNumber::new(4),
             reason: RetractionReason::new("the evidence was another Acme"),
         },
@@ -250,10 +270,20 @@ fn active_is_not_merely_valid_at_the_end_of_representable_time() {
         TemporalRange::new(Some(end_of_time), None).expect("not inverted"),
     ];
 
+    // Amendment 88: supersession closes the former interval at its boundary, so a superseded
+    // record always has a finite `to`. Crossing it with an open-ended shape would build a state
+    // the writer cannot produce, and that state is the only one on which the two reads below
+    // differ.
     let mut population = Vec::new();
     for shape in shapes {
-        for validation in every_validation_state() {
-            population.push(assertion(shape, validation));
+        for assessment in every_assessment() {
+            for lifecycle in every_lifecycle() {
+                if matches!(lifecycle, AssertionLifecycle::Superseded { .. }) && shape.to.is_none()
+                {
+                    continue;
+                }
+                population.push(assertion_with(shape, assessment.clone(), lifecycle));
+            }
         }
     }
     let count = population.len();
@@ -300,45 +330,55 @@ fn active_is_not_merely_valid_at_the_end_of_representable_time() {
 /// `Accepted`. The sets are disjoint by construction, so the conjunct was unreachable — a clause
 /// that reads as a check and is not one, in the method every read depends on.
 ///
-/// The conjunct is deleted. This case now pins the two that are left, over every validation state
-/// crossed with both transaction-time shapes, so a third arriving without an input that reaches it
-/// turns red where it is written.
+/// The conjunct was deleted. Amendment 88 then made lifecycle a stored field independent of
+/// assessment, so an accepted record can be retracted or superseded and the lifecycle conjunct is
+/// reachable again. This case pins the three conditions, over every assessment crossed with every
+/// lifecycle and both transaction-time shapes, so a fourth arriving without an input that reaches
+/// it turns red where it is written.
 #[test]
-fn is_current_is_exactly_acceptance_and_an_open_transaction_time() {
+fn is_current_is_exactly_acceptance_an_active_lifecycle_and_an_open_transaction_time() {
     let mut checked = 0usize;
     let mut current = 0usize;
 
-    for validation in every_validation_state() {
-        for transaction_time in [
-            TransactionTime::since(TENURE_BEGAN),
-            TransactionTime::new(TENURE_BEGAN, Some(HANDOVER)).expect("not inverted"),
-        ] {
-            let record = Assertion {
-                transaction_time,
-                ..assertion(TemporalRange::UNBOUNDED, validation.clone())
-            };
-            let two_conjuncts =
-                record.validation.is_accepted() && record.transaction_time.is_open();
-            assert_eq!(
-                record.is_current(),
-                two_conjuncts,
-                "is_current() disagrees with `is_accepted() && transaction_time.is_open()` for \
-                 {} with recorded_to = {:?}. Either a conjunct was added — in which case it needs \
-                 a case of its own, and this one is the wrong place to absorb it — or one was \
-                 dropped.",
-                validation.name(),
-                record.transaction_time.recorded_to
-            );
-            checked += 1;
-            current += usize::from(record.is_current());
+    for assessment in every_assessment() {
+        for lifecycle in every_lifecycle() {
+            for transaction_time in [
+                TransactionTime::since(TENURE_BEGAN),
+                TransactionTime::new(TENURE_BEGAN, Some(HANDOVER)).expect("not inverted"),
+            ] {
+                let record = Assertion {
+                    transaction_time,
+                    ..assertion_with(
+                        TemporalRange::UNBOUNDED,
+                        assessment.clone(),
+                        lifecycle.clone(),
+                    )
+                };
+                let three_conjuncts = record.assessment.is_accepted()
+                    && matches!(record.lifecycle, AssertionLifecycle::Active)
+                    && record.transaction_time.is_open();
+                assert_eq!(
+                    record.is_current(),
+                    three_conjuncts,
+                    "is_current() disagrees with `is_accepted() && Active && \
+                     transaction_time.is_open()` for {} / {} with recorded_to = {:?}. Either a \
+                     conjunct was added — in which case it needs a case of its own — or one was \
+                     dropped.",
+                    assessment.name(),
+                    lifecycle.name(),
+                    record.transaction_time.recorded_to
+                );
+                checked += 1;
+                current += usize::from(record.is_current());
+            }
         }
     }
 
-    assert_eq!(checked, 14, "the cross product lost a case");
+    assert_eq!(checked, 30, "the cross product lost a case");
     assert_eq!(
         current, 1,
-        "exactly one of the fourteen is current: Accepted with an open transaction time. If more \
-         are, the filter stopped filtering; if none is, the case proves nothing."
+        "exactly one of the thirty is current: Accepted, Active, with an open transaction time. If \
+         more are, the filter stopped filtering; if none is, the case proves nothing."
     );
 }
 
@@ -402,9 +442,10 @@ fn the_domain_requires_a_recorded_from_and_the_crate_cannot_omit_one() {
         object: Object::Node(CanonicalRef::new(NodeId::mint())),
         evidence: BTreeSet::new(),
         proposed_by: AgentId::mint(),
-        validation: ValidationState::Accepted {
+        assessment: Assessment::Accepted {
             validators: BTreeSet::new(),
         },
+        lifecycle: AssertionLifecycle::Active,
         valid_time: TemporalRange::new(None, Some(HANDOVER)).expect("not inverted"),
         transaction_time: TransactionTime::since(TENURE_BEGAN),
     };

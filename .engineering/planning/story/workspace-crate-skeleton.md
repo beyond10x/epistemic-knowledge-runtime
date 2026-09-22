@@ -44,7 +44,7 @@ scope:
   path: crates/ekr/tests/msrv_contract.rs
 - confidence: cited
   path: crates/ekr/tests/story_contract.rs
-revision: 18
+revision: 19
 ---
 ## Context
 
@@ -86,12 +86,16 @@ and `ekr` present as workspace members.
   - `ekr-ontology`: `serde`, `serde_json`, `serde_yaml_ng`, `thiserror`; dev `proptest`
   - `ekr-graph`: `serde`, `thiserror`; dev `trybuild`
   - `ekr-kernel`: `serde`, `serde_json`, `serde_yaml_ng`, `thiserror`; dev `proptest`, `trybuild`,
-    `tempfile` (the last added in wave p1-06, see below)
+    `tempfile` (added in wave p1-06, see below), `eventlog-core`, `eventlog-file`,
+    `eventlog-sqlite`, `time`, `tokio` (added by `cb6dc41` for direct provider corruption
+    witnesses; dev only, so the runtime gains no edge)
   - `ekr-store`: `eventlog-core`, `eventlog-sqlite`, `eventlog-file` (immutable Git revision
     `4ee3dc23f0d02a5726a0e41d097477791f09efe2`), `serde`,
     `serde_json`, `thiserror`, `time`, `tokio` (the last two widened in wave p1-05, see below); dev
     `tempfile`
-  - `ekr`: `clap`, `serde_json`; dev `assert_cmd`, `tempfile`
+  - `ekr`: `clap`, `serde`, `serde_json`, `time` (the last two added by `7444af5` for strict CLI
+    host configuration and valid-time selectors, `task:strict-cli-host-input`); dev `assert_cmd`,
+    `tempfile`
 - `rust-version` is `1.91`, the minimum the pinned eventlog source requires (found by the adversary,
   pass 1; the story said nothing about the floor before).
 - A later P1 story that needs a dependency not listed here adds `Cargo.lock` to its scope and

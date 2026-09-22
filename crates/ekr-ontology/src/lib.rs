@@ -56,6 +56,7 @@
 //! # Ok::<(), ekr_ontology::OntologyError>(())
 //! ```
 
+mod canonical;
 pub mod check;
 pub mod lifecycle;
 pub mod schema;

@@ -33,9 +33,9 @@ use ekr_core::{
     Timestamp, TypeId,
 };
 use ekr_graph::{
-    Assertion, AssertionStatus, CanonicalGraph, CanonicalRef, GraphRoot, GraphSnapshot, Node,
-    Object, Predicate, RetractionReason, Space, Subject, TemporalRange, TransactionTime,
-    ValidationState,
+    Assertion, AssertionLifecycle, Assessment, CanonicalGraph, CanonicalRef, GraphRoot,
+    GraphSnapshot, Node, Object, Predicate, RetractionReason, Space, Subject, TemporalRange,
+    TransactionTime,
 };
 use ekr_ontology::{EdgeType, NodeType, Ontology, OntologyDocument, SchemaVersion};
 
@@ -52,12 +52,16 @@ const AFTER_HANDOVER: Timestamp = Timestamp::from_millis(1_798_761_600_000);
 ///
 /// Built here rather than behind a constructor on `CanonicalGraph`: a fixture is a statement about
 /// one example, and a type that knows about Alice is a type that has a domain concept in it.
+///
+/// Amendment 88 makes Alice's record the superseded one: supersession closes the former interval
+/// at the handover and records Bob as its replacement, and the earlier claim stays answerable
+/// inside that interval. Before the amendment the fixture carried a separate superseded decoy with
+/// an unbounded interval, which is a state the amendment's writer cannot produce.
 struct Fixture {
     graph: CanonicalGraph,
     alice: AssertionId,
     bob: AssertionId,
     retracted: AssertionId,
-    superseded: AssertionId,
 }
 
 fn fixture() -> Fixture {
@@ -89,11 +93,14 @@ fn fixture() -> Fixture {
     .collect();
 
     let proposer = AgentId::mint();
-    let accepted = || ValidationState::Accepted {
+    let accepted = || Assessment::Accepted {
         validators: [proposer].into_iter().collect(),
     };
-    let ceo_of_acme = |subject: NodeId, valid: TemporalRange, validation: ValidationState| {
-        let id = AssertionId::mint();
+    let ceo_of_acme = |id: AssertionId,
+                       subject: NodeId,
+                       valid: TemporalRange,
+                       lifecycle: AssertionLifecycle,
+                       transaction_time: TransactionTime| {
         (
             id,
             Assertion {
@@ -104,47 +111,56 @@ fn fixture() -> Fixture {
                 object: Object::Node(CanonicalRef::new(acme)),
                 evidence: BTreeSet::from([EvidenceId::mint()]),
                 proposed_by: proposer,
-                validation,
+                assessment: accepted(),
+                lifecycle,
                 valid_time: valid,
-                transaction_time: TransactionTime::since(TENURE_BEGAN),
+                transaction_time,
             },
         )
     };
+    let bob = AssertionId::mint();
 
-    // Alice held the chair from 2024-01-01 until the handover: a closed valid time.
+    // Alice held the chair from 2024-01-01 until the handover, and Bob's record superseded hers at
+    // it: a closed valid time, and a transaction time closed at the committing revision's
+    // timestamp. Amendment 88: "the earlier claim remains answerable within its closed valid-time
+    // interval".
     let (alice, alice_assertion) = ceo_of_acme(
+        AssertionId::mint(),
         alice_node,
         TemporalRange::new(Some(TENURE_BEGAN), Some(HANDOVER))
             .expect("Alice's tenure is not inverted"),
-        accepted(),
+        AssertionLifecycle::Superseded {
+            by: bob,
+            at_revision: RevisionNumber::new(5),
+            effective_from: HANDOVER,
+        },
+        TransactionTime::new(TENURE_BEGAN, Some(HANDOVER)).expect("closed after it was formed"),
     );
     // Bob holds it from the handover, with no end: an open valid time.
     let (bob, bob_assertion) = ceo_of_acme(
+        bob,
         bob_node,
         TemporalRange::new(Some(HANDOVER), None).expect("Bob's tenure is not inverted"),
-        accepted(),
+        AssertionLifecycle::Active,
+        TransactionTime::since(TENURE_BEGAN),
     );
-    // Two records that would answer both reads if their status did not say otherwise. Design § 36:
+    // A record that would answer every read if its lifecycle did not say otherwise. Design § 36:
     // "Current queries can expose only active assertions by default."
     let (retracted, retracted_assertion) = ceo_of_acme(
+        AssertionId::mint(),
         bob_node,
         TemporalRange::UNBOUNDED,
-        ValidationState::Retracted {
+        AssertionLifecycle::Retracted {
             at_revision: RevisionNumber::new(4),
             reason: RetractionReason::new("the evidence was another Acme"),
         },
-    );
-    let (superseded, superseded_assertion) = ceo_of_acme(
-        alice_node,
-        TemporalRange::UNBOUNDED,
-        ValidationState::Superseded { by: bob },
+        TransactionTime::since(TENURE_BEGAN),
     );
 
     let assertions: BTreeMap<AssertionId, Assertion> = [
         (alice, alice_assertion),
         (bob, bob_assertion),
         (retracted, retracted_assertion),
-        (superseded, superseded_assertion),
     ]
     .into_iter()
     .collect();
@@ -168,7 +184,6 @@ fn fixture() -> Fixture {
         alice,
         bob,
         retracted,
-        superseded,
     }
 }
 
@@ -264,41 +279,41 @@ fn the_handover_instant_belongs_to_exactly_one_of_them() {
     );
 }
 
-/// `valid_at` never returns a retracted or a superseded assertion, at any `t`.
+/// `valid_at` never returns a retracted assertion, at any `t`.
 ///
-/// Both excluded records are built to pass every *other* filter this read applies: their valid
-/// time is unbounded, so it contains every instant, and their transaction time is open. Their
-/// validation state is the only thing keeping them out — which is what this case is for, and is as
-/// much as it proves. It does not exercise the valid-time bounds or the transaction-time bound;
+/// The excluded record is built to pass every *other* filter this read applies: its valid time is
+/// unbounded, so it contains every instant, its assessment is `Accepted` and its transaction time
+/// is open. Its lifecycle is the only thing keeping it out — which is what this case is for, and is
+/// as much as it proves. It does not exercise the valid-time bounds or the transaction-time bound;
 /// `valid_at_answers_alice_before_the_handover_and_bob_at_or_after_it` and
 /// `a_record_whose_transaction_time_is_closed_is_not_current` do that.
+///
+/// Before amendment 88 this case excluded a superseded record too. The amendment reverses that:
+/// a superseded claim stays answerable inside its closed interval, which
+/// `a_superseded_assertion_answers_only_inside_its_closed_interval` holds.
 #[test]
-fn valid_at_never_returns_a_retracted_or_superseded_assertion() {
+fn valid_at_never_returns_a_retracted_assertion() {
     let fixture = fixture();
     let snapshot = GraphSnapshot::of(&fixture.graph);
+    let retracted = &fixture.graph.assertions[&fixture.retracted];
 
     assert!(matches!(
-        fixture.graph.assertions[&fixture.retracted].status(),
-        AssertionStatus::Retracted { .. }
-    ));
-    assert!(matches!(
-        fixture.graph.assertions[&fixture.superseded].status(),
-        AssertionStatus::Superseded { .. }
+        retracted.status(),
+        AssertionLifecycle::Retracted { .. }
     ));
     assert!(
-        fixture.graph.assertions[&fixture.retracted]
-            .valid_time
-            .contains(DURING_ALICE),
-        "the case is only worth anything if the excluded records would otherwise answer"
+        retracted.assessment.is_accepted(),
+        "retraction keeps acceptance"
     );
     assert!(
-        fixture.graph.assertions[&fixture.superseded]
-            .transaction_time
-            .is_open(),
-        "and if the runtime still holds the record, so the other two filters pass"
+        retracted.valid_time.contains(DURING_ALICE),
+        "the case is only worth anything if the excluded record would otherwise answer"
+    );
+    assert!(
+        retracted.transaction_time.is_open(),
+        "and if the runtime still holds the record, so the other filters pass"
     );
 
-    let excluded = [fixture.retracted, fixture.superseded];
     for at in [
         DURING_ALICE,
         HANDOVER,
@@ -306,13 +321,67 @@ fn valid_at_never_returns_a_retracted_or_superseded_assertion() {
         Timestamp::EPOCH,
         Timestamp::from_millis(i64::MAX),
     ] {
+        assert!(
+            !retracted.valid_at(at),
+            "a retracted record is eligible at {at}"
+        );
         for answered in snapshot.valid_at(at) {
-            assert!(
-                !excluded.contains(&answered.id),
-                "valid_at({at}) returned a retracted or superseded assertion"
+            assert_ne!(
+                answered.id, fixture.retracted,
+                "valid_at({at}) returned a retracted assertion"
             );
         }
     }
+}
+
+/// A superseded assertion answers inside its closed valid-time interval and nowhere else, though
+/// its transaction time is closed.
+///
+/// Amendment 88: "Closing transaction time on a Superseded record does not suppress its supported
+/// historical valid interval." The fixture's Alice record is superseded, closed in both dimensions,
+/// and is still the historical answer. An `Active` record closed in transaction time is not
+/// answered at all, so the lifecycle is what separates the two.
+#[test]
+fn a_superseded_assertion_answers_only_inside_its_closed_interval() {
+    let fixture = fixture();
+    let snapshot = GraphSnapshot::of(&fixture.graph);
+    let alice = &fixture.graph.assertions[&fixture.alice];
+
+    assert!(matches!(
+        alice.status(),
+        AssertionLifecycle::Superseded { by, effective_from, .. }
+            if by == fixture.bob && effective_from == HANDOVER
+    ));
+    assert!(!alice.transaction_time.is_open(), "the fixture closes it");
+    assert!(!alice.is_current(), "a superseded record is not current");
+
+    for at in [
+        TENURE_BEGAN,
+        DURING_ALICE,
+        Timestamp::from_millis(HANDOVER.millis() - 1),
+    ] {
+        assert!(
+            snapshot.valid_at(at).iter().any(|a| a.id == fixture.alice),
+            "valid_at({at}) lost the superseded historical answer"
+        );
+    }
+    for at in [
+        Timestamp::from_millis(TENURE_BEGAN.millis() - 1),
+        HANDOVER,
+        AFTER_HANDOVER,
+    ] {
+        assert!(
+            snapshot.valid_at(at).iter().all(|a| a.id != fixture.alice),
+            "valid_at({at}) answered with a superseded record outside its interval"
+        );
+    }
+
+    let mut active = alice.clone();
+    active.lifecycle = AssertionLifecycle::Active;
+    assert!(
+        !active.valid_at(DURING_ALICE),
+        "an Active record closed in transaction time must not answer"
+    );
 }
 
 /// A snapshot is taken against one revision and says which — design § 71, and the reason § 72's
@@ -323,7 +392,7 @@ fn a_snapshot_names_the_revision_it_reads() {
     let snapshot = GraphSnapshot::of(&fixture.graph);
 
     assert_eq!(snapshot.revision(), RevisionNumber::new(7));
-    assert_eq!(snapshot.graph().assertions.len(), 4);
+    assert_eq!(snapshot.graph().assertions.len(), 3);
     assert_eq!(snapshot.graph().root.space, Space::Canonical);
     assert_eq!(
         snapshot.graph().ontology.version().id,
@@ -341,7 +410,7 @@ fn a_proposed_assertion_is_never_answered() {
     let proposed = AssertionId::mint();
     let mut candidate = fixture.graph.assertions[&fixture.bob].clone();
     candidate.id = proposed;
-    candidate.validation = ValidationState::Proposed;
+    candidate.assessment = Assessment::Proposed;
     candidate.valid_time = TemporalRange::UNBOUNDED;
     fixture.graph.assertions.insert(proposed, candidate);
 
@@ -353,15 +422,15 @@ fn a_proposed_assertion_is_never_answered() {
         );
     }
     assert_eq!(
-        ValidationState::Proposed.name(),
+        Assessment::Proposed.name(),
         "Proposed",
         "the state names are the domain's, and the snapshot filters on them"
     );
     assert!(
-        !ValidationState::Proposed.is_accepted(),
+        !Assessment::Proposed.is_accepted(),
         "a proposal has not crossed the integrity boundary"
     );
-    assert!(ValidationState::Accepted {
+    assert!(Assessment::Accepted {
         validators: std::collections::BTreeSet::new()
     }
     .is_accepted());

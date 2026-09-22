@@ -1,8 +1,12 @@
 //! Strict decoding primitives shared by live typed input carriers.
 
-use std::{collections::BTreeMap, fmt, marker::PhantomData};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    marker::PhantomData,
+};
 
-use serde::de::{self, MapAccess, Visitor};
+use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
 /// Decode a map without allowing a later spelling of a key to replace its value.
@@ -37,4 +41,32 @@ where
         }
     }
     deserializer.deserialize_map(Unique(PhantomData))
+}
+
+/// Decode a set without silently discarding a duplicate member.
+///
+/// # Errors
+/// Refuses malformed elements and repeated decoded identities.
+pub fn unique_set<'de, D, T>(deserializer: D) -> Result<BTreeSet<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de> + Ord,
+{
+    struct Unique<T>(PhantomData<T>);
+    impl<'de, T: Deserialize<'de> + Ord> Visitor<'de> for Unique<T> {
+        type Value = BTreeSet<T>;
+        fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("a sequence of unique decoded members")
+        }
+        fn visit_seq<A: SeqAccess<'de>>(self, mut input: A) -> Result<Self::Value, A::Error> {
+            let mut result = BTreeSet::new();
+            while let Some(value) = input.next_element()? {
+                if !result.insert(value) {
+                    return Err(de::Error::custom("duplicate decoded set member"));
+                }
+            }
+            Ok(result)
+        }
+    }
+    deserializer.deserialize_seq(Unique(PhantomData))
 }

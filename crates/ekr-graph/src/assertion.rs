@@ -388,81 +388,38 @@ impl Canonical for RetractionReason {
     }
 }
 
-/// How far validation got, and how it ended: design § 17 and § 36, projected from
-/// `ekr.graph.ValidationState`.
-///
-/// # The domain carries the state names and one payload
-///
-/// `graph.yaml` declares this as a flat enumeration of the seven names, and says of the payloads:
-///
-/// > Only one state's payload has a carrier beside it: a Superseded names the superseding
-/// > assertion in Assertion.superseded_by.
-///
-/// The crate holds every payload where design § 17 puts it — in the variant, where a `Rejected`
-/// without reasons is unrepresentable rather than merely unusual — so six of the seven have no
-/// projection into the domain at all. The gap is
-/// `task:graph-domain-carries-validation-state-payloads`;
-/// `crates/ekr-graph/tests/domain_projection.rs` reads the sentence above out of the document at
-/// run time and holds this quote to it, so the two cannot drift apart again.
-///
-/// `Retracted` merges § 17's `reason` with § 36's `at_revision`: the two sections describe one
-/// event, and a retraction that does not say which revision it happened at cannot be replayed.
-/// It also replaces the `Accepted { validators }` it retracts, so the validator set a retraction
-/// acts on does not survive it — design § 36 asks for the history to remain, § 17 gives one enum,
-/// and reconciling them is a design decision, filed as
-/// `task:assertion-retraction-erases-its-acceptance` and blocking
-/// `story:commit-and-revision-lineage`.
+/// The independent assessment of a claim (amendment 88).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum ValidationState {
-    /// An agent has proposed it and nothing has looked at it.
+pub enum Assessment {
+    /// No verdict has been attributed yet.
     Proposed,
-    /// Validation is under way.
+    /// Deterministic checks are in progress.
     Validating {
-        /// Validators that have finished.
+        /// Finished checks.
         completed: u32,
-        /// Validators the policy requires.
+        /// Required checks.
         required: u32,
     },
-    /// It crossed the integrity boundary. The agents whose validation it rests on are named:
-    /// "an agent said so" is not provenance, but *which* agents said so is.
+    /// Accepted by these actual validators.
     Accepted {
-        /// The validators that accepted it.
+        /// The validating agents, without duplicates.
+        #[serde(deserialize_with = "ekr_core::decode::unique_set")]
         validators: BTreeSet<AgentId>,
     },
-    /// Validation refused it.
-    ///
-    /// The issues are named by id rather than held inline: `ekr.kernel.ValidationIssue` is the
-    /// kernel's record, and the kernel sits above this crate. Design § 17 writes
-    /// `Vec<ValidationIssue>`, which would invert the dependency.
+    /// Refused, retaining the ordered issue identities.
     Rejected {
-        /// The issues raised against it.
+        /// Issues raised by validation.
         issues: Vec<IssueId>,
     },
-    /// Another assertion contradicts it and neither has won.
+    /// Competing assertions remain unresolved.
     Disputed {
-        /// The assertions it is in conflict with.
+        /// Ordered competing identities.
         competing_assertions: Vec<AssertionId>,
     },
-    /// A later assertion replaced it.
-    Superseded {
-        /// The assertion that replaced it.
-        by: AssertionId,
-    },
-    /// Canonical state no longer treats it as true, without erasing that it once did.
-    Retracted {
-        /// The revision the retraction was committed at (design § 36).
-        at_revision: RevisionNumber,
-        /// Why (design § 17).
-        reason: RetractionReason,
-    },
 }
-
-impl ValidationState {
-    /// The state's name, as `ekr.graph.ValidationState` declares it.
-    ///
-    /// The flat name is what the domain, a view and a store column carry; the payload stays in the
-    /// variant.
+impl Assessment {
+    /// The declared assessment kind.
     #[must_use]
     pub const fn name(&self) -> &'static str {
         match self {
@@ -471,33 +428,18 @@ impl ValidationState {
             Self::Accepted { .. } => "Accepted",
             Self::Rejected { .. } => "Rejected",
             Self::Disputed { .. } => "Disputed",
-            Self::Superseded { .. } => "Superseded",
-            Self::Retracted { .. } => "Retracted",
         }
     }
-
-    /// Whether this state is one canonical knowledge is read from.
-    ///
-    /// Design § 21: the canonical core is what "has crossed the system's highest integrity
-    /// boundary". A `Proposed` or `Disputed` record is in the graph and has not crossed it.
+    /// Whether validation accepted this claim, independently of its lifecycle.
     #[must_use]
     pub const fn is_accepted(&self) -> bool {
         matches!(self, Self::Accepted { .. })
     }
 }
-
-impl Canonical for ValidationState {
-    /// The variant marker, then the variant's fields in declaration order.
-    ///
-    /// Tagged for the reason [`Subject`] is, and here the collision is not hypothetical:
-    /// `Superseded { by }` and a one-element `Disputed { competing_assertions }` both come down to
-    /// one [`AssertionId`], and `Proposed` carries nothing at all. The state an assertion is in is
-    /// part of what it *is*, so it is part of its address.
+impl Canonical for Assessment {
     fn encode(&self, out: &mut Encoder) {
         match self {
-            Self::Proposed => {
-                out.variant(0);
-            }
+            Self::Proposed => out.variant(0),
             Self::Validating {
                 completed,
                 required,
@@ -520,146 +462,122 @@ impl Canonical for ValidationState {
                 out.variant(4);
                 competing_assertions.encode(out);
             }
-            Self::Superseded { by } => {
-                out.variant(5);
-                by.encode(out);
-            }
+        }
+    }
+}
+
+/// Stored withdrawal state. Neither withdrawal nor replacement erases assessment or provenance.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum AssertionLifecycle {
+    /// Still active in the selected revision.
+    Active,
+    /// Withdrawn from every valid time beginning with this committed revision.
+    Retracted {
+        /// First revision containing the withdrawal.
+        at_revision: RevisionNumber,
+        /// Recorded explanation.
+        reason: RetractionReason,
+    },
+    /// Replaced at a valid-time boundary; the earlier interval remains queryable.
+    Superseded {
+        /// The accepted replacing assertion.
+        by: AssertionId,
+        /// First revision containing the replacement.
+        at_revision: RevisionNumber,
+        /// The replacement's valid-time start.
+        effective_from: Timestamp,
+    },
+}
+impl AssertionLifecycle {
+    /// The declared lifecycle kind.
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::Active => "Active",
+            Self::Retracted { .. } => "Retracted",
+            Self::Superseded { .. } => "Superseded",
+        }
+    }
+}
+impl Canonical for AssertionLifecycle {
+    fn encode(&self, out: &mut Encoder) {
+        match self {
+            Self::Active => out.variant(0),
             Self::Retracted {
                 at_revision,
                 reason,
             } => {
-                out.variant(6);
+                out.variant(1);
                 at_revision.encode(out);
                 reason.encode(out);
+            }
+            Self::Superseded {
+                by,
+                at_revision,
+                effective_from,
+            } => {
+                out.variant(2);
+                by.encode(out);
+                at_revision.encode(out);
+                effective_from.encode(out);
             }
         }
     }
 }
 
-/// Whether canonical state *removed* an assertion: design § 36.
-///
-/// A narrower question than it looks, and a different one from [`ValidationState`]. § 36 is about
-/// removal — retraction and supersession — so it has nothing to say about a record that never
-/// entered canonical state. A `Rejected` or `Proposed` assertion is therefore `Active` here, which
-/// does not mean it is knowledge: [`Assertion::is_current`] excludes it by its validation state,
-/// which is the field that answers whether it ever crossed the boundary.
-///
-/// Derived from [`ValidationState`] by [`Assertion::status`] rather than stored beside it. Design
-/// § 17 gives one enum and § 36 gives another, and two fields that can disagree about the same
-/// record is a defect waiting to be written.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum AssertionStatus {
-    /// Not withdrawn and not replaced. Says nothing about whether it was ever accepted.
-    Active,
-    /// Withdrawn at a revision, for a reason, with the history of having held it intact.
-    Retracted {
-        /// The revision the retraction was committed at.
-        at_revision: RevisionNumber,
-        /// Why.
-        reason: RetractionReason,
-    },
-    /// Replaced by a later assertion.
-    Superseded {
-        /// The assertion that replaced it.
-        by: AssertionId,
-    },
-}
-
-/// One claim, with its evidence and its two time dimensions: design § 13–14.
-///
-/// No constructor: every field is required and several are unordered collections, so a caller
-/// builds it as a literal. There is no writer in this crate — mutation of canonical state arrives
-/// as a transaction the kernel commits.
-///
-/// Generic over the value its object may carry, defaulting to [`CanonicalValue`], with the same
-/// consequence [`Node`] carries: `Assertion<CanonicalValue>` has a content address
-/// and `Assertion<ekr_ontology::Value>` — what a transient root holds — does not.
+/// One claim with independent assessment, lifecycle, provenance and both time dimensions.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Assertion<V: ValueSpace = CanonicalValue> {
-    /// The assertion's stable id.
+    /// Stable assertion identity.
     pub id: AssertionId,
-    /// The graph root that owns it.
+    /// Owning graph root.
     pub root_id: GraphRootId,
-    /// What it is about.
+    /// What the claim describes.
     pub subject: Subject<V::NodeRef>,
-    /// What it says.
+    /// The declared relation or property.
     pub predicate: Predicate,
-    /// What it says it about.
+    /// The claimed object.
     pub object: Object<V, V::NodeRef>,
-    /// The evidence it rests on. Design § 13; `graph.yaml` gives each link its own
-    /// [`Support`](crate::Support) entity so that one can be addressed and withdrawn.
+    /// Retained supporting evidence.
+    #[serde(deserialize_with = "ekr_core::decode::unique_set")]
     pub evidence: BTreeSet<EvidenceId>,
-    /// The agent that proposed it. Agents propose; they never commit.
+    /// Authenticated proposer.
     pub proposed_by: AgentId,
-    /// How far validation got, and how it ended.
-    pub validation: ValidationState,
-    /// When it was true in the represented world (design § 14.1).
+    /// Verdict, retained through subsequent withdrawal.
+    pub assessment: Assessment,
+    /// Independent stored withdrawal state.
+    pub lifecycle: AssertionLifecycle,
+    /// The half-open interval in the represented world.
     pub valid_time: TemporalRange,
-    /// When the runtime believed it (design § 14.2). Closing `recorded_to` is how a correction
-    /// removes a belief without deleting the history of having held it.
+    /// The recorded belief interval.
     pub transaction_time: TransactionTime,
 }
-
 impl<V: ValueSpace> Assertion<V> {
-    /// Whether canonical state removed it: design § 36.
-    ///
-    /// `Retracted` and `Superseded` map to themselves; every other validation state maps to
-    /// [`AssertionStatus::Active`], because § 36's question is about removal and a record that was
-    /// never canonical was never removed.
+    /// The stored lifecycle, independent of assessment.
     #[must_use]
-    pub fn status(&self) -> AssertionStatus {
-        match &self.validation {
-            ValidationState::Retracted {
-                at_revision,
-                reason,
-            } => AssertionStatus::Retracted {
-                at_revision: *at_revision,
-                reason: reason.clone(),
-            },
-            ValidationState::Superseded { by } => AssertionStatus::Superseded { by: *by },
-            _ => AssertionStatus::Active,
-        }
+    pub fn status(&self) -> AssertionLifecycle {
+        self.lifecycle.clone()
     }
-
-    /// Whether this record is the runtime's current, canonical belief.
-    ///
-    /// Two things:
-    ///
-    /// * it crossed the integrity boundary — [`ValidationState::is_accepted`];
-    /// * the runtime has not stopped believing it — [`TransactionTime::is_open`].
-    ///
-    /// **Two and not three.** A `matches!(self.status(), AssertionStatus::Active)` conjunct stood
-    /// here and could never change the answer: [`status`](Assertion::status) is non-`Active` only
-    /// for `Retracted` and `Superseded`, `is_accepted` is true only for `Accepted`, and because
-    /// the status is *derived* from the same field those sets are disjoint by construction. It was
-    /// a clause no input could reach, which reads as a check and is not one.
-    /// `crates/ekr-graph/tests/adversary_snapshot_and_assertion.rs` pins the two conjuncts, so a
-    /// third arriving without a case that reaches it turns red.
-    ///
-    /// It says nothing about *when* the claim holds. That is valid time, and it is the question
-    /// [`GraphSnapshot::valid_at`](crate::GraphSnapshot::valid_at) asks.
+    /// Accepted, active and not closed in recorded time.
     #[must_use]
     pub fn is_current(&self) -> bool {
-        self.validation.is_accepted() && self.transaction_time.is_open()
+        self.assessment.is_accepted()
+            && matches!(self.lifecycle, AssertionLifecycle::Active)
+            && self.transaction_time.is_open()
+    }
+    /// Belief visible at valid time in the selected immutable revision.
+    #[must_use]
+    pub fn valid_at(&self, at: Timestamp) -> bool {
+        self.assessment.is_accepted()
+            && self.valid_time.contains(at)
+            && (matches!(self.lifecycle, AssertionLifecycle::Superseded { .. })
+                || matches!(self.lifecycle, AssertionLifecycle::Active)
+                    && self.transaction_time.is_open())
     }
 }
-
 impl<V: ValueSpace + Canonical> Canonical for Assertion<V> {
-    /// The ten fields in declaration order.
-    ///
-    /// Structural, with no discriminant, for the reason [`Root`](crate::Root) has none: an
-    /// assertion is not a sum type, and rule 5 of `ekr_core::canonical` says a composite value's
-    /// own field structure is what distinguishes it. The order is the contract — moving a field
-    /// moves every address that has ever named this assertion, and
-    /// `story:commit-and-revision-lineage` writes the first one anybody keeps.
-    ///
-    /// **Total**, with no fallible path. It is total because it exists only where `V` is
-    /// [`Canonical`], and the `V` canonical state holds is [`CanonicalValue`], which has no float
-    /// in it at any depth: the one thing that could not be encoded cannot be present, so nothing
-    /// here has to decide what to do about it.
-    /// `crates/ekr-graph/tests/canonical_value_and_assertion.rs` holds every field to reaching
-    /// these bytes, by reading the declaration rather than by a list kept beside it.
     fn encode(&self, out: &mut Encoder) {
         self.id.encode(out);
         self.root_id.encode(out);
@@ -668,7 +586,8 @@ impl<V: ValueSpace + Canonical> Canonical for Assertion<V> {
         self.object.encode(out);
         self.evidence.encode(out);
         self.proposed_by.encode(out);
-        self.validation.encode(out);
+        self.assessment.encode(out);
+        self.lifecycle.encode(out);
         self.valid_time.encode(out);
         self.transaction_time.encode(out);
     }

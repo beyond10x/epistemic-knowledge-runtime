@@ -177,6 +177,7 @@ impl Validator for Structural {
                 GraphOperation::UpdateProperty(_)
                 | GraphOperation::DeleteEdge(_)
                 | GraphOperation::RetractAssertion(_)
+                | GraphOperation::SupersedeAssertion(_)
                 | GraphOperation::Invoke { .. } => (None, None),
             };
             if let Some(named) = created {
@@ -283,6 +284,7 @@ impl Validator for Structural {
             }
         }
 
+        issues.extend(super::lifecycle::check(graph, tx));
         finish(issues)
     }
 }

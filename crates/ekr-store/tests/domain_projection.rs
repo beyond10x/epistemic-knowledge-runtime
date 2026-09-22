@@ -15,7 +15,7 @@
 //! its own catch: a parse that stops finding declarations fails loudly rather than passing
 //! vacuously.
 
-use ekr_store::{ObjectStore, StorageClass};
+use ekr_store::{ObjectStore, RevisionLog, StorageClass};
 
 /// `systems/ekr/domains/store.yaml`, as text.
 fn domain_text() -> String {
@@ -201,8 +201,14 @@ fn eventlog_source() -> String {
     let path = std::path::PathBuf::from(
         std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
     )
-    .join("src/eventlog.rs");
-    std::fs::read_to_string(path).expect("the module is in this crate")
+    .join("src");
+    // `preparation.rs` writes `ekr.store.PublicationPrepared` (ADR 0009); every other event name
+    // lives in `eventlog.rs`.
+    ["eventlog.rs", "preparation.rs"]
+        .iter()
+        .map(|file| std::fs::read_to_string(path.join(file)).expect("the module is in this crate"))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Every event name the crate can write, from the constants that hold them.
@@ -214,7 +220,10 @@ fn event_names_the_crate_writes() -> BTreeSet<String> {
     let mut names = BTreeSet::new();
     for line in eventlog_source().lines() {
         let trimmed = line.trim();
-        if !trimmed.starts_with("const ") || !trimmed.contains(": &str") {
+        // A constant holding a name, or a literal passed straight to `NewEvent::new`.
+        let names_an_event = (trimmed.starts_with("const ") && trimmed.contains(": &str"))
+            || (trimmed.starts_with('"') && trimmed.ends_with("\",") && !trimmed.contains(' '));
+        if !names_an_event {
             continue;
         }
         let Some((_, rest)) = trimmed.split_once('"') else {
@@ -324,6 +333,50 @@ fn every_event_the_crate_writes_carries_the_fields_the_domain_declares() {
             .put(StorageClass::Canonical, bytes, ekr_core::Timestamp::EPOCH)
             .expect("the raise lands");
     }
+    {
+        // An elected, unpublished bootstrap preparation (design § 94): the one event written
+        // outside the revision and object streams.
+        let store = ekr_store::FileStore::file(&root, "ekr", ontology())
+            .expect("the file provider reopens")
+            .under(AdmitsNothingYet);
+        let record = b"a seed record staged for publication";
+        let decision = ekr_store::Publication {
+            event: ekr_graph::RevisionEvent {
+                format: ekr_graph::RevisionEvent::FORMAT.to_owned(),
+                event_id: ekr_core::EventId::mint(),
+                record_hash: ekr_core::ContentHash::of_bytes(record),
+                payload: ekr_graph::RevisionPayload::Seeded {
+                    revision_id: ekr_core::RevisionId::mint(),
+                    seed_hash: ekr_core::ContentHash::of_bytes(record),
+                },
+            },
+            objects: [(
+                ekr_core::ContentHash::of_bytes(record),
+                ekr_store::PublicationObject {
+                    storage_class: StorageClass::Canonical,
+                    stored_at: ekr_core::Timestamp::EPOCH,
+                    bytes: record.to_vec(),
+                },
+            )]
+            .into_iter()
+            .collect(),
+            expected_version: 0,
+        };
+        let key = ekr_store::PublicationCommandKey {
+            kind: ekr_store::PublicationCommandKind::Bootstrap,
+            transaction_id: None,
+            predecessor_event_id: None,
+            predecessor_record_hash: None,
+        };
+        store
+            .prepare(
+                &key,
+                ekr_core::ContentHash::of_bytes(b"bootstrap command input"),
+                &decision,
+                None,
+            )
+            .expect("the preparation is elected");
+    }
 
     let declared = declared_events();
     let mut checked = 0usize;
@@ -345,6 +398,27 @@ fn every_event_the_crate_writes_carries_the_fields_the_domain_declares() {
         "every declared event is reached by this scenario"
     );
     assert!(checked >= 2, "the scenario produces both events, not one");
+}
+
+/// A stand-in authority over a lineage with no revisions: it names no extra objects and admits no
+/// revision. Not kernel validation; `crates/ekr-kernel/tests/seed.rs` holds that.
+struct AdmitsNothingYet;
+
+impl ekr_store::CommitAuthority for AdmitsNothingYet {
+    fn required_objects(
+        &self,
+        _history: &ekr_store::RetainedHistory,
+    ) -> Result<BTreeSet<ekr_core::ContentHash>, ekr_store::StoreError> {
+        Ok(BTreeSet::new())
+    }
+    fn replay(
+        &self,
+        _history: &ekr_store::RetainedHistory,
+        _ontology: Option<&ekr_ontology::Ontology>,
+        _revision: Option<ekr_core::RevisionNumber>,
+    ) -> Result<Option<ekr_store::AdmittedRevision>, ekr_store::StoreError> {
+        Ok(None)
+    }
 }
 
 /// An ontology with no types, for the store this file opens.

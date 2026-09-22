@@ -27,8 +27,8 @@ use ekr_core::{
     AgentId, AssertionId, GraphRootId, NodeId, PropertyId, SchemaVersionId, Timestamp, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalValue, GraphRoot, Node, Object, Predicate, Space, Subject, TemporalRange,
-    TransactionTime, TransientGraph, ValidationState,
+    Assertion, AssertionLifecycle, Assessment, CanonicalValue, GraphRoot, Node, Object, Predicate,
+    Space, Subject, TemporalRange, TransactionTime, TransientGraph,
 };
 use ekr_ontology::Value;
 
@@ -56,7 +56,7 @@ fn a_transient_candidate_node_may_hold_an_approximate_measurement() {
     let candidate = NodeId::mint();
     let property = PropertyId::mint();
     let mut node: Node<Value> = Node::new(candidate, root.id, TypeId::mint(), "A. Smith?");
-    node.properties.insert(property, Value::Float(36.6));
+    node.properties.insert(property, vec![Value::Float(36.6)]);
 
     let transient = TransientGraph {
         root,
@@ -67,7 +67,7 @@ fn a_transient_candidate_node_may_hold_an_approximate_measurement() {
     assert_eq!(transient.nodes.len(), 1, "the candidate is in the root");
     assert_eq!(
         transient.nodes[&candidate].properties[&property],
-        Value::Float(36.6),
+        vec![Value::Float(36.6)],
         "the measurement is held as it arrived, not rounded into admissibility"
     );
 
@@ -97,7 +97,8 @@ fn a_transient_candidate_assertion_may_carry_an_approximate_measurement() {
         object: Object::Value(held),
         evidence: BTreeSet::new(),
         proposed_by: AgentId::mint(),
-        validation: ValidationState::Proposed,
+        assessment: Assessment::Proposed,
+        lifecycle: AssertionLifecycle::Active,
         valid_time: TemporalRange::UNBOUNDED,
         transaction_time: TransactionTime::since(Timestamp::EPOCH),
     };

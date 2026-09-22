@@ -24,8 +24,8 @@ use ekr_core::{
     RevisionNumber, SchemaVersionId, Timestamp, TransactionId, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalGraph, CanonicalRef, CanonicalValue, GraphRoot, GraphSnapshot, Object,
-    Predicate, Space, Subject, TemporalRange, TransactionTime, ValidationState, ValueSpace,
+    Assertion, Assessment, CanonicalGraph, CanonicalRef, CanonicalValue, GraphRoot, GraphSnapshot,
+    Object, Predicate, Space, Subject, TemporalRange, TransactionTime, ValueSpace,
 };
 use ekr_kernel::{
     EdgeDraft, EntityMerge, GraphOperation, GraphTransaction, NodeDraft, Pipeline,
@@ -209,7 +209,8 @@ fn assertion<V: ValueSpace + std::fmt::Debug + Clone + 'static>(
                         BTreeSet::new()
                     },
                     proposed_by: POOL.agents[agent_at],
-                    validation: ValidationState::Proposed,
+                    lifecycle: ekr_graph::AssertionLifecycle::Active,
+                    assessment: Assessment::Proposed,
                     valid_time: TemporalRange::since(Timestamp::from_millis(at)),
                     transaction_time: TransactionTime::since(Timestamp::from_millis(at)),
                 }
@@ -279,7 +280,19 @@ where
             ),
         (0usize..2).prop_map(|at| GraphOperation::DeleteEdge(POOL.edges[at])),
         assertion(value()).prop_map(|held| GraphOperation::AddAssertion(Box::new(held))),
-        (0usize..2).prop_map(|at| GraphOperation::RetractAssertion(POOL.assertions[at])),
+        (0usize..2).prop_map(
+            |at| GraphOperation::RetractAssertion(ekr_kernel::Retraction {
+                assertion: POOL.assertions[at],
+                reason: ekr_graph::RetractionReason::new("fixture withdrawal")
+            })
+        ),
+        (0usize..2, 0usize..2).prop_map(|(old, new)| GraphOperation::SupersedeAssertion(
+            ekr_kernel::Supersession {
+                assertion: POOL.assertions[old],
+                by: POOL.assertions[new],
+                effective_from: Timestamp::EPOCH
+            }
+        )),
         node_type().prop_map(|declared| GraphOperation::DefineNodeType(Box::new(declared))),
         edge_type().prop_map(|declared| GraphOperation::DefineEdgeType(Box::new(declared))),
         definition().prop_map(GraphOperation::ModifyProperty),
@@ -486,6 +499,7 @@ fn operation_carries_a_float(operation: &GraphOperation) -> bool {
         GraphOperation::Invoke { arguments, .. } => arguments.values().any(carries),
         GraphOperation::DeleteEdge(_)
         | GraphOperation::RetractAssertion(_)
+        | GraphOperation::SupersedeAssertion(_)
         | GraphOperation::DefineNodeType(_)
         | GraphOperation::DefineEdgeType(_)
         | GraphOperation::ModifyProperty(_)

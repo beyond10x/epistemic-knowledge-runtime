@@ -116,6 +116,7 @@ impl Validator for Cardinality {
                 GraphOperation::DeleteEdge(_)
                 | GraphOperation::AddAssertion(_)
                 | GraphOperation::RetractAssertion(_)
+                | GraphOperation::SupersedeAssertion(_)
                 | GraphOperation::MergeEntity(_)
                 | GraphOperation::Invoke { .. }
                 | GraphOperation::DefineNodeType(_)

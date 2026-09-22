@@ -383,6 +383,7 @@ impl Validator for Types {
                 }
                 GraphOperation::DeleteEdge(_)
                 | GraphOperation::RetractAssertion(_)
+                | GraphOperation::SupersedeAssertion(_)
                 | GraphOperation::MergeEntity(_)
                 | GraphOperation::DefineNodeType(_)
                 | GraphOperation::DefineEdgeType(_)
@@ -439,6 +440,7 @@ fn values_of(operation: &GraphOperation) -> Vec<(String, &Value)> {
             .collect(),
         GraphOperation::DeleteEdge(_)
         | GraphOperation::RetractAssertion(_)
+        | GraphOperation::SupersedeAssertion(_)
         | GraphOperation::DefineNodeType(_)
         | GraphOperation::DefineEdgeType(_)
         | GraphOperation::ModifyProperty(_)

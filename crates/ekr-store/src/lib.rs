@@ -3,16 +3,22 @@
 //! Implements the `ekr.store` domain, `systems/ekr/domains/store.yaml`: content-addressed
 //! objects by storage class and snapshots of committed revisions, held in eventlog.
 //!
-//! Four modules:
+//! Public modules:
 //!
-//! * [`log`] — [`RevisionLog`], the lineage: append an event, fold the log, read the head
-//!   [`Root`](ekr_graph::Root), replay from a revision. The fold's rules are there, and so are
-//!   [`knowledge_root`] and [`evidence_root`], the two sub-roots P1 can compute.
+//! * [`log`] — [`RevisionLog`], the lineage: publish an occurrence with its objects atomically,
+//!   fold the log, read the head [`Root`](ekr_graph::Root), replay to a revision. Replay admits
+//!   history only through the injected [`CommitAuthority`], and [`knowledge_root`] and
+//!   [`evidence_root`] are computed there.
 //! * [`objects`] — [`StoredObject`] and [`StorageClass`], the content-addressed object store of
 //!   design § 37 and § 57.
 //! * [`snapshot`] — [`GraphDocument`], the materialised fold as bytes, and the one named place a
 //!   document is serialized; kernel admission is delegated through the authority port.
 //! * [`eventlog`] — the implementation over `eventlog-sqlite` and `eventlog-file`.
+//! * [`legacy`] — supplied-byte verification of the original graph format.
+//!
+//! Publication preparations (design § 94, `architecture-decision-record:0009`) are private: they
+//! retain an elected native request across an uncertain outcome and never confer canonical
+//! authority.
 //!
 //! # Synchronous, over an async port
 //!
@@ -30,10 +36,10 @@
 //! reach. A lineage is checked by replaying it, which is what `docs/roadmap.md` § 4 means by
 //! "replay from the seed reproduces the root hash".
 //!
-//! **An appended `ekr.kernel.TransactionValidated` is not that record**, which is
-//! `architecture-decision-record:0007-the-commit-path-is-the-kernels`: [`RevisionLog::append`] is
-//! public and takes a bare event, so the fold treating one as proof made a commit reachable by
-//! anyone holding a store. It now asks a [`CommitAuthority`] injected at construction — a store
+//! **An event in the log is not that record**, which is
+//! `architecture-decision-record:0007-the-commit-path-is-the-kernels`: the public `append` that
+//! took a bare event made a commit reachable by anyone holding a store, and it is gone. Every
+//! publication and every replay now asks a [`CommitAuthority`] injected at construction — a store
 //! opened without one folds no commit — and `ekr-kernel` is the only crate in the workspace that
 //! declares this one.
 //!
@@ -49,9 +55,15 @@ pub mod objects;
 pub mod snapshot;
 
 pub use eventlog::{EventlogStore, FileStore, SqliteStore};
+pub use eventlog::{
+    NativeBlobWrite, NativeClaim, NativeCommandMeta, NativeExpected, NativeExpectedKind,
+    NativeNewEvent, NativePublicationRequest, NativeStreamAppend, NativeStreamId,
+    PublicationCommandKey, PublicationCommandKind, PublicationPreparationV1,
+};
 pub use log::{
-    evidence_root, knowledge_root, Appended, CommitAuthority, Initialize, RecordedValidation,
-    RevisionLog, PLACEHOLDER_SUB_ROOT,
+    evidence_root, knowledge_root, AdmittedRevision, Appended, CommitAuthority, Initialize,
+    Publication, PublicationObject, RecordedOccurrence, RetainedHistory, RetainedObject,
+    RevisionLog,
 };
 pub use objects::{ObjectStore, StorageClass, StoredObject};
 pub use snapshot::{Entity, GraphDocument, MembraneError};
@@ -66,6 +78,18 @@ use ekr_core::{ContentHash, RevisionNumber, TransactionId};
 /// from a broken chain cannot act on either.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum StoreError {
+    /// A pending logical command was elected for different actual input.
+    #[error("a publication preparation exists for different input")]
+    PublicationInputConflict,
+    /// Conditional publication lost a stream race; no new occurrence was published.
+    #[error("revision stream moved before publication")]
+    Conflict,
+    /// Publication may have committed. Resolve the same immutable occurrence; never delete it.
+    #[error("publication outcome is unknown; resolve the exact retained occurrence")]
+    UnknownCommit,
+    /// Retained bootstrap context or authority differs from the independently supplied anchor.
+    #[error("bootstrap-authority-mismatch")]
+    AuthorityMismatch,
     /// Synchronous persistence cannot run on a thread entered into a Tokio runtime.
     #[error("synchronous store access requires a thread outside a Tokio runtime")]
     RuntimeContext,
@@ -181,7 +205,9 @@ pub enum StoreError {
     /// P1 materialises state at the seed and nowhere else. Answering anyway would mean folding
     /// from a beginning that was never written down, which is a different lineage wearing the
     /// requested one's number.
-    #[error("no materialised state at revision {requested}: P1 materialises the seed and nothing after it")]
+    #[error(
+        "no materialised state at revision {requested}: P1 materialises the seed and nothing after it"
+    )]
     NoMaterialisedState {
         /// The revision the caller asked to begin at.
         requested: RevisionNumber,
@@ -197,7 +223,11 @@ impl From<eventlog_core::EventLogError> for StoreError {
     /// it matters, inside [`ObjectStore::put`], and is not re-exported as a shape callers would
     /// have to match on.
     fn from(error: eventlog_core::EventLogError) -> Self {
-        Self::Backend(error.to_string())
+        match error {
+            eventlog_core::EventLogError::UnknownCommit => Self::UnknownCommit,
+            eventlog_core::EventLogError::Conflict { .. } => Self::Conflict,
+            other => Self::Backend(other.to_string()),
+        }
     }
 }
 /// Frozen original-format data and supplied-byte verification.

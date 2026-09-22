@@ -5,7 +5,7 @@
 //! to an immutable committed revision, snapshot reads and the explain chain. This is the only
 //! crate that constructs a validated transaction; the domain's types live in `ekr-core`.
 //!
-//! Four modules, in dependency order:
+//! Public modules:
 //!
 //! * [`transaction`] — [`GraphTransaction`] and its [`GraphOperation`]s (design § 19, plus
 //!   amendment 87's `Invoke`), and [`ValidatedTransaction`], which only this crate builds.
@@ -13,8 +13,16 @@
 //! * [`validate`] — the [`Validator`] trait of design § 20 and the
 //!   [`Pipeline`] of its first seven, deterministic, validators.
 //! * [`commit`] — [`Commit`], the one path that spends a [`ValidatedTransaction`], and
-//!   [`Validations`], the authority `ekr-store`'s fold commits on
+//!   [`KernelAuthority`], the authority `ekr-store`'s replay admits history through
 //!   (`architecture-decision-record:0007-the-commit-path-is-the-kernels`).
+//! * [`document`] — bounded, exact-byte `ekr.transaction-document/1` ingress.
+//! * [`seed`] — bootstrap admission, without a preceding committed revision.
+//! * [`authority`] — the host-supplied authority anchor and the P1 validation profile.
+//! * [`commands`] and [`records`] — the durable command handlers and the strict retained records
+//!   they return.
+//! * [`runtime`] — [`Runtime`], provider opening for consumers that must never depend on the raw
+//!   store.
+//! * [`legacy`] — frozen encodings for verifying history written before the current formats.
 //!
 //! # The membrane is a type, not a rule
 //!
@@ -90,22 +98,40 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+mod apply;
+pub mod authority;
+pub mod commands;
 pub mod commit;
 pub mod document;
 pub mod issue;
+mod read;
+pub mod records;
+mod replay;
+pub mod runtime;
 pub mod seed;
 pub mod transaction;
 pub mod validate;
 
-pub use commit::{Commit, CommitError, Validations};
+pub use authority::{Agent, AuthorityStateV1, ValidationProfileV1};
+pub use commands::{CommitCommandResult, ValidationCommandResult};
+pub use commit::{Commit, CommitError, KernelAuthority};
 pub use document::{
     DocumentError, DocumentLimit, DocumentLimits, TransactionDocument, DOCUMENT_V1_LIMITS,
 };
+/// Typed persistence failures exposed without granting the caller storage or writer access.
+pub use ekr_store::StoreError as PersistenceError;
 pub use issue::{ValidationIssue, ValidatorName};
+pub use read::{VerifiedRead, VerifiedRevision};
+pub use records::{
+    CommitReceiptV1, ProposalRecordV1, RecordedValidationIssue, RejectionRecordV1, SeedResultV1,
+    StaleRecordV1, ValidationBasisV1, ValidationMaterialV1, ValidationReceiptV1,
+};
+pub use replay::{TransactionRecord, TransactionState};
+pub use runtime::Runtime;
 pub use seed::{BootstrapContext, SeedDocument, SeedError};
 pub use transaction::{
     EdgeDraft, EntityMerge, GraphOperation, GraphTransaction, NodeDraft, PropertyMutation,
-    ValidatedTransaction,
+    Retraction, Supersession, ValidatedTransaction,
 };
 pub use validate::{
     Authorization, Cardinality, OntologyConstraint, Pipeline, Provenance, Reference, Structural,

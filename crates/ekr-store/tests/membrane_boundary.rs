@@ -1,4 +1,7 @@
 //! Serialization remains a DTO operation. Semantic crossings moved to kernel/tests/seed.rs.
+//!
+//! Property values are an ordered outer collection per `PropertyId` (design § 89), so each side
+//! stores its one value as a one-member collection.
 use ekr_core::{GraphRootId, NodeId, PropertyId, TypeId};
 use ekr_graph::{CanonicalValue, Node};
 use ekr_ontology::Value;
@@ -15,13 +18,13 @@ fn a_candidate_node_and_a_canonical_node_write_the_same_document() {
     let mut candidate: Node<Value> = Node::new(node_id, root_id, type_id, "an-incubating-claim");
     candidate
         .properties
-        .insert(property, Value::Decimal("1.0".to_owned()));
+        .insert(property, vec![Value::Decimal("1.0".to_owned())]);
 
     let mut canonical: Node<CanonicalValue> =
         Node::new(node_id, root_id, type_id, "an-incubating-claim");
     canonical
         .properties
-        .insert(property, CanonicalValue::Decimal("1.0".to_owned()));
+        .insert(property, vec![CanonicalValue::Decimal("1.0".to_owned())]);
 
     assert_eq!(
         serde_json::to_string(&candidate).expect("a candidate serialises"),

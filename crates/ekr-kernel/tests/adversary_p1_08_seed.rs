@@ -1,4 +1,6 @@
 //! Seed admission must cross the real kernel on both persistent backends.
+#[path = "support/seed_corruption.rs"]
+mod seed_corruption;
 use std::collections::BTreeSet;
 
 use ekr_core::{
@@ -6,13 +8,38 @@ use ekr_core::{
     SchemaVersionId, Timestamp, TypeId,
 };
 use ekr_graph::{
-    Assertion, Confidence, Edge, Evidence, EvidenceSource, GraphRoot, Node, Object, Predicate,
-    Space, Subject, TemporalRange, TransactionTime, ValidationState,
+    Assertion, Assessment, Confidence, Edge, Evidence, EvidenceSource, GraphRoot, Node, Object,
+    Predicate, Space, Subject, TemporalRange, TransactionTime,
 };
-use ekr_kernel::{BootstrapContext, Commit, SeedDocument};
+use ekr_kernel::{
+    Agent, AuthorityStateV1, BootstrapContext, Commit, SeedDocument, ValidationProfileV1,
+};
 use ekr_ontology::{EdgeType, NodeType, Ontology, OntologyDocument, SchemaVersion, Value};
 use ekr_store::{FileStore, GraphDocument, Initialize, ObjectStore, RevisionLog, SqliteStore};
 use tempfile::TempDir;
+
+fn anchor(context: BootstrapContext) -> AuthorityStateV1 {
+    AuthorityStateV1 {
+        format: "ekr.authority-state/1".into(),
+        agents: [
+            (context.operator, "operator"),
+            (context.validator, "validator"),
+        ]
+        .into_iter()
+        .map(|(id, name)| {
+            (
+                id,
+                Agent {
+                    id,
+                    name: name.into(),
+                    capabilities: Default::default(),
+                },
+            )
+        })
+        .collect(),
+        validation_profile: ValidationProfileV1::deterministic(context.validator),
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 enum Backend {
@@ -57,7 +84,8 @@ impl Fixture {
             object: Object::Node(node.id),
             evidence: [evidence.id].into_iter().collect(),
             proposed_by: operator,
-            validation: ValidationState::Proposed,
+            assessment: Assessment::Proposed,
+            lifecycle: ekr_graph::AssertionLifecycle::Active,
             valid_time: TemporalRange::UNBOUNDED,
             transaction_time: TransactionTime::since(Timestamp::EPOCH),
         };
@@ -91,7 +119,7 @@ impl Fixture {
 impl Fixture {
     fn document(&self) -> SeedDocument {
         SeedDocument {
-            format: "ekr-seed/1".to_owned(),
+            format: "ekr-seed/2".to_owned(),
             ontology: self.ontology.clone(),
             graph: self.graph.clone(),
             evidence_payloads: [(
@@ -117,7 +145,8 @@ trait Runtime {
 }
 impl<S: RevisionLog + ObjectStore + Initialize> Runtime for Commit<S> {
     fn seed(&self, document: SeedDocument) -> Result<ekr_graph::Root, ekr_kernel::SeedError> {
-        self.seed(document)
+        self.seed(document, || Timestamp::EPOCH)
+            .map(|record| record.result)
     }
     fn snapshot(&self) -> Result<ekr_graph::CanonicalGraph, ekr_store::StoreError> {
         self.snapshot()
@@ -130,16 +159,22 @@ impl Backend {
         let ontology = Ontology::load(fixture.ontology.clone()).unwrap();
         match self {
             Self::Sqlite => Box::new(
-                Commit::over_with_bootstrap(fixture.context(), |authority| {
-                    SqliteStore::sqlite(&path.join("state.db"), "ekr", ontology)
-                        .map(|s| s.under(authority))
-                })
+                Commit::over_with_authority(
+                    fixture.context(),
+                    anchor(fixture.context()),
+                    |authority| {
+                        SqliteStore::sqlite(&path.join("state.db"), "ekr", ontology)
+                            .map(|s| s.under(authority))
+                    },
+                )
                 .unwrap(),
             ),
             Self::File => Box::new(
-                Commit::over_with_bootstrap(fixture.context(), |authority| {
-                    FileStore::file(path, "ekr", ontology).map(|s| s.under(authority))
-                })
+                Commit::over_with_authority(
+                    fixture.context(),
+                    anchor(fixture.context()),
+                    |authority| FileStore::file(path, "ekr", ontology).map(|s| s.under(authority)),
+                )
                 .unwrap(),
             ),
         }
@@ -160,11 +195,15 @@ fn envelope(document: &SeedDocument, context: BootstrapContext) -> Vec<u8> {
         format: &'a str,
         input: &'a SeedDocument,
         context: BootstrapContext,
+        authority: AuthorityStateV1,
+        committed_at: Timestamp,
     }
     serde_json::to_vec(&Envelope {
-        format: "ekr-seed-envelope/1",
+        format: "ekr-seed-envelope/2",
         input: document,
         context,
+        authority: anchor(context),
+        committed_at: Timestamp::EPOCH,
     })
     .unwrap()
 }
@@ -193,7 +232,7 @@ fn seed_ontology_property_definitions_must_be_filed_under_their_own_ids() {
                     .next()
                     .unwrap()
                     .properties
-                    .insert(key, Value::String("retained".to_owned()));
+                    .insert(key, vec![Value::String("retained".to_owned())]);
             } else {
                 fixture.ontology.node_types[0]
                     .properties
@@ -205,7 +244,7 @@ fn seed_ontology_property_definitions_must_be_filed_under_their_own_ids() {
                     .next()
                     .unwrap()
                     .properties
-                    .insert(key, Value::String("retained".to_owned()));
+                    .insert(key, vec![Value::String("retained".to_owned())]);
             }
             // Preserve the current admitted-schema witness. Once the shared loader refuses
             // it, still exercise kernel admission with valid compatibility configuration.
@@ -317,12 +356,13 @@ fn losing_cached_seed_keeps_its_original_retention_class() {
             if result.is_ok() {
                 assert_eq!(observed.storage_class, StorageClass::Canonical);
             } else {
-                assert_eq!(
+                assert!(matches!(
                     result,
-                    &Err(ekr_kernel::SeedError::Store(
+                    Err(ekr_kernel::SeedError::Store(
                         ekr_store::StoreError::AlreadySeeded
+                            | ekr_store::StoreError::PublicationInputConflict
                     ))
-                );
+                ));
                 assert_eq!(
                     observed.storage_class,
                     StorageClass::Cache,
@@ -370,12 +410,12 @@ fn persisted_seed_format_and_context_fields_refuse_before_admission() {
             let object = raw
                 .put(ekr_store::StorageClass::Canonical, &bytes, Timestamp::EPOCH)
                 .unwrap();
-            let _appended = raw
-                .append(&ekr_graph::RevisionEvent::Seeded {
-                    revision_id: ekr_core::RevisionId::mint(),
-                    seed_hash: object.content_hash,
-                })
-                .unwrap();
+            let _appended = seed_corruption::inject(
+                directory.path(),
+                matches!(backend, Backend::File),
+                Ontology::load(fixture.ontology.clone()).unwrap(),
+                &bytes,
+            );
             let runtime = backend.open(directory.path(), &fixture);
             let error = runtime.snapshot().unwrap_err().to_string();
             assert!(error.contains(code), "{backend:?}/{fault}: {error}");
@@ -414,14 +454,14 @@ fn inherited_record_properties_remain_typed_and_constraints_cannot_disappear() {
         .properties
         .insert(
             property,
-            Value::Record(
+            vec![Value::Record(
                 [(
                     "validation".to_owned(),
                     Value::String("a user key".to_owned()),
                 )]
                 .into_iter()
                 .collect(),
-            ),
+            )],
         );
     for backend in [Backend::Sqlite, Backend::File] {
         let directory = TempDir::new().unwrap();

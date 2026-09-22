@@ -43,7 +43,11 @@ pub struct Edge<V: ValueSpace = CanonicalValue> {
     pub target: V::NodeRef,
     /// Its property values, by the property's id — keyed as [`Node::properties`](crate::Node) is,
     /// and for the same reason.
-    pub properties: BTreeMap<PropertyId, V>,
+    #[serde(
+        deserialize_with = "crate::node::property_values",
+        bound(deserialize = "V: Deserialize<'de>")
+    )]
+    pub properties: BTreeMap<PropertyId, Vec<V>>,
 }
 
 impl<V: ValueSpace> Edge<V> {

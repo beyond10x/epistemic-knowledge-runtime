@@ -508,7 +508,7 @@ fn scalar_null_cannot_supply_top_level_or_schema_collections() {
 
 #[test]
 fn assertion_payloads_preserve_typed_enums_and_checked_temporal_ranges() {
-    let operation = format!("!AddAssertion {{id: {ID}, root_id: {ID}, subject: !Node {ID}, predicate: !Property {PROPERTY}, object: !Value {{value_kind: String, value: claim}}, evidence: [], proposed_by: {ID}, validation: Proposed, valid_time: {{from: 0, to: null}}, transaction_time: {{recorded_from: 0, recorded_to: null}}}}");
+    let operation = format!("!AddAssertion {{id: {ID}, root_id: {ID}, subject: !Node {ID}, predicate: !Property {PROPERTY}, object: !Value {{value_kind: String, value: claim}}, evidence: [], proposed_by: {ID}, assessment: Proposed, lifecycle: Active, valid_time: {{from: 0, to: null}}, transaction_time: {{recorded_from: 0, recorded_to: null}}}}");
     let input = document(&operation);
     TransactionDocument::parse(input.as_bytes()).unwrap();
     for broken in [
@@ -516,8 +516,8 @@ fn assertion_payloads_preserve_typed_enums_and_checked_temporal_ranges() {
         input.replace("from: 0, to: null", "from: 0, to: null, extra: true"),
         input.replace("recorded_to: null", "recorded_to: null, extra: true"),
         input.replace(
-            "validation: Proposed",
-            "validation: !Accepted {validators: [], extra: true}",
+            "assessment: Proposed",
+            "assessment: !Accepted {validators: [], extra: true}",
         ),
     ] {
         let error = TransactionDocument::parse(broken.as_bytes())
@@ -556,18 +556,31 @@ fn current_operation_payloads_use_the_shared_decoder_without_shape_loss() {
         format!("!UpdateProperty {{node: {ID}, property: {PROPERTY}, values: []}}"),
         format!("!CreateEdge {{id: {ID}, root_id: {ID}, type_id: {ID}, source: {ID}, target: {ID}, properties: {{}}}}"),
         format!("!DeleteEdge {ID}"),
-        // This is the current identity-only shape, not future reasoned retraction.
-        format!("!RetractAssertion {ID}"),
+        format!("!RetractAssertion {{assertion: {ID}, reason: corrected}}"),
         format!("!DefineNodeType {{id: {ID}, name: item, lifecycle: {{initial: open, states: [open], transitions: [{{from: open, to: open}}]}}, operations: {{action: {{name: action, arguments: {{reason: {{value_kind: String}}}}, transition: {{from: open, to: open}}}}}}}}"),
         format!("!DefineEdgeType {{id: {ID}, name: relation, source_types: [{ID}], target_types: [{ID}]}}"),
         format!("!ModifyProperty {{id: {PROPERTY}, name: field, value_type: {{value_kind: Record, parameters: {{entry: {{value_kind: String}}}}}}}}"),
         format!("!MergeEntity {{absorbed: {ID}, into: {ID}}}"),
         format!("!Invoke {{node: {ID}, operation: action, arguments: {{reason: {{value_kind: String, value: ok}}}}}}"),
+        format!("!SupersedeAssertion {{assertion: {ID}, by: {PROPERTY}, effective_from: 42}}"),
     ];
     for operation in operations {
         let direct: GraphOperation = serde_yaml_ng::from_str(&operation).unwrap();
         let parsed = TransactionDocument::parse(document(&operation).as_bytes()).unwrap();
         assert_eq!(parsed.transaction().operations, [direct]);
+    }
+}
+
+#[test]
+fn current_withdrawal_operations_require_complete_payloads() {
+    for operation in [
+        format!("!RetractAssertion {ID}"),
+        format!("!RetractAssertion {{assertion: {ID}}}"),
+        format!("!RetractAssertion {{assertion: {ID}, reason: corrected, ignored: true}}"),
+        format!("!SupersedeAssertion {{assertion: {ID}, by: {PROPERTY}}}"),
+        format!("!SupersedeAssertion {{assertion: {ID}, by: {PROPERTY}, effective_from: 42, ignored: true}}"),
+    ] {
+        assert!(TransactionDocument::parse(document(&operation).as_bytes()).is_err());
     }
 }
 

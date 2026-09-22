@@ -132,14 +132,27 @@ impl Validator for Reference {
                         }
                     }
                 }
-                GraphOperation::RetractAssertion(assertion) => {
-                    if !known.assertions.contains(assertion) {
+                GraphOperation::RetractAssertion(retraction) => {
+                    let assertion = retraction.assertion;
+                    if !known.assertions.contains(&assertion) {
                         issues.push(issue(
                             tx,
                             ValidatorName::Reference,
                             UNRESOLVED_ASSERTION,
                             format!("assertion {assertion} is not in the graph"),
                         ));
+                    }
+                }
+                GraphOperation::SupersedeAssertion(supersession) => {
+                    for assertion in [supersession.assertion, supersession.by] {
+                        if !known.assertions.contains(&assertion) {
+                            issues.push(issue(
+                                tx,
+                                ValidatorName::Reference,
+                                UNRESOLVED_ASSERTION,
+                                format!("assertion {assertion} is not in the graph"),
+                            ));
+                        }
                     }
                 }
                 GraphOperation::MergeEntity(merge) => {

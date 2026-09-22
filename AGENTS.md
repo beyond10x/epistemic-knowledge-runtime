@@ -54,9 +54,11 @@ a dependency; their data enters through the import policy in `docs/predecessors.
 Each is a claim that can be checked. Breaking one is a design change, not a refactor.
 
 1. **Only `ekr-kernel` constructs a `ValidatedTransaction`, and only a `ValidatedTransaction`
-   commits an ordinary transaction.** Initialization has no preceding revision: the kernel's private
-   `ValidatedSeed` capability gates atomic bootstrap publication. Every replay revalidates the full
-   seed input, retained evidence and actual attribution through that same kernel authority.
+   commits an ordinary transaction.** Initialization has no preceding revision: only the kernel's
+   crate-private seed admission (`seed::admitted_graph`) builds a Seeded publication, and the store
+   publishes one only after replaying the staged candidate through the injected kernel authority.
+   Every replay revalidates the full seed input, retained evidence and actual attribution through
+   that same kernel authority.
    `crates/ekr-kernel/tests/seed.rs` holds this on both providers in
    `an_evidence_seed_reopens_with_identical_roots_fields_and_retained_bytes`,
    `reopen_checks_full_ontology_and_execution_context` and

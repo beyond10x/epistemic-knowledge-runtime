@@ -13,7 +13,7 @@
 //! * [`node`], [`edge`] — [`Node`] (design § 10, amendment 87) and [`Edge`] (design § 12).
 //! * [`evidence`] — [`Observation`], [`Evidence`] and [`Support`] (design § 15–16, amendment 86).
 //! * [`assertion`] — [`Assertion`] with its [`Subject`], [`Predicate`], [`Object`],
-//!   [`TemporalRange`], [`TransactionTime`], [`ValidationState`] and [`AssertionStatus`]
+//!   [`TemporalRange`], [`TransactionTime`], [`Assessment`] and [`AssertionLifecycle`]
 //!   (design § 13–14, § 17, § 36).
 //! * [`canonical`], [`transient`] — the two knowledge spaces and the references each may hold
 //!   (design § 21, § 23).
@@ -60,7 +60,8 @@
 //! use ekr_core::{AgentId, AssertionId, GraphRootId, NodeId, RevisionNumber, SchemaVersionId,
 //!                Timestamp, TypeId};
 //! use ekr_graph::{Assertion, CanonicalGraph, CanonicalRef, GraphRoot, GraphSnapshot, Node, Object,
-//!                 Predicate, Space, Subject, TemporalRange, TransactionTime, ValidationState};
+//!                 Predicate, Space, Subject, TemporalRange, TransactionTime, Assessment,
+//!                 AssertionLifecycle};
 //! use ekr_ontology::{Ontology, OntologyDocument, SchemaVersion};
 //!
 //! let (root_id, schema) = (GraphRootId::mint(), SchemaVersionId::mint());
@@ -76,7 +77,8 @@
 //!     object: Object::Node(CanonicalRef::new(acme)),
 //!     evidence: BTreeSet::new(),
 //!     proposed_by: AgentId::mint(),
-//!     validation: ValidationState::Accepted { validators: BTreeSet::new() },
+//!     assessment: Assessment::Accepted { validators: BTreeSet::new() },
+//!     lifecycle: AssertionLifecycle::Active,
 //!     // Closed: the world moved on, and the record says so rather than disappearing. The
 //!     // constructor refuses an end before its start, so the range is `Option`.
 //!     valid_time: TemporalRange::new(None, Some(handover)).expect("a bound is not inverted"),
@@ -124,14 +126,14 @@ pub mod transient;
 pub mod value;
 
 pub use assertion::{
-    Assertion, AssertionStatus, InvertedRange, Object, Predicate, RetractionReason, Subject,
-    TemporalRange, TransactionTime, ValidationState,
+    Assertion, AssertionLifecycle, Assessment, InvertedRange, Object, Predicate, RetractionReason,
+    Subject, TemporalRange, TransactionTime,
 };
 pub use canonical::{
     CanonicalDependency, CanonicalGraph, CanonicalRef, CanonicalTarget, ValueSpace,
 };
 pub use edge::Edge;
-pub use events::RevisionEvent;
+pub use events::{RevisionEvent, RevisionPayload};
 pub use evidence::{
     Confidence, ConfidenceOutOfRange, Evidence, EvidenceKind, EvidenceSource, Observation,
     ObservationContent, ObservationKind, Support,

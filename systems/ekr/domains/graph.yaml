@@ -1,9 +1,9 @@
 domain: ekr.graph
 
 summary: >-
-  Graph roots, nodes, edges, bitemporal assertions with their validation state, evidence and
+  Graph roots, nodes, edges, bitemporal assertions with independent assessment and lifecycle, evidence and
   observations. Design § 13–17, § 21–23, § 36. This domain has no commands: every change to it is an
-  operation inside a transaction the kernel commits, which is why validation state and per-type
+  operation inside a transaction the kernel commits, which is why assertion assessment/lifecycle and per-type
   lifecycle state are fields here rather than ESS lifecycles — one commit applies many operations,
   and an outcome causes one move.
 
@@ -47,14 +47,12 @@ types:
       - Canonical
       - Transient
 
-  # Design § 17 and § 36, flattened to the state names. Only one state's payload has a carrier
-  # beside it: a Superseded names the superseding assertion in Assertion.superseded_by. The
-  # validators of an Accepted, the issues of a Rejected, the competing assertions of a Disputed,
-  # and the reason and revision of a Retracted have no field here — ess/1 has no sum type with
-  # per-variant payloads, and a repeated field per state would be four nullable columns that
-  # contradict each other. `crates/ekr-graph/src/assertion.rs` carries those payloads in the
-  # variant, which is where design § 17 puts them.
-  - name: ekr.graph.ValidationState
+  # Amendment 88. These are typed ESS projections of strict Rust tagged variants, not their
+  # serialized representation. Exactly the payload belonging to kind is present; every other
+  # optional field is absent. Proposed and Active have none. Runtime projection acceptance
+  # checks the coherence; ESS validation alone does not establish it. Validators are a set,
+  # whereas issues and competing_assertions preserve their original ordered-vector meaning.
+  - name: ekr.graph.AssessmentKind
     kind: enum
     variants:
       - Proposed
@@ -62,8 +60,43 @@ types:
       - Accepted
       - Rejected
       - Disputed
-      - Superseded
+
+  - name: ekr.graph.AssertionLifecycleKind
+    kind: enum
+    variants:
+      - Active
       - Retracted
+      - Superseded
+
+  - name: ekr.graph.AssessmentProjection
+    kind: struct
+    fields:
+      - name: kind
+        type: ekr.graph.AssessmentKind
+      - name: completed
+        type: Optional<Integer>
+      - name: required
+        type: Optional<Integer>
+      - name: validators
+        type: Optional<List<ekr.kernel.AgentId>>
+      - name: issues
+        type: Optional<List<ekr.kernel.IssueId>>
+      - name: competing_assertions
+        type: Optional<List<ekr.graph.AssertionId>>
+
+  - name: ekr.graph.AssertionLifecycleProjection
+    kind: struct
+    fields:
+      - name: kind
+        type: ekr.graph.AssertionLifecycleKind
+      - name: at_revision
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: reason
+        type: Optional<String>
+      - name: by
+        type: Optional<ekr.graph.AssertionId>
+      - name: effective_from
+        type: Optional<Timestamp>
 
   # Design § 13.
   - name: ekr.graph.SubjectKind
@@ -110,31 +143,240 @@ types:
       - GitDiff
       - Blob
 
-  # Design § 11.3 `Value`. The runtime value is recursive (List, Record); ESS types are not, so a
-  # value is carried as its kind plus a textual encoding of it.
-  #
-  # Two things this shape does not say, corrected 2026-09-21 in wave p1-05.
-  #
-  # `canonical` is NOT the bytes a content hash is computed over. Those bytes are the tagged,
-  # length-prefixed binary encoding of crates/ekr-core/src/canonical.rs, which that module's own
-  # doc calls an internal format with no decoder. A String cannot carry them and nothing converts
-  # between the two. What this field holds is a textual form for a reader, and no rule yet says
-  # which one.
-  #
-  # `kind` is ekr.ontology.ValueKind, which has eleven members. A value in CANONICAL state carries
-  # ten: architecture-decision-record:0005-float-is-not-canonical makes Float inadmissible, and
-  # ekr_graph::CanonicalValue is the Rust type that has no variant for it. A value in TRANSIENT
-  # state carries all eleven — the graph types are generic over the value they hold, and the
-  # incubation forest holds them over ekr_ontology::Value. ess/1 cannot declare a subset of an
-  # enumeration, nor two instantiations of one entity, so both facts are stated here rather than
-  # typed.
+  # Canonical graph read projection only: canonical_bytes is the exact existing tagged binary
+  # value encoding, not JSON, a debug string, or a stored-object payload. The kind must agree with
+  # those bytes. The strict graph/seed documents retain typed Rust values, and transaction
+  # documents retain transient Value (including Float) in their original YAML bytes (§91).
+  # ESS supports Bytes and recursive types; earlier comments claiming otherwise were incorrect.
+  - name: ekr.graph.CanonicalValueKind
+    kind: enum
+    variants:
+      - String
+      - Boolean
+      - Integer
+      - Decimal
+      - Timestamp
+      - Duration
+      - NodeRef
+      - Enum
+      - List
+      - Record
+
   - name: ekr.graph.TypedValue
     kind: struct
     fields:
       - name: kind
-        type: ekr.ontology.ValueKind
-      - name: canonical
+        type: ekr.graph.CanonicalValueKind
+      - name: canonical_bytes
+        type: Bytes
+
+
+  # Complete admitted-document projections used by §91's retained seed records. Map keys are
+  # exact stable UUID strings and must agree with nested ids. Lists projecting sets are unique
+  # and sorted canonically. The source wire shape remains the strict typed document, not these
+  # projections. Subject/predicate/object and evidence-source payloads must match their kind.
+  - name: ekr.graph.RevisionRoot
+    kind: struct
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: parent
+        type: Optional<ekr.kernel.ContentHash>
+      - name: ontology_root
+        type: ekr.kernel.ContentHash
+      - name: knowledge_root
+        type: ekr.kernel.ContentHash
+      - name: evidence_root
+        type: ekr.kernel.ContentHash
+      - name: agent_root
+        type: ekr.kernel.ContentHash
+      - name: transaction
+        type: ekr.kernel.ContentHash
+
+  - name: ekr.graph.GraphRootRecord
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.GraphRootId
+      - name: space
+        type: ekr.graph.Space
+      - name: schema_version_id
+        type: ekr.ontology.SchemaVersionId
+      - name: parent
+        type: Optional<ekr.graph.GraphRootId>
+      - name: created_at
+        type: Timestamp
+
+  - name: ekr.graph.NodeRecord
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: root_id
+        type: ekr.graph.GraphRootId
+      - name: type_id
+        type: ekr.ontology.TypeId
+      - name: canonical_name
         type: String
+      - name: aliases
+        type: List<String>
+      - name: type_state
+        type: Optional<String>
+      - name: properties
+        type: Map<String, List<ekr.graph.TypedValue>>
+
+  - name: ekr.graph.EdgeRecord
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.EdgeId
+      - name: root_id
+        type: ekr.graph.GraphRootId
+      - name: type_id
+        type: ekr.ontology.TypeId
+      - name: source
+        type: ekr.graph.NodeId
+      - name: target
+        type: ekr.graph.NodeId
+      - name: properties
+        type: Map<String, List<ekr.graph.TypedValue>>
+
+  - name: ekr.graph.SubjectProjection
+    kind: struct
+    fields:
+      - name: kind
+        type: ekr.graph.SubjectKind
+      - name: id
+        type: Uuid
+
+  - name: ekr.graph.PredicateProjection
+    kind: struct
+    fields:
+      - name: kind
+        type: ekr.graph.PredicateKind
+      - name: id
+        type: Uuid
+
+  - name: ekr.graph.ObjectProjection
+    kind: struct
+    fields:
+      - name: kind
+        type: ekr.graph.ObjectKind
+      - name: value
+        type: Optional<ekr.graph.TypedValue>
+      - name: reference
+        type: Optional<Uuid>
+
+  - name: ekr.graph.TemporalRange
+    kind: struct
+    fields:
+      - name: from
+        type: Optional<Timestamp>
+      - name: to
+        type: Optional<Timestamp>
+
+  - name: ekr.graph.TransactionTime
+    kind: struct
+    fields:
+      - name: recorded_from
+        type: Timestamp
+      - name: recorded_to
+        type: Optional<Timestamp>
+
+  - name: ekr.graph.AssertionRecord
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.AssertionId
+      - name: root_id
+        type: ekr.graph.GraphRootId
+      - name: subject
+        type: ekr.graph.SubjectProjection
+      - name: predicate
+        type: ekr.graph.PredicateProjection
+      - name: object
+        type: ekr.graph.ObjectProjection
+      - name: evidence
+        type: List<ekr.graph.EvidenceId>
+      - name: proposed_by
+        type: ekr.kernel.AgentId
+      - name: assessment
+        type: ekr.graph.AssessmentProjection
+      - name: lifecycle
+        type: ekr.graph.AssertionLifecycleProjection
+      - name: valid_time
+        type: ekr.graph.TemporalRange
+      - name: transaction_time
+        type: ekr.graph.TransactionTime
+
+  - name: ekr.graph.EvidenceSourceProjection
+    kind: struct
+    fields:
+      - name: kind
+        type: ekr.graph.EvidenceKind
+      - name: url
+        type: Optional<String>
+      - name: document_id
+        type: Optional<String>
+      - name: section
+        type: Optional<String>
+      - name: database
+        type: Optional<String>
+      - name: table
+        type: Optional<String>
+      - name: key
+        type: Optional<String>
+      - name: assertion
+        type: Optional<ekr.graph.AssertionId>
+      - name: observation
+        type: Optional<ekr.graph.ObservationId>
+      - name: identity
+        type: Optional<String>
+
+  - name: ekr.graph.EvidenceRecord
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.EvidenceId
+      - name: source
+        type: ekr.graph.EvidenceSourceProjection
+      - name: content_hash
+        type: ekr.kernel.ContentHash
+      - name: extracted_by
+        type: ekr.kernel.AgentId
+      - name: observed_at
+        type: Timestamp
+      - name: confidence_bp
+        type: Integer
+
+  - name: ekr.graph.GraphDocumentBodyProjection
+    kind: struct
+    fields:
+      - name: root
+        type: ekr.graph.GraphRootRecord
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: nodes
+        type: Map<String, ekr.graph.NodeRecord>
+      - name: edges
+        type: Map<String, ekr.graph.EdgeRecord>
+      - name: assertions
+        type: Map<String, ekr.graph.AssertionRecord>
+      - name: evidence
+        type: Map<String, ekr.graph.EvidenceRecord>
+
+  # Required literal: "ekr.graph-document/2". Runtime version dispatch enforces it.
+  - name: ekr.graph.GraphDocumentFormatV2
+    kind: newtype
+    of: String
+
+  - name: ekr.graph.GraphDocumentV2Projection
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.graph.GraphDocumentFormatV2
+      - name: graph
+        type: ekr.graph.GraphDocumentBodyProjection
 
 entities:
   # Design § 22–23, § 69 `GraphRoot`. In P1 there is exactly one root, the canonical core.
@@ -173,6 +415,8 @@ entities:
       states: [Active]
       terminal: [Active]
 
+  # Property maps use stable PropertyId UUID strings as keys, never names. Each ordered outer
+  # list is nonempty; duplicates count. A List value inside it is still one member (§89).
   # Design § 10 and amendment 87. `state` is the per-type lifecycle state the ontology declares for
   # this node's type; the ontology-constraint validator, not ESS, checks its transitions.
   - name: ekr.graph.Node
@@ -191,7 +435,7 @@ entities:
       - name: type_state
         type: Optional<String>
       - name: properties
-        type: Map<String, ekr.graph.TypedValue>
+        type: Map<String, List<ekr.graph.TypedValue>>
     relations:
       - name: type
         kind: references
@@ -218,7 +462,7 @@ entities:
       - name: target
         type: ekr.graph.NodeId
       - name: properties
-        type: Map<String, ekr.graph.TypedValue>
+        type: Map<String, List<ekr.graph.TypedValue>>
     relations:
       - name: type
         kind: references
@@ -265,10 +509,10 @@ entities:
         type: Optional<Uuid>
       - name: proposed_by
         type: ekr.kernel.AgentId
-      - name: validation
-        type: ekr.graph.ValidationState
-      - name: superseded_by
-        type: Optional<ekr.graph.AssertionId>
+      - name: assessment
+        type: ekr.graph.AssessmentProjection
+      - name: lifecycle
+        type: ekr.graph.AssertionLifecycleProjection
       - name: valid_from
         type: Optional<Timestamp>
       - name: valid_to
@@ -375,8 +619,10 @@ views:
         type: ekr.graph.AssertionId
       - name: root_id
         type: ekr.graph.GraphRootId
-      - name: validation
-        type: ekr.graph.ValidationState
+      - name: assessment
+        type: ekr.graph.AssessmentProjection
+      - name: lifecycle
+        type: ekr.graph.AssertionLifecycleProjection
       - name: recorded_from
         type: Timestamp
     naming:

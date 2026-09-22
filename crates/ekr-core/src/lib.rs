@@ -33,7 +33,7 @@ pub mod time;
 pub use canonical::{Canonical, Encoder};
 pub use hash::{ContentHash, ContentHashParseError};
 pub use identity::{
-    AgentId, AssertionId, EdgeId, EvidenceId, GraphRootId, IdParseError, IssueId, NodeId,
+    AgentId, AssertionId, EdgeId, EventId, EvidenceId, GraphRootId, IdParseError, IssueId, NodeId,
     ObservationId, PropertyId, RevisionId, RevisionNumber, RevisionNumberParseError,
     SchemaVersionId, SupportId, TransactionId, TypeId,
 };

@@ -1,4 +1,6 @@
 //! Seed admission must cross the real kernel on both persistent backends.
+#[path = "support/seed_corruption.rs"]
+mod seed_corruption;
 use std::collections::BTreeSet;
 
 use ekr_core::{
@@ -6,13 +8,38 @@ use ekr_core::{
     SchemaVersionId, Timestamp, TypeId,
 };
 use ekr_graph::{
-    Assertion, Confidence, Edge, Evidence, EvidenceSource, GraphRoot, Node, Object, Predicate,
-    Space, Subject, TemporalRange, TransactionTime, ValidationState,
+    Assertion, Assessment, Confidence, Edge, Evidence, EvidenceSource, GraphRoot, Node, Object,
+    Predicate, Space, Subject, TemporalRange, TransactionTime,
 };
-use ekr_kernel::{BootstrapContext, Commit, SeedDocument};
+use ekr_kernel::{
+    Agent, AuthorityStateV1, BootstrapContext, Commit, SeedDocument, ValidationProfileV1,
+};
 use ekr_ontology::{EdgeType, NodeType, Ontology, OntologyDocument, SchemaVersion, Value};
 use ekr_store::{FileStore, GraphDocument, Initialize, ObjectStore, RevisionLog, SqliteStore};
 use tempfile::TempDir;
+
+fn anchor(context: BootstrapContext) -> AuthorityStateV1 {
+    AuthorityStateV1 {
+        format: "ekr.authority-state/1".into(),
+        agents: [
+            (context.operator, "operator"),
+            (context.validator, "validator"),
+        ]
+        .into_iter()
+        .map(|(id, name)| {
+            (
+                id,
+                Agent {
+                    id,
+                    name: name.into(),
+                    capabilities: Default::default(),
+                },
+            )
+        })
+        .collect(),
+        validation_profile: ValidationProfileV1::deterministic(context.validator),
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 enum Backend {
@@ -56,7 +83,8 @@ impl Fixture {
             object: Object::Node(node.id),
             evidence: [evidence.id].into_iter().collect(),
             proposed_by: operator,
-            validation: ValidationState::Proposed,
+            assessment: Assessment::Proposed,
+            lifecycle: ekr_graph::AssertionLifecycle::Active,
             valid_time: TemporalRange::UNBOUNDED,
             transaction_time: TransactionTime::since(Timestamp::EPOCH),
         };
@@ -90,7 +118,7 @@ impl Fixture {
 impl Fixture {
     fn document(&self) -> SeedDocument {
         SeedDocument {
-            format: "ekr-seed/1".to_owned(),
+            format: "ekr-seed/2".to_owned(),
             ontology: self.ontology.clone(),
             graph: self.graph.clone(),
             evidence_payloads: [(
@@ -117,24 +145,32 @@ fn admit(backend: Backend, fixture: &Fixture) -> Result<(), String> {
         fixture: &Fixture,
     ) -> Result<(), String> {
         commit
-            .seed(fixture.document())
+            .seed(fixture.document(), || Timestamp::EPOCH)
             .map(|_| ())
             .map_err(|e| e.to_string())
     }
     match backend {
         Backend::Sqlite => through(
-            Commit::over_with_bootstrap(fixture.context(), |authority| {
-                SqliteStore::sqlite(&directory.path().join("state.db"), "ekr", ontology)
-                    .map(|store| store.under(authority))
-            })
+            Commit::over_with_authority(
+                fixture.context(),
+                anchor(fixture.context()),
+                |authority| {
+                    SqliteStore::sqlite(&directory.path().join("state.db"), "ekr", ontology)
+                        .map(|store| store.under(authority))
+                },
+            )
             .unwrap(),
             fixture,
         ),
         Backend::File => through(
-            Commit::over_with_bootstrap(fixture.context(), |authority| {
-                FileStore::file(directory.path(), "ekr", ontology)
-                    .map(|store| store.under(authority))
-            })
+            Commit::over_with_authority(
+                fixture.context(),
+                anchor(fixture.context()),
+                |authority| {
+                    FileStore::file(directory.path(), "ekr", ontology)
+                        .map(|store| store.under(authority))
+                },
+            )
             .unwrap(),
             fixture,
         ),
@@ -178,7 +214,7 @@ fn a_seed_with_a_caller_verdict_is_refused_by_both_backends() {
         .values_mut()
         .next()
         .unwrap()
-        .validation = ValidationState::Accepted {
+        .assessment = Assessment::Accepted {
         validators: BTreeSet::new(),
     };
     let accepted: Vec<_> = [Backend::Sqlite, Backend::File]
@@ -238,7 +274,8 @@ trait Runtime {
 }
 impl<S: RevisionLog + ObjectStore + Initialize> Runtime for Commit<S> {
     fn seed(&self, document: SeedDocument) -> Result<ekr_graph::Root, ekr_kernel::SeedError> {
-        self.seed(document)
+        self.seed(document, || Timestamp::EPOCH)
+            .map(|record| record.result)
     }
     fn head(&self) -> Result<Option<ekr_graph::Root>, ekr_store::StoreError> {
         self.head()
@@ -263,20 +300,28 @@ impl Backend {
         ontology: Ontology,
         context: BootstrapContext,
     ) -> Box<dyn Runtime> {
+        self.try_open(directory, ontology, context).unwrap()
+    }
+    fn try_open(
+        self,
+        directory: &std::path::Path,
+        ontology: Ontology,
+        context: BootstrapContext,
+    ) -> Result<Box<dyn Runtime>, ekr_store::StoreError> {
         match self {
-            Self::Sqlite => Box::new(
-                Commit::over_with_bootstrap(context, |authority| {
+            Self::Sqlite => Ok(Box::new(Commit::over_with_authority(
+                context,
+                anchor(context),
+                |authority| {
                     SqliteStore::sqlite(&directory.join("state.db"), "ekr", ontology)
                         .map(|s| s.under(authority))
-                })
-                .unwrap(),
-            ),
-            Self::File => Box::new(
-                Commit::over_with_bootstrap(context, |authority| {
-                    FileStore::file(directory, "ekr", ontology).map(|s| s.under(authority))
-                })
-                .unwrap(),
-            ),
+                },
+            )?)),
+            Self::File => Ok(Box::new(Commit::over_with_authority(
+                context,
+                anchor(context),
+                |authority| FileStore::file(directory, "ekr", ontology).map(|s| s.under(authority)),
+            )?)),
         }
     }
     fn raw(self, directory: &std::path::Path, ontology: Ontology) -> Box<dyn Provider> {
@@ -295,11 +340,15 @@ fn envelope_bytes(document: &SeedDocument, context: BootstrapContext) -> Vec<u8>
         format: &'a str,
         input: &'a SeedDocument,
         context: BootstrapContext,
+        authority: AuthorityStateV1,
+        committed_at: Timestamp,
     }
     serde_json::to_vec(&Envelope {
-        format: "ekr-seed-envelope/1",
+        format: "ekr-seed-envelope/2",
         input: document,
         context,
+        authority: anchor(context),
+        committed_at: Timestamp::EPOCH,
     })
     .unwrap()
 }
@@ -308,11 +357,14 @@ fn refuses(fixture: &Fixture, document: &SeedDocument, code: &str) {
     for backend in [Backend::Sqlite, Backend::File] {
         let directory = TempDir::new().unwrap();
         let ontology = Ontology::load(fixture.ontology.clone()).unwrap();
-        let runtime = backend.open(directory.path(), ontology.clone(), fixture.context());
+        let runtime = backend.try_open(directory.path(), ontology.clone(), fixture.context());
         let expected_hash = ContentHash::of_bytes(&envelope_bytes(document, fixture.context()));
-        let refusal = runtime
-            .seed(document.clone())
-            .expect_err("invalid seed must refuse");
+        let refusal = match runtime {
+            Ok(runtime) => runtime
+                .seed(document.clone())
+                .expect_err("invalid seed must refuse"),
+            Err(error) => ekr_kernel::SeedError::Store(error),
+        };
         assert!(
             refusal.to_string().contains(code),
             "{backend:?}: expected {code}, got {refusal}"
@@ -348,7 +400,7 @@ fn named_seed_refusals_write_neither_the_object_nor_the_revision() {
         .values_mut()
         .next()
         .unwrap()
-        .validation = ValidationState::Accepted {
+        .assessment = Assessment::Accepted {
         validators: BTreeSet::new(),
     };
     refuses(&f, &verdict, "assertion-states-its-own-verdict");
@@ -418,7 +470,7 @@ fn floats_are_refused_in_seed_nodes_edges_and_assertion_objects() {
         .next()
         .unwrap()
         .properties
-        .insert(property, Value::List(vec![Value::Float(1.0)]));
+        .insert(property, vec![Value::List(vec![Value::Float(1.0)])]);
     refuses(&f, &node, "inadmissible-value");
     refuses(&f, &node, &property.to_string());
     let mut edge = f.document();
@@ -428,7 +480,7 @@ fn floats_are_refused_in_seed_nodes_edges_and_assertion_objects() {
         .next()
         .unwrap()
         .properties
-        .insert(property, Value::Float(1.0));
+        .insert(property, vec![Value::Float(1.0)]);
     refuses(&f, &edge, "inadmissible-value");
     let mut assertion = f.document();
     assertion
@@ -594,7 +646,7 @@ fn an_evidence_seed_reopens_with_identical_roots_fields_and_retained_bytes() {
         let graph = runtime.snapshot().unwrap();
         assert_eq!(head.revision, RevisionNumber::SEED);
         let mut expected = f.graph.clone();
-        expected.assertions.values_mut().next().unwrap().validation = ValidationState::Accepted {
+        expected.assertions.values_mut().next().unwrap().assessment = Assessment::Accepted {
             validators: [f.validator].into_iter().collect(),
         };
         assert_eq!(GraphDocument::of(&graph), expected);
@@ -703,12 +755,7 @@ fn repeated_initialization_preserves_the_lineage_and_writes_no_second_object() {
         let ontology = Ontology::load(f.ontology.clone()).unwrap();
         let runtime = backend.open(directory.path(), ontology.clone(), f.context());
         let head = runtime.seed(f.document()).unwrap();
-        assert_eq!(
-            runtime.seed(f.document()),
-            Err(ekr_kernel::SeedError::Store(
-                ekr_store::StoreError::AlreadySeeded
-            ))
-        );
+        assert_eq!(runtime.seed(f.document()), Ok(head));
         let mut second = f.document();
         second
             .graph
@@ -786,12 +833,13 @@ fn concurrent_independent_handles_publish_exactly_one_seed_and_no_losing_object(
         );
         for (hash, result) in outcomes {
             if result.is_err() {
-                assert_eq!(
+                assert!(matches!(
                     result,
                     Err(ekr_kernel::SeedError::Store(
                         ekr_store::StoreError::AlreadySeeded
+                            | ekr_store::StoreError::PublicationInputConflict
                     ))
-                );
+                ));
                 assert_eq!(raw.get(&hash).unwrap(), None);
             }
         }
@@ -814,7 +862,7 @@ fn legacy_and_tampered_seed_envelopes_are_preserved_but_never_admitted() {
     other_schema.graph.root.schema_version_id = SchemaVersionId::mint();
     let fixtures = [
         (
-            f.graph.to_bytes().unwrap(),
+            serde_json::to_vec(&serde_json::to_value(&f.graph).unwrap()["graph"]).unwrap(),
             "legacy seed requires migration",
         ),
         (
@@ -836,11 +884,12 @@ fn legacy_and_tampered_seed_envelopes_are_preserved_but_never_admitted() {
                 .put(ekr_store::StorageClass::Canonical, bytes, Timestamp::EPOCH)
                 .unwrap();
             assert_eq!(
-                raw.append(&ekr_graph::RevisionEvent::Seeded {
-                    revision_id: ekr_core::RevisionId::mint(),
-                    seed_hash: object.content_hash,
-                })
-                .unwrap(),
+                seed_corruption::inject(
+                    directory.path(),
+                    matches!(backend, Backend::File),
+                    ontology.clone(),
+                    bytes
+                ),
                 ekr_store::Appended::Written
             );
             let runtime = backend.open(directory.path(), ontology, f.context());
@@ -861,14 +910,14 @@ fn seed_decoding_refuses_unknown_semantic_fields_at_every_record_boundary() {
     for path in [
         String::new(),
         "/graph".to_owned(),
-        "/graph/root".to_owned(),
-        format!("/graph/nodes/{node}"),
-        format!("/graph/edges/{edge}"),
-        format!("/graph/assertions/{assertion}"),
-        format!("/graph/evidence/{evidence}"),
-        format!("/graph/assertions/{assertion}/valid_time"),
-        format!("/graph/assertions/{assertion}/transaction_time"),
-        format!("/graph/evidence/{evidence}/source/HumanStatement"),
+        "/graph/graph/root".to_owned(),
+        format!("/graph/graph/nodes/{node}"),
+        format!("/graph/graph/edges/{edge}"),
+        format!("/graph/graph/assertions/{assertion}"),
+        format!("/graph/graph/evidence/{evidence}"),
+        format!("/graph/graph/assertions/{assertion}/valid_time"),
+        format!("/graph/graph/assertions/{assertion}/transaction_time"),
+        format!("/graph/graph/evidence/{evidence}/source/HumanStatement"),
     ] {
         let mut changed = document.clone();
         changed
@@ -885,7 +934,7 @@ fn seed_decoding_refuses_unknown_semantic_fields_at_every_record_boundary() {
     let yaml = serde_yaml_ng::to_string(&f.document()).unwrap();
     assert_eq!(SeedDocument::from_yaml(&yaml).unwrap(), f.document());
     assert!(
-        SeedDocument::from_yaml(&yaml.replace("ekr-seed/1", "ekr-seed/999"))
+        SeedDocument::from_yaml(&yaml.replace("ekr-seed/2", "ekr-seed/999"))
             .unwrap_err()
             .to_string()
             .contains("unsupported-seed-format")
@@ -932,7 +981,7 @@ fn seed_multiplicity_and_property_types_are_checked() {
         .next()
         .unwrap()
         .properties
-        .insert(property, Value::Boolean(true));
+        .insert(property, vec![Value::Boolean(true)]);
     refuses(&f, &document, "wrong-type");
 }
 
@@ -949,14 +998,14 @@ fn legitimate_record_keys_remain_data_in_strict_seed_decoding() {
         .properties
         .insert(
             ekr_core::PropertyId::mint(),
-            Value::Record(
+            vec![Value::Record(
                 [(
                     "arbitrary-user-key".to_owned(),
                     Value::String("content".to_owned()),
                 )]
                 .into_iter()
                 .collect(),
-            ),
+            )],
         );
     let yaml = serde_yaml_ng::to_string(&document).unwrap();
     assert_eq!(SeedDocument::from_yaml(&yaml).unwrap(), document);
@@ -965,7 +1014,7 @@ fn legitimate_record_keys_remain_data_in_strict_seed_decoding() {
 #[test]
 fn the_versioned_minimal_yaml_fixture_initializes_both_real_providers() {
     let path = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
-        .join("tests/fixtures/seed-minimal.yaml");
+        .join("tests/fixtures/seed-minimal-v2.yaml");
     let document = SeedDocument::from_yaml(&std::fs::read_to_string(path).unwrap()).unwrap();
     let context = BootstrapContext {
         operator: AgentId::mint(),
