@@ -492,21 +492,21 @@ const QUALIFIED: [(&str, &[&str]); 4] = [
         "eventlog-core",
         &[
             "git = \"https://github.com/beyond10x/eventlog\"",
-            "rev = \"4ee3dc23f0d02a5726a0e41d097477791f09efe2\"",
+            "rev = \"28e578568846fc860e44a5f7c76b7e807abddc12\"",
         ],
     ),
     (
         "eventlog-file",
         &[
             "git = \"https://github.com/beyond10x/eventlog\"",
-            "rev = \"4ee3dc23f0d02a5726a0e41d097477791f09efe2\"",
+            "rev = \"28e578568846fc860e44a5f7c76b7e807abddc12\"",
         ],
     ),
     (
         "eventlog-sqlite",
         &[
             "git = \"https://github.com/beyond10x/eventlog\"",
-            "rev = \"4ee3dc23f0d02a5726a0e41d097477791f09efe2\"",
+            "rev = \"28e578568846fc860e44a5f7c76b7e807abddc12\"",
         ],
     ),
 ];
