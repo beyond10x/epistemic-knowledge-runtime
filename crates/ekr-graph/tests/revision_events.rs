@@ -12,8 +12,8 @@
 //! that contains one — so the mapping is pinned below rather than left to a reviewer.
 
 use ekr_core::canonical::Canonical;
-use ekr_core::{AgentId, ContentHash, RevisionId, RevisionNumber, TransactionId};
-use ekr_graph::RevisionEvent;
+use ekr_core::{AgentId, ContentHash, EventId, RevisionId, RevisionNumber, TransactionId};
+use ekr_graph::{RevisionEvent, RevisionPayload};
 
 /// One value of each variant, built over *the same* ids, numbers and hashes.
 ///
@@ -25,38 +25,47 @@ fn every_variant() -> Vec<RevisionEvent> {
     let agent = AgentId::mint();
     let hash = ContentHash::of_bytes(b"one payload for all of them");
     let number = RevisionNumber::new(3);
+    let event_id = EventId::mint();
 
     vec![
-        RevisionEvent::Seeded {
+        RevisionPayload::Seeded {
             revision_id,
             seed_hash: hash,
         },
-        RevisionEvent::TransactionProposed {
+        RevisionPayload::TransactionProposed {
             transaction_id,
             proposer: agent,
-            operations_hash: hash,
+            operations_hash: Some(hash),
         },
-        RevisionEvent::TransactionValidated {
+        RevisionPayload::TransactionValidated {
             transaction_id,
             against: number,
             validation_hash: hash,
         },
-        RevisionEvent::TransactionRejected {
+        RevisionPayload::TransactionRejected {
             transaction_id,
             issues: 3,
         },
-        RevisionEvent::TransactionStale {
+        RevisionPayload::TransactionStale {
             transaction_id,
             validated_against: number,
             current: number,
         },
-        RevisionEvent::RevisionCommitted {
+        RevisionPayload::RevisionCommitted {
             transaction_id,
             revision_id,
             number,
             knowledge_root: hash,
         },
     ]
+    .into_iter()
+    .map(|payload| RevisionEvent {
+        format: RevisionEvent::FORMAT.into(),
+        event_id,
+        record_hash: hash,
+        payload,
+    })
+    .collect()
 }
 
 /// The six `ekr.kernel` event names of `systems/ekr/domains/kernel.yaml`, in the order the story's
@@ -85,13 +94,14 @@ fn every_variant_carries_its_declared_index_and_domain_name() {
         );
         assert_eq!(event.name(), NAMES[position]);
 
-        // The marker the encoding opens with: the tag, then the index, big-endian.
+        // The payload still opens with the frozen kind index. The current event envelope
+        // precedes it with format, occurrence identity and retained-record address.
         let mut expected = vec![0x0fu8];
         expected.extend_from_slice(&index.to_be_bytes());
         assert_eq!(
-            &event.canonical_bytes()[..5],
+            &event.payload.canonical_bytes()[..5],
             &expected[..],
-            "{} does not open with its variant marker",
+            "{} payload does not open with its variant marker",
             event.name()
         );
     }
@@ -128,11 +138,11 @@ fn no_two_variants_share_an_encoding() {
 #[test]
 fn the_variant_marker_and_not_the_payload_is_what_separates_two_events() {
     let uuid = "01a0c3a0-7889-7395-b687-b771f5ae3aa7";
-    let seeded = RevisionEvent::Seeded {
+    let seeded = RevisionPayload::Seeded {
         revision_id: uuid.parse().expect("the one text form of an id"),
         seed_hash: ContentHash::of_bytes(b"the same payload twice"),
     };
-    let rejected = RevisionEvent::TransactionRejected {
+    let rejected = RevisionPayload::TransactionRejected {
         transaction_id: uuid.parse().expect("the one text form of an id"),
         issues: 0,
     };
@@ -166,29 +176,96 @@ fn an_event_encodes_as_a_function_of_its_value() {
     let hash = ContentHash::of_bytes(b"seed");
     let revision_id = RevisionId::mint();
     assert_eq!(
-        RevisionEvent::Seeded {
+        RevisionPayload::Seeded {
             revision_id,
             seed_hash: hash
         }
         .canonical_bytes(),
-        RevisionEvent::Seeded {
+        RevisionPayload::Seeded {
             revision_id,
             seed_hash: hash
         }
         .canonical_bytes()
     );
     assert_ne!(
-        RevisionEvent::Seeded {
+        RevisionPayload::Seeded {
             revision_id,
             seed_hash: hash
         }
         .canonical_bytes(),
-        RevisionEvent::Seeded {
+        RevisionPayload::Seeded {
             revision_id: RevisionId::mint(),
             seed_hash: hash
         }
         .canonical_bytes()
     );
+}
+
+/// The current envelope has its own fixed bytes; the original family remains frozen in legacy.
+#[test]
+fn the_current_envelope_binds_format_occurrence_record_and_payload() {
+    let event = RevisionEvent {
+        format: "ekr.revision-event/2".into(),
+        event_id: "00000000-0000-7000-8000-000000000001".parse().unwrap(),
+        record_hash: ContentHash::from_bytes([0x21; 32]),
+        payload: RevisionPayload::Seeded {
+            revision_id: "00000000-0000-7000-8000-000000000002".parse().unwrap(),
+            seed_hash: ContentHash::from_bytes([0x43; 32]),
+        },
+    };
+    // Transcribed from the canonical format: String tag/length/UTF-8, UUID tag/bytes,
+    // hash tag/bytes, then Seeded's variant tag/index and its UUID/hash payload.
+    // No production encoder builds the expected value.
+    let vector = concat!(
+        "060000000000000014",
+        "656b722e7265766973696f6e2d6576656e742f32",
+        "0d00000000000070008000000000000001",
+        "0e2121212121212121212121212121212121212121212121212121212121212121",
+        "0f00000000",
+        "0d00000000000070008000000000000002",
+        "0e4343434343434343434343434343434343434343434343434343434343434343",
+    );
+    let expected: Vec<u8> = vector
+        .as_bytes()
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|pair| u8::from_str_radix(std::str::from_utf8(pair).unwrap(), 16).unwrap())
+        .collect();
+    assert_eq!(event.canonical_bytes(), expected);
+    assert_eq!(RevisionEvent::FORMAT, "ekr.revision-event/2");
+    let address = ContentHash::of(&event);
+    let mut changed = event.clone();
+    changed.format = "ekr.revision-event/3".into();
+    assert_ne!(ContentHash::of(&changed), address);
+    changed = event.clone();
+    changed.event_id = "00000000-0000-7000-8000-000000000003".parse().unwrap();
+    assert_ne!(ContentHash::of(&changed), address);
+    changed = event.clone();
+    changed.record_hash = ContentHash::from_bytes([0x22; 32]);
+    assert_ne!(ContentHash::of(&changed), address);
+    changed = event;
+    let RevisionPayload::Seeded { seed_hash, .. } = &mut changed.payload else {
+        unreachable!("the fixed fixture is Seeded")
+    };
+    *seed_hash = ContentHash::from_bytes([0x44; 32]);
+    assert_ne!(ContentHash::of(&changed), address);
+}
+
+#[test]
+fn proposal_payload_distinguishes_absent_and_present_operations_hashes() {
+    let mut event = every_variant().remove(1);
+    let original = event.canonical_bytes();
+    let RevisionPayload::TransactionProposed {
+        operations_hash, ..
+    } = &mut event.payload
+    else {
+        unreachable!("the second fixture is Proposed")
+    };
+    *operations_hash = None;
+    assert_ne!(event.canonical_bytes(), original);
+    assert_eq!(event.variant_index(), 1);
+    assert_eq!(event.name(), "ekr.kernel.TransactionProposed");
 }
 
 /// Declaration order and `variant_index()` still agree, whatever form the variants are written in.
@@ -225,8 +302,8 @@ fn the_declaration_order_of_the_variants_equals_their_numbering() {
     .expect("the crate's own source");
 
     let declaration = source
-        .split_once("pub enum RevisionEvent {")
-        .expect("the crate declares RevisionEvent")
+        .split_once("pub enum RevisionPayload {")
+        .expect("the crate declares the six-kind RevisionPayload")
         .1;
 
     // A variant head is a line at exactly one level of indentation inside the enum. Three forms:
@@ -251,6 +328,9 @@ fn the_declaration_order_of_the_variants_equals_their_numbering() {
 
     // The arms of `variant_index`, which is the other half that can move independently.
     let index_body = source
+        .split_once("impl RevisionPayload {")
+        .expect("the payload owns its variant numbering")
+        .1
         .split_once("pub const fn variant_index(&self) -> u32 {")
         .expect("the crate declares variant_index")
         .1
@@ -281,7 +361,7 @@ fn the_declaration_order_of_the_variants_equals_their_numbering() {
         arms.iter()
             .map(|(_, name)| name.clone())
             .collect::<Vec<_>>(),
-        "the order RevisionEvent's variants are written in is not the order variant_index() \
+        "the order RevisionPayload's variants are written in is not the order variant_index() \
          counts in. Nothing derives one from the other: variant_index() is a hand-written match on \
          names. Whichever is wrong, changing a *number* moves every content address that contains \
          that variant — changing the declaration order moves nothing."

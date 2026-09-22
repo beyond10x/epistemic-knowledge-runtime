@@ -97,3 +97,18 @@ only the kernel's lockfile dependency list, with no package/version/source chang
 The coordinator applied and compared manifest/lock in both active trees. The
 worker's original patch with an invalid hunk count is retained privately; the
 reviewed additions were applied directly rather than rewriting that evidence.
+
+## Bounded coordinator integration work
+
+After reviewing the frozen seed checkpoint, the coordinator integrated only
+that checkpoint into its own tree for local work. The coupled unit remains
+unpublished and incomplete. The implementor continues ordinary durable handlers.
+
+The coordinator temporarily owns only crates/ekr-graph/tests/revision_events.rs
+for the current event envelope migration. The payload names and indices are
+already fixed by the checkpoint, so this target is independent of ordinary
+application. The implementor leaves that file untouched until its reviewed
+coordinator commit is merged. Every other product source/test remains with the
+single implementor. This explicit narrow split supersedes the earlier exclusive
+test ownership for this file only; it adds no second product implementation.
+The coordinator uses its separate existing target, never the active unit target.
