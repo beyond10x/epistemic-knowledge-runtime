@@ -30,6 +30,7 @@
 //! by the validator whose question it actually is.
 
 pub mod authorization;
+mod candidate;
 pub mod cardinality;
 pub mod ontology;
 pub mod provenance;
@@ -43,7 +44,7 @@ use ekr_core::{AgentId, NodeId, TypeId};
 use ekr_graph::GraphSnapshot;
 
 use crate::issue::{ValidationIssue, ValidatorName};
-use crate::transaction::{GraphOperation, GraphTransaction, ValidatedTransaction};
+use crate::transaction::{GraphTransaction, ValidatedTransaction};
 
 pub use authorization::Authorization;
 pub use cardinality::Cardinality;
@@ -190,16 +191,5 @@ pub(crate) fn node_types(
     snapshot: &GraphSnapshot<'_>,
     proposal: &GraphTransaction,
 ) -> BTreeMap<NodeId, TypeId> {
-    let mut known: BTreeMap<NodeId, TypeId> = snapshot
-        .graph()
-        .nodes
-        .iter()
-        .map(|(id, node)| (*id, node.type_id))
-        .collect();
-    for operation in &proposal.operations {
-        if let GraphOperation::CreateNode(draft) = operation {
-            known.insert(draft.id, draft.type_id);
-        }
-    }
-    known
+    candidate::Candidate::of(snapshot, proposal).nodes
 }

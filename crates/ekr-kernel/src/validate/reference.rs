@@ -41,6 +41,7 @@ use ekr_core::{AssertionId, EdgeId, EvidenceId, GraphRootId, NodeId};
 use ekr_graph::{GraphSnapshot, Object, Subject};
 use ekr_ontology::Value;
 
+use super::candidate::Candidate;
 use super::{finish, issue, Validator};
 use crate::issue::{ValidationIssue, ValidatorName};
 use crate::transaction::{GraphOperation, GraphTransaction};
@@ -73,7 +74,8 @@ impl Validator for Reference {
         graph: &GraphSnapshot<'_>,
         tx: &GraphTransaction,
     ) -> Result<(), Vec<ValidationIssue>> {
-        let known = Known::of(graph, tx);
+        let candidate = Candidate::of(graph, tx);
+        let known = Known::of(graph, tx, &candidate);
         let mut issues = Vec::new();
 
         for operation in &tx.operations {
@@ -98,7 +100,11 @@ impl Validator for Reference {
                         known.value(tx, value, &mut issues);
                     }
                 }
-                GraphOperation::DeleteEdge(edge) => known.edge(tx, *edge, &mut issues),
+                GraphOperation::DeleteEdge(edge) => {
+                    if !candidate.available_edges.contains(edge) {
+                        known.edge(tx, *edge, &mut issues);
+                    }
+                }
                 GraphOperation::AddAssertion(assertion) => {
                     known.root(tx, assertion.root_id, "assertion", &mut issues);
                     match assertion.subject {
@@ -154,6 +160,13 @@ impl Validator for Reference {
             }
         }
 
+        // Retraction retains an assertion and its provenance; it does not erase its references.
+        for assertion in graph.graph().assertions.values() {
+            if let Subject::Edge(edge) = assertion.subject {
+                known.edge(tx, edge, &mut issues);
+            }
+        }
+
         finish(issues)
     }
 }
@@ -168,32 +181,22 @@ struct Known {
 }
 
 impl Known {
-    /// Canonical state's identities, plus the ones this transaction brings into existence.
+    /// Identities retained in the shared candidate, plus new assertion identities.
     ///
-    /// Nodes, edges and assertions are joined by the transaction's own creations; **evidence is
-    /// not**, and neither is the root. No operation creates either, so a transaction naming one
-    /// is naming something that has to be there already.
-    fn of(graph: &GraphSnapshot<'_>, tx: &GraphTransaction) -> Self {
+    /// Deleted edges are absent. Assertions remain addressable after retraction; evidence and
+    /// the root must already exist because no operation introduces them.
+    fn of(graph: &GraphSnapshot<'_>, tx: &GraphTransaction, candidate: &Candidate) -> Self {
         let state = graph.graph();
         let mut known = Self {
             root: state.root.id,
-            nodes: state.nodes.keys().copied().collect(),
-            edges: state.edges.keys().copied().collect(),
+            nodes: candidate.nodes.keys().copied().collect(),
+            edges: candidate.edges.keys().copied().collect(),
             assertions: state.assertions.keys().copied().collect(),
             evidence: state.evidence.keys().copied().collect(),
         };
         for operation in &tx.operations {
-            match operation {
-                GraphOperation::CreateNode(draft) => {
-                    known.nodes.insert(draft.id);
-                }
-                GraphOperation::CreateEdge(draft) => {
-                    known.edges.insert(draft.id);
-                }
-                GraphOperation::AddAssertion(assertion) => {
-                    known.assertions.insert(assertion.id);
-                }
-                _ => {}
+            if let GraphOperation::AddAssertion(assertion) = operation {
+                known.assertions.insert(assertion.id);
             }
         }
         known
