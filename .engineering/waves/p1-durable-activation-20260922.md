@@ -138,3 +138,37 @@ kernel synthesis succeeded; these are specification checks, not executed
 recovery acceptance. The private preparation journal remains within the coupled
 format/writer unit. The original red must pass unfiltered, alongside both-provider
 crash/unknown/concurrency controls and the full integrated gate.
+
+## Read/CLI source partition after the durable checkpoint
+
+The coordinator graph/ontology guard migration is committed in
+p1-current-domain-test-migration.md and ownership returns to the durable worker.
+The host library and independent host tests are integrated, as recorded in
+p1-cli-host-input-review.md. Their task still awaits the coupled product gate.
+
+The durable worker agrees that Runtime and VerifiedRead can be handed off in a
+coherent source checkpoint before its remaining fault controls complete. A second
+source owner may then implement new kernel src/explain.rs, its new tests/explain.rs,
+and only the explain module/public re-export additions in kernel src/lib.rs.
+It subsequently implements CLI src/main.rs, src/exit.rs, src/cli/, the new binary
+example test and its dedicated fixtures. All existing fixture migrations and
+runtime/read-capture/recovery/apply/replay implementations stay with the durable
+worker. The precise dependent brief is p1-read-cli-implementation.md.
+
+This is an explicit partition within the already approved coupled completion
+work, not a claim that dependency scheduling calls these independently ready.
+The writer and dependent stories remain incomplete until their controls,
+independent review and the integrated full gate pass. No provider shortcut or
+fabricated result may bridge an unfinished dependency.
+
+The initial preparation integration also exposed an obsolete expectation in
+losing_cached_seed_keeps_its_original_retention_class: the coordinator verified
+its unchanged AlreadySeeded-only assertion against the actual
+preparation-cached-seed-correction red log and DESIGN 94.3. A concurrent loser
+can observe an elected but unpublished bootstrap, requiring
+PublicationInputConflict. Only that racing error assertion may accept either
+named state-dependent outcome. Exactly one success and unchanged Cache retention
+for every loser still hold. Separate deterministic pending and published controls
+must prove their distinct outcomes on both providers before closure. Owners:
+the coordinator owns this acceptance reconciliation; the implementor owns the
+journal and retention implementation. Original failure evidence is retained.

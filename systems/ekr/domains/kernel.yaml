@@ -642,7 +642,8 @@ types:
       Stale: ekr.kernel.StaleRecordV1
 
   # CLI host transport is trusted local configuration, separate from command documents.
-  # Decoder acceptance remains unexecuted until task:strict-cli-host-input lands.
+  # Decoder witnesses: ekr host tests and tests/host_input_adversary.rs.
+  # Full CLI command integration remains unexecuted.
   - name: ekr.kernel.CliHostFormatV1
     kind: enum
     variants: [ekr.cli-host/1]
@@ -658,6 +659,77 @@ types:
         type: ekr.kernel.BootstrapContext
       - name: authority
         type: ekr.kernel.AuthorityStateV1
+
+  # Read projections selected in p1-cli-explain-contract-r2.md; execution is still pending.
+  - name: ekr.kernel.SnapshotResult
+    kind: struct
+    fields:
+      - name: revision_id
+        type: ekr.kernel.RevisionId
+      - name: root
+        type: ekr.graph.RevisionRoot
+      - name: graph
+        type: ekr.graph.GraphDocumentV2Projection
+      - name: valid_at
+        type: Optional<Timestamp>
+      - name: matching_assertions
+        type: Optional<List<ekr.graph.AssertionId>>
+
+  - name: ekr.kernel.ExplainedSeed
+    kind: struct
+    fields:
+      - name: result
+        type: ekr.kernel.SeedResultV1
+      - name: context
+        type: ekr.kernel.BootstrapContext
+      - name: validation_profile
+        type: ekr.kernel.P1ValidationProfileV1
+      - name: record_hash
+        type: ekr.kernel.ContentHash
+
+  - name: ekr.kernel.ExplainedValidation
+    kind: struct
+    fields:
+      - name: receipt
+        type: ekr.kernel.ValidationReceiptV1
+      - name: validation_profile
+        type: ekr.kernel.P1ValidationProfileV1
+      - name: record_hash
+        type: ekr.kernel.ContentHash
+
+  - name: ekr.kernel.ExplainedLifecycle
+    kind: struct
+    fields:
+      - name: assertion_id
+        type: ekr.graph.AssertionId
+      - name: lifecycle
+        type: ekr.graph.AssertionLifecycleProjection
+      - name: receipt
+        type: ekr.kernel.CommitReceiptV1
+      - name: record_hash
+        type: ekr.kernel.ContentHash
+
+  - name: ekr.kernel.ExplanationLink
+    kind: union
+    tag: kind
+    variants:
+      Assertion: ekr.graph.AssertionRecord
+      Seed: ekr.kernel.ExplainedSeed
+      Proposal: ekr.kernel.ProposalRecordV1
+      Validation: ekr.kernel.ExplainedValidation
+      Commit: ekr.kernel.CommitReceiptV1
+      Lifecycle: ekr.kernel.ExplainedLifecycle
+      Evidence: ekr.graph.EvidenceRecord
+
+  - name: ekr.kernel.ExplanationResult
+    kind: struct
+    fields:
+      - name: assertion_id
+        type: ekr.graph.AssertionId
+      - name: at
+        type: ekr.kernel.RevisionNumber
+      - name: links
+        type: List<ekr.kernel.ExplanationLink>
 
 entities:
   # Design § 18. TrustProfile (§ 48) is a P5 concern and is not typed here yet.
@@ -1047,6 +1119,11 @@ commands:
     input:
       - name: at
         type: Optional<ekr.kernel.RevisionNumber>
+      - name: valid_at
+        type: Optional<Timestamp>
+    response:
+      - name: result
+        type: ekr.kernel.SnapshotResult
     outcomes:
       - name: taken
         emits:
@@ -1069,6 +1146,9 @@ commands:
     input:
       - name: assertion_id
         type: ekr.graph.AssertionId
+    response:
+      - name: result
+        type: ekr.kernel.ExplanationResult
     outcomes:
       - name: explained
         emits:

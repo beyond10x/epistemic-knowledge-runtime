@@ -1,16 +1,16 @@
 # CLI and explanation dispatch contract
 
-Prepared against coordinator d147858 after the seed checkpoint. This proposal
-resolves the read-only review in p1-cli-explain-contract-review.md; its adjacent
-patch is not activated yet. DESIGN 93 already owns the durable write responses.
-Activate the remaining shared declarations in every participating tree before
-dependent source work. The original draft and review remain unchanged.
+Prepared against coordinator d147858 after the seed checkpoint, resolving the
+read-only review in p1-cli-explain-contract-review.md. DESIGN 93 already owns the
+durable write responses. Host transport and the remaining Snapshot/Explain
+declarations are now active in kernel ESS in every participating tree. The
+original adjacent patch, draft and review remain unchanged as preparation
+evidence; do not apply that patch again.
 
-Partial activation: the host transport projection is now active in kernel ESS
-for task:strict-cli-host-input. The adjacent original patch is retained unchanged
-as preparation evidence and must not be applied wholesale. Snapshot and Explain
-declarations remain unapplied. Host input decoding can proceed independently of
-ordinary application; the complete CLI still awaits the durable handlers.
+Host input decoding is implemented and independently reviewed in
+p1-cli-host-input-review.md. Snapshot, Explain and the complete CLI still await
+their real-handler implementation and acceptance. Specification qualification
+does not establish those commands' execution.
 
 ## Host configuration and entry points
 
@@ -92,7 +92,8 @@ sampling; both valid-time selections at one latest revision and an earlier
 revision; a supersession whose assertions have distinct evidence; a replacement
 accepted before the supersession; and corruption of required support. Hold one
 captured Explain boundary while another valid commit advances the provider.
-All of these remain unexecuted preparation.
+The host decoder controls are executed in the named bounded review. All remaining
+command controls are unexecuted preparation.
 
 Released ESS validation, compilation and declared-coverage synthesis exited
 successfully for the exact adjacent proposal. No scenario was executed. Measured

@@ -11,21 +11,15 @@ relations:
 - implements: executable-system-specification:ekr-v1
 - depends_on: story:kernel-validated-seed
 scope:
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-kernel/src/explain.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-kernel/src/lib.rs
 - confidence: cited
-  path: crates/ekr-kernel/src/runtime.rs
-- confidence: inferred
   path: crates/ekr-kernel/tests/explain.rs
-- confidence: inferred
-  path: crates/ekr-kernel/tests/fixtures/seed-minimal.yaml
-- confidence: inferred
-  path: crates/ekr-kernel/tests/seed.rs
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 11
+revision: 14
 ---
 ## Context
 
@@ -66,12 +60,17 @@ acceptance belongs to the coupled durable unit and is not duplicated here.
 
 ## Scope
 
-- `crates/ekr-kernel/src/explain.rs` — the typed chain over the real retained
-  admission, validation, commit and evidence records.
-- `crates/ekr-kernel/tests/seed.rs` and its declared minimal fixture — seed-chain
-  acceptance and the unknown-assertion control, preserving seed admission cases.
-- Explain acceptance for ordinary and lifecycle-changing commits uses the writer's
-  final fixture/record APIs. Any additional test file is recorded before dispatch.
+- crates/ekr-kernel/src/explain.rs: new typed Snapshot/Explain results and methods
+  over one real kernel-owned VerifiedRead, cited by the activated dispatch.
+- crates/ekr-kernel/src/lib.rs: only the new explain module and its public re-exports.
+- crates/ekr-kernel/tests/explain.rs: new real-provider origin, lifecycle,
+  replacement, evidence, captured-boundary and corruption controls.
+- systems/ekr/domains/kernel.yaml: coordinator-owned shared response declarations.
+
+Existing seed tests, minimal fixture, Runtime and verified-read construction
+remain with the durable implementor. Their behavior is a read dependency here,
+not a second write grant. The CLI owner may consume the public result but may
+not implement a separate explanation or valid-time query.
 
 ## Notes
 
@@ -91,19 +90,30 @@ acceptance with the activated durable record and assertion lifecycle contracts.
 The read-only scope and contract reviews are retained in
 `.engineering/reviews/p1-cli-explain-scope.md` and
 `.engineering/reviews/p1-cli-explain-contract-review.md`. The selected correction
-is `.engineering/waves/p1-cli-explain-contract-r2.md` and its still-unapplied
-patch. DESIGN 93's ordinary command responses are already active; Snapshot and
-Explain projections wait for coordinated activation before dependent source work.
+is `.engineering/waves/p1-cli-explain-contract-r2.md`. Its read-result declarations
+are now active in kernel ESS in every participating tree. The original unapplied
+patch remains historical preparation evidence and must not be applied again.
+DESIGN 93 already binds ordinary command results; no retained format changes here.
 
-Explain selects one verified revision/history boundary, retains actual origin
-and lifecycle records, follows accepted replacement assertions even when they
-predate supersession, and includes the distinct support selected by that exact
-recipe. It verifies required bytes, deduplicates evidence by stable identity and
-reports the actual link count. The proposal's deterministic ordering and
-fresh-process/corruption controls remain unexecuted requirements.
+Explain selects one kernel-owned VerifiedRead, preserves actual origin and
+lifecycle records, follows accepted replacements even when they predate
+supersession, and selects support by the exact R2 recipe. The kernel projection
+must verify all selected payloads, deduplicate evidence by stable identity and
+report its actual output length. Snapshot uses that same captured boundary and
+the graph's shared valid-time query, retaining the complete graph/root separately
+from selected assertion IDs. These handler claims remain unexecuted.
 
-The kernel lib.rs export and tests/explain.rs remain in scope. The public
-Runtime export/delegation in crates/ekr-kernel/src/runtime.rs is also required
-by the observed seed checkpoint facade. Seed implementation belongs to the
-durable unit; existing seed acceptance must not be weakened. Final read access
-must use a captured kernel-owned verified history, never expose a raw writer.
+The durable worker has agreed the public Runtime and VerifiedRead seams; a
+coherent committed source checkpoint is required before dependent compilation.
+An explicitly partitioned read/CLI implementation can then proceed alongside
+the remaining writer fault controls, in the existing approved completion unit.
+This is overlapping source preparation, not a declaration that the writer is
+implemented or that this story's dependency has closed. Integration and closure
+still require the writer's completed controls and the coupled full gate.
+
+The read source owner receives only new src/explain.rs, new tests/explain.rs and
+the module/re-export lines for explain in src/lib.rs, within ekr-kernel. It adds
+methods over VerifiedRead rather than editing Runtime or reaching a raw store.
+The durable worker retains read capture, runtime, recovery, apply, replay, seed
+implementation and all existing kernel tests. This measured partition replaces
+the earlier planned ownership of existing seed.rs tests and minimal seed fixture.

@@ -30,7 +30,7 @@ scope:
   path: crates/ekr/tests/retraction_example.rs
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 11
+revision: 12
 ---
 ## Context
 
@@ -100,22 +100,31 @@ before dispatch; this paragraph is not a claim that those interfaces exist.
 
 ## Command-result preparation
 
-DESIGN 93 and active kernel ESS bind the actual Propose, Validate and Commit
-response records. Snapshot/Explain and exact CLI host transport are selected in
-`.engineering/waves/p1-cli-explain-contract-r2.md` with its adjacent, still
-unapplied patch. This resolves the bounded preparation review's host transport,
-response binding and explanation-selection questions; no runtime success is
-inferred from compiler qualification.
+DESIGN 93 and active kernel ESS bind actual Propose, Validate and Commit records.
+The reconciled Snapshot/Explain and host declarations from
+`.engineering/waves/p1-cli-explain-contract-r2.md` are now active in every
+participating tree. The original adjacent patch is historical evidence, not a
+pending patch to apply. Released ESS validation/compilation/synthesis pass; no
+command-runtime success follows from those specification checks.
 
-The exact CLI host JSON envelope contains format, tenant, BootstrapContext and
-AuthorityStateV1, decoded by crates/ekr/src/host.rs. It is trusted local operator
-configuration, never proposal input. The kernel-owned provider facade derives
-and verifies the stored seed ontology. Preserve Seed's typed anchor-mismatch
-mapping, lazy time, exact bytes and outcome/refusal/fault distinction. CLI date
-selection accepts canonical milliseconds or exact calendar dates at midnight UTC.
+The exact JSON host envelope and valid-time parser are implemented and independently
+reviewed in `.engineering/reviews/p1-cli-host-input-review.md`. Reuse that actual
+library. The bounded review found no defects and reports its executed cases;
+the full command story remains unexecuted and open.
 
-The narrow additional scope is crates/ekr/src/host.rs, CLI Cargo.toml and
-Cargo.lock: serde and time are existing workspace dependencies, with no version
-change. The coordinator owns manifests and shared-specification activation.
-Concrete handler signatures must match the completed durable source before
-dispatch; this preparation does not authorize a parallel writer to its files.
+The trusted operator selects tenant, BootstrapContext and AuthorityStateV1.
+Kernel Runtime opens the actual provider and derives ontology from the retained
+seed. Preserve Seed's typed anchor mismatch, lazy time, exact bounded proposal
+reader and outcome/refusal/fault distinctions. No ekr-store dependency is allowed.
+
+After the coherent writer checkpoint, the same source owner implements the
+kernel read projections first and thin CLI dispatch second. Its new binary tests
+and fixtures are exclusive; all existing legacy/current serialization fixture
+migration remains with the writer. Kernel src/explain.rs plus only its lib.rs
+export lines are the explicit shared-file partition recorded on the Explain
+story. The writer remains incomplete pending fault controls and the coupled gate;
+this source overlap neither closes a dependency nor claims an independently
+ready wave. Final integration uses the actual shared runtime and no replacement.
+
+The coordinator owns shared specifications/manifests. CLI already declares
+workspace serde/time; no package pin changes or new dependency are authorized.
