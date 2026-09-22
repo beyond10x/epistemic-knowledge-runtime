@@ -1,5 +1,6 @@
 [workspace]
 resolver = "2"
+exclude = ["vendor/serde_yaml_ng"]
 members = [
     "crates/ekr",
     "crates/ekr-core",
@@ -44,3 +45,6 @@ uuid = { version = "1", features = ["v7"] }
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"
+
+[patch.crates-io]
+serde_yaml_ng = { path = "vendor/serde_yaml_ng" }

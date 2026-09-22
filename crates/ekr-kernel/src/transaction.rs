@@ -59,6 +59,7 @@ use serde::{Deserialize, Serialize};
 /// exactly what the cardinality validator exists to refuse. A draft that cannot express the
 /// violation cannot be refused for it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NodeDraft<V = Value> {
     /// The id the node will have. Minted by the proposer; identity is not derived from content.
     pub id: NodeId,
@@ -69,11 +70,16 @@ pub struct NodeDraft<V = Value> {
     /// The name a reader will see. A property, not an identity (AGENTS.md invariant 3).
     pub canonical_name: String,
     /// The property values it arrives with, by the property's id.
+    #[serde(
+        deserialize_with = "ekr_core::decode::unique_map",
+        bound(deserialize = "V: Deserialize<'de>")
+    )]
     pub properties: BTreeMap<PropertyId, Vec<V>>,
 }
 
 /// A change to one property of one node: the `PropertyMutation` of design § 19.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PropertyMutation<V = Value> {
     /// The node whose property moves.
     pub node: NodeId,
@@ -85,6 +91,7 @@ pub struct PropertyMutation<V = Value> {
 
 /// An edge an operation proposes to create: the `EdgeDraft` of design § 19.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EdgeDraft<V = Value> {
     /// The id the edge will have.
     pub id: EdgeId,
@@ -97,6 +104,10 @@ pub struct EdgeDraft<V = Value> {
     /// The node it runs to.
     pub target: NodeId,
     /// Its property values, by the property's id.
+    #[serde(
+        deserialize_with = "ekr_core::decode::unique_map",
+        bound(deserialize = "V: Deserialize<'de>")
+    )]
     pub properties: BTreeMap<PropertyId, Vec<V>>,
 }
 
@@ -105,6 +116,7 @@ pub struct EdgeDraft<V = Value> {
 /// Which record survives is not a detail: design § 6.4 makes an id permanent, so a merge names
 /// the id that remains and the id that becomes an alias of it.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EntityMerge {
     /// The node that stops being its own entity.
     pub absorbed: NodeId,
@@ -119,6 +131,7 @@ pub struct EntityMerge {
 /// variant number is what separates two operations carrying the same payload shape, and moving a
 /// number moves every `validation_hash` that contains the variant.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum GraphOperation<V: ValueSpace = Value> {
     /// Create a node.
     CreateNode(NodeDraft<V>),
@@ -149,6 +162,10 @@ pub enum GraphOperation<V: ValueSpace = Value> {
         /// The operation's name, as the node's type declares it.
         operation: String,
         /// Its arguments, by name.
+        #[serde(
+            deserialize_with = "ekr_core::decode::unique_map",
+            bound(deserialize = "V: Deserialize<'de>")
+        )]
         arguments: BTreeMap<String, V>,
     },
 }
@@ -160,6 +177,7 @@ pub enum GraphOperation<V: ValueSpace = Value> {
 /// their hash and count". This is the in-process form the validators read; the hash the domain
 /// names is what a store keeps of it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct GraphTransaction<V: ValueSpace = Value> {
     /// Its stable id.
     pub id: TransactionId,
