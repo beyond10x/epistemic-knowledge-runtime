@@ -4101,6 +4101,11 @@ claim=None; a present claim is refused. Event data is retained as exact JSON
 object bytes, decoded without integer rounding or duplicate-key loss. Validate
 the reconstructed request with the provider's actual fingerprint algorithm and
 compare the retained fingerprint before use. No fields are regenerated.
+The native request must also correspond to the elected decision: the actual
+tenant, authorized EKR streams, domain event, object metadata, retention changes,
+blob set and writer metadata must agree. A recomputed fingerprint authenticates
+no caller by itself. Reject extra appends, foreign streams, unrelated blobs and
+changed metadata even if a forged record supplies a matching new fingerprint.
 
 The first attempt has no predecessor. Every successor is a conditional append
 at the preceding slot version, binds its predecessor address and increases the
