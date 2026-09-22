@@ -8,7 +8,7 @@ relations:
 - blocks: story:commit-and-revision-lineage
 - serves: vision:o2
 - derived_from: story:version-persisted-contracts
-revision: 1
+revision: 2
 ---
 ## What is wrong
 
@@ -67,3 +67,17 @@ and is the first code that can produce the lineage at all; nothing in P1 writes 
 kernel does not exist yet. The adversary graded it on the mechanism rather than the consequence,
 which is right: an append that returns `Ok` and drops the event is lossy whatever is written through
 it, and the consequence needs a writer.
+
+## Scope correction from persisted-contract preparation
+
+The earlier proposed two-variant correction is incomplete. The read-only scope report
+.engineering/waves/p1-persisted-contract-scope.md traces repeated Proposed and Validated content
+as well as Rejected and Stale through the adapter's content idempotency. A discriminator tied to
+the transaction, operations or validated revision can still repeat for a distinct decision.
+story:version-persisted-contracts now owns this task before the writer.
+
+Use an explicit occurrence envelope for every revision fact, with identity stable across retries
+and new for separate occurrences. Same identity plus changed content refuses. Preserve backend
+event metadata and route old records through their original decoder. Exact shapes and compatibility
+rules are prepared in .engineering/waves/p1-persisted-contract-amendment-draft.md; they are not
+implemented by this note. The old paragraph saying no kernel exists is historical.

@@ -10,6 +10,10 @@ relations:
 - serves: vision:o2
 - implements: executable-system-specification:ekr-v1
 scope:
+- confidence: inferred
+  path: crates/ekr-core/src/identity.rs
+- confidence: inferred
+  path: crates/ekr-core/src/lib.rs
 - confidence: cited
   path: crates/ekr-graph/src/assertion.rs
 - confidence: cited
@@ -17,22 +21,42 @@ scope:
 - confidence: cited
   path: crates/ekr-graph/src/snapshot.rs
 - confidence: cited
+  path: crates/ekr-graph/tests
+- confidence: cited
   path: crates/ekr-kernel/src/commit.rs
+- confidence: inferred
+  path: crates/ekr-kernel/src/migration.rs
+- confidence: inferred
+  path: crates/ekr-kernel/src/seed.rs
 - confidence: cited
   path: crates/ekr-kernel/src/transaction.rs
 - confidence: cited
   path: crates/ekr-kernel/src/validate/provenance.rs
 - confidence: cited
+  path: crates/ekr-kernel/tests
+- confidence: inferred
+  path: crates/ekr-kernel/tests/migration_inventory.rs
+- confidence: cited
   path: crates/ekr-store/src/eventlog.rs
 - confidence: cited
   path: crates/ekr-store/src/log.rs
+- confidence: cited
+  path: crates/ekr-store/src/snapshot.rs
+- confidence: cited
+  path: crates/ekr-store/tests
+- confidence: inferred
+  path: crates/ekr-store/tests/read_only_inventory.rs
+- confidence: cited
+  path: crates/ekr/tests/graph_assertion_serde.rs
+- confidence: cited
+  path: crates/ekr/tests/graph_events_serde.rs
 - confidence: cited
   path: docs/epistemic-knowledge-runtime-design.md
 - confidence: cited
   path: systems/ekr/domains/graph.yaml
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 12
+revision: 16
 ---
 ## Context
 

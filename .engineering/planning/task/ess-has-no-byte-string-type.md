@@ -6,7 +6,7 @@ status: draft
 title: A byte is declared as an unbounded Integer, because ess/1 has no byte-string type
 relations:
 - serves: vision:o2
-revision: 1
+revision: 2
 ---
 ## What is wrong
 
@@ -45,3 +45,13 @@ The first is the real answer. Ask the ESS repository before doing either of the 
 
 `systems/ekr/domains/store.yaml`, in the comment above the field, so a reader of the declaration
 finds this rather than assuming the type was chosen.
+
+## Upstream capability rechecked
+
+The premise is stale: the pinned ESS source at a5f1bea13294510819b266561c83be9509e6ba57
+includes Primitive::Bytes and synthesizes base64 witnesses (ess-conformance/src/witness.rs).
+This is source inspection, not execution of this repository's byte projection.
+The remaining work is to select and bind the actual ObjectStored wire representation and update
+its projection guard. Changing List<Integer> to Bytes changes JSON representation to base64;
+coordinate that with versioned records rather than silently changing existing event bytes.
+Keep the task open until the representation and executable agreement case land.
