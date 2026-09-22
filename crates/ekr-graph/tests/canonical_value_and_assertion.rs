@@ -439,8 +439,14 @@ fn no_two_assertions_that_differ_share_a_content_address() {
 /// then have two values with one address.
 #[test]
 fn every_field_of_an_assertion_reaches_the_encoding() {
-    let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/assertion.rs"))
-        .expect("the crate's own source");
+    let source = std::fs::read_to_string(
+        std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR")
+                .expect("Cargo supplies the runtime manifest directory"),
+        )
+        .join("src/assertion.rs"),
+    )
+    .expect("the crate's own source");
     let declared = fields_of(&source, "Assertion");
 
     let mut covered: Vec<String> = MUTATIONS
@@ -714,8 +720,12 @@ fn every_field_of_a_node_and_an_edge_reaches_the_encoding() {
             6,
         ),
     ] {
-        let source = std::fs::read_to_string(format!("{}{module}", env!("CARGO_MANIFEST_DIR")))
-            .expect("the crate's own source");
+        let source = std::fs::read_to_string(format!(
+            "{}{module}",
+            std::env::var("CARGO_MANIFEST_DIR")
+                .expect("Cargo supplies the runtime manifest directory")
+        ))
+        .expect("the crate's own source");
         let mut declared = fields_of(&source, type_name);
         assert_eq!(
             declared.len(),
@@ -887,8 +897,14 @@ fn no_two_support_links_that_differ_share_a_content_address() {
 /// bytes in an address twice.
 #[test]
 fn every_field_of_evidence_state_reaches_the_encoding() {
-    let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/evidence.rs"))
-        .expect("the crate's own source");
+    let source = std::fs::read_to_string(
+        std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR")
+                .expect("Cargo supplies the runtime manifest directory"),
+        )
+        .join("src/evidence.rs"),
+    )
+    .expect("the crate's own source");
 
     for (type_name, covered, expected_fields) in [
         (
@@ -1847,4 +1863,116 @@ fn tagged_arms(body: &str) -> Vec<String> {
         "the variant numbers are not 0..n in the order the arms are written: {found:?}"
     );
     found.into_iter().map(|(_, name)| name).collect()
+}
+
+#[test]
+fn confidence_refusal_preserves_the_public_error_and_its_bound() {
+    let refused: ekr_graph::ConfidenceOutOfRange = Confidence::try_from(10_001).unwrap_err();
+    assert_eq!(
+        refused.to_string(),
+        "10001 is not a confidence: expected basis points between 0 and 10000"
+    );
+    assert_eq!(Confidence::try_from(10_000).unwrap(), Confidence::CERTAIN);
+}
+
+#[test]
+fn public_canonical_targets_preserve_deserialized_identity_and_address() {
+    fn round_trip<T: ekr_graph::CanonicalTarget>() {
+        let id = NodeId::mint();
+        let reference = CanonicalRef::<T>::new(id);
+        let text = id.to_string();
+        let input = serde::de::value::StrDeserializer::<serde::de::value::Error>::new(&text);
+        let restored: CanonicalRef<T> = serde::Deserialize::deserialize(input).unwrap();
+        assert_eq!(restored.canonical_bytes(), id.canonical_bytes());
+        assert_eq!(ContentHash::of(&restored), ContentHash::of(&reference));
+    }
+    round_trip::<Node>();
+    round_trip::<Edge>();
+    round_trip::<Assertion>();
+    round_trip::<Evidence>();
+    round_trip::<Observation>();
+    round_trip::<Support>();
+    round_trip::<ekr_graph::GraphRoot>();
+}
+
+/// Observe the actual typed refusal passed by the range's TryFrom into serde::Error::custom.
+/// A formatted serde_json::Error alone would erase which error supplied the message.
+#[derive(Debug)]
+struct CapturedRangeError {
+    producer: &'static str,
+    message: String,
+}
+
+impl std::fmt::Display for CapturedRangeError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for CapturedRangeError {}
+
+impl serde::de::Error for CapturedRangeError {
+    fn custom<T: std::fmt::Display>(message: T) -> Self {
+        Self {
+            producer: std::any::type_name::<T>(),
+            message: message.to_string(),
+        }
+    }
+}
+
+struct RangeMillis(i64);
+
+impl<'de> serde::de::IntoDeserializer<'de, CapturedRangeError> for RangeMillis {
+    type Deserializer = Self;
+    fn into_deserializer(self) -> Self {
+        self
+    }
+}
+
+impl<'de> serde::Deserializer<'de> for RangeMillis {
+    type Error = CapturedRangeError;
+
+    fn deserialize_any<V: serde::de::Visitor<'de>>(
+        self,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        visitor.visit_i64(self.0)
+    }
+
+    fn deserialize_option<V: serde::de::Visitor<'de>>(
+        self,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error> {
+        visitor.visit_some(self)
+    }
+
+    serde::forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 i128 u8 u16 u32 u64 u128 f32 f64 char str string bytes byte_buf
+        unit unit_struct newtype_struct seq tuple tuple_struct map struct enum identifier ignored_any
+    }
+}
+
+#[test]
+fn range_serde_refusals_keep_the_actual_current_and_frozen_error_type() {
+    fn decode<T: serde::de::DeserializeOwned>(from: i64, to: i64) -> Result<T, CapturedRangeError> {
+        let fields = [("from", RangeMillis(from)), ("to", RangeMillis(to))];
+        T::deserialize(serde::de::value::MapDeserializer::new(fields.into_iter()))
+    }
+    let current = decode::<TemporalRange>(2, 1).unwrap_err();
+    assert_eq!(
+        current.producer,
+        std::any::type_name::<ekr_graph::InvertedRange>()
+    );
+    assert_eq!(
+        current.message,
+        "1 precedes 2: a range whose end precedes its start contains no instant"
+    );
+    let frozen = decode::<ekr_graph::legacy::TemporalRange>(2, 1).unwrap_err();
+    assert_eq!(
+        frozen.producer,
+        std::any::type_name::<ekr_graph::legacy::InvertedRange>()
+    );
+    assert_eq!(frozen.message, current.message);
+    assert!(decode::<TemporalRange>(1, 2).is_ok());
+    assert!(decode::<ekr_graph::legacy::TemporalRange>(1, 2).is_ok());
 }

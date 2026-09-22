@@ -507,7 +507,7 @@ fn a_refusal_names_the_property_and_the_reason() {
         ontology.check_node(subject, &bag, &nodes)
     };
 
-    let wrong_kind =
+    let wrong_kind: ekr_ontology::CheckError =
         check(vec![Value::String("OpenAI".to_owned())]).expect_err("a string is not a reference");
     assert_eq!(wrong_kind.property(), Some(reference));
     assert_eq!(

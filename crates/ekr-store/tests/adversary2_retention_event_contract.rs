@@ -40,10 +40,10 @@ const DECLARED_FIELDS: [&str; 3] = ["content_hash", "from", "to"];
 
 /// `systems/ekr/domains/store.yaml`, as text — the same path `domain_projection.rs` reads.
 fn domain_text() -> String {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../systems/ekr/domains/store.yaml"
-    );
+    let path = std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .join("../../systems/ekr/domains/store.yaml");
     std::fs::read_to_string(path).expect("the ESS domain is beside the crates")
 }
 

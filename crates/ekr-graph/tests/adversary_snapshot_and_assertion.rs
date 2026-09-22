@@ -37,7 +37,10 @@ const AFTER_HANDOVER: Timestamp = Timestamp::from_millis(1_798_761_600_000);
 
 /// Every `.rs` file of this crate's `src/`, as `(file name, text)`.
 fn crate_modules() -> Vec<(String, String)> {
-    let directory = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
+    let directory = std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .join("src");
     let mut found: Vec<(String, String)> = std::fs::read_dir(directory)
         .expect("the crate has a src/")
         .map(|entry| entry.expect("a directory entry").path())
@@ -161,9 +164,10 @@ fn every_validation_state() -> Vec<ValidationState> {
 /// Removing `TemporalRange::is_open` did not make the filter unrepresentable. `valid_time.to`
 /// is a public field and `to.is_none()` rebuilds it in one line, here or in any crate above this
 /// one. This case is a text search over `crates/ekr-graph/src/`, and that is the whole of its
-/// reach: `ekr-kernel` and `ekr-store` are the next two stories and nothing in this crate
-/// constrains them. Carrying the decision upward is `task:open-ended-read-ban-binds-one-crate`,
-/// not a guarantee this file provides.
+/// reach. The cross-crate owner is now
+/// `crates/ekr/tests/temporal_reads.rs::no_product_source_rebuilds_the_open_ended_valid_time_filter`,
+/// which recursively scans product source in every workspace crate. Neither textual tripwire
+/// proves that all semantically equivalent expressions are impossible.
 ///
 /// Widened after adversary pass 2, which found it reading one module of ten while the capability
 /// it bans stayed exported.
@@ -364,10 +368,13 @@ fn is_current_is_exactly_acceptance_and_an_open_transaction_time() {
 /// follow.
 #[test]
 fn the_domain_requires_a_recorded_from_and_the_crate_cannot_omit_one() {
-    let domain = std::fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../systems/ekr/domains/graph.yaml"
-    ))
+    let domain = std::fs::read_to_string(
+        std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR")
+                .expect("Cargo supplies the runtime manifest directory"),
+        )
+        .join("../../systems/ekr/domains/graph.yaml"),
+    )
     .expect("the ESS domain is beside the crates");
 
     let declared = |field: &str| -> String {
@@ -423,8 +430,14 @@ fn the_domain_requires_a_recorded_from_and_the_crate_cannot_omit_one() {
 /// bound to forget.
 #[test]
 fn a_record_with_no_transaction_time_at_all_is_not_a_current_belief() {
-    let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/src/assertion.rs"))
-        .expect("the crate's own source");
+    let source = std::fs::read_to_string(
+        std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR")
+                .expect("Cargo supplies the runtime manifest directory"),
+        )
+        .join("src/assertion.rs"),
+    )
+    .expect("the crate's own source");
     let transaction_time = source
         .split_once("pub struct TransactionTime {")
         .expect("the crate declares TransactionTime")

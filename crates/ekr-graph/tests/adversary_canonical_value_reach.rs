@@ -22,7 +22,6 @@
 //! the record against the code: the implementation's own cases assert the behaviour it built.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
 
 use ekr_core::{
     AgentId, AssertionId, GraphRootId, NodeId, PropertyId, SchemaVersionId, Timestamp, TypeId,
@@ -127,7 +126,10 @@ fn a_transient_candidate_assertion_may_carry_an_approximate_measurement() {
 
 /// Every `.rs` file of this crate's `src/`, read.
 fn crate_sources() -> Vec<String> {
-    let directory = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
+    let directory = std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .join("src");
     let mut found: Vec<String> = std::fs::read_dir(directory)
         .expect("the crate has a src/")
         .map(|entry| entry.expect("a directory entry").path())

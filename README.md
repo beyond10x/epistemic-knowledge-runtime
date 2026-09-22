@@ -12,10 +12,16 @@ What they proved necessary and how their data enters this runtime is written dow
 
 ## Status
 
-Bootstrap. The workspace holds the six P1 crates — `ekr-core`, `ekr-kernel`, `ekr-ontology`,
-`ekr-graph`, `ekr-store` and the `ekr` binary — as empty members alongside `xtask`; no runtime
-logic exists yet. The order in which the runtime is built, and the evidence that closes each
-phase, is [`docs/roadmap.md`](docs/roadmap.md). Work is planned in `.engineering/planning/`
+P1 is in progress. Product crates: `ekr-core`, `ekr-kernel`, `ekr-ontology`,
+`ekr-graph`, `ekr-store`, and the `ekr` binary.
+
+Repository utility: `xtask`.
+
+The workspace implements typed graphs and ontology, deterministic transaction validation,
+kernel-validated seed initialization through both storage backends, and original-format
+verification. Transaction application and replay, the completed CLI and conformance remain
+in progress. The build order and phase exit evidence are in
+[`docs/roadmap.md`](docs/roadmap.md). Work is planned in `.engineering/planning/`
 through the AEP CLI.
 
 ## Documents

@@ -8,11 +8,13 @@
 use std::process::Command;
 
 fn workspace_root() -> std::path::PathBuf {
-    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(std::path::Path::parent)
-        .expect("crates/ekr has a workspace root two levels up")
-        .to_path_buf()
+    std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .parent()
+    .and_then(std::path::Path::parent)
+    .expect("crates/ekr has a workspace root two levels up")
+    .to_path_buf()
 }
 
 /// `1.85`, `1.88.0` -> `(1, 85)`, `(1, 88)`.

@@ -25,10 +25,10 @@ use std::collections::BTreeSet;
 
 /// `systems/ekr/domains/ontology.yaml`, as text.
 fn domain_text() -> String {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../systems/ekr/domains/ontology.yaml"
-    );
+    let path = std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .join("../../systems/ekr/domains/ontology.yaml");
     std::fs::read_to_string(path).expect("the ESS domain is beside the crates")
 }
 
@@ -110,7 +110,11 @@ fn the_domain_carries_node_ref_and_enum_parameters_and_no_other_compound_kind() 
 
     // And the crate says so, rather than claiming a projection that covers everything.
     let value_rs = {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/src/value.rs");
+        let path = std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR")
+                .expect("Cargo supplies the runtime manifest directory"),
+        )
+        .join("src/value.rs");
         std::fs::read_to_string(path).expect("the crate's own source")
     };
     assert!(
@@ -167,7 +171,10 @@ fn declared_fields() -> Vec<(String, String, String)> {
 
 /// Every `.rs` file of this crate's `src/`, as one string.
 fn crate_source() -> String {
-    let directory = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
+    let directory = std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .join("src");
     std::fs::read_dir(directory)
         .expect("the crate has a src/")
         .map(|entry| entry.expect("a directory entry").path())

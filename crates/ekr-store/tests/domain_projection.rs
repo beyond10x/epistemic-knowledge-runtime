@@ -19,10 +19,10 @@ use ekr_store::{ObjectStore, StorageClass};
 
 /// `systems/ekr/domains/store.yaml`, as text.
 fn domain_text() -> String {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../systems/ekr/domains/store.yaml"
-    );
+    let path = std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .join("../../systems/ekr/domains/store.yaml");
     std::fs::read_to_string(path).expect("the ESS domain is beside the crates")
 }
 
@@ -198,7 +198,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 /// `crates/ekr-store/src/eventlog.rs`, as text — the one module that names an event.
 fn eventlog_source() -> String {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/src/eventlog.rs");
+    let path = std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .join("src/eventlog.rs");
     std::fs::read_to_string(path).expect("the module is in this crate")
 }
 

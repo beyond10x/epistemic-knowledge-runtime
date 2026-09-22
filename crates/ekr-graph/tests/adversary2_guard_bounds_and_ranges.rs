@@ -38,16 +38,22 @@ const HANDOVER: Timestamp = Timestamp::from_millis(1_773_273_600_000);
 
 /// `systems/ekr/domains/graph.yaml`, as text.
 fn domain_text() -> String {
-    std::fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../systems/ekr/domains/graph.yaml"
-    ))
+    std::fs::read_to_string(
+        std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR")
+                .expect("Cargo supplies the runtime manifest directory"),
+        )
+        .join("../../systems/ekr/domains/graph.yaml"),
+    )
     .expect("the ESS domain is beside the crates")
 }
 
 /// Every `.rs` file of `ekr-graph`'s `src/`, as one string.
 fn crate_source() -> String {
-    let directory = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
+    let directory = std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .join("src");
     std::fs::read_dir(directory)
         .expect("the crate has a src/")
         .map(|entry| entry.expect("a directory entry").path())
@@ -116,7 +122,10 @@ fn the_current_rule(types: &[&str], field: &str) -> bool {
 /// `domain_projection.rs::type_region` so this case measures that scanner rather than a stricter
 /// one of its own.
 fn type_region(type_name: &str) -> String {
-    let directory = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
+    let directory = std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .join("src");
     let mut region = String::new();
     for entry in std::fs::read_dir(directory).expect("the crate has a src/") {
         let path = entry.expect("a directory entry").path();
@@ -496,23 +505,32 @@ fn an_inverted_range_is_refused_or_describes_some_instant() {
 /// is exactly as far as this goes.
 #[test]
 fn the_guard_against_a_returning_open_ended_read_covers_the_whole_crate() {
-    let guard = std::fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/adversary_snapshot_and_assertion.rs"
-    ))
+    let guard = std::fs::read_to_string(
+        std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR")
+                .expect("Cargo supplies the runtime manifest directory"),
+        )
+        .join("tests/adversary_snapshot_and_assertion.rs"),
+    )
     .expect("the pass-1 case is still in the tree");
 
-    let mut modules: Vec<String> = std::fs::read_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/src"))
-        .expect("the crate has a src/")
-        .map(|entry| entry.expect("a directory entry").path())
-        .filter(|path| path.extension().is_some_and(|e| e == "rs"))
-        .map(|path| {
-            path.file_name()
-                .expect("a file has a name")
-                .to_string_lossy()
-                .into_owned()
-        })
-        .collect();
+    let mut modules: Vec<String> = std::fs::read_dir(
+        std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR")
+                .expect("Cargo supplies the runtime manifest directory"),
+        )
+        .join("src"),
+    )
+    .expect("the crate has a src/")
+    .map(|entry| entry.expect("a directory entry").path())
+    .filter(|path| path.extension().is_some_and(|e| e == "rs"))
+    .map(|path| {
+        path.file_name()
+            .expect("a file has a name")
+            .to_string_lossy()
+            .into_owned()
+    })
+    .collect();
     modules.sort();
     assert!(modules.len() >= 9, "the module scan is broken: {modules:?}");
 
@@ -545,7 +563,12 @@ fn the_guard_against_a_returning_open_ended_read_covers_the_whole_crate() {
 
     for module in &modules {
         let text = std::fs::read_to_string(
-            std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src")).join(module),
+            std::path::PathBuf::from(
+                std::env::var("CARGO_MANIFEST_DIR")
+                    .expect("Cargo supplies the runtime manifest directory"),
+            )
+            .join("src")
+            .join(module),
         )
         .expect("a source file");
         for filter in ["valid_time.is_open", "valid_time.to.is_none"] {
@@ -570,9 +593,12 @@ fn the_guard_against_a_returning_open_ended_read_covers_the_whole_crate() {
 fn the_item_scanner_is_the_same_text_in_both_files() {
     /// From the head of `opens_item`'s doc comment through the end of `after_generics`.
     fn scanner(file: &str) -> String {
-        let source =
-            std::fs::read_to_string(format!("{}/tests/{file}", env!("CARGO_MANIFEST_DIR")))
-                .unwrap_or_else(|e| panic!("reading {file}: {e}"));
+        let source = std::fs::read_to_string(format!(
+            "{}/tests/{file}",
+            std::env::var("CARGO_MANIFEST_DIR")
+                .expect("Cargo supplies the runtime manifest directory")
+        ))
+        .unwrap_or_else(|e| panic!("reading {file}: {e}"));
         let start = source
             .find("/// Whether `line` opens the declaration of `type_name`")
             .unwrap_or_else(|| panic!("{file} carries the item scanner"));
