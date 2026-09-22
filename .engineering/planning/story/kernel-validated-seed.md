@@ -15,6 +15,18 @@ scope:
 - confidence: cited
   path: AGENTS.md
 - confidence: cited
+  path: crates/ekr-graph/src/assertion.rs
+- confidence: cited
+  path: crates/ekr-graph/src/canonical.rs
+- confidence: cited
+  path: crates/ekr-graph/src/edge.rs
+- confidence: cited
+  path: crates/ekr-graph/src/evidence.rs
+- confidence: cited
+  path: crates/ekr-graph/src/node.rs
+- confidence: cited
+  path: crates/ekr-graph/src/root.rs
+- confidence: cited
   path: crates/ekr-kernel/src/commit.rs
 - confidence: cited
   path: crates/ekr-kernel/src/lib.rs
@@ -42,7 +54,7 @@ scope:
   path: crates/ekr/tests/story_contract.rs
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 9
+revision: 16
 ---
 ## Context
 
@@ -88,3 +100,13 @@ Bootstrap validation produces a private kernel capability consumed by the same k
 Legacy raw GraphDocument seeds have no retained ontology or bootstrap attribution. Preserve their bytes and refuse explicitly with migration-required; do not invent missing history or reinitialize the lineage. The approved preservation-first migration policy remains binding.
 
 These implementation decisions are not yet executed. Their acceptance is the real-backend seed suite in this story. Additional cited surface: crates/ekr-store/src/lib.rs for named store refusals, crates/ekr/tests/story_contract.rs for the canonical-writer ownership guard, and AGENTS.md for the verified bootstrap boundary. New private helpers use explicit restricted visibility.
+
+## Retained bootstrap evidence and decoding
+
+The seed's existing story selects HumanStatement evidence for bootstrap, and design sections 6.1, 6.2, 16, 21 and 37 require retained, resolvable support. Retain exact statement bytes in the versioned seed envelope, keyed by content hash. For every declared Evidence record, including uncited ones, require a matching payload and verify ContentHash::of_bytes against its content_hash before any publication. Recheck the binding on replay and expose a read-only content lookup for explain.
+
+Bootstrap admits HumanStatement sources only. Other source variants, including GraphAssertion and Observation, receive named unsupported-source refusals until their referenced targets and independent support can be resolved by the corresponding subsystem. A HumanStatement's optional free-text identity is metadata, not authenticated authority; actual bootstrap attribution comes from execution context. Empty evidence is valid only when the seed has no assertions requiring it. This is a bounded bootstrap rule, not a general source-credibility policy.
+
+This payload map is part of the same atomic seed publication. Invalid or tampered payloads write nothing; replay of tampered content fails. Legacy seeds without verifiable statement content remain preserved and refuse migration rather than receiving synthetic evidence. P6 erasure rules also apply to seed evidence bytes; embedding them does not exempt them from deletion or dependent-assertion handling.
+
+Strict seed decoding must refuse unknown semantic fields throughout its graph records, as the ontology decoder now does. Add record/envelope strictness only where seed input reaches the type, preserving legitimate user-defined map keys. The graph source files are explicitly scoped for these decode attributes and correction of the obsolete seed-boundary documentation; this does not authorize unrelated graph-shape changes.
