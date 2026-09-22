@@ -91,12 +91,16 @@
 //! ```
 
 pub mod commit;
+pub mod document;
 pub mod issue;
 pub mod seed;
 pub mod transaction;
 pub mod validate;
 
 pub use commit::{Commit, CommitError, Validations};
+pub use document::{
+    DocumentError, DocumentLimit, DocumentLimits, TransactionDocument, DOCUMENT_V1_LIMITS,
+};
 pub use issue::{ValidationIssue, ValidatorName};
 pub use seed::{BootstrapContext, SeedDocument, SeedError};
 pub use transaction::{

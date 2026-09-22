@@ -1,0 +1,132 @@
+---
+format: aep.planning-md/1
+id: review-result:p1-transaction-parser-adversary-r1
+kind: review-result
+status: active
+title: Bounded transaction parser independent adversary, round 1
+relations:
+- reviews: task:bounded-transaction-document-parser
+- reviews: story:commit-and-revision-lineage
+revision: 1
+---
+unit: task:bounded-transaction-document-parser, frozen uncommitted source over 078bd7d0c944544a87f60c3c77753e2ca8c6de54, identified by implementor source-sha256.txt
+verdict: NEEDS-CHANGE
+cases: executed 313→318, red 1
+origin: introduced 1 / pre-existing 0 / undecided 0
+wrote-outside-worktree: 4 assigned output roots, with full inventory retained privately
+needs-coordinator: route the expanded string accounting blocker before integrating the frozen document/1 profile
+
+```text
+$ git --no-pager diff --stat
+ .../waves/p1-transaction-document-parser-brief.md | 10 ++++++++++
+ crates/ekr-core/src/lib.rs                      |  1 +
+ crates/ekr-kernel/src/lib.rs                    |  4 ++++
+ crates/ekr-kernel/src/transaction.rs            | 18 ++++++++++++++++++
+ crates/ekr-ontology/src/types.rs                |  4 ++--
+ 5 files changed, 35 insertions(+), 2 deletions(-)
+```
+
+That entire tracked diff was inherited. The coordinator owns the brief and copied review documents; the implementor owns the delivered source/test changes, including its untracked new files. **My only authored worktree path is the new 129-line `crates/ekr-kernel/tests/adversary_transaction_document.rs`**, which ordinary unstaged `git diff --stat` does not include. No existing source, test, contract, planning, Cargo or legacy file was changed. All ten entries in the implementor source manifest pass before and after review; all tracked opening hashes also pass afterward. This is an inherited uncommitted candidate, not an adversary source mutation.
+
+## Cases first
+
+The following command selected each new case individually before the package run:
+
+```sh
+cargo test --offline --locked -p ekr-kernel --test adversary_transaction_document CASE -- --exact --nocapture
+```
+
+All commands used the assigned external target and TMPDIR, two jobs, no incremental compilation and no dev/test debug info. The five cases were authored before their first respective execution.
+
+| Case | First executed result | Log |
+|---|---|---|
+| `tags_and_typed_scalar_strings_share_one_expanded_string_budget` | 0 passed, 1 failed, exit 101 | `first-mixed-string-budget.log` |
+| `coerced_numeric_strings_charge_each_alias_without_tag_help` | 1 passed, 0 failed, exit 0 | `first-coerced-strings.log` |
+| `supported_scalar_and_record_spellings_keep_direct_typed_semantics` | 1 passed, 0 failed, exit 0 | `first-typed-spellings.log` |
+| `duplicate_refusal_precedes_expansion_of_a_recursive_second_value` | 1 passed, 0 failed, exit 0 | `first-duplicate-priority.log` |
+| `unsupported_operation_nested_containers_keep_required_and_optional_shapes` | 1 passed, 0 failed, exit 0 | `first-unsupported-carriers.log` |
+
+The first failing run reached behavior directly: the direct shared decoder and one-operation bounded-parser positive controls passed, then the expanded document was accepted. Its original raw log contains the complete debug result and is retained unchanged. I shortened only the new helper's diagnostic to avoid dumping a large accepted document, then reproduced the same assertion while retaining the exact input in `mixed-string-budget.yaml`. `mixed-string-budget-reproduction.log`, exit 101, records:
+
+```text
+expected total_string_bytes, accepted 66005 raw bytes and 20 operations
+test tags_and_typed_scalar_strings_share_one_expanded_string_budget ... FAILED
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.02s
+```
+
+No assertion or positive control was weakened; there was no compilation failure or source correction. The exact input remains **66,005 bytes**, SHA-256 **6ff71359ad6d5edf003b28b86f19c4636c40d11d3cfb57d3e19cba7345d4fdce**. The test at `adversary_transaction_document.rs:30` is its deterministic reproducer. It creates one anchored operation plus 19 aliases, using:
+
+```rust
+let text = format!("0.{}", "0".repeat(32_766));
+let tag = format!("tag:ekr.test,2026:{}", "x".repeat(32_740));
+let operation = node(&format!("!<{tag}> {text}"));
+```
+
+Here `node` is the checked-in test helper constructing `!CreateNode` with the synthetic canonical UUID in id/root_id/type_id, that canonical_name, and empty properties. The shared decoder preserves the 32,768-character numeric-looking scalar as a String. No live data, provider or stored transaction is involved.
+
+## Scoped suite and checks
+
+The implementor's handback supplies the baseline **313 passed, 0 failed, 0 ignored** for the same three packages. I did not run a pre-addition baseline. After all five isolated cases:
+
+```sh
+cargo test --offline --locked -p ekr-core -p ekr-ontology -p ekr-kernel --no-fail-fast
+```
+
+`packages.log`, exit **101**, has 41 actual runner summaries totaling **317 passed, 1 failed, 0 ignored**. All 313 inherited cases and four added cases pass; only the new mixed-accounting case fails. The new target reports:
+
+```text
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+```
+
+The unchanged original parser boundary cases, allocating-visitor sentinel, legacy format verification/adversary cases, core duplicate-order tests and compile-fail snapshots execute within that package selection. These are inherited controls, distinguished from the five cases authored here.
+
+`cargo clippy --offline --locked -p ekr-core -p ekr-ontology -p ekr-kernel --all-targets -- -D warnings` exits 0. Single-file rustfmt check and `git diff --check` pass. No full project gate, writer, persisted proposal, authoritative restart or conformance-completion claim is made.
+
+## Finding
+
+| Source | Category | Severity | Verdict | Origin | Finding |
+|---|---|---|---|---|---|
+| `crates/ekr-kernel/src/document.rs:243` | boundary | blocker | NEEDS-CHANGE | introduced | Resetting string accounting between representation and typed traversal admits documents whose combined explicit tag and coerced String content exceeds the frozen total_string_bytes limit. |
+
+**Measured:** `tags_and_typed_scalar_strings_share_one_expanded_string_budget`, at test line 30, expects `DocumentError::Limit(DocumentLimit::TotalStringBytes)` but receives an accepted 20-operation document. Both the first isolated run and exact-input reproduction exit 101 at that assertion; the same case is the sole package failure.
+
+**Reachability:** ordinary public `TransactionDocument::parse` accepts the supplied YAML. The custom scalar tag is accepted by both the existing shared typed decoder and the bounded parser's positive control. Alias expansion and String coercion are supported input features. The example stays below the raw byte, per-string, key, depth, node, mapping, sequence and operation limits. Duplicate node identities are a later validation matter and do not excuse violation of this parser's resource profile.
+
+The declared semantic string total is independently calculated without counting a shared string twice:
+
+| Charged content | Calculation | Bytes |
+|---|---:|---:|
+| Explicit scalar tags | 20 × 32,758 | 655,160 |
+| Numeric-looking scalar values materialized as String | 20 × 32,768 | 655,360 |
+| Shared envelope strings, keys, UUID strings and CreateNode tags | 143 + 20 × 158 | 3,303 |
+| One complete profile tally | 655,160 + 655,360 + 3,303 | **1,313,823** |
+
+The limit is **1,048,576**, so this exceeds it by **265,247 bytes**. The representation traversal accounts for the explicit tags but resolves the numeric-looking scalar as a number; the typed traversal counts the actual String but does not visit the scalar tag discarded by the typed String decoder. With the reset at `document.rs:243`, the representation-side 658,463 bytes and typed-side 658,663 bytes each remain below the cap. Simply accumulating both passes would instead double-count the 3,303 shared bytes and corrupt exact-boundary acceptance. Correction needs one exact profile tally that retains the distinct charges and counts shared occurrences once.
+
+The profile and readiness explicitly include expanded strings, keys and tag text while prohibiting counting the same input twice merely because two internal traversals are used. The implementor handback also promises decoded tag text contributes string bytes. This is an implementation defect under that adopted contract, not a request to change the historical limits or prohibit otherwise supported scalar spellings. `document.rs` is new in this unit; there is no earlier parser implementation at its opening commit to classify as pre-existing.
+
+Owners: one implementor-owned finding in traversal accounting; zero new coordinator-owned contract findings. The coordinator's canonical UUID/BOM corrections were read and respected: no unsupported UUID spelling was treated as an accepted alias, and no BOM normalization was requested. Root owns correction routing, historical-profile adoption, integration and publication.
+
+## Exercised bounds and limits
+
+- Numeric-looking strings without tag charges hit the cumulative limit as required, including expanded aliases; the defect requires distinct charges split across traversals.
+- Supported Boolean/hex/nonfinite-looking String scalars, Decimal text, reserved-looking Record data keys, explicit empty containers and Float infinity preserve direct typed semantics and exact original bytes/hash.
+- Duplicate escaped Record keys, coerced Invoke keys and unsupported-operation map keys refuse before their recursive second values expand, with the named duplicate diagnostic rather than a masked depth/expansion error.
+- Required nested schema operation maps/sequences refuse implicit null or wrong containers; an explicit optional transition null remains accepted.
+- Existing exact/one-over profile tests and allocation-order sentinels pass in the executed package suite. This does not certify arbitrary loader allocations: the adopted raw cap bounds eager YAML loading, followed by bounded semantic expansion.
+- Frozen legacy verification follows separate carriers; the unchanged legacy executable controls passed. No frozen codec or original vector was edited.
+- Parsing still creates only an unvalidated local document; durable Proposed/Rejected records, provider writes and restart behavior remain outside this unit.
+
+## External output and handback
+
+The four external output roots are assigned review scratch, assigned Cargo target, assigned TMPDIR and managed lease state. Full paths are in `private-paths.md`; retained scratch files are enumerated in `retained-scratch-files.txt`. First-run logs and the exact red YAML are preserved. No source edits, AEP commands, commits, publication or cleanup were performed. Lease release and process completion are recorded in `handback-status.md` and `lease-release.log`.
+
+```findings
+- file: crates/ekr-kernel/src/document.rs
+  line: 243
+  category: boundary
+  severity: blocker
+  verdict: NEEDS-CHANGE
+  origin: introduced
+  message: Resetting string accounting between representation and typed traversal admits documents whose combined explicit tag and coerced String content exceeds the frozen total_string_bytes limit.
+```

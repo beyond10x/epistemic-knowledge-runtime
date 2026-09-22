@@ -8,6 +8,7 @@ tasks:
       - task: clippy
       - task: test
       - task: doc-check
+      - task: vendor-check
       - task: spec-check
       - task: plan-check
 
@@ -32,6 +33,30 @@ tasks:
       RUSTDOCFLAGS: -D warnings
     cmds:
       - cargo doc --workspace --no-deps --locked
+
+  vendor-check:
+    desc: Preserve upstream YAML compatibility and check the opt-in observation facade
+    cmds:
+      - task: vendor-fmt-check
+      - task: vendor-test
+      - task: vendor-doc-check
+
+  vendor-fmt-check:
+    desc: Format the added facade and its tests without rewriting upstream source
+    cmds:
+      - rustfmt --edition 2021 --check vendor/serde_yaml_ng/src/observation.rs vendor/serde_yaml_ng/tests/test_observation.rs
+
+  vendor-test:
+    desc: Run unchanged upstream tests and the observation contract
+    cmds:
+      - cargo test --manifest-path vendor/serde_yaml_ng/Cargo.toml --locked --target-dir "${CARGO_TARGET_DIR:-target}/vendor-serde_yaml_ng"
+
+  vendor-doc-check:
+    desc: Validate the vendored public API documentation
+    env:
+      RUSTDOCFLAGS: -D warnings
+    cmds:
+      - cargo doc --manifest-path vendor/serde_yaml_ng/Cargo.toml --no-deps --locked --target-dir "${CARGO_TARGET_DIR:-target}/vendor-serde_yaml_ng"
 
   spec-check:
     desc: the runtime's own ESS contract validates

@@ -25,6 +25,7 @@
 //! ```
 
 pub mod canonical;
+pub mod decode;
 pub mod hash;
 pub mod identity;
 pub mod time;

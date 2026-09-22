@@ -51,22 +51,67 @@ were integrated independently; unrelated policy changes and backup files remain 
 The membrane repair, required repository correctness CI and kernel seed admission are merged.
 The seed source is on main through PR #8; its implementation and review evidence belong to
 the P1-08 wave page. Original-format verification reached main through PR #9 with 431
-passing cases. Runtime-context refusal is independently reviewed and integrated locally.
+passing cases. Runtime-context refusal is independently reviewed and published in PR #10.
 The source-guard review reproduced two escapes and a type-use false-positive class.
 All original cases now pass unchanged; independent correction re-review found no
-further defect. Source is integrated locally and the combined gate passed; source
-publication is pending. P1-10 records the executed gate and bounded task closures.
+further defect. The combined gate passed and PR #10 is merged at 9a15b96 with its
+required correctness and common checks green. P1-10 records the executed gate and
+bounded task closures; both completed unit trees and their build output are removed.
 
 Gates' historical-merge delivery repair is released and adopted, and actual EKR publication
 passed. Eventlog's strict history inspector and atomic blob/event capability are published
 at 4ee3dc2 through PR #11, with required production, comparative and restart CI green.
-EKR's three dependency selectors and lock now select that exact source locally; eleven
+EKR's three dependency selectors and lock now select that published source; eleven
 dependency-contract and 195 kernel/store cases passed before the combined integration gate.
 
 The activation review found four contract mismatches. Explicit object-event schema dispatch
 and absent-revision refusal are corrected in the retained draft. Exact Seed/Commit retry
-requires a measured ESS extension; its independently critiqued implementation contract is
-now being implemented upstream. Generated scenario counts are not executed conformance.
+requires a measured ESS extension. Its source correction and independent re-review are
+integrated through [ESS PR #59](https://github.com/beyond10x/ess/pull/59), merged at
+8bef63a21766c54f0d809b4decf1d9f7bd587118 after the required CI checks passed.
+The operator approved the existing CI/release profile for this bounded 0.29.0
+release, retaining the separate local consumer-accounting refusal. Exact-tag
+qualification passed, and [ESS 0.29.0](https://github.com/beyond10x/ess/releases/tag/0.29.0)
+is verified: required release checks passed, downloaded archives match their
+checksums, the host binary runs and the release-status audit passes. The delivery branch preserves
+the reviewed tree and governed journal; the
+original development branches and a verified Git bundle retain the intermediate history.
+The source review is recorded there as `review-result:retained-replay-source-r2` and in
+`.engineering/reviews/ekr-retained-replay-source-r2.md`. Its bounded runtime findings are
+addressed; it does not establish EKR durability. Generated scenario counts are not executed
+EKR conformance.
+The subsequent ess/7 draft is retained in
+`.engineering/waves/p1-writer-activation-ess7-draft.patch`, with a static review and
+development preflight under `.engineering/reviews/`. It declares own-result retries,
+complete original-revision observations and the frozen transaction parser profile.
+The first development synthesis refused the Stale state's Commit and Validate
+cases through the external Commit/stale arrangement. The upstream correction now
+generates both cases; repeated development validation, compilation and synthesis
+pass with no refused obligations. The exact failed and corrected outputs remain
+retained, and the same adopter shape is covered by upstream regression fixtures.
+This draft is unactivated. The preflight with the downloaded release passed;
+its commands and outputs are recorded in
+`.engineering/reviews/p1-writer-released-compiler-preflight.md`.
+No EKR runtime success is inferred from compiler qualification.
+The bounded transaction-document parser is integrated on this completion branch.
+Its independent review reproduced admission of a combined string total above
+the frozen profile. The mechanism addendum retracts the original attribution to
+separate traversals: the dependency's public deserializer hides global tag text.
+The original failing case is preserved under
+review-result:p1-transaction-parser-adversary-r1. The bounded observation facade
+and counting correction passed the second independent review, retained verbatim
+in review-result:p1-transaction-parser-adversary-r2. Its source unit is 93ec8a4
+and integration commit 0444fa9. The original regression remains unchanged.
+The full project gate and publication are pending; the parser task stays active
+until the writer's final operation-shape integration also passes.
+
+The newly published Eventlog 0.3.0 passed current consumer and cross-version seed
+checks, but a fresh SQLite atomic group can reuse corrupt blob metadata without
+refusing. The exact probe is retained in
+.engineering/reviews/eventlog-030-integrity-probe.md. Its upstream repair is under
+independent review in managed tree ekr-atomic-integrity-20260922. The dependency
+candidate remains unapplied here until the repaired source is qualified and
+published; current selectors retain the previously adopted provider revision.
 Persisted-contract activation, durable application and the CLI remain unfinished.
 The conformance and migration preparation reports are measured prerequisites, not executed
 exits. No later phase or live cutover has been claimed complete.

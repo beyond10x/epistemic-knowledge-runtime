@@ -6,10 +6,9 @@ status: active
 title: Adopt executable exact-result retry contracts from ESS
 relations:
 - derived_from: story:ess-conformance-kernel
-- blocks: story:version-persisted-contracts
 - blocks: story:ess-conformance-kernel
 - serves: vision:o2
-revision: 3
+revision: 4
 ---
 ## Measured upstream boundary
 
@@ -49,3 +48,18 @@ This task blocks specification activation and kernel conformance while the
 upstream implementation runs in its own managed checkout. It does not mean
 the runtime writer or project is complete. The user approved finishing the
 project; this is the necessary measured dependency, not a new permission stop.
+
+## Compiler prerequisite discharged
+
+The verified ESS release and EKR compiler pin discharge the upstream compiler
+prerequisite. The exact release and independent adopter preflight are recorded
+in .engineering/reviews/p1-writer-released-compiler-preflight.md and on
+story:version-persisted-contracts. The generated contract includes Seed/Commit
+own-result retry and complete wrong-state observations.
+
+Remove this task's blocks edge on specification activation: that prerequisite
+is now supplied. Keep the task active and its conformance block because its
+acceptance also requires execution through actual EKR handlers, restart and
+later-head controls, which remain unfinished. Requiring those runtime results
+before implementing the contract would create a sequencing cycle. No runtime
+requirement is dropped or counted as passed.
