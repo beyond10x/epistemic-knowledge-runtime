@@ -6,7 +6,7 @@ status: accepted
 title: ADR 0008 — Canonical state references by a typed reference, not a bare id
 relations:
 - decides: task:canonical-state-references-are-typed
-revision: 3
+revision: 4
 ---
 ## Status
 
@@ -84,3 +84,7 @@ finding C closes.
 The reviewer's `crates/ekr-graph/tests/review_p1_compile_fail/a_canonical_edge_may_target_a_candidate_node.rs`
 is a `trybuild` case that **fails today because the code compiles**. The wave is done when it
 compiles-fails as intended.
+
+## Seed ownership correction, 2026-09-22
+
+The earlier request for a further ADR deciding who validates a seed is withdrawn. `story:seed-and-explain` places seed validation in the kernel commit path; `systems/ekr/domains/kernel.yaml` declares ekr.kernel.Seed operated by ekr.kernel.Operator; design sections 8 and 21 require canonical integrity. These already settle ownership. The seed implementation must share deterministic graph invariant checks, with an explicit bootstrap basis because no previous revision exists. It must validate the seed's own ontology, references, assertion types, provenance and validator authority before publishing revision zero. This behavior is currently unexecuted: the retained dangling-reference test demonstrates the defect and must become a refusal regression when the kernel seed path lands.

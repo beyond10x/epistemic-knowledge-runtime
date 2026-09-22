@@ -5,9 +5,9 @@ kind: task
 status: draft
 title: A candidate's document deserialises into a canonical node, because the two carry identical bytes
 relations:
-- blocks: story:eventlog-store
 - serves: vision:o2
-revision: 2
+- derived_from: story:seed-and-explain
+revision: 3
 ---
 ## What is wrong
 
@@ -75,3 +75,7 @@ close.
 
 The coordinator wrote the wrong premise from a true sentence about a different type. The adversary
 found it by reading what the crossing actually takes rather than what the task said it takes.
+
+## Reconciliation, 2026-09-22
+
+The stale blocks edge to the implemented provider story has been removed. The existing root-space check closes the original whole-document claim, but seed graph semantic validation remains absent, as reproduced by the retained review cases. Seed admission is the kernel's responsibility under the existing design and story; no additional ownership ADR is needed. Keep this residual open until the real kernel seed path refuses invalid documents, and then record the executable evidence.

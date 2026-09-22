@@ -1,0 +1,18 @@
+[package]
+name = "ekr-review-probes"
+version = "0.0.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+ekr-core = { path = "../../../../crates/ekr-core" }
+ekr-ontology = { path = "../../../../crates/ekr-ontology" }
+ekr-graph = { path = "../../../../crates/ekr-graph" }
+ekr-kernel = { path = "../../../../crates/ekr-kernel" }
+ekr-store = { path = "../../../../crates/ekr-store" }
+tempfile = "3"
+
+[lints.rust]
+unused_imports = "allow"
+dead_code = "allow"

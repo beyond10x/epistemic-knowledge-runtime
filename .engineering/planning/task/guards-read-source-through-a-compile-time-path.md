@@ -3,10 +3,10 @@ format: aep.planning-md/1
 id: task:guards-read-source-through-a-compile-time-path
 kind: task
 status: draft
-title: Twenty files locate the repository with a compile-time macro, so a test binary reads the checkout it was built in
+title: Source-reading guards must locate their runtime checkout
 relations:
 - serves: vision:o2
-revision: 1
+revision: 2
 ---
 ## What happened
 

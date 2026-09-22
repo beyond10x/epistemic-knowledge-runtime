@@ -5,8 +5,6 @@ kind: task
 status: implemented
 title: A value admissible in canonical state, so an assertion can be content-addressed
 relations:
-- blocks: story:eventlog-store
-- blocks: story:transaction-and-validators
 - serves: vision:o2
 revision: 4
 ---
