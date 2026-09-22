@@ -149,9 +149,11 @@ fn typed_yaml_tags_and_json_compatible_collection_syntax_are_distinct() {
 
 #[test]
 fn original_document_byte_limit_is_inclusive_and_counts_utf8_bytes() {
+    let limits: ekr_kernel::DocumentLimits = ekr_kernel::DOCUMENT_V1_LIMITS;
+    assert_eq!(limits.input_bytes, 262_144);
     let mut exact = update(&string_value("é"));
     exact.push('#');
-    exact.extend(std::iter::repeat_n('x', 262_144 - exact.len()));
+    exact.extend(std::iter::repeat_n('x', limits.input_bytes - exact.len()));
     TransactionDocument::parse(exact.as_bytes()).unwrap();
     exact.push('x');
     refused_as(exact.as_bytes(), DocumentLimit::InputBytes);
