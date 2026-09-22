@@ -39,3 +39,37 @@ and Validate, with no refused or outside obligations. The original failed output
 and original executable are preserved; corrected outputs use a separate
 `development-corrected-` prefix. This corrects synthesis, not runtime delivery.
 Measured corrected inventory: 33 generated, 0 authored, 0 outside, 0 refused; ess-conformance/13. Runtime EKR executions: none in this preflight.
+
+## Complete source7 refusal observations
+
+A later Go target control showed that ordinary Validate/wrong_state witnesses
+could pass an undeclared direct event or subject mutation. The adopted ess/7
+contract now requires complete held-subject preservation and zero direct events
+for ordinary named wrong-state refusals, while keeping legacy witness bytes.
+Root reran the unchanged EKR model with development CLI SHA-256
+ea8a842f8700ee106ca4f3dd2a06e14390ba6877f2c5b57b835a612b1d98ab53.
+Validate, compile and synthesis exit0. The actual Validate/Stale scenario now
+snapshots Transactions before the command, asserts ExpectNoEvents, then queries
+and compares the complete subject. Its exact output is retained separately under
+`development-source7-`. This establishes generated obligations, not EKR execution.
+Measured latest inventory: 33 generated, 0 authored, 0 outside, 0 refused; ess-conformance/13.
+
+## Typed actual rows and reachable immediate retries
+
+The independent compiler review showed that complete view declarations did not
+ensure complete actual rows, and that a retry could be generated despite an
+unreachable state guard. The corrected compiler now emits explicit complete
+snapshot pairs with finite typed descriptors, and proves immediate retry
+eligibility from the original input and post-command state. Root reran the
+unchanged EKR draft; validation, compilation and synthesis all exit0. The outputs
+are retained separately under the development-r1 prefix.
+
+Both retained Seed and Commit scenarios remain generated, alongside the Stale
+Validate refusal. Complete snapshots include Revisions and Transactions with
+their declared identities and full field descriptors. Additional partial views
+are independently observed; they do not substitute for complete coverage. No
+scenario is executed by this preflight. Released-compiler adoption and real
+provider restart/durability acceptance remain outstanding.
+
+Compiler SHA-256: 61d8e008594e69763b07c824d32e6d647bc442f56bbd3bad5b4e8d0ba68558b6
+Measured inventory: 33 generated, 0 authored, 0 outside, 0 refused; ess-conformance/13.
