@@ -7,7 +7,7 @@ title: ADR 0009 — Retain exact publication preparations through uncertain outc
 relations:
 - decides: story:commit-and-revision-lineage
 - decides: story:version-persisted-contracts
-revision: 2
+revision: 3
 ---
 ## Status
 
@@ -69,3 +69,12 @@ The later full gate and independent source review remain required.
 Owners: implementor for the measured preparation loss and source repair;
 coordinator for the missing recovery contract, shared declarations and integration;
 independent reviewer for its architectural recommendation and stated limits.
+
+## Review provenance
+
+The independent architectural review is retained in
+`.engineering/reviews/p1-publication-recovery-design-review.md`. Its private
+checkout locations are elided; the technical recommendation, refinement,
+inspected source pointers and ownership remain as returned. The original private
+report is also retained. This intermediate source review is not approval of the
+later recovery implementation or evidence of native crash behavior.
