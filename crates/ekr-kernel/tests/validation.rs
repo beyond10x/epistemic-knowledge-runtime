@@ -770,16 +770,17 @@ fn a_type_the_ontology_already_declares_is_not_declared_again() {
     );
     assert_eq!(codes(&twice), vec!["duplicate-identity"]);
 
-    // And a declaration over an id nothing holds is the ordinary shape.
-    assert!(world
-        .pipeline()
-        .validate(
-            &world.snapshot(),
-            &world.proposal(vec![GraphOperation::DefineNodeType(Box::new(
-                NodeType::new(TypeId::mint(), "Observation")
-            ))])
-        )
-        .is_ok());
+    // Schema evolution has no application semantics in P1, including fresh declarations.
+    assert_eq!(
+        codes(&refuse(
+            &world,
+            vec![GraphOperation::DefineNodeType(Box::new(NodeType::new(
+                TypeId::mint(),
+                "Observation"
+            )))]
+        )),
+        vec!["unsupported-operation"]
+    );
 }
 
 /// A proposal states a claim; it does not state the verdict on the claim.
@@ -858,17 +859,17 @@ fn a_merge_names_two_nodes() {
     );
     assert_eq!(codes(&issues), vec!["merge-into-itself"]);
 
-    // Two nodes that both exist is the ordinary shape.
-    assert!(world
-        .pipeline()
-        .validate(
-            &world.snapshot(),
-            &world.proposal(vec![GraphOperation::MergeEntity(EntityMerge {
+    // Even a well-formed merge must await the integration phase's application semantics.
+    assert_eq!(
+        codes(&refuse(
+            &world,
+            vec![GraphOperation::MergeEntity(EntityMerge {
                 absorbed: world.open,
                 into: world.decided,
-            })])
-        )
-        .is_ok());
+            })]
+        )),
+        vec!["unsupported-operation"]
+    );
 }
 
 /// An assertion's `TypeId`s are resolved, and its predicate is checked whatever its object is.
@@ -2001,7 +2002,10 @@ fn kernel_sources(relative: &str) -> Vec<String> {
     }
     let mut found = Vec::new();
     walk(
-        &std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(relative),
+        &std::path::PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets the manifest directory"),
+        )
+        .join(relative),
         &mut found,
     );
     assert!(!found.is_empty(), "no sources under {relative}");
@@ -2010,7 +2014,8 @@ fn kernel_sources(relative: &str) -> Vec<String> {
 
 /// A file read relative to the workspace root.
 fn read_workspace_file(relative: &str) -> String {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets the manifest directory");
+    let root = std::path::Path::new(&manifest)
         .ancestors()
         .nth(2)
         .expect("crates/ekr-kernel sits two levels below the workspace root")
@@ -2025,4 +2030,458 @@ fn read_workspace_file(relative: &str) -> String {
 fn only_the_kernel_constructs_a_validated_transaction() {
     let cases = trybuild::TestCases::new();
     cases.compile_fail("tests/compile_fail/*.rs");
+}
+
+/// Review regressions: references resolve against the resulting graph, not a union of ids.
+#[test]
+fn deleting_an_edge_referenced_by_a_new_or_retained_assertion_is_refused() {
+    let mut world = World::new();
+    let mut assertion = world.supported_assertion(AssertionId::mint());
+    assertion.subject = Subject::Edge(world.existing_edge);
+    for operations in [
+        vec![
+            GraphOperation::DeleteEdge(world.existing_edge),
+            GraphOperation::AddAssertion(Box::new(assertion.clone())),
+        ],
+        vec![
+            GraphOperation::AddAssertion(Box::new(assertion)),
+            GraphOperation::DeleteEdge(world.existing_edge),
+        ],
+    ] {
+        assert!(codes(&refuse(&world, operations)).contains(&"unresolved-edge"));
+    }
+    world
+        .graph
+        .assertions
+        .get_mut(&world.held_assertion)
+        .unwrap()
+        .subject = Subject::Edge(world.existing_edge);
+    assert!(codes(&refuse(
+        &world,
+        vec![GraphOperation::DeleteEdge(world.existing_edge)]
+    ))
+    .contains(&"unresolved-edge"));
+}
+
+#[test]
+fn relation_assertions_require_compatible_node_endpoints() {
+    let world = World::new();
+    for (subject, object) in [
+        (
+            Subject::Node(world.open),
+            Object::Value(Value::String("scalar".into())),
+        ),
+        (Subject::Node(world.open), Object::Type(world.decision)),
+        (
+            Subject::Edge(world.existing_edge),
+            Object::Node(world.decided),
+        ),
+        (Subject::Type(world.decision), Object::Node(world.decided)),
+    ] {
+        let mut assertion = world.supported_assertion(AssertionId::mint());
+        assertion.subject = subject;
+        assertion.predicate = Predicate::Relation(world.depends_on);
+        assertion.object = object;
+        assert!(codes(&refuse(
+            &world,
+            vec![GraphOperation::AddAssertion(Box::new(assertion))]
+        ))
+        .contains(&"edge-endpoint-type"));
+    }
+    let mut assertion = world.supported_assertion(AssertionId::mint());
+    assertion.predicate = Predicate::Relation(world.depends_on);
+    assertion.object = Object::Node(world.decided);
+    assert!(world
+        .pipeline()
+        .validate(
+            &world.snapshot(),
+            &world.proposal(vec![GraphOperation::AddAssertion(Box::new(assertion))])
+        )
+        .is_ok());
+}
+
+#[test]
+fn relation_assertions_check_both_endpoint_types_and_allow_inherited_types() {
+    let mut world = World::new();
+    let other = TypeId::mint();
+    let child = TypeId::mint();
+    let mut subtype = NodeType::new(child, "SpecialDecision");
+    subtype.parents.insert(world.decision);
+    let decision = world
+        .graph
+        .ontology
+        .node_type(world.decision)
+        .unwrap()
+        .clone();
+    let relation = world
+        .graph
+        .ontology
+        .edge_type(world.depends_on)
+        .unwrap()
+        .clone();
+    world.graph.ontology = Ontology::load(OntologyDocument {
+        version: world.graph.ontology.version().clone(),
+        node_types: vec![decision, NodeType::new(other, "Observation"), subtype],
+        edge_types: vec![relation],
+    })
+    .unwrap();
+    for node in [world.open, world.decided] {
+        world.graph.nodes.get_mut(&node).unwrap().type_id = other;
+        let mut assertion = world.supported_assertion(AssertionId::mint());
+        assertion.predicate = Predicate::Relation(world.depends_on);
+        assertion.object = Object::Node(world.decided);
+        assert!(codes(&refuse(
+            &world,
+            vec![GraphOperation::AddAssertion(Box::new(assertion))]
+        ))
+        .contains(&"edge-endpoint-type"));
+        world.graph.nodes.get_mut(&node).unwrap().type_id = child;
+    }
+    let mut assertion = world.supported_assertion(AssertionId::mint());
+    assertion.predicate = Predicate::Relation(world.depends_on);
+    assertion.object = Object::Node(world.decided);
+    assert!(world
+        .pipeline()
+        .validate(
+            &world.snapshot(),
+            &world.proposal(vec![GraphOperation::AddAssertion(Box::new(assertion))])
+        )
+        .is_ok());
+}
+
+#[test]
+fn property_assertions_check_type_objects_edge_properties_and_type_subjects() {
+    let mut world = World::new();
+    let mut relation = world
+        .graph
+        .ontology
+        .edge_type(world.depends_on)
+        .unwrap()
+        .clone();
+    relation.properties.insert(
+        world.title,
+        PropertyDefinition::new(world.title, "title", ValueType::String),
+    );
+    world.graph.ontology = Ontology::load(OntologyDocument {
+        version: world.graph.ontology.version().clone(),
+        node_types: vec![world
+            .graph
+            .ontology
+            .node_type(world.decision)
+            .unwrap()
+            .clone()],
+        edge_types: vec![relation],
+    })
+    .unwrap();
+    for subject in [
+        Subject::Node(world.open),
+        Subject::Edge(world.existing_edge),
+    ] {
+        let mut assertion = world.supported_assertion(AssertionId::mint());
+        assertion.subject = subject;
+        assertion.object = Object::Type(world.decision);
+        assert_eq!(
+            codes(&refuse(
+                &world,
+                vec![GraphOperation::AddAssertion(Box::new(assertion))]
+            )),
+            vec!["wrong-type"]
+        );
+    }
+    let mut assertion = world.supported_assertion(AssertionId::mint());
+    assertion.subject = Subject::Type(world.decision);
+    assert_eq!(
+        codes(&refuse(
+            &world,
+            vec![GraphOperation::AddAssertion(Box::new(assertion))]
+        )),
+        vec!["undeclared-property"]
+    );
+    let mut assertion = world.supported_assertion(AssertionId::mint());
+    assertion.subject = Subject::Edge(world.existing_edge);
+    assert!(world
+        .pipeline()
+        .validate(
+            &world.snapshot(),
+            &world.proposal(vec![GraphOperation::AddAssertion(Box::new(assertion))])
+        )
+        .is_ok());
+}
+
+#[test]
+fn competing_property_writes_are_refused_in_every_order() {
+    let world = World::new();
+    let first = GraphOperation::UpdateProperty(PropertyMutation {
+        node: world.open,
+        property: world.title,
+        values: vec![Value::String("first".into())],
+    });
+    let second = GraphOperation::UpdateProperty(PropertyMutation {
+        node: world.open,
+        property: world.title,
+        values: vec![Value::String("second".into())],
+    });
+    for operations in [vec![first.clone(), second.clone()], vec![second, first]] {
+        assert_eq!(
+            codes(&refuse(&world, operations)),
+            vec!["conflicting-write"]
+        );
+    }
+    let fresh = NodeId::mint();
+    let create = GraphOperation::CreateNode(world.draft(fresh, "first"));
+    let update = GraphOperation::UpdateProperty(PropertyMutation {
+        node: fresh,
+        property: world.title,
+        values: vec![Value::String("second".into())],
+    });
+    for operations in [vec![create.clone(), update.clone()], vec![update, create]] {
+        assert_eq!(
+            codes(&refuse(&world, operations)),
+            vec!["conflicting-write"]
+        );
+    }
+}
+
+#[test]
+fn competing_lifecycle_writes_are_refused() {
+    let world = World::new();
+    let invoke = GraphOperation::Invoke {
+        node: world.open,
+        operation: "decide".into(),
+        arguments: BTreeMap::new(),
+    };
+    assert_eq!(
+        codes(&refuse(&world, vec![invoke.clone(), invoke])),
+        vec!["conflicting-write"]
+    );
+}
+
+#[test]
+fn unsupported_schema_changes_and_merges_refuse_explicitly() {
+    let world = World::new();
+    let mut invalid_type = NodeType::new(TypeId::mint(), "Invalid");
+    invalid_type.parents.insert(TypeId::mint());
+    for operation in [
+        GraphOperation::DefineNodeType(Box::new(invalid_type)),
+        GraphOperation::DefineEdgeType(Box::new(EdgeType::new(TypeId::mint(), "invalid"))),
+        GraphOperation::ModifyProperty(PropertyDefinition::new(
+            PropertyId::mint(),
+            "missing",
+            ValueType::String,
+        )),
+        GraphOperation::MergeEntity(EntityMerge {
+            absorbed: world.open,
+            into: world.decided,
+        }),
+    ] {
+        assert_eq!(
+            codes(&refuse(&world, vec![operation])),
+            vec!["unsupported-operation"]
+        );
+    }
+}
+
+#[test]
+fn opaque_preconditions_and_emissions_are_not_silently_accepted() {
+    for emission in [false, true] {
+        let mut world = World::new();
+        let mut decision = world
+            .graph
+            .ontology
+            .node_type(world.decision)
+            .unwrap()
+            .clone();
+        let operation = decision.operations.get_mut("decide").unwrap();
+        if emission {
+            operation.emits.push("unspecified".into());
+        } else {
+            operation
+                .preconditions
+                .push("UNSUPPORTED_CONSTRAINT".into());
+        }
+        world.graph.ontology = Ontology::load(OntologyDocument {
+            version: world.graph.ontology.version().clone(),
+            node_types: vec![decision],
+            edge_types: vec![world
+                .graph
+                .ontology
+                .edge_type(world.depends_on)
+                .unwrap()
+                .clone()],
+        })
+        .unwrap();
+        assert_eq!(
+            codes(&refuse(
+                &world,
+                vec![GraphOperation::Invoke {
+                    node: world.open,
+                    operation: "decide".into(),
+                    arguments: BTreeMap::new()
+                }]
+            )),
+            vec!["unsupported-constraint"]
+        );
+    }
+}
+
+#[test]
+fn applicable_opaque_property_constraints_refuse_all_node_write_paths() {
+    let mut world = World::new();
+    let mut decision = world
+        .graph
+        .ontology
+        .node_type(world.decision)
+        .unwrap()
+        .clone();
+    decision
+        .properties
+        .get_mut(&world.title)
+        .unwrap()
+        .constraints
+        .push("UNSUPPORTED_CONSTRAINT".into());
+    world.graph.ontology = Ontology::load(OntologyDocument {
+        version: world.graph.ontology.version().clone(),
+        node_types: vec![decision],
+        edge_types: vec![world
+            .graph
+            .ontology
+            .edge_type(world.depends_on)
+            .unwrap()
+            .clone()],
+    })
+    .unwrap();
+    for operation in [
+        GraphOperation::CreateNode(world.draft(NodeId::mint(), "valid")),
+        GraphOperation::UpdateProperty(PropertyMutation {
+            node: world.open,
+            property: world.tags,
+            values: vec![Value::String("tag".into())],
+        }),
+        GraphOperation::Invoke {
+            node: world.open,
+            operation: "decide".into(),
+            arguments: BTreeMap::new(),
+        },
+        GraphOperation::AddAssertion(Box::new(world.supported_assertion(AssertionId::mint()))),
+    ] {
+        assert_eq!(
+            codes(&refuse(&world, vec![operation])),
+            vec!["unsupported-constraint"]
+        );
+    }
+}
+
+#[test]
+fn an_empty_property_assignment_still_requires_a_declared_property() {
+    let world = World::new();
+    assert_eq!(
+        codes(&refuse(
+            &world,
+            vec![GraphOperation::UpdateProperty(PropertyMutation {
+                node: world.open,
+                property: PropertyId::mint(),
+                values: vec![]
+            })]
+        )),
+        vec!["undeclared-property"]
+    );
+}
+
+#[test]
+fn property_cardinality_uses_the_candidate_node() {
+    let world = World::new();
+    let fresh = NodeId::mint();
+    let mut draft = world.draft(fresh, "valid");
+    draft.properties.remove(&world.title);
+    let create = GraphOperation::CreateNode(draft);
+    let update = GraphOperation::UpdateProperty(PropertyMutation {
+        node: fresh,
+        property: world.title,
+        values: vec![Value::String("valid".into())],
+    });
+    for operations in [vec![create.clone(), update.clone()], vec![update, create]] {
+        assert!(world
+            .pipeline()
+            .validate(&world.snapshot(), &world.proposal(operations))
+            .is_ok());
+    }
+}
+
+#[test]
+fn an_unresolved_assertion_endpoint_does_not_acquire_an_unrelated_type_refusal() {
+    let world = World::new();
+    for (subject, object, predicate) in [
+        (
+            Subject::Node(NodeId::mint()),
+            Object::Node(world.decided),
+            Predicate::Relation(world.depends_on),
+        ),
+        (
+            Subject::Node(world.open),
+            Object::Node(NodeId::mint()),
+            Predicate::Relation(world.depends_on),
+        ),
+        (
+            Subject::Edge(EdgeId::mint()),
+            Object::Value(Value::String("valid".into())),
+            Predicate::Property(world.title),
+        ),
+    ] {
+        let mut assertion = world.supported_assertion(AssertionId::mint());
+        assertion.subject = subject;
+        assertion.object = object;
+        assertion.predicate = predicate;
+        assert_eq!(
+            refusing_validators(&refuse(
+                &world,
+                vec![GraphOperation::AddAssertion(Box::new(assertion))]
+            )),
+            vec![ValidatorName::Reference]
+        );
+    }
+}
+
+#[test]
+fn opaque_edge_property_constraints_refuse_creation_and_assertions() {
+    let mut world = World::new();
+    let mut relation = world
+        .graph
+        .ontology
+        .edge_type(world.depends_on)
+        .unwrap()
+        .clone();
+    let mut property = PropertyDefinition::new(world.title, "title", ValueType::String);
+    property.constraints.push("UNSUPPORTED_CONSTRAINT".into());
+    relation.properties.insert(world.title, property);
+    world.graph.ontology = Ontology::load(OntologyDocument {
+        version: world.graph.ontology.version().clone(),
+        node_types: vec![world
+            .graph
+            .ontology
+            .node_type(world.decision)
+            .unwrap()
+            .clone()],
+        edge_types: vec![relation],
+    })
+    .unwrap();
+    let mut assertion = world.supported_assertion(AssertionId::mint());
+    assertion.subject = Subject::Edge(world.existing_edge);
+    for operation in [
+        GraphOperation::CreateEdge(EdgeDraft {
+            id: EdgeId::mint(),
+            root_id: world.root_id,
+            type_id: world.depends_on,
+            source: world.decided,
+            target: world.open,
+            properties: [(world.title, vec![Value::String("valid".into())])]
+                .into_iter()
+                .collect(),
+        }),
+        GraphOperation::AddAssertion(Box::new(assertion)),
+    ] {
+        assert_eq!(
+            codes(&refuse(&world, vec![operation])),
+            vec!["unsupported-constraint"]
+        );
+    }
 }

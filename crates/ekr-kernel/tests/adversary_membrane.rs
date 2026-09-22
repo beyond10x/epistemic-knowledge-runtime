@@ -394,6 +394,15 @@ fn reordering_the_operations_of_one_transaction_does_not_change_the_verdict() {
         .pipeline()
         .validate(&world.snapshot(), &deleted_then_created);
 
+    assert!(
+        first.is_ok(),
+        "creation/deletion cancellation must validate: {first:?}"
+    );
+    assert!(
+        second.is_ok(),
+        "permuting cancellation must validate: {second:?}"
+    );
+
     assert_eq!(
         first.is_ok(),
         second.is_ok(),

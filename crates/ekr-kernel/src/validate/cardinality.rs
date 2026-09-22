@@ -18,13 +18,11 @@
 //! A node whose type it cannot name and a property the type does not declare: both are the type
 //! validator's refusals, and a count against a definition that does not exist is not a count.
 
-use std::collections::BTreeSet;
-
-use ekr_core::{EdgeId, NodeId, PropertyId, TypeId};
+use ekr_core::PropertyId;
 use ekr_graph::GraphSnapshot;
 use ekr_ontology::{NodeTypes, PropertyDefinition};
 
-use super::{finish, issue, node_types, Validator};
+use super::{candidate::Candidate, finish, issue, Validator};
 use crate::issue::{ValidationIssue, ValidatorName};
 use crate::transaction::{GraphOperation, GraphTransaction};
 
@@ -51,7 +49,8 @@ impl Validator for Cardinality {
         tx: &GraphTransaction,
     ) -> Result<(), Vec<ValidationIssue>> {
         let ontology = &graph.graph().ontology;
-        let nodes = node_types(graph, tx);
+        let candidate = Candidate::of(graph, tx);
+        let nodes = &candidate.nodes;
         let mut issues = Vec::new();
 
         for operation in &tx.operations {
@@ -63,7 +62,12 @@ impl Validator for Cardinality {
                     // Presence is asked of the *declarations*, not of the bag the draft carries:
                     // an absent property and one carrying no values are the same absence.
                     for (property, definition) in ontology.properties_of(draft.type_id) {
-                        let count = draft.properties.get(&property).map_or(0, Vec::len);
+                        let count = candidate
+                            .property_counts
+                            .get(&draft.id)
+                            .and_then(|properties| properties.get(&property))
+                            .copied()
+                            .unwrap_or(0);
                         count_property(tx, definition, property, count, &mut issues);
                     }
                 }
@@ -92,7 +96,7 @@ impl Validator for Cardinality {
                         let count = draft.properties.get(property).map_or(0, Vec::len);
                         count_property(tx, definition, *property, count, &mut issues);
                     }
-                    let out = outgoing(graph, tx, draft.source, draft.type_id);
+                    let out = candidate.outgoing(draft.source, draft.type_id);
                     if !declared.cardinality.permits(out.len()) {
                         issues.push(issue(
                             tx,
@@ -154,55 +158,4 @@ fn count_property(
             ),
         ));
     }
-}
-
-/// The edges of `type_id` leaving `source` once this transaction has been applied.
-///
-/// **Order-free, and that is the point.** It used to replay the operations in `Vec` order, so a
-/// `DeleteEdge` listed before the `CreateEdge` of the same edge removed nothing and the edge was
-/// counted as surviving — the same operation set accepted in one order and refused with
-/// `edge-cardinality` in the other. That made this validator and the reference validator hold two
-/// different theories of what a transaction is, and the reference validator's is the right one:
-/// design § 19–20 makes a transaction atomic, there is no instant at which canonical state is
-/// half-changed, and a verdict that turns on the order of a vector the proposer fills is a verdict
-/// an agent can shop for by reordering.
-///
-/// So the answer is the set: what canonical state holds, plus everything the transaction creates,
-/// minus everything it deletes. `tests/adversary_membrane.rs` holds the two orderings to one
-/// verdict.
-fn outgoing(
-    graph: &GraphSnapshot<'_>,
-    tx: &GraphTransaction,
-    source: NodeId,
-    type_id: TypeId,
-) -> BTreeSet<EdgeId> {
-    let mut held: BTreeSet<EdgeId> = graph
-        .graph()
-        .edges
-        .values()
-        .filter(|edge| edge.source.node() == source && edge.type_id == type_id)
-        .map(|edge| edge.id)
-        .collect();
-    held.extend(
-        tx.operations
-            .iter()
-            .filter_map(|operation| match operation {
-                GraphOperation::CreateEdge(draft)
-                    if draft.source == source && draft.type_id == type_id =>
-                {
-                    Some(draft.id)
-                }
-                _ => None,
-            }),
-    );
-    let deleted: BTreeSet<EdgeId> = tx
-        .operations
-        .iter()
-        .filter_map(|operation| match operation {
-            GraphOperation::DeleteEdge(edge) => Some(*edge),
-            _ => None,
-        })
-        .collect();
-    held.retain(|edge| !deleted.contains(edge));
-    held
 }
