@@ -2,14 +2,14 @@
 format: aep.planning-md/1
 id: story:p1-transaction-membrane-repair
 kind: story
-status: active
+status: implemented
 title: Repair transaction validation before durable application
 relations:
 - decomposes: epic:p1-kernel-ontology-core
 - serves: vision:o2
 - implements: executable-system-specification:ekr-v1
 scope:
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-kernel/src/validate/candidate.rs
 - confidence: cited
   path: crates/ekr-kernel/src/validate/cardinality.rs
@@ -29,7 +29,7 @@ scope:
   path: crates/ekr-kernel/tests/adversary_p1_07.rs
 - confidence: cited
   path: crates/ekr-kernel/tests/validation.rs
-revision: 8
+revision: 11
 ---
 ## Context
 
@@ -47,14 +47,13 @@ Validators must agree on the resulting state of an unordered atomic operation se
 
 ## Scope
 
-Derived 2026-09-22 by the story-scoper charter; confidence high.
+Confirmed against implementation commit 6328031 and integrated helper visibility correction.
 
-- Cited: `crates/ekr-kernel/src/validate/reference.rs`, `types.rs`, `structural.rs`, `ontology.rs`, `cardinality.rs` and `mod.rs` — the inspected validators and shared identity helper.
-- Inferred: `crates/ekr-kernel/src/validate/candidate.rs` — optional shared post-state index.
-- Cited: `crates/ekr-kernel/tests/validation.rs` and `adversary_membrane.rs` — fixture, named refusal cases, and permutation controls.
-- Source contracts: no store, graph wire-format, dependency or ontology-schema changes. Coordinator owns planning, ESS changes and CI.
-- Existing fresh-type and valid-merge positive controls conflict with the approved phase boundary; replace with unsupported-operation refusals, preserving malformed-operation coverage.
-- Retained properties cannot refer to edges in this model; retained assertion subjects can. The acceptance has been corrected accordingly.
+Cited: crates/ekr-kernel/src/validate/candidate.rs (originally inferred, now implemented), cardinality.rs, mod.rs, ontology.rs, reference.rs, structural.rs and types.rs; tests/validation.rs and adversary_membrane.rs. The adversary added tests/adversary_p1_07.rs. These are the complete changed kernel paths for the membrane unit.
+
+The shared candidate indexes drive reference and cardinality checks. Unsupported schema/merge positives were replaced by explicit refusals under the approved P1 phase boundary, retaining malformed-operation and identity cases. Retained assertions participate in edge-reference validation. Coordinator-owned ontology comments now cite the executable opaque-constraint regressions. The separate decoder story owns its ontology source changes.
+
+No store, graph wire-format, dependency or schema-shape change belongs to this membrane unit. Seed, durable writer and serialized-ontology admission remain separately recorded. All executable source paths added by this unit are runtime-local or contain no checkout lookup; the pre-existing compile-time lookup debt remains scheduled.
 
 ## Verification
 

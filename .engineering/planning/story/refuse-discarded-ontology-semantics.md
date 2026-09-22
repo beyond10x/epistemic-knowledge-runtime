@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:refuse-discarded-ontology-semantics
 kind: story
-status: active
+status: implemented
 title: Refuse ontology semantics unsupported by the decoder
 relations:
 - decomposes: epic:p1-kernel-ontology-core
@@ -20,8 +20,10 @@ scope:
 - confidence: cited
   path: crates/ekr-ontology/src/value.rs
 - confidence: cited
+  path: crates/ekr-ontology/tests/adversary_decoder.rs
+- confidence: cited
   path: crates/ekr-ontology/tests/ontology_load.rs
-revision: 9
+revision: 11
 ---
 ## Context
 

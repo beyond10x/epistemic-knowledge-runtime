@@ -1,0 +1,20 @@
+positive control: valid node creation: ACCEPTED
+negative control: String property with Integer value: REFUSED
+  [ValidationIssue { transaction_id: TransactionId(2164027401613821994544849214334817757), validator: Type, code: "wrong-type", message: "property 01a0c6c9-d6df-76dc-83cc-4e94aefcaf67 of node 01a0c6c9-d6df-76dc-83cc-4e976bea5220: expected a String and found a Integer" }]
+delete an edge while adding an assertion referring to that edge: REFUSED
+  [ValidationIssue { transaction_id: TransactionId(2164027401613821994544849223106713275), validator: Reference, code: "unresolved-edge", message: "edge 01a0c6c9-d6df-76dc-83cc-4e9923f9f3ff is not in the graph" }]
+relation requiring Decision endpoints with String object: REFUSED
+  [ValidationIssue { transaction_id: TransactionId(2164027401613821994544849228148669124), validator: Type, code: "edge-endpoint-type", message: "target of assertion 01a0c6c9-d6e0-7546-8673-9f45542374a7 must name a node of an allowed endpoint type" }]
+String property assertion with a Type object: REFUSED
+  [ValidationIssue { transaction_id: TransactionId(2164027401613821994544849237604745713), validator: Type, code: "wrong-type", message: "property 01a0c6c9-d6df-76dc-83cc-4e94aefcaf67 of assertion 01a0c6c9-d6e0-7546-8673-9f473cbdf64d cannot carry a type as its value" }]
+two conflicting updates of one property in unordered transaction: REFUSED
+  [ValidationIssue { transaction_id: TransactionId(2164027401613821994544849244334956161), validator: Structural, code: "conflicting-write", message: "node 01a0c6c9-d6df-76dc-83cc-4e976bea5220 property 01a0c6c9-d6df-76dc-83cc-4e94aefcaf67 has competing values in an unordered transaction" }]
+define a type with nonexistent parent: REFUSED
+  [ValidationIssue { transaction_id: TransactionId(2164027401613821994544849255092523976), validator: Structural, code: "unsupported-operation", message: "DefineNodeType is not supported in P1" }]
+modify a property that no type declares: REFUSED
+  [ValidationIssue { transaction_id: TransactionId(2164027401613821994544849263761626413), validator: Structural, code: "unsupported-operation", message: "ModifyProperty is not supported in P1" }]
+Invoke with a nonempty unsupported precondition: REFUSED
+  [ValidationIssue { transaction_id: TransactionId(2164027401613821994544849330451680432), validator: OntologyConstraint, code: "unsupported-constraint", message: "\"decide\" on node 01a0c6c9-d6e0-7546-8673-9f56f2806e74 declares unsupported preconditions or emitted events" }]
+seed document with dangling edge: ACCEPTED
+commit CreateNode: revision=1, node_present=false
+reopen through real kernel authority: revision=0

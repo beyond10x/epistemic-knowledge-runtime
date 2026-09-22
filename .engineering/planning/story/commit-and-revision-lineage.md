@@ -10,6 +10,7 @@ relations:
 - depends_on: story:eventlog-store
 - implements: executable-system-specification:ekr-v1
 - depends_on: story:kernel-validated-seed
+- depends_on: story:version-persisted-contracts
 scope:
 - confidence: inferred
   path: crates/ekr-kernel/src/apply.rs

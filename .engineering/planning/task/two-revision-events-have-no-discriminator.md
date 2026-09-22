@@ -7,6 +7,7 @@ title: A transaction rejected twice publishes two byte-identical events, so one 
 relations:
 - blocks: story:commit-and-revision-lineage
 - serves: vision:o2
+- derived_from: story:version-persisted-contracts
 revision: 1
 ---
 ## What is wrong
