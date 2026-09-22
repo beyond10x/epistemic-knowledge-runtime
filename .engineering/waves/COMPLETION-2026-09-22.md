@@ -72,9 +72,11 @@ The subsequent ess/7 draft is retained in
 `.engineering/waves/p1-writer-activation-ess7-draft.patch`, with a static review and
 development preflight under `.engineering/reviews/`. It declares own-result retries,
 complete original-revision observations and the frozen transaction parser profile.
-Development validation and compilation pass, but synthesis still refuses the Stale
-state's Commit and Validate cases through the external Commit/stale arrangement.
-That concrete adopter shape is being added to the upstream regression fixtures.
+The first development synthesis refused the Stale state's Commit and Validate
+cases through the external Commit/stale arrangement. The upstream correction now
+generates both cases; repeated development validation, compilation and synthesis
+pass with no refused obligations. The exact failed and corrected outputs remain
+retained, and the same adopter shape is covered by upstream regression fixtures.
 This draft is unactivated and no released-compiler or runtime success is inferred.
 Persisted-contract activation, durable application and the CLI remain unfinished.
 The conformance and migration preparation reports are measured prerequisites, not executed

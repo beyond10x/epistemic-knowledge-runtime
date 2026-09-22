@@ -26,3 +26,16 @@ The two obligations remain in the inventory and are not filtered or waived.
 The exact original compiler output, statuses and executable remain in private
 scratch. Verified released-compiler validation/synthesis and actual provider
 acceptance are still required before production activation or phase completion.
+
+## Corrected development compiler
+
+The primary implementor reproduced the real external-Stale arrangement failure
+in a finite fixture and corrected the source path. Root repeated the exact EKR
+candidate with development CLI SHA-256
+cee3d72257f6ac61f6f7d841e62fd3a4698cda82d4dc24d126cf57eb6a470a87.
+Validate, compile and synthesis now exit0. The corrected suite retains both
+original retry scenarios and now includes Stale-state refusal for both Commit
+and Validate, with no refused or outside obligations. The original failed output
+and original executable are preserved; corrected outputs use a separate
+`development-corrected-` prefix. This corrects synthesis, not runtime delivery.
+Measured corrected inventory: 33 generated, 0 authored, 0 outside, 0 refused; ess-conformance/13. Runtime EKR executions: none in this preflight.
