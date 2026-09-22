@@ -10,10 +10,16 @@ relations:
 - depends_on: story:eventlog-store
 - implements: executable-system-specification:ekr-v1
 scope:
+- confidence: cited
+  path: Cargo.lock
+- confidence: cited
+  path: crates/ekr/Cargo.toml
 - confidence: inferred
   path: crates/ekr/src/cli
 - confidence: inferred
   path: crates/ekr/src/exit.rs
+- confidence: inferred
+  path: crates/ekr/src/host.rs
 - confidence: inferred
   path: crates/ekr/src/main.rs
 - confidence: inferred
@@ -22,7 +28,7 @@ scope:
   path: crates/ekr/tests/retraction_example.rs
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 7
+revision: 10
 ---
 ## Context
 
@@ -92,12 +98,22 @@ before dispatch; this paragraph is not a claim that those interfaces exist.
 
 ## Command-result preparation
 
-The cited/inferred scope report is
-`.engineering/reviews/p1-cli-explain-scope.md`. The unapplied typed read-result,
-valid-time selector and Commit outcome proposal is
-`.engineering/waves/p1-cli-explain-contract-preparation.md` and its adjacent patch.
-Released compiler qualification is recorded there; no runtime pass is inferred.
-The coordinator owns activation of the shared kernel ESS, after reconciliation
-with the durable unit's final facade. Host configuration/authentication transport
-and CLI timestamp syntax remain explicit dispatch choices. Do not interpret the
-proposed response wrappers as new persisted receipt versions.
+DESIGN 93 and active kernel ESS bind the actual Propose, Validate and Commit
+response records. Snapshot/Explain and exact CLI host transport are selected in
+`.engineering/waves/p1-cli-explain-contract-r2.md` with its adjacent, still
+unapplied patch. This resolves the bounded preparation review's host transport,
+response binding and explanation-selection questions; no runtime success is
+inferred from compiler qualification.
+
+The exact CLI host JSON envelope contains format, tenant, BootstrapContext and
+AuthorityStateV1, decoded by crates/ekr/src/host.rs. It is trusted local operator
+configuration, never proposal input. The kernel-owned provider facade derives
+and verifies the stored seed ontology. Preserve Seed's typed anchor-mismatch
+mapping, lazy time, exact bytes and outcome/refusal/fault distinction. CLI date
+selection accepts canonical milliseconds or exact calendar dates at midnight UTC.
+
+The narrow additional scope is crates/ekr/src/host.rs, CLI Cargo.toml and
+Cargo.lock: serde and time are existing workspace dependencies, with no version
+change. The coordinator owns manifests and shared-specification activation.
+Concrete handler signatures must match the completed durable source before
+dispatch; this preparation does not authorize a parallel writer to its files.

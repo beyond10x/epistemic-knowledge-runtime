@@ -15,6 +15,8 @@ scope:
   path: crates/ekr-kernel/src/explain.rs
 - confidence: inferred
   path: crates/ekr-kernel/src/lib.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/runtime.rs
 - confidence: inferred
   path: crates/ekr-kernel/tests/explain.rs
 - confidence: inferred
@@ -23,7 +25,7 @@ scope:
   path: crates/ekr-kernel/tests/seed.rs
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 9
+revision: 11
 ---
 ## Context
 
@@ -86,16 +88,22 @@ acceptance with the activated durable record and assertion lifecycle contracts.
 
 ## Dispatch preparation
 
-The read-only cited/inferred scope report is retained in
-`.engineering/reviews/p1-cli-explain-scope.md`. Its proposed kernel lib.rs export
-and dedicated tests/explain.rs are selected for the remaining explain work;
-seed.rs ownership remains with the coupled durable unit and is removed from this
-story's remaining write scope. Existing seed acceptance tests remain dependencies
-and must not be weakened.
+The read-only scope and contract reviews are retained in
+`.engineering/reviews/p1-cli-explain-scope.md` and
+`.engineering/reviews/p1-cli-explain-contract-review.md`. The selected correction
+is `.engineering/waves/p1-cli-explain-contract-r2.md` and its still-unapplied
+patch. DESIGN 93's ordinary command responses are already active; Snapshot and
+Explain projections wait for coordinated activation before dependent source work.
 
-The unapplied command-result/valid-time proposal is
-`.engineering/waves/p1-cli-explain-contract-preparation.md` and its adjacent patch.
-It compiles and synthesizes, but has not run or become the active shared contract.
-Host configuration/authentication transport and final public facade signatures
-must be resolved before dispatch. This does not grant a parallel writer to files
-owned by the active durable unit.
+Explain selects one verified revision/history boundary, retains actual origin
+and lifecycle records, follows accepted replacement assertions even when they
+predate supersession, and includes the distinct support selected by that exact
+recipe. It verifies required bytes, deduplicates evidence by stable identity and
+reports the actual link count. The proposal's deterministic ordering and
+fresh-process/corruption controls remain unexecuted requirements.
+
+The kernel lib.rs export and tests/explain.rs remain in scope. The public
+Runtime export/delegation in crates/ekr-kernel/src/runtime.rs is also required
+by the observed seed checkpoint facade. Seed implementation belongs to the
+durable unit; existing seed acceptance must not be weakened. Final read access
+must use a captured kernel-owned verified history, never expose a raw writer.
