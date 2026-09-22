@@ -2,14 +2,14 @@
 format: aep.planning-md/1
 id: task:strict-read-only-eventlog-inspection
 kind: task
-status: active
+status: implemented
 title: Provide a nonmutating provider entry for preserving migration inventory
 relations:
 - derived_from: story:version-persisted-contracts
 - blocks: story:version-persisted-contracts
 - blocks: story:commit-and-revision-lineage
 - serves: vision:o2
-revision: 4
+revision: 6
 ---
 ## Context
 
@@ -61,3 +61,13 @@ complete store backup, blob extraction, history verification, migration or EKR
 consumer adoption. The consumer will pin this source together with the subsequent
 atomic blob publication capability through its own coordinated manifest and lock.
 CI production result: 156 passed, 0 failed, 0 skipped; conformance_valid=true. Missing required cases: 0. Source: d512109dc2c651614cdc74a2b5fc17fc5817c50e.
+
+## Consumer adoption and closure
+
+EKR now selects the published combined inspector/atomic source
+4ee3dc23f0d02a5726a0e41d097477791f09efe2 consistently for core/file/sqlite,
+Cargo.lock and the dependency-contract guard. The complete combined integration
+gate in wave-2026-09-22-p1-10.md passed against that revision. This closes the
+bounded strict provider inspection prerequisite and its consumer adoption.
+It still does not claim that a live source has been inventoried completely,
+backed up, verified or migrated; those operations keep their separate acceptance.

@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:source-guard-debt
 kind: story
-status: active
+status: implemented
 title: Make repository guards check the invoking tree and declared surface
 relations:
 - serves: vision:o2
@@ -10,7 +10,7 @@ relations:
 scope:
 - confidence: cited
   path: AGENTS.md
-- confidence: inferred
+- confidence: cited
   path: README.md
 - confidence: cited
   path: crates/ekr-core/tests/adversary2_public_surface.rs
@@ -42,7 +42,7 @@ scope:
   path: crates/ekr-ontology/tests/value_type_checking.rs
 - confidence: cited
   path: crates/ekr-store/tests/adversary2_retention_event_contract.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-store/tests/document_refusals.rs
 - confidence: cited
   path: crates/ekr-store/tests/domain_projection.rs
@@ -54,15 +54,15 @@ scope:
   path: crates/ekr/tests/msrv_contract.rs
 - confidence: cited
   path: crates/ekr/tests/public_surface.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr/tests/support/rust_source.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr/tests/support/workspace_manifest.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr/tests/temporal_reads.rs
 - confidence: cited
   path: xtask/src/main.rs
-revision: 30
+revision: 36
 ---
 ## Outcome
 

@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:synchronous-runtime-refusal
 kind: story
-status: active
+status: implemented
 title: Return a named refusal for synchronous store use inside Tokio
 relations:
 - serves: vision:o2
@@ -16,7 +16,7 @@ scope:
   path: crates/ekr-store/tests/adversary_runtime_context.rs
 - confidence: cited
   path: crates/ekr-store/tests/runtime_context.rs
-revision: 9
+revision: 10
 ---
 ## Outcome
 

@@ -2,12 +2,12 @@
 format: aep.planning-md/1
 id: task:guards-read-source-through-a-compile-time-path
 kind: task
-status: active
+status: implemented
 title: Source-reading guards must locate their runtime checkout
 relations:
 - serves: vision:o2
 - derived_from: story:source-guard-debt
-revision: 4
+revision: 5
 ---
 ## What happened
 

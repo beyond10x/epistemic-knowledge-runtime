@@ -2,12 +2,12 @@
 format: aep.planning-md/1
 id: task:trybuild-stderr-is-toolchain-pinned
 kind: task
-status: active
+status: implemented
 title: The compile-fail expectations are pinned to one rustc's diagnostic wording
 relations:
 - serves: vision:o2
 - derived_from: story:source-guard-debt
-revision: 5
+revision: 6
 ---
 ## What is wrong
 

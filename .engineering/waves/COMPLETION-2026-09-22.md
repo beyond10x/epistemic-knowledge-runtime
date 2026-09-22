@@ -50,16 +50,18 @@ were integrated independently; unrelated policy changes and backup files remain 
 
 The membrane repair, required repository correctness CI and kernel seed admission are merged.
 The seed source is on main through PR #8; its implementation and review evidence belong to
-the P1-08 wave page. Original-format verification reached main through PR #9 with431
+the P1-08 wave page. Original-format verification reached main through PR #9 with 431
 passing cases. Runtime-context refusal is independently reviewed and integrated locally.
-The source-guard review reproduced two escapes and a type-use false-positive class;
-its four red cases are under correction before persisted-contract activation.
+The source-guard review reproduced two escapes and a type-use false-positive class.
+All original cases now pass unchanged; independent correction re-review found no
+further defect. Source is integrated locally and the combined gate passed; source
+publication is pending. P1-10 records the executed gate and bounded task closures.
 
 Gates' historical-merge delivery repair is released and adopted, and actual EKR publication
 passed. Eventlog's strict history inspector and atomic blob/event capability are published
-at4ee3dc2 through PR #11, with required production, comparative and restart CI green.
+at 4ee3dc2 through PR #11, with required production, comparative and restart CI green.
 EKR's three dependency selectors and lock now select that exact source locally; eleven
-dependency-contract and195 kernel/store cases pass. Full integration remains pending.
+dependency-contract and 195 kernel/store cases passed before the combined integration gate.
 
 The activation review found four contract mismatches. Explicit object-event schema dispatch
 and absent-revision refusal are corrected in the retained draft. Exact Seed/Commit retry

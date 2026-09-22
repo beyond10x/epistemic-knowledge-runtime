@@ -2,12 +2,12 @@
 format: aep.planning-md/1
 id: task:open-ended-read-ban-binds-one-crate
 kind: task
-status: active
+status: implemented
 title: The ban on filtering valid time with no known end reaches ekr-graph only
 relations:
 - derived_from: story:source-guard-debt
 - serves: vision:o2
-revision: 3
+revision: 4
 ---
 ## The decision this records
 

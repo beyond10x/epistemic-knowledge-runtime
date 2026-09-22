@@ -109,9 +109,12 @@ checkout keeps reading that checkout's path, whatever tree later runs it. Use
 `std::env::var("CARGO_MANIFEST_DIR")`, which cargo sets per process for `cargo test` and `cargo run`,
 or walk up from `current_dir()` to the directory holding `Cargo.lock`.
 
-The remaining sites include `xtask/src/main.rs`, which is not a test.
-`task:guards-read-source-through-a-compile-time-path` says what closes them. Measure executable
-uses separately from comments when reporting a count; a text search includes both.
+Source readers now resolve the invoking checkout at runtime, including `xtask doctor`.
+`crates/ekr/tests/temporal_reads.rs::executable_source_location_macros_cannot_return` checks
+product source, tests and xtask for executable uses, including alternate macro delimiters.
+The implementation and correction evidence is retained under `.engineering/reviews/p1-10-guards-*`.
+Historical inventories describe their recorded base revisions. Measure executable uses separately
+from comments when reporting a current count; a text search includes both.
 
 Compile-fail snapshots are part of the membrane evidence. The exact compiler is pinned in
 `rust-toolchain.toml` and the correctness workflow, but a new trait implementation can still
