@@ -2,13 +2,12 @@
 format: aep.planning-md/1
 id: task:qualify-released-eventlog
 kind: task
-status: active
+status: implemented
 title: Qualify released Eventlog before durable activation
 relations:
 - derived_from: story:version-persisted-contracts
 - serves: vision:o2
-- blocks: story:version-persisted-contracts
-revision: 4
+revision: 6
 ---
 ## Context
 
@@ -70,3 +69,17 @@ Do not claim the future atomic publication path qualified until its correction,
 review and required source CI pass and EKR selects that repaired source.
 The candidate pin remains unpublished while qualification proceeds. Entity
 Runtime remains outside the product dependency graph under roadmap D1.
+
+## Correction qualification completed
+
+The earlier candidate above is superseded by the reviewed repair recorded in
+.engineering/reviews/eventlog-repair-adoption.md. Eventlog PR #15 is merged with
+required backend, comparative and restart CI green. All three selectors, the
+lock and qualifier guard select its exact published source commit in this
+branch. The complete EKR gate and a new direct old-writer/repaired-reader
+fresh-process proof pass on both providers.
+
+The original report and probe remain retained. The changed SQLite path refuses
+fresh corrupt binding reuse while preserving original receipt retries. The
+source qualification is complete; consumer branch publication and durable
+writer acceptance remain separate work and are not claimed by this task.
