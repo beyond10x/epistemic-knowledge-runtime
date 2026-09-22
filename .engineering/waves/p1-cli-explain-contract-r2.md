@@ -6,6 +6,12 @@ patch is not activated yet. DESIGN 93 already owns the durable write responses.
 Activate the remaining shared declarations in every participating tree before
 dependent source work. The original draft and review remain unchanged.
 
+Partial activation: the host transport projection is now active in kernel ESS
+for task:strict-cli-host-input. The adjacent original patch is retained unchanged
+as preparation evidence and must not be applied wholesale. Snapshot and Explain
+declarations remain unapplied. Host input decoding can proceed independently of
+ordinary application; the complete CLI still awaits the durable handlers.
+
 ## Host configuration and entry points
 
 The local operator deliberately selects trusted configuration with required

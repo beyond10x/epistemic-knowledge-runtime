@@ -21,6 +21,8 @@ scope:
 - confidence: inferred
   path: crates/ekr/src/host.rs
 - confidence: inferred
+  path: crates/ekr/src/lib.rs
+- confidence: inferred
   path: crates/ekr/src/main.rs
 - confidence: inferred
   path: crates/ekr/tests/fixtures
@@ -28,7 +30,7 @@ scope:
   path: crates/ekr/tests/retraction_example.rs
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 10
+revision: 11
 ---
 ## Context
 

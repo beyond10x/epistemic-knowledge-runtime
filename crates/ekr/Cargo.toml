@@ -17,7 +17,9 @@ ekr-core.workspace = true
 ekr-graph.workspace = true
 ekr-kernel.workspace = true
 ekr-ontology.workspace = true
+serde.workspace = true
 serde_json.workspace = true
+time.workspace = true
 
 [dev-dependencies]
 assert_cmd.workspace = true

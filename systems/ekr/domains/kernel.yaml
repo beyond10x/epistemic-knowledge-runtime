@@ -641,6 +641,24 @@ types:
       Committed: ekr.kernel.CommitReceiptV1
       Stale: ekr.kernel.StaleRecordV1
 
+  # CLI host transport is trusted local configuration, separate from command documents.
+  # Decoder acceptance remains unexecuted until task:strict-cli-host-input lands.
+  - name: ekr.kernel.CliHostFormatV1
+    kind: enum
+    variants: [ekr.cli-host/1]
+
+  - name: ekr.kernel.CliHostConfigurationV1
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.kernel.CliHostFormatV1
+      - name: tenant
+        type: String
+      - name: context
+        type: ekr.kernel.BootstrapContext
+      - name: authority
+        type: ekr.kernel.AuthorityStateV1
+
 entities:
   # Design § 18. TrustProfile (§ 48) is a P5 concern and is not typed here yet.
   - name: ekr.kernel.Agent
