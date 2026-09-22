@@ -14,12 +14,16 @@ scope:
 - confidence: inferred
   path: crates/ekr-kernel/src/explain.rs
 - confidence: inferred
-  path: crates/ekr-kernel/src/seed.rs
+  path: crates/ekr-kernel/src/lib.rs
+- confidence: inferred
+  path: crates/ekr-kernel/tests/explain.rs
 - confidence: inferred
   path: crates/ekr-kernel/tests/fixtures/seed-minimal.yaml
 - confidence: inferred
   path: crates/ekr-kernel/tests/seed.rs
-revision: 6
+- confidence: cited
+  path: systems/ekr/domains/kernel.yaml
+revision: 9
 ---
 ## Context
 
@@ -79,3 +83,19 @@ stays open when seed admission alone passes; it does not own a second seed write
 The prior split is retained in the governed history. This revision removes
 obsolete seed behavior from the remaining explain scope and aligns the planned
 acceptance with the activated durable record and assertion lifecycle contracts.
+
+## Dispatch preparation
+
+The read-only cited/inferred scope report is retained in
+`.engineering/reviews/p1-cli-explain-scope.md`. Its proposed kernel lib.rs export
+and dedicated tests/explain.rs are selected for the remaining explain work;
+seed.rs ownership remains with the coupled durable unit and is removed from this
+story's remaining write scope. Existing seed acceptance tests remain dependencies
+and must not be weakened.
+
+The unapplied command-result/valid-time proposal is
+`.engineering/waves/p1-cli-explain-contract-preparation.md` and its adjacent patch.
+It compiles and synthesizes, but has not run or become the active shared contract.
+Host configuration/authentication transport and final public facade signatures
+must be resolved before dispatch. This does not grant a parallel writer to files
+owned by the active durable unit.

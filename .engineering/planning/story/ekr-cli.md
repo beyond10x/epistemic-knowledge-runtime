@@ -20,7 +20,9 @@ scope:
   path: crates/ekr/tests/fixtures
 - confidence: inferred
   path: crates/ekr/tests/retraction_example.rs
-revision: 5
+- confidence: cited
+  path: systems/ekr/domains/kernel.yaml
+revision: 7
 ---
 ## Context
 
@@ -53,7 +55,7 @@ valid times. This acceptance is unexecuted until the writer and CLI land.
   evidence. Bootstrap/operator/validator identity and trusted time come from the
   host boundary, never a made-up registry or an allow-all test authority.
 - The example seeds, proposes Alice's assertion, validates and commits, then
-  proposes Bob with the explicit supersession/retraction operation required by
+  proposes Bob with the explicit SupersedeAssertion operation required by
   the final lifecycle contract, validates and commits again. Snapshots at valid
   times before and after 2026-03-12 return Alice and Bob respectively. A snapshot
   at the earlier committed revision still returns its historical state.
@@ -87,3 +89,15 @@ and P6. Use the declared `ekr` dependencies; report a needed shared dependency o
 specification change before implementing it. Exact host configuration transport
 and concrete public handler signatures are resolved against the completed writer
 before dispatch; this paragraph is not a claim that those interfaces exist.
+
+## Command-result preparation
+
+The cited/inferred scope report is
+`.engineering/reviews/p1-cli-explain-scope.md`. The unapplied typed read-result,
+valid-time selector and Commit outcome proposal is
+`.engineering/waves/p1-cli-explain-contract-preparation.md` and its adjacent patch.
+Released compiler qualification is recorded there; no runtime pass is inferred.
+The coordinator owns activation of the shared kernel ESS, after reconciliation
+with the durable unit's final facade. Host configuration/authentication transport
+and CLI timestamp syntax remain explicit dispatch choices. Do not interpret the
+proposed response wrappers as new persisted receipt versions.
