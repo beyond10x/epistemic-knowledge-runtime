@@ -10,6 +10,10 @@ relations:
 - verifies: executable-system-specification:ekr-v1
 scope:
 - confidence: cited
+  path: .github/workflows/correctness.yml
+- confidence: cited
+  path: Cargo.lock
+- confidence: cited
   path: Cargo.toml
 - confidence: inferred
   path: Taskfile.yml
@@ -21,55 +25,103 @@ scope:
   path: crates/ekr/tests/conformance.rs
 - confidence: cited
   path: systems/ekr/components.yaml
+- confidence: cited
+  path: systems/ekr/conformance
 - confidence: inferred
   path: systems/ekr/conformance/suite.json
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 6
+revision: 8
 ---
 ## Context
 
-`systems/ekr/` is the contract the P1 crates implement. A specification nobody runs a suite
-against is prose. ESS synthesises the scenarios the kernel domain obliges — every command outcome,
-every refusal, every lifecycle move — and holds a target to them; the report is what moves the
-specification artifact to `conforming` in the planning store.
+The executable kernel contract is systems/ekr. The original prerequisite report
+correctly identified missing payload inputs and incomplete retained transaction
+views. DESIGN 91–94 and the active kernel ESS now provide document-path inputs,
+complete retained decisions, all-state Transactions and command response records.
+The original findings remain in the planning journal; they are no longer missing
+model prerequisites. Actual target execution is still outstanding.
 
 ## Acceptance
 
-Every scenario in the report `ess verify conform run --path systems/ekr` writes against the `ekr`
-conformance target has status `passed`.
+A Rust ConformanceTarget runs the complete admitted kernel suite through the
+same real Runtime and typed read/command handlers as the CLI, on both native
+providers. Every selected scenario passes, with no failed, error, unsupported or
+skipped terminal result. The declared-coverage inventory is complete and has no
+unresolved refusal. The report is produced from the actual ExecutedRun and paired
+with the exact admitted suite bytes; a zero process status alone is insufficient.
 
 ## Tests the story ships
 
-- `crates/ekr/tests/conformance.rs` synthesises the suite, runs it, and fails on any scenario
-  whose status is not `passed` — a skipped scenario fails it as a failed one does.
-- The committed `systems/ekr/conformance/suite.json` is byte-identical to a fresh synthesis.
-- The report's scenario count equals the suite's.
+- Admit the original synthesized suite bytes, then call Runner::run_admitted.
+  Use the released ESS library's explicit report/2 and detailed run/2 production;
+  the legacy Runner::run path is not valid for the current suite version.
+- Compare the committed suite byte-for-byte with fresh synthesis from checked-in
+  ESS using the declared coverage option. Report actual selected/answered/terminal
+  counts and scenario names, not only a test-target pass or a compiler inventory.
+- Run the full generated obligation set. Authored scenarios extend it; they never
+  remove generated scenarios or turn a failed obligation into outside coverage.
+- The target opens the real kernel authority. SeedDocumentPath and
+  TransactionDocumentPath resolve exact scenario-owned fixture files, and the
+  bounded shared proposal reader consumes their bytes. No hash fabrication or
+  JSON transaction round trip substitutes for those declared inputs.
+- Establish real preconditions for external controls: changed retained seed,
+  invalid seed, malformed proposal, semantically invalid proposal, intervening
+  canonical commit, absent transaction/revision/assertion. Return actual observed
+  outcomes and state, never the outcome selected by a control flag.
+- Generated Validate input against=1 remains revision 1. Scenario setup must
+  create that actual revision through legitimate handlers rather than rewrite
+  the requested basis to revision 0. Fresh isolated stores prevent state leakage.
+- Observe persisted/read-back transaction rows through every retained state and
+  command publications from real records. Preserve actual occurrence identities;
+  a retained retry emits no new event. Read-only result events use actual query
+  results and never invent durable store events.
+- Project returned records losslessly into ESS Node values. Native Integer
+  values use exact integer constructors; no intermediate f64. Preserve Bytes,
+  timestamps, optional fields, union tags, nested values and ordered collections.
+- Mutation controls make named scenarios fail when kernel state transitions,
+  retained responses or refusal behavior are broken. Restore the exact source
+  before rerunning. Adapter bookkeeping alone cannot satisfy those assertions.
+- Commit a count baseline and gate the structured report: answered floor,
+  unavailable ceiling, complete total and no failures. P1 admits no quarantine.
+  Record the coverage skill's repeated-run and CI-job verification before
+  claiming stable counts.
 
 ## Scope
 
-- `crates/ekr/src/conformance.rs` — the target: `ExecuteCommand` and `QueryView` over the kernel
-  library for `ekr.kernel.*` commands and views
-- `crates/ekr/tests/conformance.rs`
-- `systems/ekr/conformance/suite.json` — the synthesised suite, committed so drift is visible
-- `Taskfile.yml` — a `conform-check` task added to `check`
+- crates/ekr/src/conformance.rs: target over actual public kernel handlers/views.
+- crates/ekr/tests/conformance.rs: the real runner, drift and mutation controls.
+- systems/ekr/conformance/suite.json: complete synthesized suite and provenance.
+- systems/ekr/conformance/: authored scenarios and fixture manifest if needed.
+- Taskfile.yml and the existing correctness workflow: conform-check in task check.
+- Cargo.toml, Cargo.lock and crates/ekr/Cargo.toml: explicitly pinned ESS library
+  dependencies for the target/runner, coordinator-owned and not yet added.
+- systems/ekr/domains/kernel.yaml and components.yaml: only measured contract
+  corrections, synchronized before dependent compilation; no weakening to pass.
 
-## Notes
+## Measured readiness
 
-Depends on `story:ekr-cli`. Closing step, after the acceptance holds: record the report with
-`aep plan artifact evidence executable-system-specification:ekr-v1 --from <report>` and move the
-specification to `conforming`; that move is the store's decision, not this story's acceptance.
-The `ess-specify:coverage` skill is the reference for raising executed scenarios. Adds no
-dependency beyond the skeleton's.
+The latest activated read-contract qualification ran the released ESS binary:
+`ess specify validate --path systems/ekr`, `ess specify compile --path systems/ekr`,
+and `ess conform synthesize --path systems/ekr --component ekr-kernel
+--suite-format 5 --target ir`. This is compiler evidence, not executed scenarios.
+The following inventory is extracted from those exact suite bytes when this
+body is written:
 
-## Measured prerequisites for executable conformance
+- suite format: ess-conformance/13
+- selected scenarios: 35
+- generated: 35; authored: 0; refused: 0; outside: 0
 
-Against coordinator 4032d00, ESS synthesis produces a declared-coverage inventory, but no scenario was executed. The retained preparation report records the command's own counts and refusals. The CLI only offers built-in targets; implement a Rust ConformanceTarget using the pinned ESS library and run its actual Runner, with suite/5 and report/2 evidence, not an interpreted model that returns the contract's answer.
+## Delivery
 
-The current spec is not yet a faithful command input contract. systems/ekr/domains/kernel.yaml declares Seed input seed_hash and Propose inputs operations_hash/evidence_hash plus counts, without the actual retained payload. Synthesis supplies ordinary String literals named after those fields; crates/ekr-core/src/hash.rs requires exact lowercase hexadecimal addresses, and the real kernel must resolve and verify the named payload. Translating these literals into unrelated hashes while echoing the original values in events would test the adapter's bookkeeping instead of the runtime. Reconcile the actual payload/handle protocol with the ESS declaration before CLI and target implementation; explicit authored scenarios may supply real payload fixtures, but must retain an exact complete coverage inventory rather than discard generated obligations.
+Depends on story:ekr-cli and stays draft until its real target is ready. The
+ESS release source used for the retained-result compiler was independently
+qualified in the release/adoption evidence; pin that actual source before adding
+library dependencies. There is no EKR-specific target built into the ESS binary,
+so the former ess verify conform run acceptance command was invalid and is
+replaced by the Rust runner above.
 
-The existing PendingTransactions view hides terminal states. The synthesis refusals say the operation_count invariant cannot be read after committed, stale, rejected or validated outcomes. Add an executable read of the retained transaction record across those states; do not delete the invariant or relabel refusal as outside scope.
-
-External outcome controls must establish real circumstances: invalid seed input, a genuinely invalid proposed transaction, an intervening commit for staleness, or an actually missing identity. Report only observed kernel outcomes and persisted/read-back records. Never return the selected expected outcome from a control flag. Preserve actor authority outside the proposal payload.
-
-Mutation evidence must show a named scenario fails when a kernel behavior is broken. All declared scenarios must execute and pass; no silent target skips. Add the pinned ESS library dependencies and test-runner entry point explicitly to story scope; the old assertion that no dependency is needed is false (crates/ekr/Cargo.toml declares none).
+Record the exact passed report as evidence on executable-system-specification:ekr-v1
+and let its lifecycle decide the conforming move. Do not claim conformance from
+synthesis, an empty suite, or a substitute target. The ess-specify:coverage skill
+supplies the executed-coverage and mutation requirements.
