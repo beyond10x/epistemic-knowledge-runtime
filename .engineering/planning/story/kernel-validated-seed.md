@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:kernel-validated-seed
 kind: story
-status: active
+status: implemented
 title: Initialize and reopen seeds through kernel validation
 relations:
 - decomposes: epic:p1-kernel-ontology-core
@@ -60,7 +60,7 @@ scope:
   path: crates/ekr/tests/story_contract.rs
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 22
+revision: 24
 ---
 ## Context
 
@@ -154,3 +154,23 @@ loader cases assert the exact error variant. A compatibility-constructor panic,
 blanket skip, or merely different-ontology refusal does not close the seed case.
 The reviewer owns the independent regression; the implementor must not silently
 narrow it. Full correction and re-review remain unexecuted at this scope expansion.
+
+## Integrated acceptance
+
+The complete repository gate passed in the coordinator checkout: 403 passed, 0 failed, 0 ignored.
+Each Taskfile step (format, clippy, test, documentation, ESS and planning) has
+its own successful exit status in the retained integration logs.
+The source unit is 0fb7951c6d5d5803493d33d80a34c53c7070fe4d.
+
+The independent correction review at
+.engineering/reviews/p1-08-seed-correction-review.md verified the original
+kernel regression unchanged (SHA-256 a3152f04d6a02c28be6dc3b4327a7f8dec3fcf1ec1177c98a7d4fba78c4920ce) and the exact ontology loader
+refusals. Its prior blocker is corrected; the review's historical origin remains
+undecided because no opening-commit execution established it. The earlier
+source-only attribution in this story is not historical execution evidence.
+
+The coordinator disabled only the new property-key equality check and ran that
+independent kernel case. It failed with all malformed node/edge combinations
+admitted through both backends (exit 101). The exact source was restored before
+the full gate. See the wave closure and retained mutation log.
+No post-seed durable application or object/blob migration is implied.
