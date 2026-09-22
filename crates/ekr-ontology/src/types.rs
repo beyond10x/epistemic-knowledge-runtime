@@ -66,7 +66,7 @@ pub struct NodeType {
     #[serde(default)]
     pub parents: BTreeSet<TypeId>,
     /// The properties this type declares itself, by id.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "ekr_core::decode::unique_map")]
     pub properties: BTreeMap<PropertyId, PropertyDefinition>,
     /// Whether the type is only ever specialised. An abstract type has no nodes.
     #[serde(default)]
@@ -113,7 +113,7 @@ pub struct EdgeType {
     #[serde(default)]
     pub cardinality: Cardinality,
     /// The properties an edge of this type declares.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "ekr_core::decode::unique_map")]
     pub properties: BTreeMap<PropertyId, PropertyDefinition>,
     /// The edge type that is this one read backwards, if there is one.
     #[serde(default)]
