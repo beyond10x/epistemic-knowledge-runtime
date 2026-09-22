@@ -7,7 +7,8 @@ title: Qualify released Eventlog before durable activation
 relations:
 - derived_from: story:version-persisted-contracts
 - serves: vision:o2
-revision: 3
+- blocks: story:version-persisted-contracts
+revision: 4
 ---
 ## Context
 
@@ -42,3 +43,30 @@ Reports live under .engineering/reviews and the completion scratch root.
 This task adds no domain entity or product storage format. Root owns pin changes,
 planning and publication. The upgrade assessment and temporary isolated Rust
 probe do not write to the live stores or either primary checkout.
+
+## Released provider qualification in progress
+
+The candidate selectors and dependency guard now name the published tag's exact
+commit, verified against its remote annotated tag and release. Current kernel/
+store tests and dependency checks passed; the retained cross-version probe wrote
+synthetic evidence-backed seeds with the previous provider pin and reopened them
+in a fresh process through the candidate's real kernel authority. Roots, graph
+state, replay and exact evidence agree on both backends. This proves bounded seed
+compatibility, not transaction application or live-store migration.
+
+Candidate commit: ac6b1731654329d32f1e3c9cf164fefad6a5b46a.
+
+Executed kernel/store results: 197 passed, 0 failed, 0 ignored across 29 runner summaries; command status 0
+
+The separate provider probe reproduced acceptance of a corrupt existing SQLite
+blob binding by fresh atomic publication. Its full report is
+.engineering/reviews/eventlog-030-integrity-probe.md; the source assessment is
+.engineering/reviews/eventlog-030-assessment.md. Exact prior-receipt retry is a
+passing control, not the defect. The existing inline consumer does not use the
+affected publication path.
+
+The upstream repair is active as Eventlog task:validate-atomic-blob-reuse.
+Do not claim the future atomic publication path qualified until its correction,
+review and required source CI pass and EKR selects that repaired source.
+The candidate pin remains unpublished while qualification proceeds. Entity
+Runtime remains outside the product dependency graph under roadmap D1.
