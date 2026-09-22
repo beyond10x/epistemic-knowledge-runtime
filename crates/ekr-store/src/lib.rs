@@ -197,3 +197,5 @@ impl From<eventlog_core::EventLogError> for StoreError {
         Self::Backend(error.to_string())
     }
 }
+/// Frozen original-format data and supplied-byte verification.
+pub mod legacy;

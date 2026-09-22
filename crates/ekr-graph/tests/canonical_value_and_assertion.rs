@@ -1255,7 +1255,7 @@ fn sum_type_fixtures() -> Vec<(&'static str, Fixtures)> {
         ),
     ];
 
-    vec![
+    let mut fixtures = vec![
         ("Subject", encodings(subjects)),
         ("Predicate", encodings(predicates)),
         ("Object", encodings(objects)),
@@ -1263,6 +1263,255 @@ fn sum_type_fixtures() -> Vec<(&'static str, Fixtures)> {
         ("CanonicalValue", encodings(values)),
         ("EvidenceSource", encodings(sources)),
         ("ObservationContent", encodings(contents)),
+    ];
+    fixtures.extend(legacy_sum_type_fixtures());
+    fixtures
+}
+
+/// Frozen types keep their own payload-distinguishing fixture roster.
+fn legacy_sum_type_fixtures() -> Vec<(&'static str, Fixtures)> {
+    use ekr_graph::legacy::Value as CanonicalValue;
+    use ekr_graph::legacy::{
+        EvidenceSource, Object, Predicate, RetractionReason, Subject, ValidationState, Value,
+    };
+    let node = id::<NodeId>(11);
+    let other_node = id::<NodeId>(12);
+    let edge = id::<EdgeId>(11);
+    let other_edge = id::<EdgeId>(12);
+    let type_id = id::<TypeId>(11);
+    let other_type = id::<TypeId>(12);
+    let property = id::<PropertyId>(11);
+    let other_property = id::<PropertyId>(12);
+    let assertion_id = id::<AssertionId>(11);
+    let other_assertion = id::<AssertionId>(12);
+    let text = "same".to_owned();
+    let other_text = "other".to_owned();
+
+    let subjects = vec![
+        (0, Subject::Node(node)),
+        (0, Subject::Node(other_node)),
+        (1, Subject::Edge(edge)),
+        (1, Subject::Edge(other_edge)),
+        (2, Subject::Type(type_id)),
+        (2, Subject::Type(other_type)),
+    ];
+    let predicates = vec![
+        (0, Predicate::Property(property)),
+        (0, Predicate::Property(other_property)),
+        (1, Predicate::Relation(type_id)),
+        (1, Predicate::Relation(other_type)),
+    ];
+    let objects = vec![
+        (0, Object::Value(Value::String(text.clone()))),
+        (0, Object::Value(Value::String(other_text.clone()))),
+        (1, Object::Node(node)),
+        (1, Object::Node(other_node)),
+        (2, Object::Type(type_id)),
+        (2, Object::Type(other_type)),
+    ];
+    let validations = vec![
+        // The one variant with no payload, and so the one with a single value: there is no second
+        // payload for it to differ in, and its encoding is the marker alone.
+        (0, ValidationState::Proposed),
+        (
+            1,
+            ValidationState::Validating {
+                completed: 1,
+                required: 2,
+            },
+        ),
+        (
+            1,
+            // `completed` alone.
+            ValidationState::Validating {
+                completed: 2,
+                required: 2,
+            },
+        ),
+        (
+            1,
+            // `required` alone.
+            ValidationState::Validating {
+                completed: 1,
+                required: 3,
+            },
+        ),
+        (
+            2,
+            ValidationState::Accepted {
+                validators: BTreeSet::from([id::<AgentId>(11)]),
+            },
+        ),
+        (
+            2,
+            ValidationState::Accepted {
+                validators: BTreeSet::from([id::<AgentId>(12)]),
+            },
+        ),
+        (
+            3,
+            ValidationState::Rejected {
+                issues: vec![id::<IssueId>(11)],
+            },
+        ),
+        (
+            3,
+            ValidationState::Rejected {
+                issues: vec![id::<IssueId>(12)],
+            },
+        ),
+        (
+            4,
+            ValidationState::Disputed {
+                competing_assertions: vec![assertion_id],
+            },
+        ),
+        (
+            4,
+            ValidationState::Disputed {
+                competing_assertions: vec![other_assertion],
+            },
+        ),
+        (5, ValidationState::Superseded { by: assertion_id }),
+        (
+            5,
+            ValidationState::Superseded {
+                by: other_assertion,
+            },
+        ),
+        (
+            6,
+            ValidationState::Retracted {
+                at_revision: RevisionNumber::new(1),
+                reason: RetractionReason::new(text.clone()),
+            },
+        ),
+        (
+            6,
+            // `at_revision` alone.
+            ValidationState::Retracted {
+                at_revision: RevisionNumber::new(2),
+                reason: RetractionReason::new(text.clone()),
+            },
+        ),
+        (
+            6,
+            // `reason` alone.
+            ValidationState::Retracted {
+                at_revision: RevisionNumber::new(1),
+                reason: RetractionReason::new(other_text.clone()),
+            },
+        ),
+    ];
+    let values: Vec<(usize, CanonicalValue)> = vec![
+        (0, Value::String(text.clone())),
+        (0, Value::String(other_text.clone())),
+        (1, Value::Boolean(true)),
+        (1, Value::Boolean(false)),
+        (2, Value::Integer(1)),
+        (2, Value::Integer(2)),
+        (3, Value::Decimal(text.clone())),
+        (3, Value::Decimal(other_text.clone())),
+        (4, Value::Timestamp(Timestamp::from_millis(1))),
+        (4, Value::Timestamp(Timestamp::from_millis(2))),
+        (5, Value::Duration(1)),
+        (5, Value::Duration(2)),
+        (6, Value::NodeRef(node)),
+        (6, Value::NodeRef(other_node)),
+        (7, Value::Enum(text.clone())),
+        (7, Value::Enum(other_text.clone())),
+        (8, Value::List(vec![Value::String(text.clone())])),
+        (8, Value::List(vec![Value::String(other_text.clone())])),
+        (
+            9,
+            Value::Record([(text.clone(), Value::Integer(1))].into_iter().collect()),
+        ),
+        (
+            9,
+            Value::Record(
+                [(other_text.clone(), Value::Integer(1))]
+                    .into_iter()
+                    .collect(),
+            ),
+        ),
+    ];
+    let sources = vec![
+        (0, EvidenceSource::Url(text.clone())),
+        (0, EvidenceSource::Url(other_text.clone())),
+        (
+            1,
+            EvidenceSource::Document {
+                document_id: text.clone(),
+                section: Some(text.clone()),
+            },
+        ),
+        (
+            1,
+            // `document_id` alone.
+            EvidenceSource::Document {
+                document_id: other_text.clone(),
+                section: Some(text.clone()),
+            },
+        ),
+        (
+            1,
+            // `section` alone, including its absence, which is not its emptiness.
+            EvidenceSource::Document {
+                document_id: text.clone(),
+                section: None,
+            },
+        ),
+        (
+            2,
+            EvidenceSource::DatabaseRecord {
+                database: text.clone(),
+                table: text.clone(),
+                key: text.clone(),
+            },
+        ),
+        (
+            2,
+            EvidenceSource::DatabaseRecord {
+                database: other_text.clone(),
+                table: text.clone(),
+                key: text.clone(),
+            },
+        ),
+        (
+            2,
+            EvidenceSource::DatabaseRecord {
+                database: text.clone(),
+                table: other_text.clone(),
+                key: text.clone(),
+            },
+        ),
+        (
+            2,
+            EvidenceSource::DatabaseRecord {
+                database: text.clone(),
+                table: text.clone(),
+                key: other_text.clone(),
+            },
+        ),
+        (3, EvidenceSource::GraphAssertion(assertion_id)),
+        (3, EvidenceSource::GraphAssertion(other_assertion)),
+        (4, EvidenceSource::Observation(id::<ObservationId>(11))),
+        (4, EvidenceSource::Observation(id::<ObservationId>(12))),
+        (
+            5,
+            EvidenceSource::HumanStatement {
+                identity: Some(text.clone()),
+            },
+        ),
+        (5, EvidenceSource::HumanStatement { identity: None }),
+    ];
+    vec![
+        ("legacy::Subject", encodings(subjects)),
+        ("legacy::Predicate", encodings(predicates)),
+        ("legacy::Object", encodings(objects)),
+        ("legacy::ValidationState", encodings(validations)),
+        ("legacy::Value", encodings(values)),
+        ("legacy::EvidenceSource", encodings(sources)),
     ]
 }
 
@@ -1369,10 +1618,10 @@ fn every_variant_of_every_sum_type_opens_with_its_own_marker() {
 #[test]
 fn the_declaration_order_of_every_sum_type_equals_its_numbering() {
     let modules = crate_modules();
-    let pinned_elsewhere = std::fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/revision_events.rs"
-    ))
+    let pinned_elsewhere = std::fs::read_to_string(
+        std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("cargo crate path"))
+            .join("tests/revision_events.rs"),
+    )
     .expect("the sibling case that pins the other form");
 
     let mut checked: Vec<String> = Vec::new();
@@ -1410,7 +1659,11 @@ fn the_declaration_order_of_every_sum_type_equals_its_numbering() {
                  Nothing derives one from the other: the index is a literal in the encoding. \
                  Changing a number moves every address that contains that variant."
             );
-            checked.push(type_name);
+            checked.push(if name == "legacy.rs" {
+                format!("legacy::{type_name}")
+            } else {
+                type_name
+            });
         }
     }
 
@@ -1425,6 +1678,12 @@ fn the_declaration_order_of_every_sum_type_equals_its_numbering() {
             "Predicate".to_owned(),
             "Subject".to_owned(),
             "ValidationState".to_owned(),
+            "legacy::EvidenceSource".to_owned(),
+            "legacy::Object".to_owned(),
+            "legacy::Predicate".to_owned(),
+            "legacy::Subject".to_owned(),
+            "legacy::ValidationState".to_owned(),
+            "legacy::Value".to_owned(),
         ],
         "the scan found a different set of literally numbered sum types than the fixtures cover"
     );
@@ -1437,7 +1696,9 @@ fn the_declaration_order_of_every_sum_type_equals_its_numbering() {
 
 /// Every `.rs` file of the crate's `src/`, by file name.
 fn crate_modules() -> Vec<(String, String)> {
-    let directory = concat!(env!("CARGO_MANIFEST_DIR"), "/src");
+    let directory =
+        std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("cargo crate path"))
+            .join("src");
     let mut found: Vec<(String, String)> = std::fs::read_dir(directory)
         .expect("the crate has a src/")
         .map(|entry| entry.expect("a directory entry").path())
