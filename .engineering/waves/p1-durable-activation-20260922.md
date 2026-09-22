@@ -85,3 +85,15 @@ Released compiler output retained under the unit scratch transaction-not-found d
 - generated: 35; authored: 0; refused: 0; outside: 0.
 Validation and compilation also exit successfully. The implementation and later
 real-target conformance must execute the new refusal and no-write controls.
+
+## Direct provider test setup
+
+Kernel dev dependencies now include the already-pinned Eventlog core, File and
+SQLite workspace dependencies, Tokio and time. These support direct injection of
+synthetic corruption, erasure and runtime-context conditions while acceptance
+still reopens through the real kernel authority. No production dependency or
+raw-writer consumer grant is added. Offline full dependency resolution changes
+only the kernel's lockfile dependency list, with no package/version/source change.
+The coordinator applied and compared manifest/lock in both active trees. The
+worker's original patch with an invalid hunk count is retained privately; the
+reviewed additions were applied directly rather than rewriting that evidence.

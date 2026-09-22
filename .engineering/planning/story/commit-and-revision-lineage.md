@@ -30,6 +30,8 @@ scope:
 - confidence: cited
   path: crates/ekr-graph/tests
 - confidence: cited
+  path: crates/ekr-kernel/Cargo.toml
+- confidence: cited
   path: crates/ekr-kernel/src
 - confidence: inferred
   path: crates/ekr-kernel/src/apply.rs
@@ -67,7 +69,7 @@ scope:
   path: crates/ekr/tests
 - confidence: inferred
   path: vendor/serde_yaml_ng
-revision: 34
+revision: 35
 ---
 ## Context
 
