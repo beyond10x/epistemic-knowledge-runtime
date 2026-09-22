@@ -66,6 +66,9 @@ use ekr_core::{ContentHash, RevisionNumber, TransactionId};
 /// from a broken chain cannot act on either.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum StoreError {
+    /// Synchronous persistence cannot run on a thread entered into a Tokio runtime.
+    #[error("synchronous store access requires a thread outside a Tokio runtime")]
+    RuntimeContext,
     /// Bootstrap admission needs a real authority, including on reopen.
     #[error("no seed authority was configured")]
     NoSeedAuthority,

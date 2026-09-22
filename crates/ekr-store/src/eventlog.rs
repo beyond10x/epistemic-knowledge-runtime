@@ -14,9 +14,10 @@
 //! convention, the bridge is in the one crate that touches the port: each store owns a
 //! current-thread runtime and every public method is synchronous.
 //!
-//! The cost is `task:ekr-store-block-on-cannot-nest`: `Runtime::block_on` panics when it is called
-//! from a thread already inside a runtime. Nothing in P1 does that — the CLI is the only consumer
-//! — and the task says what closes it.
+//! Constructors and public persistence methods return [`StoreError::RuntimeContext`] on a thread
+//! entered into a Tokio runtime, before opening a provider, calling authority or doing I/O. Async
+//! consumers must call this synchronous API on a thread outside that runtime. Dropping a store in
+//! an entered runtime shuts its owned runtime down without blocking that thread.
 //!
 //! # Two providers, one implementation
 //!
@@ -37,7 +38,7 @@ use eventlog_file::FileEventStore;
 use eventlog_sqlite::SqliteEventStore;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
-use tokio::runtime::{Builder, Runtime};
+use tokio::runtime::{Builder, Handle, Runtime};
 
 use crate::log::{Appended, CommitAuthority, Fold};
 use crate::{
@@ -121,7 +122,7 @@ struct ObjectRecord {
 /// Owns a current-thread tokio runtime, which is what makes every method here synchronous. See the
 /// module documentation for why, and for what it costs.
 pub struct EventlogStore<S: EventStore> {
-    runtime: Runtime,
+    runtime: Option<Runtime>,
     store: S,
     tenant: TenantId,
     /// The schema the folded graph is typed by.
@@ -145,6 +146,7 @@ impl EventlogStore<SqliteEventStore> {
     ///
     /// [`StoreError::Backend`] when the database cannot be opened or its tables created, or when
     /// `tenant` is not a usable tenant identity.
+    /// [`StoreError::RuntimeContext`] when called from an entered Tokio runtime.
     pub fn sqlite(path: &Path, tenant: &str, ontology: Ontology) -> Result<Self, StoreError> {
         let runtime = new_runtime()?;
         let text = path.to_string_lossy().into_owned();
@@ -160,11 +162,12 @@ impl EventlogStore<FileEventStore> {
     ///
     /// [`StoreError::Backend`] when the directory cannot be created or its history is unreadable,
     /// or when `tenant` is not a usable tenant identity.
+    /// [`StoreError::RuntimeContext`] when called from an entered Tokio runtime.
     pub fn file(path: &Path, tenant: &str, ontology: Ontology) -> Result<Self, StoreError> {
+        let runtime = new_runtime()?;
         std::fs::create_dir_all(path).map_err(|error| {
             StoreError::Backend(format!("creating {}: {error}", path.display()))
         })?;
-        let runtime = new_runtime()?;
         let store = runtime.block_on(FileEventStore::open(path))?;
         Self::assemble(runtime, store, tenant, ontology)
     }
@@ -172,13 +175,41 @@ impl EventlogStore<FileEventStore> {
 
 /// A current-thread runtime, which is the whole of what this crate needs from tokio.
 fn new_runtime() -> Result<Runtime, StoreError> {
+    ensure_sync_context()?;
     Builder::new_current_thread()
         .enable_all()
         .build()
         .map_err(|error| StoreError::Backend(format!("building a runtime: {error}")))
 }
 
+/// Refuse even an entered, idle handle: the public synchronous contract does not depend on how
+/// an executor happens to poll its caller.
+fn ensure_sync_context() -> Result<(), StoreError> {
+    if Handle::try_current().is_ok() {
+        Err(StoreError::RuntimeContext)
+    } else {
+        Ok(())
+    }
+}
+
+impl<S: EventStore> Drop for EventlogStore<S> {
+    fn drop(&mut self) {
+        if let Some(runtime) = self.runtime.take() {
+            if Handle::try_current().is_ok() {
+                // Every accepted operation completed synchronously before Drop could borrow this
+                // store exclusively. Do not try to block the ambient executor during shutdown.
+                runtime.shutdown_background();
+            }
+            // Outside an entered runtime, ordinary Drop waits for owned runtime shutdown.
+        }
+    }
+}
+
 impl<S: EventStore> EventlogStore<S> {
+    fn runtime(&self) -> &Runtime {
+        self.runtime.as_ref().expect("runtime is owned until drop")
+    }
+
     /// The parts, once the provider is open.
     fn assemble(
         runtime: Runtime,
@@ -187,7 +218,7 @@ impl<S: EventStore> EventlogStore<S> {
         ontology: Ontology,
     ) -> Result<Self, StoreError> {
         Ok(Self {
-            runtime,
+            runtime: Some(runtime),
             store,
             tenant: TenantId::new(tenant)?,
             ontology,
@@ -216,11 +247,13 @@ impl<S: EventStore> EventlogStore<S> {
     ///
     /// [`StoreError::Document`] when the graph cannot be serialised, and [`StoreError::Backend`]
     /// when the provider is unavailable.
+    /// [`StoreError::RuntimeContext`] when called from an entered Tokio runtime.
     pub fn store_graph(
         &self,
         graph: &CanonicalGraph,
         stored_at: Timestamp,
     ) -> Result<StoredObject, StoreError> {
+        ensure_sync_context()?;
         let bytes = GraphDocument::of(graph).to_bytes()?;
         self.put(StorageClass::Canonical, &bytes, stored_at)
     }
@@ -258,7 +291,7 @@ impl<S: EventStore> EventlogStore<S> {
         let mut after = 0u64;
         loop {
             let slice = self
-                .runtime
+                .runtime()
                 .block_on(self.store.read_stream(stream, after, limit))?;
             for recorded in &slice.events {
                 if recorded.is_redacted() {
@@ -401,7 +434,7 @@ impl<S: EventStore> EventlogStore<S> {
             content_hash.to_hex(),
         );
 
-        match self.runtime.block_on(self.store.append(
+        match self.runtime().block_on(self.store.append(
             &stream,
             Expected::NoStream,
             std::slice::from_ref(&new),
@@ -472,7 +505,7 @@ impl<S: EventStore> EventlogStore<S> {
             to.name()
         );
         let meta = envelope(&key, key.clone());
-        self.runtime
+        self.runtime()
             .block_on(
                 self.store
                     .append(&stream, Expected::Any, std::slice::from_ref(&new), &meta),
@@ -484,6 +517,7 @@ impl<S: EventStore> EventlogStore<S> {
 
 impl<S: EventStore> RevisionLog for EventlogStore<S> {
     fn seed_bytes(&self) -> Result<Option<Vec<u8>>, StoreError> {
+        ensure_sync_context()?;
         match self.revision_events(1)?.first() {
             None => Ok(None),
             Some(RevisionEvent::Seeded { seed_hash, .. }) => {
@@ -493,6 +527,7 @@ impl<S: EventStore> RevisionLog for EventlogStore<S> {
         }
     }
     fn append(&self, event: &RevisionEvent) -> Result<Appended, StoreError> {
+        ensure_sync_context()?;
         let stream = self.revision_stream()?;
         let body =
             serde_json::to_value(event).map_err(|error| StoreError::Document(error.to_string()))?;
@@ -524,7 +559,7 @@ impl<S: EventStore> RevisionLog for EventlogStore<S> {
         // `deduplicated` is the provider's own answer to "had this exact command already been
         // recorded", and it is the only place that question can be answered: by the time the call
         // returns, a written event and a recognised one are the same stream.
-        self.runtime
+        self.runtime()
             .block_on(
                 self.store
                     .append(&stream, Expected::Any, std::slice::from_ref(&new), &meta),
@@ -540,10 +575,12 @@ impl<S: EventStore> RevisionLog for EventlogStore<S> {
     }
 
     fn fold(&self) -> Result<CanonicalGraph, StoreError> {
+        ensure_sync_context()?;
         Self::state(self.fold_from(RevisionNumber::SEED, MAX_READ_LIMIT)?)
     }
 
     fn head(&self) -> Result<Option<Root>, StoreError> {
+        ensure_sync_context()?;
         Ok(self
             .fold_from(RevisionNumber::SEED, MAX_READ_LIMIT)?
             .map(|folded| folded.head()))
@@ -559,12 +596,14 @@ impl<S: EventStore> RevisionLog for EventlogStore<S> {
     /// repeated an event at a page boundary would show as a disagreement rather than as a fold
     /// that quietly stopped early.
     fn replay(&self, from: RevisionNumber) -> Result<CanonicalGraph, StoreError> {
+        ensure_sync_context()?;
         Self::state(self.fold_from(from, 1)?)
     }
 }
 
 impl<S: AtomicEventStore> Initialize for EventlogStore<S> {
     fn initialize(&self, bytes: &[u8], at: Timestamp) -> Result<(), StoreError> {
+        ensure_sync_context()?;
         let authority = self
             .authority
             .as_deref()
@@ -646,7 +685,7 @@ impl<S: AtomicEventStore> Initialize for EventlogStore<S> {
                 appends,
                 meta: envelope(&format!("ekr.seed.{revision_id}.{attempt}"), hash.to_hex()),
             };
-            match self.runtime.block_on(self.store.append_group(&request)) {
+            match self.runtime().block_on(self.store.append_group(&request)) {
                 Ok(result) if !result.deduplicated => return Ok(()),
                 Ok(_) => return Err(StoreError::AlreadySeeded),
                 Err(EventLogError::Conflict { .. }) => {
@@ -670,6 +709,7 @@ impl<S: EventStore> ObjectStore for EventlogStore<S> {
         bytes: &[u8],
         stored_at: Timestamp,
     ) -> Result<StoredObject, StoreError> {
+        ensure_sync_context()?;
         let content_hash = ContentHash::of_bytes(bytes);
         match self.object_record(&content_hash)? {
             // Already stored. The bytes and the instant do not move; the class may only rise.
@@ -693,6 +733,7 @@ impl<S: EventStore> ObjectStore for EventlogStore<S> {
     }
 
     fn get(&self, content_hash: &ContentHash) -> Result<Option<Vec<u8>>, StoreError> {
+        ensure_sync_context()?;
         Ok(self.object_record(content_hash)?.map(|record| record.bytes))
     }
 }
