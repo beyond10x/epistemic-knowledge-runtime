@@ -54,12 +54,21 @@ a dependency; their data enters through the import policy in `docs/predecessors.
 Each is a claim that can be checked. Breaking one is a design change, not a refactor.
 
 1. **Only `ekr-kernel` constructs a `ValidatedTransaction`, and only a `ValidatedTransaction`
-   commits.** The first half is a type — the constructor is `pub(crate)` and the type derives no
+   commits an ordinary transaction.** Initialization has no preceding revision: the kernel's private
+   `ValidatedSeed` capability gates atomic bootstrap publication. Every replay revalidates the full
+   seed input, retained evidence and actual attribution through that same kernel authority.
+   `crates/ekr-kernel/tests/seed.rs` holds this on both providers in
+   `an_evidence_seed_reopens_with_identical_roots_fields_and_retained_bytes`,
+   `reopen_checks_full_ontology_and_execution_context` and
+   `legacy_and_tampered_seed_envelopes_are_preserved_but_never_admitted`.
+   A store without seed authority refuses, held by `crates/ekr-store/tests/fold_rules.rs`'s
+   `a_store_with_no_commit_authority_refuses_to_say_what_canonical_state_is`.
+   For ordinary transactions the first half is a type — the constructor is `pub(crate)` and the type derives no
    `Deserialize` — and two compile-fail cases hold it. The second half is **not** a type and this
    sentence no longer implies one: `ekr-store` sits below `ekr-kernel`, so its writer cannot take a
    `ValidatedTransaction`, and a sealed trait there would exclude `ekr-kernel` along with everybody
    else (`architecture-decision-record:0007-the-commit-path-is-the-kernels`). What holds is that no
-   consumer of this runtime can reach a writer to canonical state without a `ValidatedTransaction`:
+   consumer of this runtime can reach a transaction writer to canonical state without a `ValidatedTransaction`:
    `ekr-store`'s fold moves canonical state only for a validation its injected `CommitAuthority`
    stands behind, and `ekr-kernel` is the only crate that declares `ekr-store` or implements that
    trait in a `src/`. Both of those are read off this tree by `crates/ekr/tests/story_contract.rs`,

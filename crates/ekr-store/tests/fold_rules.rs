@@ -822,30 +822,12 @@ fn a_store_with_no_commit_authority_refuses_to_say_what_canonical_state_is() {
     .expect("the SQLite provider opens");
     lineage::seed_and_commit(&store, &graph).expect("the lineage is appendable");
 
-    let transaction = match store.fold() {
-        Err(StoreError::NoCommitAuthority { transaction_id }) => transaction_id,
-        other => panic!(
-            "a store opened with nobody to ask about a commit cannot say what canonical state is, \
-             and said: {:?}",
-            other.map(|graph| graph.revision)
-        ),
-    };
+    assert_eq!(store.fold(), Err(StoreError::NoSeedAuthority));
     assert_eq!(
         store.replay(RevisionNumber::SEED),
-        Err(StoreError::NoCommitAuthority {
-            transaction_id: transaction
-        }),
-        "replay answers the same question and refuses it the same way"
+        Err(StoreError::NoSeedAuthority)
     );
-    assert_eq!(
-        store
-            .head()
-            .expect("how far the lineage got is a question with a total answer")
-            .expect("a seeded lineage has a head")
-            .revision,
-        RevisionNumber::SEED,
-        "and the head is the seed's, because no commit was evaluated"
-    );
+    assert_eq!(store.head(), Err(StoreError::NoSeedAuthority));
 
     // The same lineage under an authority that stands behind it folds.
     let authorised = SqliteStore::sqlite(

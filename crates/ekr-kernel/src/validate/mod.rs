@@ -88,6 +88,24 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
+    /// Bootstrap checks share the deterministic rules without sealing a transaction against a
+    /// fictitious predecessor. An empty seed skips only the transaction-specific nonempty rule.
+    pub(crate) fn validate_bootstrap(
+        &self,
+        snapshot: &GraphSnapshot<'_>,
+        proposal: &GraphTransaction,
+    ) -> Result<(), Vec<ValidationIssue>> {
+        let mut issues = Vec::new();
+        for validator in &self.validators {
+            if proposal.operations.is_empty() && validator.name() == ValidatorName::Structural {
+                continue;
+            }
+            if let Err(raised) = validator.validate(snapshot, proposal) {
+                issues.extend(raised);
+            }
+        }
+        finish(issues)
+    }
     /// The seven deterministic validators, in the order design § 20 lists them, run by `actor`.
     #[must_use]
     pub fn deterministic(actor: AgentId) -> Self {

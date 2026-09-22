@@ -38,12 +38,13 @@ use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use ekr_core::{ContentHash, RevisionId, RevisionNumber, TransactionId};
-use ekr_graph::{RevisionEvent, Root};
+use ekr_graph::{CanonicalGraph, RevisionEvent, Root};
 use ekr_store::{
     knowledge_root, Appended, CommitAuthority, ObjectStore, RecordedValidation, RevisionLog,
     StoreError,
 };
 
+use crate::seed::{self, BootstrapContext, SeedDocument, SeedError};
 use crate::transaction::ValidatedTransaction;
 
 /// The validations this kernel performed, and the only thing `ekr-store`'s fold will commit on.
@@ -63,7 +64,10 @@ use crate::transaction::ValidatedTransaction;
 /// keeps and is where that is answered; naming the gap is cheaper than a fold that trusts the log
 /// again.
 #[derive(Clone, Default)]
-pub struct Validations(Rc<RefCell<BTreeSet<RecordedValidation>>>);
+pub struct Validations {
+    transactions: Rc<RefCell<BTreeSet<RecordedValidation>>>,
+    bootstrap: Option<BootstrapContext>,
+}
 
 impl Validations {
     /// An authority that stands behind nothing yet.
@@ -78,7 +82,7 @@ impl Validations {
     /// invariant 1 in this file: a crate that cannot build one of those cannot put anything here,
     /// and the fold commits on nothing else.
     pub(crate) fn record(&self, transaction: &ValidatedTransaction) {
-        self.0.borrow_mut().insert(RecordedValidation {
+        self.transactions.borrow_mut().insert(RecordedValidation {
             transaction_id: transaction.transaction().id,
             against: transaction.validated_against(),
             validation_hash: transaction.validation_hash(),
@@ -87,13 +91,24 @@ impl Validations {
 }
 
 impl CommitAuthority for Validations {
+    fn admit_seed(
+        &self,
+        bytes: &[u8],
+        ontology: &ekr_ontology::Ontology,
+    ) -> Result<CanonicalGraph, StoreError> {
+        seed::replay(
+            bytes,
+            ontology,
+            self.bootstrap.ok_or(StoreError::NoSeedAuthority)?,
+        )
+    }
     /// Whether this kernel performed exactly the validation the log recorded.
     ///
     /// All three fields, because any two of them leave the third free: the transaction alone would
     /// stand behind a commit at any revision, and the hash alone would stand behind it under any
     /// transaction id.
     fn attests(&self, validation: &RecordedValidation) -> bool {
-        self.0.borrow().contains(validation)
+        self.transactions.borrow().contains(validation)
     }
 }
 
@@ -184,14 +199,61 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         })
     }
 
-    /// What it reads and writes through.
+    /// Opens a runtime with independently supplied bootstrap attribution.
+    /// The same context must be supplied when reopening that seed.
     ///
-    /// Reading a store is not writing one — [`RevisionLog::fold`], `head` and `replay` answer
-    /// questions, and [`ObjectStore::get`] resolves an address — so the port is lent out rather
-    /// than wrapped in a second copy of itself. What is *not* reachable this way is a commit: the
-    /// fold will not move canonical state for an event this path did not record a validation for.
-    pub const fn store(&self) -> &S {
-        &self.store
+    /// # Errors
+    /// Whatever the provider constructor returns.
+    pub fn over_with_bootstrap<E>(
+        context: BootstrapContext,
+        open: impl FnOnce(Validations) -> Result<S, E>,
+    ) -> Result<Self, E> {
+        let validations = Validations {
+            bootstrap: Some(context),
+            ..Validations::default()
+        };
+        Ok(Self {
+            store: open(validations.clone())?,
+            validations,
+        })
+    }
+
+    /// Reads the admitted lineage head.
+    ///
+    /// # Errors
+    /// A provider or replay admission refusal.
+    pub fn head(&self) -> Result<Option<Root>, StoreError> {
+        self.store.head()
+    }
+
+    /// Reads the admitted graph at the current revision.
+    ///
+    /// # Errors
+    /// A provider or replay admission refusal.
+    pub fn snapshot(&self) -> Result<CanonicalGraph, StoreError> {
+        self.store.fold()
+    }
+
+    /// Replays from a materialised revision.
+    ///
+    /// # Errors
+    /// A provider or replay admission refusal.
+    pub fn replay(&self, from: RevisionNumber) -> Result<CanonicalGraph, StoreError> {
+        self.store.replay(from)
+    }
+
+    /// Resolves retained content, including bootstrap statement payloads.
+    ///
+    /// # Errors
+    /// A provider or replay admission refusal. Seed payloads are revalidated before lookup.
+    pub fn content(&self, hash: &ContentHash) -> Result<Option<Vec<u8>>, StoreError> {
+        if let Some(bytes) = self.store.seed_bytes()? {
+            self.store.fold()?;
+            if let Some(payload) = seed::content(&bytes, hash)? {
+                return Ok(Some(payload));
+            }
+        }
+        self.store.get(hash)
     }
 
     /// Commits `validated`, and answers the revision the lineage reached.
@@ -266,5 +328,22 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         }
 
         self.store.head()?.ok_or(CommitError::NotSeeded)
+    }
+}
+
+impl<S: RevisionLog + ObjectStore + ekr_store::Initialize> Commit<S> {
+    /// Validates and atomically publishes revision zero. There is no preceding revision.
+    ///
+    /// # Errors
+    /// Invalid bootstrap input, missing authority, existing lineage or provider failure.
+    pub fn seed(&self, document: SeedDocument) -> Result<Root, SeedError> {
+        let context = self
+            .validations
+            .bootstrap
+            .ok_or(StoreError::NoSeedAuthority)?;
+        let at = document.graph.root.created_at;
+        let validated = seed::validate(document, context)?;
+        self.store.initialize(&validated.bytes(), at)?;
+        self.store.head()?.ok_or(StoreError::NotSeeded.into())
     }
 }

@@ -171,12 +171,18 @@ impl Ontology {
         Ok(())
     }
 
-    /// Every property's declared value type is inhabitable and names only declared types.
+    /// Every property is filed by its identity and its value type names inhabitable declarations.
     fn check_properties(
         &self,
         properties: &BTreeMap<PropertyId, PropertyDefinition>,
     ) -> Result<(), OntologyError> {
-        for definition in properties.values() {
+        for (key, definition) in properties {
+            if *key != definition.id {
+                return Err(OntologyError::MisfiledProperty {
+                    key: *key,
+                    declared: definition.id,
+                });
+            }
             self.check_value_type(
                 &DeclarationSite::Property(definition.id),
                 &definition.value_type,
@@ -501,6 +507,14 @@ pub enum OntologyError {
     /// The text is not a schema document at all.
     #[error("the schema document does not parse: {0}")]
     Syntax(String),
+    /// A property map indexes a definition by a different stable identity.
+    #[error("property map key {key} disagrees with definition id {declared}")]
+    MisfiledProperty {
+        /// The identity used to look up the property.
+        key: PropertyId,
+        /// The identity carried by the definition itself.
+        declared: PropertyId,
+    },
     /// Two declarations carry the same type id.
     #[error("{type_id} is declared twice")]
     DuplicateType {

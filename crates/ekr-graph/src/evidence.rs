@@ -36,6 +36,7 @@ pub enum EvidenceKind {
 /// [`locator`](EvidenceSource::locator), [`section`](EvidenceSource::section) and
 /// [`observation`](EvidenceSource::observation).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum EvidenceSource {
     /// A URL.
     Url(String),
@@ -235,6 +236,7 @@ pub struct ConfidenceOutOfRange(u16);
 
 /// A piece of evidence: design § 16, `ekr.graph.Evidence`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Evidence {
     /// Its stable id, so that a claim can cite it and a retention policy can find it.
     pub id: EvidenceId,

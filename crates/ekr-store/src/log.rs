@@ -135,6 +135,18 @@ pub struct RecordedValidation {
 /// coordinator holds the question of whether `systems/` should grow a way to say it, because
 /// `systems/` is not this crate's to edit.
 pub trait CommitAuthority {
+    /// Revalidates persisted bootstrap input against the complete configured ontology.
+    /// Authorities which only attest transaction claims cannot admit a seed.
+    ///
+    /// # Errors
+    /// A missing bootstrap authority or a refused seed.
+    fn admit_seed(
+        &self,
+        _bytes: &[u8],
+        _ontology: &ekr_ontology::Ontology,
+    ) -> Result<CanonicalGraph, StoreError> {
+        Err(StoreError::NoSeedAuthority)
+    }
     /// Whether this authority stands behind `validation`.
     ///
     /// It is asked once per commit, about the claim the log recorded, and its answer decides
@@ -176,6 +188,11 @@ pub enum Appended {
 /// lineage is checked by replaying it, and a check that only ran at write time is a check no
 /// reader can repeat.
 pub trait RevisionLog {
+    /// The verified bytes named by the first Seeded event, if any.
+    ///
+    /// # Errors
+    /// Malformed lineage or missing/corrupt retained seed object.
+    fn seed_bytes(&self) -> Result<Option<Vec<u8>>, StoreError>;
     /// Appends one event to the lineage, and says which of the two things happened.
     ///
     /// # An `Ok` is not a write
@@ -247,6 +264,15 @@ pub trait RevisionLog {
     /// [`StoreError::NoMaterialisedState`] for a revision this store holds no state at, and
     /// whichever refusal of [`StoreError`] the sequence of events earns.
     fn replay(&self, from: RevisionNumber) -> Result<CanonicalGraph, StoreError>;
+}
+
+/// Atomic publication port used only by the kernel's validated bootstrap path.
+pub trait Initialize: RevisionLog {
+    /// Publishes the retained seed and its first event as one atomic group.
+    ///
+    /// # Errors
+    /// Existing lineage, absent authority, invalid seed, or provider failure.
+    fn initialize(&self, bytes: &[u8], at: ekr_core::Timestamp) -> Result<(), StoreError>;
 }
 
 /// The fold in progress: the state the events have moved so far.

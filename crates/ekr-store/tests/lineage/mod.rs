@@ -59,6 +59,13 @@ pub fn validated(transaction: TransactionId, against: RevisionNumber) -> Revisio
 pub struct Attesting;
 
 impl CommitAuthority for Attesting {
+    fn admit_seed(
+        &self,
+        bytes: &[u8],
+        ontology: &ekr_ontology::Ontology,
+    ) -> Result<ekr_graph::CanonicalGraph, ekr_store::StoreError> {
+        crate::fixture::admit_seed(bytes, ontology)
+    }
     fn attests(&self, validation: &RecordedValidation) -> bool {
         validation.validation_hash == ContentHash::of_bytes(VALIDATION_RESULT)
     }

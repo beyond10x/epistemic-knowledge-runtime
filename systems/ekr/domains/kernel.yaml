@@ -208,6 +208,8 @@ actors:
       display: Operator
 
 errors:
+  # P1-08 admission acceptance was unexecuted at declaration; the kernel seed suite supplies
+  # the behavioral cases. This contract does not certify the later durable writer.
   - name: ekr.kernel.InvalidSeed
     summary: Seed admission refused before canonical state or its lineage was written.
     fields:
@@ -264,7 +266,8 @@ commands:
         payload:
           ekr.kernel.Seeded:
             seed_hash: input.seed_hash
-        summary: Revision 0 exists; its ontology root is the seed's ontology and it has no parent.
+        # Populated ontology_root hashing remains unexecuted until the durable-writer story.
+        summary: Revision 0 exists with no parent; the admitted seed retains its full ontology.
       - name: already-seeded
         external: a committed revision already exists
         error: ekr.kernel.AlreadySeeded

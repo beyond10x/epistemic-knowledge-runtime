@@ -12,6 +12,8 @@
 //! Every name here is the runtime's own vocabulary. AGENTS.md: customer or personal data is not
 //! copied into fixtures.
 
+#![allow(dead_code)] // Different provider binaries use different parts of the shared fixture.
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use ekr_core::{
@@ -57,8 +59,8 @@ pub fn ontology() -> Ontology {
 /// reference being pointed somewhere convenient.
 ///
 /// **The type does not catch this and is not claimed to.** `CanonicalRef::new` takes any id;
-/// what the type refuses is a reference into a *transient* root. The seed path runs no validator at
-/// all, which is the review's separate finding C and is not this wave's.
+/// what the type refuses is a reference into a *transient* root. This provider-only fixture uses
+/// substitute authority; real bootstrap semantic checks run in the kernel's seed suite.
 #[must_use]
 pub fn seed_graph(ontology: &Ontology) -> CanonicalGraph {
     let root_id = GraphRootId::mint();
@@ -132,4 +134,49 @@ pub fn seed_graph(ontology: &Ontology) -> CanonicalGraph {
             .into_iter()
             .collect::<BTreeMap<_, _>>(),
     }
+}
+
+/// A deliberately permissive test-only seed authority for provider mechanics.
+/// This is NOT kernel acceptance evidence; kernel/tests/seed.rs owns those claims.
+#[derive(Default)]
+pub struct SeedOnly;
+
+impl ekr_store::CommitAuthority for SeedOnly {
+    fn attests(&self, _: &ekr_store::RecordedValidation) -> bool {
+        false
+    }
+    fn admit_seed(
+        &self,
+        bytes: &[u8],
+        ontology: &Ontology,
+    ) -> Result<CanonicalGraph, ekr_store::StoreError> {
+        admit_seed(bytes, ontology)
+    }
+}
+
+/// Deserializes exactly what a provider fixture wrote, without claiming semantic validation.
+pub fn admit_seed(
+    bytes: &[u8],
+    ontology: &Ontology,
+) -> Result<CanonicalGraph, ekr_store::StoreError> {
+    #[derive(serde::Deserialize)]
+    struct ProviderGraph {
+        root: GraphRoot,
+        revision: RevisionNumber,
+        nodes: BTreeMap<NodeId, Node>,
+        edges: BTreeMap<EdgeId, Edge>,
+        assertions: BTreeMap<AssertionId, Assertion>,
+        evidence: BTreeMap<EvidenceId, Evidence>,
+    }
+    let graph: ProviderGraph = serde_json::from_slice(bytes)
+        .map_err(|error| ekr_store::StoreError::Document(error.to_string()))?;
+    Ok(CanonicalGraph {
+        root: graph.root,
+        revision: graph.revision,
+        ontology: ontology.clone(),
+        nodes: graph.nodes,
+        edges: graph.edges,
+        assertions: graph.assertions,
+        evidence: graph.evidence,
+    })
 }

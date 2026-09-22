@@ -70,6 +70,49 @@ fn a_node_ref_with_no_allowed_types_is_refused_at_load() {
 }
 
 #[test]
+fn a_node_property_definition_filed_under_another_id_is_refused_at_load() {
+    let (mut document, key) = document_with(ValueType::String);
+    let declared = PropertyId::mint();
+    document.node_types[0].properties.get_mut(&key).unwrap().id = declared;
+    let expected = OntologyError::MisfiledProperty { key, declared };
+    assert_eq!(Ontology::load(document.clone()).unwrap_err(), expected);
+    let yaml = serde_yaml_ng::to_string(&document).unwrap();
+    assert_eq!(Ontology::from_yaml(&yaml).unwrap_err(), expected);
+    assert!(expected.to_string().contains(&key.to_string()));
+    assert!(expected.to_string().contains(&declared.to_string()));
+
+    document.node_types[0].properties.get_mut(&key).unwrap().id = key;
+    assert!(
+        Ontology::load(document).is_ok(),
+        "matching identity remains valid"
+    );
+}
+
+#[test]
+fn an_edge_property_definition_filed_under_another_id_is_refused_at_load() {
+    let (mut document, _) = document_with(ValueType::String);
+    let (key, declared) = (PropertyId::mint(), PropertyId::mint());
+    let mut edge = EdgeType::new(TypeId::mint(), "depends_on");
+    edge.source_types.insert(document.node_types[0].id);
+    edge.target_types.insert(document.node_types[1].id);
+    edge.properties.insert(
+        key,
+        PropertyDefinition::new(declared, "support", ValueType::String),
+    );
+    document.edge_types.push(edge);
+    let expected = OntologyError::MisfiledProperty { key, declared };
+    assert_eq!(Ontology::load(document.clone()).unwrap_err(), expected);
+    let yaml = serde_yaml_ng::to_string(&document).unwrap();
+    assert_eq!(Ontology::from_yaml(&yaml).unwrap_err(), expected);
+
+    document.edge_types[0].properties.get_mut(&key).unwrap().id = key;
+    assert!(
+        Ontology::load(document).is_ok(),
+        "matching identity remains valid"
+    );
+}
+
+#[test]
 fn an_empty_compound_value_type_is_refused_at_every_depth_it_is_declared() {
     let empty_ref = || ValueType::NodeRef {
         allowed_types: Default::default(),

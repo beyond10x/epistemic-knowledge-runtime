@@ -29,6 +29,7 @@ use crate::value::CanonicalValue;
 /// canonical edge into a transient root was a well-formed value of this type until then, which is
 /// the word AGENTS.md invariant 2 excludes.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Edge<V: ValueSpace = CanonicalValue> {
     /// The edge's stable id.
     pub id: EdgeId,

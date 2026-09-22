@@ -26,11 +26,12 @@
 
 use std::path::Path;
 
-use ekr_core::{ContentHash, RevisionNumber, Timestamp};
+use ekr_core::{ContentHash, RevisionId, RevisionNumber, Timestamp};
 use ekr_graph::{CanonicalGraph, RevisionEvent, Root};
 use ekr_ontology::Ontology;
 use eventlog_core::{
-    CommandMeta, EventLogError, EventStore, Expected, NewEvent, StreamId, TenantId, MAX_READ_LIMIT,
+    AppendGroup, AtomicEventStore, CommandMeta, EventLogError, EventStore, Expected, NewEvent,
+    StreamAppend, StreamId, TenantId, MAX_READ_LIMIT,
 };
 use eventlog_file::FileEventStore;
 use eventlog_sqlite::SqliteEventStore;
@@ -39,7 +40,9 @@ use time::OffsetDateTime;
 use tokio::runtime::{Builder, Runtime};
 
 use crate::log::{Appended, CommitAuthority, Fold};
-use crate::{GraphDocument, ObjectStore, RevisionLog, StorageClass, StoreError, StoredObject};
+use crate::{
+    GraphDocument, Initialize, ObjectStore, RevisionLog, StorageClass, StoreError, StoredObject,
+};
 
 /// The stream type one tenant's revision lineage lives under.
 const REVISION_STREAM_TYPE: &str = "ekr.revision";
@@ -86,6 +89,7 @@ pub type FileStore = EventlogStore<FileEventStore>;
 /// anyway: an event body that only makes sense beside the stream it was read from is a body that
 /// stops making sense the moment anything exports one.
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct RetentionRaised {
     /// The object whose retention was raised.
     content_hash: ContentHash,
@@ -98,6 +102,7 @@ struct RetentionRaised {
 /// One object's record, as the first event of its stream holds it:
 /// `ekr.store.ObjectStored`, as `systems/ekr/domains/store.yaml` declares it.
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 struct ObjectRecord {
     /// The address these bytes have, which is their identity.
     content_hash: ContentHash,
@@ -121,10 +126,8 @@ pub struct EventlogStore<S: EventStore> {
     tenant: TenantId,
     /// The schema the folded graph is typed by.
     ///
-    /// Supplied by the caller rather than read from the log, because `ekr_ontology::Ontology` is
-    /// held only through `Ontology::load` and publishes no way back to the document it was loaded
-    /// from — the same gap that leaves `Root.ontology_root` a placeholder in P1
-    /// (`task:two-of-the-five-revision-sub-roots-are-placeholders`).
+    /// Constructor compatibility input. The kernel compares its full content with the complete
+    /// ontology retained in the seed envelope on every replay.
     ontology: Ontology,
     /// What the fold asks before a commit moves canonical state, or `None`.
     ///
@@ -206,9 +209,8 @@ impl<S: EventStore> EventlogStore<S> {
 
     /// Writes `graph` as a content-addressed object, under [`StorageClass::Canonical`].
     ///
-    /// The seed path: a lineage begins with `ekr.kernel.Seeded`, which names its state by address
-    /// and carries none of it, so the state has to be somewhere the address resolves. This is that
-    /// somewhere, and [`RevisionLog::fold`] is what resolves it.
+    /// Archival serialization only. Bootstrap publication uses [`Initialize`] with a complete
+    /// kernel-admitted envelope; a raw graph document cannot initialize a runtime.
     ///
     /// # Errors
     ///
@@ -304,10 +306,12 @@ impl<S: EventStore> EventlogStore<S> {
         let RevisionEvent::Seeded { seed_hash, .. } = first else {
             return Err(StoreError::NotSeeded);
         };
-        let bytes = self.get(seed_hash)?.ok_or(StoreError::SeedNotStored {
-            seed_hash: *seed_hash,
-        })?;
-        let seed = GraphDocument::from_bytes(&bytes)?.into_canonical(self.ontology.clone())?;
+        let bytes = self.retained_seed(seed_hash)?;
+        let authority = self
+            .authority
+            .as_deref()
+            .ok_or(StoreError::NoSeedAuthority)?;
+        let seed = authority.admit_seed(&bytes, &self.ontology)?;
 
         let mut fold = Fold::seeded(seed, *seed_hash, self.authority.as_deref());
         for event in rest {
@@ -334,15 +338,43 @@ impl<S: EventStore> EventlogStore<S> {
         };
         let mut record: ObjectRecord = serde_json::from_value(first)
             .map_err(|error| StoreError::Document(error.to_string()))?;
+        if record.content_hash != *content_hash
+            || record.byte_len != record.bytes.len() as u64
+            || ContentHash::of_bytes(&record.bytes) != *content_hash
+        {
+            return Err(StoreError::Document(
+                "object-integrity: address or byte length disagrees".to_owned(),
+            ));
+        }
         for body in bodies {
             let raised: RetentionRaised = serde_json::from_value(body)
                 .map_err(|error| StoreError::Document(error.to_string()))?;
+            if raised.content_hash != *content_hash
+                || raised.to.retention_rank() <= raised.from.retention_rank()
+                || raised.from.retention_rank() > record.storage_class.retention_rank()
+            {
+                return Err(StoreError::Document(
+                    "object-integrity: invalid retention metadata".to_owned(),
+                ));
+            }
             // `to` and not `from`: the fold takes the strongest of every request, and `from` is
             // carried so that a reader of the bytes can see the direction, not so that the fold
             // can trust it.
             record.storage_class = record.storage_class.strongest(raised.to);
         }
         Ok(Some(record))
+    }
+
+    fn retained_seed(&self, hash: &ContentHash) -> Result<Vec<u8>, StoreError> {
+        let record = self
+            .object_record(hash)?
+            .ok_or(StoreError::SeedNotStored { seed_hash: *hash })?;
+        if record.storage_class != StorageClass::Canonical {
+            return Err(StoreError::Document(
+                "seed-retention: seed is not retained as canonical".to_owned(),
+            ));
+        }
+        Ok(record.bytes)
     }
 
     /// The first write of some bytes: the one event that carries them.
@@ -404,10 +436,8 @@ impl<S: EventStore> EventlogStore<S> {
     ///
     /// [`RevisionLog::fold`] and [`RevisionLog::replay`] answer *what canonical state is*, and a
     /// store opened with no [`CommitAuthority`] cannot say: it has a commit in front of it and
-    /// nobody to ask about it. [`RevisionLog::head`] deliberately does not go through here — how
-    /// far the lineage verifiably got is a question with a total answer, the seed, and the case
-    /// that reads AGENTS.md invariant 1 from a process with no `ekr-kernel` in it asks exactly
-    /// that.
+    /// nobody to ask about it. Seed admission has already required an authority in `fold_from`;
+    /// every reader, including `head`, refuses a seed it cannot admit.
     fn state(folded: Option<Fold<'_>>) -> Result<CanonicalGraph, StoreError> {
         let folded = folded.ok_or(StoreError::NotSeeded)?;
         if let Some(transaction_id) = folded.unauthorised() {
@@ -453,6 +483,15 @@ impl<S: EventStore> EventlogStore<S> {
 }
 
 impl<S: EventStore> RevisionLog for EventlogStore<S> {
+    fn seed_bytes(&self) -> Result<Option<Vec<u8>>, StoreError> {
+        match self.revision_events(1)?.first() {
+            None => Ok(None),
+            Some(RevisionEvent::Seeded { seed_hash, .. }) => {
+                self.retained_seed(seed_hash).map(Some)
+            }
+            Some(_) => Err(StoreError::NotSeeded),
+        }
+    }
     fn append(&self, event: &RevisionEvent) -> Result<Appended, StoreError> {
         let stream = self.revision_stream()?;
         let body =
@@ -521,6 +560,106 @@ impl<S: EventStore> RevisionLog for EventlogStore<S> {
     /// that quietly stopped early.
     fn replay(&self, from: RevisionNumber) -> Result<CanonicalGraph, StoreError> {
         Self::state(self.fold_from(from, 1)?)
+    }
+}
+
+impl<S: AtomicEventStore> Initialize for EventlogStore<S> {
+    fn initialize(&self, bytes: &[u8], at: Timestamp) -> Result<(), StoreError> {
+        let authority = self
+            .authority
+            .as_deref()
+            .ok_or(StoreError::NoSeedAuthority)?;
+        authority.admit_seed(bytes, &self.ontology)?;
+        let hash = ContentHash::of_bytes(bytes);
+        let revision_id = RevisionId::mint();
+        let seed = RevisionEvent::Seeded {
+            revision_id,
+            seed_hash: hash,
+        };
+        let body =
+            serde_json::to_value(&seed).map_err(|error| StoreError::Document(error.to_string()))?;
+        for attempt in 0..16 {
+            if !self.revision_events(1)?.is_empty() {
+                return Err(StoreError::AlreadySeeded);
+            }
+            // The lineage expectation remains NoStream in every retry. The second stream's
+            // content-addressed race may change the object append, never that expectation.
+            let mut appends = vec![StreamAppend {
+                stream: self.revision_stream()?,
+                expected: Expected::NoStream,
+                events: vec![NewEvent::new(seed.name(), 1, body.clone())?],
+            }];
+            let object = match self.object_record(&hash)? {
+                Some(record) => {
+                    if record.bytes != bytes {
+                        return Err(StoreError::Document(
+                            "object-integrity: content-address collision".to_owned(),
+                        ));
+                    }
+                    if record.storage_class == StorageClass::Canonical {
+                        None
+                    } else {
+                        let raised = RetentionRaised {
+                            content_hash: hash,
+                            from: record.storage_class,
+                            to: StorageClass::Canonical,
+                        };
+                        Some((
+                            Expected::Any,
+                            NewEvent::new(
+                                OBJECT_RETENTION_RAISED,
+                                1,
+                                serde_json::to_value(raised)
+                                    .map_err(|error| StoreError::Document(error.to_string()))?,
+                            )?,
+                        ))
+                    }
+                }
+                None => {
+                    let record = ObjectRecord {
+                        content_hash: hash,
+                        storage_class: StorageClass::Canonical,
+                        byte_len: bytes.len() as u64,
+                        stored_at: at,
+                        bytes: bytes.to_vec(),
+                    };
+                    Some((
+                        Expected::NoStream,
+                        NewEvent::new(
+                            OBJECT_STORED,
+                            1,
+                            serde_json::to_value(record)
+                                .map_err(|error| StoreError::Document(error.to_string()))?,
+                        )?,
+                    ))
+                }
+            };
+            if let Some((expected, event)) = object {
+                appends.push(StreamAppend {
+                    stream: self.object_stream(&hash)?,
+                    expected,
+                    events: vec![event],
+                });
+            }
+            let request = AppendGroup {
+                tenant: self.tenant.clone(),
+                appends,
+                meta: envelope(&format!("ekr.seed.{revision_id}.{attempt}"), hash.to_hex()),
+            };
+            match self.runtime.block_on(self.store.append_group(&request)) {
+                Ok(result) if !result.deduplicated => return Ok(()),
+                Ok(_) => return Err(StoreError::AlreadySeeded),
+                Err(EventLogError::Conflict { .. }) => {
+                    if !self.revision_events(1)?.is_empty() {
+                        return Err(StoreError::AlreadySeeded);
+                    }
+                }
+                Err(error) => return Err(StoreError::from(error)),
+            }
+        }
+        Err(StoreError::Backend(
+            "seed object contention exceeded retry limit".to_owned(),
+        ))
     }
 }
 

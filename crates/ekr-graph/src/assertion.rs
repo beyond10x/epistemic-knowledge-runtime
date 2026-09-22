@@ -237,6 +237,7 @@ pub struct InvertedRange {
 /// The wire shape of a [`TemporalRange`], so that serde goes through the same refusal a caller
 /// does. Without it, an inverted range is unconstructible in Rust and arrives from a document.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct TemporalRangeFields {
     from: Option<Timestamp>,
     to: Option<Timestamp>,
@@ -327,6 +328,7 @@ impl TransactionTime {
 
 /// The wire shape of a [`TransactionTime`], so that serde goes through the same refusal.
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct TransactionTimeFields {
     recorded_from: Timestamp,
     recorded_to: Option<Timestamp>,
@@ -411,6 +413,7 @@ impl Canonical for RetractionReason {
 /// `task:assertion-retraction-erases-its-acceptance` and blocking
 /// `story:commit-and-revision-lineage`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub enum ValidationState {
     /// An agent has proposed it and nothing has looked at it.
     Proposed,
@@ -572,6 +575,7 @@ pub enum AssertionStatus {
 /// consequence [`Node`] carries: `Assertion<CanonicalValue>` has a content address
 /// and `Assertion<ekr_ontology::Value>` — what a transient root holds — does not.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Assertion<V: ValueSpace = CanonicalValue> {
     /// The assertion's stable id.
     pub id: AssertionId,

@@ -31,17 +31,9 @@
 //! * the **transaction** path — a proposal's ids are resolved by `ekr-kernel`'s reference
 //!   validator before `canonical_assertion` mints a reference from one, so a dangling id is refused
 //!   there;
-//! * the **seed** path — `ekr_store::GraphDocument::into_canonical`, reached from
-//!   `EventlogStore::fold_from`, which sits **below** `ekr-kernel` and can reach no validator in
-//!   any process. A document naming an edge target it does not carry crosses it and becomes
-//!   canonical state holding a reference to nothing. **Nothing on that path refuses anything
-//!   today**, which is `review-result:adversary-eventlog-store-pass-1`'s finding C, filed and not
-//!   this wave's; `crates/ekr-store/tests/adversary_p1_06_reference_from_bytes.rs` is that measured.
-//!
-//! Earlier drafts of this paragraph — and ADR 0008 itself — said the kernel's reference validator
-//! keeps the refusal "for ids arriving from outside Rust". It does not: it is not on the path ids
-//! arrive by. `task:the-membrane-stops-at-the-store-boundary` records the same limit for the value
-//! direction.
+//! * the **seed** path — the kernel validates a versioned bootstrap document and narrows its
+//!   references only after the deterministic rules pass. Store replay delegates admission to
+//!   that same kernel authority, including after restart. A store without it refuses the seed.
 
 use std::collections::BTreeMap;
 use std::hash::{Hash, Hasher};
@@ -159,7 +151,7 @@ pub trait ValueSpace: sealed::SealedSpace {
     /// **Minting a reference is not resolving one**, on either side. It says which space the
     /// reference belongs to and nothing about whether that space holds the node — which is
     /// [`CanonicalGraph::resolve`]'s question, and, on the *transaction* path, `ekr-kernel`'s
-    /// reference validator's. On the seed path it is nobody's; see this module's header.
+    /// reference validator's on both the transaction and bootstrap paths.
     ///
     /// It exists because a caller generic over the space has no other way to build one: the
     /// concrete callers write [`CanonicalRef::new`] or the id itself. `ekr-kernel`'s
@@ -276,8 +268,8 @@ impl<T: CanonicalTarget> Hash for CanonicalRef<T> {
 /// ADR 0008 states the serde boundary rather than hiding it. A stored document carries node ids,
 /// and a reference read out of one is a reference the *caller* named the type of — so the
 /// guarantee this type carries holds inside Rust and stops there. Which path the id arrived by
-/// decides whether anything refuses it, and on the seed path nothing does; see this module's
-/// header.
+/// decides which validator resolves it. Both transaction and bootstrap admission belong to the
+/// kernel; see this module's header.
 impl<T: CanonicalTarget> Serialize for CanonicalRef<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.node.serialize(serializer)
