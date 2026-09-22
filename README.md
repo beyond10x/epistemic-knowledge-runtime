@@ -28,7 +28,7 @@ through the AEP CLI.
 
 | document | what it is |
 |---|---|
-| [`docs/epistemic-knowledge-runtime-design.md`](docs/epistemic-knowledge-runtime-design.md) | the architecture: kernel, ontology, canonical core, incubation forest, observation layer, frontier, maintenance; amendments 81–87 carry the predecessors' lessons |
+| [`docs/epistemic-knowledge-runtime-design.md`](docs/epistemic-knowledge-runtime-design.md) | the architecture: kernel, ontology, canonical core, incubation forest, observation layer, frontier, maintenance, with dated amendments |
 | [`docs/roadmap.md`](docs/roadmap.md) | phases P0–P7, the crate map, exit evidence, decisions D1–D3 |
 | [`docs/predecessors.md`](docs/predecessors.md) | what v1 and v2 hold that the design must not lose; schema conflicts and the import policy |
 | [`AGENTS.md`](AGENTS.md) | the contract for changing this repository |

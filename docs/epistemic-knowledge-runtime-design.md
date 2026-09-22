@@ -3981,3 +3981,25 @@ ProposalRecord input across restart and producing the actual named Type refusal 
 hashes; changing any prior receipt/profile/ontology semantic field must invalidate acceptance or
 change its address as applicable. Legacy original-format immutable vectors remain unchanged.
 Migration is still downstream of this real durable path and the preservation/refusal rules of §90.
+
+---
+
+# 92. Absent Transaction Command Targets
+
+*Added 2026-09-22 during implementation of §91. This closes an omitted refusal;
+it does not change any retained record format or transaction lifecycle.*
+
+Validate and Commit first resolve the supplied transaction identity from verified
+retained records. A well-formed identity with no retained transaction returns
+`TransactionNotFound { transaction_id }`. It cannot return a state conflict with
+an invented Proposed, Rejected or other state. This lookup precedes Validate's
+revision-basis check and Commit's staleness check. Malformed identifiers remain
+input failures; corrupt required history remains a verification failure and is
+never disguised as an absent transaction.
+
+The refusal writes no object, validation issue, receipt or event and changes no
+canonical revision. Both public handlers must execute this control after a fresh
+process reopen on both providers, comparing object/event counts and the complete
+retained state before and after. These controls are unexecuted at declaration.
+The corresponding ESS outcomes are `transaction-not-found`; generated compiler
+obligations alone do not establish runtime behavior.

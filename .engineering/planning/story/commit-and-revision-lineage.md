@@ -67,7 +67,7 @@ scope:
   path: crates/ekr/tests
 - confidence: inferred
   path: vendor/serde_yaml_ng
-revision: 33
+revision: 34
 ---
 ## Context
 
@@ -336,3 +336,19 @@ The inspected graph, ontology, kernel and store source/test directories are the
 coupled scope. Existing exact path entries remain; new modules already marked
 inferred keep that distinction. Root owns the shared specification and planning.
 No implementation has been dispatched by this preparation record.
+
+## Absent transaction target, 2026-09-22
+
+Implementation exposed a missing shared refusal: Validate or Commit given a
+well-formed identity with no retained transaction cannot return
+TransactionStateConflict with a fabricated state. DESIGN § 92 and both ESS
+commands now declare TransactionNotFound { transaction_id }, before basis or
+staleness evaluation, with no writes. Corrupt required history remains a
+verification failure rather than masquerading as absence. The declarations were
+copied and compared in coordinator and source unit together.
+
+The released compiler validates and synthesizes these obligations, but runtime
+acceptance remains unexecuted: both public handlers must refuse an unknown ID
+after restart on both providers and preserve objects, events and complete state.
+This is part of the existing durable writer scope, not a lifecycle or persisted
+format change. The completion record must name the actual cases that enforce it.
