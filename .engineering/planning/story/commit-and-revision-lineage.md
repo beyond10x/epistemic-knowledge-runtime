@@ -24,6 +24,12 @@ scope:
   path: crates/ekr-core/src/lib.rs
 - confidence: inferred
   path: crates/ekr-core/tests/decode.rs
+- confidence: cited
+  path: crates/ekr-graph/src
+- confidence: cited
+  path: crates/ekr-graph/tests
+- confidence: cited
+  path: crates/ekr-kernel/src
 - confidence: inferred
   path: crates/ekr-kernel/src/apply.rs
 - confidence: inferred
@@ -38,6 +44,8 @@ scope:
   path: crates/ekr-kernel/src/revision.rs
 - confidence: cited
   path: crates/ekr-kernel/src/transaction.rs
+- confidence: cited
+  path: crates/ekr-kernel/tests
 - confidence: inferred
   path: crates/ekr-kernel/tests/adversary_transaction_document.rs
 - confidence: inferred
@@ -45,10 +53,20 @@ scope:
 - confidence: inferred
   path: crates/ekr-kernel/tests/transaction_document.rs
 - confidence: cited
+  path: crates/ekr-ontology/src
+- confidence: cited
   path: crates/ekr-ontology/src/types.rs
+- confidence: cited
+  path: crates/ekr-ontology/tests
+- confidence: cited
+  path: crates/ekr-store/src
+- confidence: cited
+  path: crates/ekr-store/tests
+- confidence: cited
+  path: crates/ekr/tests
 - confidence: inferred
   path: vendor/serde_yaml_ng
-revision: 21
+revision: 31
 ---
 ## Context
 
@@ -296,3 +314,24 @@ writers, interrupted publication, own-result retry, retained terminal decisions,
 retraction/supersession, historical reconstruction, complete roots and corruption
 refusals. Full preserving migration remains downstream of the writer; missing
 original evidence refuses with an unchanged source.
+
+## Coordinated activation ownership
+
+The next source activation uses one owner and one isolated tree for this story's
+overlap with its companion persisted-format/writer story. The concrete brief is
+.engineering/waves/p1-durable-activation-brief.md; the actual dependency trace is
+.engineering/reviews/p1-writer-readiness.md. The bounded parser must pass and
+integrate first.
+
+Current graph/seed types, strict receipt records, atomic publication and fallible
+kernel replay must agree in the same source candidate. Therefore the older
+standalone-format-gate-before-writer-dispatch sentence is superseded by format/
+seed and application milestones within one coordinated unit, with independent
+review and the complete integrated gate before publication. No story acceptance
+is dropped, and no milestone is called complete merely because a companion's
+source compiles. This changes source sequencing, not architecture or phase exits.
+
+The inspected graph, ontology, kernel and store source/test directories are the
+coupled scope. Existing exact path entries remain; new modules already marked
+inferred keep that distinction. Root owns the shared specification and planning.
+No implementation has been dispatched by this preparation record.

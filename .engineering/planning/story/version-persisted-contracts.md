@@ -23,6 +23,8 @@ scope:
 - confidence: inferred
   path: crates/ekr-core/src/lib.rs
 - confidence: cited
+  path: crates/ekr-graph/src
+- confidence: cited
   path: crates/ekr-graph/src/assertion.rs
 - confidence: cited
   path: crates/ekr-graph/src/edge.rs
@@ -44,6 +46,8 @@ scope:
   path: crates/ekr-graph/tests/compile_fail/canonical_ref_cannot_target_a_transient_type.stderr
 - confidence: cited
   path: crates/ekr-graph/tests/compile_fail/transient_state_has_no_content_address.stderr
+- confidence: cited
+  path: crates/ekr-kernel/src
 - confidence: cited
   path: crates/ekr-kernel/src/commit.rs
 - confidence: inferred
@@ -69,6 +73,12 @@ scope:
 - confidence: inferred
   path: crates/ekr-kernel/tests/migration_inventory.rs
 - confidence: cited
+  path: crates/ekr-ontology/src
+- confidence: cited
+  path: crates/ekr-ontology/tests
+- confidence: cited
+  path: crates/ekr-store/src
+- confidence: cited
   path: crates/ekr-store/src/eventlog.rs
 - confidence: inferred
   path: crates/ekr-store/src/legacy.rs
@@ -91,6 +101,8 @@ scope:
 - confidence: inferred
   path: crates/ekr-store/tests/read_only_inventory.rs
 - confidence: cited
+  path: crates/ekr/tests
+- confidence: cited
   path: crates/ekr/tests/graph_assertion_serde.rs
 - confidence: cited
   path: crates/ekr/tests/graph_events_serde.rs
@@ -108,7 +120,7 @@ scope:
   path: systems/ekr/domains/store.yaml
 - confidence: cited
   path: systems/ekr/system.yaml
-revision: 39
+revision: 46
 ---
 ## Context
 
@@ -374,3 +386,24 @@ This supersedes older preparation's compiler-capability blocker; it does not
 claim an activated runtime, executed EKR target or finished persisted-contract
 story. The complete declaration patch remains unapplied until the shared parser
 correction is integrated and the activation unit is ready to implement it.
+
+## Coordinated activation ownership
+
+The next source activation uses one owner and one isolated tree for this story's
+overlap with its companion persisted-format/writer story. The concrete brief is
+.engineering/waves/p1-durable-activation-brief.md; the actual dependency trace is
+.engineering/reviews/p1-writer-readiness.md. The bounded parser must pass and
+integrate first.
+
+Current graph/seed types, strict receipt records, atomic publication and fallible
+kernel replay must agree in the same source candidate. Therefore the older
+standalone-format-gate-before-writer-dispatch sentence is superseded by format/
+seed and application milestones within one coordinated unit, with independent
+review and the complete integrated gate before publication. No story acceptance
+is dropped, and no milestone is called complete merely because a companion's
+source compiles. This changes source sequencing, not architecture or phase exits.
+
+The inspected graph, ontology, kernel and store source/test directories are the
+coupled scope. Existing exact path entries remain; new modules already marked
+inferred keep that distinction. Root owns the shared specification and planning.
+No implementation has been dispatched by this preparation record.
