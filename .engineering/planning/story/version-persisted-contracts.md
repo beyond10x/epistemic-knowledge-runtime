@@ -31,6 +31,12 @@ scope:
 - confidence: cited
   path: crates/ekr-graph/tests
 - confidence: cited
+  path: crates/ekr-graph/tests/canonical_value_and_assertion.rs
+- confidence: cited
+  path: crates/ekr-graph/tests/compile_fail/canonical_ref_cannot_target_a_transient_type.stderr
+- confidence: cited
+  path: crates/ekr-graph/tests/compile_fail/transient_state_has_no_content_address.stderr
+- confidence: cited
   path: crates/ekr-kernel/src/commit.rs
 - confidence: inferred
   path: crates/ekr-kernel/src/legacy.rs
@@ -48,6 +54,8 @@ scope:
   path: crates/ekr-kernel/src/validate/provenance.rs
 - confidence: cited
   path: crates/ekr-kernel/tests
+- confidence: cited
+  path: crates/ekr-kernel/tests/legacy.rs
 - confidence: inferred
   path: crates/ekr-kernel/tests/migration_inventory.rs
 - confidence: cited
@@ -64,6 +72,12 @@ scope:
   path: crates/ekr-store/tests
 - confidence: inferred
   path: crates/ekr-store/tests/fixtures/legacy
+- confidence: cited
+  path: crates/ekr-store/tests/fixtures/legacy/README.md
+- confidence: cited
+  path: crates/ekr-store/tests/fixtures/legacy/vectors.json
+- confidence: cited
+  path: crates/ekr-store/tests/legacy.rs
 - confidence: inferred
   path: crates/ekr-store/tests/read_only_inventory.rs
 - confidence: cited
@@ -76,7 +90,7 @@ scope:
   path: systems/ekr/domains/graph.yaml
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 31
+revision: 32
 ---
 ## Context
 

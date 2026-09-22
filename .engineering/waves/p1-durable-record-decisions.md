@@ -82,6 +82,18 @@ transaction document and use this same submission path. It cannot invent an
 original caller document that was never provided. CLI and conformance use the
 actual bytes/document handler directly.
 
+The first proposal document envelope is YAML with exactly format
+"ekr.transaction-document/1" and transaction containing the full typed
+GraphTransaction<Value>. Use the existing serde_yaml_ng parser family already
+used by SeedDocument::from_yaml; JSON syntax is accepted only as its supported
+subset. Admit one UTF-8 document under an explicit input bound, refusing duplicate
+keys, unknown semantic fields, mismatched nesting and unsupported versions.
+Arbitrary unique Record keys remain data. Preserve the exact supplied bytes,
+including a well-formed nonfinite Float proposal that Validate must reject.
+This first transaction document version is independent of graph/seed/event version
+two. The implementation must bind parser shape and exact-byte rejection readback
+to executable cases; those cases are unexecuted at this decision.
+
 ## Retained decisions, replay and application
 
 Adopt the preparation report's ValidationReceiptV1, CommitReceiptV1, SeedResultV1,
