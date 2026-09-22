@@ -1,8 +1,9 @@
 # Coordinated durable-kernel activation
 
-This is the next source unit after the bounded transaction parser has passed
-independent review and integrated. It is not dispatched or implemented by this
-brief. It continues the operator-approved completion plan.
+This source unit follows the bounded transaction parser's second independent
+review, complete integration gate and merged PR #11. Its resource and dispatch
+record is p1-durable-activation-20260922.md. It continues the operator-approved
+completion plan; source work begins under the coordinated ownership below.
 
 ## One source owner
 
@@ -118,3 +119,25 @@ Run touched checks while developing; root captures every final gate step and its
 own exit status. Retain logs and exact failed inputs outside public source.
 Leave a clean handback for independent attack before integration/publication.
 This unit cannot claim complete migration, later phases or live cutover.
+
+## Dispatch qualifications
+
+Eventlog PR #15 is merged with required production, comparative and restart CI
+green. The consumer selects its exact reviewed source, as recorded in
+.engineering/reviews/eventlog-repair-adoption.md; the full consumer gate and
+direct old-writer/repaired-reader proof passed. Use the portable
+AtomicBlobEventStore trait explicitly: the File inherent method of the same name
+has a different contract. Preserve UnknownCommit classification before flattening
+provider errors. No new tag is needed for this already published source.
+
+The two stories form the explicitly approved single source unit. The format
+story's participation here is the exception to the generic implementor charter's
+single-artifact/predecessor rule; it is not an unlanded external dependency to
+silently replace. Every internal child finding remains acceptance for this unit.
+The repository's assigned external target likewise overrides that generic
+charter's in-tree target rule. No extra implementation owner is admitted.
+
+First send a coherent format/seed checkpoint with the actual diff, original
+failure evidence and scoped command statuses. Freeze source while the coordinator
+reads that checkpoint, then continue the application milestone on acknowledgement.
+Do not infer a passing application/replay result from that checkpoint.

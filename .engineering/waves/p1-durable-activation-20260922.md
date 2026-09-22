@@ -49,7 +49,10 @@ admitted. No source success is asserted by the opening record.
 The commit authorization is the approved unit source commit, source merges,
 closing store records and integration into the base after required checks;
 release/cutover remain governed by the approved overall completion contract.
-Stage: preparing the shared declaration activation and first source dispatch.
+Stage: shared declarations activated for source implementation. The exact patch
+was applied to coordinator and unit together and all touched files compared.
+Released ESS validation and compilation pass; this is specification evidence,
+not a passing product gate. Production code now has to implement that contract.
 
 Measured preflight: disk bytes available 10757951488; temporary-memory bytes available 31079641088.
 Source base before opening metadata: 5f6f5f886c79ce88b3aa525b8410391de99b6f6d.

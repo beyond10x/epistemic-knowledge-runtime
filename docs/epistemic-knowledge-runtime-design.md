@@ -3461,3 +3461,523 @@ the node. One node carries both.
 Lifecycles and operations are part of the schema and evolve through § 26 schema transactions at the
 risk class § 50 assigns: a new optional operation is low risk; removing a transition existing nodes
 have taken is high risk.
+
+# 88. Assertion Assessment, Lifecycle and Historical Reads
+
+*Dated 2026-09-22. Resolves the overlap between §§17 and 36, and makes §65's two time dimensions explicit.
+Implementation is unexecuted at this amendment's preparation.*
+
+An assertion stores its validation assessment and lifecycle independently. Validation retains
+Proposed, Validating, Accepted, Rejected and Disputed, with their existing payloads. Accepted
+retains the exact accepting validator set. Lifecycle is stored, not derived from validation:
+
+- Active: no withdrawal or replacement is recorded.
+- Retracted: the committing revision and stated reason.
+- Superseded: the replacing assertion, committing revision and effective valid-time boundary.
+
+Lifecycle changes preserve the assessment, evidence identities and proposer. Neither Active nor
+Superseded grants acceptance. A fresh proposal supplies Proposed assessment and Active lifecycle;
+only kernel validation establishes acceptance, and only a validated lifecycle operation changes
+lifecycle. The general assessment policy remains distinct from this storage shape.
+
+A retraction says the runtime no longer endorses the claim. At that revision and later,
+valid-time reads exclude it at every time. A supersession records a supported fact's replacement:
+the earlier claim remains answerable within its closed valid-time interval, provided its retained
+assessment is Accepted. The replacement must itself be Accepted in the validated candidate,
+have a distinct assertion identity, begin at the supplied boundary, and satisfy the candidate
+valid_at eligibility predicate at that boundary. An already retracted or otherwise unreadable
+replacement refuses even though it retains Accepted assessment. Subject and predicate
+equality is not required: the §65 example replaces assertions about different subjects.
+Normal ontology, provenance and cardinality checks still apply. The former interval
+ends at that boundary; intervals are half-open. The boundary cannot precede the former interval's
+start or extend a finite existing end. A self-reference or supersession cycle is refused.
+
+For §65, a latest-revision query before the handover returns the earlier relationship; one at
+or after the handover returns its replacement, subject to the replacement's own valid interval.
+These are both valid-time reads of one revision. Reconstruction at an earlier committed revision
+answers what that revision believed, before later retraction or supersession. Transaction-time
+recording does not replace the effective valid time.
+
+Ordinary transaction publication receives its timestamp from execution context and persists it
+in the commit receipt. Newly accepted assertions have recorded_from set to that timestamp and
+recorded_to unset. Retraction and supersession close the former record's recorded_to at that
+timestamp, preserving recorded_from. A timestamp preceding the latest committed timestamp or
+an affected record's recorded_from refuses; replay uses the recorded timestamp, never its clock.
+Supersession's replacement receives the same recording timestamp when newly added; an already
+accepted replacement keeps its recorded_from. Retraction leaves the historical valid interval
+unchanged; supersession closes it at the supplied effective boundary.
+
+At a selected revision, valid_at(t) includes exactly assertions with Accepted assessment, a
+valid-time interval containing t, and either (Active lifecycle and open transaction time) or
+Superseded lifecycle. Retracted assertions never qualify. Closing transaction time on a
+Superseded record does not suppress its supported historical valid interval. Revision selection
+supplies the transaction-history axis; valid_at does not guess a wall-clock instant.
+
+AddAssertion and explicit supersession may occur in one unordered atomic transaction. Fresh
+assertions arrive Proposed; assess replacement acceptance against the fully validated candidate,
+not the pre-transaction graph. The replacement must survive and be readable at the boundary in
+the candidate. Conflicting lifecycle
+changes, retraction of that replacement, self-supersession and cycles refuse. These operations
+are implemented by the writer; the format unit defines the retained state and read semantics.
+
+This changes new-format assertion canonical encoding: assessment then lifecycle are both encoded
+in declaration order, and either payload affects the hash. Preserve frozen old encoders for
+legacy verification. Never reinterpret old Retracted or Superseded assessment variants by
+inventing an accepting validator set. Prior acceptance must be recovered from independently
+verifiable retained history or migration refuses with the affected assertion identity.
+
+# 89. Revision Occurrences and Persisted Format Dispatch
+
+*Dated 2026-09-22. Extends §§34, 56 and 57. Independent equal-content decisions are distinct facts; retrying a
+decision does not produce another fact. Implementation is unexecuted at preparation.*
+
+Every new revision-log fact is enclosed in a strict versioned record with an EventId:
+format "ekr.revision-event/2", event_id, record_hash, payload. The mandatory record_hash
+addresses the complete strict retained record for that event kind; duplicate identities,
+counts and hashes in the event and retained record must agree. EventId is a UUID-backed stable identity,
+allocated once by the kernel for the occurrence. The payload keeps the existing six event names
+and variant indices. Canonical encoding includes format, event_id, record_hash and payload in that order.
+Store the record with backend schema version 2; preserve backend event identity, stream position,
+event name and schema version when reading it.
+
+Object-event dispatch is independently explicit. The metadata-only ObjectStored body in §91.6
+uses backend schema2. The original ObjectStored/schema1 body with inline bytes is frozen for
+verification and preservation-first migration; it is not new-format ingestion after activation.
+ObjectRetentionRaised retains its unchanged schema1 shape and meaning. Dispatch by the exact
+event name and schema pair, never by the presence or absence of a bytes field. Unknown versions,
+metadata-only schema1, inline schema2, unknown semantic fields and mismatched or missing required
+blob bindings refuse. Preserve original schema1 bytes and hashes in the legacy verifier.
+
+A new proposal, validation, refusal or stale decision receives a new occurrence identity even
+when its payload repeats earlier content. A retry uses the same identity and exact payload.
+Use occurrence identity for idempotency and complete record bytes for request equality. Reusing
+an identity for different content refuses. Never generate a new identity inside a retrying append,
+and never derive identity from content or the stream position about to be written.
+
+Canonical validation addresses use ContentHash::of over the exact canonical transaction and
+explicit validation basis, never ContentHash::of_bytes over encoded canonical values. Preserve the
+existing payload/value hash labels. Version dispatch distinguishes the historical payload-domain
+scheme from the corrected value-domain scheme; it never silently verifies an old hash with new
+rules. The durable writer additionally binds acceptance to the full prior root and retained
+validator policy; a revision number by itself does not prove equivalent state in different stores.
+Section91 specifies the complete retained receipts and their exact basis before first publication.
+
+New assertion shape requires explicit graph-document format dispatch. The compatibility table is:
+
+| input | graph representation | admission |
+|---|---|---|
+| unversioned GraphDocument | original fields and assessment enum | legacy inventory and original hash verification only |
+| ekr-seed/1 | original GraphDocument in graph | legacy inventory and verified migration only |
+| ekr-seed-envelope/1 | input is ekr-seed/1; retained bootstrap context | legacy inventory and verified migration only |
+| ekr.graph-document/2 | graph contains the new assertion assessment and lifecycle | new-format graph decoder |
+| ekr-seed/2 | graph is an ekr.graph-document/2 envelope; ontology and evidence_payloads remain explicit | new kernel seed admission |
+| ekr-seed-envelope/2 | input is ekr-seed/2; context, full authority state and committed_at are retained | new kernel seed replay admission |
+
+The graph envelope is {format: "ekr.graph-document/2", graph: <graph fields>}. A seed's graph
+field holds that complete envelope, not its inner graph. A persisted seed envelope holds the
+complete versioned seed input in input. Every layer is strict. Unknown versions, mismatched
+nesting, new graph shape under an old seed tag and unknown semantic fields refuse. Preserve
+user-defined record keys as data. Successful conversion of a verifiable seed/1 is a migration
+with an explicit address map, never normal ingestion under new defaults.
+
+New-format node and edge properties store an ordered outer collection of values for each
+PropertyId. A property's multiplicity counts that outer collection, preserving order and
+duplicates. A single List value remains one outer member even when its inner list is empty.
+Canonical absence represents zero members; an explicitly stored empty outer collection refuses.
+A validated draft may clear an optional property, and application removes its key. Legacy scalar
+properties become exactly one outer member only after the original bytes and hash verify.
+
+Activation is coordinated with atomic provider blob publication. Frozen legacy verification
+may be prepared while the original API remains available; new graph and seed formats must
+not become the production write path until their retained payloads publish atomically with
+metadata-only log events. No temporary new inline-payload event or independently committed
+blob put is an acceptable activation path.
+
+# 90. Preservation-First Store Migration
+
+*Dated 2026-09-22. Extends §§34, 52 and 57. Migration preserves evidence; it cannot manufacture omitted history.
+Implementation is unexecuted at preparation.*
+
+Inventory and verify the source without changing it. Retain original object bytes, event records,
+backend coordinates and hashes. Decode each source version with its matching original canonical
+rules. Convert into a separate destination only after required input can be verified. Preserve
+stable domain object identities and record old-to-new object and revision addresses.
+
+ObjectStored/schema1 verification reads its original inline bytes under its original shape;
+the new destination writes ObjectStored/schema2 metadata and the verified bytes through one
+atomic blob publication. Preserve the original event's schema and body in the inventory.
+ObjectRetentionRaised/schema1 keeps its original meaning on both sides. No reader guesses the
+source generation from absent bytes, and an unknown or mixed shape/version refuses unchanged.
+
+Freeze destination event occurrence identities in a migration manifest before writing, binding
+each to a source event coordinate. Retry an interrupted conversion from that same manifest.
+Events absent through old content deduplication cannot be reconstructed from a later state.
+A hash is not its operation payload, and a retracted legacy record is not its prior acceptance.
+
+If operation payloads, governing ontology, validation attribution, prior acceptance or retained
+evidence cannot be verified, refuse with the exact missing evidence and affected record. Preserve
+the source; do not reset its lineage, fill in synthetic metadata, or treat a seed snapshot as
+lost history. New-format admission is not an implicit conversion path.
+
+Publish or switch to a destination only after complete mapped-history verification and restart
+equivalence through the real kernel authority. Unsupported conversion may finish with a named
+refusal and unchanged source; it must not be reported as a successful migration.
+
+# 91. Durable Kernel Authority, Retained Decisions and Document Commands
+
+*Dated 2026-09-22. Completes §§8,19–21,34,56–57 and amendments88–90. This is the contract for
+activation, not evidence that the implementation already passes it. It adopts the coordinator's
+durable-record decisions and document-input decision; the earlier writer preparation is subordinate
+where it differs. Original production codecs remain available during preparation. Activation of
+the new graph, seed, receipt and writer contracts is one coordinated change behind atomic provider
+blob publication.*
+
+## 91.1 Registered authority and the P1 validation profile
+
+The host supplies a complete registered authority state from trusted bootstrap configuration.
+An agent id does not acquire authority because a seed document or proposal names it. Both the
+bootstrap operator and validator are registered, distinct agents. The validator in the actual
+BootstrapContext must equal the retained profile's validator. Names and capability strings are
+retained metadata; this does not introduce P5 trust scores or a capability authorization language.
+
+AuthorityStateV1 has exactly format "ekr.authority-state/1", agents, and validation_profile.
+agents is a map keyed by AgentId, and each entry contains id, name and a set of capability strings;
+the key must equal id. The profile has exactly these fields:
+
+| field | P1 value |
+|---|---|
+| format | "ekr.p1-validation-profile/1" |
+| ruleset | "ekr.p1-deterministic/1" |
+| checks | Structural, Reference, Type, Cardinality, OntologyConstraint, Provenance, Authorization, in this order |
+| validator | the actual registered validating AgentId |
+| proposer_separation | "distinct-authenticated-actor/1" |
+| provenance | "retained-admissible-evidence/1" |
+| application | "ekr.p1-apply/1" |
+
+An omitted, reordered or substituted check, unsupported profile, unknown agent, or contradictory
+validator refuses. This fixed profile runs the seven deterministic checks and verifies the actual
+retained payload bytes every canonical evidence dependency cites. Presence of an EvidenceId or
+a content hash alone is insufficient. Existing graph-assertion/observation dependency integrity
+and bootstrap refusals remain binding. No new confidence threshold, external-source trust policy
+or unsupported constraint-expression meaning is inferred.
+
+Authority is retained, not reconstructed from whichever startup flags are supplied later.
+Reopen verifies the trusted bootstrap anchor against the complete retained state, then uses that
+state and profile for history. P1 does not replace the registry or profile through a new startup
+argument. A later change requires an explicit versioned mutation and policy.
+
+## 91.2 The four roots and retained seed context
+
+ontology_root is the value-domain hash of the complete loaded ontology: schema version id,
+number, parent and created_at; every node and edge declaration, including unused declarations;
+all names, parents, property definitions, recursive value types, cardinalities, required flags,
+constraint strings, lifecycle declarations, operation arguments/preconditions/transitions/emits,
+endpoint restrictions, inverse/symmetric/transitive flags. Declaration collections are ordered
+by stable ids. There is one declaration encoding shared with canonical transaction encoding,
+so a field cannot contribute to one address and vanish from the other.
+
+agent_root is the value-domain hash of the full AuthorityStateV1, including its exact validation
+profile. Encode format, agents and profile in declaration order; map/set members use canonical
+ordering, while the checks vector retains its specified order. knowledge_root hashes the full
+node, edge and assertion collections using the new property and assertion shapes. evidence_root
+hashes the complete retained Evidence collection, with all cited payload addresses resolved and
+verified before admission/replay. A defined empty collection can have a real empty root; a
+populated ontology or authority registry cannot be represented by a zero placeholder.
+
+SeedEnvelope/2 has exactly format "ekr-seed-envelope/2", input, context, authority and committed_at,
+in that declaration order. input is the complete Seed/2 document defined in §89: format,
+ontology, the complete GraphDocument/2 envelope, and evidence_payloads. context retains the
+actual BootstrapContext {operator, validator}. authority is AuthorityStateV1 from the host, not
+a field accepted from the input document. committed_at comes from trusted execution context.
+
+Bootstrap validates the declared ontology and proposed graph under the fixed profile before
+any publication. It applies the existing kernel Proposed-to-Accepted bootstrap attribution with
+the actual validator. Retain the original proposed input, context and authority needed to reproduce
+that transition; do not rewrite the submitted seed into a falsely caller-accepted seed.
+
+Revision0 has revision number0 and no parent. Its transaction field addresses the retained seed
+envelope, keeping the seed meaning distinct from later accepted transactions. Seed initialization
+takes one complete Seeded occurrence and its SeedResultV1, envelope and required evidence payloads.
+It atomically publishes all required blobs and metadata. Verify occurrence kind, seed address,
+revision id, EventId, result-record address and the computed Root0 together.
+
+For a retry, first parse and compare the complete Seed/2 input with the retained typed input,
+and compare the actual BootstrapContext and trusted host AuthorityStateV1 anchor with the
+retained context and authority. This comparison precedes allocation of a new occurrence or
+timestamp. Matching logical input and actual trusted context return the original SeedResultV1,
+including its original Root0 and committed_at, without an event or object write, even after
+ordinary commits advance the head. Different input or anchor returns AlreadySeeded without a
+write. YAML whitespace alone does not change the parsed seed. This seed comparison does not
+relax §91.3's separate requirement to retain exact transaction-document bytes.
+
+## 91.3 Exact transaction documents and durable proposals
+
+Propose consumes one exact UTF-8 YAML document:
+
+```yaml
+format: ekr.transaction-document/1
+transaction: # the full typed GraphTransaction<Value>
+  id: <TransactionId>
+  proposer: <AgentId>
+  operations: <typed operation vector>
+  evidence: <EvidenceId set>
+```
+
+The notation above describes typed fields; it is not an executable fixture. This is the first
+transaction-document envelope, not a version2 graph document. Use the established
+serde_yaml_ng0.10 parser family used by SeedDocument::from_yaml. Operations use its typed YAML
+tags, such as !CreateNode; an untagged JSON enum object is not an alternative operation encoding.
+JSON-compatible scalar and collection syntax is accepted only where the typed YAML grammar
+admits it. Exactly one document is admitted. Unknown formats,
+unknown semantic fields at any nesting, duplicate semantic/map keys, mismatched enum payloads,
+invalid UTF-8 and malformed or empty-operation documents refuse Propose without a Proposed fact.
+User Record keys remain user data, not schema fields.
+
+The format selects a frozen inclusive parser profile: at most 262144 input bytes, depth32,
+32768 expanded representation nodes, 4096 entries per map or sequence, 65536 decoded UTF-8 bytes
+per string value, 4096 bytes per key and 1048576 total expanded string bytes. Operations contain
+1 through256 elements; the evidence input contains at most1024 elements. Checked counters charge
+each alias at its expanded position and content. Caller documents cannot change the profile.
+
+Apply the raw-byte cap before parsing, copying or unbounded reading. A budgeted representation
+pass checks shape and expanded allocation before strict typed decoding of the original bytes.
+Do not convert through a generic Value and silently coerce string semantics. Semantic fields and
+actual decoded map keys reject duplicates before decoding their repeated value. Required maps
+and sequences require actual container syntax; an empty plain scalar is not an empty collection.
+Unique Record keys remain data, including reserved-looking names and merge-key text; do not apply
+YAML merge processing. Preserve explicit empty inner Lists and Records.
+
+The pinned loader buffers YAML events before representation visitation. The byte cap bounds its
+input; the visitor limits expanded application values. This is not an exact allocator-byte limit
+or pre-loader event/scalar quota. Proposal, validation and replay all select this profile from
+the document format. A stricter host upload cap affects new ingress only, never historical
+validity. A changed frozen profile requires an explicit document version decision. Limits refuse
+with named reasons, never truncate or coerce. All exact-boundary and over-limit cases must execute
+before exposing the command; these requirements do not assert that implementation already exists.
+The strict parser preserves well-formed transient values, including nonfinite Float spellings,
+for the actual Type validator to refuse. Parser acceptance is not canonical eligibility.
+Other schema-valid semantic violations likewise persist Proposed and reach Validate.
+
+Retain the exact supplied document bytes, including whitespace and nonfinite-value spelling;
+document_hash is ContentHash::of_bytes over those bytes. Never reserialize through JSON to
+create an alleged original input. A typed convenience API may encode a documented lossless
+YAML document and submit those actual generated bytes through the same parser/path, but cannot
+claim they were the caller's original document.
+
+Trusted execution context supplies submitter and submitted_at once. transaction.proposer and
+every AddAssertion.proposed_by must match that authenticated submitter; caller input cannot
+forge the actor. Derived transaction id, operation count and evidence-set hash must agree with
+the reparsed document. Canonical transaction/operation hashes are present only when derivable
+without altering the proposal; no fabricated hash stands in for a refused Float.
+
+Every receipt and record below is a strict versioned retained payload with no unknown fields,
+no duplicate keys, no mixed versions and no self-authorizing deserialization. Their payload
+addresses use ContentHash::of_bytes over the exact retained record bytes. These addresses are
+distinct from value-domain addresses of canonical transaction or validation material.
+
+## 91.4 Complete records for all six occurrence kinds
+
+The following tables give fields in declaration order. An Optional value is explicitly optional;
+all other fields are required. Lists whose type is a set retain canonical set order; ordered
+issue and operation vectors retain their actual order. Integer counts must fit their Rust
+unsigned domain and agree with the values they count.
+
+| record | complete fields |
+|---|---|
+| ProposalRecordV1 | format="ekr.proposal-record/1", event_id:EventId, submitted_at:Timestamp, submitter:AgentId, document_hash:ContentHash, document_bytes:Bytes, transaction_id:TransactionId, operation_count:u64, evidence_hash:ContentHash, canonical_transaction_hash:Optional<ContentHash>, canonical_operations_hash:Optional<ContentHash> |
+| ValidationBasisV1 | format="ekr.validation-basis/1", graph_root_id:GraphRootId, previous_revision_id:RevisionId, previous_event_id:EventId, previous_record_hash:ContentHash, previous_root:Root, previous_root_hash:ContentHash, seed_hash:ContentHash, ontology_root:ContentHash, authority_root:ContentHash, validation_profile_hash:ContentHash |
+| ValidationReceiptV1 | format="ekr.validation-receipt/1", event_id:EventId, proposed_event_id:EventId, proposal_record_hash:ContentHash, transaction_hash:ContentHash, operations_hash:ContentHash, evidence_hash:ContentHash, operation_count:u64, basis:ValidationBasisV1, validators:Set<AgentId>, validated_at:Timestamp, validation_hash:ContentHash |
+| CommitReceiptV1 | format="ekr.commit-receipt/1", event_id:EventId, revision_id:RevisionId, proposal:ProposalRecordV1, validation:ValidationReceiptV1, validation_record_hash:ContentHash, committer:AgentId, committed_at:Timestamp, result:Root, result_hash:ContentHash |
+| SeedResultV1 | format="ekr.seed-result/1", event_id:EventId, revision_id:RevisionId, seed_hash:ContentHash, authority_root:ContentHash, committed_at:Timestamp, result:Root, result_hash:ContentHash |
+| RejectionRecordV1 | format="ekr.rejection-record/1", event_id:EventId, proposed_event_id:EventId, proposal_record_hash:ContentHash, requested_basis:ValidationBasisV1, validator:AgentId, rejected_at:Timestamp, issues:Vec<ValidationIssue> |
+| StaleRecordV1 | format="ekr.stale-record/1", event_id:EventId, validation_record_hash:ContentHash, expected_basis:ValidationBasisV1, observed_revision_id:RevisionId, observed_event_id:EventId, observed_record_hash:ContentHash, observed_root:Root, observed_root_hash:ContentHash, stale_at:Timestamp |
+
+Root retains all seven fields: revision, parent, ontology_root, knowledge_root, evidence_root,
+agent_root, transaction. parent is the prior complete Root hash, not merely its knowledge root.
+ValidationIssue retains id, transaction_id, validator check name, code and message; assign
+IssueIds once when recording the result, outside deterministic pure checks. An assertion's
+Rejected assessment retains IssueIds rather than kernel ValidationIssue objects, preserving
+the graph-to-kernel dependency direction.
+
+The event/2 envelope's record_hash selects exactly this record for its existing payload kind:
+
+| kind/index | retained record | metadata payload |
+|---|---|---|
+| Seeded/0 | SeedResultV1 | revision_id, seed_hash |
+| TransactionProposed/1 | ProposalRecordV1 | transaction_id, proposer, operations_hash:Optional<ContentHash> |
+| TransactionValidated/2 | ValidationReceiptV1 | transaction_id, against, validation_hash |
+| TransactionRejected/3 | RejectionRecordV1 | transaction_id, issues count |
+| TransactionStale/4 | StaleRecordV1 | transaction_id, validated_against, current |
+| RevisionCommitted/5 | CommitReceiptV1 | transaction_id, revision_id, number, knowledge_root |
+
+Event names and canonical variant indices remain the existing six; event/2 is still unpublished
+and is the only new event version in this change. Domain EventId, provider event id and atomic
+group attempt id are separate identities. All duplicated identities, counts, roots and addresses
+must agree. For Proposed, proposer is the trusted submitter and operations_hash is the optional
+canonical_operations_hash; absence does not prevent recording a well-formed invalid proposal.
+
+Proposed and Validated decisions survive restart independently. Commit embeds their full retained
+records and verifies their addresses against the separately retained originals. This bounded
+duplication allows pure replay authority without nested reads through a provider transaction.
+It does not authorize either record merely because its self-hash verifies. Rejected and Stale
+retain the complete terminal decisions but create no canonical revision.
+
+## 91.5 Validation binding, application and replay authority
+
+ValidationMaterialV1 is exactly format="ekr.validation-material/1", the full accepted canonical
+transaction, ValidationBasisV1 and the exact actual validator set. Its address is
+ContentHash::of(material), in the value domain. The fixed P1 profile permits its actual registered
+validator, not a caller-supplied subset or an in-memory receipt allowlist. ValidationReceiptV1's
+separate payload address binds validated_at and occurrence identities.
+
+The basis binds the complete prior root and its hash, graph identity, seed envelope address,
+ontology and authority roots, exact profile hash, prior revision/event identities and prior
+SeedResult/CommitReceipt address. The previous record address matters because Root itself omits
+time and bootstrap context. Equal revision numbers or equal knowledge roots in different lineages
+cannot authorize interchange. Root.transaction on a later revision is the full accepted
+canonical transaction hash, not the operation-vector hash.
+
+Validate first requires the named revision to exist for a Proposed transaction. An absent
+revision returns RevisionNotFound, leaves the transaction Proposed and writes no Validated or
+Rejected occurrence, receipt, object or issue. There is no complete requested_basis to retain
+for an absent revision; never manufacture one. An older existing revision remains a valid
+validation basis. If the canonical head has moved from that complete basis, Commit records
+Stale according to its normal canonical-head check rather than refusing historical validation.
+
+Every admitted operation has one deterministic application, or refuses with a named reason before
+sealing. CreateNode, UpdateProperty, CreateEdge, DeleteEdge, AddAssertion and supported Invoke
+operate on the complete post-state; property values preserve §89's outer multiplicity.
+Retraction names the assertion and reason. Supersession names the replaced assertion, replacing
+assertion and effective valid-time boundary. Retraction retains its existing operation index5
+with the new payload; SupersedeAssertion is appended after Invoke at index11.
+Schema-changing operations and MergeEntity remain explicitly refused in P1.
+Unsupported preconditions/effects refuse without disabling a valid declared lifecycle transition.
+
+Application treats the admitted transaction as an unordered atomic set, including candidate
+assertion acceptance and supersession eligibility in §88. The submitted operation-vector order
+remains part of its canonical bytes; unordered application does not silently repair historical
+or current hash encodings. Conflict detection and validation must yield the same admission and
+resulting state under operation permutation, while the transaction address can differ.
+
+Replace the boolean replay attestation with a fallible kernel-owned admission/apply authority.
+Only the kernel validates and constructs admitted canonical state and roots. Given the prior
+admitted state and verified retained inputs, replay checks exact versions and addresses, document
+parser results, all receipt/basis/occurrence linkages, registered actors and exact profile, actual
+evidence bytes and timestamps. It reruns the same pure validation and application and recomputes
+all four subroots, full root and result address. It does not substitute today's ontology/profile
+for a retained historical one. Unsupported historical rulesets or missing inputs produce a named
+refusal, not a best-effort fold.
+
+The storage layer preserves generic bytes and coordinates without learning kernel receipt
+semantics or constructing authority capabilities. Do not implement nested authority-to-store
+reads inside a provider transaction. Corrupt commits refuse reopen; they do not silently disappear
+from the fold or return the seed as if it were the latest revision. Historical reconstruction
+stops at the selected committed revision and preserves its own schema, authority and graph.
+
+## 91.6 Trusted time, occurrence idempotency and atomic publication
+
+Resolve each trusted actor, domain occurrence id and timestamp once per logical decision.
+For a committed transaction submitted_at <= validated_at <= committed_at. Committed timestamps
+are nondecreasing along canonical lineage; equal times are legal and revision numbers order ties.
+The affected assertion recorded_from bounds in §88 also hold. Retry and replay reuse retained
+timestamps, never a newly sampled clock. Terminal refusal times likewise come from trusted context.
+
+Each successful seed retry returns that SeedResultV1's recorded Root0, even if another transaction
+has since advanced the head. Each successful commit retry first resolves its exact occurrence
+and returns its own retained CommitReceiptV1 and result without another event or state change.
+The public Commit input is the same transaction_id on retry. A retained Committed transaction
+therefore succeeds silently, even after head advancement; Proposed, Rejected and Stale
+transactions still return TransactionStateConflict. Retained input/context and success are
+resolved before allocating an occurrence or sampling time. Seed uses the parsed-input and
+trusted-anchor comparison in §91.2, not exact YAML byte equality or a newly timestamped envelope.
+Reuse of an EventId with different bytes refuses. Provider
+contention does not allocate another domain occurrence or alter timestamps/receipts. Provider
+group attempts obey the provider's exact fingerprint/idempotency contract.
+
+Canonical head and provider stream position are different facts. On conflict, first resolve
+whether the exact immutable occurrence already committed, then compare the complete validation
+basis with the actual canonical head. Unrelated object/proposal/validation records can permit a
+bounded retry of the same immutable occurrence. A competing canonical commit makes the accepted
+transaction Stale and records the full stale decision. An unknown publication outcome triggers
+exact occurrence reconciliation; never delete source data or blindly republish under a new id.
+
+All seed, proposal, validation, commit, rejection and stale record bytes, evidence payloads and
+required content objects publish through the provider's atomic blob-and-metadata path. Revision
+and object log events carry only permitted ids, hashes, counts, times and status metadata, with
+payload bytes behind verified blob bindings. Neither inline numeric byte arrays nor independent
+blob-put followed by event append satisfies this contract. A metadata-only ObjectStored retains
+content_hash, storage_class, byte_len and stored_at under backend schema2; the atomic provider
+binding resolves the bytes. ObjectStored/schema1 remains the frozen inline verification/migration
+format; ObjectRetentionRaised remains schema1. Enforce §89's strict per-event dispatch.
+The EKR object identity/hash scheme and the provider's blob address are checked explicitly and
+must not be treated as interchangeable by assumption.
+
+## 91.7 Command inputs, projections and acceptance
+
+The P1 CLI remains the six verbs Seed, Propose, Validate, Commit, Snapshot and Explain.
+Seed takes seed_document:SeedDocumentPath; Propose takes
+transaction_document:TransactionDocumentPath. The shared command parser loads the exact document,
+derives hashes/counts and binds execution identity; callers do not supply authoritative hash strings.
+The ESS Transactions view reads every retained transaction state, including terminal states,
+from real durable records. It is not a seventh CLI verb and not an adapter-local map.
+
+ESS projects strict tagged Rust variants through a named kind plus typed optional payloads where
+a no-payload variant cannot be expressed by an ESS empty struct. Exact payload/kind coherence
+remains a runtime projection obligation. Canonical graph values project their exact canonical
+binary bytes and canonical kind; transient transaction values remain the full typed YAML document.
+This neither converts Float to Decimal nor changes the strict source wire representation.
+The complete admitted seed and ontology projections retain all semantically relevant fields.
+Compiler acceptance of these declarations does not establish runtime agreement.
+
+The ESS declaration uses ess/7 for command-local retained-result replay and effect-free default
+state refusals. Seed's retained-seed outcome replays seeded using the original emitted revision
+identity; Commit's retained-commit outcome replays committed using its original transaction input.
+Validated selects the committing transition, Committed selects silent replay, and the default
+named refusal covers Proposed, Rejected and Stale. External stale publication remains distinct.
+Every emitted field has a declared input/response source or explicit generated ownership.
+Generated means the real kernel supplies the derived value from retained inputs and trusted
+execution context; a target cannot fill it from an expected conformance result. Seed and Commit
+return their actual retained SeedResultV1 and CommitReceiptV1, including on silent retries.
+The unfiltered Revisions view observes every retained Revision field and state, including the
+original seed after a later head. Transactions observes every retained transaction state. These
+are real kernel query surfaces, never expected-response maps or additional CLI verbs. The actual
+conformance adapter preserves typed Integer values losslessly from handler results before
+comparison; any JSON bridge must exact-decode them or report Unsupported. Native typed parity
+does not certify arbitrary raw numeric spellings through a floating-point JSON conversion.
+Adoption requires a verified released compiler supporting this declaration and measured synthesis;
+until then this remains an unactivated draft. Generated immediate retries do not establish
+later-head, restart, semantic seed comparison or no-physical-write behavior; authored executions
+must supply that evidence through both real providers.
+
+For conformance fixture setup, a target may stage known synthetic documents at the exact
+synthesized relative paths, within an isolated allowed fixture root, refusing absolute paths,
+parent traversal, symlink escapes and arbitrary writes. It must call the real shared parser and
+kernel with authenticated role execution identity, preserve exact scenario inputs, and observe
+the real returned result. It cannot rewrite a synthesized hash/path/actor/revision and echo the
+original, forge ids to satisfy role linkage, or fabricate retained transaction state.
+Authored scenarios supplement rather than replace generated obligations.
+
+Before claiming activation, execute the immutable generated and authored suites against the real
+target with no unaccounted skips or unsupported/error scenarios. The first durable acceptance is
+seed -> propose a new node and evidence-backed assertion -> validate -> apply -> atomically persist
+-> restart in a fresh process -> query changed knowledge, with both real providers and real kernel
+authority. It must exercise a Many property, a single List-valued property and a changed knowledge
+hash. Then cover stale/concurrent/interrupted publication, own-result retry after head advancement,
+retained Rejected/Stale state, retraction/supersession, §65's two valid-time reads and earlier-revision
+reconstruction, exact source-byte retention and corruption/missing-input refusals.
+
+Retry acceptance must use the actual public shared handlers, repeat after restart and an
+unrelated canonical head advance, and compare the original receipt/result, timestamp, occurrence,
+object/event counts and preserved transaction/seed data. Seed controls include semantically equal
+YAML with different whitespace, a different parsed seed and changed actual bootstrap context or
+host authority anchor. Commit controls include Proposed, Rejected and Stale named refusals.
+Validate controls include absent-revision no-write/remaining-Proposed and older-existing-basis
+success followed by Commit Stale. Provider readback must distinguish ObjectStored/schema2 from
+legacy inline schema1, keep ObjectRetentionRaised/schema1, and refuse unknown or mixed versions,
+missing bytes, wrong binding/address/length and unknown semantic fields without source mutation.
+
+Required new controls include a well-formed NaN Float transaction retaining byte-identical
+ProposalRecord input across restart and producing the actual named Type refusal without canonical
+hashes; changing any prior receipt/profile/ontology semantic field must invalidate acceptance or
+change its address as applicable. Legacy original-format immutable vectors remain unchanged.
+Migration is still downstream of this real durable path and the preservation/refusal rules of §90.

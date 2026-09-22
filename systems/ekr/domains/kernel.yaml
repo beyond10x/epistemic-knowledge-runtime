@@ -35,7 +35,9 @@ types:
     kind: newtype
     of: String
 
-  # Design § 19 `GraphOperation`, plus `Invoke` from amendment 87.
+  # Existing indices 0–10 stay fixed; §88 appends SupersedeAssertion at index11 in new-format
+  # transactions. Legacy verification retains the original eleven variants and scalar retraction.
+  # Design §19 plus amendments87–91.
   - name: ekr.kernel.OperationKind
     kind: enum
     variants:
@@ -50,6 +52,7 @@ types:
       - ModifyProperty
       - MergeEntity
       - Invoke
+      - SupersedeAssertion
 
   # Design § 20 items 1–7. Items 8–10 (contradiction, temporal consistency, policy) arrive with the
   # subsystems that need them and are added here together with the outcome that runs them.
@@ -63,6 +66,565 @@ types:
       - OntologyConstraint
       - Provenance
       - Authorization
+
+  # Amendments88–91. These named contracts precede production activation. They are ESS typed
+  # projections, not a second serializer. Exact format literals, strict semantic fields, UUID map
+  # keys, set ordering and cross-record equality are checked by the kernel codecs and replay.
+  - name: ekr.kernel.EventId
+    kind: newtype
+    of: Uuid
+
+  - name: ekr.kernel.SeedDocumentPath
+    kind: newtype
+    of: String
+
+  - name: ekr.kernel.TransactionDocumentPath
+    kind: newtype
+    of: String
+
+  # Required literal: "ekr.authority-state/1". Runtime version dispatch enforces it.
+  - name: ekr.kernel.AuthorityStateFormatV1
+    kind: newtype
+    of: String
+
+  # Required literal: "ekr.p1-validation-profile/1". Runtime version dispatch enforces it.
+  - name: ekr.kernel.ValidationProfileFormatV1
+    kind: newtype
+    of: String
+
+  # Required literal: "ekr.p1-deterministic/1". Runtime version dispatch enforces it.
+  - name: ekr.kernel.RulesetV1
+    kind: newtype
+    of: String
+
+  # Required literal: "distinct-authenticated-actor/1". Runtime version dispatch enforces it.
+  - name: ekr.kernel.ProposerSeparationV1
+    kind: newtype
+    of: String
+
+  # Required literal: "retained-admissible-evidence/1". Runtime version dispatch enforces it.
+  - name: ekr.kernel.ProvenanceProfileV1
+    kind: newtype
+    of: String
+
+  # Required literal: "ekr.p1-apply/1". Runtime version dispatch enforces it.
+  - name: ekr.kernel.ApplicationProfileV1
+    kind: newtype
+    of: String
+
+  # Required literal: "ekr.proposal-record/1". Runtime version dispatch enforces it.
+  - name: ekr.kernel.ProposalRecordFormatV1
+    kind: newtype
+    of: String
+
+  # Required literal: "ekr.validation-basis/1". Runtime version dispatch enforces it.
+  - name: ekr.kernel.ValidationBasisFormatV1
+    kind: newtype
+    of: String
+
+  # Required literal: "ekr.validation-receipt/1". Runtime version dispatch enforces it.
+  - name: ekr.kernel.ValidationReceiptFormatV1
+    kind: newtype
+    of: String
+
+  # Required literal: "ekr.validation-material/1". Runtime version dispatch enforces it.
+  - name: ekr.kernel.ValidationMaterialFormatV1
+    kind: newtype
+    of: String
+
+  # Required literal: "ekr.commit-receipt/1". Runtime version dispatch enforces it.
+  - name: ekr.kernel.CommitReceiptFormatV1
+    kind: newtype
+    of: String
+
+  # Required literal: "ekr.seed-result/1". Runtime version dispatch enforces it.
+  - name: ekr.kernel.SeedResultFormatV1
+    kind: newtype
+    of: String
+
+  # Required literal: "ekr.rejection-record/1". Runtime version dispatch enforces it.
+  - name: ekr.kernel.RejectionRecordFormatV1
+    kind: newtype
+    of: String
+
+  # Required literal: "ekr.stale-record/1". Runtime version dispatch enforces it.
+  - name: ekr.kernel.StaleRecordFormatV1
+    kind: newtype
+    of: String
+
+  # Required literal: "ekr.transaction-document/1". Runtime version dispatch enforces it.
+  - name: ekr.kernel.TransactionDocumentFormatV1
+    kind: newtype
+    of: String
+
+  # Required literal: "ekr-seed/2". Runtime version dispatch enforces it.
+  - name: ekr.kernel.SeedDocumentFormatV2
+    kind: newtype
+    of: String
+
+  # Required literal: "ekr-seed-envelope/2". Runtime version dispatch enforces it.
+  - name: ekr.kernel.SeedEnvelopeFormatV2
+    kind: newtype
+    of: String
+
+  # Required literal: "ekr.revision-event/2". Runtime version dispatch enforces it.
+  - name: ekr.kernel.RevisionEventFormatV2
+    kind: newtype
+    of: String
+
+  - name: ekr.kernel.RegisteredAgent
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.kernel.AgentId
+      - name: name
+        type: String
+      - name: capabilities
+        type: List<String>
+
+  - name: ekr.kernel.P1ValidationProfileV1
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.kernel.ValidationProfileFormatV1
+      - name: ruleset
+        type: ekr.kernel.RulesetV1
+      - name: checks
+        type: List<ekr.kernel.ValidatorName>
+      - name: validator
+        type: ekr.kernel.AgentId
+      - name: proposer_separation
+        type: ekr.kernel.ProposerSeparationV1
+      - name: provenance
+        type: ekr.kernel.ProvenanceProfileV1
+      - name: application
+        type: ekr.kernel.ApplicationProfileV1
+
+  - name: ekr.kernel.AuthorityStateV1
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.kernel.AuthorityStateFormatV1
+      - name: agents
+        type: Map<String, ekr.kernel.RegisteredAgent>
+      - name: validation_profile
+        type: ekr.kernel.P1ValidationProfileV1
+
+  - name: ekr.kernel.BootstrapContext
+    kind: struct
+    fields:
+      - name: operator
+        type: ekr.kernel.AgentId
+      - name: validator
+        type: ekr.kernel.AgentId
+
+  - name: ekr.kernel.SeedInputV2Projection
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.kernel.SeedDocumentFormatV2
+      - name: ontology
+        type: ekr.ontology.OntologyDocumentProjection
+      - name: graph
+        type: ekr.graph.GraphDocumentV2Projection
+      - name: evidence_payloads
+        type: Map<String, Bytes>
+
+  - name: ekr.kernel.SeedEnvelopeV2Projection
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.kernel.SeedEnvelopeFormatV2
+      - name: input
+        type: ekr.kernel.SeedInputV2Projection
+      - name: context
+        type: ekr.kernel.BootstrapContext
+      - name: authority
+        type: ekr.kernel.AuthorityStateV1
+      - name: committed_at
+        type: Timestamp
+
+  - name: ekr.kernel.ProposalRecordV1
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.kernel.ProposalRecordFormatV1
+      - name: event_id
+        type: ekr.kernel.EventId
+      - name: submitted_at
+        type: Timestamp
+      - name: submitter
+        type: ekr.kernel.AgentId
+      - name: document_hash
+        type: ekr.kernel.ContentHash
+      - name: document_bytes
+        type: Bytes
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: operation_count
+        type: Integer
+      - name: evidence_hash
+        type: ekr.kernel.ContentHash
+      - name: canonical_transaction_hash
+        type: Optional<ekr.kernel.ContentHash>
+      - name: canonical_operations_hash
+        type: Optional<ekr.kernel.ContentHash>
+
+  - name: ekr.kernel.ValidationBasisV1
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.kernel.ValidationBasisFormatV1
+      - name: graph_root_id
+        type: ekr.graph.GraphRootId
+      - name: previous_revision_id
+        type: ekr.kernel.RevisionId
+      - name: previous_event_id
+        type: ekr.kernel.EventId
+      - name: previous_record_hash
+        type: ekr.kernel.ContentHash
+      - name: previous_root
+        type: ekr.graph.RevisionRoot
+      - name: previous_root_hash
+        type: ekr.kernel.ContentHash
+      - name: seed_hash
+        type: ekr.kernel.ContentHash
+      - name: ontology_root
+        type: ekr.kernel.ContentHash
+      - name: authority_root
+        type: ekr.kernel.ContentHash
+      - name: validation_profile_hash
+        type: ekr.kernel.ContentHash
+
+  - name: ekr.kernel.ValidationReceiptV1
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.kernel.ValidationReceiptFormatV1
+      - name: event_id
+        type: ekr.kernel.EventId
+      - name: proposed_event_id
+        type: ekr.kernel.EventId
+      - name: proposal_record_hash
+        type: ekr.kernel.ContentHash
+      - name: transaction_hash
+        type: ekr.kernel.ContentHash
+      - name: operations_hash
+        type: ekr.kernel.ContentHash
+      - name: evidence_hash
+        type: ekr.kernel.ContentHash
+      - name: operation_count
+        type: Integer
+      - name: basis
+        type: ekr.kernel.ValidationBasisV1
+      - name: validators
+        type: List<ekr.kernel.AgentId>
+      - name: validated_at
+        type: Timestamp
+      - name: validation_hash
+        type: ekr.kernel.ContentHash
+
+  - name: ekr.kernel.CommitReceiptV1
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.kernel.CommitReceiptFormatV1
+      - name: event_id
+        type: ekr.kernel.EventId
+      - name: revision_id
+        type: ekr.kernel.RevisionId
+      - name: proposal
+        type: ekr.kernel.ProposalRecordV1
+      - name: validation
+        type: ekr.kernel.ValidationReceiptV1
+      - name: validation_record_hash
+        type: ekr.kernel.ContentHash
+      - name: committer
+        type: ekr.kernel.AgentId
+      - name: committed_at
+        type: Timestamp
+      - name: result
+        type: ekr.graph.RevisionRoot
+      - name: result_hash
+        type: ekr.kernel.ContentHash
+
+  - name: ekr.kernel.SeedResultV1
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.kernel.SeedResultFormatV1
+      - name: event_id
+        type: ekr.kernel.EventId
+      - name: revision_id
+        type: ekr.kernel.RevisionId
+      - name: seed_hash
+        type: ekr.kernel.ContentHash
+      - name: authority_root
+        type: ekr.kernel.ContentHash
+      - name: committed_at
+        type: Timestamp
+      - name: result
+        type: ekr.graph.RevisionRoot
+      - name: result_hash
+        type: ekr.kernel.ContentHash
+
+  - name: ekr.kernel.ValidationIssueRecord
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.kernel.IssueId
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: validator
+        type: ekr.kernel.ValidatorName
+      - name: code
+        type: String
+      - name: message
+        type: String
+
+  - name: ekr.kernel.RejectionRecordV1
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.kernel.RejectionRecordFormatV1
+      - name: event_id
+        type: ekr.kernel.EventId
+      - name: proposed_event_id
+        type: ekr.kernel.EventId
+      - name: proposal_record_hash
+        type: ekr.kernel.ContentHash
+      - name: requested_basis
+        type: ekr.kernel.ValidationBasisV1
+      - name: validator
+        type: ekr.kernel.AgentId
+      - name: rejected_at
+        type: Timestamp
+      - name: issues
+        type: List<ekr.kernel.ValidationIssueRecord>
+
+  - name: ekr.kernel.StaleRecordV1
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.kernel.StaleRecordFormatV1
+      - name: event_id
+        type: ekr.kernel.EventId
+      - name: validation_record_hash
+        type: ekr.kernel.ContentHash
+      - name: expected_basis
+        type: ekr.kernel.ValidationBasisV1
+      - name: observed_revision_id
+        type: ekr.kernel.RevisionId
+      - name: observed_event_id
+        type: ekr.kernel.EventId
+      - name: observed_record_hash
+        type: ekr.kernel.ContentHash
+      - name: observed_root
+        type: ekr.graph.RevisionRoot
+      - name: observed_root_hash
+        type: ekr.kernel.ContentHash
+      - name: stale_at
+        type: Timestamp
+
+  # Canonical transaction projection only. The transient input is exactly the full typed Rust
+  # GraphTransaction<Value> inside the retained YAML document; no JSON/Decimal coercion occurs.
+  - name: ekr.kernel.NodeDraftProjection
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: root_id
+        type: ekr.graph.GraphRootId
+      - name: type_id
+        type: ekr.ontology.TypeId
+      - name: canonical_name
+        type: String
+      - name: properties
+        type: Map<String, List<ekr.graph.TypedValue>>
+
+  - name: ekr.kernel.PropertyMutationProjection
+    kind: struct
+    fields:
+      - name: node
+        type: ekr.graph.NodeId
+      - name: property
+        type: ekr.ontology.PropertyId
+      - name: values
+        type: List<ekr.graph.TypedValue>
+
+  - name: ekr.kernel.EdgeDraftProjection
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.EdgeId
+      - name: root_id
+        type: ekr.graph.GraphRootId
+      - name: type_id
+        type: ekr.ontology.TypeId
+      - name: source
+        type: ekr.graph.NodeId
+      - name: target
+        type: ekr.graph.NodeId
+      - name: properties
+        type: Map<String, List<ekr.graph.TypedValue>>
+
+  - name: ekr.kernel.Retraction
+    kind: struct
+    fields:
+      - name: assertion
+        type: ekr.graph.AssertionId
+      - name: reason
+        type: String
+
+  - name: ekr.kernel.Supersession
+    kind: struct
+    fields:
+      - name: assertion
+        type: ekr.graph.AssertionId
+      - name: by
+        type: ekr.graph.AssertionId
+      - name: effective_from
+        type: Timestamp
+
+  - name: ekr.kernel.EntityMerge
+    kind: struct
+    fields:
+      - name: absorbed
+        type: ekr.graph.NodeId
+      - name: into
+        type: ekr.graph.NodeId
+
+  - name: ekr.kernel.InvocationProjection
+    kind: struct
+    fields:
+      - name: node
+        type: ekr.graph.NodeId
+      - name: operation
+        type: String
+      - name: arguments
+        type: Map<String, ekr.graph.TypedValue>
+
+  - name: ekr.kernel.CanonicalOperationProjection
+    kind: union
+    tag: kind
+    variants:
+      CreateNode: ekr.kernel.NodeDraftProjection
+      UpdateProperty: ekr.kernel.PropertyMutationProjection
+      CreateEdge: ekr.kernel.EdgeDraftProjection
+      DeleteEdge: ekr.graph.EdgeId
+      AddAssertion: ekr.graph.AssertionRecord
+      RetractAssertion: ekr.kernel.Retraction
+      DefineNodeType: ekr.ontology.NodeTypeDeclaration
+      DefineEdgeType: ekr.ontology.EdgeTypeDeclaration
+      ModifyProperty: ekr.ontology.PropertyDeclaration
+      MergeEntity: ekr.kernel.EntityMerge
+      Invoke: ekr.kernel.InvocationProjection
+      SupersedeAssertion: ekr.kernel.Supersession
+
+  - name: ekr.kernel.CanonicalTransactionProjection
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.kernel.TransactionId
+      - name: proposer
+        type: ekr.kernel.AgentId
+      - name: operations
+        type: List<ekr.kernel.CanonicalOperationProjection>
+      - name: evidence
+        type: List<ekr.graph.EvidenceId>
+
+  - name: ekr.kernel.ValidationMaterialV1Projection
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.kernel.ValidationMaterialFormatV1
+      - name: transaction
+        type: ekr.kernel.CanonicalTransactionProjection
+      - name: basis
+        type: ekr.kernel.ValidationBasisV1
+      - name: validators
+        type: List<ekr.kernel.AgentId>
+
+  - name: ekr.kernel.SeededPayload
+    kind: struct
+    fields:
+      - name: revision_id
+        type: ekr.kernel.RevisionId
+      - name: seed_hash
+        type: ekr.kernel.ContentHash
+
+  - name: ekr.kernel.ProposedPayload
+    kind: struct
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: proposer
+        type: ekr.kernel.AgentId
+      - name: operations_hash
+        type: Optional<ekr.kernel.ContentHash>
+
+  - name: ekr.kernel.ValidatedPayload
+    kind: struct
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: against
+        type: ekr.kernel.RevisionNumber
+      - name: validation_hash
+        type: ekr.kernel.ContentHash
+
+  - name: ekr.kernel.RejectedPayload
+    kind: struct
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: issues
+        type: Integer
+
+  - name: ekr.kernel.StalePayload
+    kind: struct
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: validated_against
+        type: ekr.kernel.RevisionNumber
+      - name: current
+        type: ekr.kernel.RevisionNumber
+
+  - name: ekr.kernel.CommittedPayload
+    kind: struct
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: revision_id
+        type: ekr.kernel.RevisionId
+      - name: number
+        type: ekr.kernel.RevisionNumber
+      - name: knowledge_root
+        type: ekr.kernel.ContentHash
+
+  - name: ekr.kernel.RevisionPayload
+    kind: union
+    tag: kind
+    variants:
+      Seeded: ekr.kernel.SeededPayload
+      TransactionProposed: ekr.kernel.ProposedPayload
+      TransactionValidated: ekr.kernel.ValidatedPayload
+      TransactionRejected: ekr.kernel.RejectedPayload
+      TransactionStale: ekr.kernel.StalePayload
+      RevisionCommitted: ekr.kernel.CommittedPayload
+
+  - name: ekr.kernel.RevisionEventV2
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.kernel.RevisionEventFormatV2
+      - name: event_id
+        type: ekr.kernel.EventId
+      - name: record_hash
+        type: ekr.kernel.ContentHash
+      - name: payload
+        type: ekr.kernel.RevisionPayload
 
 entities:
   # Design § 18. TrustProfile (§ 48) is a P5 concern and is not typed here yet.
@@ -86,8 +648,8 @@ entities:
       states: [Registered]
       terminal: [Registered]
 
-  # Design § 19. The operations themselves travel as content-addressed bytes; the kernel holds
-  # their hash and count, and the issues validation raised.
+  # §91. The retained exact document is authoritative. Canonical hashes are absent for a
+  # well-formed proposal whose values are not canonical; the count and evidence hash are derived.
   - name: ekr.kernel.GraphTransaction
     identity:
       name: transaction_id
@@ -95,15 +657,27 @@ entities:
     fields:
       - name: proposer
         type: ekr.kernel.AgentId
-      - name: operations_hash
+      - name: document_hash
         type: ekr.kernel.ContentHash
+      - name: proposal_record_hash
+        type: ekr.kernel.ContentHash
+      - name: canonical_transaction_hash
+        type: Optional<ekr.kernel.ContentHash>
+      - name: canonical_operations_hash
+        type: Optional<ekr.kernel.ContentHash>
       - name: operation_count
         type: Integer
       - name: evidence_hash
         type: ekr.kernel.ContentHash
+      - name: validation_basis
+        type: Optional<ekr.kernel.ValidationBasisV1>
       - name: validated_against
         type: Optional<ekr.kernel.RevisionNumber>
       - name: validation_hash
+        type: Optional<ekr.kernel.ContentHash>
+      - name: validation_record_hash
+        type: Optional<ekr.kernel.ContentHash>
+      - name: terminal_record_hash
         type: Optional<ekr.kernel.ContentHash>
     invariants:
       - operation_count >= 1
@@ -219,7 +793,7 @@ errors:
         type: String
 
   - name: ekr.kernel.AlreadySeeded
-    summary: The store already holds a revision; a seed is accepted once.
+    summary: A retained seed exists but its full parsed input, actual bootstrap context or trusted host authority anchor differs; an exact logical retry returns its retained result.
     fields:
       - name: current
         type: ekr.kernel.RevisionNumber
@@ -255,8 +829,11 @@ commands:
       wire: seed
       display: Load the seed
     input:
-      - name: seed_hash
-        type: ekr.kernel.ContentHash
+      - name: seed_document
+        type: ekr.kernel.SeedDocumentPath
+    response:
+      - name: result
+        type: ekr.kernel.SeedResultV1
     outcomes:
       - name: seeded
         creates: ekr.kernel.Revision
@@ -265,13 +842,19 @@ commands:
           - ekr.kernel.Seeded
         payload:
           ekr.kernel.Seeded:
-            seed_hash: input.seed_hash
-        # Populated ontology_root hashing remains unexecuted until the durable-writer story.
-        summary: Revision 0 exists with no parent; the admitted seed retains its full ontology.
+            event_id: {generated: true}
+            record_hash: {generated: true}
+            revision_id: {generated: true}
+            seed_hash: {generated: true}
+        summary: Revision0 and its complete retained seed result exist atomically; real ontology and authority roots have no placeholders.
       - name: already-seeded
-        external: a committed revision already exists
+        external: a retained seed exists and its parsed full Seed2 input or actual BootstrapContext or trusted host AuthorityStateV1 anchor differs
         error: ekr.kernel.AlreadySeeded
-        summary: Nothing was written; the store keeps its lineage.
+        summary: Nothing was written; compare retained typed input and actual trusted context before allocating an occurrence or sampling time. YAML whitespace alone is not a different logical seed.
+      - name: retained-seed
+        external: a retained seed has the same full parsed Seed2 input, actual BootstrapContext and trusted host AuthorityStateV1 anchor
+        replays: seeded
+        summary: Return the original SeedResultV1 and preserve its original Revision, including after head advancement; allocate no new occurrence, sample no new time and write nothing.
       - name: invalid-seed
         external: deterministic bootstrap validation refuses the seed
         error: ekr.kernel.InvalidSeed
@@ -283,34 +866,26 @@ commands:
       wire: propose
       display: Propose a transaction
     input:
-      - name: proposer
-        type: ekr.kernel.AgentId
-      - name: operations_hash
-        type: ekr.kernel.ContentHash
-      - name: operation_count
-        type: Integer
-      - name: evidence_hash
-        type: ekr.kernel.ContentHash
+      - name: transaction_document
+        type: ekr.kernel.TransactionDocumentPath
     outcomes:
       - name: proposed
-        when: operation_count >= 1
         creates: ekr.kernel.GraphTransaction
         instance: transaction_id
         emits:
           - ekr.kernel.TransactionProposed
         payload:
           ekr.kernel.TransactionProposed:
-            proposer: input.proposer
-            operations_hash: input.operations_hash
-        sets:
-          proposer: input.proposer
-          operations_hash: input.operations_hash
-          operation_count: input.operation_count
-          evidence_hash: input.evidence_hash
-        summary: The transaction exists in Proposed; nothing canonical changed.
+            event_id: {generated: true}
+            record_hash: {generated: true}
+            transaction_id: {generated: true}
+            proposer: {generated: true}
+            operations_hash: {generated: true}
+        summary: Exact document bytes and trusted submitter are retained; nothing canonical changed.
       - name: malformed
+        external: strict document parsing or structural admission refuses before recording
         error: ekr.kernel.StructurallyInvalid
-        summary: The proposal had no operations or did not parse; nothing was recorded.
+        summary: Unknown versions, malformed documents and empty operation lists record nothing.
 
   # Design § 20. Deterministic validators 1–7 run against one snapshot; the revision they ran
   # against is recorded so Commit can notice movement.
@@ -331,8 +906,11 @@ commands:
           - ekr.kernel.TransactionValidated
         payload:
           ekr.kernel.TransactionValidated:
+            event_id: {generated: true}
+            record_hash: {generated: true}
             transaction_id: input.transaction_id
             against: input.against
+            validation_hash: {generated: true}
         sets:
           validated_against: input.against
         summary: Every validator passed against the named revision; the transaction is Validated.
@@ -344,8 +922,15 @@ commands:
           - ekr.kernel.TransactionRejected
         payload:
           ekr.kernel.TransactionRejected:
+            event_id: {generated: true}
+            record_hash: {generated: true}
             transaction_id: input.transaction_id
+            issues: {generated: true}
         summary: At least one validator raised an issue; the issues are recorded and the transaction is Rejected.
+      - name: revision-not-found
+        external: the transaction is Proposed and no committed revision carries input.against
+        error: ekr.kernel.RevisionNotFound
+        summary: Leave the transaction Proposed with no validation or rejection receipt or event; an older existing revision is still a valid basis and may become Stale only at Commit.
       - name: wrong-state
         wrong_state: true
         error: ekr.kernel.TransactionStateConflict
@@ -360,15 +945,24 @@ commands:
     input:
       - name: transaction_id
         type: ekr.kernel.TransactionId
+    response:
+      - name: result
+        type: ekr.kernel.CommitReceiptV1
     outcomes:
       - name: committed
+        when_subject_state: Validated
         moves: ekr.kernel.GraphTransaction.commit
         instance: transaction_id
         emits:
           - ekr.kernel.RevisionCommitted
         payload:
           ekr.kernel.RevisionCommitted:
+            event_id: {generated: true}
+            record_hash: {generated: true}
             transaction_id: input.transaction_id
+            revision_id: {generated: true}
+            number: {generated: true}
+            knowledge_root: {generated: true}
         summary: A new immutable revision exists whose parent is the one validated against.
       - name: stale
         external: the canonical revision moved since the transaction was validated
@@ -378,12 +972,19 @@ commands:
           - ekr.kernel.TransactionStale
         payload:
           ekr.kernel.TransactionStale:
+            event_id: {generated: true}
+            record_hash: {generated: true}
             transaction_id: input.transaction_id
+            validated_against: {generated: true}
+            current: {generated: true}
         summary: Canonical state moved since validation; nothing committed and the transaction is Stale.
+      - name: retained-commit
+        when_subject_state: Committed
+        replays: committed
+        summary: Return this transaction's original CommitReceiptV1, including after head advancement; preserve the transaction and publish no event or object.
       - name: wrong-state
-        wrong_state: true
         error: ekr.kernel.TransactionStateConflict
-        summary: The transaction is not Validated, so nothing committed.
+        summary: Proposed, Rejected and Stale transactions refuse without a commit, event or subject change.
 
   # Design § 71. A read over an immutable revision; the default is the newest.
   - name: ekr.kernel.Snapshot
@@ -397,6 +998,10 @@ commands:
       - name: taken
         emits:
           - ekr.kernel.SnapshotTaken
+        payload:
+          ekr.kernel.SnapshotTaken:
+            number: {generated: true}
+            knowledge_root: {generated: true}
         summary: The snapshot is consistent as of one revision and records which.
       - name: not-found
         external: no revision carries the requested number
@@ -418,15 +1023,23 @@ commands:
         payload:
           ekr.kernel.Explained:
             assertion_id: input.assertion_id
+            links: {generated: true}
         summary: The chain from the assertion to its external sources, one link per line.
       - name: not-found
         external: the canonical core holds no such assertion
         error: ekr.kernel.AssertionNotFound
         summary: Nothing was explained.
 
+# The six durable event declarations flatten only the envelope's event_id/record_hash plus its
+# named metadata payload for command/view projection. The actual strict wire envelope is
+# RevisionEventV2; record_hash selects the corresponding full retained record (§91).
 events:
   - name: ekr.kernel.Seeded
     fields:
+      - name: event_id
+        type: ekr.kernel.EventId
+      - name: record_hash
+        type: ekr.kernel.ContentHash
       - name: revision_id
         type: ekr.kernel.RevisionId
       - name: seed_hash
@@ -434,15 +1047,23 @@ events:
 
   - name: ekr.kernel.TransactionProposed
     fields:
+      - name: event_id
+        type: ekr.kernel.EventId
+      - name: record_hash
+        type: ekr.kernel.ContentHash
       - name: transaction_id
         type: ekr.kernel.TransactionId
       - name: proposer
         type: ekr.kernel.AgentId
       - name: operations_hash
-        type: ekr.kernel.ContentHash
+        type: Optional<ekr.kernel.ContentHash>
 
   - name: ekr.kernel.TransactionValidated
     fields:
+      - name: event_id
+        type: ekr.kernel.EventId
+      - name: record_hash
+        type: ekr.kernel.ContentHash
       - name: transaction_id
         type: ekr.kernel.TransactionId
       - name: against
@@ -452,6 +1073,10 @@ events:
 
   - name: ekr.kernel.TransactionRejected
     fields:
+      - name: event_id
+        type: ekr.kernel.EventId
+      - name: record_hash
+        type: ekr.kernel.ContentHash
       - name: transaction_id
         type: ekr.kernel.TransactionId
       - name: issues
@@ -459,6 +1084,10 @@ events:
 
   - name: ekr.kernel.TransactionStale
     fields:
+      - name: event_id
+        type: ekr.kernel.EventId
+      - name: record_hash
+        type: ekr.kernel.ContentHash
       - name: transaction_id
         type: ekr.kernel.TransactionId
       - name: validated_against
@@ -468,6 +1097,10 @@ events:
 
   - name: ekr.kernel.RevisionCommitted
     fields:
+      - name: event_id
+        type: ekr.kernel.EventId
+      - name: record_hash
+        type: ekr.kernel.ContentHash
       - name: transaction_id
         type: ekr.kernel.TransactionId
       - name: revision_id
@@ -492,6 +1125,68 @@ events:
         type: Integer
 
 views:
+  # All retained states, including Committed, Rejected and Stale, reconstructed from real records.
+  # This query is an ESS read surface, not a seventh P1 CLI command.
+  - name: ekr.kernel.Transactions
+    source: ekr.kernel.GraphTransaction
+    consistency: read_your_writes
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: proposer
+        type: ekr.kernel.AgentId
+      - name: document_hash
+        type: ekr.kernel.ContentHash
+      - name: proposal_record_hash
+        type: ekr.kernel.ContentHash
+      - name: canonical_transaction_hash
+        type: Optional<ekr.kernel.ContentHash>
+      - name: canonical_operations_hash
+        type: Optional<ekr.kernel.ContentHash>
+      - name: operation_count
+        type: Integer
+      - name: evidence_hash
+        type: ekr.kernel.ContentHash
+      - name: validation_basis
+        type: Optional<ekr.kernel.ValidationBasisV1>
+      - name: validated_against
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: validation_hash
+        type: Optional<ekr.kernel.ContentHash>
+      - name: validation_record_hash
+        type: Optional<ekr.kernel.ContentHash>
+      - name: terminal_record_hash
+        type: Optional<ekr.kernel.ContentHash>
+      - name: state
+        type: ekr.kernel.GraphTransaction.State
+
+  # Complete immutable revisions, including the original seed after later commits.
+  # Replay observation selects the original emitted identity; this adds no CLI verb.
+  - name: ekr.kernel.Revisions
+    source: ekr.kernel.Revision
+    consistency: read_your_writes
+    fields:
+      - name: revision_id
+        type: ekr.kernel.RevisionId
+      - name: number
+        type: ekr.kernel.RevisionNumber
+      - name: parent
+        type: Optional<ekr.kernel.RevisionId>
+      - name: ontology_root
+        type: ekr.kernel.ContentHash
+      - name: knowledge_root
+        type: ekr.kernel.ContentHash
+      - name: evidence_root
+        type: ekr.kernel.ContentHash
+      - name: agent_root
+        type: ekr.kernel.ContentHash
+      - name: transaction_id
+        type: Optional<ekr.kernel.TransactionId>
+      - name: committed_at
+        type: Timestamp
+      - name: state
+        type: ekr.kernel.Revision.State
+
   - name: ekr.kernel.CurrentRevision
     source: ekr.kernel.Revision
     consistency: read_your_writes

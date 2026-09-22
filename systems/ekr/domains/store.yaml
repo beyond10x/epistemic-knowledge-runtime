@@ -78,6 +78,7 @@ events:
   #
   # `from` and `to` are both carried so a reader can see the ladder was climbed and not descended.
   - name: ekr.store.ObjectRetentionRaised
+    # Unchanged event: backend schema1 remains the exact current discriminator.
     fields:
       - name: content_hash
         type: ekr.kernel.ContentHash
@@ -93,6 +94,14 @@ events:
   # `content_hash` is redundant with the stream this event is read from, and is carried for the
   # reason the raise carries it: a body that only makes sense beside its stream stops making sense
   # the moment anything exports one.
+  # §89/91 activation: bytes are atomically published through provider blob bindings addressed
+  # by content_hash. This event is metadata only; standalone put-then-append is not an atomic
+  # publication. Generic storage carries no kernel receipt or validation-authority semantics.
+  # Metadata-only ObjectStored uses backend schema2. Original inline ObjectStored/schema1
+  # is frozen verification/migration-only after activation. Dispatch by exact event name and
+  # backend schema; refuse unknown versions, inline/schema2, metadata/schema1, extra/missing
+  # semantic fields and mismatched/missing blob bindings. Do not infer a format from bytes absence.
+  # ObjectRetentionRaised stays schema1; this is a per-event version rule, not a blanket bump.
   - name: ekr.store.ObjectStored
     fields:
       - name: content_hash
@@ -103,8 +112,3 @@ events:
         type: Integer
       - name: stored_at
         type: Timestamp
-      # ess/1 has no byte-string type and this is the first declaration in this system that
-      # needs one, so a byte is carried as an Integer with nothing saying it is one of 256.
-      # task:ess-has-no-byte-string-type carries what would close it.
-      - name: bytes
-        type: List<Integer>

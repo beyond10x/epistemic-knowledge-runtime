@@ -23,19 +23,9 @@ types:
     kind: newtype
     of: Uuid
 
-  # Design § 11.3 `ValueType`, by kind. Two of the compound kinds carry their parameters on
-  # PropertyDefinition below: a NodeRef's allowed types as `ref_allowed_types`, an Enum's variants
-  # as `enum_variants`. Both flatten because their parameter is a list of ids or of names.
-  #
-  # A List's element type and a Record's field types do not flatten: each is itself a ValueType,
-  # and `ess/1` has no recursive type. So this document declares no carrier for them, and a List
-  # or Record property type has no representation here — while `ekr-ontology` constructs and loads
-  # one. That gap is `task:ess-domain-carries-compound-value-types`, which must be settled no later
-  # than P3, the first wave whose store persists a PropertyDefinition.
-  #
-  # This comment claimed all four kinds were carried until 2026-09-21. The adversary of wave p1-03
-  # found the claim by comparing the document with the crate, which nothing else does: `ess specify
-  # validate` checks this document against itself, and the suite checks the crate against itself.
+  # Design §11.3. ValueTypeProjection below now retains recursive List and Record parameters;
+  # the former assertion that ESS cannot express recursion was incorrect. Float is a legal
+  # declaration/proposed value kind, while canonical graph values exclude it (ADR0005).
   - name: ekr.ontology.ValueKind
     kind: enum
     variants:
@@ -78,13 +68,121 @@ types:
       - name: name
         type: String
       - name: arguments
-        type: Map<String, ekr.ontology.ValueKind>
+        type: Map<String, ekr.ontology.ValueTypeProjection>
       - name: preconditions
         type: List<String>
       - name: transition
         type: Optional<ekr.ontology.Transition>
       - name: emits
         type: List<String>
+
+  # Complete ontology input for §91's root: even unused declarations and every semantic field
+  # contribute. Declaration collections are encoded by stable id, sets are unique and sorted,
+  # property-map keys agree with nested ids, operation-map keys agree with names. ValueType's
+  # optional payload is present only for its exact kind; runtime coherence tests are required.
+  # Constraint/precondition strings acquire no newly invented interpretation here; unsupported
+  # expressions continue to refuse before a transaction is sealed.
+  - name: ekr.ontology.ValueTypeProjection
+    kind: struct
+    fields:
+      - name: kind
+        type: ekr.ontology.ValueKind
+      - name: allowed_types
+        type: Optional<List<ekr.ontology.TypeId>>
+      - name: variants
+        type: Optional<List<String>>
+      - name: element
+        type: Optional<ekr.ontology.ValueTypeProjection>
+      - name: fields
+        type: Optional<Map<String, ekr.ontology.ValueTypeProjection>>
+
+  - name: ekr.ontology.SchemaVersionRecord
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.ontology.SchemaVersionId
+      - name: number
+        type: Integer
+      - name: parent
+        type: Optional<ekr.ontology.SchemaVersionId>
+      - name: created_at
+        type: Timestamp
+
+  - name: ekr.ontology.PropertyDeclaration
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.ontology.PropertyId
+      - name: name
+        type: String
+      - name: value_type
+        type: ekr.ontology.ValueTypeProjection
+      - name: cardinality
+        type: ekr.ontology.Cardinality
+      - name: required
+        type: Boolean
+      - name: constraints
+        type: List<String>
+
+  - name: ekr.ontology.LifecycleDeclaration
+    kind: struct
+    fields:
+      - name: initial
+        type: String
+      - name: states
+        type: List<String>
+      - name: transitions
+        type: List<ekr.ontology.Transition>
+
+  - name: ekr.ontology.NodeTypeDeclaration
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.ontology.TypeId
+      - name: name
+        type: String
+      - name: parents
+        type: List<ekr.ontology.TypeId>
+      - name: properties
+        type: Map<String, ekr.ontology.PropertyDeclaration>
+      - name: abstract_type
+        type: Boolean
+      - name: lifecycle
+        type: Optional<ekr.ontology.LifecycleDeclaration>
+      - name: operations
+        type: Map<String, ekr.ontology.OperationDefinition>
+
+  - name: ekr.ontology.EdgeTypeDeclaration
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.ontology.TypeId
+      - name: name
+        type: String
+      - name: source_types
+        type: List<ekr.ontology.TypeId>
+      - name: target_types
+        type: List<ekr.ontology.TypeId>
+      - name: cardinality
+        type: ekr.ontology.Cardinality
+      - name: properties
+        type: Map<String, ekr.ontology.PropertyDeclaration>
+      - name: inverse
+        type: Optional<ekr.ontology.TypeId>
+      - name: symmetric
+        type: Boolean
+      - name: transitive
+        type: Boolean
+
+  - name: ekr.ontology.OntologyDocumentProjection
+    kind: struct
+    fields:
+      - name: version
+        type: ekr.ontology.SchemaVersionRecord
+      - name: node_types
+        type: List<ekr.ontology.NodeTypeDeclaration>
+      - name: edge_types
+        type: List<ekr.ontology.EdgeTypeDeclaration>
 
 entities:
   # Design § 69 `SchemaRegistry`. One version is canonical at a time; P1 has exactly the seed.
@@ -190,12 +288,8 @@ entities:
         type: ekr.ontology.TypeId
       - name: name
         type: String
-      - name: value_kind
-        type: ekr.ontology.ValueKind
-      - name: ref_allowed_types
-        type: List<ekr.ontology.TypeId>
-      - name: enum_variants
-        type: List<String>
+      - name: value_type
+        type: ekr.ontology.ValueTypeProjection
       - name: cardinality
         type: ekr.ontology.Cardinality
       - name: required
