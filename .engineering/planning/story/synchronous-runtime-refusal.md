@@ -13,8 +13,10 @@ scope:
 - confidence: cited
   path: crates/ekr-store/src/lib.rs
 - confidence: inferred
+  path: crates/ekr-store/tests/adversary_runtime_context.rs
+- confidence: inferred
   path: crates/ekr-store/tests/runtime_context.rs
-revision: 6
+revision: 7
 ---
 ## Outcome
 

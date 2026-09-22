@@ -33,13 +33,21 @@ scope:
 - confidence: cited
   path: crates/ekr-graph/tests/revision_events.rs
 - confidence: cited
+  path: crates/ekr-kernel/tests/validation.rs
+- confidence: cited
   path: crates/ekr-ontology/tests/domain_projection.rs
 - confidence: cited
   path: crates/ekr-ontology/tests/inheritance_and_declaration_coherence.rs
 - confidence: cited
+  path: crates/ekr-ontology/tests/value_type_checking.rs
+- confidence: cited
   path: crates/ekr-store/tests/adversary2_retention_event_contract.rs
+- confidence: inferred
+  path: crates/ekr-store/tests/document_refusals.rs
 - confidence: cited
   path: crates/ekr-store/tests/domain_projection.rs
+- confidence: cited
+  path: crates/ekr-store/tests/providers.rs
 - confidence: cited
   path: crates/ekr/tests/adversary_docs_contract.rs
 - confidence: cited
@@ -52,7 +60,7 @@ scope:
   path: crates/ekr/tests/temporal_reads.rs
 - confidence: cited
   path: xtask/src/main.rs
-revision: 25
+revision: 29
 ---
 ## Outcome
 
