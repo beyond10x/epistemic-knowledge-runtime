@@ -7,7 +7,7 @@ title: Align ESS command inputs and observable transaction states with the real 
 relations:
 - derived_from: story:ess-conformance-kernel
 - blocks: story:ekr-cli
-revision: 1
+revision: 2
 ---
 ## Measured prerequisites for executable conformance
 
@@ -20,3 +20,26 @@ The existing PendingTransactions view hides terminal states. The synthesis refus
 External outcome controls must establish real circumstances: invalid seed input, a genuinely invalid proposed transaction, an intervening commit for staleness, or an actually missing identity. Report only observed kernel outcomes and persisted/read-back records. Never return the selected expected outcome from a control flag. Preserve actor authority outside the proposal payload.
 
 Mutation evidence must show a named scenario fails when a kernel behavior is broken. All declared scenarios must execute and pass; no silent target skips. Add the pinned ESS library dependencies and test-runner entry point explicitly to story scope; the old assertion that no dependency is needed is false (crates/ekr/Cargo.toml declares none).
+
+## Concrete document and transaction-view scope
+
+The read-only story-scoper's measured report is retained at
+`.engineering/waves/p1-conformance-document-contract.md`, with an explicitly
+unapplied candidate patch beside it. Its reported synthesis changes the original
+four refusals to executable obligations by introducing a retained Transactions
+view and real document-path inputs. This is synthesis evidence, not runtime
+execution. The complete generated inventory must remain alongside authored cases.
+
+Implement the approved Seed and Propose verbs through one shared document handler:
+parse the actual versioned payload, bind independent host identity, and derive
+hashes/counts from it. Do not let the conformance target translate placeholder
+hashes, overwrite retained proposals, remap revision numbers or fabricate outcomes.
+Fixture arrangements must create real rejection/staleness circumstances, and the
+Transactions view must read retained kernel records after terminal outcomes and
+restart. This is also a writer prerequisite; adapter-only state is insufficient.
+
+The measured patch is not yet adopted. Reconcile its opening seed format and
+outdated seed-root summary with the completed seed and persisted-contract work
+before editing the normative ESS. Known-fixture hash/readback assertions and the
+named mutations in the report must execute through the actual ESS Runner before
+this task can close.

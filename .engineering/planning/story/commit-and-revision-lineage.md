@@ -20,7 +20,7 @@ scope:
   path: crates/ekr-kernel/src/revision.rs
 - confidence: inferred
   path: crates/ekr-kernel/tests/replay.rs
-revision: 7
+revision: 8
 ---
 ## Context
 
@@ -67,3 +67,20 @@ are serialised: one writer, the kernel. Adds no dependency beyond the skeleton's
 The earlier scope sentence requiring MergeEntity application is superseded by the approved phase boundary: explicit merge/split semantics arrive in P3; schema evolution arrives in P5. P1 refuses these operations instead of certifying them. Ordinary graph changes, declared lifecycle operations, retraction and supersession are in scope.
 
 The earlier reference to active() is obsolete. Acceptance is expressed through snapshot revision and valid time. Populated ontology state must contribute its canonical content to ontology_root. An actually absent agent registry may use a specified empty root; populated agent/validator state must be bound once introduced. All persisted shape changes require an explicit version and a preserving migration path, which refuses unreconstructable history.
+
+## Retained submission and result records
+
+The concrete conformance scope in
+`.engineering/waves/p1-conformance-document-contract.md` requires a retained
+Transactions read surface across Proposed, Validated, Committed, Rejected and
+Stale. The writer retains the submitted operation payload, authenticated proposer,
+derived operation count and hashes, validation basis and resulting decision; a
+target-local map cannot supply those facts after restart. CLI and conformance
+must use the same real document handler and kernel reads. The report records
+synthesis only; runtime execution remains unexecuted.
+
+Initialization and every commit must return the result of their own occurrence,
+including after a lost response, rather than a later head published by another
+writer. The seed implementation's current initialize-then-head sequence is a
+specific surface to reconsider when concurrent ordinary publication becomes real;
+this is a static future-writer concern, not a reproduced seed failure.

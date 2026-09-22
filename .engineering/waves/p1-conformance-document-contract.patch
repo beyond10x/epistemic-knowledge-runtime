@@ -1,0 +1,101 @@
+--- systems/ekr/domains/kernel.yaml
++++ proposal/domains/kernel.yaml
+@@ -35,6 +35,14 @@
+     kind: newtype
+     of: String
+ 
++  - name: ekr.kernel.SeedDocumentPath
++    kind: newtype
++    of: String
++
++  - name: ekr.kernel.TransactionDocumentPath
++    kind: newtype
++    of: String
++
+   # Design § 19 `GraphOperation`, plus `Invoke` from amendment 87.
+   - name: ekr.kernel.OperationKind
+     kind: enum
+@@ -253,17 +261,14 @@
+       wire: seed
+       display: Load the seed
+     input:
+-      - name: seed_hash
+-        type: ekr.kernel.ContentHash
++      - name: seed_document
++        type: ekr.kernel.SeedDocumentPath
+     outcomes:
+       - name: seeded
+         creates: ekr.kernel.Revision
+         instance: revision_id
+         emits:
+           - ekr.kernel.Seeded
+-        payload:
+-          ekr.kernel.Seeded:
+-            seed_hash: input.seed_hash
+         summary: Revision 0 exists; its ontology root is the seed's ontology and it has no parent.
+       - name: already-seeded
+         external: a committed revision already exists
+@@ -280,32 +285,17 @@
+       wire: propose
+       display: Propose a transaction
+     input:
+-      - name: proposer
+-        type: ekr.kernel.AgentId
+-      - name: operations_hash
+-        type: ekr.kernel.ContentHash
+-      - name: operation_count
+-        type: Integer
+-      - name: evidence_hash
+-        type: ekr.kernel.ContentHash
++      - name: transaction_document
++        type: ekr.kernel.TransactionDocumentPath
+     outcomes:
+       - name: proposed
+-        when: operation_count >= 1
+         creates: ekr.kernel.GraphTransaction
+         instance: transaction_id
+         emits:
+           - ekr.kernel.TransactionProposed
+-        payload:
+-          ekr.kernel.TransactionProposed:
+-            proposer: input.proposer
+-            operations_hash: input.operations_hash
+-        sets:
+-          proposer: input.proposer
+-          operations_hash: input.operations_hash
+-          operation_count: input.operation_count
+-          evidence_hash: input.evidence_hash
+         summary: The transaction exists in Proposed; nothing canonical changed.
+       - name: malformed
++        external: the supplied transaction document fails parsing or structural validation
+         error: ekr.kernel.StructurallyInvalid
+         summary: The proposal had no operations or did not parse; nothing was recorded.
+ 
+@@ -489,6 +479,27 @@
+         type: Integer
+ 
+ views:
++  - name: ekr.kernel.Transactions
++    source: ekr.kernel.GraphTransaction
++    consistency: read_your_writes
++    fields:
++      - name: transaction_id
++        type: ekr.kernel.TransactionId
++      - name: proposer
++        type: ekr.kernel.AgentId
++      - name: operations_hash
++        type: ekr.kernel.ContentHash
++      - name: operation_count
++        type: Integer
++      - name: evidence_hash
++        type: ekr.kernel.ContentHash
++      - name: validated_against
++        type: Optional<ekr.kernel.RevisionNumber>
++      - name: validation_hash
++        type: Optional<ekr.kernel.ContentHash>
++      - name: state
++        type: ekr.kernel.GraphTransaction.State
++
+   - name: ekr.kernel.CurrentRevision
+     source: ekr.kernel.Revision
+     consistency: read_your_writes
