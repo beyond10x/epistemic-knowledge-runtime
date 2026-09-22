@@ -22,8 +22,8 @@ use ekr_core::{
     Timestamp, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalGraph, CanonicalRef, GraphRoot, GraphSnapshot, Object, Predicate, Space,
-    Subject, TemporalRange, TransactionTime, ValidationState,
+    Assertion, AssertionLifecycle, Assessment, CanonicalGraph, CanonicalRef, GraphRoot,
+    GraphSnapshot, Object, Predicate, Space, Subject, TemporalRange, TransactionTime,
 };
 use ekr_ontology::{Ontology, OntologyDocument, SchemaVersion};
 
@@ -160,7 +160,7 @@ fn type_region(type_name: &str) -> String {
     region
 }
 
-/// Whether `line` opens the declaration of `type_name` or an inherent `impl` block on it.
+/// Whether `line` opens the declaration of `type_name` or an implementation on it.
 ///
 /// A match on the head rather than on three literal strings, because
 /// `architecture-decision-record:0005-float-is-not-canonical`, as amended, made `Node`, `Edge`,
@@ -169,9 +169,10 @@ fn type_region(type_name: &str) -> String {
 /// neither — the scanner found no region at all for `Node` and said so, which is why this arrived
 /// as a red case rather than as a guard quietly covering nothing.
 ///
-/// A *trait* impl is deliberately not an item head: `impl<V: Canonical> Canonical for Node<V> {`
-/// names `Canonical`, not `Node`. That is the behaviour before this change as well — the region is
-/// the fields and inherent methods the domain projection is checked against.
+/// Trait implementations are resolved through their `for` type. This binds a
+/// canonical-byte projection to that carrier's encoder, without reading a
+/// similarly named method on another type. Private store envelope declarations
+/// are read only from the explicitly named current store codec.
 ///
 /// **Stated bounds**, neither reachable in this crate today and both written down rather than
 /// worked around:
@@ -185,10 +186,15 @@ fn opens_item(line: &str, type_name: &str) -> bool {
     let line = line.trim();
     let rest = if let Some(rest) = line.strip_prefix("pub struct ") {
         rest
+    } else if let Some(rest) = line.strip_prefix("struct ") {
+        rest
+    } else if let Some(rest) = line.strip_prefix("enum ") {
+        rest
     } else if let Some(rest) = line.strip_prefix("pub enum ") {
         rest
     } else if let Some(rest) = line.strip_prefix("impl") {
-        after_generics(rest).trim_start()
+        let rest = after_generics(rest).trim_start();
+        rest.split_once(" for ").map_or(rest, |(_, name)| name)
     } else {
         return false;
     };
@@ -385,9 +391,10 @@ fn accepted_assertion(valid_time: TemporalRange, transaction_time: TransactionTi
         object: Object::Node(CanonicalRef::new(NodeId::mint())),
         evidence: BTreeSet::from([EvidenceId::mint()]),
         proposed_by: AgentId::mint(),
-        validation: ValidationState::Accepted {
+        assessment: Assessment::Accepted {
             validators: [AgentId::mint()].into_iter().collect(),
         },
+        lifecycle: AssertionLifecycle::Active,
         valid_time,
         transaction_time,
     }

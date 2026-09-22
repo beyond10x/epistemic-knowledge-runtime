@@ -11,10 +11,10 @@ error[E0277]: the trait bound `ekr_ontology::Value: ekr_core::Canonical` is not 
              ()
              AgentId
              AssertionId
+             AssertionLifecycle
+             Assessment
              BTreeMap<K, V>
              BTreeSet<T>
-             Box<T>
-             CanonicalRef<T>
            and $N others
    = note: required for `ekr_graph::Node<ekr_ontology::Value>` to implement `ekr_core::Canonical`
 note: required by a bound in `ContentHash::of`
@@ -36,10 +36,10 @@ error[E0277]: the trait bound `ekr_ontology::Value: ekr_core::Canonical` is not 
              ()
              AgentId
              AssertionId
+             AssertionLifecycle
+             Assessment
              BTreeMap<K, V>
              BTreeSet<T>
-             Box<T>
-             CanonicalRef<T>
            and $N others
    = note: required for `ekr_graph::Edge<ekr_ontology::Value>` to implement `ekr_core::Canonical`
 note: required by a bound in `ContentHash::of`
@@ -61,10 +61,10 @@ error[E0277]: the trait bound `ekr_ontology::Value: ekr_core::Canonical` is not 
              ()
              AgentId
              AssertionId
+             AssertionLifecycle
+             Assessment
              BTreeMap<K, V>
              BTreeSet<T>
-             Box<T>
-             CanonicalRef<T>
            and $N others
    = note: required for `ekr_graph::Assertion<ekr_ontology::Value>` to implement `ekr_core::Canonical`
 note: required by a bound in `ContentHash::of`

@@ -24,9 +24,9 @@ use ekr_core::{
     ObservationId, PropertyId, RevisionNumber, SupportId, Timestamp, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalRef, CanonicalValue, Confidence, Edge, Evidence, EvidenceSource,
-    InadmissibleValue, Node, Object, Observation, ObservationContent, Predicate, RetractionReason,
-    Subject, Support, TemporalRange, TransactionTime, ValidationState,
+    Assertion, AssertionLifecycle, Assessment, CanonicalRef, CanonicalValue, Confidence, Edge,
+    Evidence, EvidenceSource, InadmissibleValue, Node, Object, Observation, ObservationContent,
+    Predicate, RetractionReason, Subject, Support, TemporalRange, TransactionTime,
 };
 use ekr_ontology::Value;
 
@@ -174,8 +174,8 @@ fn a_node_and_an_edge_property_carry_only_an_admissible_value() {
     let held = CanonicalValue::try_from(Value::Decimal("0.1".to_owned())).expect("admissible");
 
     let mut node = Node::new(NodeId::mint(), GraphRootId::mint(), TypeId::mint(), "Acme");
-    node.properties.insert(property, held.clone());
-    assert_eq!(node.properties.get(&property), Some(&held));
+    node.properties.insert(property, vec![held.clone()]);
+    assert_eq!(node.properties.get(&property), Some(&vec![held.clone()]));
 
     let mut edge = Edge::new(
         EdgeId::mint(),
@@ -184,8 +184,8 @@ fn a_node_and_an_edge_property_carry_only_an_admissible_value() {
         CanonicalRef::new(NodeId::mint()),
         CanonicalRef::new(NodeId::mint()),
     );
-    edge.properties.insert(property, held.clone());
-    assert_eq!(edge.properties.get(&property), Some(&held));
+    edge.properties.insert(property, vec![held.clone()]);
+    assert_eq!(edge.properties.get(&property), Some(&vec![held]));
 
     // The only way in is the conversion, and it is where the float stops. Both maps are keyed to
     // `CanonicalValue`, so there is no second door for a caller who skips it.
@@ -205,9 +205,10 @@ fn assertion(ids: [u128; 6]) -> Assertion {
         ),
         evidence: BTreeSet::from([id(ids[4]), id(ids[5])]),
         proposed_by: id(ids[0] ^ 0xff),
-        validation: ValidationState::Accepted {
+        assessment: Assessment::Accepted {
             validators: BTreeSet::new(),
         },
+        lifecycle: AssertionLifecycle::Active,
         valid_time: TemporalRange::since(RECORDED),
         transaction_time: TransactionTime::since(RECORDED),
     }
@@ -259,7 +260,11 @@ type Mutation = (&'static str, fn(&mut Assertion));
 ///
 /// Held to the declaration by `every_field_of_an_assertion_reaches_the_encoding`, which compares
 /// the *set* of names here to the fields the type declares.
-const MUTATIONS: [Mutation; 30] = [
+///
+/// Amendment 88 split the one `validation` field into `assessment` and `lifecycle`. Each keeps the
+/// rows its states had under `validation`, and `lifecycle` gains one row per `Superseded` field it
+/// carries now and did not before.
+const MUTATIONS: [Mutation; 32] = [
     ("id", |a| a.id = id::<AssertionId>(99)),
     ("root_id", |a| {
         a.root_id = id::<GraphRootId>(99);
@@ -295,77 +300,99 @@ const MUTATIONS: [Mutation; 30] = [
     ("proposed_by", |a| {
         a.proposed_by = id::<AgentId>(98);
     }),
-    // The seven states, and within each the payload that distinguishes two records in it. The base
-    // carries `Accepted { validators: {} }`, so the first row here differs from it by a payload
-    // alone.
-    ("validation", |a| {
-        a.validation = ValidationState::Accepted {
+    // The five assessments, and within each the payload that distinguishes two records in it. The
+    // base carries `Accepted { validators: {} }`, so the first row here differs from it by a
+    // payload alone.
+    ("assessment", |a| {
+        a.assessment = Assessment::Accepted {
             validators: BTreeSet::from([id::<AgentId>(21)]),
         };
     }),
-    ("validation", |a| {
-        a.validation = ValidationState::Accepted {
+    ("assessment", |a| {
+        a.assessment = Assessment::Accepted {
             validators: BTreeSet::from([id::<AgentId>(22)]),
         };
     }),
-    ("validation", |a| a.validation = ValidationState::Proposed),
-    ("validation", |a| {
-        a.validation = ValidationState::Validating {
+    ("assessment", |a| a.assessment = Assessment::Proposed),
+    ("assessment", |a| {
+        a.assessment = Assessment::Validating {
             completed: 1,
             required: 2,
         };
     }),
-    ("validation", |a| {
+    ("assessment", |a| {
         // The same two numbers the other way round: a swap no field order can hide.
-        a.validation = ValidationState::Validating {
+        a.assessment = Assessment::Validating {
             completed: 2,
             required: 1,
         };
     }),
-    ("validation", |a| {
-        a.validation = ValidationState::Rejected {
+    ("assessment", |a| {
+        a.assessment = Assessment::Rejected {
             issues: vec![id::<IssueId>(8)],
         };
     }),
-    ("validation", |a| {
-        a.validation = ValidationState::Rejected { issues: Vec::new() };
+    ("assessment", |a| {
+        a.assessment = Assessment::Rejected { issues: Vec::new() };
     }),
-    ("validation", |a| {
-        a.validation = ValidationState::Disputed {
+    ("assessment", |a| {
+        a.assessment = Assessment::Disputed {
             competing_assertions: vec![id::<AssertionId>(31)],
         };
     }),
-    ("validation", |a| {
-        a.validation = ValidationState::Disputed {
+    ("assessment", |a| {
+        a.assessment = Assessment::Disputed {
             competing_assertions: vec![id::<AssertionId>(31), id::<AssertionId>(32)],
         };
     }),
-    ("validation", |a| {
-        a.validation = ValidationState::Superseded {
+    // The two withdrawals. The base is `Active`, which carries no payload.
+    ("lifecycle", |a| {
+        a.lifecycle = AssertionLifecycle::Superseded {
             by: id::<AssertionId>(41),
+            at_revision: RevisionNumber::new(7),
+            effective_from: HANDOVER,
         };
     }),
-    ("validation", |a| {
-        a.validation = ValidationState::Superseded {
+    ("lifecycle", |a| {
+        // `by` alone.
+        a.lifecycle = AssertionLifecycle::Superseded {
             by: id::<AssertionId>(42),
+            at_revision: RevisionNumber::new(7),
+            effective_from: HANDOVER,
         };
     }),
-    ("validation", |a| {
-        a.validation = ValidationState::Retracted {
+    ("lifecycle", |a| {
+        // `at_revision` alone.
+        a.lifecycle = AssertionLifecycle::Superseded {
+            by: id::<AssertionId>(41),
+            at_revision: RevisionNumber::new(8),
+            effective_from: HANDOVER,
+        };
+    }),
+    ("lifecycle", |a| {
+        // `effective_from` alone.
+        a.lifecycle = AssertionLifecycle::Superseded {
+            by: id::<AssertionId>(41),
+            at_revision: RevisionNumber::new(7),
+            effective_from: RECORDED,
+        };
+    }),
+    ("lifecycle", |a| {
+        a.lifecycle = AssertionLifecycle::Retracted {
             at_revision: RevisionNumber::new(7),
             reason: RetractionReason::new("the evidence was another Acme"),
         };
     }),
-    ("validation", |a| {
+    ("lifecycle", |a| {
         // The same revision, a different reason.
-        a.validation = ValidationState::Retracted {
+        a.lifecycle = AssertionLifecycle::Retracted {
             at_revision: RevisionNumber::new(7),
             reason: RetractionReason::new("the source withdrew it"),
         };
     }),
-    ("validation", |a| {
+    ("lifecycle", |a| {
         // The same reason, a different revision.
-        a.validation = ValidationState::Retracted {
+        a.lifecycle = AssertionLifecycle::Retracted {
             at_revision: RevisionNumber::new(8),
             reason: RetractionReason::new("the evidence was another Acme"),
         };
@@ -404,7 +431,7 @@ fn two_assertions_equal_in_every_field_hash_equally() {
     assert_eq!(ContentHash::of(&left), ContentHash::of(&right));
 }
 
-/// No two of the base and its thirty mutants share a content address.
+/// No two of the base and its thirty-two mutants share a content address.
 ///
 /// Pairwise, not each-against-the-base, and that is the point: two records that differ from the
 /// base in the same field but not from each other — `Retracted{r,x}` and `Retracted{r,y}` — are
@@ -462,7 +489,7 @@ fn every_field_of_an_assertion_reaches_the_encoding() {
         covered, expected,
         "the fields Assertion declares and the fields MUTATIONS changes have come apart"
     );
-    assert_eq!(declared.len(), 10, "the field scan is broken, not the type");
+    assert_eq!(declared.len(), 11, "the field scan is broken, not the type");
 }
 
 /// The names of the `pub` fields of one struct, in declaration order.
@@ -548,7 +575,7 @@ fn node() -> Node {
     let mut node = Node::new(id(51), id(52), id(53), "Acme");
     node.aliases = vec!["ACME".to_owned(), "Acme Inc".to_owned()];
     node.properties
-        .insert(id::<PropertyId>(54), CanonicalValue::Integer(1));
+        .insert(id::<PropertyId>(54), vec![CanonicalValue::Integer(1)]);
     node
 }
 
@@ -562,7 +589,7 @@ fn edge() -> Edge {
         CanonicalRef::new(id(65)),
     );
     edge.properties
-        .insert(id::<PropertyId>(66), CanonicalValue::Integer(2));
+        .insert(id::<PropertyId>(66), vec![CanonicalValue::Integer(2)]);
     edge
 }
 
@@ -576,7 +603,7 @@ type NodeMutation = (&'static str, fn(&mut Node));
 /// assertions alone is not the graph's. An encoding with no case that varies each of its fields is
 /// the hole the assertion table had, so these tables are the same shape and are read by the same
 /// pairwise case.
-const NODE_MUTATIONS: [NodeMutation; 11] = [
+const NODE_MUTATIONS: [NodeMutation; 13] = [
     ("id", |n| n.id = id::<NodeId>(99)),
     ("root_id", |n| n.root_id = id::<GraphRootId>(99)),
     ("type_id", |n| n.type_id = id::<TypeId>(99)),
@@ -591,13 +618,27 @@ const NODE_MUTATIONS: [NodeMutation; 11] = [
     ("properties", |n| {
         // The same key, a different value.
         n.properties
-            .insert(id::<PropertyId>(54), CanonicalValue::Integer(2));
+            .insert(id::<PropertyId>(54), vec![CanonicalValue::Integer(2)]);
     }),
     ("properties", |n| {
         // The same value, a different key.
         n.properties.clear();
         n.properties
-            .insert(id::<PropertyId>(55), CanonicalValue::Integer(1));
+            .insert(id::<PropertyId>(55), vec![CanonicalValue::Integer(1)]);
+    }),
+    ("properties", |n| {
+        // The same value twice: a multi-valued property is not its first value.
+        n.properties.insert(
+            id::<PropertyId>(54),
+            vec![CanonicalValue::Integer(1), CanonicalValue::Integer(1)],
+        );
+    }),
+    ("properties", |n| {
+        // One list holding the value: an inner `List` is not the outer values.
+        n.properties.insert(
+            id::<PropertyId>(54),
+            vec![CanonicalValue::try_from(Value::List(vec![Value::Integer(1)])).expect("ok")],
+        );
     }),
 ];
 
@@ -616,11 +657,11 @@ const EDGE_MUTATIONS: [EdgeMutation; 7] = [
     ("target", |e| e.target = CanonicalRef::new(id::<NodeId>(99))),
     ("properties", |e| {
         e.properties
-            .insert(id::<PropertyId>(66), CanonicalValue::Integer(3));
+            .insert(id::<PropertyId>(66), vec![CanonicalValue::Integer(3)]);
     }),
     ("properties", |e| {
         e.properties
-            .insert(id::<PropertyId>(67), CanonicalValue::Integer(2));
+            .insert(id::<PropertyId>(67), vec![CanonicalValue::Integer(2)]);
     }),
 ];
 
@@ -672,7 +713,7 @@ fn graph_state_equal_in_every_field_hashes_equally() {
     other.aliases = vec!["ACME".to_owned(), "Acme Inc".to_owned()];
     other
         .properties
-        .insert(id::<PropertyId>(54), CanonicalValue::Integer(1));
+        .insert(id::<PropertyId>(54), vec![CanonicalValue::Integer(1)]);
     assert_eq!(other, node());
     assert_eq!(ContentHash::of(&other), ContentHash::of(&node()));
 
@@ -685,7 +726,7 @@ fn graph_state_equal_in_every_field_hashes_equally() {
     );
     same_edge
         .properties
-        .insert(id::<PropertyId>(66), CanonicalValue::Integer(2));
+        .insert(id::<PropertyId>(66), vec![CanonicalValue::Integer(2)]);
     assert_eq!(ContentHash::of(&same_edge), ContentHash::of(&edge()));
 
     // And a node is not an edge over the same ids: the two are different shapes, and rule 5 of
@@ -1015,13 +1056,13 @@ fn sum_type_fixtures() -> Vec<(&'static str, Fixtures)> {
         (2, Object::Type(type_id)),
         (2, Object::Type(other_type)),
     ];
-    let validations = vec![
+    let assessments = vec![
         // The one variant with no payload, and so the one with a single value: there is no second
         // payload for it to differ in, and its encoding is the marker alone.
-        (0, ValidationState::Proposed),
+        (0, Assessment::Proposed),
         (
             1,
-            ValidationState::Validating {
+            Assessment::Validating {
                 completed: 1,
                 required: 2,
             },
@@ -1029,7 +1070,7 @@ fn sum_type_fixtures() -> Vec<(&'static str, Fixtures)> {
         (
             1,
             // `completed` alone.
-            ValidationState::Validating {
+            Assessment::Validating {
                 completed: 2,
                 required: 2,
             },
@@ -1037,75 +1078,107 @@ fn sum_type_fixtures() -> Vec<(&'static str, Fixtures)> {
         (
             1,
             // `required` alone.
-            ValidationState::Validating {
+            Assessment::Validating {
                 completed: 1,
                 required: 3,
             },
         ),
         (
             2,
-            ValidationState::Accepted {
+            Assessment::Accepted {
                 validators: BTreeSet::from([id::<AgentId>(11)]),
             },
         ),
         (
             2,
-            ValidationState::Accepted {
+            Assessment::Accepted {
                 validators: BTreeSet::from([id::<AgentId>(12)]),
             },
         ),
         (
             3,
-            ValidationState::Rejected {
+            Assessment::Rejected {
                 issues: vec![id::<IssueId>(11)],
             },
         ),
         (
             3,
-            ValidationState::Rejected {
+            Assessment::Rejected {
                 issues: vec![id::<IssueId>(12)],
             },
         ),
         (
             4,
-            ValidationState::Disputed {
+            Assessment::Disputed {
                 competing_assertions: vec![assertion_id],
             },
         ),
         (
             4,
-            ValidationState::Disputed {
+            Assessment::Disputed {
                 competing_assertions: vec![other_assertion],
             },
         ),
-        (5, ValidationState::Superseded { by: assertion_id }),
+    ];
+    let lifecycles = vec![
+        // No payload, so a single value.
+        (0, AssertionLifecycle::Active),
         (
-            5,
-            ValidationState::Superseded {
-                by: other_assertion,
-            },
-        ),
-        (
-            6,
-            ValidationState::Retracted {
+            1,
+            AssertionLifecycle::Retracted {
                 at_revision: RevisionNumber::new(1),
                 reason: RetractionReason::new(text.clone()),
             },
         ),
         (
-            6,
+            1,
             // `at_revision` alone.
-            ValidationState::Retracted {
+            AssertionLifecycle::Retracted {
                 at_revision: RevisionNumber::new(2),
                 reason: RetractionReason::new(text.clone()),
             },
         ),
         (
-            6,
+            1,
             // `reason` alone.
-            ValidationState::Retracted {
+            AssertionLifecycle::Retracted {
                 at_revision: RevisionNumber::new(1),
                 reason: RetractionReason::new(other_text.clone()),
+            },
+        ),
+        (
+            2,
+            AssertionLifecycle::Superseded {
+                by: assertion_id,
+                at_revision: RevisionNumber::new(1),
+                effective_from: Timestamp::from_millis(1),
+            },
+        ),
+        (
+            2,
+            // `by` alone.
+            AssertionLifecycle::Superseded {
+                by: other_assertion,
+                at_revision: RevisionNumber::new(1),
+                effective_from: Timestamp::from_millis(1),
+            },
+        ),
+        (
+            2,
+            // `at_revision` alone.
+            AssertionLifecycle::Superseded {
+                by: assertion_id,
+                at_revision: RevisionNumber::new(2),
+                effective_from: Timestamp::from_millis(1),
+            },
+        ),
+        (
+            2,
+            // `effective_from` alone.
+            AssertionLifecycle::Superseded {
+                by: assertion_id,
+                at_revision: RevisionNumber::new(1),
+                effective_from: Timestamp::from_millis(2),
             },
         ),
     ];
@@ -1275,7 +1348,8 @@ fn sum_type_fixtures() -> Vec<(&'static str, Fixtures)> {
         ("Subject", encodings(subjects)),
         ("Predicate", encodings(predicates)),
         ("Object", encodings(objects)),
-        ("ValidationState", encodings(validations)),
+        ("Assessment", encodings(assessments)),
+        ("AssertionLifecycle", encodings(lifecycles)),
         ("CanonicalValue", encodings(values)),
         ("EvidenceSource", encodings(sources)),
         ("ObservationContent", encodings(contents)),
@@ -1687,13 +1761,14 @@ fn the_declaration_order_of_every_sum_type_equals_its_numbering() {
     assert_eq!(
         checked,
         vec![
+            "AssertionLifecycle".to_owned(),
+            "Assessment".to_owned(),
             "CanonicalValue".to_owned(),
             "EvidenceSource".to_owned(),
             "Object".to_owned(),
             "ObservationContent".to_owned(),
             "Predicate".to_owned(),
             "Subject".to_owned(),
-            "ValidationState".to_owned(),
             "legacy::EvidenceSource".to_owned(),
             "legacy::Object".to_owned(),
             "legacy::Predicate".to_owned(),
@@ -1846,7 +1921,20 @@ fn tagged_arms(body: &str) -> Vec<String> {
     let mut found: Vec<(u32, String)> = Vec::new();
     for line in body.lines().map(str::trim) {
         if let Some(rest) = line.strip_prefix("Self::") {
-            named = Some(rest.chars().take_while(|c| c.is_alphanumeric()).collect());
+            let name: String = rest.chars().take_while(|c| c.is_alphanumeric()).collect();
+            // A unit arm is written on one line: `Self::Proposed => out.variant(0),`.
+            if let Some((_, tagged)) = rest.split_once("=> out.variant(") {
+                let index: u32 = tagged
+                    .split(')')
+                    .next()
+                    .expect("the call is closed")
+                    .parse()
+                    .expect("the index is a literal");
+                found.push((index, name));
+                named = None;
+            } else {
+                named = Some(name);
+            }
         } else if let Some(rest) = line.strip_prefix("out.variant(") {
             let index: u32 = rest
                 .split(')')

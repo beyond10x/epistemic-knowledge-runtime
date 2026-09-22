@@ -1,17 +1,38 @@
 //! The properties `story:eventlog-store` ships, over both providers.
 //!
 //! Two providers from the start, so a property proved here is proved for the deployment. Every
-//! case below is written once against `RevisionLog + ObjectStore` and run twice, because a case
-//! written for SQLite and copied for the file store is a case that drifts on the copy.
+//! case below is written once against `RevisionLog + ObjectStore + Initialize` and run twice where
+//! it is about the provider, because a case written for SQLite and copied for the file store is a
+//! case that drifts on the copy.
+//!
+//! # Written through the current port
+//!
+//! The public `RevisionLog::append` that took a bare event is gone
+//! (`architecture-decision-record:0007-the-commit-path-is-the-kernels`, design § 91.6). A lineage
+//! moves only through [`Initialize::initialize`] and [`RevisionLog::publish`], and each replays the
+//! staged candidate through the injected [`CommitAuthority`] before anything is written. These
+//! cases are about what the *store* does with a publication — persist it, page it back, recognise
+//! a retry by its occurrence identity, keep the bytes the lineage names — so they inject
+//! [`Mechanics`], a stand-in that admits no semantics, rather than the kernel. It is not acceptance
+//! evidence: the real authority is `ekr-kernel`'s, and `crates/ekr-kernel/tests/seed.rs` and
+//! `crates/ekr-kernel/tests/durable_commands.rs` hold it on both providers.
 
-mod fixture;
-mod lineage;
+use std::collections::{BTreeMap, BTreeSet};
 
-use ekr_core::{ContentHash, RevisionNumber, Timestamp, TransactionId};
-use ekr_graph::CanonicalGraph;
-use ekr_ontology::Ontology;
+use ekr_core::{
+    AgentId, AssertionId, ContentHash, EdgeId, EventId, EvidenceId, GraphRootId, NodeId,
+    PropertyId, RevisionId, RevisionNumber, SchemaVersionId, Timestamp, TransactionId, TypeId,
+};
+use ekr_graph::{
+    Assertion, AssertionLifecycle, Assessment, CanonicalGraph, CanonicalRef, CanonicalValue,
+    Confidence, Edge, Evidence, EvidenceSource, GraphRoot, Node, Object, Predicate, RevisionEvent,
+    RevisionPayload, Root, Space, Subject, TemporalRange, TransactionTime,
+};
+use ekr_ontology::{Ontology, OntologyDocument, SchemaVersion};
 use ekr_store::{
-    Appended, FileStore, ObjectStore, RevisionLog, SqliteStore, StorageClass, StoreError,
+    evidence_root, knowledge_root, AdmittedRevision, Appended, CommitAuthority, FileStore,
+    GraphDocument, Initialize, ObjectStore, Publication, PublicationObject, RetainedHistory,
+    RevisionLog, SqliteStore, StorageClass, StoreError,
 };
 use tempfile::TempDir;
 
@@ -19,17 +40,14 @@ use tempfile::TempDir;
 const TENANT: &str = "ekr";
 
 /// Opens the SQLite provider over a database file inside `directory`.
-fn sqlite(
-    directory: &TempDir,
-    ontology: &Ontology,
-) -> ekr_store::EventlogStore<eventlog_sqlite::SqliteEventStore> {
+fn sqlite(directory: &TempDir, ontology: &Ontology) -> SqliteStore {
     SqliteStore::sqlite(
         &directory.path().join("revisions.db"),
         TENANT,
         ontology.clone(),
     )
     .expect("the SQLite provider opens")
-    .under(lineage::Attesting)
+    .under(Mechanics)
 }
 
 /// Opens the file provider over a directory inside `directory`.
@@ -40,7 +58,7 @@ fn file(directory: &TempDir, ontology: &Ontology) -> FileStore {
         ontology.clone(),
     )
     .expect("the file provider opens")
-    .under(lineage::Attesting)
+    .under(Mechanics)
 }
 
 /// The acceptance statement, over whichever provider the caller opened twice.
@@ -50,12 +68,12 @@ fn file(directory: &TempDir, ontology: &Ontology) -> FileStore {
 /// wrote down.
 fn head_survives_a_reopen<S, F>(open: F, graph: &CanonicalGraph)
 where
-    S: RevisionLog + ObjectStore,
+    S: RevisionLog + ObjectStore + Initialize,
     F: Fn() -> S,
 {
     let before = {
         let store = open();
-        lineage::seed_and_commit(&store, graph).expect("the lineage is appendable");
+        seed_and_commit(&store, graph);
         store
             .head()
             .expect("the log folds")
@@ -81,16 +99,16 @@ where
 #[test]
 fn a_sqlite_store_reopened_folds_to_the_same_head_root() {
     let directory = TempDir::new().expect("a temporary directory");
-    let ontology = fixture::ontology();
-    let graph = fixture::seed_graph(&ontology);
+    let ontology = ontology();
+    let graph = seed_graph(&ontology);
     head_survives_a_reopen(|| sqlite(&directory, &ontology), &graph);
 }
 
 #[test]
 fn a_file_store_reopened_folds_to_the_same_head_root() {
     let directory = TempDir::new().expect("a temporary directory");
-    let ontology = fixture::ontology();
-    let graph = fixture::seed_graph(&ontology);
+    let ontology = ontology();
+    let graph = seed_graph(&ontology);
     head_survives_a_reopen(|| file(&directory, &ontology), &graph);
 }
 
@@ -126,14 +144,14 @@ fn identical_bytes_store_once<S: ObjectStore>(store: &S) {
 #[test]
 fn sqlite_stores_identical_bytes_once() {
     let directory = TempDir::new().expect("a temporary directory");
-    let ontology = fixture::ontology();
+    let ontology = ontology();
     identical_bytes_store_once(&sqlite(&directory, &ontology));
 }
 
 #[test]
 fn a_file_store_stores_identical_bytes_once() {
     let directory = TempDir::new().expect("a temporary directory");
-    let ontology = fixture::ontology();
+    let ontology = ontology();
     identical_bytes_store_once(&file(&directory, &ontology));
 }
 
@@ -142,7 +160,7 @@ fn a_file_store_stores_identical_bytes_once() {
 #[test]
 fn a_stored_object_carries_the_class_it_was_written_under() {
     let directory = TempDir::new().expect("a temporary directory");
-    let ontology = fixture::ontology();
+    let ontology = ontology();
     let store = sqlite(&directory, &ontology);
 
     let cached = store
@@ -161,89 +179,92 @@ fn a_stored_object_carries_the_class_it_was_written_under() {
     assert_eq!(ephemeral.storage_class, StorageClass::Ephemeral);
 }
 
-/// `replay(from)` over a log of N events yields the same fold as `fold()`.
+/// `replay(n)` of the head revision over a log of N occurrences yields the same state as `fold()`.
 ///
-/// Not a tautology, because the two do not share a read: `fold` pages the stream at
-/// `MAX_READ_LIMIT` and takes this thirteen-event log in one read, and `replay` steps it one event
-/// at a time and takes thirteen. They agree only if the cursor arithmetic drops and repeats
-/// nothing at a page boundary — which is the defect a fold that quietly stopped early would
-/// otherwise hide, since a short fold still returns a perfectly well-formed graph.
-fn replay_from_the_seed_equals_the_fold<S: RevisionLog + ObjectStore>(
+/// Design § 91.5 made `replay` select a committed revision rather than a starting point:
+/// "historical reconstruction stops at the selected committed revision". So the fold is the
+/// replay *of the head*, and a replay of the seed is the seed, not the fold.
+///
+/// Still not a tautology, because the two do not share a read: `fold` pages the stream at
+/// `MAX_READ_LIMIT` and takes this thirteen-occurrence log in one read, and `replay` and
+/// `history_at` step it one occurrence at a time and take thirteen. They agree only if the cursor
+/// arithmetic drops and repeats nothing at a page boundary — which is the defect a fold that
+/// quietly stopped early would otherwise hide, since a short fold still returns a perfectly
+/// well-formed graph.
+fn replay_of_the_head_revision_equals_the_fold<S: RevisionLog + ObjectStore + Initialize>(
     store: &S,
     graph: &CanonicalGraph,
 ) {
-    // Four events for the seed and the first commit, then four more per commit after it.
-    lineage::seed_and_commit(store, graph).expect("the lineage is appendable");
+    // Four occurrences for the seed and the first commit, then three more per commit after it.
+    let mut version = seed_and_commit(store, graph);
     for number in 2..=4u64 {
-        let transaction = TransactionId::mint();
-        assert_eq!(
-            store
-                .append(&lineage::proposed(transaction))
-                .expect("proposed"),
-            Appended::Written,
-            "a new fact, not a retry: proposed"
-        );
-        assert_eq!(
-            store
-                .append(&lineage::validated(
-                    transaction,
-                    RevisionNumber::new(number - 1),
-                ))
-                .expect("validated"),
-            Appended::Written,
-            "a new fact, not a retry: validated"
-        );
-        assert_eq!(
-            store
-                .append(&lineage::committed(
-                    transaction,
-                    RevisionNumber::new(number),
-                    ekr_store::knowledge_root(graph),
-                ))
-                .expect("committed"),
-            Appended::Written,
-            "a new fact, not a retry: committed"
-        );
+        version = commit(store, graph, version, number);
     }
+    assert_eq!(version, 13, "thirteen occurrences, one per page");
 
     let folded = store.fold().expect("the log folds");
     let replayed = store
-        .replay(RevisionNumber::SEED)
-        .expect("the log replays from the seed");
+        .replay(RevisionNumber::new(4))
+        .expect("the log replays to its head revision");
 
-    assert_eq!(folded, replayed, "a replay from the seed is the fold");
+    assert_eq!(
+        folded, replayed,
+        "a replay of the head revision is the fold"
+    );
     assert_eq!(
         folded.revision,
         RevisionNumber::new(4),
         "and it reaches the last committed revision"
     );
+    assert_eq!(
+        store
+            .history_at(RevisionNumber::new(4))
+            .expect("the history through revision 4 reads one page at a time"),
+        store.history().expect("the whole history reads"),
+        "one occurrence per page and one page for all of them retain the same history"
+    );
+    assert_eq!(
+        store
+            .replay(RevisionNumber::SEED)
+            .expect("the seed replays"),
+        *graph,
+        "a replay of the seed is the seed, not the fold: replay selects a revision"
+    );
 }
 
 #[test]
-fn sqlite_replay_from_the_seed_equals_the_fold() {
+fn sqlite_replay_of_the_head_revision_equals_the_fold() {
     let directory = TempDir::new().expect("a temporary directory");
-    let ontology = fixture::ontology();
-    let graph = fixture::seed_graph(&ontology);
-    replay_from_the_seed_equals_the_fold(&sqlite(&directory, &ontology), &graph);
+    let ontology = ontology();
+    let graph = seed_graph(&ontology);
+    replay_of_the_head_revision_equals_the_fold(&sqlite(&directory, &ontology), &graph);
 }
 
 #[test]
-fn a_file_store_replay_from_the_seed_equals_the_fold() {
+fn a_file_store_replay_of_the_head_revision_equals_the_fold() {
     let directory = TempDir::new().expect("a temporary directory");
-    let ontology = fixture::ontology();
-    let graph = fixture::seed_graph(&ontology);
-    replay_from_the_seed_equals_the_fold(&file(&directory, &ontology), &graph);
+    let ontology = ontology();
+    let graph = seed_graph(&ontology);
+    replay_of_the_head_revision_equals_the_fold(&file(&directory, &ontology), &graph);
 }
 
 /// The fold is the seed's content, not an empty graph that happens to hash consistently.
+///
+/// The content reaches the fold only through the bytes the store retained under the address the
+/// seed occurrence names, so those bytes are checked first and directly.
 #[test]
 fn the_fold_carries_the_seed_the_log_named() {
     let directory = TempDir::new().expect("a temporary directory");
-    let ontology = fixture::ontology();
-    let graph = fixture::seed_graph(&ontology);
+    let ontology = ontology();
+    let graph = seed_graph(&ontology);
     let store = sqlite(&directory, &ontology);
-    lineage::seed_and_commit(&store, &graph).expect("the lineage is appendable");
+    seed_and_commit(&store, &graph);
 
+    assert_eq!(
+        store.seed_bytes().expect("the seed is retained"),
+        Some(document(&graph)),
+        "the bytes the seed names are the bytes published with it"
+    );
     let folded = store.fold().expect("the log folds");
     assert_eq!(folded.nodes, graph.nodes, "the seed's nodes come back");
     assert_eq!(folded.edges, graph.edges, "and its edges");
@@ -252,23 +273,36 @@ fn the_fold_carries_the_seed_the_log_named() {
     assert_eq!(folded.root, graph.root, "and the root it hangs off");
 }
 
-/// P1 materialises state at the seed and nowhere else, so a replay asking to begin at a later
-/// revision is refused rather than answered with a fold that silently began somewhere else.
+/// A replay of a revision the lineage has not reached is refused rather than answered with a fold
+/// that silently stopped somewhere else.
+///
+/// Design § 91.5 reversed the rule this case first held: P1 materialised state at the seed only,
+/// and `replay(1)` was refused. Replay now reconstructs any committed revision, so revision 1 of
+/// a lineage at revision 1 answers, and the refusal belongs to the revision the lineage does not
+/// hold. The refusal is the authority's to raise — `ekr-kernel`'s replay raises this same
+/// variant — and the store's to pass through unchanged rather than answer with what it has.
 #[test]
-fn a_replay_from_a_revision_with_no_materialised_state_is_refused() {
+fn a_replay_of_a_revision_the_lineage_has_not_reached_is_refused() {
     let directory = TempDir::new().expect("a temporary directory");
-    let ontology = fixture::ontology();
-    let graph = fixture::seed_graph(&ontology);
+    let ontology = ontology();
+    let graph = seed_graph(&ontology);
     let store = sqlite(&directory, &ontology);
-    lineage::seed_and_commit(&store, &graph).expect("the lineage is appendable");
+    seed_and_commit(&store, &graph);
 
-    let refused = store.replay(RevisionNumber::new(1));
+    assert_eq!(
+        store
+            .replay(RevisionNumber::new(1))
+            .expect("revision 1 is committed and replays"),
+        store.fold().expect("the lineage folds"),
+        "revision 1 is this lineage's head"
+    );
+    let refused = store.replay(RevisionNumber::new(2));
     assert!(
         matches!(
             refused,
-            Err(StoreError::NoMaterialisedState { requested }) if requested == RevisionNumber::new(1)
+            Err(StoreError::NoMaterialisedState { requested }) if requested == RevisionNumber::new(2)
         ),
-        "a replay from revision 1 names what it does not have: {refused:?}"
+        "a replay of revision 2 names what it does not have: {refused:?}"
     );
 }
 
@@ -279,18 +313,12 @@ fn a_replay_from_a_revision_with_no_materialised_state_is_refused() {
 #[test]
 fn storing_a_graph_is_storing_its_document() {
     let directory = TempDir::new().expect("a temporary directory");
-    let ontology = fixture::ontology();
-    let graph = fixture::seed_graph(&ontology);
+    let ontology = ontology();
+    let graph = seed_graph(&ontology);
     let store = sqlite(&directory, &ontology);
 
     let long_way = store
-        .put(
-            StorageClass::Canonical,
-            &ekr_store::GraphDocument::of(&graph)
-                .to_bytes()
-                .expect("the document serialises"),
-            Timestamp::EPOCH,
-        )
+        .put(StorageClass::Canonical, &document(&graph), Timestamp::EPOCH)
         .expect("the document lands");
     let short_way = store
         .store_graph(&graph, Timestamp::EPOCH)
@@ -312,7 +340,7 @@ fn storing_a_graph_is_storing_its_document() {
 #[test]
 fn a_cache_write_after_a_canonical_one_leaves_the_bytes_canonical() {
     let directory = TempDir::new().expect("a temporary directory");
-    let ontology = fixture::ontology();
+    let ontology = ontology();
     let store = sqlite(&directory, &ontology);
     let bytes = b"bytes canonical state came to depend on";
 
@@ -344,7 +372,7 @@ fn a_cache_write_after_a_canonical_one_leaves_the_bytes_canonical() {
 #[test]
 fn the_recorded_class_is_the_strongest_requested_whichever_order_they_arrive_in() {
     let directory = TempDir::new().expect("a temporary directory");
-    let ontology = fixture::ontology();
+    let ontology = ontology();
     let store = sqlite(&directory, &ontology);
 
     let ascending = b"a payload written from the weakest class upwards";
@@ -386,7 +414,7 @@ fn the_recorded_class_is_the_strongest_requested_whichever_order_they_arrive_in(
 #[test]
 fn a_raised_retention_class_survives_a_reopen() {
     let directory = TempDir::new().expect("a temporary directory");
-    let ontology = fixture::ontology();
+    let ontology = ontology();
     let bytes = b"bytes cached first and needed durably later";
 
     {
@@ -415,107 +443,456 @@ fn a_raised_retention_class_survives_a_reopen() {
     );
 }
 
-/// Two different events appended in a row both land, and a third identical to the first does not.
+/// Two different occurrences published in a row both land.
 ///
-/// The key `append` puts on an envelope is derived from the event's content. That makes a retry a
-/// retry — which is the adversary's case — and this is the other half: two *distinct* events must
-/// not collide into one, which is what a key shared between them would do. Both halves are needed,
-/// because a key that deduped everything would pass the retry case on its own.
+/// A publication is recognised as a retry by its occurrence identity (design § 89: "use
+/// occurrence identity for idempotency"). That makes a retry a retry — which is the adversary's
+/// case — and this is the other half: two *distinct* occurrences must not collide into one, which
+/// is what a key shared between them would do. Both halves are needed, because a key that deduped
+/// everything would pass the retry case on its own.
 #[test]
 fn two_different_events_appended_in_a_row_both_land() {
     let directory = TempDir::new().expect("a temporary directory");
-    let ontology = fixture::ontology();
-    let graph = fixture::seed_graph(&ontology);
+    let ontology = ontology();
+    let graph = seed_graph(&ontology);
     let store = sqlite(&directory, &ontology);
 
-    lineage::seed_and_commit(&store, &graph).expect("four events, all distinct");
+    let version = seed_and_commit(&store, &graph);
     let folded = store.fold().expect("the lineage folds");
     assert_eq!(
         folded.revision,
         RevisionNumber::new(1),
-        "the proposal, the validation and the commit are three events and not one"
+        "the proposal, the validation and the commit are three occurrences and not one"
     );
 
-    let second = TransactionId::mint();
-    assert_eq!(
-        store.append(&lineage::proposed(second)).expect("proposed"),
-        Appended::Written,
-        "a new fact, not a retry: proposed"
-    );
-    assert_eq!(
-        store
-            .append(&lineage::validated(second, RevisionNumber::new(1)))
-            .expect("validated"),
-        Appended::Written,
-        "a new fact, not a retry: validated"
-    );
-    assert_eq!(
-        store
-            .append(&lineage::committed(
-                second,
-                RevisionNumber::new(2),
-                ekr_store::knowledge_root(&graph),
-            ))
-            .expect("committed"),
-        Appended::Written,
-        "a new fact, not a retry: committed"
-    );
+    // `commit` asserts each of its three publications is `Appended::Written`.
+    commit(&store, &graph, version, 2);
     assert_eq!(
         store.fold().expect("the lineage folds").revision,
         RevisionNumber::new(2),
-        "and a second transaction's three events are three more"
+        "and a second transaction's three occurrences are three more"
     );
 }
 
-/// `append` distinguishes a write from a recognised request, for every event in the vocabulary.
+/// Publication distinguishes a write from a recognised request, for every event in the vocabulary.
 ///
 /// Correction round 2's finding was that an `Ok` could not be told apart from a write. The fix is
 /// the return type, and this is the property over the whole vocabulary rather than over the one
-/// variant the adversary reached: for each of the six `RevisionEvent` shapes, appending it is
-/// `Written` and appending it again is `AlreadyRecorded`.
+/// variant the adversary reached: for each of the six `RevisionPayload` shapes, publishing it is
+/// `Written` and publishing it again is `AlreadyRecorded`.
 ///
 /// Both halves, because either alone passes for a broken store: an implementation that always said
 /// `Written` would pass the first, and one that always said `AlreadyRecorded` would pass the second.
 #[test]
 fn every_event_shape_reports_a_write_once_and_a_recognition_after() {
     let directory = TempDir::new().expect("a temporary directory");
-    let ontology = fixture::ontology();
+    let ontology = ontology();
+    let graph = seed_graph(&ontology);
     let store = sqlite(&directory, &ontology);
 
     let transaction = TransactionId::mint();
     let shapes = [
-        lineage::seed_event(ContentHash::of_bytes(b"a seed nothing resolves")),
-        lineage::proposed(transaction),
-        lineage::validated(transaction, RevisionNumber::SEED),
-        lineage::committed(
-            transaction,
-            RevisionNumber::new(1),
-            ContentHash::of_bytes(b"a knowledge root"),
+        seed(&graph),
+        occurrence(proposed(transaction), 1, None),
+        occurrence(validated(transaction, RevisionNumber::SEED), 2, None),
+        occurrence(
+            committed(transaction, RevisionNumber::new(1), knowledge_root(&graph)),
+            3,
+            None,
         ),
-        ekr_graph::RevisionEvent::TransactionRejected {
-            transaction_id: transaction,
-            issues: 3,
-        },
-        ekr_graph::RevisionEvent::TransactionStale {
-            transaction_id: transaction,
-            validated_against: RevisionNumber::SEED,
-            current: RevisionNumber::new(1),
-        },
+        occurrence(
+            RevisionPayload::TransactionRejected {
+                transaction_id: transaction,
+                issues: 3,
+            },
+            4,
+            None,
+        ),
+        occurrence(
+            RevisionPayload::TransactionStale {
+                transaction_id: transaction,
+                validated_against: RevisionNumber::SEED,
+                current: RevisionNumber::new(1),
+            },
+            5,
+            None,
+        ),
     ];
 
-    for event in &shapes {
+    for publication in &shapes {
+        let name = publication.event.name();
+        let publish = || {
+            if matches!(publication.event.payload, RevisionPayload::Seeded { .. }) {
+                store.initialize(publication)
+            } else {
+                store.publish(publication)
+            }
+        };
         assert_eq!(
-            store.append(event).expect("the first append is answered"),
+            publish().expect("the first publication is answered"),
             Appended::Written,
-            "{} had not been appended before",
-            event.name()
+            "{name} had not been published before"
         );
         assert_eq!(
-            store.append(event).expect("the second append is answered"),
+            publish().expect("the second publication is answered"),
             Appended::AlreadyRecorded,
-            "{} had, and the store says so rather than writing it twice",
-            event.name()
+            "{name} had, and the store says so rather than writing it twice"
         );
     }
     assert_eq!(shapes.len(), 6, "all six of the vocabulary, not a sample");
+    assert_eq!(
+        shapes
+            .iter()
+            .map(|publication| publication.event.variant_index())
+            .collect::<BTreeSet<_>>(),
+        (0..6).collect::<BTreeSet<_>>(),
+        "six distinct kinds, not one kind six times"
+    );
+    assert_eq!(
+        store
+            .history()
+            .expect("the lineage reads")
+            .occurrences
+            .len(),
+        6,
+        "six occurrences were written and six retries were not"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// The lineage these cases write, and the stand-in authority they write it under.
+// ---------------------------------------------------------------------------------------------
+
+/// Replays retained history for provider mechanics, and admits no semantics.
+///
+/// Reads every record and the seed through [`RetainedHistory::content`] at `Canonical`, so byte
+/// integrity and retention are the store's to answer; decodes the seed document the lineage
+/// names; and advances one revision per `RevisionCommitted`, rooting each at the address of the
+/// root before it and at the record that produced it. Every other occurrence is retained and not
+/// interpreted. A function of the retained history and nothing else, so two replays agree exactly
+/// when the store handed them the same history.
+struct Mechanics;
+
+impl CommitAuthority for Mechanics {
+    fn required_objects(&self, _: &RetainedHistory) -> Result<BTreeSet<ContentHash>, StoreError> {
+        Ok(BTreeSet::new())
+    }
+
+    fn replay(
+        &self,
+        history: &RetainedHistory,
+        ontology: Option<&Ontology>,
+        selected: Option<RevisionNumber>,
+    ) -> Result<Option<AdmittedRevision>, StoreError> {
+        let Some((first, later)) = history.occurrences.split_first() else {
+            return Ok(None);
+        };
+        let RevisionPayload::Seeded {
+            revision_id,
+            seed_hash,
+        } = first.event.payload
+        else {
+            return Err(StoreError::NotSeeded);
+        };
+        let ontology =
+            ontology.ok_or_else(|| StoreError::Document("no ontology was supplied".into()))?;
+        history.content(first.event.record_hash, StorageClass::Canonical)?;
+        let graph = decode(
+            history.content(seed_hash, StorageClass::Canonical)?,
+            ontology,
+        )?;
+        let mut state = AdmittedRevision {
+            root: Root {
+                revision: RevisionNumber::SEED,
+                parent: None,
+                ontology_root: seed_hash,
+                knowledge_root: knowledge_root(&graph),
+                evidence_root: evidence_root(&graph),
+                agent_root: seed_hash,
+                transaction: first.event.record_hash,
+            },
+            graph,
+            revision_id,
+            event_id: first.event.event_id,
+            record_hash: first.event.record_hash,
+            committed_at: Timestamp::EPOCH,
+        };
+        let mut rest = later.iter();
+        while selected != Some(state.root.revision) {
+            let Some(occurrence) = rest.next() else {
+                return match selected {
+                    Some(requested) => Err(StoreError::NoMaterialisedState { requested }),
+                    None => Ok(Some(state)),
+                };
+            };
+            let event = &occurrence.event;
+            history.content(event.record_hash, StorageClass::Canonical)?;
+            match event.payload {
+                RevisionPayload::Seeded { .. } => return Err(StoreError::SeedIsNotFirst),
+                RevisionPayload::RevisionCommitted {
+                    revision_id,
+                    number,
+                    ..
+                } => {
+                    state.root = Root {
+                        revision: number,
+                        parent: Some(ContentHash::of(&state.root)),
+                        transaction: event.record_hash,
+                        ..state.root
+                    };
+                    state.graph.revision = number;
+                    state.revision_id = revision_id;
+                    state.event_id = event.event_id;
+                    state.record_hash = event.record_hash;
+                }
+                _ => {}
+            }
+        }
+        Ok(Some(state))
+    }
+}
+
+/// The graph a seed document carries, read with serde and admitted by nothing.
+fn decode(bytes: &[u8], ontology: &Ontology) -> Result<CanonicalGraph, StoreError> {
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Envelope {
+        format: String,
+        graph: Fields,
+    }
+    #[derive(serde::Deserialize)]
+    #[serde(deny_unknown_fields)]
+    struct Fields {
+        root: GraphRoot,
+        revision: RevisionNumber,
+        nodes: BTreeMap<NodeId, Node>,
+        edges: BTreeMap<EdgeId, Edge>,
+        assertions: BTreeMap<AssertionId, Assertion>,
+        evidence: BTreeMap<EvidenceId, Evidence>,
+    }
+    let Envelope { format, graph } =
+        serde_json::from_slice(bytes).map_err(|error| StoreError::Document(error.to_string()))?;
+    if format != "ekr.graph-document/2" {
+        return Err(StoreError::Document(format!(
+            "unsupported document {format}"
+        )));
+    }
+    Ok(CanonicalGraph {
+        root: graph.root,
+        revision: graph.revision,
+        ontology: ontology.clone(),
+        nodes: graph.nodes,
+        edges: graph.edges,
+        assertions: graph.assertions,
+        evidence: graph.evidence,
+    })
+}
+
+/// One occurrence of `payload` at stream position `expected_version`, with a record of its own and
+/// any `extra` object published beside it.
+fn occurrence(
+    payload: RevisionPayload,
+    expected_version: u64,
+    extra: Option<(ContentHash, Vec<u8>)>,
+) -> Publication {
+    let event_id = EventId::mint();
+    let record = format!("provider-mechanics {} record {event_id}", payload.name()).into_bytes();
+    let record_hash = ContentHash::of_bytes(&record);
+    let canonical = |bytes| PublicationObject {
+        storage_class: StorageClass::Canonical,
+        stored_at: Timestamp::EPOCH,
+        bytes,
+    };
+    let mut objects = BTreeMap::from([(record_hash, canonical(record))]);
+    if let Some((hash, bytes)) = extra {
+        objects.insert(hash, canonical(bytes));
+    }
+    Publication {
+        event: RevisionEvent {
+            format: RevisionEvent::FORMAT.into(),
+            event_id,
+            record_hash,
+            payload,
+        },
+        objects,
+        expected_version,
+    }
+}
+
+/// The document bytes a seed of `graph` publishes.
+fn document(graph: &CanonicalGraph) -> Vec<u8> {
+    GraphDocument::of(graph)
+        .to_bytes()
+        .expect("the document serialises")
+}
+
+/// The seed occurrence naming `graph`'s document, published with it.
+fn seed(graph: &CanonicalGraph) -> Publication {
+    let bytes = document(graph);
+    let seed_hash = ContentHash::of_bytes(&bytes);
+    occurrence(
+        RevisionPayload::Seeded {
+            revision_id: RevisionId::mint(),
+            seed_hash,
+        },
+        0,
+        Some((seed_hash, bytes)),
+    )
+}
+
+/// A proposal for `transaction`, addressed by its operations.
+fn proposed(transaction: TransactionId) -> RevisionPayload {
+    RevisionPayload::TransactionProposed {
+        transaction_id: transaction,
+        proposer: AgentId::mint(),
+        operations_hash: Some(ContentHash::of_bytes(b"one operation that changes nothing")),
+    }
+}
+
+/// Validation accepting `transaction` against `against`.
+fn validated(transaction: TransactionId, against: RevisionNumber) -> RevisionPayload {
+    RevisionPayload::TransactionValidated {
+        transaction_id: transaction,
+        against,
+        validation_hash: ContentHash::of_bytes(b"seven validators, no issues"),
+    }
+}
+
+/// `transaction` committing as revision `number`, publishing `knowledge_root`.
+fn committed(
+    transaction: TransactionId,
+    number: RevisionNumber,
+    knowledge_root: ContentHash,
+) -> RevisionPayload {
+    RevisionPayload::RevisionCommitted {
+        transaction_id: transaction,
+        revision_id: RevisionId::mint(),
+        number,
+        knowledge_root,
+    }
+}
+
+/// Seeds `graph` and commits one transaction: four occurrences. Returns the next stream position.
+fn seed_and_commit<S: RevisionLog + Initialize>(store: &S, graph: &CanonicalGraph) -> u64 {
+    assert_eq!(
+        store.initialize(&seed(graph)).expect("the seed publishes"),
+        Appended::Written,
+        "the seed is a new fact in this lineage, not a retry"
+    );
+    commit(store, graph, 1, 1)
+}
+
+/// Proposes, validates and commits one transaction as revision `number`, from stream position
+/// `version`. Returns the next stream position.
+///
+/// Every one of the three is a new fact, so every one must be written rather than recognised: a
+/// helper that discarded `AlreadyRecorded` would build lineages shorter than the caller asked for.
+fn commit<S: RevisionLog>(store: &S, graph: &CanonicalGraph, version: u64, number: u64) -> u64 {
+    let transaction = TransactionId::mint();
+    // A commit that changed no graph state publishes the address the seed already had.
+    let payloads = [
+        proposed(transaction),
+        validated(transaction, RevisionNumber::new(number - 1)),
+        committed(
+            transaction,
+            RevisionNumber::new(number),
+            knowledge_root(graph),
+        ),
+    ];
+    let mut version = version;
+    for payload in payloads {
+        let publication = occurrence(payload, version, None);
+        assert_eq!(
+            store
+                .publish(&publication)
+                .expect("the occurrence publishes"),
+            Appended::Written,
+            "{} is a new fact in this lineage, not a retry",
+            publication.event.name()
+        );
+        version += 1;
+    }
+    version
+}
+
+/// An ontology with no types. The store type-checks nothing — `AGENTS.md` invariant 7 puts type
+/// validity in the kernel — so what a graph needs from it is that it exists.
+fn ontology() -> Ontology {
+    Ontology::load(OntologyDocument {
+        version: SchemaVersion::seed(SchemaVersionId::mint(), Timestamp::EPOCH),
+        node_types: Vec::new(),
+        edge_types: Vec::new(),
+    })
+    .expect("a document with no declarations coheres")
+}
+
+/// A seed with two nodes, an edge between them, an assertion and the evidence it rests on.
+///
+/// Content in all four maps, so that `knowledge_root` and `evidence_root` are functions of
+/// something rather than constants: an empty seed would make every "the address is the same"
+/// assertion above pass for a store that lost the lot. The runtime's own vocabulary throughout.
+fn seed_graph(ontology: &Ontology) -> CanonicalGraph {
+    let root_id = GraphRootId::mint();
+    let type_id = TypeId::mint();
+    let property = PropertyId::mint();
+    let (subject, object) = (NodeId::mint(), NodeId::mint());
+    let evidence_id = EvidenceId::mint();
+
+    let mut observed = Node::new(subject, root_id, type_id, "revision-lineage");
+    observed
+        .properties
+        .insert(property, vec![CanonicalValue::Decimal("1.0".to_owned())]);
+    let reached = Node::new(object, root_id, type_id, "revision-lineage-target");
+    let mut holds = Edge::new(
+        EdgeId::mint(),
+        root_id,
+        type_id,
+        CanonicalRef::new(subject),
+        CanonicalRef::new(object),
+    );
+    holds
+        .properties
+        .insert(property, vec![CanonicalValue::Enum("canonical".to_owned())]);
+    let evidence = Evidence {
+        id: evidence_id,
+        source: EvidenceSource::Document {
+            document_id: "docs/roadmap.md".to_owned(),
+            section: Some("P1".to_owned()),
+        },
+        content_hash: ContentHash::of_bytes(b"the roadmap's P1 exit criterion"),
+        extracted_by: AgentId::mint(),
+        observed_at: Timestamp::EPOCH,
+        confidence: Confidence::CERTAIN,
+    };
+    let assertion = Assertion {
+        id: AssertionId::mint(),
+        root_id,
+        subject: Subject::Node(CanonicalRef::new(subject)),
+        predicate: Predicate::Relation(type_id),
+        object: Object::Node(CanonicalRef::new(object)),
+        evidence: BTreeSet::from([evidence_id]),
+        proposed_by: AgentId::mint(),
+        assessment: Assessment::Accepted {
+            validators: BTreeSet::new(),
+        },
+        lifecycle: AssertionLifecycle::Active,
+        valid_time: TemporalRange::since(Timestamp::EPOCH),
+        transaction_time: TransactionTime::since(Timestamp::EPOCH),
+    };
+
+    CanonicalGraph {
+        root: GraphRoot {
+            id: root_id,
+            space: Space::Canonical,
+            schema_version_id: ontology.version().id,
+            parent: None,
+            created_at: Timestamp::EPOCH,
+        },
+        revision: RevisionNumber::SEED,
+        ontology: ontology.clone(),
+        nodes: BTreeMap::from([(subject, observed), (object, reached)]),
+        edges: BTreeMap::from([(holds.id, holds)]),
+        assertions: BTreeMap::from([(assertion.id, assertion)]),
+        evidence: BTreeMap::from([(evidence_id, evidence)]),
+    }
 }

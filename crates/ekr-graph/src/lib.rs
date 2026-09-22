@@ -60,7 +60,8 @@
 //! use ekr_core::{AgentId, AssertionId, GraphRootId, NodeId, RevisionNumber, SchemaVersionId,
 //!                Timestamp, TypeId};
 //! use ekr_graph::{Assertion, CanonicalGraph, CanonicalRef, GraphRoot, GraphSnapshot, Node, Object,
-//!                 Predicate, Space, Subject, TemporalRange, TransactionTime, Assessment};
+//!                 Predicate, Space, Subject, TemporalRange, TransactionTime, Assessment,
+//!                 AssertionLifecycle};
 //! use ekr_ontology::{Ontology, OntologyDocument, SchemaVersion};
 //!
 //! let (root_id, schema) = (GraphRootId::mint(), SchemaVersionId::mint());
@@ -77,6 +78,7 @@
 //!     evidence: BTreeSet::new(),
 //!     proposed_by: AgentId::mint(),
 //!     assessment: Assessment::Accepted { validators: BTreeSet::new() },
+//!     lifecycle: AssertionLifecycle::Active,
 //!     // Closed: the world moved on, and the record says so rather than disappearing. The
 //!     // constructor refuses an end before its start, so the range is `Option`.
 //!     valid_time: TemporalRange::new(None, Some(handover)).expect("a bound is not inverted"),
