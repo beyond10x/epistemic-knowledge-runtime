@@ -100,7 +100,7 @@ pub(crate) fn envelope(bytes: &[u8]) -> Result<SeedEnvelope, StoreError> {
 
 pub(crate) fn replay(
     bytes: &[u8],
-    ontology: &Ontology,
+    ontology: Option<&Ontology>,
     context: BootstrapContext,
     authority: &AuthorityStateV1,
 ) -> Result<CanonicalGraph, StoreError> {
@@ -111,7 +111,7 @@ pub(crate) fn replay(
     }
     let graph = admitted_graph(&envelope.input, context, envelope.committed_at)
         .map_err(|error| StoreError::InvalidSeed(error.to_string()))?;
-    if graph.ontology != *ontology {
+    if ontology.is_some_and(|expected| graph.ontology != *expected) {
         return Err(StoreError::InvalidSeed("seed-ontology-mismatch".to_owned()));
     }
     Ok(graph)

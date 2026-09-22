@@ -63,7 +63,7 @@ pub struct NodeType {
     /// What a reader calls it.
     pub name: String,
     /// The types this one specialises. A node of this type carries their properties too.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "ekr_core::decode::unique_set")]
     pub parents: BTreeSet<TypeId>,
     /// The properties this type declares itself, by id.
     #[serde(default, deserialize_with = "ekr_core::decode::unique_map")]
@@ -75,7 +75,7 @@ pub struct NodeType {
     #[serde(default)]
     pub lifecycle: Option<Lifecycle>,
     /// The named operations of this type, by name (amendment 87).
-    #[serde(default)]
+    #[serde(default, deserialize_with = "ekr_core::decode::unique_map")]
     pub operations: BTreeMap<String, OperationDefinition>,
 }
 
@@ -104,10 +104,10 @@ pub struct EdgeType {
     /// What a reader calls it.
     pub name: String,
     /// The node types an edge of this type may start at. Empty is refused at load.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "ekr_core::decode::unique_set")]
     pub source_types: BTreeSet<TypeId>,
     /// The node types an edge of this type may end at. Empty is refused at load.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "ekr_core::decode::unique_set")]
     pub target_types: BTreeSet<TypeId>,
     /// How many edges of this type one source may have.
     #[serde(default)]

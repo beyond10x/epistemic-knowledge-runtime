@@ -15,9 +15,9 @@ use ekr_core::{
     RevisionNumber, SchemaVersionId, Timestamp, TransactionId, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalGraph, CanonicalRef, CanonicalValue, Confidence, Edge, Evidence,
-    EvidenceSource, GraphRoot, GraphSnapshot, Node, Object, Predicate, Space, Subject,
-    TemporalRange, TransactionTime, ValidationState,
+    Assertion, Assessment, CanonicalGraph, CanonicalRef, CanonicalValue, Confidence, Edge,
+    Evidence, EvidenceSource, GraphRoot, GraphSnapshot, Node, Object, Predicate, Space, Subject,
+    TemporalRange, TransactionTime,
 };
 use ekr_kernel::{EdgeDraft, GraphOperation, GraphTransaction, NodeDraft, Pipeline};
 use ekr_ontology::{
@@ -76,12 +76,16 @@ impl World {
         let mut open_node = Node::new(open, root_id, decision, "Adopt the eventlog store");
         open_node.properties.insert(
             title,
-            CanonicalValue::String("Adopt the eventlog store".to_owned()),
+            vec![CanonicalValue::String(
+                "Adopt the eventlog store".to_owned(),
+            )],
         );
         let mut decided_node = Node::new(decided, root_id, decision, "Hash canonical state only");
         decided_node.properties.insert(
             title,
-            CanonicalValue::String("Hash canonical state only".to_owned()),
+            vec![CanonicalValue::String(
+                "Hash canonical state only".to_owned(),
+            )],
         );
 
         let assertion = Assertion {
@@ -94,7 +98,8 @@ impl World {
             )),
             evidence: [retained_evidence].into_iter().collect(),
             proposed_by: proposer,
-            validation: ValidationState::Accepted {
+            lifecycle: ekr_graph::AssertionLifecycle::Active,
+            assessment: Assessment::Accepted {
                 validators: [reviewer].into_iter().collect(),
             },
             valid_time: TemporalRange::UNBOUNDED,
@@ -193,7 +198,8 @@ impl World {
             object: Object::Value(Value::String(object.to_owned())),
             evidence,
             proposed_by: self.proposer,
-            validation: ValidationState::Proposed,
+            lifecycle: ekr_graph::AssertionLifecycle::Active,
+            assessment: Assessment::Proposed,
             valid_time: TemporalRange::UNBOUNDED,
             transaction_time: TransactionTime::since(Timestamp::EPOCH),
         }

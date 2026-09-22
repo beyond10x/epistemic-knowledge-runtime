@@ -2,6 +2,7 @@
 use crate::{StorageClass, StoreError, StoredObject};
 use ekr_core::{Canonical, ContentHash, Encoder, EventId, RevisionId, RevisionNumber, Timestamp};
 use ekr_graph::{CanonicalGraph, RevisionEvent, Root};
+use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
 /// Value-domain address of complete node, edge and assertion collections, in that order.
@@ -99,12 +100,13 @@ pub trait CommitAuthority {
     fn replay(
         &self,
         history: &RetainedHistory,
-        ontology: &ekr_ontology::Ontology,
+        ontology: Option<&ekr_ontology::Ontology>,
         revision: Option<RevisionNumber>,
     ) -> Result<Option<AdmittedRevision>, StoreError>;
 }
 /// One object staged for atomic publication. No provider bytes exist merely because it is staged.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PublicationObject {
     /// Requested minimum retention.
     pub storage_class: StorageClass,
@@ -114,11 +116,13 @@ pub struct PublicationObject {
     pub bytes: Vec<u8>,
 }
 /// An immutable domain occurrence and all objects it publishes atomically.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Publication {
     /// Exact current occurrence, allocated once by the kernel.
     pub event: RevisionEvent,
     /// Required objects keyed by their actual payload-domain addresses.
+    #[serde(deserialize_with = "ekr_core::decode::unique_map")]
     pub objects: BTreeMap<ContentHash, PublicationObject>,
     /// Read revision-stream position. Zero means Expected::NoStream on every retry.
     pub expected_version: u64,
@@ -134,10 +138,36 @@ pub enum Appended {
 }
 /// Synchronous storage port. Kernel replay owns all domain admission and root construction.
 pub trait RevisionLog {
+    /// Reads the elected private attempt without publishing or recovering anything.
+    /// # Errors
+    /// Corrupt or inconsistent preparation history refuses.
+    fn preparation(
+        &self,
+        key: &crate::PublicationCommandKey,
+    ) -> Result<Option<crate::PublicationPreparationV1>, StoreError>;
+    /// Elects an initial decision, or a successor after definitively resolving its predecessor.
+    /// # Errors
+    /// Input conflict, conditional contention, invalid authority or unresolved selection.
+    fn prepare(
+        &self,
+        key: &crate::PublicationCommandKey,
+        input_hash: ContentHash,
+        decision: &Publication,
+        previous: Option<&crate::PublicationPreparationV1>,
+    ) -> Result<crate::PublicationPreparationV1, StoreError>;
+    /// Retries the exact elected native request before reinterpreting head movement.
+    /// # Errors
+    /// Definite conflict, unresolved result, corruption or failed kernel admission.
+    fn resume(&self, preparation: &crate::PublicationPreparationV1)
+        -> Result<Appended, StoreError>;
     /// Complete verified immutable inputs, including retained decision records.
     /// # Errors
     /// Any physical history or object integrity failure.
     fn history(&self) -> Result<RetainedHistory, StoreError>;
+    /// Verified history ending exactly at the requested committed revision.
+    /// # Errors
+    /// Missing revision or invalid required prefix; later payloads are never loaded.
+    fn history_at(&self, revision: RevisionNumber) -> Result<RetainedHistory, StoreError>;
     /// Publishes one occurrence and its objects after fallible kernel admission.
     /// # Errors
     /// Conditional contention, invalid candidate history or an unresolved commit outcome.

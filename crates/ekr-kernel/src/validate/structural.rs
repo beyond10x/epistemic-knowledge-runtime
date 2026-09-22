@@ -284,6 +284,7 @@ impl Validator for Structural {
             }
         }
 
+        issues.extend(super::lifecycle::check(graph, tx));
         finish(issues)
     }
 }
