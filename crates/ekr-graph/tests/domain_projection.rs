@@ -128,29 +128,17 @@ fn fields_of(name: &str) -> Vec<String> {
     fields
 }
 
-/// Every `.rs` file of this crate's `src/`, as one string.
-fn crate_source() -> String {
-    let directory = std::path::PathBuf::from(
-        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
-    )
-    .join("src");
-    std::fs::read_dir(directory)
-        .expect("the crate has a src/")
-        .map(|entry| entry.expect("a directory entry").path())
-        .filter(|path| path.extension().is_some_and(|e| e == "rs"))
-        .map(|path| std::fs::read_to_string(&path).expect("a source file"))
-        .collect()
-}
-
 /// Every enumeration the domain declares, and the Rust type that carries it.
 ///
 /// Transcribed here rather than derived, for the reason `crates/ekr/tests/story_contract.rs`
 /// transcribes the story's dependency tables: a case whose expectation is read from the thing it
 /// is checking asserts nothing. Adding a variant to `graph.yaml` without adding it here, or here
 /// without the crate, turns this red.
-const ENUMERATIONS: [(&str, &str); 6] = [
+const ENUMERATIONS: &[(&str, &str)] = &[
     ("ekr.graph.Space", "Space"),
-    ("ekr.graph.ValidationState", "ValidationState"),
+    ("ekr.graph.AssessmentKind", "Assessment"),
+    ("ekr.graph.AssertionLifecycleKind", "AssertionLifecycle"),
+    ("ekr.graph.CanonicalValueKind", "CanonicalValue"),
     ("ekr.graph.SubjectKind", "Subject"),
     ("ekr.graph.PredicateKind", "Predicate"),
     ("ekr.graph.ObjectKind", "Object"),
@@ -159,11 +147,16 @@ const ENUMERATIONS: [(&str, &str); 6] = [
 
 #[test]
 fn every_enumeration_the_domain_declares_is_carried_variant_for_variant() {
-    let source = crate_source();
-    for (declared, rust_type) in ENUMERATIONS {
+    for &(declared, rust_type) in ENUMERATIONS {
+        let source = type_region(rust_type);
         for variant in variants_of(declared) {
             assert!(
-                source.contains(&variant),
+                source.lines().any(|line| {
+                    let line = line.trim();
+                    line == format!("{variant},")
+                        || line.starts_with(&format!("{variant}("))
+                        || line.starts_with(&format!("{variant} {{"))
+                }),
                 "{declared} declares the variant {variant}, and {rust_type} does not name it"
             );
         }
@@ -172,6 +165,7 @@ fn every_enumeration_the_domain_declares_is_carried_variant_for_variant() {
     // `ObservationKind` is the one whose variants the crate spells twice — once as the flat kind
     // the domain declares and once as the content form design § 15 gives — so it is checked apart
     // from the list above rather than by a substring that would match either.
+    let source = type_region("ObservationKind");
     for variant in variants_of("ekr.graph.ObservationKind") {
         assert!(
             source.contains(&format!("{variant},")) || source.contains(&format!("{variant} {{")),
@@ -180,104 +174,124 @@ fn every_enumeration_the_domain_declares_is_carried_variant_for_variant() {
     }
 }
 
-/// The document's own sentence about validation-state payloads, and the crate's quote of it.
-///
-/// The sentence is read out of `graph.yaml` **at run time** and the crate is required to contain
-/// it. The first version of this case asserted a string literal transcribed from the document;
-/// the document was then corrected — by this unit's own finding — and the literal went stale in
-/// the same commit that made it wrong. A quote checked against a copy of itself is not a quote.
-///
-/// What it holds: `graph.yaml`'s comment above `ekr.graph.ValidationState` says one state's
-/// payload has a carrier, `ekr.graph.Assertion` carries exactly that one, and
-/// `crates/ekr-graph/src/assertion.rs` quotes the sentence as it stands today.
+/// The old quotation test required missing assessment payloads. The current contract
+/// carries the complete assessment separately from lifecycle; exercise those real carriers.
 #[test]
-fn the_crate_quotes_the_domains_own_sentence_about_validation_state_payloads() {
-    let sentence = payload_sentence();
-    assert!(
-        sentence.contains("payload"),
-        "the comment above ekr.graph.ValidationState no longer discusses payloads: {sentence:?}"
-    );
+fn assessment_and_lifecycle_retain_independent_payloads() {
+    use ekr_core::{
+        AgentId, AssertionId, Canonical, GraphRootId, IssueId, RevisionNumber, Timestamp, TypeId,
+    };
+    use ekr_graph::{
+        Assertion, AssertionLifecycle, Assessment, Object, Predicate, RetractionReason, Subject,
+        TemporalRange, TransactionTime,
+    };
+    use std::collections::BTreeSet;
 
-    let quoted = normalise(&crate_source());
-    assert!(
-        quoted.contains(&sentence),
-        "crates/ekr-graph/src/assertion.rs must quote graph.yaml's sentence as it stands. The \
-         document says:\n  {sentence}\nand the crate does not contain it. Update the quote — or, \
-         if the document is wrong again, report it rather than paraphrasing it here."
+    assert_eq!(
+        fields_of("ekr.graph.AssessmentProjection"),
+        [
+            "kind",
+            "completed",
+            "required",
+            "validators",
+            "issues",
+            "competing_assertions"
+        ]
     );
-
-    // The claim the sentence makes, against the entity it makes it about.
-    let fields = fields_of("ekr.graph.Assertion");
-    assert!(
-        fields.contains(&"superseded_by".to_owned()),
-        "the one payload carrier the domain has went missing: {fields:?}"
+    assert_eq!(
+        fields_of("ekr.graph.AssertionLifecycleProjection"),
+        ["kind", "at_revision", "reason", "by", "effective_from"]
     );
-    for (state, absent) in [
-        ("Accepted", "validators"),
-        ("Rejected", "issues"),
-        ("Disputed", "competing"),
-        ("Retracted", "reason"),
-    ] {
-        assert!(
-            !fields.iter().any(|field| field.contains(absent)),
-            "ekr.graph.Assertion has grown a carrier for a {state} payload (a field naming \
-             {absent:?} in {fields:?}). task:graph-domain-carries-validation-state-payloads \
-             carries that gap; closing it means updating the crate, the document's sentence and \
-             this case together."
+    let assessment = [
+        Assessment::Proposed,
+        Assessment::Validating {
+            completed: 2,
+            required: 7,
+        },
+        Assessment::Accepted {
+            validators: BTreeSet::from([AgentId::mint()]),
+        },
+        Assessment::Rejected {
+            issues: vec![IssueId::mint()],
+        },
+        Assessment::Disputed {
+            competing_assertions: vec![AssertionId::mint()],
+        },
+    ];
+    assert_eq!(
+        assessment.iter().map(Assessment::name).collect::<Vec<_>>(),
+        variants_of("ekr.graph.AssessmentKind")
+    );
+    let lifecycle = [
+        AssertionLifecycle::Active,
+        AssertionLifecycle::Retracted {
+            at_revision: RevisionNumber::new(2),
+            reason: RetractionReason::new("supplied evidence withdrawn"),
+        },
+        AssertionLifecycle::Superseded {
+            by: AssertionId::mint(),
+            at_revision: RevisionNumber::new(3),
+            effective_from: Timestamp::from_millis(100),
+        },
+    ];
+    assert_eq!(
+        lifecycle
+            .iter()
+            .map(AssertionLifecycle::name)
+            .collect::<Vec<_>>(),
+        variants_of("ekr.graph.AssertionLifecycleKind")
+    );
+    let mut assertion: Assertion = Assertion {
+        id: AssertionId::mint(),
+        root_id: GraphRootId::mint(),
+        subject: Subject::Type(TypeId::mint()),
+        predicate: Predicate::Relation(TypeId::mint()),
+        object: Object::Type(TypeId::mint()),
+        evidence: BTreeSet::new(),
+        proposed_by: AgentId::mint(),
+        assessment: assessment[2].clone(),
+        lifecycle: AssertionLifecycle::Active,
+        valid_time: TemporalRange::new(None, None).unwrap(),
+        transaction_time: TransactionTime::new(Timestamp::EPOCH, None).unwrap(),
+    };
+    // This exercises the actual Assertion encoder under every withdrawal state.
+    // Changing retained attribution must change its address even after withdrawal.
+    for withdrawal in &lifecycle {
+        assertion.lifecycle = withdrawal.clone();
+        assertion.assessment = assessment[2].clone();
+        let with_original_validator = assertion.canonical_bytes();
+        assertion.assessment = Assessment::Accepted {
+            validators: BTreeSet::from([AgentId::mint()]),
+        };
+        assert_ne!(
+            assertion.canonical_bytes(),
+            with_original_validator,
+            "the assertion address lost retained attribution under {}",
+            withdrawal.name()
         );
     }
-}
-
-/// `graph.yaml`'s comment block above `ekr.graph.ValidationState`, as one normalised sentence.
-///
-/// The first sentence of it that mentions a payload — the claim the crate has to quote.
-fn payload_sentence() -> String {
-    let text = domain_text();
-    let lines: Vec<&str> = text.lines().collect();
-    let at = lines
-        .iter()
-        .position(|line| line.trim() == "- name: ekr.graph.ValidationState")
-        .expect("the domain declares ekr.graph.ValidationState");
-    let comment: Vec<&str> = lines[..at]
-        .iter()
-        .rev()
-        .map_while(|line| line.trim().strip_prefix("# "))
-        .collect();
-    assert!(
-        !comment.is_empty(),
-        "ekr.graph.ValidationState has no comment above it to quote"
+    let different_reason = AssertionLifecycle::Retracted {
+        at_revision: RevisionNumber::new(2),
+        reason: RetractionReason::new("different reason"),
+    };
+    assert_ne!(
+        different_reason.canonical_bytes(),
+        lifecycle[1].canonical_bytes()
     );
-    let block: String = comment.into_iter().rev().collect::<Vec<_>>().join(" ");
-
-    let normalised = normalise(&block);
-    let sentence = normalised
-        .split(". ")
-        .find(|sentence| sentence.contains("payload"))
-        .expect("the comment says something about payloads");
-    sentence.to_owned()
 }
 
-/// Text with doc-comment markers stripped and runs of whitespace collapsed, so that a sentence
-/// wrapped over three `///` lines compares equal to the same sentence on one `#` line.
-fn normalise(text: &str) -> String {
-    let words: Vec<&str> = text
-        .lines()
-        .map(|line| {
-            let line = line.trim_start();
-            // Doc-comment markers, then the block-quote marker a quoted sentence is wrapped in.
-            let line = line
-                .strip_prefix("///")
-                .or_else(|| line.strip_prefix("//!"))
-                .unwrap_or(line)
-                .trim_start();
-            line.strip_prefix('>').unwrap_or(line)
-        })
-        .flat_map(str::split_whitespace)
-        .collect();
-    words.join(" ")
+/// Name lookups are scoped to the actual current type; a field on another type cannot cover it.
+#[test]
+fn current_type_regions_cannot_borrow_legacy_or_unrelated_fields() {
+    let node = type_region("Node");
+    assert!(node.contains("pub canonical_name:"));
+    assert!(!node.contains("pub parent:"));
+    assert!(type_region("GraphRoot").contains("pub parent:"));
+    assert!(!crate_modules().iter().any(|(name, _)| name == "legacy.rs"));
+    assert!(!type_region("Assessment").contains("Retracted {"));
 }
 
-/// Every `.rs` file of this crate's `src/`, as `(file name, text)`.
+/// Current `.rs` modules in this crate's `src/`, excluding the frozen legacy codec.
 fn crate_modules() -> Vec<(String, String)> {
     let directory = std::path::PathBuf::from(
         std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
@@ -286,7 +300,10 @@ fn crate_modules() -> Vec<(String, String)> {
     let mut found: Vec<(String, String)> = std::fs::read_dir(directory)
         .expect("the crate has a src/")
         .map(|entry| entry.expect("a directory entry").path())
-        .filter(|path| path.extension().is_some_and(|e| e == "rs"))
+        .filter(|path| {
+            path.extension().is_some_and(|e| e == "rs")
+                && path.file_name().is_some_and(|name| name != "legacy.rs")
+        })
         .map(|path| {
             (
                 path.file_name()
@@ -305,11 +322,8 @@ fn crate_modules() -> Vec<(String, String)> {
 /// The source text belonging to one Rust type: its `struct`/`enum` declaration and every `impl`
 /// block on it, and nothing else.
 ///
-/// This is the tie the field guard did not have. Its rule was `pub {field}:` anywhere in the ten
-/// modules concatenated, so `GraphRoot.parent` and `Root.parent` answered for a hypothetical
-/// `ekr.graph.Node.parent` — and the eight declarations share around thirty field names, so the
-/// collision is the ordinary case rather than the exotic one. `KnowledgeState` on `GraphRoot` is
-/// P3 and `graph.yaml:121` already says it is coming.
+/// Searching concatenated modules let `GraphRoot.parent` and `Root.parent` answer for a
+/// hypothetical `ekr.graph.Node.parent`. The guard now looks only inside the declared carrier.
 ///
 /// Braces are matched rather than searched for, because a nested type in a field position (
 /// `properties: BTreeMap<PropertyId, Value>`) and a nested block in a method body both put a `}`
@@ -317,7 +331,17 @@ fn crate_modules() -> Vec<(String, String)> {
 fn type_region(type_name: &str) -> String {
     let mut region = String::new();
 
-    for (_, text) in crate_modules() {
+    let (type_name, modules) = if let Some(name) = type_name.strip_prefix("store::") {
+        let path = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+            .join("../ekr-store/src/snapshot.rs");
+        (
+            name,
+            vec![("snapshot.rs".into(), std::fs::read_to_string(path).unwrap())],
+        )
+    } else {
+        (type_name, crate_modules())
+    };
+    for (_, text) in modules {
         let mut at = 0;
         for line in text.lines() {
             if opens_item(line, type_name) {
@@ -336,7 +360,7 @@ fn type_region(type_name: &str) -> String {
     region
 }
 
-/// Whether `line` opens the declaration of `type_name` or an inherent `impl` block on it.
+/// Whether `line` opens the declaration of `type_name` or an implementation on it.
 ///
 /// A match on the head rather than on three literal strings, because
 /// `architecture-decision-record:0005-float-is-not-canonical`, as amended, made `Node`, `Edge`,
@@ -345,9 +369,10 @@ fn type_region(type_name: &str) -> String {
 /// neither — the scanner found no region at all for `Node` and said so, which is why this arrived
 /// as a red case rather than as a guard quietly covering nothing.
 ///
-/// A *trait* impl is deliberately not an item head: `impl<V: Canonical> Canonical for Node<V> {`
-/// names `Canonical`, not `Node`. That is the behaviour before this change as well — the region is
-/// the fields and inherent methods the domain projection is checked against.
+/// Trait implementations are resolved through their `for` type. This binds a
+/// canonical-byte projection to that carrier's encoder, without reading a
+/// similarly named method on another type. Private store envelope declarations
+/// are read only from the explicitly named current store codec.
 ///
 /// **Stated bounds**, neither reachable in this crate today and both written down rather than
 /// worked around:
@@ -361,10 +386,15 @@ fn opens_item(line: &str, type_name: &str) -> bool {
     let line = line.trim();
     let rest = if let Some(rest) = line.strip_prefix("pub struct ") {
         rest
+    } else if let Some(rest) = line.strip_prefix("struct ") {
+        rest
+    } else if let Some(rest) = line.strip_prefix("enum ") {
+        rest
     } else if let Some(rest) = line.strip_prefix("pub enum ") {
         rest
     } else if let Some(rest) = line.strip_prefix("impl") {
-        after_generics(rest).trim_start()
+        let rest = after_generics(rest).trim_start();
+        rest.split_once(" for ").map_or(rest, |(_, name)| name)
     } else {
         return false;
     };
@@ -422,225 +452,260 @@ fn block_at(text: &str, open: usize) -> String {
     panic!("an item's braces do not balance");
 }
 
-/// Each declaration of the domain, and the Rust types that together project it.
-///
-/// A declaration with an empty list is one this crate does not project at all, and the third
-/// column says why — checked to be non-trivial below, for the reason `FUSIONS` entries are.
-///
-/// More than one type per declaration where the projection is spread: `ekr.graph.Assertion`'s
-/// `recorded_from` lives on `TransactionTime`, which is the point of that type existing, and
-/// `ekr.graph.Evidence`'s `kind` and `locator` are methods on `EvidenceSource`.
-const PROJECTIONS: [(&str, &[&str], &str); 9] = [
+/// Current typed carriers for every declaration with fields. These are semantic
+/// carrier checks, not proof that the CLI's ESS transport projections have executed.
+/// The graph envelope belongs to the store codec; inspect that precise current owner.
+const PROJECTIONS: &[(&str, &[&str])] = &[
+    ("ekr.graph.AssessmentProjection", &["Assessment"]),
     (
-        "ekr.graph.TypedValue",
-        &[],
-        "the ess/1 flattening of ekr.ontology.Value — a kind plus the value's canonical text — \
-         which exists because ess types are not recursive. The crate holds a recursive value \
-         instead, CanonicalValue, so there is no Rust type to bind to this flattening",
+        "ekr.graph.AssertionLifecycleProjection",
+        &["AssertionLifecycle"],
     ),
-    ("ekr.graph.GraphRoot", &["GraphRoot"], ""),
-    ("ekr.graph.Node", &["Node"], ""),
-    ("ekr.graph.Edge", &["Edge"], ""),
+    ("ekr.graph.TypedValue", &["CanonicalValue"]),
+    ("ekr.graph.RevisionRoot", &["Root"]),
+    ("ekr.graph.GraphRootRecord", &["GraphRoot"]),
+    ("ekr.graph.NodeRecord", &["Node"]),
+    ("ekr.graph.EdgeRecord", &["Edge"]),
+    ("ekr.graph.SubjectProjection", &["Subject"]),
+    ("ekr.graph.PredicateProjection", &["Predicate"]),
+    ("ekr.graph.ObjectProjection", &["Object"]),
+    ("ekr.graph.TemporalRange", &["TemporalRange"]),
+    ("ekr.graph.TransactionTime", &["TransactionTime"]),
+    ("ekr.graph.AssertionRecord", &["Assertion"]),
+    ("ekr.graph.EvidenceSourceProjection", &["EvidenceSource"]),
+    ("ekr.graph.EvidenceRecord", &["Evidence"]),
+    ("ekr.graph.GraphDocumentBodyProjection", &["CanonicalGraph"]),
+    (
+        "ekr.graph.GraphDocumentV2Projection",
+        &["store::GraphEnvelope"],
+    ),
+    ("ekr.graph.GraphRoot", &["GraphRoot"]),
+    ("ekr.graph.Node", &["Node"]),
+    ("ekr.graph.Edge", &["Edge"]),
     (
         "ekr.graph.Assertion",
         &["Assertion", "TemporalRange", "TransactionTime"],
-        "",
     ),
-    ("ekr.graph.Support", &["Support"], ""),
+    ("ekr.graph.Support", &["Support"]),
     (
         "ekr.graph.Evidence",
         &["Evidence", "EvidenceSource", "Confidence"],
-        "",
     ),
     (
         "ekr.graph.Observation",
         &["Observation", "ObservationContent"],
-        "",
     ),
-    (
-        "ekr.graph.Assertions",
-        &[],
-        "a view, not an entity: a read projection over ekr.graph.Assertion that the store \
-         materialises. P1 has no store and design § 47's QueryScope is P4, so nothing here \
-         projects it and its four fields are ekr.graph.Assertion's own",
-    ),
+    ("ekr.graph.Assertions", &["Assertion", "TransactionTime"]),
 ];
 
-/// Fields the domain declares that this crate deliberately does not carry under that name, each
-/// with the reason.
-///
-/// An exception with no reason beside it is not an exception, it is the hole again. Every entry is
-/// checked against the document below, so an exception for a field `graph.yaml` no longer declares
-/// turns this red rather than sitting here covering nothing.
-const FUSIONS: [(&str, &str, &str); 11] = [
+/// Renamed/derived fields bind explicit tokens in their actual carrier instead of
+/// exempting a field from verification. Enum kinds are also checked against each
+/// declared arm above. No entry can match a field on an unrelated type.
+const FUSIONS: &[(&str, &str, &str, &[&str])] = &[
+    (
+        "ekr.graph.AssessmentProjection",
+        "kind",
+        "Assessment",
+        &["fn name("],
+    ),
+    (
+        "ekr.graph.AssertionLifecycleProjection",
+        "kind",
+        "AssertionLifecycle",
+        &["fn name("],
+    ),
     (
         "ekr.graph.TypedValue",
-        "canonical",
-        "the crate holds the recursive value itself — CanonicalValue, the kinds canonical state \
-         admits; TypedValue is the ess/1 flattening of it, needed because ess types are not \
-         recursive, and nothing in the crate needs the flattened text",
+        "kind",
+        "CanonicalValue",
+        &["String(String)", "Record(BTreeMap"],
+    ),
+    (
+        "ekr.graph.TypedValue",
+        "canonical_bytes",
+        "CanonicalValue",
+        &["fn encode("],
+    ),
+    (
+        "ekr.graph.SubjectProjection",
+        "kind",
+        "Subject",
+        &["Node(R)", "Edge(EdgeId)", "Type(TypeId)"],
+    ),
+    (
+        "ekr.graph.SubjectProjection",
+        "id",
+        "Subject",
+        &["Node(R)", "Edge(EdgeId)", "Type(TypeId)"],
+    ),
+    (
+        "ekr.graph.PredicateProjection",
+        "kind",
+        "Predicate",
+        &["Property(PropertyId)", "Relation(TypeId)"],
+    ),
+    (
+        "ekr.graph.PredicateProjection",
+        "id",
+        "Predicate",
+        &["Property(PropertyId)", "Relation(TypeId)"],
+    ),
+    (
+        "ekr.graph.ObjectProjection",
+        "kind",
+        "Object",
+        &["Value(V)", "Node(R)", "Type(TypeId)"],
+    ),
+    (
+        "ekr.graph.ObjectProjection",
+        "value",
+        "Object",
+        &["Value(V)"],
+    ),
+    (
+        "ekr.graph.ObjectProjection",
+        "reference",
+        "Object",
+        &["Node(R)", "Type(TypeId)"],
+    ),
+    (
+        "ekr.graph.EvidenceSourceProjection",
+        "kind",
+        "EvidenceSource",
+        &["fn kind("],
+    ),
+    (
+        "ekr.graph.EvidenceSourceProjection",
+        "url",
+        "EvidenceSource",
+        &["Url(String)"],
+    ),
+    (
+        "ekr.graph.EvidenceSourceProjection",
+        "assertion",
+        "EvidenceSource",
+        &["GraphAssertion(AssertionId)"],
+    ),
+    (
+        "ekr.graph.EvidenceSourceProjection",
+        "observation",
+        "EvidenceSource",
+        &["Observation(ObservationId)"],
+    ),
+    (
+        "ekr.graph.EvidenceRecord",
+        "confidence_bp",
+        "Confidence",
+        &["fn basis_points("],
     ),
     (
         "ekr.graph.Assertion",
         "subject_kind",
-        "fused with `subject` into the `Subject` enum: a kind that can disagree with the id beside \
-         it is a state design § 13 does not have",
+        "Subject",
+        &["Node(R)", "Edge(EdgeId)", "Type(TypeId)"],
     ),
     (
         "ekr.graph.Assertion",
         "predicate_kind",
-        "fused with `predicate` into the `Predicate` enum, for the same reason",
+        "Predicate",
+        &["Property(PropertyId)", "Relation(TypeId)"],
     ),
     (
         "ekr.graph.Assertion",
         "object_kind",
-        "fused with `object_value` and `object_ref` into the `Object` enum",
+        "Object",
+        &["Value(V)", "Node(R)", "Type(TypeId)"],
     ),
     (
         "ekr.graph.Assertion",
         "object_value",
-        "the `Object::Value` arm; the domain splits it because ess/1 cannot express a sum type \
-         with per-variant payloads",
+        "Object",
+        &["Value(V)"],
     ),
     (
         "ekr.graph.Assertion",
         "object_ref",
-        "the `Object::Node` and `Object::Type` arms",
-    ),
-    (
-        "ekr.graph.Assertion",
-        "superseded_by",
-        "the payload of `ValidationState::Superseded`, where design § 17 puts it; carrying it \
-         beside the state would let the two disagree",
+        "Object",
+        &["Node(R)", "Type(TypeId)"],
     ),
     (
         "ekr.graph.Assertion",
         "valid_from",
-        "the `from` bound of `valid_time: TemporalRange`",
+        "TemporalRange",
+        &["pub from: Option<Timestamp>"],
     ),
     (
         "ekr.graph.Assertion",
         "valid_to",
-        "the `to` bound of `valid_time: TemporalRange`",
+        "TemporalRange",
+        &["pub to: Option<Timestamp>"],
     ),
     (
         "ekr.graph.Evidence",
         "confidence_bp",
-        "`confidence: Confidence`, whose `basis_points()` is this value and whose constructor \
-         refuses the range the domain states as an invariant",
+        "Confidence",
+        &["fn basis_points("],
     ),
     (
         "ekr.graph.Evidence",
         "observation_id",
-        "`EvidenceSource::observation()`, which is `Some` only for the one source kind that has \
-         one — the domain carries it as an optional field because ess relations are total",
+        "EvidenceSource",
+        &["fn observation("],
+    ),
+    (
+        "ekr.graph.Assertions",
+        "assertion_id",
+        "Assertion",
+        &["pub id: AssertionId"],
     ),
 ];
 
-/// Every declaration of the domain has a field or a method for every field it declares, **on the
-/// Rust type that projects it**, or an entry in [`FUSIONS`] saying why not.
-///
-/// "Carried" means a field of that name **or** a method of that name: `ekr.graph.Observation`
-/// declares `kind` and `content_hash` beside its content, and the crate holds one
-/// `ObservationContent` that both are a function of — a field that can disagree with the content
-/// next to it is a field that eventually does. A reader of the domain still gets
-/// `observation.kind()` and `observation.content_hash()`, which is what the projection has to
-/// guarantee.
-///
-/// # The bound this case actually has
-///
-/// The first version of it searched the whole crate's `src/` concatenated, so it answered
-/// "carried" whenever *some* type happened to have a field of that name. Adversary pass 2 measured
-/// it: a new `ekr.graph.Node.knowledge_state` was caught and a new `ekr.graph.Node.parent` was
-/// not, because `GraphRoot.parent` and `Root.parent` exist — and the doc claimed a new field
-/// "cannot be omitted". Every field is now looked for inside [`type_region`] of the types
-/// [`PROJECTIONS`] binds that declaration to, which is the same slicing [`fields_of`] does on the
-/// document side.
-///
-/// Three lists have to stay honest for that to hold, and each is checked against the document:
-/// every declaration appears in `PROJECTIONS`, every `PROJECTIONS` type exists in the crate, and
-/// every `FUSIONS` entry names a field the document still declares.
 #[test]
 fn every_declaration_of_the_domain_is_carried_field_for_field() {
     let declarations = declarations_with_fields();
-    let mut checked = 0usize;
-    let mut bound = 0usize;
-
-    for declaration in &declarations {
-        let (_, types, reason) = PROJECTIONS
+    let expected: std::collections::BTreeSet<_> =
+        PROJECTIONS.iter().map(|(name, _)| *name).collect();
+    assert_eq!(
+        declarations
             .iter()
-            .find(|(name, _, _)| name == declaration)
-            .unwrap_or_else(|| {
-                panic!(
-                    "{declaration} is declared in graph.yaml and PROJECTIONS does not say which \
-                     Rust type projects it. A new entity cannot arrive unnoticed: name it, or \
-                     name it with an empty type list and the reason it is not projected."
-                )
-            });
-
-        if types.is_empty() {
-            assert!(
-                reason.len() > 40,
-                "{declaration} is unprojected without a reason worth reading"
-            );
-            continue;
-        }
-        assert!(
-            reason.is_empty(),
-            "{declaration} has both a projecting type and a not-projected reason"
-        );
-
+            .map(String::as_str)
+            .collect::<std::collections::BTreeSet<_>>(),
+        expected,
+        "every declaration needs a current, explicit carrier"
+    );
+    for (declaration, types) in PROJECTIONS {
         let region: String = types.iter().map(|name| type_region(name)).collect();
         for field in fields_of(declaration) {
-            checked += 1;
-            if FUSIONS
+            if let Some((_, _, owner, tokens)) = FUSIONS
                 .iter()
-                .any(|(owner, name, _)| owner == declaration && *name == field)
+                .find(|(declared, name, _, _)| declared == declaration && *name == field)
             {
-                continue;
+                let carrier = type_region(owner);
+                assert!(!tokens.is_empty());
+                for token in *tokens {
+                    assert!(
+                        carrier.contains(token),
+                        "{declaration}.{field} lost {owner}'s {token}"
+                    );
+                }
+            } else {
+                assert!(
+                    region.lines().any(|line| {
+                        let line = line.trim();
+                        line.strip_prefix("pub ")
+                            .unwrap_or(line)
+                            .starts_with(&format!("{field}:"))
+                    }) || region.contains(&format!("fn {field}(")),
+                    "{declaration}.{field} has no field/method on {types:?}"
+                );
             }
-            bound += 1;
-            assert!(
-                region.contains(&format!("pub {field}:"))
-                    || region.contains(&format!("fn {field}(")),
-                "{declaration} declares {field}, and none of {types:?} has a field or a method of \
-                 that name. FUSIONS does not say why either. Add the field, or add an exception \
-                 with the reason — an unexplained omission is the hole this case exists to close. \
-                 A match anywhere else in the crate does not count: that was the defect."
-            );
         }
     }
-
-    assert!(checked > 30, "the field scan is broken: {checked} fields");
-    assert!(
-        bound > 20,
-        "only {bound} fields are actually bound to a type; the rest are exceptions, which would \
-         make this case a list of excuses rather than a check"
-    );
-
-    // A stale entry in either table covers nothing and hides the next one.
-    for (declaration, types, _) in PROJECTIONS {
+    for (owner, field, _, _) in FUSIONS {
+        assert!(declarations.iter().any(|declared| declared == owner));
         assert!(
-            declarations.contains(&declaration.to_owned()),
-            "PROJECTIONS names {declaration}, which the domain no longer declares"
-        );
-        for name in types {
-            // Panics if the type is gone, which is the assertion.
-            let _ = type_region(name);
-        }
-    }
-    for (owner, field, reason) in FUSIONS {
-        assert!(
-            declarations.contains(&owner.to_owned()),
-            "FUSIONS names {owner}, which the domain no longer declares"
-        );
-        assert!(
-            fields_of(owner).contains(&field.to_owned()),
-            "FUSIONS excepts {owner}.{field}, which the domain no longer declares"
-        );
-        assert!(
-            reason.len() > 40,
-            "{owner}.{field} is excepted without a reason worth reading"
+            fields_of(owner).iter().any(|declared| declared == field),
+            "stale renamed-field mapping {owner}.{field}"
         );
     }
 }
