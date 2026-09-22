@@ -11,9 +11,13 @@ relations:
 - implements: executable-system-specification:ekr-v1
 scope:
 - confidence: cited
+  path: .github/workflows/correctness.yml
+- confidence: cited
   path: Cargo.lock
 - confidence: cited
   path: Cargo.toml
+- confidence: cited
+  path: README.md
 - confidence: inferred
   path: crates/ekr-core/src/identity.rs
 - confidence: inferred
@@ -99,8 +103,12 @@ scope:
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
 - confidence: cited
+  path: systems/ekr/domains/ontology.yaml
+- confidence: cited
   path: systems/ekr/domains/store.yaml
-revision: 37
+- confidence: cited
+  path: systems/ekr/system.yaml
+revision: 38
 ---
 ## Context
 
