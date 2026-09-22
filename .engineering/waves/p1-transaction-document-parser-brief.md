@@ -43,6 +43,16 @@ crates/ekr-kernel/src/lib.rs and transaction.rs. Report any needed strict nested
 declaration annotation outside these files before editing it. Do not edit Cargo,
 planning, DESIGN, systems, legacy codecs, fixed historical vectors or CI.
 
+## Measured scope addition
+
+The implementor found actual typed-ID maps in NodeType.properties and
+EdgeType.properties. Root added crates/ekr-core/src/decode.rs (inferred helper),
+crates/ekr-core/src/lib.rs (export) and crates/ekr-ontology/src/types.rs (the two
+field annotations) to the parent story scope through AEP. Implement one generic
+unique-map decoder at that primitive layer and reuse it in the kernel carriers.
+The duplicate key must refuse before its second value is decoded. Keep every
+frozen legacy carrier unchanged and include nested schema-operation controls.
+
 ## Verification and handback
 
 Start with meaningful failing tests and retain the red output. Exercise inclusive

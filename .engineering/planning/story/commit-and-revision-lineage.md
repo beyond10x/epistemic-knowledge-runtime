@@ -13,6 +13,10 @@ relations:
 - depends_on: story:version-persisted-contracts
 scope:
 - confidence: inferred
+  path: crates/ekr-core/src/decode.rs
+- confidence: cited
+  path: crates/ekr-core/src/lib.rs
+- confidence: inferred
   path: crates/ekr-kernel/src/apply.rs
 - confidence: inferred
   path: crates/ekr-kernel/src/commit.rs
@@ -30,7 +34,9 @@ scope:
   path: crates/ekr-kernel/tests/replay.rs
 - confidence: inferred
   path: crates/ekr-kernel/tests/transaction_document.rs
-revision: 13
+- confidence: cited
+  path: crates/ekr-ontology/src/types.rs
+revision: 15
 ---
 ## Context
 
