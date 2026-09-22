@@ -20,6 +20,10 @@ scope:
   path: crates/ekr-graph/src/edge.rs
 - confidence: cited
   path: crates/ekr-graph/src/events.rs
+- confidence: inferred
+  path: crates/ekr-graph/src/legacy.rs
+- confidence: cited
+  path: crates/ekr-graph/src/lib.rs
 - confidence: cited
   path: crates/ekr-graph/src/node.rs
 - confidence: cited
@@ -28,6 +32,10 @@ scope:
   path: crates/ekr-graph/tests
 - confidence: cited
   path: crates/ekr-kernel/src/commit.rs
+- confidence: inferred
+  path: crates/ekr-kernel/src/legacy.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/lib.rs
 - confidence: inferred
   path: crates/ekr-kernel/src/migration.rs
 - confidence: cited
@@ -46,6 +54,8 @@ scope:
   path: crates/ekr-store/src/eventlog.rs
 - confidence: inferred
   path: crates/ekr-store/src/legacy.rs
+- confidence: cited
+  path: crates/ekr-store/src/lib.rs
 - confidence: cited
   path: crates/ekr-store/src/log.rs
 - confidence: cited
@@ -66,7 +76,7 @@ scope:
   path: systems/ekr/domains/graph.yaml
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 25
+revision: 30
 ---
 ## Context
 
