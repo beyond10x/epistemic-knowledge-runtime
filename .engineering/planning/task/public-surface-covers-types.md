@@ -2,12 +2,13 @@
 format: aep.planning-md/1
 id: task:public-surface-covers-types
 kind: task
-status: draft
+status: active
 title: The public-surface guard reads types, not only functions and constants
 relations:
 - derived_from: story:ontology-types-and-values
 - serves: vision:o2
-revision: 1
+- derived_from: story:source-guard-debt
+revision: 3
 ---
 ## Context
 

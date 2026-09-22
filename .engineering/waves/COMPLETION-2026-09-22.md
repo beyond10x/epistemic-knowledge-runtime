@@ -48,8 +48,14 @@ were integrated independently; unrelated policy changes and backup files remain 
 
 ## Current implementation boundary
 
-The membrane repair and required repository correctness CI are merged. Kernel seed admission
-is the active unit; its implementation and review evidence belong to the P1-08 wave page.
-Persisted-contract corrections, durable application and the CLI remain unfinished. The
-conformance and migration preparation reports are measured prerequisites, not executed exits.
-No later phase or live cutover has been claimed complete.
+The membrane repair, required repository correctness CI and kernel seed admission are merged.
+The seed source is on main through PR #8; its implementation and review evidence belong to
+the P1-08 wave page. Original-format verification is integrated locally and completing its
+workspace gate. The source-guard unit follows before persisted-contract activation.
+
+Gates' historical-merge delivery repair is released and adopted, and actual EKR publication
+passed. Eventlog's strict history inspector is published on main; its atomic blob/event
+capability is in implementation. The EKR dependency update waits for that combined reviewed
+capability. Persisted-contract activation, durable application and the CLI remain unfinished.
+The conformance and migration preparation reports are measured prerequisites, not executed
+exits. No later phase or live cutover has been claimed complete.

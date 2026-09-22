@@ -92,7 +92,9 @@ scope:
   path: systems/ekr/domains/graph.yaml
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 33
+- confidence: cited
+  path: systems/ekr/domains/store.yaml
+revision: 35
 ---
 ## Context
 
@@ -306,3 +308,16 @@ writers, interrupted publication, own-result retry, retained terminal decisions,
 retraction/supersession, historical reconstruction, complete roots and corruption
 refusals. Full preserving migration remains downstream of the writer; missing
 original evidence refuses with an unchanged source.
+
+## Complete activation contract preparation
+
+The unapplied complete declaration patch is .engineering/waves/p1-writer-activation.patch,
+with preparation and future-case reports beside it. It appends dated design amendments
+and updates graph, ontology, kernel and store projections together. The report records
+actual compiler capability, validation and synthesis evidence; no runtime scenario ran.
+
+Current production projection guards stay intact during original-format and source-guard
+integration. Apply declarations to coordinator and the activation unit together before
+dispatching new-format implementation. Atomic provider source verification and coordinated
+dependency adoption precede production activation. Independent contract review is pending.
+Frozen original vectors and encoders remain unchanged.

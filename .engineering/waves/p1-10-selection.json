@@ -1,0 +1,1958 @@
+{
+  "waves": [
+    {
+      "wave": 1,
+      "artifacts": [
+        {
+          "id": "story:p1-transaction-membrane-repair",
+          "inferred": false,
+          "scope": [
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate/candidate.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate/cardinality.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate/mod.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate/ontology.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate/reference.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate/structural.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate/types.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/adversary_membrane.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/adversary_p1_07.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/validation.rs"
+            }
+          ]
+        },
+        {
+          "id": "story:source-guard-debt",
+          "inferred": true,
+          "scope": [
+            {
+              "confidence": "cited",
+              "path": "AGENTS.md"
+            },
+            {
+              "confidence": "inferred",
+              "path": "README.md"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/tests/adversary2_public_surface.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/tests/identity_serde.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/tests/public_surface.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/adversary2_guard_bounds_and_ranges.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/adversary2_membrane_and_addresses.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/adversary_canonical_value_reach.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/adversary_snapshot_and_assertion.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/canonical_value_and_assertion.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/domain_projection.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/revision_events.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/tests/domain_projection.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/tests/inheritance_and_declaration_coherence.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests/adversary2_retention_event_contract.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests/domain_projection.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr/tests/adversary_docs_contract.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr/tests/msrv_contract.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr/tests/public_surface.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr/tests/temporal_reads.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "xtask/src/main.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "wave": 2,
+      "artifacts": [
+        {
+          "id": "story:refuse-discarded-ontology-semantics",
+          "inferred": false,
+          "scope": [
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/validation.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/src/lifecycle.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/src/schema.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/src/types.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/src/value.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/tests/adversary_decoder.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/tests/ontology_load.rs"
+            }
+          ]
+        },
+        {
+          "id": "story:workspace-crate-skeleton",
+          "inferred": false,
+          "scope": [
+            {
+              "confidence": "cited",
+              "path": "Cargo.lock"
+            },
+            {
+              "confidence": "cited",
+              "path": "Cargo.toml"
+            },
+            {
+              "confidence": "cited",
+              "path": "README.md"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/Cargo.toml"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/src/lib.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/Cargo.toml"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/lib.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/Cargo.toml"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/lib.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/Cargo.toml"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/src/lib.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/Cargo.toml"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/lib.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr/Cargo.toml"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr/src/main.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr/tests/adversary_docs_contract.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr/tests/msrv_contract.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr/tests/story_contract.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "wave": 3,
+      "artifacts": [
+        {
+          "id": "story:kernel-identity-and-hashing",
+          "inferred": false,
+          "scope": [
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/src/canonical.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/src/hash.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/src/identity.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/src/lib.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/tests/adversary2_encoding_vector.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/tests/adversary2_public_surface.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/tests/adversary2_revision_number_text_form.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/tests/adversary_encoder_order.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/tests/adversary_encoding_vector.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/tests/adversary_id_text_form.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/tests/canonical_encoding.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/tests/content_hash.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/tests/identity_serde.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/tests/public_surface.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/tests/rename_stability.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "wave": 4,
+      "artifacts": [
+        {
+          "id": "story:ontology-types-and-values",
+          "inferred": false,
+          "scope": [
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/src/check.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/src/lib.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/src/lifecycle.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/src/schema.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/src/types.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/src/value.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/tests/domain_projection.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/tests/hierarchy_specificity.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/tests/inheritance_and_declaration_coherence.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/tests/lifecycle_transitions.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/tests/ontology_load.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/tests/type_hierarchy.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/tests/value_type_checking.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "wave": 5,
+      "artifacts": [
+        {
+          "id": "story:graph-model-and-assertions",
+          "inferred": false,
+          "scope": [
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/src/canonical.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/src/lib.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/src/time.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/tests/canonical_encoding.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/tests/public_surface.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-core/tests/timestamp.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/assertion.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/canonical.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/edge.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/events.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/evidence.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/lib.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/node.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/root.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/snapshot.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/transient.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/adversary2_guard_bounds_and_ranges.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/adversary_snapshot_and_assertion.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/compile_fail"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/domain_projection.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/evidence_and_observations.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/membrane.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/node_identity.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/revision_events.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/snapshot_reads.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/src/lib.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/src/schema.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/src/value.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/tests/domain_projection.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/tests/hierarchy_specificity.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/tests/inheritance_and_declaration_coherence.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/tests/ontology_load.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/tests/type_hierarchy.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/tests/value_type_checking.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr/tests/graph_assertion_serde.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr/tests/graph_events_serde.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "systems/ekr/domains/graph.yaml"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "wave": 6,
+      "artifacts": [
+        {
+          "id": "story:eventlog-store",
+          "inferred": false,
+          "scope": [
+            {
+              "confidence": "cited",
+              "path": "Cargo.lock"
+            },
+            {
+              "confidence": "cited",
+              "path": "Cargo.toml"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/Cargo.toml"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/eventlog.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/lib.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/log.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/objects.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/snapshot.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests/adversary2_event_vocabulary.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests/adversary2_membrane_bounds.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests/adversary2_retention_event_contract.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests/adversary_membrane_and_schema.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests/adversary_objects_and_append.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests/domain_projection.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests/fixture/mod.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests/fold_rules.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests/lineage/mod.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests/membrane_boundary.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests/providers.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr/tests/story_contract.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "systems/ekr/domains/store.yaml"
+            }
+          ]
+        },
+        {
+          "id": "story:transaction-and-validators",
+          "inferred": false,
+          "scope": [
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/issue.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/lib.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/transaction.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate/authorization.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate/cardinality.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate/mod.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate/ontology.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate/provenance.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate/reference.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate/structural.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate/types.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/adversary_membrane.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/adversary_membrane_pass_two.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/compile_fail"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/compile_fail/validated_transaction_cannot_be_deserialised.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/compile_fail/validated_transaction_cannot_be_deserialised.stderr"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/compile_fail/validated_transaction_has_no_constructor_outside_the_kernel.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/compile_fail/validated_transaction_has_no_constructor_outside_the_kernel.stderr"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/encoding_field_order.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/validate_properties.proptest-regressions"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/validate_properties.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/validation.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "wave": 7,
+      "artifacts": [
+        {
+          "id": "story:kernel-validated-seed",
+          "inferred": false,
+          "scope": [
+            {
+              "confidence": "cited",
+              "path": "AGENTS.md"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/assertion.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/canonical.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/edge.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/evidence.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/node.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/root.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/commit.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/lib.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/seed.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/adversary_p1_08_seed.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/commit_path.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/fixtures/seed-minimal.yaml"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/seed.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/src/schema.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-ontology/tests/ontology_load.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/eventlog.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/lib.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/log.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/snapshot.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr/tests/story_contract.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "systems/ekr/domains/kernel.yaml"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "wave": 8,
+      "artifacts": [
+        {
+          "id": "story:version-persisted-contracts",
+          "inferred": true,
+          "scope": [
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-core/src/identity.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-core/src/lib.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/assertion.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/edge.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/events.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-graph/src/legacy.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/lib.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/node.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/src/snapshot.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/canonical_value_and_assertion.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/compile_fail/canonical_ref_cannot_target_a_transient_type.stderr"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-graph/tests/compile_fail/transient_state_has_no_content_address.stderr"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/commit.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/src/legacy.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/lib.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/src/migration.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/seed.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/transaction.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate/candidate.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/src/validate/provenance.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/adversary_legacy_freeze.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-kernel/tests/legacy.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/tests/migration_inventory.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/eventlog.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-store/src/legacy.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/lib.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/log.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/src/snapshot.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-store/tests/fixtures/legacy"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests/fixtures/legacy/README.md"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests/fixtures/legacy/vectors.json"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr-store/tests/legacy.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-store/tests/read_only_inventory.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr/tests/graph_assertion_serde.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr/tests/graph_events_serde.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "docs/epistemic-knowledge-runtime-design.md"
+            },
+            {
+              "confidence": "cited",
+              "path": "systems/ekr/domains/graph.yaml"
+            },
+            {
+              "confidence": "cited",
+              "path": "systems/ekr/domains/kernel.yaml"
+            },
+            {
+              "confidence": "cited",
+              "path": "systems/ekr/domains/store.yaml"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "wave": 9,
+      "artifacts": [
+        {
+          "id": "story:commit-and-revision-lineage",
+          "inferred": true,
+          "scope": [
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/src/apply.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/src/commit.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/src/revision.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/tests/replay.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "wave": 10,
+      "artifacts": [
+        {
+          "id": "story:seed-and-explain",
+          "inferred": true,
+          "scope": [
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/src/explain.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/src/seed.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/tests/fixtures/seed-minimal.yaml"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr-kernel/tests/seed.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "wave": 11,
+      "artifacts": [
+        {
+          "id": "story:ekr-cli",
+          "inferred": true,
+          "scope": [
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr/src/cli"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr/src/exit.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr/src/main.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr/tests/fixtures"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr/tests/retraction_example.rs"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "wave": 12,
+      "artifacts": [
+        {
+          "id": "story:ess-conformance-kernel",
+          "inferred": true,
+          "scope": [
+            {
+              "confidence": "cited",
+              "path": "Cargo.toml"
+            },
+            {
+              "confidence": "inferred",
+              "path": "Taskfile.yml"
+            },
+            {
+              "confidence": "cited",
+              "path": "crates/ekr/Cargo.toml"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr/src/conformance.rs"
+            },
+            {
+              "confidence": "inferred",
+              "path": "crates/ekr/tests/conformance.rs"
+            },
+            {
+              "confidence": "cited",
+              "path": "systems/ekr/components.yaml"
+            },
+            {
+              "confidence": "inferred",
+              "path": "systems/ekr/conformance/suite.json"
+            },
+            {
+              "confidence": "cited",
+              "path": "systems/ekr/domains/kernel.yaml"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "collisions": [
+    {
+      "a": "story:commit-and-revision-lineage",
+      "b": "story:kernel-validated-seed",
+      "path": "crates/ekr-kernel/src/commit.rs",
+      "confidence": "inferred"
+    },
+    {
+      "a": "story:commit-and-revision-lineage",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-kernel/src/commit.rs",
+      "confidence": "inferred"
+    },
+    {
+      "a": "story:ekr-cli",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr/src/main.rs",
+      "confidence": "inferred"
+    },
+    {
+      "a": "story:ess-conformance-kernel",
+      "b": "story:eventlog-store",
+      "path": "Cargo.toml",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:ess-conformance-kernel",
+      "b": "story:kernel-validated-seed",
+      "path": "systems/ekr/domains/kernel.yaml",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:ess-conformance-kernel",
+      "b": "story:version-persisted-contracts",
+      "path": "systems/ekr/domains/kernel.yaml",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:ess-conformance-kernel",
+      "b": "story:workspace-crate-skeleton",
+      "path": "Cargo.toml",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:ess-conformance-kernel",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr/Cargo.toml",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:eventlog-store",
+      "b": "story:kernel-validated-seed",
+      "path": "crates/ekr-store/src/eventlog.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:eventlog-store",
+      "b": "story:kernel-validated-seed",
+      "path": "crates/ekr-store/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:eventlog-store",
+      "b": "story:kernel-validated-seed",
+      "path": "crates/ekr-store/src/log.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:eventlog-store",
+      "b": "story:kernel-validated-seed",
+      "path": "crates/ekr-store/src/snapshot.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:eventlog-store",
+      "b": "story:kernel-validated-seed",
+      "path": "crates/ekr/tests/story_contract.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:eventlog-store",
+      "b": "story:source-guard-debt",
+      "path": "crates/ekr-store/tests/adversary2_retention_event_contract.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:eventlog-store",
+      "b": "story:source-guard-debt",
+      "path": "crates/ekr-store/tests/domain_projection.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:eventlog-store",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-store/src/eventlog.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:eventlog-store",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-store/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:eventlog-store",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-store/src/log.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:eventlog-store",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-store/src/snapshot.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:eventlog-store",
+      "b": "story:version-persisted-contracts",
+      "path": "systems/ekr/domains/store.yaml",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:eventlog-store",
+      "b": "story:workspace-crate-skeleton",
+      "path": "Cargo.lock",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:eventlog-store",
+      "b": "story:workspace-crate-skeleton",
+      "path": "Cargo.toml",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:eventlog-store",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr-store/Cargo.toml",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:eventlog-store",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr-store/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:eventlog-store",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr/tests/story_contract.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:kernel-identity-and-hashing",
+      "path": "crates/ekr-core/src/canonical.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:kernel-identity-and-hashing",
+      "path": "crates/ekr-core/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:kernel-identity-and-hashing",
+      "path": "crates/ekr-core/tests/canonical_encoding.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:kernel-identity-and-hashing",
+      "path": "crates/ekr-core/tests/public_surface.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:kernel-validated-seed",
+      "path": "crates/ekr-graph/src/assertion.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:kernel-validated-seed",
+      "path": "crates/ekr-graph/src/canonical.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:kernel-validated-seed",
+      "path": "crates/ekr-graph/src/edge.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:kernel-validated-seed",
+      "path": "crates/ekr-graph/src/evidence.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:kernel-validated-seed",
+      "path": "crates/ekr-graph/src/node.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:kernel-validated-seed",
+      "path": "crates/ekr-graph/src/root.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:kernel-validated-seed",
+      "path": "crates/ekr-ontology/src/schema.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:kernel-validated-seed",
+      "path": "crates/ekr-ontology/tests/ontology_load.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:ontology-types-and-values",
+      "path": "crates/ekr-ontology/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:ontology-types-and-values",
+      "path": "crates/ekr-ontology/src/schema.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:ontology-types-and-values",
+      "path": "crates/ekr-ontology/src/value.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:ontology-types-and-values",
+      "path": "crates/ekr-ontology/tests/domain_projection.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:ontology-types-and-values",
+      "path": "crates/ekr-ontology/tests/hierarchy_specificity.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:ontology-types-and-values",
+      "path": "crates/ekr-ontology/tests/inheritance_and_declaration_coherence.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:ontology-types-and-values",
+      "path": "crates/ekr-ontology/tests/ontology_load.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:ontology-types-and-values",
+      "path": "crates/ekr-ontology/tests/type_hierarchy.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:ontology-types-and-values",
+      "path": "crates/ekr-ontology/tests/value_type_checking.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:refuse-discarded-ontology-semantics",
+      "path": "crates/ekr-ontology/src/schema.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:refuse-discarded-ontology-semantics",
+      "path": "crates/ekr-ontology/src/value.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:refuse-discarded-ontology-semantics",
+      "path": "crates/ekr-ontology/tests/ontology_load.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:source-guard-debt",
+      "path": "crates/ekr-core/tests/public_surface.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:source-guard-debt",
+      "path": "crates/ekr-graph/tests/adversary2_guard_bounds_and_ranges.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:source-guard-debt",
+      "path": "crates/ekr-graph/tests/adversary_snapshot_and_assertion.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:source-guard-debt",
+      "path": "crates/ekr-graph/tests/domain_projection.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:source-guard-debt",
+      "path": "crates/ekr-graph/tests/revision_events.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:source-guard-debt",
+      "path": "crates/ekr-ontology/tests/domain_projection.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:source-guard-debt",
+      "path": "crates/ekr-ontology/tests/inheritance_and_declaration_coherence.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-core/src/lib.rs",
+      "confidence": "inferred"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-graph/src/assertion.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-graph/src/edge.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-graph/src/events.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-graph/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-graph/src/node.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-graph/src/snapshot.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr/tests/graph_assertion_serde.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr/tests/graph_events_serde.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:version-persisted-contracts",
+      "path": "systems/ekr/domains/graph.yaml",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr-core/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr-graph/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:graph-model-and-assertions",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr-ontology/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-identity-and-hashing",
+      "b": "story:source-guard-debt",
+      "path": "crates/ekr-core/tests/adversary2_public_surface.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-identity-and-hashing",
+      "b": "story:source-guard-debt",
+      "path": "crates/ekr-core/tests/identity_serde.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-identity-and-hashing",
+      "b": "story:source-guard-debt",
+      "path": "crates/ekr-core/tests/public_surface.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-identity-and-hashing",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-core/src/identity.rs",
+      "confidence": "inferred"
+    },
+    {
+      "a": "story:kernel-identity-and-hashing",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-core/src/lib.rs",
+      "confidence": "inferred"
+    },
+    {
+      "a": "story:kernel-identity-and-hashing",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr-core/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:ontology-types-and-values",
+      "path": "crates/ekr-ontology/src/schema.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:ontology-types-and-values",
+      "path": "crates/ekr-ontology/tests/ontology_load.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:refuse-discarded-ontology-semantics",
+      "path": "crates/ekr-ontology/src/schema.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:refuse-discarded-ontology-semantics",
+      "path": "crates/ekr-ontology/tests/ontology_load.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:seed-and-explain",
+      "path": "crates/ekr-kernel/src/seed.rs",
+      "confidence": "inferred"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:seed-and-explain",
+      "path": "crates/ekr-kernel/tests/fixtures/seed-minimal.yaml",
+      "confidence": "inferred"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:seed-and-explain",
+      "path": "crates/ekr-kernel/tests/seed.rs",
+      "confidence": "inferred"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:source-guard-debt",
+      "path": "AGENTS.md",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:transaction-and-validators",
+      "path": "crates/ekr-kernel/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:transaction-and-validators",
+      "path": "crates/ekr-kernel/src/validate",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-graph/src/assertion.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-graph/src/edge.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-graph/src/node.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-kernel/src/commit.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-kernel/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-kernel/src/seed.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-store/src/eventlog.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-store/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-store/src/log.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-store/src/snapshot.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-store/tests",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:version-persisted-contracts",
+      "path": "systems/ekr/domains/kernel.yaml",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr-kernel/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr-store/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:kernel-validated-seed",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr/tests/story_contract.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:ontology-types-and-values",
+      "b": "story:refuse-discarded-ontology-semantics",
+      "path": "crates/ekr-ontology/src/lifecycle.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:ontology-types-and-values",
+      "b": "story:refuse-discarded-ontology-semantics",
+      "path": "crates/ekr-ontology/src/schema.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:ontology-types-and-values",
+      "b": "story:refuse-discarded-ontology-semantics",
+      "path": "crates/ekr-ontology/src/types.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:ontology-types-and-values",
+      "b": "story:refuse-discarded-ontology-semantics",
+      "path": "crates/ekr-ontology/src/value.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:ontology-types-and-values",
+      "b": "story:refuse-discarded-ontology-semantics",
+      "path": "crates/ekr-ontology/tests/ontology_load.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:ontology-types-and-values",
+      "b": "story:source-guard-debt",
+      "path": "crates/ekr-ontology/tests/domain_projection.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:ontology-types-and-values",
+      "b": "story:source-guard-debt",
+      "path": "crates/ekr-ontology/tests/inheritance_and_declaration_coherence.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:ontology-types-and-values",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr-ontology/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:p1-transaction-membrane-repair",
+      "b": "story:refuse-discarded-ontology-semantics",
+      "path": "crates/ekr-kernel/tests/validation.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:p1-transaction-membrane-repair",
+      "b": "story:transaction-and-validators",
+      "path": "crates/ekr-kernel/src/validate/cardinality.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:p1-transaction-membrane-repair",
+      "b": "story:transaction-and-validators",
+      "path": "crates/ekr-kernel/src/validate/mod.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:p1-transaction-membrane-repair",
+      "b": "story:transaction-and-validators",
+      "path": "crates/ekr-kernel/src/validate/ontology.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:p1-transaction-membrane-repair",
+      "b": "story:transaction-and-validators",
+      "path": "crates/ekr-kernel/src/validate/reference.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:p1-transaction-membrane-repair",
+      "b": "story:transaction-and-validators",
+      "path": "crates/ekr-kernel/src/validate/structural.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:p1-transaction-membrane-repair",
+      "b": "story:transaction-and-validators",
+      "path": "crates/ekr-kernel/src/validate/types.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:p1-transaction-membrane-repair",
+      "b": "story:transaction-and-validators",
+      "path": "crates/ekr-kernel/tests/adversary_membrane.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:p1-transaction-membrane-repair",
+      "b": "story:transaction-and-validators",
+      "path": "crates/ekr-kernel/tests/validation.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:p1-transaction-membrane-repair",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-kernel/src/validate/candidate.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:refuse-discarded-ontology-semantics",
+      "b": "story:transaction-and-validators",
+      "path": "crates/ekr-kernel/tests/validation.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:seed-and-explain",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-kernel/src/seed.rs",
+      "confidence": "inferred"
+    },
+    {
+      "a": "story:source-guard-debt",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-graph/tests/canonical_value_and_assertion.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:source-guard-debt",
+      "b": "story:workspace-crate-skeleton",
+      "path": "README.md",
+      "confidence": "inferred"
+    },
+    {
+      "a": "story:source-guard-debt",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr/tests/adversary_docs_contract.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:source-guard-debt",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr/tests/msrv_contract.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:transaction-and-validators",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-kernel/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:transaction-and-validators",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-kernel/src/transaction.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:transaction-and-validators",
+      "b": "story:version-persisted-contracts",
+      "path": "crates/ekr-kernel/src/validate/provenance.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:transaction-and-validators",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr-kernel/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:version-persisted-contracts",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr-core/src/lib.rs",
+      "confidence": "inferred"
+    },
+    {
+      "a": "story:version-persisted-contracts",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr-graph/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:version-persisted-contracts",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr-kernel/src/lib.rs",
+      "confidence": "cited"
+    },
+    {
+      "a": "story:version-persisted-contracts",
+      "b": "story:workspace-crate-skeleton",
+      "path": "crates/ekr-store/src/lib.rs",
+      "confidence": "cited"
+    }
+  ],
+  "unassessed": [],
+  "cycles": []
+}

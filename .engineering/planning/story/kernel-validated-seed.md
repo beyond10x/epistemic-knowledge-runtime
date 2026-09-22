@@ -60,7 +60,7 @@ scope:
   path: crates/ekr/tests/story_contract.rs
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 24
+revision: 25
 ---
 ## Context
 
@@ -174,3 +174,12 @@ independent kernel case. It failed with all malformed node/edge combinations
 admitted through both backends (exit 101). The exact source was restored before
 the full gate. See the wave closure and retained mutation log.
 No post-seed durable application or object/blob migration is implied.
+
+## Publication and main integration
+
+Required repository correctness and shared security/privacy checks pass for
+a4b21d54e3838efbf924cb60666073b2bf493b67. The bot fast-forwarded main to that exact
+checked source; https://github.com/beyond10x/epistemic-knowledge-runtime/pull/8
+reports merged with the same merge commit. The primary checkout is synchronized.
+Gates release adoption and actual publication evidence close the delivery blocker.
+The local full seed gate and adversarial correction evidence remain above.

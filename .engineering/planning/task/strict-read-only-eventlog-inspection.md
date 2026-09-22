@@ -2,13 +2,14 @@
 format: aep.planning-md/1
 id: task:strict-read-only-eventlog-inspection
 kind: task
-status: draft
+status: active
 title: Provide a nonmutating provider entry for preserving migration inventory
 relations:
 - derived_from: story:version-persisted-contracts
 - blocks: story:version-persisted-contracts
 - blocks: story:commit-and-revision-lineage
-revision: 1
+- serves: vision:o2
+revision: 4
 ---
 ## Context
 
@@ -37,3 +38,26 @@ but classification is not live-store inventory. The report gives the bounded ups
 No data copies, source mutation or service cutover were authorized by the inventory itself.
 The completion plan separately authorizes verified implementation and migration. Existing v2
 data remains in place; private source-path mapping is outside public version control.
+
+## Upstream publication
+
+## Published source verification
+
+The bot integrated the exact checked source at
+d90637b2fe2bbb33c9b395b0367cab8fbb80286d through
+https://github.com/beyond10x/eventlog/pull/10; the primary checkout is synchronized.
+Required source CI ran the real PostgreSQL production, comparative and restart
+proof alongside the shared security/privacy check. The downloaded proof identifies
+the synthetic PR merge; every candidate source-manifest byte was independently
+compared to the integrated source. No candidate source was dirty.
+
+The production proof reports the results appended below. The comparative report
+declares laboratory validity and retains the paired configurations and restart
+observations. It does not admit production deployment capacity. The CI proof and
+source-byte comparison are retained in the completion run's inspection scratch.
+
+This completes the bounded history inspection API. It does not establish a
+complete store backup, blob extraction, history verification, migration or EKR
+consumer adoption. The consumer will pin this source together with the subsequent
+atomic blob publication capability through its own coordinated manifest and lock.
+CI production result: 156 passed, 0 failed, 0 skipped; conformance_valid=true. Missing required cases: 0. Source: d512109dc2c651614cdc74a2b5fc17fc5817c50e.

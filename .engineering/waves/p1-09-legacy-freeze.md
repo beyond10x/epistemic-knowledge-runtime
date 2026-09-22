@@ -31,3 +31,30 @@ Scratch: <cache>/ekr-completion-20260922/persisted-contract/implementation.
 One active compiler owner per target, two compiler jobs, completion-plan disk
 floor observed before builds. Source reports precede independent review and the
 integrated gate. No unavailable model-cost counters are claimed.
+
+## Integrated verification
+
+Original-format source: 17a926211fa2fd7bef753d8e266805fe1c822903; local merge:
+5ae71d16f1119daaadaf16d9b362162a342839be. Independent review is retained at
+../reviews/p1-09-legacy-freeze-adversary.md. The coordinator mutation replaced
+the historical validation hash with the wrong domain and dropped its basis;
+the unchanged independent case failed with exit 101. Exact source was restored.
+
+The first whole-workspace gate found public legacy helpers without direct test
+coverage. The test-only correction is ../reviews/p1-09-legacy-api-coverage.md;
+it checks actual duplicate, filing, byte and hash-domain boundaries. No frozen
+fixture, production implementation or independent adversary case was weakened.
+The complete corrected gate ran each step with a separately retained exit status.
+
+Measured integrated suite: 431 passed, 0 failed, 0 ignored.
+fmt-check: 0
+clippy: 0
+test: 0
+doc-check: 0
+spec-check: 0
+plan-check: 0
+
+The combined persisted-contract story remains active. This preparation opens no
+source provider, converts no history and activates no new production codec.
+The new-format declaration patch is retained unapplied for independent review.
+Actual publication and required remote checks follow this local gate.

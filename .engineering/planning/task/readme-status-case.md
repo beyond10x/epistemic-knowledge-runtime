@@ -2,12 +2,14 @@
 format: aep.planning-md/1
 id: task:readme-status-case
 kind: task
-status: draft
+status: active
 title: Harden the README status case to compare against the member list
 relations:
 - informed_by: review-result:adversary-skeleton-pass-2
 - derived_from: story:workspace-crate-skeleton
-revision: 1
+- derived_from: story:source-guard-debt
+- serves: vision:o2
+revision: 3
 ---
 ## Context
 
