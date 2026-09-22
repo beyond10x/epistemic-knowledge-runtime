@@ -2,13 +2,13 @@
 format: aep.planning-md/1
 id: task:the-membrane-stops-at-the-store-boundary
 kind: task
-status: draft
+status: implemented
 title: A candidate's document deserialises into a canonical node, because the two carry identical bytes
 relations:
 - serves: vision:o2
 - derived_from: story:seed-and-explain
 - derived_from: story:kernel-validated-seed
-revision: 3
+revision: 7
 ---
 ## What is wrong
 
@@ -80,3 +80,25 @@ found it by reading what the crossing actually takes rather than what the task s
 ## Reconciliation, 2026-09-22
 
 The stale blocks edge to the implemented provider story has been removed. The existing root-space check closes the original whole-document claim, but seed graph semantic validation remains absent, as reproduced by the retained review cases. Seed admission is the kernel's responsibility under the existing design and story; no additional ownership ADR is needed. Keep this residual open until the real kernel seed path refuses invalid documents, and then record the executable evidence.
+
+## Residual closed by the kernel seed path
+
+The reconciled acceptance is implemented by story:kernel-validated-seed and its
+published PR #8, retained through the original-format freeze. Seed input is read
+as transient values; the fixed kernel validators, actual bootstrap actors and
+retained evidence establish canonical admission. Store replay delegates the full
+seed envelope to that same authority. A standalone deserializable node does not
+itself confer authority to publish canonical state.
+
+Executable cases in crates/ekr-kernel/tests/seed.rs include
+`a_seed_with_a_dangling_edge_is_refused_by_both_backends`,
+`a_seed_with_an_undeclared_type_is_refused_by_both_backends`,
+`a_seed_with_a_caller_verdict_is_refused_by_both_backends`,
+`named_seed_refusals_write_neither_the_object_nor_the_revision` and
+`legacy_and_tampered_seed_envelopes_are_preserved_but_never_admitted`.
+The evidence seed reopen and execution-context tampering cases bind the real
+kernel authority on both providers. All run again in the current kernel/store
+adoption suite; the published wave page retains original integration evidence.
+
+This closes the seed boundary residual, without claiming the forthcoming durable
+transaction writer, original-history migration or later import policy complete.
