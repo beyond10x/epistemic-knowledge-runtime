@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:commit-and-revision-lineage
 kind: story
-status: draft
+status: active
 title: Commit, revision roots, optimistic concurrency, retraction
 relations:
 - decomposes: epic:p1-kernel-ontology-core
@@ -11,6 +11,7 @@ relations:
 - implements: executable-system-specification:ekr-v1
 - depends_on: story:kernel-validated-seed
 - depends_on: story:version-persisted-contracts
+- serves: vision:o2
 scope:
 - confidence: cited
   path: Cargo.lock
@@ -66,7 +67,7 @@ scope:
   path: crates/ekr/tests
 - confidence: inferred
   path: vendor/serde_yaml_ng
-revision: 31
+revision: 33
 ---
 ## Context
 
