@@ -68,6 +68,14 @@ The activation review found four contract mismatches. Explicit object-event sche
 and absent-revision refusal are corrected in the retained draft. Exact Seed/Commit retry
 requires a measured ESS extension; its independently critiqued implementation contract is
 now being implemented upstream. Generated scenario counts are not executed conformance.
+The subsequent ess/7 draft is retained in
+`.engineering/waves/p1-writer-activation-ess7-draft.patch`, with a static review and
+development preflight under `.engineering/reviews/`. It declares own-result retries,
+complete original-revision observations and the frozen transaction parser profile.
+Development validation and compilation pass, but synthesis still refuses the Stale
+state's Commit and Validate cases through the external Commit/stale arrangement.
+That concrete adopter shape is being added to the upstream regression fixtures.
+This draft is unactivated and no released-compiler or runtime success is inferred.
 Persisted-contract activation, durable application and the CLI remain unfinished.
 The conformance and migration preparation reports are measured prerequisites, not executed
 exits. No later phase or live cutover has been claimed complete.
