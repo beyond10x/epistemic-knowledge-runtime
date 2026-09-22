@@ -93,14 +93,25 @@ This draft is unactivated. The preflight with the downloaded release passed;
 its commands and outputs are recorded in
 `.engineering/reviews/p1-writer-released-compiler-preflight.md`.
 No EKR runtime success is inferred from compiler qualification.
-The bounded transaction-document parser is implemented in its isolated unit.
+The bounded transaction-document parser is integrated on this completion branch.
 Its independent review reproduced admission of a combined string total above
 the frozen profile. The mechanism addendum retracts the original attribution to
 separate traversals: the dependency's public deserializer hides global tag text.
 The original failing case is preserved under
 review-result:p1-transaction-parser-adversary-r1. The bounded observation facade
-and counting correction are in progress; neither has passed the next independent
-review.
+and counting correction passed the second independent review, retained verbatim
+in review-result:p1-transaction-parser-adversary-r2. Its source unit is 93ec8a4
+and integration commit 0444fa9. The original regression remains unchanged.
+The full project gate and publication are pending; the parser task stays active
+until the writer's final operation-shape integration also passes.
+
+The newly published Eventlog 0.3.0 passed current consumer and cross-version seed
+checks, but a fresh SQLite atomic group can reuse corrupt blob metadata without
+refusing. The exact probe is retained in
+.engineering/reviews/eventlog-030-integrity-probe.md. Its upstream repair is under
+independent review in managed tree ekr-atomic-integrity-20260922. The dependency
+candidate remains unapplied here until the repaired source is qualified and
+published; current selectors retain the previously adopted provider revision.
 Persisted-contract activation, durable application and the CLI remain unfinished.
 The conformance and migration preparation reports are measured prerequisites, not executed
 exits. No later phase or live cutover has been claimed complete.
