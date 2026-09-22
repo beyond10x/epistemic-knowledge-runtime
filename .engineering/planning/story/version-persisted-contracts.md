@@ -108,7 +108,7 @@ scope:
   path: systems/ekr/domains/store.yaml
 - confidence: cited
   path: systems/ekr/system.yaml
-revision: 38
+revision: 39
 ---
 ## Context
 
@@ -355,3 +355,22 @@ This supplies the provider capability. EKR still needs metadata-only schema2
 ObjectStored publication, versioned readers, actual durable application and
 the preserving migration. No existing runtime event format has been changed
 by this dependency selection alone.
+
+## Released compiler adoption
+
+The verified ESS release is adopted in the correctness workflow and README.
+The exact source pin is the annotated release commit, not an unreleased branch.
+The existing EKR specification validates with its downloaded binary.
+
+The independent released-compiler preflight is retained verbatim in
+.engineering/reviews/p1-writer-released-compiler-preflight.md. It executes
+validation, compilation and kernel synthesis against the unchanged complete
+ess/7 activation proposal and compares its artifacts with final development
+outputs. The report establishes that the prior Seed/Commit retained-result
+and complete-refusal compiler gaps are closed. Its preliminary invalid component
+spelling is preserved separately from the successful synthesis.
+
+This supersedes older preparation's compiler-capability blocker; it does not
+claim an activated runtime, executed EKR target or finished persisted-contract
+story. The complete declaration patch remains unapplied until the shared parser
+correction is integrated and the activation unit is ready to implement it.

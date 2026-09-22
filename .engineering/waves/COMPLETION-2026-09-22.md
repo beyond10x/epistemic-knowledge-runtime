@@ -71,7 +71,9 @@ integrated through [ESS PR #59](https://github.com/beyond10x/ess/pull/59), merge
 8bef63a21766c54f0d809b4decf1d9f7bd587118 after the required CI checks passed.
 The operator approved the existing CI/release profile for this bounded 0.29.0
 release, retaining the separate local consumer-accounting refusal. Exact-tag
-qualification and release verification remain open. The delivery branch preserves
+qualification passed, and [ESS 0.29.0](https://github.com/beyond10x/ess/releases/tag/0.29.0)
+is verified: required release checks passed, downloaded archives match their
+checksums, the host binary runs and the release-status audit passes. The delivery branch preserves
 the reviewed tree and governed journal; the
 original development branches and a verified Git bundle retain the intermediate history.
 The source review is recorded there as `review-result:retained-replay-source-r2` and in
@@ -87,7 +89,12 @@ cases through the external Commit/stale arrangement. The upstream correction now
 generates both cases; repeated development validation, compilation and synthesis
 pass with no refused obligations. The exact failed and corrected outputs remain
 retained, and the same adopter shape is covered by upstream regression fixtures.
-This draft is unactivated and no released-compiler or runtime success is inferred.
+This draft is unactivated. A preflight with the downloaded release is in progress;
+no EKR runtime success is inferred from compiler qualification.
+The bounded transaction-document parser is implemented in its isolated unit.
+Its independent review found that separate traversals admitted a combined string
+total above the frozen profile. The original failing case is preserved under
+review-result:p1-transaction-parser-adversary-r1 and correction is in progress.
 Persisted-contract activation, durable application and the CLI remain unfinished.
 The conformance and migration preparation reports are measured prerequisites, not executed
 exits. No later phase or live cutover has been claimed complete.

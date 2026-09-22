@@ -35,15 +35,17 @@ through the AEP CLI.
 
 ## Build and check
 
-Rust 1.91 or later, Cargo, and [`task`](https://taskfile.dev):
+Use the pinned Rust 1.98.1 toolchain, Cargo, [`task`](https://taskfile.dev),
+ESS 0.29.0 and AEP 0.55.0. The correctness workflow pins both tools to their
+reviewed source commits.
 
 ```console
 cargo check --workspace
 task check
 ```
 
-`task check` is the gate: format, clippy with warnings as errors, tests, rustdoc, and the planning
-store's own validation.
+`task check` is the gate: format, clippy with warnings as errors, tests, rustdoc,
+ESS specification validation, and the planning store's own validation.
 
 ## Layout
 
