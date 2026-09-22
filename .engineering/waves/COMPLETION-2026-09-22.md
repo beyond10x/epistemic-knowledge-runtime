@@ -67,7 +67,10 @@ dependency-contract and 195 kernel/store cases passed before the combined integr
 The activation review found four contract mismatches. Explicit object-event schema dispatch
 and absent-revision refusal are corrected in the retained draft. Exact Seed/Commit retry
 requires a measured ESS extension. Its source correction and independent re-review are
-integrated in the ESS coordinator; repository and release qualification remain open.
+integrated in the ESS coordinator and published for CI in
+[ESS PR #59](https://github.com/beyond10x/ess/pull/59); repository and release qualification
+remain open. The delivery branch preserves the reviewed tree and governed journal; the
+original development branches and a verified Git bundle retain the intermediate history.
 The source review is recorded there as `review-result:retained-replay-source-r2` and in
 `.engineering/reviews/ekr-retained-replay-source-r2.md`. Its bounded runtime findings are
 addressed; it does not establish EKR durability. Generated scenario counts are not executed
