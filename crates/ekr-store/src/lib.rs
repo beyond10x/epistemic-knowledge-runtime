@@ -3,16 +3,22 @@
 //! Implements the `ekr.store` domain, `systems/ekr/domains/store.yaml`: content-addressed
 //! objects by storage class and snapshots of committed revisions, held in eventlog.
 //!
-//! Four modules:
+//! Public modules:
 //!
-//! * [`log`] — [`RevisionLog`], the lineage: append an event, fold the log, read the head
-//!   [`Root`](ekr_graph::Root), replay from a revision. The fold's rules are there, and so are
-//!   [`knowledge_root`] and [`evidence_root`], the two sub-roots P1 can compute.
+//! * [`log`] — [`RevisionLog`], the lineage: publish an occurrence with its objects atomically,
+//!   fold the log, read the head [`Root`](ekr_graph::Root), replay to a revision. Replay admits
+//!   history only through the injected [`CommitAuthority`], and [`knowledge_root`] and
+//!   [`evidence_root`] are computed there.
 //! * [`objects`] — [`StoredObject`] and [`StorageClass`], the content-addressed object store of
 //!   design § 37 and § 57.
 //! * [`snapshot`] — [`GraphDocument`], the materialised fold as bytes, and the one named place a
 //!   document is serialized; kernel admission is delegated through the authority port.
 //! * [`eventlog`] — the implementation over `eventlog-sqlite` and `eventlog-file`.
+//! * [`legacy`] — supplied-byte verification of the original graph format.
+//!
+//! Publication preparations (design § 94, `architecture-decision-record:0009`) are private: they
+//! retain an elected native request across an uncertain outcome and never confer canonical
+//! authority.
 //!
 //! # Synchronous, over an async port
 //!
@@ -30,10 +36,10 @@
 //! reach. A lineage is checked by replaying it, which is what `docs/roadmap.md` § 4 means by
 //! "replay from the seed reproduces the root hash".
 //!
-//! **An appended `ekr.kernel.TransactionValidated` is not that record**, which is
-//! `architecture-decision-record:0007-the-commit-path-is-the-kernels`: [`RevisionLog::append`] is
-//! public and takes a bare event, so the fold treating one as proof made a commit reachable by
-//! anyone holding a store. It now asks a [`CommitAuthority`] injected at construction — a store
+//! **An event in the log is not that record**, which is
+//! `architecture-decision-record:0007-the-commit-path-is-the-kernels`: the public `append` that
+//! took a bare event made a commit reachable by anyone holding a store, and it is gone. Every
+//! publication and every replay now asks a [`CommitAuthority`] injected at construction — a store
 //! opened without one folds no commit — and `ekr-kernel` is the only crate in the workspace that
 //! declares this one.
 //!

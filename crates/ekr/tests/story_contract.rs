@@ -3,7 +3,7 @@
 //! `story:workspace-crate-skeleton` states, in its "Constraints the scope carries" section, every
 //! crate dependency edge and every external dependency each crate declares. Nothing in `task check`
 //! compares that document to the manifests the same unit wrote, so these cases do: the expectations
-//! are transcribed into the tables below, from the story at revision 9, so that the case answers a
+//! are transcribed into the tables below, from the story at revision 19, so that the case answers a
 //! question about this tree alone. They are deliberately not read from the planning store at run
 //! time — a case whose expected values live in prose another branch may amend goes red in a tree
 //! that changed nothing, and no product test may read what the planning store owns. Amending the
@@ -76,7 +76,7 @@ const CRATES: [&str; 6] = [
     "ekr",
 ];
 
-/// The story's "Crate dependency edges, declared now" list, revision 9.
+/// The story's "Crate dependency edges, declared now" list, revision 19.
 const EDGES: [(&str, &[&str]); 6] = [
     ("ekr-core", &[]),
     (
@@ -92,7 +92,7 @@ const EDGES: [(&str, &[&str]); 6] = [
     ),
 ];
 
-/// The story's "External dependencies, declared now per crate" list, revision 9, as
+/// The story's "External dependencies, declared now per crate" list, revision 19, as
 /// `(crate, [dependencies], [dev-dependencies])`.
 const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
     (
@@ -103,7 +103,16 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
     (
         "ekr-kernel",
         &["serde", "serde_json", "serde_yaml_ng", "thiserror"],
-        &["proptest", "tempfile", "trybuild"],
+        &[
+            "eventlog-core",
+            "eventlog-file",
+            "eventlog-sqlite",
+            "proptest",
+            "tempfile",
+            "time",
+            "tokio",
+            "trybuild",
+        ],
     ),
     (
         "ekr-ontology",
@@ -125,7 +134,11 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
         ],
         &["tempfile"],
     ),
-    ("ekr", &["clap", "serde_json"], &["assert_cmd", "tempfile"]),
+    (
+        "ekr",
+        &["clap", "serde", "serde_json", "time"],
+        &["assert_cmd", "tempfile"],
+    ),
 ];
 
 /// The body of a manifest section, from its `[header]` to the next `[` at column zero.
@@ -619,9 +632,45 @@ fn seed_admission_is_kernel_owned_and_the_commit_api_lends_no_writer() {
         !snapshot.contains("fn into_canonical("),
         "store regained unchecked canonical construction"
     );
+    // Amendment 94 and ADR 0009 replaced `admit_seed` with one publication path: `initialize`
+    // accepts only a Seeded occurrence at version zero and delegates to `publish`, and `publish`
+    // replays the candidate history — the pending occurrence included — through the injected
+    // kernel authority before it builds any native append.
     let store = std::fs::read_to_string(root.join("crates/ekr-store/src/eventlog.rs")).unwrap();
-    assert!(store.contains("authority.admit_seed(&bytes, &self.ontology)?"));
+    let initialize = &store[store
+        .find("fn initialize(&self, publication: &Publication)")
+        .expect("the store implements Initialize")..];
+    let initialize = &initialize[..initialize.find("\n    }\n").expect("initialize closes")];
+    assert!(
+        initialize.contains("RevisionPayload::Seeded")
+            && initialize.contains("self.publish(publication)"),
+        "initialize no longer restricts itself to a Seeded occurrence published through publish"
+    );
+    let publish = &store[store
+        .find("fn publish(&self, publication: &Publication)")
+        .expect("the store implements publish")..];
+    let staged = publish
+        .find("history.occurrences.push(")
+        .expect("publish stages the candidate occurrence");
+    let admitted = publish[staged..]
+        .find(".replay(&history, self.ontology.as_ref(), None)?")
+        .map(|at| staged + at)
+        .expect("publish replays the staged candidate through the kernel authority");
+    let written = publish
+        .find("let mut appends")
+        .expect("publish builds the native append");
+    assert!(
+        staged < admitted && admitted < written,
+        "publish writes before the kernel authority admits the staged candidate"
+    );
+    assert!(
+        store.contains("self.authority.as_deref().ok_or(StoreError::NoSeedAuthority)"),
+        "a store without an injected authority no longer refuses"
+    );
+    // The type-level `ValidatedSeed` capability was replaced in `edf4799` by crate-private seed
+    // admission: only the kernel turns a seed document into the admitted graph a Seeded
+    // publication carries.
     let seed = std::fs::read_to_string(root.join("crates/ekr-kernel/src/seed.rs")).unwrap();
-    assert!(seed.contains("pub(crate) struct ValidatedSeed"));
-    assert!(!seed.contains("pub struct ValidatedSeed"));
+    assert!(seed.contains("pub(crate) fn admitted_graph("));
+    assert!(!seed.contains("pub fn admitted_graph("));
 }
