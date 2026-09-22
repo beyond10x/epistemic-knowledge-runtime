@@ -6,6 +6,13 @@ activating it in every tree that must agree. The cited/inferred scope report is
 `.engineering/reviews/p1-cli-explain-scope.md`; its packaging deviation and
 remaining host-boundary questions remain visible there.
 
+Partial adoption after the seed checkpoint: DESIGN 93 and active kernel ESS now
+bind Propose and Validate's actual retained response records and the proposed
+CommitCommandResult. The original draft patch is preserved as reviewed evidence;
+do not apply it wholesale against the updated declarations. Snapshot/Explain
+projections and exact host transport remain preparation. The bounded follow-up
+review is .engineering/reviews/p1-cli-explain-contract-review.md.
+
 ## Proposed public results
 
 The accompanying patch adds value projections, not new durable entities or
