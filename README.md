@@ -35,7 +35,8 @@ through the AEP CLI.
 
 ## Build and check
 
-Use the pinned Rust 1.98.1 toolchain, Cargo, [`task`](https://taskfile.dev),
+Rust 1.91 is the workspace's declared minimum. Builds and compile-fail checks use
+the pinned Rust 1.98.1 toolchain, Cargo, [`task`](https://taskfile.dev),
 ESS 0.29.0 and AEP 0.55.0. The correctness workflow pins both tools to their
 reviewed source commits.
 
@@ -45,7 +46,8 @@ task check
 ```
 
 `task check` is the gate: format, clippy with warnings as errors, tests, rustdoc,
-ESS specification validation, and the planning store's own validation.
+vendored YAML compatibility tests and documentation, ESS specification validation,
+and the planning store's own validation.
 
 ## Layout
 
