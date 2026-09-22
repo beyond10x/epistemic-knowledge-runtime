@@ -17,10 +17,20 @@ scope:
 - confidence: inferred
   path: crates/ekr-kernel/src/commit.rs
 - confidence: inferred
+  path: crates/ekr-kernel/src/document.rs
+- confidence: inferred
+  path: crates/ekr-kernel/src/document/
+- confidence: cited
+  path: crates/ekr-kernel/src/lib.rs
+- confidence: inferred
   path: crates/ekr-kernel/src/revision.rs
+- confidence: cited
+  path: crates/ekr-kernel/src/transaction.rs
 - confidence: inferred
   path: crates/ekr-kernel/tests/replay.rs
-revision: 11
+- confidence: inferred
+  path: crates/ekr-kernel/tests/transaction_document.rs
+revision: 13
 ---
 ## Context
 
