@@ -278,12 +278,17 @@ dependencies = [
  "ekr-graph",
  "ekr-ontology",
  "ekr-store",
+ "eventlog-core",
+ "eventlog-file",
+ "eventlog-sqlite",
  "proptest",
  "serde",
  "serde_json",
  "serde_yaml_ng",
  "tempfile",
  "thiserror",
+ "time",
+ "tokio",
  "trybuild",
 ]
 

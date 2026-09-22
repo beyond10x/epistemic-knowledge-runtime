@@ -626,6 +626,21 @@ types:
       - name: payload
         type: ekr.kernel.RevisionPayload
 
+  # Command responses expose actual retained decisions, without adding persisted formats.
+  - name: ekr.kernel.ValidationCommandResult
+    kind: union
+    tag: kind
+    variants:
+      Validated: ekr.kernel.ValidationReceiptV1
+      Rejected: ekr.kernel.RejectionRecordV1
+
+  - name: ekr.kernel.CommitCommandResult
+    kind: union
+    tag: kind
+    variants:
+      Committed: ekr.kernel.CommitReceiptV1
+      Stale: ekr.kernel.StaleRecordV1
+
 entities:
   # Design § 18. TrustProfile (§ 48) is a P5 concern and is not typed here yet.
   - name: ekr.kernel.Agent
@@ -810,6 +825,12 @@ errors:
       - name: state
         type: ekr.kernel.GraphTransaction.State
 
+  - name: ekr.kernel.TransactionNotFound
+    summary: No retained transaction carries the requested identity; no state or decision is invented.
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+
   - name: ekr.kernel.RevisionNotFound
     summary: No committed revision carries that number.
     fields:
@@ -868,6 +889,9 @@ commands:
     input:
       - name: transaction_document
         type: ekr.kernel.TransactionDocumentPath
+    response:
+      - name: result
+        type: ekr.kernel.ProposalRecordV1
     outcomes:
       - name: proposed
         creates: ekr.kernel.GraphTransaction
@@ -898,6 +922,9 @@ commands:
         type: ekr.kernel.TransactionId
       - name: against
         type: ekr.kernel.RevisionNumber
+    response:
+      - name: result
+        type: ekr.kernel.ValidationCommandResult
     outcomes:
       - name: validated
         moves: ekr.kernel.GraphTransaction.validate
@@ -931,6 +958,10 @@ commands:
         external: the transaction is Proposed and no committed revision carries input.against
         error: ekr.kernel.RevisionNotFound
         summary: Leave the transaction Proposed with no validation or rejection receipt or event; an older existing revision is still a valid basis and may become Stale only at Commit.
+      - name: transaction-not-found
+        external: no retained transaction carries input.transaction_id
+        error: ekr.kernel.TransactionNotFound
+        summary: Refuse before state or revision-basis evaluation; write no object, receipt, issue or event.
       - name: wrong-state
         wrong_state: true
         error: ekr.kernel.TransactionStateConflict
@@ -947,7 +978,7 @@ commands:
         type: ekr.kernel.TransactionId
     response:
       - name: result
-        type: ekr.kernel.CommitReceiptV1
+        type: ekr.kernel.CommitCommandResult
     outcomes:
       - name: committed
         when_subject_state: Validated
@@ -982,6 +1013,10 @@ commands:
         when_subject_state: Committed
         replays: committed
         summary: Return this transaction's original CommitReceiptV1, including after head advancement; preserve the transaction and publish no event or object.
+      - name: transaction-not-found
+        external: no retained transaction carries input.transaction_id
+        error: ekr.kernel.TransactionNotFound
+        summary: Refuse before state or staleness evaluation; write no object, receipt or event.
       - name: wrong-state
         error: ekr.kernel.TransactionStateConflict
         summary: Proposed, Rejected and Stale transactions refuse without a commit, event or subject change.

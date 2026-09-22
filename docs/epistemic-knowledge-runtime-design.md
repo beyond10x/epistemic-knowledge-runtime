@@ -3981,3 +3981,58 @@ ProposalRecord input across restart and producing the actual named Type refusal 
 hashes; changing any prior receipt/profile/ontology semantic field must invalidate acceptance or
 change its address as applicable. Legacy original-format immutable vectors remain unchanged.
 Migration is still downstream of this real durable path and the preservation/refusal rules of §90.
+
+---
+
+# 92. Absent Transaction Command Targets
+
+*Added 2026-09-22 during implementation of §91. This closes an omitted refusal;
+it does not change any retained record format or transaction lifecycle.*
+
+Validate and Commit first resolve the supplied transaction identity from verified
+retained records. A well-formed identity with no retained transaction returns
+`TransactionNotFound { transaction_id }`. It cannot return a state conflict with
+an invented Proposed, Rejected or other state. This lookup precedes Validate's
+revision-basis check and Commit's staleness check. Malformed identifiers remain
+input failures; corrupt required history remains a verification failure and is
+never disguised as an absent transaction.
+
+The refusal writes no object, validation issue, receipt or event and changes no
+canonical revision. Both public handlers must execute this control after a fresh
+process reopen on both providers, comparing object/event counts and the complete
+retained state before and after. These controls are unexecuted at declaration.
+The corresponding ESS outcomes are `transaction-not-found`; generated compiler
+obligations alone do not establish runtime behavior.
+
+---
+
+# 93. Durable Command Response Values
+
+*Added 2026-09-22 before ordinary durable handlers are implemented. These are
+command response values over the existing §91 records, not new persisted formats.*
+
+Propose returns its actual retained ProposalRecordV1. Validate returns
+ValidationCommandResult, exactly Validated(ValidationReceiptV1) or
+Rejected(RejectionRecordV1). Commit returns CommitCommandResult, exactly
+Committed(CommitReceiptV1) or Stale(StaleRecordV1). The corresponding ESS unions
+use a kind discriminator. A retained successful Commit returns Committed with
+its original receipt, without another occurrence or clock sample.
+
+A recorded rejection and a recorded stale decision are declared command outcomes.
+They are distinct from a named refusal that records nothing and from an
+operational or retained-history verification failure. Neither the kernel host
+nor a presentation adapter may manufacture a success receipt for another branch,
+replace actual rejection issues with a count, or reconstruct an alleged original
+proposal through a JSON round trip.
+
+The shared-handler and later CLI/conformance acceptance must bind each branch
+to its actual retained record after restart. A well-formed noncanonical Float
+proposal must return its exact document bytes and absent canonical hashes, then
+its real recorded Type issues. A stale Commit must return its actual stale basis
+and observed head. These response controls are unexecuted at declaration.
+
+The trusted provider opener also preserves the typed distinction between a
+valid but different host anchor and corrupt retained state. Seed maps the former
+to AlreadySeeded as §91.2 requires, without admitting or exposing state under the
+changed anchor; ordinary commands and reads refuse it. Recovering the ontology
+from the retained seed does not authorize replacement host configuration.

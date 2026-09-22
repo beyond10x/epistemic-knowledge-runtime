@@ -56,3 +56,44 @@ not a passing product gate. Production code now has to implement that contract.
 
 Measured preflight: disk bytes available 10757951488; temporary-memory bytes available 31079641088.
 Source base before opening metadata: 5f6f5f886c79ce88b3aa525b8410391de99b6f6d.
+
+## Memory-backed build reservation
+
+The original disk floor assumed compiler output on persistent storage. This
+unit now writes compiler output to its exclusive temporary-memory target.
+Measured at this change: persistent bytes available 9461886976; temporary-memory
+bytes available 31051960320; host MemAvailable 38575600 KiB.
+
+Before each compiler invocation, require at least 4 GiB persistent free space,
+8 GiB free on the temporary-memory filesystem and 8 GiB host MemAvailable.
+Retain the two-job cap, disabled incremental/debug output and task-owned paths.
+The coordinator has retired its idle provider/probe compiler outputs. Persistent
+source, logs, exact failed inputs and fixture evidence remain retained. If any
+floor fails, stop new compilation and report; do not clean unrelated storage.
+This resource adjustment supersedes the earlier 10 GiB persistent floor only for
+this memory-backed unit. It changes no acceptance or source gate.
+
+## Absent transaction target qualification
+
+The source worker identified an omitted named refusal. DESIGN's appended
+Absent Transaction Command Targets amendment and the shared kernel ESS now
+require TransactionNotFound before state/basis/staleness evaluation, without
+writes or a fabricated transaction state. Both active trees have identical
+shared declarations. This is a contract correction, not executed runtime evidence.
+
+Released compiler output retained under the unit scratch transaction-not-found directory:
+- generated: 35; authored: 0; refused: 0; outside: 0.
+Validation and compilation also exit successfully. The implementation and later
+real-target conformance must execute the new refusal and no-write controls.
+
+## Direct provider test setup
+
+Kernel dev dependencies now include the already-pinned Eventlog core, File and
+SQLite workspace dependencies, Tokio and time. These support direct injection of
+synthetic corruption, erasure and runtime-context conditions while acceptance
+still reopens through the real kernel authority. No production dependency or
+raw-writer consumer grant is added. Offline full dependency resolution changes
+only the kernel's lockfile dependency list, with no package/version/source change.
+The coordinator applied and compared manifest/lock in both active trees. The
+worker's original patch with an invalid hunk count is retained privately; the
+reviewed additions were applied directly rather than rewriting that evidence.

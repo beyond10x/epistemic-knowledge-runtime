@@ -18,8 +18,13 @@ serde_yaml_ng.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
+eventlog-core.workspace = true
+eventlog-file.workspace = true
+eventlog-sqlite.workspace = true
 proptest.workspace = true
 tempfile.workspace = true
+time.workspace = true
+tokio.workspace = true
 trybuild.workspace = true
 
 [lints]

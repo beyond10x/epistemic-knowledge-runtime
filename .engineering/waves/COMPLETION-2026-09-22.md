@@ -89,11 +89,13 @@ cases through the external Commit/stale arrangement. The upstream correction now
 generates both cases; repeated development validation, compilation and synthesis
 pass with no refused obligations. The exact failed and corrected outputs remain
 retained, and the same adopter shape is covered by upstream regression fixtures.
-This draft is unactivated. The preflight with the downloaded release passed;
-its commands and outputs are recorded in
+The preflight with the downloaded release passed; its commands and outputs are recorded in
 `.engineering/reviews/p1-writer-released-compiler-preflight.md`.
-No EKR runtime success is inferred from compiler qualification.
-The bounded transaction-document parser is integrated on this completion branch.
+The qualified declarations are now activated in the coordinator and durable
+source unit together. Validation, compilation and synthesis passed against the
+activated specification; no EKR runtime success is inferred from that evidence.
+The bounded transaction-document parser is merged through
+[EKR PR #11](https://github.com/beyond10x/epistemic-knowledge-runtime/pull/11).
 Its independent review reproduced admission of a combined string total above
 the frozen profile. The mechanism addendum retracts the original attribution to
 separate traversals: the dependency's public deserializer hides global tag text.
@@ -102,16 +104,37 @@ review-result:p1-transaction-parser-adversary-r1. The bounded observation facade
 and counting correction passed the second independent review, retained verbatim
 in review-result:p1-transaction-parser-adversary-r2. Its source unit is 93ec8a4
 and integration commit 0444fa9. The original regression remains unchanged.
-The full project gate and publication are pending; the parser task stays active
-until the writer's final operation-shape integration also passes.
+The full project gate and required CI passed; integration corrections and the
+measured results are retained in
+`.engineering/reviews/p1-parser-integration-corrections.md` and
+`.engineering/reviews/p1-parser-integration-gate.md`. The parser task stays active
+until the writer's final operation-shape integration also passes. Its source
+worktree was finished and removed through the managed lifecycle after publication.
 
 The newly published Eventlog 0.3.0 passed current consumer and cross-version seed
 checks, but a fresh SQLite atomic group can reuse corrupt blob metadata without
 refusing. The exact probe is retained in
-.engineering/reviews/eventlog-030-integrity-probe.md. Its upstream repair is under
-independent review in managed tree ekr-atomic-integrity-20260922. The dependency
-candidate remains unapplied here until the repaired source is qualified and
-published; current selectors retain the previously adopted provider revision.
-Persisted-contract activation, durable application and the CLI remain unfinished.
+.engineering/reviews/eventlog-030-integrity-probe.md. The repair passed independent
+review and required production-backend CI and is merged through
+[Eventlog PR #15](https://github.com/beyond10x/eventlog/pull/15). The coordinator
+and durable source unit select that reviewed source. Full EKR qualification and
+cross-version seed reopening passed, recorded in
+`.engineering/reviews/eventlog-repair-adoption.md`; the bounded adoption is merged through
+[EKR PR #12](https://github.com/beyond10x/epistemic-knowledge-runtime/pull/12).
+Its required repository correctness and common checks passed. The upstream
+completion record is merged through
+[Eventlog PR #17](https://github.com/beyond10x/eventlog/pull/17), and that source
+worktree is finished and removed after publication. Both primary checkouts are
+advanced only by clean fast-forward to the merged source.
+No new Eventlog release tag or ordinary-transaction durability is inferred.
+
+The coupled persisted-contract and durable-kernel implementation is active in
+managed tree `ekr-durable-activation-20260922`, following
+`p1-durable-activation-brief.md` and `p1-durable-activation-20260922.md`.
+The first checkpoint covers the new formats, kernel seed and atomic retained
+blobs; ordinary application and full replay acceptance follow in the same unit.
+Its exclusive compiler output uses temporary-memory storage; source and evidence
+remain persistent. The resource page records the measured reservation and floors.
+Durable application and the CLI remain unfinished.
 The conformance and migration preparation reports are measured prerequisites, not executed
 exits. No later phase or live cutover has been claimed complete.
