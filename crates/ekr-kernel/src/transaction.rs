@@ -270,10 +270,10 @@ impl ValidatedTransaction {
         transaction: GraphTransaction<CanonicalValue>,
         validated_against: RevisionNumber,
     ) -> Self {
-        let mut encoder = Encoder::new();
-        transaction.encode(&mut encoder);
-        validated_against.encode(&mut encoder);
-        let validation_hash = ContentHash::of_bytes(encoder.as_bytes());
+        let validation_hash = ContentHash::of(&SealedBasis {
+            transaction: &transaction,
+            validated_against,
+        });
         Self {
             transaction,
             validated_against,
@@ -302,6 +302,20 @@ impl ValidatedTransaction {
     #[must_use]
     pub const fn validation_hash(&self) -> ContentHash {
         self.validation_hash
+    }
+}
+
+/// The complete basis a seal addresses, as one value: hashed with [`ContentHash::of`] so that it
+/// lives in the value domain and no payload handed to a store can take its address.
+struct SealedBasis<'a> {
+    transaction: &'a GraphTransaction<CanonicalValue>,
+    validated_against: RevisionNumber,
+}
+
+impl Canonical for SealedBasis<'_> {
+    fn encode(&self, out: &mut Encoder) {
+        self.transaction.encode(out);
+        self.validated_against.encode(out);
     }
 }
 
