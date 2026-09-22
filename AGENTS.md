@@ -46,8 +46,8 @@ a dependency; their data enters through the import policy in `docs/predecessors.
   journal. Before an agent writes, set `AEP_ACTOR` to the agent's execution identity.
 - `.engineering/waves/COORDINATOR.md` — **read before opening a wave and again before its closing
   commit.** Seven checks, each with a command, each written because it was skipped and cost
-  something named. Across waves p1-01 to p1-06 the implementors and adversaries found twenty-eight
-  coordinator errors, and every one of these checks catches one of them mechanically.
+  something named. The wave pages and review records carry the individual findings; counts must
+  be measured from those records rather than inferred from the number of review passes.
 
 ## Invariants
 
@@ -100,8 +100,9 @@ checkout keeps reading that checkout's path, whatever tree later runs it. Use
 `std::env::var("CARGO_MANIFEST_DIR")`, which cargo sets per process for `cargo test` and `cargo run`,
 or walk up from `current_dir()` to the directory holding `Cargo.lock`.
 
-**Twenty files carry the pattern, in thirty-nine places**, including `xtask/src/main.rs:32`, which is
-not a test. `task:guards-read-source-through-a-compile-time-path` says what closes it.
+The remaining sites include `xtask/src/main.rs`, which is not a test.
+`task:guards-read-source-through-a-compile-time-path` says what closes them. Measure executable
+uses separately from comments when reporting a count; a text search includes both.
 
 **What was observed**, on 2026-09-21 at the close of wave p1-05: after the wave's worktrees were
 removed, `task check` on the primary checkout failed reading

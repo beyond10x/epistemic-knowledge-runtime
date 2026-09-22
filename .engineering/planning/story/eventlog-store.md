@@ -52,7 +52,7 @@ scope:
   path: crates/ekr/tests/story_contract.rs
 - confidence: cited
   path: systems/ekr/domains/store.yaml
-revision: 14
+revision: 15
 ---
 ## Context
 
@@ -110,3 +110,7 @@ for that change and no other.
 The parallel-safety conclusion survives the correction: `story:transaction-and-validators` touches
 none of those three files, so the two units are still disjoint on every file. It now rests on a
 reading of the dependency rather than on this paragraph's wrong sentence.
+
+## Acceptance correction, 2026-09-22
+
+The operator keeps this story implemented. Its reopen acceptance used a substitute CommitAuthority (`tests/lineage/mod.rs` and `tests/providers.rs`), establishing provider behavior rather than durable authorization through the kernel. The independent review of 209dd5e reproduced a real-kernel commit that advances the reported revision without applying CreateNode, then reopens at revision zero. `story:commit-and-revision-lineage` owns closure through both backends with the real authority and a changing graph hash. The original acceptance is not evidence of that stronger property.

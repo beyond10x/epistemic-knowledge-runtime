@@ -6,7 +6,7 @@ status: draft
 title: TypedValue.canonical is declared a String and was described as the content-hash bytes, which it cannot be
 relations:
 - serves: vision:o2
-revision: 1
+revision: 2
 ---
 ## What is wrong
 
@@ -50,3 +50,7 @@ Nothing deserialises a `TypedValue`. The Rust wire form for a property value is
 `ekr_ontology::Value`'s adjacently-tagged shape, which goes through `CanonicalValue`'s
 `#[serde(try_from)]`. The day a store or an export writes a `TypedValue` column from this
 declaration is the day the sentence would have been believed.
+
+## Reconciliation, 2026-09-22
+
+The false claim that the String carries binary hash bytes was corrected, but the residual projection remains explicit: `crates/ekr-graph/tests/domain_projection.rs` records TypedValue as an unbound flattening. A corrected comment alone does not supply an executable wire representation. Keep the residual projection work open and reconcile it with the versioned persisted-contract work before durable application. The approved plan does not authorize inventing canonical text or silently migrating existing values.

@@ -9,7 +9,7 @@ relations:
 - serves: vision:o2
 - serves: vision:o5
 - serves: vision:o6
-revision: 3
+revision: 4
 ---
 ## Context
 
@@ -45,3 +45,7 @@ same evidence a CLI round produces.
 
 Three ADRs `decides` this initiative: own kernel on eventlog persistence (D1), supersede the v2
 engine and instance (D2), crate prefix `ekr-` (D3). Reopening one is an ADR, not an edit.
+
+## Completion instruction, 2026-09-22
+
+The operator approved the consolidated completion plan and instructed implementation through P7, including live cutover, a verified 0.1.0 release and seven days unattended. `.engineering/waves/COMPLETION-2026-09-22.md` records the sequence and recovery paths. Existing stores must be preserved; an unverifiable migration stops rather than inventing history or replacing it with a snapshot cutover. The membrane is repaired before durable application. Independent reviews occur after membrane repair and at P1 exit.

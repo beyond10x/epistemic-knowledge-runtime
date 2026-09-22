@@ -49,12 +49,12 @@
 //! held equal to the evidence the transaction's assertions cite — the same shape as the domain's
 //! `operation_count`, which is equally derivable and equally declared.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use ekr_core::{EvidenceId, TypeId};
 use ekr_graph::GraphSnapshot;
 
-use super::{finish, issue, Validator};
+use super::{finish, issue, node_types, Validator};
 use crate::issue::{ValidationIssue, ValidatorName};
 use crate::transaction::{GraphOperation, GraphTransaction};
 
@@ -72,6 +72,12 @@ const EVIDENCE_SET_MISMATCH: &str = "evidence-set-mismatch";
 
 /// A merge naming one node as both the record absorbed and the record that survives.
 const MERGE_INTO_ITSELF: &str = "merge-into-itself";
+
+/// An unordered operation set proposes competing writes to the same field.
+const CONFLICTING_WRITE: &str = "conflicting-write";
+
+/// P1 has no application semantics for schema evolution or entity integration.
+const UNSUPPORTED_OPERATION: &str = "unsupported-operation";
 
 /// Validator 1: structural validity.
 pub struct Structural;
@@ -210,6 +216,71 @@ impl Validator for Structural {
                     cited.iter().map(ToString::to_string).collect::<Vec<_>>(),
                 ),
             ));
+        }
+
+        let node_types = node_types(graph, tx);
+        let mut properties = BTreeMap::new();
+        let mut lifecycle_writes = BTreeSet::new();
+        for operation in &tx.operations {
+            let writes = match operation {
+                GraphOperation::CreateNode(draft) => draft
+                    .properties
+                    .iter()
+                    .map(|(property, values)| ((draft.id, *property), values))
+                    .collect::<Vec<_>>(),
+                GraphOperation::UpdateProperty(mutation) => {
+                    vec![((mutation.node, mutation.property), &mutation.values)]
+                }
+                GraphOperation::Invoke {
+                    node, operation, ..
+                } => {
+                    let moves = node_types
+                        .get(node)
+                        .and_then(|id| state.ontology.node_type(*id))
+                        .and_then(|declared| declared.operations.get(operation))
+                        .is_some_and(|declared| declared.transition.is_some());
+                    if moves && !lifecycle_writes.insert(*node) {
+                        issues.push(issue(tx, ValidatorName::Structural, CONFLICTING_WRITE,
+                            format!("multiple operations move node {node}'s lifecycle in an unordered transaction")));
+                    }
+                    Vec::new()
+                }
+                _ => Vec::new(),
+            };
+            for ((node, property), values) in writes {
+                if properties
+                    .insert((node, property), values)
+                    .is_some_and(|previous| previous != values)
+                {
+                    issues.push(issue(tx, ValidatorName::Structural, CONFLICTING_WRITE,
+                        format!("node {node} property {property} has competing values in an unordered transaction")));
+                }
+            }
+        }
+
+        // Keep malformed-operation diagnostics precise. A structurally sound operation is not
+        // thereby implemented: schema evolution and entity merge have no P1 application path.
+        if issues.is_empty() {
+            for operation in &tx.operations {
+                let name = match operation {
+                    GraphOperation::DefineNodeType(_) => "DefineNodeType",
+                    GraphOperation::DefineEdgeType(_) => "DefineEdgeType",
+                    GraphOperation::ModifyProperty(_) => "ModifyProperty",
+                    GraphOperation::MergeEntity(merge)
+                        if node_types.contains_key(&merge.absorbed)
+                            && node_types.contains_key(&merge.into) =>
+                    {
+                        "MergeEntity"
+                    }
+                    _ => continue,
+                };
+                issues.push(issue(
+                    tx,
+                    ValidatorName::Structural,
+                    UNSUPPORTED_OPERATION,
+                    format!("{name} is not supported in P1"),
+                ));
+            }
         }
 
         finish(issues)

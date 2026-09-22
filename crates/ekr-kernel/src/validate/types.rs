@@ -29,13 +29,13 @@
 //!   a parent chain has no cycle. `Ontology::load` answers it for a whole document and the kernel
 //!   has no half-applied ontology to ask; it arrives with the schema-transaction story, not here.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use ekr_core::{PropertyId, TypeId};
+use ekr_core::{NodeId, PropertyId, TypeId};
 use ekr_graph::{GraphSnapshot, Object, Predicate, Subject};
 use ekr_ontology::{CheckReason, NodeTypes, Ontology, PropertyDefinition, Value};
 
-use super::{finish, issue, node_types, Validator};
+use super::{candidate::Candidate, finish, issue, Validator};
 use crate::issue::{ValidationIssue, ValidatorName};
 use crate::transaction::{GraphOperation, GraphTransaction};
 
@@ -77,7 +77,8 @@ impl Validator for Types {
         tx: &GraphTransaction,
     ) -> Result<(), Vec<ValidationIssue>> {
         let ontology = &graph.graph().ontology;
-        let nodes = node_types(graph, tx);
+        let candidate = Candidate::of(graph, tx);
+        let nodes = &candidate.nodes;
         let mut issues = Vec::new();
 
         // Admissibility first, over every value the transaction carries, and independently of
@@ -122,17 +123,15 @@ impl Validator for Types {
                     }
                     let definitions = ontology.properties_of(draft.type_id);
                     for (property, values) in &draft.properties {
-                        for value in values {
-                            check(
-                                tx,
-                                ontology,
-                                &nodes,
-                                definitions.get(property).copied(),
-                                value,
-                                &format!("property {property} of node {}", draft.id),
-                                &mut issues,
-                            );
-                        }
+                        check_values(
+                            tx,
+                            ontology,
+                            nodes,
+                            definitions.get(property).copied(),
+                            values,
+                            &format!("property {property} of node {}", draft.id),
+                            &mut issues,
+                        );
                     }
                 }
                 GraphOperation::UpdateProperty(mutation) => {
@@ -140,17 +139,15 @@ impl Validator for Types {
                         continue;
                     };
                     let definitions = ontology.properties_of(type_id);
-                    for value in &mutation.values {
-                        check(
-                            tx,
-                            ontology,
-                            &nodes,
-                            definitions.get(&mutation.property).copied(),
-                            value,
-                            &format!("property {} of node {}", mutation.property, mutation.node),
-                            &mut issues,
-                        );
-                    }
+                    check_values(
+                        tx,
+                        ontology,
+                        nodes,
+                        definitions.get(&mutation.property).copied(),
+                        &mutation.values,
+                        &format!("property {} of node {}", mutation.property, mutation.node),
+                        &mut issues,
+                    );
                 }
                 GraphOperation::CreateEdge(draft) => {
                     let Some(declared) = ontology.edge_type(draft.type_id) else {
@@ -189,17 +186,15 @@ impl Validator for Types {
                         }
                     }
                     for (property, values) in &draft.properties {
-                        for value in values {
-                            check(
-                                tx,
-                                ontology,
-                                &nodes,
-                                declared.properties.get(property),
-                                value,
-                                &format!("property {property} of edge {}", draft.id),
-                                &mut issues,
-                            );
-                        }
+                        check_values(
+                            tx,
+                            ontology,
+                            nodes,
+                            declared.properties.get(property),
+                            values,
+                            &format!("property {property} of edge {}", draft.id),
+                            &mut issues,
+                        );
                     }
                 }
                 GraphOperation::AddAssertion(assertion) => {
@@ -210,22 +205,26 @@ impl Validator for Types {
                     // defect.
                     let what = format!("assertion {}", assertion.id);
                     if let Subject::Type(type_id) = assertion.subject {
-                        declared_type(
+                        if !declared_type(
                             tx,
                             ontology,
                             type_id,
                             &format!("the subject of {what}"),
                             &mut issues,
-                        );
+                        ) {
+                            continue;
+                        }
                     }
                     if let Object::Type(type_id) = assertion.object {
-                        declared_type(
+                        if !declared_type(
                             tx,
                             ontology,
                             type_id,
                             &format!("the object of {what}"),
                             &mut issues,
-                        );
+                        ) {
+                            continue;
+                        }
                     }
                     match assertion.predicate {
                         // A relation is named by its edge type, so the edge type has to exist.
@@ -233,7 +232,7 @@ impl Validator for Types {
                         // *node* type is not a relation, and accepting it because the id resolves
                         // somewhere would be the same kind of hole one index wider.
                         Predicate::Relation(type_id) => {
-                            if ontology.edge_type(type_id).is_none() {
+                            let Some(declared) = ontology.edge_type(type_id) else {
                                 issues.push(issue(
                                     tx,
                                     ValidatorName::Type,
@@ -243,6 +242,29 @@ impl Validator for Types {
                                          ontology does not declare as an edge type"
                                     ),
                                 ));
+                                continue;
+                            };
+                            let source = match assertion.subject {
+                                Subject::Node(node) => Some(node),
+                                _ => None,
+                            };
+                            let target = match assertion.object {
+                                Object::Node(node) => Some(node),
+                                _ => None,
+                            };
+                            for (end, node, allowed) in [
+                                ("source", source, &declared.source_types),
+                                ("target", target, &declared.target_types),
+                            ] {
+                                check_endpoint(
+                                    tx,
+                                    ontology,
+                                    nodes,
+                                    node,
+                                    allowed,
+                                    &format!("{end} of {what}"),
+                                    &mut issues,
+                                );
                             }
                         }
                         // The property is looked up through the subject's type, and *then* the
@@ -250,33 +272,46 @@ impl Validator for Types {
                         // `NodeRef` it is, so that the allowed types of the reference are held to
                         // as they would be in any other property value.
                         Predicate::Property(property) => {
-                            let Some(Some(type_id)) = (match assertion.subject {
-                                Subject::Node(node) => Some(nodes.type_of(node)),
-                                // A property of a type or of an edge: the subject's declarations
-                                // are not the node index's to answer, and P1 declares no property
-                                // of either. Left alone rather than guessed at.
-                                Subject::Edge(_) | Subject::Type(_) => None,
-                            }) else {
-                                continue;
+                            let definitions = match assertion.subject {
+                                Subject::Node(node) => {
+                                    let Some(type_id) = nodes.type_of(node) else {
+                                        continue;
+                                    };
+                                    ontology.properties_of(type_id)
+                                }
+                                Subject::Edge(edge) => {
+                                    let Some(declared) = candidate
+                                        .edges
+                                        .get(&edge)
+                                        .and_then(|edge| ontology.edge_type(edge.type_id))
+                                    else {
+                                        continue;
+                                    };
+                                    declared
+                                        .properties
+                                        .iter()
+                                        .map(|(id, property)| (*id, property))
+                                        .collect()
+                                }
+                                // No metatype declares properties of ontology definitions in P1.
+                                Subject::Type(_) => BTreeMap::new(),
                             };
-                            let definitions = ontology.properties_of(type_id);
                             let declared = definitions.get(&property).copied();
                             let at = format!("property {property} of {what}");
                             match &assertion.object {
                                 Object::Value(value) => {
-                                    check(tx, ontology, &nodes, declared, value, &at, &mut issues);
+                                    check(tx, ontology, nodes, declared, value, &at, &mut issues);
                                 }
                                 Object::Node(node) => check(
                                     tx,
                                     ontology,
-                                    &nodes,
+                                    nodes,
                                     declared,
                                     &Value::NodeRef(*node),
                                     &at,
                                     &mut issues,
                                 ),
-                                // A type as the object of a property claim has no `Value` form to
-                                // check; that the type exists was asked above.
+                                // No property ValueType admits a TypeId. Existence is insufficient.
                                 Object::Type(_) => {
                                     if declared.is_none() {
                                         issues.push(issue(
@@ -284,6 +319,13 @@ impl Validator for Types {
                                             ValidatorName::Type,
                                             UNDECLARED_PROPERTY,
                                             format!("{at} is not declared by the type"),
+                                        ));
+                                    } else {
+                                        issues.push(issue(
+                                            tx,
+                                            ValidatorName::Type,
+                                            WRONG_TYPE,
+                                            format!("{at} cannot carry a type as its value"),
                                         ));
                                     }
                                 }
@@ -316,7 +358,7 @@ impl Validator for Types {
                             ));
                             continue;
                         };
-                        if let Err(reason) = ontology.check_value(value, argument_type, &nodes) {
+                        if let Err(reason) = ontology.check_value(value, argument_type, nodes) {
                             refuse_reason(
                                 tx,
                                 &reason,
@@ -430,7 +472,7 @@ fn declared_type(
     type_id: TypeId,
     at: &str,
     issues: &mut Vec<ValidationIssue>,
-) {
+) -> bool {
     if ontology.node_type(type_id).is_none() && ontology.edge_type(type_id).is_none() {
         issues.push(issue(
             tx,
@@ -438,6 +480,64 @@ fn declared_type(
             UNKNOWN_TYPE,
             format!("{at} names type {type_id}, which the ontology does not declare"),
         ));
+        false
+    } else {
+        true
+    }
+}
+
+/// Relation assertions obey the same endpoint declarations as edges.
+fn check_endpoint(
+    tx: &GraphTransaction,
+    ontology: &Ontology,
+    nodes: &impl NodeTypes,
+    node: Option<NodeId>,
+    allowed: &BTreeSet<TypeId>,
+    at: &str,
+    issues: &mut Vec<ValidationIssue>,
+) {
+    let compatible = match node {
+        Some(node) => {
+            let Some(type_id) = nodes.type_of(node) else {
+                return;
+            };
+            allowed
+                .iter()
+                .any(|permitted| ontology.conforms_to(type_id, *permitted))
+        }
+        None => false,
+    };
+    if !compatible {
+        issues.push(issue(
+            tx,
+            ValidatorName::Type,
+            EDGE_ENDPOINT_TYPE,
+            format!("{at} must name a node of an allowed endpoint type"),
+        ));
+    }
+}
+
+/// Even an empty assignment names a property and must have a declaration.
+fn check_values(
+    tx: &GraphTransaction,
+    ontology: &Ontology,
+    nodes: &impl NodeTypes,
+    declared: Option<&PropertyDefinition>,
+    values: &[Value],
+    at: &str,
+    issues: &mut Vec<ValidationIssue>,
+) {
+    if declared.is_none() {
+        issues.push(issue(
+            tx,
+            ValidatorName::Type,
+            UNDECLARED_PROPERTY,
+            format!("{at} is not declared by the type"),
+        ));
+        return;
+    }
+    for value in values {
+        check(tx, ontology, nodes, declared, value, at, issues);
     }
 }
 

@@ -19,6 +19,7 @@ use crate::value::{ValueKind, ValueType};
 
 /// One version of the schema: `ekr.ontology.SchemaVersion` of `systems/ekr/domains/ontology.yaml`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SchemaVersion {
     /// The version's stable id.
     pub id: SchemaVersionId,
@@ -50,6 +51,7 @@ impl SchemaVersion {
 /// This is what a document carries and what serde reads. It is not an [`Ontology`]: nothing has
 /// checked that its declarations cohere, so nothing may be checked against it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OntologyDocument {
     /// The version these types belong to.
     pub version: SchemaVersion,

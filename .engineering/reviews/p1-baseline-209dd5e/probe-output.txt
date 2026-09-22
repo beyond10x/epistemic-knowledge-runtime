@@ -1,0 +1,13 @@
+positive control: valid node creation: ACCEPTED
+negative control: String property with Integer value: REFUSED
+  [ValidationIssue { transaction_id: TransactionId(2164003951222580171271122835345635708), validator: Type, code: "wrong-type", message: "property 01a0c5a1-da92-7316-bd35-675dd7e7a001 of node 01a0c5a1-da92-7316-bd35-676098d1b509: expected a String and found a Integer" }]
+delete an edge while adding an assertion referring to that edge: ACCEPTED
+relation requiring Decision endpoints with String object: ACCEPTED
+String property assertion with a Type object: ACCEPTED
+two conflicting updates of one property in unordered transaction: ACCEPTED
+define a type with nonexistent parent: ACCEPTED
+modify a property that no type declares: ACCEPTED
+Invoke with a nonempty unsupported precondition: ACCEPTED
+seed document with dangling edge: ACCEPTED
+commit CreateNode: revision=1, node_present=false
+reopen through real kernel authority: revision=0

@@ -109,8 +109,10 @@ Elide every absolute path in a body before writing it. `<worktrees>/…` and `<h
 
 ## 6. Every count, path and version in an artifact is measured in the command that writes it
 
-**Wave p1-06.** A task said nineteen files and thirty-eight uses. It is twenty and thirty-nine, and
-the twentieth is not a test. An independent reviewer measured it; the coordinator had estimated.
+**Wave p1-06.** Successive corrections disagreed on the number of files and uses of the
+compile-time source-path macro. A broad text search also counts a documentation quotation.
+The handoff records that the coordinator copied the wrong total even after checking it.
+Count executable uses separately from comments, or omit the count.
 
 **The check.** A number in an artifact comes from a command in the same shell invocation that writes
 the body, or it does not go in. Not from a previous message, not from an agent's report unless the

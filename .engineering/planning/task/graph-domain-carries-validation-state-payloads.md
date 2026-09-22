@@ -4,7 +4,7 @@ id: task:graph-domain-carries-validation-state-payloads
 kind: task
 status: draft
 title: The graph domain has a carrier for one of the four ValidationState payloads and claims four
-revision: 1
+revision: 2
 ---
 ## What is wrong
 
@@ -36,3 +36,7 @@ that the domain carries the state name only and the payload lives in the impleme
 way the comment at `graph.yaml:50-51` is corrected and the quote in `assertion.rs` and the case
 above move with it — a patch for the comment half is in the wave p1-04 scratch and was not applied,
 because the comment and the quote cannot move separately without turning the case red.
+
+## Reconciliation, 2026-09-22
+
+The inaccurate comment has already been corrected in `systems/ekr/domains/graph.yaml`; the Rust projection guard explicitly documents the remaining missing payload carriers. The task is not wholly stale: representing accepted validators, refusal issues, competing assertions and retraction evidence remains required by the approved persisted-contract work. Keep this residual open and bind the final representation to behavioral projection tests. Do not close the task merely because the comment changed.

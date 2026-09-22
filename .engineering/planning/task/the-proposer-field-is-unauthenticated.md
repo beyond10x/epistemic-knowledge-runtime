@@ -6,6 +6,7 @@ status: draft
 title: An agent that names a different proposer can validate its own transaction
 relations:
 - serves: vision:o2
+- blocks: story:ekr-cli
 revision: 1
 ---
 ## What is wrong
