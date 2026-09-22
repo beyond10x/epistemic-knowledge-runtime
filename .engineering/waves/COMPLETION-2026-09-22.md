@@ -41,6 +41,15 @@ Scratch root: `<cache>/ekr-completion-20260922`.
 Coordinator lease: `codex-ekr-completion-20260922`.
 Planning actor: `agent:codex-ekr-completion-20260922`.
 
-The primary checkout's untracked handoff remains untouched. Its copy is retained in this branch.
-All planning mutations use AEP. The gates-policy baseline belongs to a separate repository;
-integrate only that intended change and preserve unrelated changes and backup files.
+The original handoff is now committed on main. Its formerly untracked primary copy was
+byte-compared before and after integration and retained in the completion scratch root.
+All planning mutations use AEP. The gates-policy baseline and required signer enrollment
+were integrated independently; unrelated policy changes and backup files remain preserved.
+
+## Current implementation boundary
+
+The membrane repair and required repository correctness CI are merged. Kernel seed admission
+is the active unit; its implementation and review evidence belong to the P1-08 wave page.
+Persisted-contract corrections, durable application and the CLI remain unfinished. The
+conformance and migration preparation reports are measured prerequisites, not executed exits.
+No later phase or live cutover has been claimed complete.

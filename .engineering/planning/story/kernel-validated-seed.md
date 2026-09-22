@@ -30,15 +30,15 @@ scope:
   path: crates/ekr-kernel/src/commit.rs
 - confidence: cited
   path: crates/ekr-kernel/src/lib.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-kernel/src/seed.rs
 - confidence: cited
   path: crates/ekr-kernel/src/validate
 - confidence: cited
   path: crates/ekr-kernel/tests/commit_path.rs
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-kernel/tests/fixtures/seed-minimal.yaml
-- confidence: inferred
+- confidence: cited
   path: crates/ekr-kernel/tests/seed.rs
 - confidence: cited
   path: crates/ekr-store/src/eventlog.rs
@@ -54,7 +54,7 @@ scope:
   path: crates/ekr/tests/story_contract.rs
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 18
+revision: 20
 ---
 ## Context
 
@@ -78,8 +78,24 @@ Replace Commit::store with read methods for head, snapshot and replay. Provider 
 
 ## Scope
 
-Cited: kernel commit.rs and lib.rs; kernel validation helpers; store snapshot.rs, eventlog.rs, log.rs and lib.rs; kernel commit_path tests; store fixture and lineage helpers; store membrane boundary tests; systems/ekr/domains/kernel.yaml.
-Inferred additions: kernel seed.rs, tests/seed.rs and tests/fixtures/seed-minimal.yaml. The story-scoper traced the production replay crossing and shared fixture callers. Coordinator owns ESS and planning writes.
+Cited from the implementor's stable handback and full inventory in
+`.engineering/reviews/p1-08-seed-implementation.md`: kernel `commit.rs`, `lib.rs`,
+`seed.rs` and `validate/mod.rs`; graph seed-reachable records in `assertion.rs`,
+`canonical.rs`, `edge.rs`, `evidence.rs`, `node.rs`, `root.rs`; store `eventlog.rs`,
+`lib.rs`, `log.rs`, `snapshot.rs`; kernel seed/commit tests and the minimal YAML
+fixture; store provider fixtures and migrated boundary tests; the root ownership
+guard in `crates/ekr/tests/story_contract.rs`; `AGENTS.md` and the coordinator-owned
+`systems/ekr/domains/kernel.yaml` comments/outcome.
+
+The opening inferred `crates/ekr-kernel/src/seed.rs`,
+`crates/ekr-kernel/tests/seed.rs` and
+`crates/ekr-kernel/tests/fixtures/seed-minimal.yaml` were confirmed as new files
+before implementation. Their entries are now cited from the returned diff.
+The exact original-to-replacement case map is retained separately at
+`.engineering/reviews/p1-08-seed-case-migration.md`; source boundary tests were
+replaced by kernel behavior, not silently dropped. Coordinator retains ownership
+of normative comments, planning and final AGENTS wording. Independent review and
+the full integration gate remain pending at this scope writeback.
 
 ## Verification
 
