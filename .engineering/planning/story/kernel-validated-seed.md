@@ -13,6 +13,8 @@ relations:
 - depends_on: story:refuse-discarded-ontology-semantics
 scope:
 - confidence: cited
+  path: AGENTS.md
+- confidence: cited
   path: crates/ekr-kernel/src/commit.rs
 - confidence: cited
   path: crates/ekr-kernel/src/lib.rs
@@ -37,8 +39,10 @@ scope:
 - confidence: cited
   path: crates/ekr-store/tests
 - confidence: cited
+  path: crates/ekr/tests/story_contract.rs
+- confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 3
+revision: 9
 ---
 ## Context
 
@@ -72,3 +76,15 @@ Promote the three archived seed cases into real kernel tests, observing red firs
 ## Remaining work
 
 Post-seed transaction application, durable transaction receipts and historical queries remain in the writer story. Explain stays in story:seed-and-explain. Full configurable agent roles and validator policy must not be claimed implemented by hard-coded bootstrap checks; bind their eventual populated state to the agent root.
+
+## Implementation decisions from preparation
+
+The implementor's read-only preparation traced the exact pinned eventlog API. Use AtomicEventStore::append_group to publish the retained seed envelope and Seeded together, with Expected::NoStream on the revision stream. A precheck or put-then-append is insufficient for the declared already-seeded outcome that writes nothing. Handle typed conflicts before converting provider failures to text; preserve content-addressed deduplication without weakening the revision expectation.
+
+Recompute the loaded seed payload's ContentHash and verify record metadata before authority admission. Persist the original versioned input and actual bootstrap attribution; replay revalidates both. Compare loaded Ontology equality with the compatibility ontology, so no export API is needed merely to compare full content.
+
+Bootstrap validation produces a private kernel capability consumed by the same kernel-owned persistence boundary. This represents initialization with no prior revision; do not invent a previous committed revision or weaken ordinary Pipeline::validate. Reuse its deterministic invariant checks where meaningful. Clarify AGENTS invariant 1's initialization wording with the actual executable seed cases when implemented.
+
+Legacy raw GraphDocument seeds have no retained ontology or bootstrap attribution. Preserve their bytes and refuse explicitly with migration-required; do not invent missing history or reinitialize the lineage. The approved preservation-first migration policy remains binding.
+
+These implementation decisions are not yet executed. Their acceptance is the real-backend seed suite in this story. Additional cited surface: crates/ekr-store/src/lib.rs for named store refusals, crates/ekr/tests/story_contract.rs for the canonical-writer ownership guard, and AGENTS.md for the verified bootstrap boundary. New private helpers use explicit restricted visibility.

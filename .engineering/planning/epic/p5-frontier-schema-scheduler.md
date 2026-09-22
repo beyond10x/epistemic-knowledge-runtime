@@ -7,7 +7,7 @@ title: P5 — Frontier, schema evolution, scheduler
 relations:
 - decomposes: initiative:epistemic-knowledge-runtime
 - depends_on: epic:p3-incubation-integration
-revision: 1
+revision: 2
 ---
 ## Context
 
@@ -40,3 +40,7 @@ A7, A11.
 ## Depends on
 
 P3 only; runs in parallel with P6.
+
+## Operation assignment capability
+
+Amendment 87 includes operation property assignments (sets) using ValueTemplate. The P1 independent checkpoint found that the input decoder discarded this undeclared field; story:refuse-discarded-ontology-semantics makes unsupported input fail closed. Full project completion must define and implement these assignment semantics, preserve typed cardinality and unordered-write conflict checks, and include them in schema compatibility and migration review. The current design names ValueTemplate without defining its language: keep that question explicit in this phase's decomposition rather than silently accepting or inventing a template grammar. P1 refusal does not discharge this capability.

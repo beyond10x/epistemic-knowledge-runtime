@@ -55,5 +55,8 @@ jobs:
           cargo install --locked --git https://github.com/beyond10x/ess --rev a5f1bea13294510819b266561c83be9509e6ba57 --bin ess ess-cli
           cargo install --locked --git https://github.com/beyond10x/aep --rev 28abe09bb6e5b0a6b4db839f6bf5693957d39324 --bin aep aep-cli
 
+      - name: Fetch the complete locked dependency graph
+        run: cargo fetch --locked
+
       - name: Run all repository checks
         run: task check
