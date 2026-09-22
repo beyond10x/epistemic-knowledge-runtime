@@ -15,45 +15,56 @@
 //! `serde_json` to `ekr-graph`'s dev-dependencies — is a story amendment and a coordinator's
 //! change, and is named in this unit's report.
 
-use ekr_core::{AgentId, ContentHash, RevisionId, RevisionNumber, TransactionId};
-use ekr_graph::RevisionEvent;
+use ekr_core::{AgentId, ContentHash, EventId, RevisionId, RevisionNumber, TransactionId};
+use ekr_graph::{RevisionEvent, RevisionPayload};
 
 /// One value of each variant, with distinguishable payloads.
 fn every_variant() -> Vec<RevisionEvent> {
     let transaction_id = TransactionId::mint();
     let revision_id = RevisionId::mint();
+    // Equal envelope coordinates ensure payload distinctions do the work in the wire test.
+    let event_id = EventId::mint();
+    let record_hash = ContentHash::of_bytes(b"retained decision");
 
     vec![
-        RevisionEvent::Seeded {
+        RevisionPayload::Seeded {
             revision_id,
             seed_hash: ContentHash::of_bytes(b"seed"),
         },
-        RevisionEvent::TransactionProposed {
+        RevisionPayload::TransactionProposed {
             transaction_id,
             proposer: AgentId::mint(),
-            operations_hash: ContentHash::of_bytes(b"operations"),
+            operations_hash: Some(ContentHash::of_bytes(b"operations")),
         },
-        RevisionEvent::TransactionValidated {
+        RevisionPayload::TransactionValidated {
             transaction_id,
             against: RevisionNumber::new(11),
             validation_hash: ContentHash::of_bytes(b"validation"),
         },
-        RevisionEvent::TransactionRejected {
+        RevisionPayload::TransactionRejected {
             transaction_id,
             issues: 2,
         },
-        RevisionEvent::TransactionStale {
+        RevisionPayload::TransactionStale {
             transaction_id,
             validated_against: RevisionNumber::new(11),
             current: RevisionNumber::new(12),
         },
-        RevisionEvent::RevisionCommitted {
+        RevisionPayload::RevisionCommitted {
             transaction_id,
             revision_id,
             number: RevisionNumber::new(12),
             knowledge_root: ContentHash::of_bytes(b"knowledge"),
         },
     ]
+    .into_iter()
+    .map(|payload| RevisionEvent {
+        format: RevisionEvent::FORMAT.to_owned(),
+        event_id,
+        record_hash,
+        payload,
+    })
+    .collect()
 }
 
 #[test]
@@ -83,7 +94,8 @@ fn the_wire_form_names_the_variant() {
         let value: serde_json::Value =
             serde_json::to_value(&event).expect("a revision event serialises");
         let tag = value
-            .get("event")
+            .get("payload")
+            .and_then(|payload| payload.get("event"))
             .and_then(serde_json::Value::as_str)
             .unwrap_or_else(|| panic!("no variant tag in {value}"));
         assert!(
@@ -105,4 +117,54 @@ fn no_two_variants_share_a_wire_form() {
     wire.sort();
     wire.dedup();
     assert_eq!(wire.len(), count, "two revision events share a wire form");
+}
+
+#[test]
+fn the_current_envelope_requires_and_preserves_its_coordinates() {
+    let event = every_variant().remove(0);
+    let value = serde_json::to_value(&event).unwrap();
+    assert_eq!(value["format"], "ekr.revision-event/2");
+    assert_eq!(value["event_id"], event.event_id.to_string());
+    assert_eq!(value["record_hash"], event.record_hash.to_string());
+    for field in ["format", "event_id", "record_hash", "payload"] {
+        let mut missing = value.clone();
+        missing.as_object_mut().unwrap().remove(field);
+        assert!(
+            serde_json::from_value::<RevisionEvent>(missing).is_err(),
+            "a current occurrence omitted {field}"
+        );
+        let repeated = format!(
+            "{{\"{field}\":{},{}",
+            value[field],
+            serde_json::to_string(&event)
+                .unwrap()
+                .strip_prefix('{')
+                .unwrap()
+        );
+        assert!(
+            serde_json::from_str::<RevisionEvent>(&repeated).is_err(),
+            "a current occurrence repeated {field}"
+        );
+    }
+    let mut unknown = value;
+    unknown["unknown"] = serde_json::Value::Bool(true);
+    assert!(serde_json::from_value::<RevisionEvent>(unknown).is_err());
+}
+
+#[test]
+fn a_noncanonical_proposal_keeps_its_absent_operations_hash() {
+    let mut event = every_variant().remove(1);
+    let RevisionPayload::TransactionProposed {
+        operations_hash, ..
+    } = &mut event.payload
+    else {
+        panic!("the proposal fixture changed position")
+    };
+    *operations_hash = None;
+    let value = serde_json::to_value(&event).unwrap();
+    assert_eq!(value["payload"]["operations_hash"], serde_json::Value::Null);
+    assert_eq!(
+        serde_json::from_value::<RevisionEvent>(value).unwrap(),
+        event
+    );
 }

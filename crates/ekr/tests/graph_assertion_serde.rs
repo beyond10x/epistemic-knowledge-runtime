@@ -14,8 +14,8 @@
 //!
 //! * **`Option` fields with no `#[serde(default)]`.** An absent `valid_from` must read back absent
 //!   rather than as an error or a zero.
-//! * **The sum types.** `Subject`, `Predicate`, `Object` and all seven `ValidationState` variants,
-//!   including the two whose payloads are collections.
+//! * **The sum types.** `Subject`, `Predicate`, `Object` and the separate assessment/lifecycle
+//!   variants, retaining assessment payloads through every withdrawal state.
 //! * **The refusals the constructors make.** `TemporalRange`, `TransactionTime` and
 //!   `CanonicalValue` deserialise through `TryFrom`, so a document carrying an inverted range — or
 //!   a float, which canonical state does not admit — is refused at the same boundary a Rust caller
@@ -28,8 +28,8 @@ use ekr_core::{
     RevisionNumber, Timestamp, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalRef, CanonicalValue, Object, Predicate, RetractionReason, Subject,
-    TemporalRange, TransactionTime, ValidationState,
+    Assertion, AssertionLifecycle, Assessment, CanonicalRef, CanonicalValue, Object, Predicate,
+    RetractionReason, Subject, TemporalRange, TransactionTime,
 };
 use ekr_ontology::Value;
 
@@ -42,7 +42,7 @@ fn assertion(
     subject: Subject,
     predicate: Predicate,
     object: Object,
-    validation: ValidationState,
+    assessment: Assessment,
     valid_time: TemporalRange,
     transaction_time: TransactionTime,
 ) -> Assertion {
@@ -54,14 +54,15 @@ fn assertion(
         object,
         evidence: BTreeSet::from([EvidenceId::mint(), EvidenceId::mint()]),
         proposed_by: AgentId::mint(),
-        validation,
+        assessment,
+        lifecycle: AssertionLifecycle::Active,
         valid_time,
         transaction_time,
     }
 }
 
-/// Every validation state, every subject, predicate and object arm, and both shapes of each
-/// temporal field.
+/// Every assessment and lifecycle, with all subject/predicate/object arms represented and
+/// both shapes of each temporal field.
 fn every_shape() -> Vec<Assertion> {
     let subjects = [
         Subject::Node(CanonicalRef::new(NodeId::mint())),
@@ -80,30 +81,35 @@ fn every_shape() -> Vec<Assertion> {
         Object::Node(CanonicalRef::new(NodeId::mint())),
         Object::Type(TypeId::mint()),
     ];
-    let validations = [
-        ValidationState::Proposed,
-        ValidationState::Validating {
+    let assessments = [
+        Assessment::Proposed,
+        Assessment::Validating {
             completed: 1,
             required: 3,
         },
-        ValidationState::Accepted {
+        Assessment::Accepted {
             validators: [AgentId::mint(), AgentId::mint()].into_iter().collect(),
         },
-        ValidationState::Accepted {
+        Assessment::Accepted {
             // An empty collection is not the same as an absent one, and serde must agree.
             validators: BTreeSet::new(),
         },
-        ValidationState::Rejected {
+        Assessment::Rejected {
             issues: vec![IssueId::mint()],
         },
-        ValidationState::Rejected { issues: Vec::new() },
-        ValidationState::Disputed {
+        Assessment::Rejected { issues: Vec::new() },
+        Assessment::Disputed {
             competing_assertions: vec![AssertionId::mint(), AssertionId::mint()],
         },
-        ValidationState::Superseded {
+    ];
+    let lifecycles = [
+        AssertionLifecycle::Active,
+        AssertionLifecycle::Superseded {
             by: AssertionId::mint(),
+            at_revision: RevisionNumber::new(9),
+            effective_from: HANDOVER,
         },
-        ValidationState::Retracted {
+        AssertionLifecycle::Retracted {
             at_revision: RevisionNumber::new(9),
             reason: RetractionReason::new("the evidence was another Acme"),
         },
@@ -122,17 +128,21 @@ fn every_shape() -> Vec<Assertion> {
     ];
 
     let mut built = Vec::new();
-    for (position, validation) in validations.iter().enumerate() {
-        for valid_time in valid_times {
-            for transaction_time in transaction_times {
-                built.push(assertion(
-                    subjects[position % subjects.len()],
-                    predicates[position % predicates.len()],
-                    objects[position % objects.len()].clone(),
-                    validation.clone(),
-                    valid_time,
-                    transaction_time,
-                ));
+    for (position, assessment) in assessments.iter().enumerate() {
+        for lifecycle in &lifecycles {
+            for valid_time in valid_times {
+                for transaction_time in transaction_times {
+                    let mut record = assertion(
+                        subjects[position % subjects.len()],
+                        predicates[position % predicates.len()],
+                        objects[position % objects.len()].clone(),
+                        assessment.clone(),
+                        valid_time,
+                        transaction_time,
+                    );
+                    record.lifecycle = lifecycle.clone();
+                    built.push(record);
+                }
             }
         }
     }
@@ -142,15 +152,15 @@ fn every_shape() -> Vec<Assertion> {
 #[test]
 fn every_shape_of_assertion_round_trips_through_serde() {
     let population = every_shape();
-    assert_eq!(population.len(), 90, "the cross product lost a shape");
+    assert_eq!(population.len(), 210, "the cross product lost a shape");
 
     for record in &population {
         let json = serde_json::to_string(record)
-            .unwrap_or_else(|e| panic!("{:?} does not serialise: {e}", record.validation.name()));
+            .unwrap_or_else(|e| panic!("{:?} does not serialise: {e}", record.assessment.name()));
         let back: Assertion = serde_json::from_str(&json).unwrap_or_else(|e| {
             panic!(
                 "{} does not read back: {e} from {json}",
-                record.validation.name()
+                record.assessment.name()
             )
         });
         assert_eq!(&back, record, "an assertion changed across the round trip");
@@ -168,7 +178,7 @@ fn an_absent_bound_stays_absent() {
         Subject::Node(CanonicalRef::new(NodeId::mint())),
         Predicate::Relation(TypeId::mint()),
         Object::Node(CanonicalRef::new(NodeId::mint())),
-        ValidationState::Proposed,
+        Assessment::Proposed,
         TemporalRange::UNBOUNDED,
         TransactionTime::since(RECORDED),
     );
@@ -197,8 +207,7 @@ fn an_absent_bound_stays_absent() {
 ///
 /// The constructors refuse `to < from`, and serde is the other construction path. Without
 /// `#[serde(try_from = …)]` the invariant would hold against Rust callers and not against the
-/// store that reads records back — which is the caller that matters, since P1's writer does not
-/// exist yet and the first thing to build one of these will be a deserialiser.
+/// persisted records read back through the same boundary.
 #[test]
 fn serde_refuses_an_inverted_range_the_way_the_constructor_does() {
     let inverted_valid_time = serde_json::json!({
@@ -244,7 +253,7 @@ fn serde_refuses_a_float_where_canonical_state_admits_none() {
         Subject::Node(CanonicalRef::new(NodeId::mint())),
         Predicate::Property(PropertyId::mint()),
         Object::Value(CanonicalValue::Decimal("0.1".to_owned())),
-        ValidationState::Proposed,
+        Assessment::Proposed,
         TemporalRange::UNBOUNDED,
         TransactionTime::since(RECORDED),
     );
@@ -271,4 +280,25 @@ fn serde_refuses_a_float_where_canonical_state_admits_none() {
     document["object"] = serde_json::json!({ "Value": { "value_kind": "Integer", "value": 3 } });
     let back: Assertion = serde_json::from_value(document).expect("an integer is admissible");
     assert_eq!(back.object, Object::Value(CanonicalValue::Integer(3)));
+}
+
+#[test]
+fn current_assertions_require_separate_assessment_and_lifecycle() {
+    let record = every_shape().remove(0);
+    let value = serde_json::to_value(&record).unwrap();
+    assert!(value.get("validation").is_none());
+    for field in ["assessment", "lifecycle"] {
+        let mut missing = value.clone();
+        missing.as_object_mut().unwrap().remove(field);
+        assert!(
+            serde_json::from_value::<Assertion>(missing).is_err(),
+            "the current assertion omitted {field}"
+        );
+    }
+    let mut legacy = value;
+    let object = legacy.as_object_mut().unwrap();
+    object.remove("assessment");
+    object.remove("lifecycle");
+    object.insert("validation".into(), serde_json::json!("Proposed"));
+    assert!(serde_json::from_value::<Assertion>(legacy).is_err());
 }
