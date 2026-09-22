@@ -8,7 +8,7 @@ relations:
 - derived_from: story:commit-and-revision-lineage
 - serves: vision:o2
 - decomposes: story:commit-and-revision-lineage
-revision: 4
+revision: 5
 ---
 ## Contract
 
@@ -73,3 +73,32 @@ accepted syntax. The implementor's `transaction-parser/marker-probe.log` compare
 direct and bounded decoding: the pinned YAML parser refuses the BOM input, while
 non-BOM CRLF, markers and trailing comments are accepted. Preserve exact bytes of
 admitted inputs; do not strip a BOM or add a parallel YAML normalization path.
+
+## Measured parser capability and adopted scope
+
+The first correction measured a parser-observation gap; the independent reviewer
+confirmed it in review-result:p1-transaction-parser-mechanism-addendum. The original
+acceptance defect remains, while its first mechanism attribution is retracted.
+Root verified the dependency source and retained probe before adopting this scope.
+
+Vendor the exact currently selected serde_yaml_ng package with its provenance,
+license and original tests. Add only a safe opt-in observation facade over its
+existing unexpanded loader events and existing scalar resolver. Keep default
+Deserializer/Value behavior, all existing grammar, frozen limits, historical
+codecs and original adversary inputs unchanged. No new lexer, parser family,
+direct unsafe EKR integration, ignored-tag prohibition or loader-allocation
+guarantee is admitted.
+
+The facade exposes decoded tag metadata, scalar kind/text through the existing
+resolution rules, collection events and resolved alias coordinates. EKR performs
+bounded expansion, duplicate/full-container checks and per-occurrence credit at
+the same semantic points as its representation pass. Decoded ignored tag text
+still counts toward strings; merely observing metadata does not invent a new
+enum payload boundary. The implementation must demonstrate exact counting for
+visible local tags, ignored global tags, tagged keys and their aliases.
+
+Source scope adds the vendored package and root Cargo selector/lock. The
+coordinator owns its provenance record and adds its focused validation plus
+default-decoder compatibility checks to the gate. This changes implementation
+capability, not document/1 semantics. Original red inputs remain required;
+no correction or task completion is claimed by this scope decision.

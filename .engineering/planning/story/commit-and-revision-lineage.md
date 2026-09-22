@@ -12,6 +12,12 @@ relations:
 - depends_on: story:kernel-validated-seed
 - depends_on: story:version-persisted-contracts
 scope:
+- confidence: cited
+  path: Cargo.lock
+- confidence: cited
+  path: Cargo.toml
+- confidence: cited
+  path: Taskfile.yml
 - confidence: inferred
   path: crates/ekr-core/src/decode.rs
 - confidence: cited
@@ -40,7 +46,9 @@ scope:
   path: crates/ekr-kernel/tests/transaction_document.rs
 - confidence: cited
   path: crates/ekr-ontology/src/types.rs
-revision: 17
+- confidence: inferred
+  path: vendor/serde_yaml_ng
+revision: 21
 ---
 ## Context
 
