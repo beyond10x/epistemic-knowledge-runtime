@@ -29,6 +29,13 @@ const OBJECT_STREAM_TYPE: &str = "ekr.store.object";
 const OBJECT_STORED: &str = "ekr.store.ObjectStored";
 const OBJECT_RETENTION_RAISED: &str = "ekr.store.ObjectRetentionRaised";
 const WRITER: &str = "ekr.store";
+#[path = "preparation.rs"]
+mod preparation;
+pub use preparation::{
+    NativeBlobWrite, NativeClaim, NativeCommandMeta, NativeExpected, NativeExpectedKind,
+    NativeNewEvent, NativePublicationRequest, NativeStreamAppend, NativeStreamId,
+    PublicationCommandKey, PublicationCommandKind, PublicationPreparationV1,
+};
 
 /// SQLite-backed synchronous runtime storage.
 pub type SqliteStore = EventlogStore<SqliteEventStore>;
@@ -56,28 +63,36 @@ pub struct EventlogStore<S: EventStore> {
     runtime: Option<Runtime>,
     store: S,
     tenant: TenantId,
-    ontology: Ontology,
+    ontology: Option<Ontology>,
     authority: Option<Box<dyn CommitAuthority>>,
 }
 impl EventlogStore<SqliteEventStore> {
     /// Opens the SQLite provider outside an entered async runtime.
     /// # Errors
     /// Runtime-context refusal, invalid tenant or provider failure.
-    pub fn sqlite(path: &Path, tenant: &str, ontology: Ontology) -> Result<Self, StoreError> {
+    pub fn sqlite(
+        path: &Path,
+        tenant: &str,
+        ontology: impl Into<Option<Ontology>>,
+    ) -> Result<Self, StoreError> {
         let runtime = new_runtime()?;
         let store = runtime.block_on(SqliteEventStore::open(&path.to_string_lossy(), "ekr"))?;
-        Self::assemble(runtime, store, tenant, ontology)
+        Self::assemble(runtime, store, tenant, ontology.into())
     }
 }
 impl EventlogStore<FileEventStore> {
     /// Opens the File provider outside an entered async runtime.
     /// # Errors
     /// Runtime-context refusal, invalid tenant or provider failure.
-    pub fn file(path: &Path, tenant: &str, ontology: Ontology) -> Result<Self, StoreError> {
+    pub fn file(
+        path: &Path,
+        tenant: &str,
+        ontology: impl Into<Option<Ontology>>,
+    ) -> Result<Self, StoreError> {
         let runtime = new_runtime()?;
         std::fs::create_dir_all(path).map_err(|e| StoreError::Backend(e.to_string()))?;
         let store = runtime.block_on(FileEventStore::open(path))?;
-        Self::assemble(runtime, store, tenant, ontology)
+        Self::assemble(runtime, store, tenant, ontology.into())
     }
 }
 fn ensure_sync_context() -> Result<(), StoreError> {
@@ -111,7 +126,7 @@ impl<S: EventStore> EventlogStore<S> {
         runtime: Runtime,
         store: S,
         tenant: &str,
-        ontology: Ontology,
+        ontology: Option<Ontology>,
     ) -> Result<Self, StoreError> {
         Ok(Self {
             runtime: Some(runtime),
@@ -145,6 +160,14 @@ impl<S: EventStore> EventlogStore<S> {
         )?)
     }
     fn read_all(&self, stream: &StreamId, limit: usize) -> Result<Vec<RecordedEvent>, StoreError> {
+        self.read_until(stream, limit, |_| false)
+    }
+    fn read_until(
+        &self,
+        stream: &StreamId,
+        limit: usize,
+        stop: impl Fn(&RecordedEvent) -> bool,
+    ) -> Result<Vec<RecordedEvent>, StoreError> {
         let mut result = Vec::new();
         let mut native_ids = BTreeSet::new();
         let mut after = 0;
@@ -162,7 +185,11 @@ impl<S: EventStore> EventlogStore<S> {
                 {
                     return Err(StoreError::Document("stream-envelope-disagrees".into()));
                 }
+                let reached = stop(&event);
                 result.push(event);
+                if reached {
+                    return Ok(result);
+                }
             }
             if slice.end_of_stream {
                 return Ok(result);
@@ -173,29 +200,49 @@ impl<S: EventStore> EventlogStore<S> {
             after = slice.next_version;
         }
     }
-    fn occurrences(&self, limit: usize) -> Result<Vec<RecordedOccurrence>, StoreError> {
+    fn occurrences(
+        &self,
+        limit: usize,
+        selected: Option<RevisionNumber>,
+    ) -> Result<Vec<RecordedOccurrence>, StoreError> {
         let mut ids = BTreeSet::new();
-        self.read_all(&self.revision_stream()?, limit)?
-            .into_iter()
-            .map(|recorded| {
-                let event: RevisionEvent = serde_json::from_value(recorded.data)
-                    .map_err(|e| StoreError::Document(e.to_string()))?;
-                if event.format != RevisionEvent::FORMAT
-                    || recorded.schema_version != 2
-                    || recorded.name != event.name()
-                    || !ids.insert(event.event_id)
-                {
-                    return Err(StoreError::Document("revision-envelope-disagrees".into()));
-                }
-                Ok(RecordedOccurrence {
-                    version: recorded.version,
-                    provider_event_id: recorded.event_id,
-                    event,
+        self.read_until(&self.revision_stream()?, limit, |record| {
+            selected.is_some_and(|revision| {
+                serde_json::from_value::<RevisionEvent>(record.data.clone()).is_ok_and(|event| {
+                    match event.payload {
+                        RevisionPayload::Seeded { .. } => revision == RevisionNumber::SEED,
+                        RevisionPayload::RevisionCommitted { number, .. } => number == revision,
+                        _ => false,
+                    }
                 })
             })
-            .collect()
+        })?
+        .into_iter()
+        .map(|recorded| {
+            let event: RevisionEvent = serde_json::from_value(recorded.data)
+                .map_err(|e| StoreError::Document(e.to_string()))?;
+            if event.format != RevisionEvent::FORMAT
+                || recorded.schema_version != 2
+                || recorded.name != event.name()
+                || !ids.insert(event.event_id)
+            {
+                return Err(StoreError::Document("revision-envelope-disagrees".into()));
+            }
+            Ok(RecordedOccurrence {
+                version: recorded.version,
+                provider_event_id: recorded.event_id,
+                event,
+            })
+        })
+        .collect()
     }
     fn object(&self, hash: ContentHash) -> Result<Option<RetainedObject>, StoreError> {
+        Ok(self.object_versioned(hash)?.map(|(object, _)| object))
+    }
+    fn object_versioned(
+        &self,
+        hash: ContentHash,
+    ) -> Result<Option<(RetainedObject, u64)>, StoreError> {
         let events = self.read_all(&self.object_stream(hash)?, MAX_READ_LIMIT)?;
         let Some((first, later)) = events.split_first() else {
             return Ok(None);
@@ -237,15 +284,18 @@ impl<S: EventStore> EventlogStore<S> {
             }
             meta.storage_class = meta.storage_class.strongest(raised.to);
         }
-        Ok(Some(RetainedObject {
-            metadata: StoredObject {
-                content_hash: hash,
-                storage_class: meta.storage_class,
-                byte_len: meta.byte_len,
-                stored_at: meta.stored_at,
+        Ok(Some((
+            RetainedObject {
+                metadata: StoredObject {
+                    content_hash: hash,
+                    storage_class: meta.storage_class,
+                    byte_len: meta.byte_len,
+                    stored_at: meta.stored_at,
+                },
+                bytes,
             },
-            bytes,
-        }))
+            events.len() as u64,
+        )))
     }
     fn load_object(
         &self,
@@ -260,9 +310,13 @@ impl<S: EventStore> EventlogStore<S> {
         }
         Ok(())
     }
-    fn load_history(&self, limit: usize) -> Result<RetainedHistory, StoreError> {
+    fn load_history(
+        &self,
+        limit: usize,
+        selected: Option<RevisionNumber>,
+    ) -> Result<RetainedHistory, StoreError> {
         let mut history = RetainedHistory {
-            occurrences: self.occurrences(limit)?,
+            occurrences: self.occurrences(limit, selected)?,
             objects: BTreeMap::new(),
         };
         let mut required = BTreeSet::new();
@@ -287,11 +341,12 @@ impl<S: EventStore> EventlogStore<S> {
         revision: Option<RevisionNumber>,
         limit: usize,
     ) -> Result<Option<AdmittedRevision>, StoreError> {
-        let history = self.load_history(limit)?;
+        let history = self.load_history(limit, revision)?;
         if history.occurrences.is_empty() {
             return Ok(None);
         }
-        self.authority()?.replay(&history, &self.ontology, revision)
+        self.authority()?
+            .replay(&history, self.ontology.as_ref(), revision)
     }
 }
 impl<S: AtomicBlobEventStore> EventlogStore<S> {
@@ -317,7 +372,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         if ContentHash::of_bytes(&object.bytes) != hash {
             return Err(StoreError::Document("staged-object-address".into()));
         }
-        let (expected, event) = if let Some(held) = self.object(hash)? {
+        let (expected, event) = if let Some((held, version)) = self.object_versioned(hash)? {
             if held.bytes != object.bytes {
                 return Err(StoreError::Document("object-address-collision".into()));
             }
@@ -331,7 +386,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
                 to: object.storage_class,
             };
             (
-                Expected::Any,
+                Expected::Exact(version),
                 NewEvent::new(
                     OBJECT_RETENTION_RAISED,
                     1,
@@ -381,19 +436,48 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
     }
 }
 impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
+    fn preparation(
+        &self,
+        key: &PublicationCommandKey,
+    ) -> Result<Option<PublicationPreparationV1>, StoreError> {
+        self.read_preparation(key)
+    }
+    fn prepare(
+        &self,
+        key: &PublicationCommandKey,
+        input_hash: ContentHash,
+        decision: &Publication,
+        previous: Option<&PublicationPreparationV1>,
+    ) -> Result<PublicationPreparationV1, StoreError> {
+        self.elect_preparation(key, input_hash, decision, previous)
+    }
+    fn resume(&self, prepared: &PublicationPreparationV1) -> Result<Appended, StoreError> {
+        self.resume_preparation(prepared)
+    }
+    fn history_at(&self, revision: RevisionNumber) -> Result<RetainedHistory, StoreError> {
+        ensure_sync_context()?;
+        let history = self.load_history(1, Some(revision))?;
+        if !history.occurrences.is_empty() {
+            self.authority()?
+                .replay(&history, self.ontology.as_ref(), Some(revision))?;
+        }
+        Ok(history)
+    }
     fn history(&self) -> Result<RetainedHistory, StoreError> {
         ensure_sync_context()?;
-        let history = self.load_history(MAX_READ_LIMIT)?;
+        let history = self.load_history(MAX_READ_LIMIT, None)?;
         if !history.occurrences.is_empty() {
-            self.authority()?.replay(&history, &self.ontology, None)?;
+            self.authority()?
+                .replay(&history, self.ontology.as_ref(), None)?;
         }
         Ok(history)
     }
     fn publish(&self, publication: &Publication) -> Result<Appended, StoreError> {
         ensure_sync_context()?;
         for attempt in 0..16 {
-            let mut history = self.load_history(MAX_READ_LIMIT)?;
-            self.authority()?.replay(&history, &self.ontology, None)?;
+            let mut history = self.load_history(MAX_READ_LIMIT, None)?;
+            self.authority()?
+                .replay(&history, self.ontology.as_ref(), None)?;
             if let Some(prior) = history
                 .occurrences
                 .iter()
@@ -440,7 +524,8 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
             for hash in self.authority()?.required_objects(&history)? {
                 self.load_object(&mut history, hash)?;
             }
-            self.authority()?.replay(&history, &self.ontology, None)?;
+            self.authority()?
+                .replay(&history, self.ontology.as_ref(), None)?;
             let mut appends = vec![StreamAppend {
                 stream: self.revision_stream()?,
                 expected: if publication.expected_version == 0 {
@@ -483,7 +568,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
                         Appended::AlreadyRecorded
                     } else {
                         Appended::Written
-                    })
+                    });
                 }
                 Err(StoreError::Conflict) => continue,
                 Err(error) => return Err(error),
@@ -573,7 +658,7 @@ impl<S: AtomicBlobEventStore> ObjectStore for EventlogStore<S> {
                     return Ok(self
                         .object(hash)?
                         .ok_or_else(|| StoreError::Document("object-disappeared".into()))?
-                        .metadata)
+                        .metadata);
                 }
                 Err(StoreError::Conflict) => continue,
                 Err(error) => return Err(error),

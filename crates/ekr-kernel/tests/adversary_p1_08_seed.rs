@@ -356,12 +356,13 @@ fn losing_cached_seed_keeps_its_original_retention_class() {
             if result.is_ok() {
                 assert_eq!(observed.storage_class, StorageClass::Canonical);
             } else {
-                assert_eq!(
+                assert!(matches!(
                     result,
-                    &Err(ekr_kernel::SeedError::Store(
+                    Err(ekr_kernel::SeedError::Store(
                         ekr_store::StoreError::AlreadySeeded
+                            | ekr_store::StoreError::PublicationInputConflict
                     ))
-                );
+                ));
                 assert_eq!(
                     observed.storage_class,
                     StorageClass::Cache,

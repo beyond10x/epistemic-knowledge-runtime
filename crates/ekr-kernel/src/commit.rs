@@ -12,8 +12,8 @@ use std::collections::BTreeSet;
 /// The immutable trusted anchor installed by the kernel; retained records never replace it.
 #[derive(Clone)]
 pub struct KernelAuthority {
-    context: BootstrapContext,
-    anchor: AuthorityStateV1,
+    pub(crate) context: BootstrapContext,
+    pub(crate) anchor: AuthorityStateV1,
 }
 impl CommitAuthority for KernelAuthority {
     fn required_objects(
@@ -34,8 +34,19 @@ impl CommitAuthority for KernelAuthority {
     fn replay(
         &self,
         history: &RetainedHistory,
-        ontology: &ekr_ontology::Ontology,
+        ontology: Option<&ekr_ontology::Ontology>,
         revision: Option<RevisionNumber>,
+    ) -> Result<Option<AdmittedRevision>, StoreError> {
+        Ok(self
+            .reconstruct(history, ontology, revision)?
+            .map(|state| state.head().clone()))
+    }
+}
+impl KernelAuthority {
+    pub(crate) fn seed_state(
+        &self,
+        history: &RetainedHistory,
+        ontology: Option<&ekr_ontology::Ontology>,
     ) -> Result<Option<AdmittedRevision>, StoreError> {
         self.anchor.check(self.context)?;
         let Some(first) = history.occurrences.first() else {
@@ -83,15 +94,6 @@ impl CommitAuthority for KernelAuthority {
             record_hash: first.event.record_hash,
             committed_at: record.committed_at,
         };
-        if revision == Some(RevisionNumber::SEED) {
-            return Ok(Some(result));
-        }
-        if history.occurrences.len() != 1 {
-            return Err(StoreError::Document("unsupported-decision-record".into()));
-        }
-        if let Some(requested) = revision {
-            return Err(StoreError::NoMaterialisedState { requested });
-        }
         Ok(Some(result))
     }
 }
@@ -108,8 +110,31 @@ fn seed_root(graph: &CanonicalGraph, seed_hash: ContentHash, anchor: &AuthorityS
 }
 
 /// Durable command refusals; missing records are never fabricated transaction states.
-#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum CommitError {
+    /// Bounded proposal input failed before a proposal could be recorded.
+    #[error(transparent)]
+    Document(#[from] crate::DocumentError),
+    /// The trusted submitter is unregistered or differs from the document's attribution.
+    #[error("proposal attribution does not match registered submitter {actor}")]
+    ProposalAttribution {
+        /// Independently supplied host identity.
+        actor: ekr_core::AgentId,
+    },
+    /// The requested revision has no retained committed basis.
+    #[error("revision {against} does not exist")]
+    RevisionNotFound {
+        /// Requested canonical revision.
+        against: RevisionNumber,
+    },
+    /// A retained transaction is in a state that cannot perform this command.
+    #[error("transaction {transaction_id} is {state:?}")]
+    TransactionStateConflict {
+        /// Requested transaction identity.
+        transaction_id: TransactionId,
+        /// Its actual retained state.
+        state: crate::replay::TransactionState,
+    },
     /// Storage or retained-history verification refused.
     #[error(transparent)]
     Store(#[from] StoreError),
@@ -126,8 +151,8 @@ pub enum CommitError {
 
 /// The shared synchronous command handler. It does not expose the raw store or a writer.
 pub struct Commit<S: RevisionLog + ObjectStore> {
-    store: S,
-    authority: KernelAuthority,
+    pub(crate) store: S,
+    pub(crate) authority: KernelAuthority,
 }
 impl<S: RevisionLog + ObjectStore> Commit<S> {
     /// Opens under an explicit host identity registry and exact validation profile.
@@ -205,6 +230,26 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
         if let Some(result) = self.retained_seed(&document)? {
             return Ok(result);
         }
+        let key = ekr_store::PublicationCommandKey {
+            kind: ekr_store::PublicationCommandKind::Bootstrap,
+            transaction_id: None,
+            predecessor_event_id: None,
+            predecessor_record_hash: None,
+        };
+        let material =
+            serde_json::to_vec(&document).map_err(|error| SeedError::Invalid(error.to_string()))?;
+        let input = crate::commands::input_hash(
+            "Seed",
+            &material,
+            self.authority.context.operator,
+            &self.authority,
+        );
+        if let Some(pending) = self.store.preparation(&key)? {
+            if pending.input_hash != input {
+                return Err(StoreError::PublicationInputConflict.into());
+            }
+            return self.finish_seed(pending, &document);
+        }
         let committed_at = now();
         let graph = seed::admitted_graph(&document, self.authority.context, committed_at)?;
         let envelope = SeedEnvelope {
@@ -266,12 +311,40 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
             objects,
             expected_version: 0,
         };
-        match self.store.initialize(&publication) {
-            Ok(_) => Ok(record),
-            Err(StoreError::Conflict) => self
-                .retained_seed(&envelope.input)?
-                .ok_or_else(|| StoreError::Conflict.into()),
-            Err(error) => Err(error.into()),
+        let selected = self.store.prepare(&key, input, &publication, None)?;
+        self.finish_seed(selected, &envelope.input)
+    }
+    fn finish_seed(
+        &self,
+        mut selected: ekr_store::PublicationPreparationV1,
+        document: &SeedDocument,
+    ) -> Result<SeedResultV1, SeedError> {
+        for _ in 0..16 {
+            match self.store.resume(&selected) {
+                Ok(_) => {
+                    let bytes = selected
+                        .decision
+                        .objects
+                        .get(&selected.decision.event.record_hash)
+                        .ok_or_else(|| {
+                            StoreError::Document("elected-seed-record-missing".into())
+                        })?;
+                    return Ok(SeedResultV1::from_bytes(&bytes.bytes)?);
+                }
+                Err(StoreError::Conflict) => {
+                    if let Some(result) = self.retained_seed(document)? {
+                        return Ok(result);
+                    }
+                    selected = self.store.prepare(
+                        &selected.command_key,
+                        selected.input_hash,
+                        &selected.decision,
+                        Some(&selected),
+                    )?;
+                }
+                Err(error) => return Err(error.into()),
+            }
         }
+        Err(StoreError::Conflict.into())
     }
 }

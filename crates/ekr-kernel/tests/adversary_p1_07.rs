@@ -5,9 +5,9 @@ use ekr_core::{
     RevisionNumber, SchemaVersionId, Timestamp, TransactionId, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalGraph, CanonicalRef, CanonicalValue, Confidence, Edge, Evidence,
-    EvidenceSource, GraphRoot, GraphSnapshot, Node, Object, Predicate, Space, Subject,
-    TemporalRange, TransactionTime, ValidationState,
+    Assertion, Assessment, CanonicalGraph, CanonicalRef, CanonicalValue, Confidence, Edge,
+    Evidence, EvidenceSource, GraphRoot, GraphSnapshot, Node, Object, Predicate, Space, Subject,
+    TemporalRange, TransactionTime,
 };
 use ekr_kernel::{
     EdgeDraft, GraphOperation, GraphTransaction, NodeDraft, Pipeline, PropertyMutation,
@@ -95,13 +95,17 @@ impl World {
         open_node.type_state = Some("open".to_owned());
         open_node.properties.insert(
             title,
-            CanonicalValue::String("Adopt the eventlog store".to_owned()),
+            vec![CanonicalValue::String(
+                "Adopt the eventlog store".to_owned(),
+            )],
         );
         let mut decided_node = Node::new(decided, root_id, decision, "Hash canonical state only");
         decided_node.type_state = Some("decided".to_owned());
         decided_node.properties.insert(
             title,
-            CanonicalValue::String("Hash canonical state only".to_owned()),
+            vec![CanonicalValue::String(
+                "Hash canonical state only".to_owned(),
+            )],
         );
 
         let edge = Edge::new(
@@ -122,7 +126,8 @@ impl World {
             )),
             evidence: [retained_evidence].into_iter().collect(),
             proposed_by: proposer,
-            validation: ValidationState::Accepted {
+            lifecycle: ekr_graph::AssertionLifecycle::Active,
+            assessment: Assessment::Accepted {
                 validators: [reviewer].into_iter().collect(),
             },
             valid_time: TemporalRange::UNBOUNDED,
@@ -225,7 +230,8 @@ impl World {
             object: Object::Value(Value::String("Adopt the eventlog store".to_owned())),
             evidence: [self.retained_evidence].into_iter().collect(),
             proposed_by: self.proposer,
-            validation: ValidationState::Proposed,
+            lifecycle: ekr_graph::AssertionLifecycle::Active,
+            assessment: Assessment::Proposed,
             valid_time: TemporalRange::UNBOUNDED,
             transaction_time: TransactionTime::since(Timestamp::EPOCH),
         }
@@ -396,7 +402,10 @@ fn retracting_a_retained_edge_assertion_does_not_erase_its_reference() {
         .get_mut(&world.held_assertion)
         .unwrap()
         .subject = Subject::Edge(world.existing_edge);
-    let retract = GraphOperation::RetractAssertion(world.held_assertion);
+    let retract = GraphOperation::RetractAssertion(ekr_kernel::Retraction {
+        assertion: world.held_assertion,
+        reason: ekr_graph::RetractionReason::new("fixture withdrawal"),
+    });
     for operations in [vec![delete.clone(), retract.clone()], vec![retract, delete]] {
         let issues = world
             .pipeline()

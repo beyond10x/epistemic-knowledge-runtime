@@ -7,7 +7,7 @@
 //!    `tests/validation.rs` — that "a rule enumerated by its instances is a rule with a next
 //!    instance". `DefineNodeType` and `DefineEdgeType` each bring a `TypeId` into existence and
 //!    are the next two instances.
-//! 2. `ekr_graph::ValidationState::Accepted` is documented as "it crossed the integrity boundary",
+//! 2. `ekr_graph::Assessment::Accepted` is documented as "it crossed the integrity boundary",
 //!    and design § 21 makes that crossing what the canonical core *is*. The kernel is that
 //!    boundary, and nothing in it reads the field an `AddAssertion` arrives carrying.
 
@@ -18,9 +18,9 @@ use ekr_core::{
     SchemaVersionId, Timestamp, TransactionId, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalGraph, CanonicalValue, Confidence, Evidence, EvidenceSource, GraphRoot,
-    GraphSnapshot, Node, Object, Predicate, Space, Subject, TemporalRange, TransactionTime,
-    ValidationState,
+    Assertion, Assessment, CanonicalGraph, CanonicalValue, Confidence, Evidence, EvidenceSource,
+    GraphRoot, GraphSnapshot, Node, Object, Predicate, Space, Subject, TemporalRange,
+    TransactionTime,
 };
 use ekr_kernel::{GraphOperation, GraphTransaction, Pipeline, ValidationIssue};
 use ekr_ontology::{
@@ -73,7 +73,9 @@ impl World {
         let mut open_node = Node::new(open, root_id, decision, "Adopt the eventlog store");
         open_node.properties.insert(
             title,
-            CanonicalValue::String("Adopt the eventlog store".to_owned()),
+            vec![CanonicalValue::String(
+                "Adopt the eventlog store".to_owned(),
+            )],
         );
 
         let evidence = Evidence {
@@ -190,8 +192,8 @@ fn a_type_the_ontology_already_declares_is_not_declared_again() {
 
 /// A proposer cannot declare its own assertion to have crossed the integrity boundary.
 ///
-/// `ekr_graph::ValidationState::Accepted` is documented as "it crossed the integrity boundary. The
-/// agents whose validation it rests on are named", and `ValidationState::is_accepted` cites design
+/// `ekr_graph::Assessment::Accepted` is documented as "it crossed the integrity boundary. The
+/// agents whose validation it rests on are named", and `Assessment::is_accepted` cites design
 /// § 21: the canonical core is what "has crossed the system's highest integrity boundary". This
 /// kernel *is* that boundary (AGENTS.md invariant 1), and nothing in it reads the `validation`
 /// field an `AddAssertion` arrives carrying — `transaction.rs:610` copies it into the canonical
@@ -215,7 +217,8 @@ fn a_proposer_cannot_mark_its_own_assertion_accepted() {
         evidence: [world.retained_evidence].into_iter().collect(),
         proposed_by: world.proposer,
         // The agent names the validator that did not act, on a claim it is proposing now.
-        validation: ValidationState::Accepted {
+        lifecycle: ekr_graph::AssertionLifecycle::Active,
+        assessment: Assessment::Accepted {
             validators: [world.reviewer].into_iter().collect(),
         },
         valid_time: TemporalRange::UNBOUNDED,
@@ -239,7 +242,8 @@ fn a_proposer_cannot_mark_its_own_assertion_accepted() {
         object: Object::Value(Value::String("Adopt the eventlog store".to_owned())),
         evidence: [world.retained_evidence].into_iter().collect(),
         proposed_by: world.proposer,
-        validation: ValidationState::Proposed,
+        lifecycle: ekr_graph::AssertionLifecycle::Active,
+        assessment: Assessment::Proposed,
         valid_time: TemporalRange::UNBOUNDED,
         transaction_time: TransactionTime::since(Timestamp::EPOCH),
     };
@@ -283,7 +287,8 @@ fn an_assertion_naming_a_type_the_ontology_does_not_declare_is_refused() {
         object: Object::Value(Value::String("a schema-level claim".to_owned())),
         evidence: [world.retained_evidence].into_iter().collect(),
         proposed_by: world.proposer,
-        validation: ValidationState::Proposed,
+        lifecycle: ekr_graph::AssertionLifecycle::Active,
+        assessment: Assessment::Proposed,
         valid_time: TemporalRange::UNBOUNDED,
         transaction_time: TransactionTime::since(Timestamp::EPOCH),
     };
@@ -303,7 +308,8 @@ fn an_assertion_naming_a_type_the_ontology_does_not_declare_is_refused() {
         object: Object::Node(world.open),
         evidence: [world.retained_evidence].into_iter().collect(),
         proposed_by: world.proposer,
-        validation: ValidationState::Proposed,
+        lifecycle: ekr_graph::AssertionLifecycle::Active,
+        assessment: Assessment::Proposed,
         valid_time: TemporalRange::UNBOUNDED,
         transaction_time: TransactionTime::since(Timestamp::EPOCH),
     };
@@ -324,7 +330,8 @@ fn an_assertion_naming_a_type_the_ontology_does_not_declare_is_refused() {
         object: Object::Value(Value::String("one".to_owned())),
         evidence: [world.retained_evidence].into_iter().collect(),
         proposed_by: world.proposer,
-        validation: ValidationState::Proposed,
+        lifecycle: ekr_graph::AssertionLifecycle::Active,
+        assessment: Assessment::Proposed,
         valid_time: TemporalRange::UNBOUNDED,
         transaction_time: TransactionTime::since(Timestamp::EPOCH),
     };
@@ -349,7 +356,8 @@ fn an_assertion_naming_a_type_the_ontology_does_not_declare_is_refused() {
         object: Object::Node(world.open),
         evidence: [world.retained_evidence].into_iter().collect(),
         proposed_by: world.proposer,
-        validation: ValidationState::Proposed,
+        lifecycle: ekr_graph::AssertionLifecycle::Active,
+        assessment: Assessment::Proposed,
         valid_time: TemporalRange::UNBOUNDED,
         transaction_time: TransactionTime::since(Timestamp::EPOCH),
     };

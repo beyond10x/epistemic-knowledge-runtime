@@ -49,6 +49,11 @@ pub mod objects;
 pub mod snapshot;
 
 pub use eventlog::{EventlogStore, FileStore, SqliteStore};
+pub use eventlog::{
+    NativeBlobWrite, NativeClaim, NativeCommandMeta, NativeExpected, NativeExpectedKind,
+    NativeNewEvent, NativePublicationRequest, NativeStreamAppend, NativeStreamId,
+    PublicationCommandKey, PublicationCommandKind, PublicationPreparationV1,
+};
 pub use log::{
     evidence_root, knowledge_root, AdmittedRevision, Appended, CommitAuthority, Initialize,
     Publication, PublicationObject, RecordedOccurrence, RetainedHistory, RetainedObject,
@@ -67,6 +72,9 @@ use ekr_core::{ContentHash, RevisionNumber, TransactionId};
 /// from a broken chain cannot act on either.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum StoreError {
+    /// A pending logical command was elected for different actual input.
+    #[error("a publication preparation exists for different input")]
+    PublicationInputConflict,
     /// Conditional publication lost a stream race; no new occurrence was published.
     #[error("revision stream moved before publication")]
     Conflict,
@@ -191,7 +199,9 @@ pub enum StoreError {
     /// P1 materialises state at the seed and nowhere else. Answering anyway would mean folding
     /// from a beginning that was never written down, which is a different lineage wearing the
     /// requested one's number.
-    #[error("no materialised state at revision {requested}: P1 materialises the seed and nothing after it")]
+    #[error(
+        "no materialised state at revision {requested}: P1 materialises the seed and nothing after it"
+    )]
     NoMaterialisedState {
         /// The revision the caller asked to begin at.
         requested: RevisionNumber,

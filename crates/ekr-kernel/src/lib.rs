@@ -90,26 +90,35 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+mod apply;
 pub mod authority;
+pub mod commands;
 pub mod commit;
 pub mod document;
 pub mod issue;
+mod read;
 pub mod records;
+mod replay;
 pub mod runtime;
 pub mod seed;
 pub mod transaction;
 pub mod validate;
 
 pub use authority::{Agent, AuthorityStateV1, ValidationProfileV1};
+pub use commands::{CommitCommandResult, ValidationCommandResult};
 pub use commit::{Commit, CommitError, KernelAuthority};
 pub use document::{
     DocumentError, DocumentLimit, DocumentLimits, TransactionDocument, DOCUMENT_V1_LIMITS,
 };
+/// Typed persistence failures exposed without granting the caller storage or writer access.
+pub use ekr_store::StoreError as PersistenceError;
 pub use issue::{ValidationIssue, ValidatorName};
+pub use read::{VerifiedRead, VerifiedRevision};
 pub use records::{
     CommitReceiptV1, ProposalRecordV1, RecordedValidationIssue, RejectionRecordV1, SeedResultV1,
     StaleRecordV1, ValidationBasisV1, ValidationMaterialV1, ValidationReceiptV1,
 };
+pub use replay::{TransactionRecord, TransactionState};
 pub use runtime::Runtime;
 pub use seed::{BootstrapContext, SeedDocument, SeedError};
 pub use transaction::{

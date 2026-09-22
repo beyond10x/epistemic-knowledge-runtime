@@ -1,0 +1,6 @@
+This is an incomplete source checkpoint, not final acceptance.
+
+1. Finish §94 recovery evidence for every decision kind, both providers: fresh-process pending preparations, native interruption/election uncertainty, exact original native request before canonical staleness, same-slot contention and no losing private bindings, missing/corrupt/forged private records with recomputed addresses/fingerprints, retained atomic receipts after erasure. Current publication-port fault cases are not native crash witnesses.
+2. Migrate remaining current graph and store test fixtures, preserving frozen legacy bytes and each original behavioral obligation. Old store fixtures still name replaced append/seed/authority APIs; old graph fixtures still name the combined validation/lifecycle and scalar property shape. No complete workspace compilation or gate is claimed.
+3. Complete current-format fixed vectors, all-root/complete basis sensitivity, source public-surface/ownership guards and scoped failure mutations. Coordinate actual guard/doc mechanism corrections with root.
+4. Independent adversary, full repository gate and publication remain coordinator work after finished source. CLI/Explain is a separate disjoint worker consuming Runtime/VerifiedRead; this checkpoint does not implement it.

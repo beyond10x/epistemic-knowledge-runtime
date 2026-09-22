@@ -213,21 +213,13 @@ fn kernel_opening_facade_preserves_many_values_and_one_empty_list() {
     document.graph.nodes.insert(node.id, node.clone());
     for file in [false, true] {
         let directory = tempfile::tempdir().unwrap();
-        let ontology = Ontology::load(document.ontology.clone()).unwrap();
         let open = || {
             if file {
-                ekr_kernel::Runtime::file(
-                    directory.path(),
-                    "ekr",
-                    ontology.clone(),
-                    context,
-                    authority(context),
-                )
+                ekr_kernel::Runtime::file(directory.path(), "ekr", context, authority(context))
             } else {
                 ekr_kernel::Runtime::sqlite(
                     &directory.path().join("state.db"),
                     "ekr",
-                    ontology.clone(),
                     context,
                     authority(context),
                 )
@@ -286,7 +278,7 @@ fn graph_outer_empty_values_and_unversioned_documents_are_refused() {
 
 #[test]
 fn exact_host_profile_and_complete_agent_registry_are_required() {
-    let (document, context) = input();
+    let (_, context) = input();
     for fault in 0..7 {
         let mut anchor = authority(context);
         match fault {
@@ -307,7 +299,6 @@ fn exact_host_profile_and_complete_agent_registry_are_required() {
         assert!(ekr_kernel::Runtime::sqlite(
             &directory.path().join("state.db"),
             "ekr",
-            Ontology::load(document.ontology.clone()).unwrap(),
             context,
             anchor
         )
@@ -323,21 +314,13 @@ fn missing_or_substituted_native_seed_and_receipt_blobs_refuse_reopen() {
     for file in [false, true] {
         for receipt in [false, true] {
             let directory = tempfile::tempdir().unwrap();
-            let ontology = Ontology::load(document.ontology.clone()).unwrap();
             let open = || {
                 if file {
-                    ekr_kernel::Runtime::file(
-                        directory.path(),
-                        "ekr",
-                        ontology.clone(),
-                        context,
-                        authority(context),
-                    )
+                    ekr_kernel::Runtime::file(directory.path(), "ekr", context, authority(context))
                 } else {
                     ekr_kernel::Runtime::sqlite(
                         &directory.path().join("state.db"),
                         "ekr",
-                        ontology.clone(),
                         context,
                         authority(context),
                     )
@@ -421,7 +404,7 @@ fn missing_or_substituted_native_seed_and_receipt_blobs_refuse_reopen() {
 
 #[test]
 fn kernel_facade_refuses_an_entered_runtime_before_opening_provider_paths() {
-    let (document, context) = input();
+    let (_, context) = input();
     let directory = tempfile::tempdir().unwrap();
     let executor = tokio::runtime::Builder::new_current_thread()
         .build()
@@ -430,23 +413,11 @@ fn kernel_facade_refuses_an_entered_runtime_before_opening_provider_paths() {
         let file = directory.path().join("file");
         let sqlite = directory.path().join("state.db");
         assert!(matches!(
-            ekr_kernel::Runtime::file(
-                &file,
-                "ekr",
-                Ontology::load(document.ontology.clone()).unwrap(),
-                context,
-                authority(context)
-            ),
+            ekr_kernel::Runtime::file(&file, "ekr", context, authority(context)),
             Err(ekr_store::StoreError::RuntimeContext)
         ));
         assert!(matches!(
-            ekr_kernel::Runtime::sqlite(
-                &sqlite,
-                "ekr",
-                Ontology::load(document.ontology.clone()).unwrap(),
-                context,
-                authority(context)
-            ),
+            ekr_kernel::Runtime::sqlite(&sqlite, "ekr", context, authority(context)),
             Err(ekr_store::StoreError::RuntimeContext)
         ));
         assert!(!file.exists());

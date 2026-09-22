@@ -833,12 +833,13 @@ fn concurrent_independent_handles_publish_exactly_one_seed_and_no_losing_object(
         );
         for (hash, result) in outcomes {
             if result.is_err() {
-                assert_eq!(
+                assert!(matches!(
                     result,
                     Err(ekr_kernel::SeedError::Store(
                         ekr_store::StoreError::AlreadySeeded
+                            | ekr_store::StoreError::PublicationInputConflict
                     ))
-                );
+                ));
                 assert_eq!(raw.get(&hash).unwrap(), None);
             }
         }

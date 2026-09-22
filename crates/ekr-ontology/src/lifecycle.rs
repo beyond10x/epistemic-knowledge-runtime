@@ -50,9 +50,10 @@ pub struct Lifecycle {
     /// The state a newly created node of this type is in. Must be one of `states`.
     pub initial: String,
     /// Every state a node of this type may be in.
+    #[serde(deserialize_with = "ekr_core::decode::unique_set")]
     pub states: BTreeSet<String>,
     /// Every move a node of this type may make. A pair not here is not a move.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "ekr_core::decode::unique_set")]
     pub transitions: BTreeSet<Transition>,
 }
 
@@ -114,7 +115,7 @@ pub struct OperationDefinition {
     /// The operation's name, as `GraphOperation::Invoke` names it.
     pub name: String,
     /// The arguments it takes, by name, each typed.
-    #[serde(default)]
+    #[serde(default, deserialize_with = "ekr_core::decode::unique_map")]
     pub arguments: BTreeMap<String, ValueType>,
     /// Constraint expressions over the node's properties and the arguments. The language is
     /// `UNMAPPED`; these are carried and nothing here refuses one.

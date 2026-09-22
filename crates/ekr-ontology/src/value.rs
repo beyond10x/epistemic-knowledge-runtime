@@ -140,18 +140,20 @@ pub enum ValueType {
     NodeRef {
         /// The types a value of this type may point at. Empty is refused at load: a reference to
         /// nothing is not a reference.
+        #[serde(deserialize_with = "ekr_core::decode::unique_set")]
         allowed_types: BTreeSet<TypeId>,
     },
     /// One of a declared set of variants.
     Enum {
         /// The variants a value of this type may be. Empty is refused at load: a type no value
         /// inhabits is not a type.
+        #[serde(deserialize_with = "ekr_core::decode::unique_set")]
         variants: BTreeSet<String>,
     },
     /// A sequence whose every element has this type.
     List(Box<ValueType>),
     /// A set of named fields, each with its own type. Exactly these fields, no more and no fewer.
-    Record(BTreeMap<String, ValueType>),
+    Record(#[serde(deserialize_with = "ekr_core::decode::unique_map")] BTreeMap<String, ValueType>),
 }
 
 impl ValueType {
@@ -202,7 +204,7 @@ pub enum Value {
     /// A sequence of values.
     List(Vec<Value>),
     /// A set of named fields.
-    Record(BTreeMap<String, Value>),
+    Record(#[serde(deserialize_with = "ekr_core::decode::unique_map")] BTreeMap<String, Value>),
 }
 
 /// Where a value sits inside the value that contains it: what a refusal names.

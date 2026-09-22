@@ -23,9 +23,9 @@ use ekr_core::{
     RevisionNumber, SchemaVersionId, Timestamp, TransactionId, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalGraph, CanonicalRef, CanonicalValue, Confidence, Edge, Evidence,
-    EvidenceSource, GraphRoot, GraphSnapshot, Node, Object, Predicate, RetractionReason, Space,
-    Subject, TemporalRange, TransactionTime, ValidationState,
+    Assertion, Assessment, CanonicalGraph, CanonicalRef, CanonicalValue, Confidence, Edge,
+    Evidence, EvidenceSource, GraphRoot, GraphSnapshot, Node, Object, Predicate, RetractionReason,
+    Space, Subject, TemporalRange, TransactionTime,
 };
 use ekr_kernel::{
     Authorization, Cardinality as CardinalityValidator, EdgeDraft, EntityMerge, GraphOperation,
@@ -114,13 +114,17 @@ impl World {
         open_node.type_state = Some("open".to_owned());
         open_node.properties.insert(
             title,
-            CanonicalValue::String("Adopt the eventlog store".to_owned()),
+            vec![CanonicalValue::String(
+                "Adopt the eventlog store".to_owned(),
+            )],
         );
         let mut decided_node = Node::new(decided, root_id, decision, "Hash canonical state only");
         decided_node.type_state = Some("decided".to_owned());
         decided_node.properties.insert(
             title,
-            CanonicalValue::String("Hash canonical state only".to_owned()),
+            vec![CanonicalValue::String(
+                "Hash canonical state only".to_owned(),
+            )],
         );
 
         let edge = Edge::new(
@@ -141,7 +145,8 @@ impl World {
             )),
             evidence: [retained_evidence].into_iter().collect(),
             proposed_by: proposer,
-            validation: ValidationState::Accepted {
+            lifecycle: ekr_graph::AssertionLifecycle::Active,
+            assessment: Assessment::Accepted {
                 validators: [reviewer].into_iter().collect(),
             },
             valid_time: TemporalRange::UNBOUNDED,
@@ -244,7 +249,8 @@ impl World {
             object: Object::Value(Value::String("Adopt the eventlog store".to_owned())),
             evidence: [self.retained_evidence].into_iter().collect(),
             proposed_by: self.proposer,
-            validation: ValidationState::Proposed,
+            lifecycle: ekr_graph::AssertionLifecycle::Active,
+            assessment: Assessment::Proposed,
             valid_time: TemporalRange::UNBOUNDED,
             transaction_time: TransactionTime::since(Timestamp::EPOCH),
         }
@@ -318,7 +324,10 @@ fn a_valid_transaction_validates() {
         }),
         GraphOperation::DeleteEdge(world.existing_edge),
         GraphOperation::AddAssertion(Box::new(world.supported_assertion(AssertionId::mint()))),
-        GraphOperation::RetractAssertion(world.held_assertion),
+        GraphOperation::RetractAssertion(ekr_kernel::Retraction {
+            assertion: world.held_assertion,
+            reason: ekr_graph::RetractionReason::new("fixture withdrawal"),
+        }),
         GraphOperation::Invoke {
             node: world.open,
             operation: "decide".to_owned(),
@@ -792,30 +801,23 @@ fn a_type_the_ontology_already_declares_is_not_declared_again() {
 fn an_assertion_cannot_arrive_carrying_its_own_verdict() {
     let world = World::new();
     let states = [
-        ValidationState::Validating {
+        Assessment::Validating {
             completed: 7,
             required: 7,
         },
-        ValidationState::Accepted {
+        Assessment::Accepted {
             validators: [world.reviewer].into_iter().collect(),
         },
-        ValidationState::Rejected { issues: Vec::new() },
-        ValidationState::Disputed {
+        Assessment::Rejected { issues: Vec::new() },
+        Assessment::Disputed {
             competing_assertions: Vec::new(),
-        },
-        ValidationState::Superseded {
-            by: world.held_assertion,
-        },
-        ValidationState::Retracted {
-            at_revision: RevisionNumber::new(7),
-            reason: RetractionReason::new("the world moved on"),
         },
     ];
 
     for state in states {
         let mut forged = world.supported_assertion(AssertionId::mint());
         let named = state.name();
-        forged.validation = state;
+        forged.assessment = state;
         let issues = refuse(&world, vec![GraphOperation::AddAssertion(Box::new(forged))]);
         assert_eq!(
             refusing_validators(&issues),
@@ -830,6 +832,26 @@ fn an_assertion_cannot_arrive_carrying_its_own_verdict() {
         );
     }
 
+    // Withdrawal remains independently unforgeable after its split from assessment.
+    for lifecycle in [
+        ekr_graph::AssertionLifecycle::Superseded {
+            by: world.held_assertion,
+            at_revision: RevisionNumber::new(7),
+            effective_from: Timestamp::EPOCH,
+        },
+        ekr_graph::AssertionLifecycle::Retracted {
+            at_revision: RevisionNumber::new(7),
+            reason: RetractionReason::new("the world moved on"),
+        },
+    ] {
+        let mut forged = world.supported_assertion(AssertionId::mint());
+        forged.lifecycle = lifecycle;
+        let issues = refuse(&world, vec![GraphOperation::AddAssertion(Box::new(forged))]);
+        assert!(issues
+            .iter()
+            .any(|issue| issue.validator == ValidatorName::Provenance
+                && issue.code == "assertion-states-its-own-verdict"));
+    }
     // `Proposed` is the one a proposal carries, and it validates.
     assert!(world
         .pipeline()
@@ -1078,7 +1100,10 @@ fn every_kind_of_dangling_reference_is_refused() {
 
     let unresolved_assertion = refuse(
         &world,
-        vec![GraphOperation::RetractAssertion(AssertionId::mint())],
+        vec![GraphOperation::RetractAssertion(ekr_kernel::Retraction {
+            assertion: AssertionId::mint(),
+            reason: ekr_graph::RetractionReason::new("fixture withdrawal"),
+        })],
     );
     assert_eq!(codes(&unresolved_assertion), vec!["unresolved-assertion"]);
 
@@ -1341,7 +1366,7 @@ fn an_invocation_carries_exactly_the_arguments_its_operation_declares() {
 /// `Pipeline::deterministic` to a list written here, so a validator inserted, dropped or moved
 /// turns it red. It does *not* read `ekr.kernel.ValidatorName` out of the domain, so the domain
 /// and this list could drift apart together — the same gap
-/// [`the_eleven_operation_numbers_are_the_domains_and_the_declarations`] closes for
+/// [`the_twelve_current_operation_numbers_are_the_domains_and_the_declarations`] closes for
 /// `OperationKind` by reading the document. The difference is that a validator's position is not
 /// in any content address, so drift here costs a wrong order and not a moved hash.
 #[test]
@@ -1495,10 +1520,10 @@ fn every_issue_code_the_kernel_can_raise_is_raised_by_a_case() {
 /// And then the numbers themselves, transcribed here and checked against the bytes, so that a
 /// renumbering which moved all three lists together still turns this red.
 #[test]
-fn the_eleven_operation_numbers_are_the_domains_and_the_declarations() {
+fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
     /// The eleven names in the order their numbers count in, transcribed from
     /// `ekr.kernel.OperationKind`.
-    const NAMES: [&str; 11] = [
+    const NAMES: [&str; 12] = [
         "CreateNode",
         "UpdateProperty",
         "CreateEdge",
@@ -1510,6 +1535,7 @@ fn the_eleven_operation_numbers_are_the_domains_and_the_declarations() {
         "ModifyProperty",
         "MergeEntity",
         "Invoke",
+        "SupersedeAssertion",
     ];
 
     let domain = read_workspace_file("systems/ekr/domains/kernel.yaml");
@@ -1667,11 +1693,15 @@ fn one_of_each_operation(world: &World) -> Vec<GraphOperation<CanonicalValue>> {
             object: Object::Value(CanonicalValue::String("one".to_owned())),
             evidence: BTreeSet::new(),
             proposed_by: world.proposer,
-            validation: ValidationState::Proposed,
+            lifecycle: ekr_graph::AssertionLifecycle::Active,
+            assessment: Assessment::Proposed,
             valid_time: TemporalRange::UNBOUNDED,
             transaction_time: TransactionTime::since(Timestamp::EPOCH),
         })),
-        GraphOperation::RetractAssertion(AssertionId::mint()),
+        GraphOperation::RetractAssertion(ekr_kernel::Retraction {
+            assertion: AssertionId::mint(),
+            reason: ekr_graph::RetractionReason::new("fixture withdrawal"),
+        }),
         GraphOperation::DefineNodeType(Box::new(NodeType::new(TypeId::mint(), "Decision"))),
         GraphOperation::DefineEdgeType(Box::new(EdgeType::new(TypeId::mint(), "depends_on"))),
         GraphOperation::ModifyProperty(PropertyDefinition::new(
@@ -1688,6 +1718,11 @@ fn one_of_each_operation(world: &World) -> Vec<GraphOperation<CanonicalValue>> {
             operation: "decide".to_owned(),
             arguments: BTreeMap::new(),
         },
+        GraphOperation::SupersedeAssertion(ekr_kernel::Supersession {
+            assertion: AssertionId::mint(),
+            by: AssertionId::mint(),
+            effective_from: Timestamp::EPOCH,
+        }),
     ]
 }
 
@@ -1841,7 +1876,7 @@ fn the_encoding_writes_id_bearing_fields_in_declaration_order() {
 /// | a field left out of an `encode` | **red**, from the declaration | red only if two generated values differ in exactly that field | silent unless the field carries an id | **red**, for all 34 |
 /// | two fields written in the wrong order | silent — both are still *named* | **silent** | red if both carry ids | **red**, whatever their type |
 /// | a variant tag reused between two variants | silent | **red** | silent | silent |
-/// | a variant renumbered | silent | silent | silent | silent — [`the_eleven_operation_numbers_are_the_domains_and_the_declarations`] carries it |
+/// | a variant renumbered | silent | silent | silent | silent — [`the_twelve_current_operation_numbers_are_the_domains_and_the_declarations`] carries it |
 /// | a type nobody generates | **red** if a field is missing | silent — which is what hid `DefineEdgeType` until its strategy arrived | red if it is in the list | **red** if it is in the list |
 ///
 /// Two cells were measured rather than assumed, and both refuted a stated bound. The hash-property
@@ -1859,6 +1894,8 @@ fn every_field_of_every_encoded_type_reaches_its_encoding() {
     let ontology_types = read_workspace_file("crates/ekr-ontology/src/types.rs");
     let ontology_lifecycle = read_workspace_file("crates/ekr-ontology/src/lifecycle.rs");
     let encoding = encoding_bodies(&transaction);
+    let ontology_encoding =
+        encoding_bodies(&read_workspace_file("crates/ekr-ontology/src/canonical.rs"));
     assert!(
         encoding.len() > 500,
         "the encoding scan found {} bytes of `fn encode`, which is not an encoding",
@@ -1881,7 +1918,12 @@ fn every_field_of_every_encoded_type_reaches_its_encoding() {
         );
         for field in fields {
             checked += 1;
-            if !encoding.contains(&field) {
+            let owner_encoding = if declared_in == "transaction" {
+                &encoding
+            } else {
+                &ontology_encoding
+            };
+            if !owner_encoding.contains(&field) {
                 missing.push(format!("{struct_name}.{field}"));
             }
         }
