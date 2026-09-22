@@ -89,12 +89,18 @@ cases through the external Commit/stale arrangement. The upstream correction now
 generates both cases; repeated development validation, compilation and synthesis
 pass with no refused obligations. The exact failed and corrected outputs remain
 retained, and the same adopter shape is covered by upstream regression fixtures.
-This draft is unactivated. A preflight with the downloaded release is in progress;
-no EKR runtime success is inferred from compiler qualification.
+This draft is unactivated. The preflight with the downloaded release passed;
+its commands and outputs are recorded in
+`.engineering/reviews/p1-writer-released-compiler-preflight.md`.
+No EKR runtime success is inferred from compiler qualification.
 The bounded transaction-document parser is implemented in its isolated unit.
-Its independent review found that separate traversals admitted a combined string
-total above the frozen profile. The original failing case is preserved under
-review-result:p1-transaction-parser-adversary-r1 and correction is in progress.
+Its independent review reproduced admission of a combined string total above
+the frozen profile. The mechanism addendum retracts the original attribution to
+separate traversals: the dependency's public deserializer hides global tag text.
+The original failing case is preserved under
+review-result:p1-transaction-parser-adversary-r1. The bounded observation facade
+and counting correction are in progress; neither has passed the next independent
+review.
 Persisted-contract activation, durable application and the CLI remain unfinished.
 The conformance and migration preparation reports are measured prerequisites, not executed
 exits. No later phase or live cutover has been claimed complete.
