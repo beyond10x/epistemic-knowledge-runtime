@@ -17,7 +17,11 @@ scope:
 - confidence: cited
   path: crates/ekr-graph/src/assertion.rs
 - confidence: cited
+  path: crates/ekr-graph/src/edge.rs
+- confidence: cited
   path: crates/ekr-graph/src/events.rs
+- confidence: cited
+  path: crates/ekr-graph/src/node.rs
 - confidence: cited
   path: crates/ekr-graph/src/snapshot.rs
 - confidence: cited
@@ -56,7 +60,7 @@ scope:
   path: systems/ekr/domains/graph.yaml
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 16
+revision: 18
 ---
 ## Context
 
@@ -83,3 +87,20 @@ Adopt separate validation/lifecycle fields and an occurrence envelope covering e
 ## Verification
 
 Test before implementation. Run both provider lanes for duplicate occurrence, retry and changed-payload identity conflict, including repeated same-content proposal/validation/rejection. Preserve legacy vectors and test corrupt/unknown format and missing-history refusals. Full gate and independent adversary on the integrated format precede writer dispatch.
+
+## Additional persisted shape to settle before dispatch
+
+The coordinator compared `crates/ekr-graph/src/node.rs:68` and `edge.rs:45`
+(`BTreeMap<PropertyId, V>`) with `crates/ekr-kernel/src/transaction.rs:72`,
+`:100` (`BTreeMap<PropertyId, Vec<V>>`) and `ekr-ontology/src/check.rs:138`.
+Validated property multiplicity has no lossless direct home in the current
+canonical node/edge field shape. The writer story already requires retaining
+multiple values distinctly from one list-valued property.
+
+Settle the explicit multiplicity container in this same versioned graph change,
+before durable application, rather than inventing an implicit Value::List
+convention or truncating a validated vector. Review ordering, duplicate values,
+empty-vector/absent semantics, list-valued properties and frozen legacy wrapping
+before adopting the exact encoding. Extend the additive design amendment and
+ESS projection accordingly. This is a measured representation gap and a pending
+format decision; no multivalued canonical application is claimed implemented.

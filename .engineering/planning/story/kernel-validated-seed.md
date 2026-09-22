@@ -35,11 +35,17 @@ scope:
 - confidence: cited
   path: crates/ekr-kernel/src/validate
 - confidence: cited
+  path: crates/ekr-kernel/tests/adversary_p1_08_seed.rs
+- confidence: cited
   path: crates/ekr-kernel/tests/commit_path.rs
 - confidence: cited
   path: crates/ekr-kernel/tests/fixtures/seed-minimal.yaml
 - confidence: cited
   path: crates/ekr-kernel/tests/seed.rs
+- confidence: cited
+  path: crates/ekr-ontology/src/schema.rs
+- confidence: cited
+  path: crates/ekr-ontology/tests/ontology_load.rs
 - confidence: cited
   path: crates/ekr-store/src/eventlog.rs
 - confidence: cited
@@ -54,7 +60,7 @@ scope:
   path: crates/ekr/tests/story_contract.rs
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 20
+revision: 22
 ---
 ## Context
 
@@ -126,3 +132,25 @@ Bootstrap admits HumanStatement sources only. Other source variants, including G
 This payload map is part of the same atomic seed publication. Invalid or tampered payloads write nothing; replay of tampered content fails. Legacy seeds without verifiable statement content remain preserved and refuse migration rather than receiving synthetic evidence. P6 erasure rules also apply to seed evidence bytes; embedding them does not exempt them from deletion or dependent-assertion handling.
 
 Strict seed decoding must refuse unknown semantic fields throughout its graph records, as the ontology decoder now does. Add record/envelope strictness only where seed input reaches the type, preserving legitimate user-defined map keys. The graph source files are explicitly scoped for these decode attributes and correction of the obsolete seed-boundary documentation; this does not authorize unrelated graph-shape changes.
+
+## Seed review correction: ontology property filing
+
+Independent executable review found that an ontology may file a property under
+a map key different from PropertyDefinition.id. The public SeedDocument path
+accepted the malformed ontology and reopened it through both providers. The
+coordinator verified the red log and the reachable caller; schema.rs currently
+iterates properties.values() and the shared loader source is unchanged from the
+wave opening. This is an inherited loader defect exposed at the seed boundary.
+
+Expand this unit to crates/ekr-ontology/src/schema.rs and its ontology_load tests.
+Check map key against definition identity for node and edge property declarations
+at their common load boundary, with a named typed error containing both identities.
+Preserve correct declarations and legitimate inherited-property behavior.
+
+The adversary's original case stages acceptance. Its post-fix replacement must
+still submit malformed seed input against a valid compatibility ontology and
+assert a seed-ontology refusal with no object or Seeded event. Separately named
+loader cases assert the exact error variant. A compatibility-constructor panic,
+blanket skip, or merely different-ontology refusal does not close the seed case.
+The reviewer owns the independent regression; the implementor must not silently
+narrow it. Full correction and re-review remain unexecuted at this scope expansion.
