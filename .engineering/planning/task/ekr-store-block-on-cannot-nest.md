@@ -2,11 +2,12 @@
 format: aep.planning-md/1
 id: task:ekr-store-block-on-cannot-nest
 kind: task
-status: draft
+status: active
 title: The synchronous store panics rather than errors when called from inside a runtime
 relations:
 - serves: vision:o2
-revision: 1
+- derived_from: story:synchronous-runtime-refusal
+revision: 3
 ---
 ## The cost this records
 

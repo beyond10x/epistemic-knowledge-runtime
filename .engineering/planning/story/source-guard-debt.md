@@ -47,10 +47,12 @@ scope:
 - confidence: cited
   path: crates/ekr/tests/public_surface.rs
 - confidence: inferred
+  path: crates/ekr/tests/support/rust_source.rs
+- confidence: inferred
   path: crates/ekr/tests/temporal_reads.rs
 - confidence: cited
   path: xtask/src/main.rs
-revision: 24
+revision: 25
 ---
 ## Outcome
 
