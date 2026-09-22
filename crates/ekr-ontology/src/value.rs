@@ -133,7 +133,7 @@ impl fmt::Display for ValueKind {
 /// So this is a boundary that is doing its job for `NodeRef` and `Enum` and is incomplete for
 /// `List` and `Record` — not drift to be reconciled by making the two shapes identical.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "value_kind", content = "parameters")]
+#[serde(tag = "value_kind", content = "parameters", deny_unknown_fields)]
 pub enum ValueType {
     /// Text.
     String,
@@ -192,7 +192,7 @@ impl ValueType {
 /// Serialised the same way its type is, with `value_kind` as the discriminant, so that a value and
 /// the type it claims to satisfy are read the same way by anything that reads both.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "value_kind", content = "value")]
+#[serde(tag = "value_kind", content = "value", deny_unknown_fields)]
 pub enum Value {
     /// Text.
     String(String),

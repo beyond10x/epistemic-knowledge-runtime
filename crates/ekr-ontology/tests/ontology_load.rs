@@ -415,3 +415,149 @@ node_types:
         "{malformed:?}"
     );
 }
+
+/// Each nested input record can otherwise lose semantics before ontology validation sees them.
+#[test]
+fn unknown_semantic_members_of_ontology_records_are_refused() {
+    let (mut document, property) = document_with(ValueType::String);
+    let subject = document.node_types[0].id;
+    let transition = Transition::new("open", "decided");
+    document.node_types[0].lifecycle = Some(Lifecycle {
+        initial: "open".into(),
+        states: ["open".into(), "decided".into()].into_iter().collect(),
+        transitions: [transition.clone()].into_iter().collect(),
+    });
+    let mut operation = OperationDefinition::new("decide");
+    operation.transition = Some(transition);
+    document.node_types[0]
+        .operations
+        .insert("decide".into(), operation);
+    let mut edge = EdgeType::new(TypeId::mint(), "depends_on");
+    edge.source_types.insert(subject);
+    edge.target_types.insert(subject);
+    document.edge_types.push(edge);
+    let serialized = serde_json::to_value(&document).unwrap();
+    let valid = serde_yaml_ng::to_string(&serialized).unwrap();
+    assert_eq!(
+        Ontology::from_yaml(&valid).unwrap(),
+        Ontology::load(document.clone()).unwrap()
+    );
+    assert_eq!(
+        serde_yaml_ng::from_str::<OntologyDocument>(&valid).unwrap(),
+        document
+    );
+
+    let sites = [
+        (String::new(), "rules"),
+        ("/version".into(), "migration"),
+        ("/node_types/0".into(), "constraints"),
+        ("/edge_types/0".into(), "constraints"),
+        (format!("/node_types/0/properties/{property}"), "unique"),
+        ("/node_types/0/lifecycle".into(), "guards"),
+        ("/node_types/0/lifecycle/transitions/0".into(), "condition"),
+        ("/node_types/0/operations/decide".into(), "sets"),
+        (
+            "/node_types/0/operations/decide/transition".into(),
+            "condition",
+        ),
+    ];
+    let mut discarded = Vec::new();
+    for (path, field) in sites {
+        let mut input = serialized.clone();
+        input
+            .pointer_mut(&path)
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .insert(field.into(), serde_json::json!({"requested": "effect"}));
+        let yaml = serde_yaml_ng::to_string(&input).unwrap();
+        match Ontology::from_yaml(&yaml) {
+            Ok(_) => discarded.push(format!("{path}/{field}")),
+            Err(OntologyError::Syntax(message)) => assert!(message.contains(field), "{message}"),
+            Err(other) => {
+                panic!("unknown field must be named by decoding, not masked by {other:?}")
+            }
+        }
+    }
+    assert!(
+        discarded.is_empty(),
+        "decoding silently discarded: {discarded:?}"
+    );
+}
+
+#[test]
+fn unknown_semantics_on_compound_value_types_are_refused() {
+    let (mut document, property) = document_with(ValueType::String);
+    let subject = document.node_types[0].id;
+    document.node_types[0]
+        .properties
+        .get_mut(&property)
+        .unwrap()
+        .value_type = ValueType::Record(
+        [
+            (
+                "reference".into(),
+                ValueType::NodeRef {
+                    allowed_types: [subject].into_iter().collect(),
+                },
+            ),
+            (
+                "choice".into(),
+                ValueType::Enum {
+                    variants: ["open".into()].into_iter().collect(),
+                },
+            ),
+            ("list".into(), ValueType::List(Box::new(ValueType::Integer))),
+        ]
+        .into_iter()
+        .collect(),
+    );
+    let serialized = serde_json::to_value(&document).unwrap();
+    assert!(Ontology::from_yaml(&serde_yaml_ng::to_string(&serialized).unwrap()).is_ok());
+    let base = format!("/node_types/0/properties/{property}/value_type");
+    let sites = [
+        base.clone(),
+        format!("{base}/parameters/reference"),
+        format!("{base}/parameters/reference/parameters"),
+        format!("{base}/parameters/choice/parameters"),
+        format!("{base}/parameters/list/parameters"),
+    ];
+    let mut discarded = Vec::new();
+    for path in sites {
+        let mut input = serialized.clone();
+        input
+            .pointer_mut(&path)
+            .unwrap()
+            .as_object_mut()
+            .unwrap()
+            .insert(
+                "unsupported_constraint".into(),
+                serde_json::json!("must hold"),
+            );
+        let yaml = serde_yaml_ng::to_string(&input).unwrap();
+        match Ontology::from_yaml(&yaml) {
+            Ok(_) => discarded.push(path),
+            Err(OntologyError::Syntax(message)) => {
+                assert!(message.contains("unsupported_constraint"), "{message}")
+            }
+            Err(other) => panic!("unexpected refusal {other:?}"),
+        }
+    }
+    assert!(
+        discarded.is_empty(),
+        "decoding silently discarded: {discarded:?}"
+    );
+}
+
+#[test]
+fn value_envelopes_do_not_discard_unknown_semantics() {
+    let input = r#"{"value_kind":"Integer","value":1,"unit":"seconds"}"#;
+    let refused = serde_yaml_ng::from_str::<ekr_ontology::Value>(input)
+        .expect_err("an unknown unit must not silently become a unitless integer");
+    assert!(refused.to_string().contains("unit"));
+    let supported = r#"{"value_kind":"Integer","value":1}"#;
+    assert_eq!(
+        serde_yaml_ng::from_str::<ekr_ontology::Value>(supported).unwrap(),
+        ekr_ontology::Value::Integer(1)
+    );
+}

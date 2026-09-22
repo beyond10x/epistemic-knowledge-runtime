@@ -16,6 +16,7 @@ use crate::value::{Cardinality, ValueType};
 /// A property of a node type or an edge type: design § 11.2, and
 /// `ekr.ontology.PropertyDefinition`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PropertyDefinition {
     /// The property's stable id. A name is a property of a property, not its identity.
     pub id: PropertyId,
@@ -55,6 +56,7 @@ impl PropertyDefinition {
 
 /// A node type: design § 11.1, extended by amendment 87, and `ekr.ontology.NodeType`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NodeType {
     /// The type's stable id.
     pub id: TypeId,
@@ -95,6 +97,7 @@ impl NodeType {
 
 /// An edge type: design § 12, and `ekr.ontology.EdgeType`. Relations have schemas just like nodes.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EdgeType {
     /// The type's stable id.
     pub id: TypeId,
