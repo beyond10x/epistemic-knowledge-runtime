@@ -27,7 +27,7 @@
 //! # And one thing that is here, because the reasoning above used to stop halfway
 //!
 //! This module used to say of the assertion's own
-//! [`ValidationState`] that reading it "would let a proposer opt out of
+//! [`Assessment`] that reading it "would let a proposer opt out of
 //! § 6.5 by labelling the claim `Proposed`" — so the field was ignored, and the evidence rule was
 //! applied to every `AddAssertion` whatever state it carried. That much is right and it stays.
 //!
@@ -46,7 +46,7 @@
 //! four ways round it. `Retracted` and `Superseded` are also *moves of a committed record*, which
 //! design § 36 makes their own operations rather than a field a create can set.
 
-use ekr_graph::{GraphSnapshot, ValidationState};
+use ekr_graph::{Assessment, GraphSnapshot};
 
 use super::{finish, issue, Validator};
 use crate::issue::{ValidationIssue, ValidatorName};
@@ -76,7 +76,9 @@ impl Validator for Provenance {
             let GraphOperation::AddAssertion(assertion) = operation else {
                 continue;
             };
-            if !matches!(assertion.validation, ValidationState::Proposed) {
+            if !matches!(assertion.assessment, Assessment::Proposed)
+                || !matches!(assertion.lifecycle, ekr_graph::AssertionLifecycle::Active)
+            {
                 issues.push(issue(
                     tx,
                     ValidatorName::Provenance,
@@ -85,7 +87,7 @@ impl Validator for Provenance {
                         "assertion {} is proposed as {}, and a proposal states a claim rather than \
                          the verdict on it; only this pipeline moves an assertion out of Proposed",
                         assertion.id,
-                        assertion.validation.name()
+                        assertion.assessment.name()
                     ),
                 ));
             }

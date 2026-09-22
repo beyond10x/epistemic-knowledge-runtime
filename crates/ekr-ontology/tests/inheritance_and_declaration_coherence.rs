@@ -186,36 +186,28 @@ fn an_operation_argument_no_value_inhabits_is_refused_at_load() {
 /// This is the adversary's round-1 case, re-aimed. It was written as
 /// `the_ess_domain_names_the_serde_content_key_value_rs_cites_it_for`, asserting that
 /// `systems/ekr/domains/ontology.yaml` declares the `parameters` key `value.rs` attributed to it.
-/// It does not, and the coordinator's decision is that it is right not to: `ess/1` types are not
-/// recursive, so a `ValueType` containing another `ValueType` cannot be expressed in that language
-/// at all, and the domain says so at its own lines 26-28 — the compound kinds' parameters "are
-/// carried by PropertyDefinition below". `graph.yaml` flattens `TypedValue` the same way for the
-/// same reason.
-///
-/// So the two shapes differ because one language can express recursion and the other cannot. The
-/// domain is not amended; the citation is corrected, and this case holds it corrected. Asserting
-/// that the domain grows a `parameters` key would have asserted the wrong half of a boundary that
-/// is working.
+/// It does not. The activated domain now carries recursive parameters using its own typed
+/// projection; that does not make this crate's tagged `parameters` key an ESS declaration.
 #[test]
 fn value_rs_does_not_attribute_its_serde_shape_to_the_ess_domain() {
     let declared = declared_names_of_the_domain();
 
-    // The coordinator's decision, pinned: the domain is flat, and stays flat. If someone later
-    // "reconciles" the two by amending the document, this goes red and the doc comment below is
-    // revisited rather than silently left describing the old shape.
-    for flat in ["value_kind", "ref_allowed_types", "enum_variants"] {
+    for carrier in [
+        "value_type",
+        "kind",
+        "allowed_types",
+        "variants",
+        "element",
+        "fields",
+    ] {
         assert!(
-            declared.contains(flat),
-            "ekr.ontology.PropertyDefinition declares the flat {flat}: {declared:?}"
+            declared.contains(carrier),
+            "the recursive ontology projection declares {carrier}: {declared:?}"
         );
     }
     assert!(
         !declared.contains("parameters"),
         "the domain declares no `parameters` key, and `value.rs` must not say it does"
-    );
-    assert!(
-        !declared.contains("value_type"),
-        "the domain gives PropertyDefinition no recursive `value_type` field"
     );
 
     // And the crate does not claim otherwise.
@@ -225,9 +217,9 @@ fn value_rs_does_not_attribute_its_serde_shape_to_the_ess_domain() {
         "value.rs still attributes its own serde shape to the ESS domain"
     );
     assert!(
-        value_rs.contains("ref_allowed_types") && value_rs.contains("enum_variants"),
-        "value.rs must name the flattened projection the domain actually carries, so that a \
-         reader persisting a PropertyDefinition is not sent after a `parameters` key"
+        value_rs.contains("ValueTypeProjection")
+            && value_rs.contains("PropertyDefinition.value_type"),
+        "value.rs must name the recursive projection the domain actually carries"
     );
 }
 
@@ -243,9 +235,12 @@ fn value_rs_does_not_attribute_its_serde_shape_to_the_ess_domain() {
 fn every_domain_name_this_crate_cites_is_declared_by_the_domain() {
     let declared = declared_names_of_the_domain();
     let cited = [
-        "value_kind",
-        "ref_allowed_types",
-        "enum_variants",
+        "value_type",
+        "kind",
+        "allowed_types",
+        "variants",
+        "element",
+        "fields",
         "cardinality",
         "required",
         "constraints",
@@ -264,6 +259,7 @@ fn every_domain_name_this_crate_cites_is_declared_by_the_domain() {
         "parent",
         "created_at",
         "ekr.ontology.ValueKind",
+        "ekr.ontology.ValueTypeProjection",
         "ekr.ontology.Cardinality",
         "ekr.ontology.Transition",
         "ekr.ontology.OperationDefinition",

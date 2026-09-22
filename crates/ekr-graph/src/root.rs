@@ -47,6 +47,7 @@ pub struct GraphRoot {
 /// `parent` is the *hash* of the previous root rather than its number, which is what makes the
 /// lineage a chain a reader can verify rather than a sequence a writer asserts.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Root {
     /// Its position in the lineage: zero at the seed, one per commit.
     pub revision: RevisionNumber,

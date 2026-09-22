@@ -90,22 +90,31 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+pub mod authority;
 pub mod commit;
 pub mod document;
 pub mod issue;
+pub mod records;
+pub mod runtime;
 pub mod seed;
 pub mod transaction;
 pub mod validate;
 
-pub use commit::{Commit, CommitError, Validations};
+pub use authority::{Agent, AuthorityStateV1, ValidationProfileV1};
+pub use commit::{Commit, CommitError, KernelAuthority};
 pub use document::{
     DocumentError, DocumentLimit, DocumentLimits, TransactionDocument, DOCUMENT_V1_LIMITS,
 };
 pub use issue::{ValidationIssue, ValidatorName};
+pub use records::{
+    CommitReceiptV1, ProposalRecordV1, RecordedValidationIssue, RejectionRecordV1, SeedResultV1,
+    StaleRecordV1, ValidationBasisV1, ValidationMaterialV1, ValidationReceiptV1,
+};
+pub use runtime::Runtime;
 pub use seed::{BootstrapContext, SeedDocument, SeedError};
 pub use transaction::{
     EdgeDraft, EntityMerge, GraphOperation, GraphTransaction, NodeDraft, PropertyMutation,
-    ValidatedTransaction,
+    Retraction, Supersession, ValidatedTransaction,
 };
 pub use validate::{
     Authorization, Cardinality, OntologyConstraint, Pipeline, Provenance, Reference, Structural,

@@ -167,6 +167,11 @@ macro_rules! id_newtype {
 }
 
 id_newtype! {
+    /// A kernel-allocated immutable occurrence, independent of its content address.
+    EventId
+}
+
+id_newtype! {
     /// An agent: `ekr.kernel.AgentId` of `systems/ekr/domains/kernel.yaml`.
     ///
     /// Carried by `ekr.kernel.Agent.id` and by every transaction's `proposed_by`.

@@ -74,6 +74,23 @@ pub struct Ontology {
 }
 
 impl Ontology {
+    /// All declarations in stable identity order, retaining unused declarations and version data.
+    #[must_use]
+    pub fn to_document(&self) -> OntologyDocument {
+        OntologyDocument {
+            version: self.version.clone(),
+            node_types: self.node_types.values().cloned().collect(),
+            edge_types: self.edge_types.values().cloned().collect(),
+        }
+    }
+
+    pub(crate) fn node_types(&self) -> impl ExactSizeIterator<Item = (&TypeId, &NodeType)> {
+        self.node_types.iter()
+    }
+
+    pub(crate) fn edge_types(&self) -> impl ExactSizeIterator<Item = (&TypeId, &EdgeType)> {
+        self.edge_types.iter()
+    }
     /// Loads a document, refusing one whose declarations do not cohere.
     ///
     /// # Errors

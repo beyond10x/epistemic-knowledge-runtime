@@ -10,7 +10,7 @@
 //! constructor that fills it and no path that emits it.
 
 use ekr_core::canonical::{Canonical, Encoder};
-use ekr_core::{AgentId, ContentHash, RevisionId, RevisionNumber, TransactionId};
+use ekr_core::{AgentId, ContentHash, EventId, RevisionId, RevisionNumber, TransactionId};
 use serde::{Deserialize, Serialize};
 
 /// What happened to a transaction, and to the revision lineage: the six `ekr.kernel` events that
@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 /// tagged, and this type is why the tagged half exists: `Encoder::variant` was added for it.
 ///
 /// The index each variant carries is a **hand-maintained constant**, written out in
-/// [`variant_index`](RevisionEvent::variant_index) as a match on variant *names*. It is not the
+/// [`variant_index`](RevisionPayload::variant_index) as a match on variant *names*. It is not the
 /// declared position and nothing derives it from one, so reordering the variants below moves no
 /// address at all, and **changing a number moves every address that contains it**. The two can
 /// therefore disagree, which is its own defect: a variant inserted mid-list whose arm lands at the
@@ -36,8 +36,8 @@ use serde::{Deserialize, Serialize};
 /// which catches a renumbering, and it reads this file as text to check that declaration order and
 /// numbering still agree, which catches the insert.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "event")]
-pub enum RevisionEvent {
+#[serde(tag = "event", deny_unknown_fields)]
+pub enum RevisionPayload {
     /// The lineage began: `ekr.kernel.Seeded`.
     Seeded {
         /// The seed revision.
@@ -52,7 +52,7 @@ pub enum RevisionEvent {
         /// The agent that proposed it. Agents propose; they never commit.
         proposer: AgentId,
         /// The content address of its operations.
-        operations_hash: ContentHash,
+        operations_hash: Option<ContentHash>,
     },
     /// Validation accepted it: `ekr.kernel.TransactionValidated`.
     TransactionValidated {
@@ -93,7 +93,43 @@ pub enum RevisionEvent {
     },
 }
 
+/// A current occurrence and the address of its complete kernel-owned retained record.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RevisionEvent {
+    /// Exactly `ekr.revision-event/2`.
+    pub format: String,
+    /// Immutable occurrence identity, allocated independently of content.
+    pub event_id: EventId,
+    /// Payload-domain address of the complete retained record.
+    pub record_hash: ContentHash,
+    /// Existing six-kind metadata vocabulary.
+    pub payload: RevisionPayload,
+}
 impl RevisionEvent {
+    /// The only current event envelope format.
+    pub const FORMAT: &'static str = "ekr.revision-event/2";
+    /// Backend event name selected by the payload kind.
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        self.payload.name()
+    }
+    /// Fixed payload kind index.
+    #[must_use]
+    pub const fn variant_index(&self) -> u32 {
+        self.payload.variant_index()
+    }
+}
+impl Canonical for RevisionEvent {
+    fn encode(&self, out: &mut Encoder) {
+        self.format.encode(out);
+        self.event_id.encode(out);
+        self.record_hash.encode(out);
+        self.payload.encode(out);
+    }
+}
+
+impl RevisionPayload {
     /// The number the canonical encoding tags this variant with.
     ///
     /// Hand-maintained, and part of the contract rather than an implementation detail: every
@@ -127,7 +163,7 @@ impl RevisionEvent {
     }
 }
 
-impl Canonical for RevisionEvent {
+impl Canonical for RevisionPayload {
     /// The variant marker, then the variant's fields in declaration order.
     ///
     /// The marker is not optional and is not a convenience: `RevisionId` and `TransactionId` are
