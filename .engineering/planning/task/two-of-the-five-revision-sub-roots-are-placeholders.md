@@ -6,7 +6,8 @@ status: draft
 title: ontology_root and agent_root have no type to hash and stay placeholders in P1
 relations:
 - serves: vision:o2
-revision: 1
+- blocks: story:commit-and-revision-lineage
+revision: 2
 ---
 ## What is wrong
 
@@ -43,3 +44,7 @@ closes when an `Agent` type exists, which is not P1.
 
 Until then: both fields documented as placeholders, and a case asserting they are the placeholder
 rather than something derived, so the day they become real is a day a test changes.
+
+## Boundary correction, 2026-09-22
+
+The approved completion plan supersedes the earlier claim that populated ontology content can remain a placeholder through P1. Implement canonical ontology addressing and persist the actual governing ontology before claiming replay. The agent root may represent an explicitly empty registry only while no such registry exists; it must bind any populated registry. The task now blocks the commit story so the stronger acceptance cannot be scheduled past this omission.

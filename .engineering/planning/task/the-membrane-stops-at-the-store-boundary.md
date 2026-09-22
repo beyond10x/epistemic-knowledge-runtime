@@ -7,6 +7,7 @@ title: A candidate's document deserialises into a canonical node, because the tw
 relations:
 - serves: vision:o2
 - derived_from: story:seed-and-explain
+- derived_from: story:kernel-validated-seed
 revision: 3
 ---
 ## What is wrong

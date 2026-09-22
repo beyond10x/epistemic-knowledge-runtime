@@ -9,6 +9,7 @@ relations:
 - depends_on: story:commit-and-revision-lineage
 - depends_on: story:eventlog-store
 - implements: executable-system-specification:ekr-v1
+- depends_on: story:kernel-validated-seed
 scope:
 - confidence: inferred
   path: crates/ekr-kernel/src/explain.rs
@@ -18,7 +19,7 @@ scope:
   path: crates/ekr-kernel/tests/fixtures/seed-minimal.yaml
 - confidence: inferred
   path: crates/ekr-kernel/tests/seed.rs
-revision: 4
+revision: 5
 ---
 ## Context
 
@@ -57,3 +58,7 @@ for the seed document is declared there. The seed carries no `Person`, `Project`
 type (design § 9); a fixture that needs one declares it in the fixture's own ontology. Amendment
 81's `HumanStatement` evidence kind is what a seed's initial assertions cite. Adds no dependency
 beyond the skeleton's.
+
+## Split, 2026-09-22
+
+Seed admission and reopen validation are now owned by story:kernel-validated-seed and run before durable transaction application. This story retains explain, its unknown-assertion refusal, and the complete provenance chain after the writer exists. Do not mark this story implemented when seed admission alone lands. HumanStatement evidence terminates an explain chain directly; no observation or external source is invented for it.
