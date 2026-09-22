@@ -10,6 +10,10 @@ relations:
 - serves: vision:o2
 - implements: executable-system-specification:ekr-v1
 scope:
+- confidence: cited
+  path: Cargo.lock
+- confidence: cited
+  path: Cargo.toml
 - confidence: inferred
   path: crates/ekr-core/src/identity.rs
 - confidence: inferred
@@ -87,6 +91,8 @@ scope:
 - confidence: cited
   path: crates/ekr/tests/graph_events_serde.rs
 - confidence: cited
+  path: crates/ekr/tests/story_contract.rs
+- confidence: cited
   path: docs/epistemic-knowledge-runtime-design.md
 - confidence: cited
   path: systems/ekr/domains/graph.yaml
@@ -94,7 +100,7 @@ scope:
   path: systems/ekr/domains/kernel.yaml
 - confidence: cited
   path: systems/ekr/domains/store.yaml
-revision: 35
+revision: 37
 ---
 ## Context
 
@@ -321,3 +327,23 @@ integration. Apply declarations to coordinator and the activation unit together 
 dispatching new-format implementation. Atomic provider source verification and coordinated
 dependency adoption precede production activation. Independent contract review is pending.
 Frozen original vectors and encoders remain unchanged.
+
+## Verified provider source adoption, 2026-09-22
+
+Eventlog main4ee3dc23f0d02a5726a0e41d097477791f09efe2 implements strict
+read-only File/SQLite inspection and native atomic blob publication across all
+three providers. PR11 and its exact-source required production, comparative
+and restart checks passed:
+https://github.com/beyond10x/eventlog/pull/11
+https://github.com/beyond10x/eventlog/actions/runs/35688825492
+
+The coordinator advanced all three Cargo.toml selectors from tag0.2.1 to that
+immutable revision, regenerated Cargo.lock, and updated the existing dependency
+qualifier guard and workspace story together. The provider's SQLite inspection
+dependency adds nix and cfg_aliases. Consumer tests and the final integrated gate
+remain the acceptance of this dependency update.
+
+This supplies the provider capability. EKR still needs metadata-only schema2
+ObjectStored publication, versioned readers, actual durable application and
+the preserving migration. No existing runtime event format has been changed
+by this dependency selection alone.

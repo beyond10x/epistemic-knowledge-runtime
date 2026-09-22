@@ -7,7 +7,7 @@ title: Move object payloads out of event bodies while preserving atomic publicat
 relations:
 - derived_from: story:version-persisted-contracts
 - blocks: story:commit-and-revision-lineage
-revision: 2
+revision: 3
 ---
 ## Confirmed persistence-contract mismatch
 
@@ -63,3 +63,23 @@ history and refuse missing evidence; it must never recover erased v2 content
 from an archived inline copy. Retain independent checks of raw blob bindings as
 well as canonical metadata when proving invalid or losing publication writes
 nothing visible. Full design, implementation and migration remain unexecuted.
+
+## Verified provider source adoption, 2026-09-22
+
+Eventlog main4ee3dc23f0d02a5726a0e41d097477791f09efe2 implements strict
+read-only File/SQLite inspection and native atomic blob publication across all
+three providers. PR11 and its exact-source required production, comparative
+and restart checks passed:
+https://github.com/beyond10x/eventlog/pull/11
+https://github.com/beyond10x/eventlog/actions/runs/35688825492
+
+The coordinator advanced all three Cargo.toml selectors from tag0.2.1 to that
+immutable revision, regenerated Cargo.lock, and updated the existing dependency
+qualifier guard and workspace story together. The provider's SQLite inspection
+dependency adds nix and cfg_aliases. Consumer tests and the final integrated gate
+remain the acceptance of this dependency update.
+
+This supplies the provider capability. EKR still needs metadata-only schema2
+ObjectStored publication, versioned readers, actual durable application and
+the preserving migration. No existing runtime event format has been changed
+by this dependency selection alone.

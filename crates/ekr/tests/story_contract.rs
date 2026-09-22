@@ -482,7 +482,7 @@ fn every_crate_opts_into_workspace_lints() {
 /// A dependency's *name* is not its declaration. The story qualifies three of them, and a
 /// dependency whose qualifier is dropped still satisfies every case above while declaring
 /// something else: `uuid` without `features = ["v7"]` compiles until the first `Uuid::now_v7`, and
-/// an eventlog crate without `tag = "0.2.1"` is a different, unpinned dependency.
+/// an eventlog crate without the verified immutable revision is a different dependency.
 ///
 /// `(name, [required substrings of the declaration])`, from the story's constraint list and the
 /// unit brief's eventlog pins.
@@ -492,21 +492,21 @@ const QUALIFIED: [(&str, &[&str]); 4] = [
         "eventlog-core",
         &[
             "git = \"https://github.com/beyond10x/eventlog\"",
-            "tag = \"0.2.1\"",
+            "rev = \"4ee3dc23f0d02a5726a0e41d097477791f09efe2\"",
         ],
     ),
     (
         "eventlog-file",
         &[
             "git = \"https://github.com/beyond10x/eventlog\"",
-            "tag = \"0.2.1\"",
+            "rev = \"4ee3dc23f0d02a5726a0e41d097477791f09efe2\"",
         ],
     ),
     (
         "eventlog-sqlite",
         &[
             "git = \"https://github.com/beyond10x/eventlog\"",
-            "tag = \"0.2.1\"",
+            "rev = \"4ee3dc23f0d02a5726a0e41d097477791f09efe2\"",
         ],
     ),
 ];

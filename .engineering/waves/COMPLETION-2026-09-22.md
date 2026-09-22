@@ -50,12 +50,21 @@ were integrated independently; unrelated policy changes and backup files remain 
 
 The membrane repair, required repository correctness CI and kernel seed admission are merged.
 The seed source is on main through PR #8; its implementation and review evidence belong to
-the P1-08 wave page. Original-format verification is integrated locally and completing its
-workspace gate. The source-guard unit follows before persisted-contract activation.
+the P1-08 wave page. Original-format verification reached main through PR #9 with431
+passing cases. Runtime-context refusal is independently reviewed and integrated locally.
+The source-guard review reproduced two escapes and a type-use false-positive class;
+its four red cases are under correction before persisted-contract activation.
 
 Gates' historical-merge delivery repair is released and adopted, and actual EKR publication
-passed. Eventlog's strict history inspector is published on main; its atomic blob/event
-capability is in implementation. The EKR dependency update waits for that combined reviewed
-capability. Persisted-contract activation, durable application and the CLI remain unfinished.
+passed. Eventlog's strict history inspector and atomic blob/event capability are published
+at4ee3dc2 through PR #11, with required production, comparative and restart CI green.
+EKR's three dependency selectors and lock now select that exact source locally; eleven
+dependency-contract and195 kernel/store cases pass. Full integration remains pending.
+
+The activation review found four contract mismatches. Explicit object-event schema dispatch
+and absent-revision refusal are corrected in the retained draft. Exact Seed/Commit retry
+requires a measured ESS extension; its independently critiqued implementation contract is
+now being implemented upstream. Generated scenario counts are not executed conformance.
+Persisted-contract activation, durable application and the CLI remain unfinished.
 The conformance and migration preparation reports are measured prerequisites, not executed
 exits. No later phase or live cutover has been claimed complete.

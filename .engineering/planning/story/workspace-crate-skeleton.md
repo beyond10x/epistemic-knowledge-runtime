@@ -44,7 +44,7 @@ scope:
   path: crates/ekr/tests/msrv_contract.rs
 - confidence: cited
   path: crates/ekr/tests/story_contract.rs
-revision: 17
+revision: 18
 ---
 ## Context
 
@@ -87,11 +87,12 @@ and `ekr` present as workspace members.
   - `ekr-graph`: `serde`, `thiserror`; dev `trybuild`
   - `ekr-kernel`: `serde`, `serde_json`, `serde_yaml_ng`, `thiserror`; dev `proptest`, `trybuild`,
     `tempfile` (the last added in wave p1-06, see below)
-  - `ekr-store`: `eventlog-core`, `eventlog-sqlite`, `eventlog-file` (git tag `0.2.1`), `serde`,
+  - `ekr-store`: `eventlog-core`, `eventlog-sqlite`, `eventlog-file` (immutable Git revision
+    `4ee3dc23f0d02a5726a0e41d097477791f09efe2`), `serde`,
     `serde_json`, `thiserror`, `time`, `tokio` (the last two widened in wave p1-05, see below); dev
     `tempfile`
   - `ekr`: `clap`, `serde_json`; dev `assert_cmd`, `tempfile`
-- `rust-version` is `1.91`, the minimum the pinned eventlog tag requires (found by the adversary,
+- `rust-version` is `1.91`, the minimum the pinned eventlog source requires (found by the adversary,
   pass 1; the story said nothing about the floor before).
 - A later P1 story that needs a dependency not listed here adds `Cargo.lock` to its scope and
   says so, which makes the collision visible to `aep plan artifact waves`.

@@ -25,9 +25,9 @@ ekr-graph = { path = "crates/ekr-graph" }
 ekr-kernel = { path = "crates/ekr-kernel" }
 ekr-ontology = { path = "crates/ekr-ontology" }
 ekr-store = { path = "crates/ekr-store" }
-eventlog-core = { git = "https://github.com/beyond10x/eventlog", tag = "0.2.1" }
-eventlog-file = { git = "https://github.com/beyond10x/eventlog", tag = "0.2.1" }
-eventlog-sqlite = { git = "https://github.com/beyond10x/eventlog", tag = "0.2.1" }
+eventlog-core = { git = "https://github.com/beyond10x/eventlog", rev = "4ee3dc23f0d02a5726a0e41d097477791f09efe2" }
+eventlog-file = { git = "https://github.com/beyond10x/eventlog", rev = "4ee3dc23f0d02a5726a0e41d097477791f09efe2" }
+eventlog-sqlite = { git = "https://github.com/beyond10x/eventlog", rev = "4ee3dc23f0d02a5726a0e41d097477791f09efe2" }
 hex = "0.4"
 proptest = "1"
 serde = { version = "1", features = ["derive"] }
