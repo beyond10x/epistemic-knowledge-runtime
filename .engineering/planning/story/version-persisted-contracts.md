@@ -55,6 +55,8 @@ scope:
 - confidence: cited
   path: crates/ekr-kernel/tests
 - confidence: cited
+  path: crates/ekr-kernel/tests/adversary_legacy_freeze.rs
+- confidence: cited
   path: crates/ekr-kernel/tests/legacy.rs
 - confidence: inferred
   path: crates/ekr-kernel/tests/migration_inventory.rs
@@ -90,7 +92,7 @@ scope:
   path: systems/ekr/domains/graph.yaml
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 32
+revision: 33
 ---
 ## Context
 
