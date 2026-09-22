@@ -11,7 +11,7 @@
 //! * [`objects`] — [`StoredObject`] and [`StorageClass`], the content-addressed object store of
 //!   design § 37 and § 57.
 //! * [`snapshot`] — [`GraphDocument`], the materialised fold as bytes, and the one named place a
-//!   document becomes canonical state.
+//!   document is serialized; kernel admission is delegated through the authority port.
 //! * [`eventlog`] — the implementation over `eventlog-sqlite` and `eventlog-file`.
 //!
 //! # Synchronous, over an async port
@@ -50,8 +50,8 @@ pub mod snapshot;
 
 pub use eventlog::{EventlogStore, FileStore, SqliteStore};
 pub use log::{
-    evidence_root, knowledge_root, Appended, CommitAuthority, RecordedValidation, RevisionLog,
-    PLACEHOLDER_SUB_ROOT,
+    evidence_root, knowledge_root, Appended, CommitAuthority, Initialize, RecordedValidation,
+    RevisionLog, PLACEHOLDER_SUB_ROOT,
 };
 pub use objects::{ObjectStore, StorageClass, StoredObject};
 pub use snapshot::{Entity, GraphDocument, MembraneError};
@@ -66,6 +66,20 @@ use ekr_core::{ContentHash, RevisionNumber, TransactionId};
 /// from a broken chain cannot act on either.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum StoreError {
+    /// Bootstrap admission needs a real authority, including on reopen.
+    #[error("no seed authority was configured")]
+    NoSeedAuthority,
+    /// Bootstrap input failed kernel validation.
+    #[error("invalid seed: {0}")]
+    InvalidSeed(String),
+    /// This seed predates the complete replayable envelope and needs an explicit migration.
+    #[error(
+        "legacy seed requires migration: full ontology and bootstrap attribution are unavailable"
+    )]
+    SeedMigrationRequired,
+    /// Initialization may only create a lineage once.
+    #[error("the lineage is already seeded")]
+    AlreadySeeded,
     /// The provider could not answer.
     #[error("the store is unavailable: {0}")]
     Backend(String),

@@ -18,6 +18,7 @@ fn store(directory: &TempDir, ontology: &ekr_ontology::Ontology) -> SqliteStore 
         ontology.clone(),
     )
     .expect("the SQLite provider opens")
+    .under(fixture::SeedOnly)
 }
 
 /// Content addressing merges two retention answers into the weaker one, silently.

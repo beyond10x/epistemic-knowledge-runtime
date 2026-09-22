@@ -16,7 +16,6 @@
 //! reads it, so a commit validated against a revision that is no longer the head replays as valid,
 //! which design § 72 calls stale.
 
-#[allow(dead_code)]
 mod fixture;
 #[allow(dead_code)]
 mod lineage;
@@ -37,7 +36,8 @@ fn seeded(
         "ekr",
         ontology.clone(),
     )
-    .expect("the SQLite provider opens");
+    .expect("the SQLite provider opens")
+    .under(fixture::SeedOnly);
     let document = GraphDocument::of(graph)
         .to_bytes()
         .expect("the seed serialises");
@@ -118,6 +118,13 @@ fn a_commit_lands_with_no_validated_transaction_anywhere_in_the_process() {
 struct Attesting;
 
 impl ekr_store::CommitAuthority for Attesting {
+    fn admit_seed(
+        &self,
+        bytes: &[u8],
+        ontology: &ekr_ontology::Ontology,
+    ) -> Result<ekr_graph::CanonicalGraph, ekr_store::StoreError> {
+        crate::fixture::admit_seed(bytes, ontology)
+    }
     fn attests(&self, validation: &ekr_store::RecordedValidation) -> bool {
         validation.validation_hash == ContentHash::of_bytes(b"seven validators, no issues")
     }

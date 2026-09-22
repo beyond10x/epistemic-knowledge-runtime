@@ -603,3 +603,25 @@ fn no_rust_source_reads_the_planning_store() {
         "Rust sources read the planning store, which the CLI owns and another branch amends: {offenders:?}"
     );
 }
+
+#[test]
+fn seed_admission_is_kernel_owned_and_the_commit_api_lends_no_writer() {
+    let root = workspace_root();
+    let commit = std::fs::read_to_string(root.join("crates/ekr-kernel/src/commit.rs")).unwrap();
+    for writer in ["pub fn store(", "pub const fn store(", "pub fn store_mut("] {
+        assert!(
+            !commit.contains(writer),
+            "Commit lends its unvalidated writer: {writer}"
+        );
+    }
+    let snapshot = std::fs::read_to_string(root.join("crates/ekr-store/src/snapshot.rs")).unwrap();
+    assert!(
+        !snapshot.contains("fn into_canonical("),
+        "store regained unchecked canonical construction"
+    );
+    let store = std::fs::read_to_string(root.join("crates/ekr-store/src/eventlog.rs")).unwrap();
+    assert!(store.contains("authority.admit_seed(&bytes, &self.ontology)?"));
+    let seed = std::fs::read_to_string(root.join("crates/ekr-kernel/src/seed.rs")).unwrap();
+    assert!(seed.contains("pub(crate) struct ValidatedSeed"));
+    assert!(!seed.contains("pub struct ValidatedSeed"));
+}

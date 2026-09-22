@@ -46,6 +46,7 @@ use crate::value::CanonicalValue;
 /// state can be content-addressed* is a property of the type system rather than a convention.
 /// `tests/compile_fail/transient_state_has_no_content_address.rs` is that as a build failure.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Node<V = CanonicalValue> {
     /// The node's stable id, minted once and never derived from anything a person can edit.
     pub id: NodeId,

@@ -1,0 +1,22 @@
+format: ekr-seed/1
+ontology:
+  version:
+    id: 00000000-0000-4000-8000-000000000001
+    number: 0
+    parent: null
+    created_at: 0
+  node_types: []
+  edge_types: []
+graph:
+  root:
+    id: 00000000-0000-4000-8000-000000000002
+    space: Canonical
+    schema_version_id: 00000000-0000-4000-8000-000000000001
+    parent: null
+    created_at: 0
+  revision: 0
+  nodes: {}
+  edges: {}
+  assertions: {}
+  evidence: {}
+evidence_payloads: {}

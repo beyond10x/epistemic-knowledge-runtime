@@ -15,19 +15,19 @@ use ekr_core::{
 };
 use ekr_graph::{CanonicalGraph, GraphRoot, GraphSnapshot, RevisionEvent, Space};
 use ekr_kernel::{
-    Commit, CommitError, GraphOperation, GraphTransaction, NodeDraft, Pipeline,
-    ValidatedTransaction,
+    BootstrapContext, Commit, CommitError, GraphOperation, GraphTransaction, NodeDraft, Pipeline,
+    SeedDocument, ValidatedTransaction,
 };
 use ekr_ontology::{NodeType, Ontology, OntologyDocument, SchemaVersion};
 use ekr_store::{
-    Appended, CommitAuthority, GraphDocument, ObjectStore, RecordedValidation, RevisionLog,
-    SqliteStore, StorageClass,
+    Appended, CommitAuthority, GraphDocument, RecordedValidation, RevisionLog, SqliteStore,
 };
 use tempfile::TempDir;
 
 /// One declared node type, and the empty canonical state a lineage is seeded from.
 struct World {
     ontology: Ontology,
+    document: OntologyDocument,
     graph: CanonicalGraph,
     thing: ekr_core::TypeId,
     /// Who proposes.
@@ -43,12 +43,12 @@ fn world() -> World {
         ekr_core::TypeId::mint(),
         GraphRootId::mint(),
     );
-    let ontology = Ontology::load(OntologyDocument {
+    let document = OntologyDocument {
         version: SchemaVersion::seed(schema, Timestamp::EPOCH),
         node_types: vec![NodeType::new(thing, "Thing")],
         edge_types: Vec::new(),
-    })
-    .expect("one node type coheres");
+    };
+    let ontology = Ontology::load(document.clone()).expect("one node type coheres");
     let graph = CanonicalGraph {
         root: GraphRoot {
             id: root_id,
@@ -66,6 +66,7 @@ fn world() -> World {
     };
     World {
         ontology,
+        document,
         graph,
         thing,
         proposer: AgentId::mint(),
@@ -73,35 +74,26 @@ fn world() -> World {
     }
 }
 
-/// The commit path over a fresh SQLite database, with the lineage seeded from `world`.
-///
-/// The seed is appended through the store the path holds: reading and seeding are not committing,
-/// and `Commit::store` lends the port out for exactly that.
+/// The real kernel seed path, then ordinary commits.
 fn seeded(directory: &TempDir, world: &World) -> Commit<SqliteStore> {
     let path = directory.path().join("revisions.db");
     let ontology = world.ontology.clone();
-    let commit = Commit::over(move |validations| {
+    let context = BootstrapContext {
+        operator: world.proposer,
+        validator: world.validator,
+    };
+    let commit = Commit::over_with_bootstrap(context, move |validations| {
         SqliteStore::sqlite(&path, "ekr", ontology).map(|store| store.under(validations))
     })
     .expect("the SQLite provider opens");
-
-    let document = GraphDocument::of(&world.graph)
-        .to_bytes()
-        .expect("the seed serialises");
-    let seed = commit
-        .store()
-        .put(StorageClass::Canonical, &document, Timestamp::EPOCH)
-        .expect("the seed lands");
-    assert_eq!(
-        commit
-            .store()
-            .append(&RevisionEvent::Seeded {
-                revision_id: ekr_core::RevisionId::mint(),
-                seed_hash: seed.content_hash,
-            })
-            .expect("seeded"),
-        Appended::Written
-    );
+    commit
+        .seed(SeedDocument {
+            format: "ekr-seed/1".to_owned(),
+            ontology: world.document.clone(),
+            graph: GraphDocument::of(&world.graph),
+            evidence_payloads: BTreeMap::new(),
+        })
+        .expect("the seed is validated");
     commit
 }
 
@@ -143,7 +135,6 @@ fn a_validated_transaction_commits_and_the_lineage_advances() {
     assert_eq!(head.revision, RevisionNumber::new(1));
     assert_eq!(
         commit
-            .store()
             .head()
             .expect("the log folds")
             .expect("a seeded lineage has a head"),
@@ -167,6 +158,12 @@ fn the_same_lineage_written_by_hand_does_not_advance_anything() {
     let commit = seeded(&directory, &world);
     let proposal = proposal(&world);
     let validated = validated(&world, &proposal);
+    let raw = SqliteStore::sqlite(
+        &directory.path().join("revisions.db"),
+        "ekr",
+        world.ontology.clone(),
+    )
+    .unwrap();
 
     for event in [
         RevisionEvent::TransactionProposed {
@@ -189,9 +186,7 @@ fn the_same_lineage_written_by_hand_does_not_advance_anything() {
         },
     ] {
         assert_eq!(
-            commit
-                .store()
-                .append(&event)
+            raw.append(&event)
                 .expect("the append itself is not the check"),
             Appended::Written,
             "{} is a new fact, not a retry",
@@ -201,7 +196,6 @@ fn the_same_lineage_written_by_hand_does_not_advance_anything() {
 
     assert_eq!(
         commit
-            .store()
             .head()
             .expect("the log folds")
             .expect("a seeded lineage has a head")
@@ -240,7 +234,6 @@ fn a_transaction_validated_against_a_revision_the_lineage_moved_past_is_refused(
     );
     assert_eq!(
         commit
-            .store()
             .head()
             .expect("the log folds")
             .expect("a seeded lineage has a head")
@@ -308,7 +301,6 @@ fn the_kernels_authority_stands_behind_exactly_what_it_validated() {
     );
     assert_eq!(
         commit
-            .store()
             .head()
             .expect("the log folds")
             .expect("a seeded lineage has a head")
