@@ -31,7 +31,9 @@ pub struct PropertyDefinition {
     pub required: bool,
     /// Design § 11.2 `constraints: Vec<Constraint>`. The constraint language is not defined by the
     /// design, and `systems/ekr/domains/ontology.yaml` marks it `UNMAPPED`, so these are carried
-    /// as opaque text and refuse nothing. Inventing a language here would put a guess in a schema.
+    /// as opaque text. This layer does not interpret them; the kernel refuses affected writes
+    /// until an evaluator exists. The kernel case
+    /// `applicable_opaque_property_constraints_refuse_all_node_write_paths` holds that boundary.
     #[serde(default)]
     pub constraints: Vec<String>,
 }

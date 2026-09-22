@@ -10,6 +10,7 @@ relations:
 - depends_on: story:eventlog-store
 - implements: executable-system-specification:ekr-v1
 - serves: vision:o2
+- depends_on: story:refuse-discarded-ontology-semantics
 scope:
 - confidence: cited
   path: crates/ekr-kernel/src/commit.rs

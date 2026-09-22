@@ -12,7 +12,8 @@
 //! An operation's `preconditions` are carried as opaque text. Design § 11.2 names `Constraint` and
 //! does not define it, and `systems/ekr/domains/ontology.yaml` marks the language `UNMAPPED`; a
 //! constraint language decided in passing here would be a guess with a schema behind it, so
-//! nothing in this module refuses a precondition.
+//! nothing in this module evaluates a precondition. The kernel refuses an invocation carrying
+//! one, held by `opaque_preconditions_and_emissions_are_not_silently_accepted` in its suite.
 
 use std::collections::{BTreeMap, BTreeSet};
 

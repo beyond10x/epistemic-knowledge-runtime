@@ -9,21 +9,21 @@ use crate::transaction::{GraphOperation, GraphTransaction};
 
 /// The edge identity and endpoints that survive the operation set.
 pub(super) struct Edge {
-    pub type_id: TypeId,
-    pub source: NodeId,
+    pub(super) type_id: TypeId,
+    pub(super) source: NodeId,
 }
 
 /// Only the indexes validators need, derived by creation first and deletion last.
 pub(super) struct Candidate {
-    pub nodes: BTreeMap<NodeId, TypeId>,
-    pub edges: BTreeMap<EdgeId, Edge>,
+    pub(super) nodes: BTreeMap<NodeId, TypeId>,
+    pub(super) edges: BTreeMap<EdgeId, Edge>,
     /// Deletion targets may be created and cancelled in the same atomic transaction.
-    pub available_edges: BTreeSet<EdgeId>,
-    pub property_counts: BTreeMap<NodeId, BTreeMap<PropertyId, usize>>,
+    pub(super) available_edges: BTreeSet<EdgeId>,
+    pub(super) property_counts: BTreeMap<NodeId, BTreeMap<PropertyId, usize>>,
 }
 
 impl Candidate {
-    pub fn of(snapshot: &GraphSnapshot<'_>, proposal: &GraphTransaction) -> Self {
+    pub(super) fn of(snapshot: &GraphSnapshot<'_>, proposal: &GraphTransaction) -> Self {
         let graph = snapshot.graph();
         let mut result = Self {
             nodes: graph
@@ -103,7 +103,7 @@ impl Candidate {
         result
     }
 
-    pub fn outgoing(&self, source: NodeId, type_id: TypeId) -> BTreeSet<EdgeId> {
+    pub(super) fn outgoing(&self, source: NodeId, type_id: TypeId) -> BTreeSet<EdgeId> {
         self.edges
             .iter()
             .filter(|(_, edge)| edge.source == source && edge.type_id == type_id)

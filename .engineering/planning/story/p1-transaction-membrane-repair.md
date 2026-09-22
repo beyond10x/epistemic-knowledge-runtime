@@ -26,8 +26,10 @@ scope:
 - confidence: cited
   path: crates/ekr-kernel/tests/adversary_membrane.rs
 - confidence: cited
+  path: crates/ekr-kernel/tests/adversary_p1_07.rs
+- confidence: cited
   path: crates/ekr-kernel/tests/validation.rs
-revision: 7
+revision: 8
 ---
 ## Context
 

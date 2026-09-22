@@ -36,7 +36,7 @@ scope:
   path: crates/ekr-ontology/tests/type_hierarchy.rs
 - confidence: cited
   path: crates/ekr-ontology/tests/value_type_checking.rs
-revision: 10
+revision: 11
 ---
 ## Context
 
@@ -100,3 +100,7 @@ so the case had no oracle independent of the thing it tests. Generating a value 
 breaking exactly one of that type's properties, gives the generator as the oracle; a checker that
 answers `Ok` to everything now dies. The opposite failure — a checker that refuses everything — is
 killed by the shipped case that a well-typed value checks `Ok`.
+
+## Constraint boundary correction, 2026-09-22
+
+The ontology crate still carries opaque constraint and precondition text; its loader and lifecycle helper do not evaluate that language. The earlier note to refuse nothing does not apply to transaction admission: story:p1-transaction-membrane-repair refuses writes affected by nonempty uninterpreted constraints and invokes carrying preconditions or emitted effects with no implementation. The kernel cases applicable_opaque_property_constraints_refuse_all_node_write_paths and opaque_preconditions_and_emissions_are_not_silently_accepted execute that boundary. The pure ontology fixture remains a carrier test, not transaction acceptance.
