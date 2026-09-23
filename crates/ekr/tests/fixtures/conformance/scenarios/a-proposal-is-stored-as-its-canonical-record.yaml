@@ -1,0 +1,44 @@
+# Adversary pass 2 on story:ess-conformance-kernel, finding A.
+#
+# The generated Propose scenario expects `ekr.store.ObjectStored` and `ekr.store.PublicationPrepared`
+# only by shape, because every field of both is `generated` in kernel.yaml. So a target that
+# reported the proposal as deletable Ephemeral bytes of length zero under another address, prepared
+# on attempt 99, passed every scenario. This scenario takes one Propose and requires what the
+# kernel actually wrote:
+#   - the one object it stored is Canonical, and the proposal record's exact length;
+#   - the one publication it prepared is the first attempt of its key, which the store numbers 0;
+#   - the stored object's address is the record the Transactions view names as the proposal's.
+# The length (1846 bytes for the `propose-node.yaml` fixture's record) and the attempt number were
+# measured from the real kernel; the suite runs this scenario on both providers.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: a-proposal-is-stored-as-its-canonical-record
+summary: A proposal's one stored object is Canonical, has the proposal record's length and address, and its one preparation is the first attempt.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: transaction_document
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+      - event: ekr.store.ObjectStored
+        payload:
+          storage_class: Canonical
+          byte_len: 1846
+      - event: ekr.store.PublicationPrepared
+        payload:
+          attempt_number: 0
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+assert:
+  - view: ekr.kernel.Transactions
+    contains:
+      transaction_id: {$instance: proposal}
+      proposal_record_hash: {$observed: {event: ekr.store.ObjectStored, field: content_hash}}

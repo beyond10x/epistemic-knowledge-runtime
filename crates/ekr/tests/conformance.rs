@@ -255,6 +255,8 @@ enum Defect {
     /// Every Transactions row returns null for the six Optional fields it declares beside
     /// `validated_against` (adversary pass 1, finding 4).
     NulledOptionalTransactionFields,
+    /// Every stored object is reported as deletable Ephemeral bytes (adversary pass 2, finding A).
+    EphemeralStoredObjects,
     /// A command reports none of the store events the provider log gained
     /// (adversary pass 1, finding 1).
     DroppedStoreEvents,
@@ -308,6 +310,16 @@ impl ConformanceTarget for Defective<'_> {
                         event
                             .payload
                             .insert("knowledge_root".to_owned(), Node::Text("forged".to_owned()));
+                    }
+                }
+            }
+            Defect::EphemeralStoredObjects => {
+                for event in &mut result.direct_events {
+                    if event.event.to_string() == "ekr.store.ObjectStored" {
+                        event.payload.insert(
+                            "storage_class".to_owned(),
+                            Node::Text("Ephemeral".to_owned()),
+                        );
                     }
                 }
             }
@@ -452,6 +464,10 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
         (
             Defect::NulledOptionalTransactionFields,
             vec!["ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names"],
+        ),
+        (
+            Defect::EphemeralStoredObjects,
+            vec!["ekr.kernel/authored/a-proposal-is-stored-as-its-canonical-record"],
         ),
         (
             Defect::DroppedStoreEvents,

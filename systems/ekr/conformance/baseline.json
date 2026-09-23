@@ -1,15 +1,15 @@
 {
   "format": "ekr.conformance-baseline/1",
   "suite": "systems/ekr/conformance/suite.json",
-  "suite_digest": "sha256:f43051256a1dc734b0f271da6e8463e7506688ef051a2c8a77f5f1b4fed778e6",
+  "suite_digest": "sha256:da6728bc453153489690d01ec5e583f970874eb8c5aa20d7d88d65d8f40a5c28",
   "suite_version": "ess-conformance/13",
   "component": "ekr-kernel",
   "providers": [
     "file",
     "sqlite"
   ],
-  "total": 39,
-  "answered_floor": 39,
+  "total": 40,
+  "answered_floor": 40,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -50,6 +50,7 @@
     "ekr.kernel.Validate/outcome/transaction-not-found",
     "ekr.kernel.Validate/outcome/validated",
     "ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names",
+    "ekr.kernel/authored/a-proposal-is-stored-as-its-canonical-record",
     "ekr.kernel/authored/snapshot-at-a-past-revision-reports-that-revision",
     "ekr.kernel/authored/snapshot-without-a-revision-reports-the-newest"
   ]
