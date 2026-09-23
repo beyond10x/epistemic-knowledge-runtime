@@ -49,6 +49,17 @@ task check
 vendored YAML compatibility tests and documentation, ESS specification validation,
 and the planning store's own validation.
 
+## Using ekr from an agent
+
+The `ekr` binary describes itself. `ekr guide` prints the workflow: roles, propose → validate →
+commit, exit codes, and where ids and revision numbers come from. `ekr operations` and
+`ekr example <format>` print the operation kinds and complete input documents. `--host`,
+`--store` and `--backend` can also be set through `EKR_HOST`, `EKR_STORE` and `EKR_BACKEND`.
+
+```console
+ekr guide
+```
+
 ## Layout
 
 ```text

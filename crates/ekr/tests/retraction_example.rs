@@ -153,6 +153,30 @@ impl World {
     }
 }
 
+/// Standard padded base64, decoded strictly: any other character or a bad length panics.
+fn decode_base64(text: &str) -> Vec<u8> {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    assert_eq!(text.len() % 4, 0, "base64 length: {text}");
+    let mut out = Vec::new();
+    for chunk in text.as_bytes().chunks(4) {
+        let padding = chunk.iter().rev().take_while(|b| **b == b'=').count();
+        assert!(padding <= 2, "base64 padding: {text}");
+        let mut triple = 0_u32;
+        for (at, byte) in chunk.iter().enumerate() {
+            let digit = if at >= 4 - padding {
+                0
+            } else {
+                let found = ALPHABET.iter().position(|a| a == byte);
+                u32::try_from(found.unwrap_or_else(|| panic!("base64 digit in {text}"))).unwrap()
+            };
+            triple = (triple << 6) | digit;
+        }
+        let bytes = triple.to_be_bytes();
+        out.extend_from_slice(&bytes[1..4 - padding]);
+    }
+    out
+}
+
 fn seed(world: &World) -> Value {
     world.ok(&["seed", &World::fixture_arg("seed.yaml")])
 }
@@ -187,9 +211,10 @@ fn the_retraction_example_runs_through_fresh_processes_on_both_providers() {
 
         let proposed = propose(&world, "propose-alice.yaml");
         assert_eq!(proposed["transaction_id"], T_ALICE, "{proposed}");
+        // The CLI prints a byte string as one base64 string (`ekr guide`, OUTPUT).
         assert_eq!(
-            proposed["document_bytes"],
-            serde_json::to_value(std::fs::read(fixture("propose-alice.yaml")).unwrap()).unwrap(),
+            decode_base64(proposed["document_bytes"].as_str().unwrap()),
+            std::fs::read(fixture("propose-alice.yaml")).unwrap(),
             "the exact submitted bytes are retained"
         );
         let validated = validate(&world, T_ALICE, 0);
