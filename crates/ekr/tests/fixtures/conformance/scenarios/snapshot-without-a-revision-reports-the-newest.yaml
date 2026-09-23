@@ -1,0 +1,28 @@
+# Adversary pass 1 on story:ess-conformance-kernel, finding 2, the other half of `at`.
+#
+# `Snapshot.at` is Optional and its absence means "the newest revision" (design section 71). The
+# target has committed revision 1 before the first act. The snapshot must report revision 1, and
+# the root it reports must be the newest revision's root in CurrentRevision.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: snapshot-without-a-revision-reports-the-newest
+summary: A snapshot that names no revision reports the newest revision, 1, and that revision's knowledge root.
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Snapshot
+    actor: ekr.kernel.Operator
+    input:
+      at: null
+      valid_at: null
+    outcome: taken
+    events:
+      - event: ekr.kernel.SnapshotTaken
+        payload:
+          number: 1
+
+assert:
+  - view: ekr.kernel.CurrentRevision
+    contains:
+      number: 1
+      knowledge_root: {$observed: {event: ekr.kernel.SnapshotTaken, field: knowledge_root}}

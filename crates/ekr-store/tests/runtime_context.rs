@@ -349,6 +349,7 @@ fn all_io_refuses<S: AtomicBlobEventStore>(store: EventlogStore<S>) {
         exercised.refuses("initialize", store.initialize(&seed));
         exercised.refuses("store_graph", store.store_graph(&graph, Timestamp::EPOCH));
         exercised.refuses("get", store.get(&object.content_hash));
+        exercised.refuses("published_events", store.published_events());
         exercised.refuses(
             "put",
             store.put(StorageClass::Canonical, retained, Timestamp::EPOCH),

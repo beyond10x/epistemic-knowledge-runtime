@@ -5,6 +5,9 @@ use ekr_graph::{CanonicalGraph, Root};
 use ekr_store::{FileStore, SqliteStore, StoreError};
 use std::path::Path;
 
+/// One event the provider log published, as [`Runtime::published_events`] returns it.
+pub use ekr_store::PublishedEvent;
+
 /// Public runtime facade over one private native provider and the shared kernel handlers.
 pub struct Runtime {
     backend: Backend,
@@ -170,6 +173,17 @@ impl Runtime {
         match &self.backend {
             Backend::File(kernel) => kernel.replay(revision),
             Backend::Sqlite(kernel) => kernel.replay(revision),
+        }
+    }
+    /// Every event the provider log has published, in log order, through the provider handle
+    /// this runtime already holds. It reads and interprets nothing beyond the log: kernel
+    /// occurrences, publication preparations and stored objects come back as logged.
+    /// # Errors
+    /// Runtime-context refusal, provider failure or a log that disagrees with itself.
+    pub fn published_events(&self) -> Result<Vec<PublishedEvent>, StoreError> {
+        match &self.backend {
+            Backend::File(kernel) => kernel.store.published_events(),
+            Backend::Sqlite(kernel) => kernel.store.published_events(),
         }
     }
     /// Reads verified retained content through the shared handler.

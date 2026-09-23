@@ -54,7 +54,7 @@ pub mod log;
 pub mod objects;
 pub mod snapshot;
 
-pub use eventlog::{EventlogStore, FileStore, SqliteStore};
+pub use eventlog::{EventlogStore, FileStore, PublishedEvent, SqliteStore};
 pub use eventlog::{
     NativeBlobWrite, NativeClaim, NativeCommandMeta, NativeExpected, NativeExpectedKind,
     NativeNewEvent, NativePublicationRequest, NativeStreamAppend, NativeStreamId,
