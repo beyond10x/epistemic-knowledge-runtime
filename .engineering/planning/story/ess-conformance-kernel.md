@@ -8,6 +8,7 @@ relations:
 - decomposes: epic:p1-kernel-ontology-core
 - depends_on: story:ekr-cli
 - verifies: executable-system-specification:ekr-v1
+- serves: vision:o2
 scope:
 - confidence: cited
   path: .github/workflows/correctness.yml

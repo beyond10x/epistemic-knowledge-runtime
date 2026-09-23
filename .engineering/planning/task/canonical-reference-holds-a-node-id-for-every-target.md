@@ -6,6 +6,7 @@ status: draft
 title: A canonical reference to evidence resolves to a node, because the marker is decoration
 relations:
 - serves: vision:o2
+- decomposes: story:p1-exit-properties
 revision: 1
 ---
 ## What is wrong

@@ -2,11 +2,11 @@
 format: aep.planning-md/1
 id: task:resolve-ignores-its-marker-parameter
 kind: task
-status: draft
+status: archived
 title: Both resolve functions return a node whatever their marker parameter says
 relations:
 - serves: vision:o2
-revision: 1
+revision: 3
 ---
 ## What is wrong
 
@@ -36,3 +36,9 @@ second is honest and costs nothing.
 
 Do not leave it as it is: a generic function whose return type ignores its parameter is the shape a
 reader will assume is polymorphic.
+
+## Wave p1-14 close
+
+Archived in wave p1-14 (2026-09-23): same root cause as
+`task:canonical-reference-holds-a-node-id-for-every-target`, which now carries it under
+`story:p1-exit-properties`.

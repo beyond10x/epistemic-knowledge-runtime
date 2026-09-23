@@ -9,6 +9,7 @@ relations:
 - depends_on: epic:p4-operator-surface
 - depends_on: epic:p5-frontier-schema-scheduler
 - depends_on: epic:p6-maintenance-observability
+- serves: vision:o5
 revision: 1
 ---
 ## Context

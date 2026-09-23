@@ -7,6 +7,7 @@ title: P1 — Kernel, ontology, canonical core
 relations:
 - decomposes: initiative:epistemic-knowledge-runtime
 - depends_on: epic:p0-bootstrap
+- serves: vision:o2
 revision: 3
 ---
 ## Context

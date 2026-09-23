@@ -6,7 +6,7 @@ status: draft
 title: ekr.store.Snapshot and SnapshotId are declared by the domain and bound to no Rust type
 relations:
 - serves: vision:o2
-revision: 1
+revision: 2
 ---
 ## What is wrong
 
@@ -47,3 +47,10 @@ It belongs to whichever story first needs to name a materialised fold — `story
 types that project it, and carries an explicit list of the ones it binds to nothing. `store.yaml`
 has no such guard, so a declaration nobody implements is invisible rather than listed. Two are
 invisible right now and it took an implementor's report to say so.
+
+## Wave p1-14 rescope
+
+Rescoped in wave p1-14 (2026-09-23): both homes this task named shipped without it.
+`ekr.store.Snapshot` and `SnapshotId` are declared in `systems/ekr/domains/store.yaml`, no Rust type
+binds them, and the `snapshot` verb returns `ekr.kernel.SnapshotResult`. Decision owed: remove the
+two declarations, or bind them with a projection case. Coordinator default: remove them in wave p1-14.

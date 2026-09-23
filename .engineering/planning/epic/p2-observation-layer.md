@@ -7,7 +7,8 @@ title: P2 — Observation layer and adapters
 relations:
 - decomposes: initiative:epistemic-knowledge-runtime
 - depends_on: epic:p1-kernel-ontology-core
-revision: 1
+- serves: vision:o5
+revision: 2
 ---
 ## Context
 
@@ -38,3 +39,18 @@ reconcile against source file counts.
 ## Carries
 
 A6, A8, A12.
+
+## Before decomposition
+
+Recorded in wave p1-14 (2026-09-23) from the plan review of 72779f9.
+
+1. Model first: an `ekr.observe` ESS domain and component for SourceAdapter, SourceUnit,
+   Checkpoint, PollHealth (`checked_through`, attempt/complete/partial/failed, A8), the idempotency
+   key (§ 56), the redaction gate (A6), the coverage report and the Blob payload (§ 86).
+2. Decide the Observation owner: `components.yaml` gives it to `ekr-graph`, roadmap § 3 to
+   `ekr-observe`. Coordinator default: `ekr-observe`, with `ekr-graph` holding only the canonical
+   reference.
+3. Restate acceptance clause 3: raw v1/v2 imports reconcile on synthetic fixtures in the suite; the
+   real reconcile is an operator step, because predecessor data holds personal data.
+4. Lift source for adapters: the roadmap says v2 `adapters/*.yaml`, this epic says
+   `org-brain-successor/adapters/*.yaml`. Coordinator default: the v2 path the roadmap names.

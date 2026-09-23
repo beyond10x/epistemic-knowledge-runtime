@@ -5,7 +5,6 @@ kind: task
 status: implemented
 title: Hash validation receipts in the canonical value domain
 relations:
-- blocks: story:commit-and-revision-lineage
 - serves: vision:o2
 - derived_from: story:version-persisted-contracts
 revision: 4

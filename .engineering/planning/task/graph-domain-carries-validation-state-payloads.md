@@ -4,7 +4,9 @@ id: task:graph-domain-carries-validation-state-payloads
 kind: task
 status: draft
 title: The graph domain has a carrier for one of the four ValidationState payloads and claims four
-revision: 2
+relations:
+- serves: vision:o2
+revision: 3
 ---
 ## What is wrong
 
@@ -40,3 +42,10 @@ because the comment and the quote cannot move separately without turning the cas
 ## Reconciliation, 2026-09-22
 
 The inaccurate comment has already been corrected in `systems/ekr/domains/graph.yaml`; the Rust projection guard explicitly documents the remaining missing payload carriers. The task is not wholly stale: representing accepted validators, refusal issues, competing assertions and retraction evidence remains required by the approved persisted-contract work. Keep this residual open and bind the final representation to behavioral projection tests. Do not close the task merely because the comment changed.
+
+## Wave p1-14 rescope
+
+Rescoped in wave p1-14 (2026-09-23): the plan review of 72779f9 found this task's premise already
+resolved in `systems/` at b2b64f8. The only remaining obligation is a binding case in the owning
+crate's `tests/domain_projection.rs` that fails if the declaration and the Rust type drift. If that
+case already exists, the wave cites it and archives this task.

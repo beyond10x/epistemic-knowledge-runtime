@@ -7,6 +7,7 @@ title: P6 — Maintenance and observability
 relations:
 - decomposes: initiative:epistemic-knowledge-runtime
 - depends_on: epic:p3-incubation-integration
+- serves: vision:o6
 revision: 1
 ---
 ## Context

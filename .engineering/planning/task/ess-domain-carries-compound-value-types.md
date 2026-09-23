@@ -8,7 +8,7 @@ relations:
 - informed_by: review-result:adversary-ontology-pass-2
 - derived_from: story:ontology-types-and-values
 - serves: vision:o2
-revision: 1
+revision: 2
 ---
 ## Context
 
@@ -35,3 +35,10 @@ Settle it no later than P3, which is the first wave whose store must persist a `
 - `systems/ekr/domains/ontology.yaml`
 - `crates/ekr-ontology/src/value.rs`
 - `crates/ekr-ontology/tests/domain_projection.rs`
+
+## Wave p1-14 rescope
+
+Rescoped in wave p1-14 (2026-09-23): the plan review of 72779f9 found this task's premise already
+resolved in `systems/` at b2b64f8. The only remaining obligation is a binding case in the owning
+crate's `tests/domain_projection.rs` that fails if the declaration and the Rust type drift. If that
+case already exists, the wave cites it and archives this task.

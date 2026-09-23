@@ -2,12 +2,12 @@
 format: aep.planning-md/1
 id: task:strict-cli-host-input
 kind: task
-status: active
+status: implemented
 title: Decode trusted CLI host configuration and valid-time selectors
 relations:
 - decomposes: story:ekr-cli
 - serves: vision:o2
-revision: 3
+revision: 4
 ---
 ## Context
 

@@ -6,6 +6,7 @@ status: draft
 title: Concurrent processes cannot open one SQLite store
 relations:
 - serves: vision:o2
+- derived_from: epic:p4-operator-surface
 revision: 1
 ---
 ## What is wrong

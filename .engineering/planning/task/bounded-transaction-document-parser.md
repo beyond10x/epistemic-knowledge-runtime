@@ -2,13 +2,12 @@
 format: aep.planning-md/1
 id: task:bounded-transaction-document-parser
 kind: task
-status: active
+status: implemented
 title: Parse and retain bounded transaction documents without changing their bytes
 relations:
-- derived_from: story:commit-and-revision-lineage
 - serves: vision:o2
 - decomposes: story:commit-and-revision-lineage
-revision: 5
+revision: 6
 ---
 ## Contract
 

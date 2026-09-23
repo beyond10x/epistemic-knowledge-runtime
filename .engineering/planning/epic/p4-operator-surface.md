@@ -7,6 +7,7 @@ title: P4 — Operator surface and projections
 relations:
 - decomposes: initiative:epistemic-knowledge-runtime
 - depends_on: epic:p3-incubation-integration
+- serves: vision:o5
 revision: 1
 ---
 ## Context

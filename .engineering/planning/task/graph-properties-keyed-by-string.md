@@ -4,7 +4,9 @@ id: task:graph-properties-keyed-by-string
 kind: task
 status: draft
 title: Node and Edge properties are declared keyed by String, and the crate keys by PropertyId
-revision: 1
+relations:
+- serves: vision:o2
+revision: 2
 ---
 ## What is wrong
 
@@ -30,3 +32,10 @@ Nobody has read the `ess/1` grammar for this. Do that before proposing either ch
 A sentence in `graph.yaml` stating what the key is, and a case in
 `crates/ekr-graph/tests/domain_projection.rs` that goes red if the crate and the document drift
 again.
+
+## Wave p1-14 rescope
+
+Rescoped in wave p1-14 (2026-09-23): the plan review of 72779f9 found this task's premise already
+resolved in `systems/` at b2b64f8. The only remaining obligation is a binding case in the owning
+crate's `tests/domain_projection.rs` that fails if the declaration and the Rust type drift. If that
+case already exists, the wave cites it and archives this task.

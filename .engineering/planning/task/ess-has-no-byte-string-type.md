@@ -6,7 +6,7 @@ status: draft
 title: A byte is declared as an unbounded Integer, because ess/1 has no byte-string type
 relations:
 - serves: vision:o2
-revision: 2
+revision: 3
 ---
 ## What is wrong
 
@@ -55,3 +55,10 @@ The remaining work is to select and bind the actual ObjectStored wire representa
 its projection guard. Changing List<Integer> to Bytes changes JSON representation to base64;
 coordinate that with versioned records rather than silently changing existing event bytes.
 Keep the task open until the representation and executable agreement case land.
+
+## Wave p1-14 rescope
+
+Rescoped in wave p1-14 (2026-09-23): the plan review of 72779f9 found this task's premise already
+resolved in `systems/` at b2b64f8. The only remaining obligation is a binding case in the owning
+crate's `tests/domain_projection.rs` that fails if the declaration and the Rust type drift. If that
+case already exists, the wave cites it and archives this task.
