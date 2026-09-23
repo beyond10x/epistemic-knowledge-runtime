@@ -269,26 +269,186 @@ const fn carrier(kind: ValueKind) -> &'static str {
 /// The variant names of `pub enum ValueKind` in this crate's source, in declaration order.
 ///
 /// Read from the source rather than listed here, so that the crate's half of the comparison below
-/// is not a second hand-written list beside the domain's.
+/// is not a second hand-written list beside the domain's. Comments and literals are blanked first
+/// and the enumeration's braces are matched, so a `}` in a doc comment — `{ name: type }` in a
+/// variant's description — neither ends the body early nor turns into a variant (adversary pass 1,
+/// wave p1-14).
 fn crate_value_kinds() -> Vec<String> {
-    let source = crate_source();
+    let code = code_only(&crate_source());
     let head = "pub enum ValueKind {";
-    let at = source
+    let open = code
         .find(head)
-        .expect("the crate declares `pub enum ValueKind`");
-    let body = &source[at + head.len()..];
-    let body = &body[..body.find('}').expect("the enumeration closes")];
-    let kinds: Vec<String> = body
-        .lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty() && !line.starts_with("//") && !line.starts_with('#'))
-        .map(|line| line.trim_end_matches(',').to_owned())
-        .collect();
+        .expect("the crate declares `pub enum ValueKind`")
+        + head.len()
+        - 1;
+    let mut depth = 0usize;
+    let close = code[open..]
+        .char_indices()
+        .find(|&(_, c)| {
+            match c {
+                '{' => depth += 1,
+                '}' => depth -= 1,
+                _ => {}
+            }
+            depth == 0
+        })
+        .map(|(at, _)| open + at)
+        .expect("the enumeration's braces balance");
+    let mut kinds = Vec::new();
+    for entry in code[open + 1..close].split(',') {
+        let mut entry = entry.trim();
+        // Attributes before the variant: `#[…]`, balanced.
+        while let Some(rest) = entry.strip_prefix("#[") {
+            let mut depth = 1usize;
+            let end = rest
+                .char_indices()
+                .find(|&(_, c)| {
+                    match c {
+                        '[' => depth += 1,
+                        ']' => depth -= 1,
+                        _ => {}
+                    }
+                    depth == 0
+                })
+                .map(|(at, _)| at)
+                .expect("an attribute closes");
+            entry = rest[end + 1..].trim_start();
+        }
+        if entry.is_empty() {
+            continue;
+        }
+        assert!(
+            entry.chars().all(|c| c.is_alphanumeric() || c == '_'),
+            "ValueKind has a variant this scan cannot read, so the scan is broken: {entry:?}"
+        );
+        kinds.push(entry.to_owned());
+    }
     assert!(
         kinds.len() >= 4,
         "the variant scan is broken, not the crate: {kinds:?}"
     );
     kinds
+}
+
+/// `text` with every comment and the contents of every string and character literal replaced by
+/// spaces of the same byte length, newlines kept, so a brace or comma inside one is not read as
+/// structure and a byte offset into the result is one into `text`.
+fn code_only(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    let blank = |out: &mut String, c: char| {
+        if c == '\n' {
+            out.push('\n');
+        } else {
+            out.extend(std::iter::repeat_n(' ', c.len_utf8()));
+        }
+    };
+    let mut at = 0;
+    while at < chars.len() {
+        let c = chars[at];
+        let next = chars.get(at + 1).copied();
+        if c == '/' && next == Some('/') {
+            while at < chars.len() && chars[at] != '\n' {
+                blank(&mut out, chars[at]);
+                at += 1;
+            }
+        } else if c == '/' && next == Some('*') {
+            let mut depth = 0usize;
+            while at < chars.len() {
+                if chars[at] == '/' && chars.get(at + 1) == Some(&'*') {
+                    depth += 1;
+                    blank(&mut out, '/');
+                    blank(&mut out, '*');
+                    at += 2;
+                } else if chars[at] == '*' && chars.get(at + 1) == Some(&'/') {
+                    depth -= 1;
+                    blank(&mut out, '*');
+                    blank(&mut out, '/');
+                    at += 2;
+                    if depth == 0 {
+                        break;
+                    }
+                } else {
+                    blank(&mut out, chars[at]);
+                    at += 1;
+                }
+            }
+        } else if c == 'r'
+            && (next == Some('"') || next == Some('#'))
+            && !chars
+                .get(at.wrapping_sub(1))
+                .is_some_and(|p| p.is_alphanumeric() || *p == '_')
+        {
+            // A raw string: `r"…"` or `r#"…"#`, closed by a quote and as many hashes.
+            let mut hashes = 0;
+            let mut probe = at + 1;
+            while chars.get(probe) == Some(&'#') {
+                hashes += 1;
+                probe += 1;
+            }
+            if chars.get(probe) != Some(&'"') {
+                out.push(c);
+                at += 1;
+                continue;
+            }
+            for &k in &chars[at..=probe] {
+                out.push(k);
+            }
+            at = probe + 1;
+            while at < chars.len() {
+                if chars[at] == '"' && (1..=hashes).all(|h| chars.get(at + h) == Some(&'#')) {
+                    out.push('"');
+                    out.extend(std::iter::repeat_n('#', hashes));
+                    at += 1 + hashes;
+                    break;
+                }
+                blank(&mut out, chars[at]);
+                at += 1;
+            }
+        } else if c == '"' {
+            out.push('"');
+            at += 1;
+            while at < chars.len() && chars[at] != '"' {
+                if chars[at] == '\\' {
+                    blank(&mut out, '\\');
+                    at += 1;
+                }
+                if at < chars.len() {
+                    blank(&mut out, chars[at]);
+                    at += 1;
+                }
+            }
+            if at < chars.len() {
+                out.push('"');
+                at += 1;
+            }
+        } else if c == '\'' {
+            // A character literal is `'x'` or `'\…'`; anything else is a lifetime.
+            let close = if next == Some('\\') {
+                (at + 2..chars.len().min(at + 12)).find(|&k| chars[k] == '\'')
+            } else if chars.get(at + 2) == Some(&'\'') {
+                Some(at + 2)
+            } else {
+                None
+            };
+            if let Some(close) = close {
+                out.push('\'');
+                for &k in &chars[at + 1..close] {
+                    blank(&mut out, k);
+                }
+                out.push('\'');
+                at = close + 1;
+            } else {
+                out.push(c);
+                at += 1;
+            }
+        } else {
+            out.push(c);
+            at += 1;
+        }
+    }
+    assert_eq!(out.len(), text.len(), "blanking preserves byte offsets");
+    out
 }
 
 /// `ekr.ontology.ValueKind` is exactly the crate's [`ValueKind`], and every kind has its carrier

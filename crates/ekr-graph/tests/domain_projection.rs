@@ -764,12 +764,181 @@ fn property_maps_are_keyed_by_property_id_in_the_domain_and_the_crate() {
     );
 
     for carrier in ["Node", "Edge"] {
-        let region = type_region(carrier);
-        assert!(
-            region
-                .lines()
-                .any(|line| line.trim() == "pub properties: BTreeMap<PropertyId, Vec<V>>,"),
-            "{carrier}::properties is not keyed by PropertyId"
-        );
+        properties_are_keyed_by_property_id(carrier, &type_region(carrier));
+        serialisation_is_derived(carrier);
     }
+
+    // The deserialiser the field names reads into the same key.
+    let modules = crate_modules();
+    let node = &modules
+        .iter()
+        .find(|(name, _)| name == "node.rs")
+        .expect("the crate has node.rs")
+        .1;
+    let at = node
+        .find("fn property_values<")
+        .expect("node.rs declares property_values");
+    let signature = &node[at..at + node[at..].find('{').expect("property_values has a body")];
+    let returned = signature
+        .split_once("-> Result<")
+        .map(|(_, rest)| rest)
+        .expect("property_values returns a Result");
+    assert!(
+        returned.trim_start().starts_with("BTreeMap<")
+            && key_is_property_id(&returned.trim_start()["BTreeMap<".len()..]),
+        "property_values reads a map not keyed by PropertyId: {signature}"
+    );
+}
+
+/// Whether the first type argument of `arguments` (the text after a map's `<`) is `PropertyId`,
+/// bare or path-qualified.
+fn key_is_property_id(arguments: &str) -> bool {
+    let key = arguments.split(',').next().unwrap_or_default().trim();
+    let segments: Vec<&str> = key.split("::").collect();
+    segments.last() == Some(&"PropertyId")
+        && segments
+            .iter()
+            .all(|s| !s.is_empty() && s.chars().all(|c| c.is_alphanumeric() || c == '_'))
+}
+
+/// The top-level `key` of each entry of every `#[serde(…)]` attribute in `text`, with the entry.
+fn serde_entries(text: &str) -> Vec<(String, String)> {
+    let mut entries = Vec::new();
+    for (at, _) in text.match_indices("#[serde(") {
+        let inner = &text[at + "#[serde(".len()..];
+        let mut depth = 1usize;
+        let mut in_string = false;
+        let mut entry = String::new();
+        for c in inner.chars() {
+            match c {
+                '"' => in_string = !in_string,
+                '(' if !in_string => depth += 1,
+                ')' if !in_string => {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                ',' if !in_string && depth == 1 => {
+                    entries.push(std::mem::take(&mut entry));
+                    continue;
+                }
+                _ => {}
+            }
+            entry.push(c);
+        }
+        entries.push(entry);
+    }
+    entries
+        .into_iter()
+        .map(|entry| entry.trim().to_owned())
+        .filter(|entry| !entry.is_empty())
+        .map(|entry| {
+            let key: String = entry
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            (key, entry)
+        })
+        .collect()
+}
+
+/// `carrier`'s `properties` field is a `BTreeMap` keyed by `PropertyId`, and no serde attribute on
+/// it changes how that key is written.
+///
+/// The only serde entries the field may carry are `deserialize_with` naming
+/// `crate::node::property_values` (checked above to read the same key) and `bound`. A
+/// `serialize_with`, `with`, `rename`, `flatten` or anything else is a change to what the map looks
+/// on the wire, and this case goes red and asks for the domain's sentence to be re-read.
+fn properties_are_keyed_by_property_id(carrier: &str, region: &str) {
+    let lines: Vec<&str> = region.lines().map(str::trim).collect();
+    let at = lines
+        .iter()
+        .position(|line| line.starts_with("pub properties:"))
+        .unwrap_or_else(|| panic!("{carrier} has no `pub properties` field"));
+    let ty = lines[at]["pub properties:".len()..]
+        .trim()
+        .trim_end_matches(',');
+    let (map, arguments) = ty
+        .split_once('<')
+        .unwrap_or_else(|| panic!("{carrier}::properties is not a map: {ty}"));
+    assert_eq!(
+        map.rsplit("::").next(),
+        Some("BTreeMap"),
+        "{carrier}::properties is a {map}, not a BTreeMap"
+    );
+    assert!(
+        key_is_property_id(arguments),
+        "{carrier}::properties is keyed by {arguments:?}, not PropertyId"
+    );
+
+    // The field's attributes: the lines above it, back to the previous field or the struct's `{`.
+    let preamble: Vec<&str> = lines[..at]
+        .iter()
+        .rev()
+        .take_while(|line| **line != "{" && !(line.starts_with("pub ") && line.ends_with(',')))
+        .filter(|line| !line.starts_with("//"))
+        .copied()
+        .collect();
+    let attributes = preamble.into_iter().rev().collect::<Vec<_>>().join(" ");
+    for (key, entry) in serde_entries(&attributes) {
+        match key.as_str() {
+            "deserialize_with" => assert_eq!(
+                entry.replace(' ', ""),
+                "deserialize_with=\"crate::node::property_values\"",
+                "{carrier}::properties is read by a deserialiser this case has not checked"
+            ),
+            "bound" => {}
+            _ => panic!(
+                "{carrier}::properties carries `#[serde({entry})]`, which can change how its \
+                 PropertyId key is written; graph.yaml says the key is the id's UUID text"
+            ),
+        }
+    }
+}
+
+/// `carrier` derives `Serialize`, carries no container-level serde entry that reroutes it, and has
+/// no hand-written `Serialize` implementation.
+///
+/// With serialisation derived and nothing above overriding the field, a `properties` key is
+/// written by `PropertyId`'s own `Serialize`, which `crates/ekr-core/tests/identity_serde.rs`
+/// (`assert_id_contract`) holds is the id's UUID text — the form `graph.yaml` declares.
+fn serialisation_is_derived(carrier: &str) {
+    let mut preambles = 0usize;
+    for (module, text) in crate_modules() {
+        for line in text.lines() {
+            assert!(
+                !(line.contains("Serialize for") && opens_item(line, carrier)),
+                "{module} implements Serialize for {carrier} by hand: {line}"
+            );
+        }
+        let lines: Vec<&str> = text.lines().collect();
+        for (at, line) in lines.iter().enumerate() {
+            let head = line.trim();
+            if !(head.starts_with(&format!("pub struct {carrier}<"))
+                || head.starts_with(&format!("pub struct {carrier} ")))
+            {
+                continue;
+            }
+            let preamble: Vec<&str> = lines[..at]
+                .iter()
+                .rev()
+                .map(|line| line.trim())
+                .take_while(|line| !line.is_empty() && !line.starts_with("///"))
+                .collect();
+            let preamble = preamble.into_iter().rev().collect::<Vec<_>>().join(" ");
+            assert!(
+                preamble.contains("#[derive(") && preamble.contains("Serialize"),
+                "{carrier} does not derive Serialize: {preamble}"
+            );
+            for (key, entry) in serde_entries(&preamble) {
+                assert!(
+                    matches!(key.as_str(), "deny_unknown_fields" | "bound"),
+                    "{carrier} carries `#[serde({entry})]`, which reroutes its serialisation"
+                );
+            }
+            preambles += 1;
+        }
+    }
+    assert_eq!(preambles, 1, "{carrier} is declared once in this crate");
 }
