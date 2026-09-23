@@ -2,12 +2,12 @@
 format: aep.planning-md/1
 id: task:the-proposer-field-is-unauthenticated
 kind: task
-status: draft
+status: implemented
 title: An agent that names a different proposer can validate its own transaction
 relations:
 - serves: vision:o2
 - blocks: story:ekr-cli
-revision: 1
+revision: 4
 ---
 ## What is wrong
 

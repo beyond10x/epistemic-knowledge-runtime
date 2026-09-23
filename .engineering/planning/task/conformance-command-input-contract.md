@@ -6,8 +6,8 @@ status: draft
 title: Align ESS command inputs and observable transaction states with the real kernel
 relations:
 - derived_from: story:ess-conformance-kernel
-- blocks: story:ekr-cli
-revision: 2
+- blocks: story:ess-conformance-kernel
+revision: 3
 ---
 ## Measured prerequisites for executable conformance
 
@@ -43,3 +43,18 @@ outdated seed-root summary with the completed seed and persisted-contract work
 before editing the normative ESS. Known-fixture hash/readback assertions and the
 named mutations in the report must execute through the actual ESS Runner before
 this task can close.
+
+## Wave p1-13 rescope
+
+Rescoped in wave p1-13 (2026-09-23).
+
+**Done:** the CLI half. Seed and Propose read document bytes through one shared handler; hashes
+and counts are derived from the payload by the kernel; the proposer is bound to the host operator.
+Held by `crates/ekr/tests/retraction_example.rs` and
+`crates/ekr/tests/adversary_p1_13_cli_exit_contract.rs` (wave p1-13 gate: 730 passed).
+
+**Still open, and the only thing this task now covers (wave p1-14):** the ESS half — a retained
+Transactions view readable across terminal states and restart, real document-path inputs for
+Seed and Propose in `systems/ekr/domains/kernel.yaml` instead of hash placeholders, and the
+Rust `ConformanceTarget` executing them. It now blocks `story:ess-conformance-kernel` instead of
+`story:ekr-cli`.

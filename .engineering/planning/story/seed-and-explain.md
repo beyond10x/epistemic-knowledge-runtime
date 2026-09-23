@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:seed-and-explain
 kind: story
-status: draft
+status: implemented
 title: Seed loading and the explain chain
 relations:
 - decomposes: epic:p1-kernel-ontology-core
@@ -10,6 +10,7 @@ relations:
 - depends_on: story:eventlog-store
 - implements: executable-system-specification:ekr-v1
 - depends_on: story:kernel-validated-seed
+- serves: vision:o2
 scope:
 - confidence: cited
   path: crates/ekr-kernel/src/explain.rs
@@ -19,7 +20,7 @@ scope:
   path: crates/ekr-kernel/tests/explain.rs
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 14
+revision: 17
 ---
 ## Context
 
