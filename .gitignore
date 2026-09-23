@@ -2,3 +2,4 @@ target/
 .engineering/runs/
 *.local
 .DS_Store
+.engineering/.aep-planning-writer*.lock

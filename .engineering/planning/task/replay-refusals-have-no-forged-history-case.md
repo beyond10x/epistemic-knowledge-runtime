@@ -2,12 +2,12 @@
 format: aep.planning-md/1
 id: task:replay-refusals-have-no-forged-history-case
 kind: task
-status: draft
+status: implemented
 title: Kernel replay refusals have no case that forges the retained history
 relations:
 - serves: vision:o2
 - derived_from: story:commit-and-revision-lineage
-revision: 1
+revision: 4
 ---
 ## What is missing
 

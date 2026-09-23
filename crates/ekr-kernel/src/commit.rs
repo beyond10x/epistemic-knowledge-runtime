@@ -97,6 +97,15 @@ impl KernelAuthority {
         Ok(Some(result))
     }
 }
+/// The Bootstrap slot's input hash binds the host context and anchor, so a preparation that the
+/// store can only read as `AuthorityMismatch` was elected for different input to this slot
+/// (§ 94.1, § 94.3), not a changed seed. Every read of that slot goes through here.
+fn bootstrap_slot<T>(result: Result<T, StoreError>) -> Result<T, StoreError> {
+    match result {
+        Err(StoreError::AuthorityMismatch) => Err(StoreError::PublicationInputConflict),
+        other => other,
+    }
+}
 fn seed_root(graph: &CanonicalGraph, seed_hash: ContentHash, anchor: &AuthorityStateV1) -> Root {
     Root {
         revision: RevisionNumber::SEED,
@@ -244,7 +253,7 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
             self.authority.context.operator,
             &self.authority,
         );
-        if let Some(pending) = self.store.preparation(&key)? {
+        if let Some(pending) = bootstrap_slot(self.store.preparation(&key))? {
             if pending.input_hash != input {
                 return Err(StoreError::PublicationInputConflict.into());
             }
@@ -311,7 +320,7 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
             objects,
             expected_version: 0,
         };
-        let selected = self.store.prepare(&key, input, &publication, None)?;
+        let selected = bootstrap_slot(self.store.prepare(&key, input, &publication, None))?;
         self.finish_seed(selected, &envelope.input)
     }
     fn finish_seed(
@@ -320,7 +329,7 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
         document: &SeedDocument,
     ) -> Result<SeedResultV1, SeedError> {
         for _ in 0..16 {
-            match self.store.resume(&selected) {
+            match bootstrap_slot(self.store.resume(&selected)) {
                 Ok(_) => {
                     let bytes = selected
                         .decision
@@ -335,12 +344,12 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
                     if let Some(result) = self.retained_seed(document)? {
                         return Ok(result);
                     }
-                    selected = self.store.prepare(
+                    selected = bootstrap_slot(self.store.prepare(
                         &selected.command_key,
                         selected.input_hash,
                         &selected.decision,
                         Some(&selected),
-                    )?;
+                    ))?;
                 }
                 Err(error) => return Err(error.into()),
             }

@@ -191,7 +191,7 @@ fn read_proposed(
     let tx = state
         .transactions
         .get(&id)
-        .ok_or_else(|| refuse("decision-without-proposal"))?;
+        .ok_or(StoreError::ProposalMissing { transaction_id: id })?;
     require(
         tx.state() == expected,
         "retained-transaction-state-conflict",
@@ -232,7 +232,7 @@ impl KernelAuthority {
             let event = &occurrence.event;
             let bytes = history.content(event.record_hash, StorageClass::Canonical)?;
             match event.payload {
-                RevisionPayload::Seeded { .. } => return Err(refuse("second-seed")),
+                RevisionPayload::Seeded { .. } => return Err(StoreError::SeedIsNotFirst),
                 RevisionPayload::TransactionProposed {
                     transaction_id,
                     proposer,
@@ -360,6 +360,16 @@ impl KernelAuthority {
                     number,
                     knowledge_root,
                 } => {
+                    if state.transactions.get(&transaction_id).is_some_and(|tx| {
+                        matches!(
+                            tx.state(),
+                            TransactionState::Proposed
+                                | TransactionState::Rejected
+                                | TransactionState::Stale
+                        )
+                    }) {
+                        return Err(StoreError::ValidationMissing { transaction_id });
+                    }
                     let tx = read_proposed(&state, transaction_id, TransactionState::Validated)?;
                     let record = CommitReceiptV1::from_bytes(bytes)?;
                     let validation = tx.validation.as_ref().expect("validated state");
@@ -390,11 +400,28 @@ impl KernelAuthority {
                         &validation.validators,
                         record.committed_at,
                     )?;
+                    // Each claim a named refusal describes is held against the recomputed root on
+                    // both of its carriers, payload and receipt, before the generic comparison:
+                    // a lie told consistently in both must still get its own name.
+                    for found in [number, record.result.revision] {
+                        if found != root.revision {
+                            return Err(StoreError::RevisionOutOfOrder {
+                                expected: root.revision,
+                                found,
+                            });
+                        }
+                    }
+                    for published in [knowledge_root, record.result.knowledge_root] {
+                        if published != root.knowledge_root {
+                            return Err(StoreError::KnowledgeRootDisagrees {
+                                revision: root.revision,
+                                published,
+                                folded: root.knowledge_root,
+                            });
+                        }
+                    }
                     require(
-                        record.result == root
-                            && record.result_hash == ContentHash::of(&root)
-                            && root.revision == number
-                            && root.knowledge_root == knowledge_root,
+                        record.result == root && record.result_hash == ContentHash::of(&root),
                         "commit-result-disagrees",
                     )?;
                     state.revisions.insert(

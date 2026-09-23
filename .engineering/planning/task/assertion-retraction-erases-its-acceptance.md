@@ -2,12 +2,13 @@
 format: aep.planning-md/1
 id: task:assertion-retraction-erases-its-acceptance
 kind: task
-status: draft
+status: implemented
 title: A retraction replaces the Accepted state and discards the validators that accepted it
 relations:
 - blocks: story:commit-and-revision-lineage
 - derived_from: story:version-persisted-contracts
-revision: 1
+- serves: vision:o2
+revision: 4
 ---
 ## What is wrong
 

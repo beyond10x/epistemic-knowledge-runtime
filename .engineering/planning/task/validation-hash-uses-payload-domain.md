@@ -2,13 +2,13 @@
 format: aep.planning-md/1
 id: task:validation-hash-uses-payload-domain
 kind: task
-status: draft
+status: implemented
 title: Hash validation receipts in the canonical value domain
 relations:
 - blocks: story:commit-and-revision-lineage
 - serves: vision:o2
 - derived_from: story:version-persisted-contracts
-revision: 1
+revision: 4
 ---
 ## Finding
 

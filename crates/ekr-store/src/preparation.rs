@@ -624,6 +624,22 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
                     .map_err(|_| StoreError::Document("preparation-position-overflow".into()))?,
             );
         }
+        // § 89, the lookup `publish` makes: an occurrence identity already retained in the basis
+        // prefix with different content refuses before any native append. The elected decision's
+        // own publication lies after its prefix, so a genuine record never meets itself here.
+        // An identical event in the prefix is already retained; appending it again would record
+        // one occurrence twice, so that refuses too, under its own name.
+        if let Some(held) = history
+            .occurrences
+            .iter()
+            .find(|held| held.event.event_id == decision.event.event_id)
+        {
+            return Err(StoreError::Document(if held.event == decision.event {
+                "occurrence-already-retained".into()
+            } else {
+                "occurrence-identity-conflict".into()
+            }));
+        }
         if let Some(predecessor) = prepared.command_key.predecessor_event_id {
             require(
                 history.occurrences.iter().any(|held| {

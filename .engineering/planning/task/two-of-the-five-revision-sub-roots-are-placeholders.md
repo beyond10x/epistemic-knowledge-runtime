@@ -2,12 +2,12 @@
 format: aep.planning-md/1
 id: task:two-of-the-five-revision-sub-roots-are-placeholders
 kind: task
-status: draft
+status: implemented
 title: ontology_root and agent_root have no type to hash and stay placeholders in P1
 relations:
 - serves: vision:o2
 - blocks: story:commit-and-revision-lineage
-revision: 2
+revision: 5
 ---
 ## What is wrong
 

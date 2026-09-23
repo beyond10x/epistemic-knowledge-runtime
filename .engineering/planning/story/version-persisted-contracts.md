@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:version-persisted-contracts
 kind: story
-status: active
+status: implemented
 title: Version assertion history and revision occurrences before durable application
 relations:
 - decomposes: epic:p1-kernel-ontology-core
@@ -122,7 +122,7 @@ scope:
   path: systems/ekr/domains/store.yaml
 - confidence: cited
   path: systems/ekr/system.yaml
-revision: 47
+revision: 48
 ---
 ## Context
 
