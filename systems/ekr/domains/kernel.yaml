@@ -909,6 +909,12 @@ errors:
       - name: reason
         type: String
 
+  - name: ekr.kernel.ProposalAttribution
+    summary: The trusted submitter is unregistered or differs from the proposer the document names; nothing was recorded.
+    fields:
+      - name: actor
+        type: ekr.kernel.AgentId
+
   - name: ekr.kernel.TransactionStateConflict
     summary: The transaction is not in a state this command acts from, so nothing moved.
     fields:
@@ -1000,6 +1006,10 @@ commands:
         external: strict document parsing or structural admission refuses before recording
         error: ekr.kernel.StructurallyInvalid
         summary: Unknown versions, malformed documents and empty operation lists record nothing.
+      - name: misattributed
+        external: the document names a proposer other than the trusted submitter, or the submitter is unregistered
+        error: ekr.kernel.ProposalAttribution
+        summary: The proposer is bound to the host submitter; a mismatch records nothing.
 
   # Design § 20. Deterministic validators 1–7 run against one snapshot; the revision they ran
   # against is recorded so Commit can notice movement.
