@@ -204,7 +204,7 @@ fn assertion<V: ValueSpace + std::fmt::Debug + Clone + 'static>(
                     predicate: Predicate::Property(POOL.properties[property_at]),
                     object: Object::Value(value),
                     evidence: if has_evidence {
-                        [POOL.evidence[0]].into_iter().collect()
+                        [V::evidence_ref(POOL.evidence[0])].into_iter().collect()
                     } else {
                         BTreeSet::new()
                     },

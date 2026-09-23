@@ -388,7 +388,7 @@ fn a_supersession_follows_the_replacement_and_its_distinct_evidence() {
         let read = open(directory.path(), file).read(None).unwrap();
         let explained = read.explain(seed.assertion).unwrap();
         let superseded = AssertionLifecycle::Superseded {
-            by: replacement.id,
+            by: CanonicalRef::new(replacement.id),
             at_revision: RevisionNumber::new(1),
             effective_from: Timestamp::from_millis(100),
         };
@@ -454,7 +454,7 @@ fn a_replacement_accepted_before_the_supersession_is_explained_from_its_own_acce
         let explained = read.explain(case.seed.assertion).unwrap();
         assert_eq!(explained.at, RevisionNumber::new(2));
         let superseded = AssertionLifecycle::Superseded {
-            by: case.replacement,
+            by: CanonicalRef::new(case.replacement),
             at_revision: RevisionNumber::new(2),
             effective_from: Timestamp::from_millis(100),
         };

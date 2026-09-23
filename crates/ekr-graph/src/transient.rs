@@ -25,26 +25,39 @@ use crate::root::GraphRoot;
 /// Local to the root that holds it. It is deliberately *not* a
 /// [`CanonicalDependency`](crate::CanonicalDependency): a candidate that has not been integrated
 /// is not something canonical state may rest on.
-#[derive(Debug)]
 pub struct LocalRef<T: CanonicalTarget> {
-    node: NodeId,
+    id: T::Id,
     marker: PhantomData<fn() -> T>,
 }
 
 impl<T: CanonicalTarget> LocalRef<T> {
-    /// A reference to `node` within the transient root that holds it.
+    /// A reference to the candidate of kind `T` with `id`, within the transient root that holds it.
     #[must_use]
-    pub const fn new(node: NodeId) -> Self {
+    pub const fn new(id: T::Id) -> Self {
         Self {
-            node,
+            id,
             marker: PhantomData,
         }
     }
 
-    /// The node it points at.
+    /// The id of the candidate it points at.
+    #[must_use]
+    pub const fn id(&self) -> T::Id {
+        self.id
+    }
+}
+
+impl LocalRef<Node> {
+    /// The candidate node it points at.
     #[must_use]
     pub const fn node(&self) -> NodeId {
-        self.node
+        self.id
+    }
+}
+
+impl<T: CanonicalTarget> std::fmt::Debug for LocalRef<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LocalRef").field("id", &self.id).finish()
     }
 }
 
@@ -58,7 +71,7 @@ impl<T: CanonicalTarget> Copy for LocalRef<T> {}
 
 impl<T: CanonicalTarget> PartialEq for LocalRef<T> {
     fn eq(&self, other: &Self) -> bool {
-        self.node == other.node
+        self.id == other.id
     }
 }
 
@@ -77,7 +90,6 @@ impl<T: CanonicalTarget> Eq for LocalRef<T> {}
 /// The union of the two directions that are allowed — a candidate of its own root, or something
 /// canonical it has resolved to. There is no third arm and no equivalent type on the canonical
 /// side, which is the asymmetry the membrane *is*.
-#[derive(Debug)]
 pub enum TransientRef<T: CanonicalTarget> {
     /// Something canonical state already holds.
     Canonical(CanonicalRef<T>),
@@ -86,12 +98,29 @@ pub enum TransientRef<T: CanonicalTarget> {
 }
 
 impl<T: CanonicalTarget> TransientRef<T> {
+    /// The id of what it points at, whichever side it points into.
+    #[must_use]
+    pub const fn id(&self) -> T::Id {
+        match self {
+            Self::Canonical(reference) => reference.id(),
+            Self::Local(reference) => reference.id(),
+        }
+    }
+}
+
+impl TransientRef<Node> {
     /// The node it points at, whichever side it points into.
     #[must_use]
     pub const fn node(&self) -> NodeId {
+        self.id()
+    }
+}
+
+impl<T: CanonicalTarget> std::fmt::Debug for TransientRef<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Canonical(reference) => reference.node(),
-            Self::Local(reference) => reference.node(),
+            Self::Canonical(reference) => f.debug_tuple("Canonical").field(reference).finish(),
+            Self::Local(reference) => f.debug_tuple("Local").field(reference).finish(),
         }
     }
 }
@@ -163,10 +192,15 @@ impl TransientGraph {
     /// a canonical node carries values canonical state admits and a candidate carries any value
     /// at all. Which side a reference landed on is part of the answer rather than something the
     /// caller has to remember it asked for.
+    ///
+    /// **Node references only**, since wave p1-14: a reference now holds the id of its kind, and
+    /// [`Resolved`] answers nodes. It used to accept a `TransientRef<T>` of any kind and look its
+    /// id up among nodes on both sides, which is the defect
+    /// `task:canonical-reference-holds-a-node-id-for-every-target` closed on the canonical side.
     #[must_use]
-    pub fn resolve<'a, T: CanonicalTarget>(
+    pub fn resolve<'a>(
         &'a self,
-        reference: &TransientRef<T>,
+        reference: &TransientRef<Node>,
         canonical: &'a CanonicalGraph,
     ) -> Option<Resolved<'a>> {
         match reference {

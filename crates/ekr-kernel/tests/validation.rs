@@ -143,7 +143,7 @@ impl World {
             object: Object::Value(CanonicalValue::String(
                 "Adopt the eventlog store".to_owned(),
             )),
-            evidence: [retained_evidence].into_iter().collect(),
+            evidence: [CanonicalRef::new(retained_evidence)].into_iter().collect(),
             proposed_by: proposer,
             lifecycle: ekr_graph::AssertionLifecycle::Active,
             assessment: Assessment::Accepted {
@@ -2098,7 +2098,7 @@ fn deleting_an_edge_referenced_by_a_new_or_retained_assertion_is_refused() {
         .assertions
         .get_mut(&world.held_assertion)
         .unwrap()
-        .subject = Subject::Edge(world.existing_edge);
+        .subject = Subject::Edge(CanonicalRef::new(world.existing_edge));
     assert!(codes(&refuse(
         &world,
         vec![GraphOperation::DeleteEdge(world.existing_edge)]

@@ -1,0 +1,11 @@
+error[E0271]: type mismatch resolving `<Evidence as CanonicalTarget>::Id == NodeId`
+  --> tests/compile_fail/a_canonical_reference_holds_the_id_of_its_kind.rs:12:5
+   |
+12 |     CanonicalRef::new(node)
+   |     ^^^^^^^^^^^^^^^^^^^^^^^ expected `NodeId`, found `EvidenceId`
+
+error[E0271]: type mismatch resolving `<Node as CanonicalTarget>::Id == EvidenceId`
+  --> tests/compile_fail/a_canonical_reference_holds_the_id_of_its_kind.rs:16:5
+   |
+16 |     CanonicalRef::new(evidence)
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `EvidenceId`, found `NodeId`

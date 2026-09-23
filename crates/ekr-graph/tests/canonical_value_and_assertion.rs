@@ -203,7 +203,7 @@ fn assertion(ids: [u128; 6]) -> Assertion {
         object: Object::Value(
             CanonicalValue::try_from(Value::String("Acme".to_owned())).expect("admissible"),
         ),
-        evidence: BTreeSet::from([id(ids[4]), id(ids[5])]),
+        evidence: BTreeSet::from([CanonicalRef::new(id(ids[4])), CanonicalRef::new(id(ids[5]))]),
         proposed_by: id(ids[0] ^ 0xff),
         assessment: Assessment::Accepted {
             validators: BTreeSet::new(),
@@ -272,7 +272,7 @@ const MUTATIONS: [Mutation; 32] = [
     // Both arms of the change a sum type can carry: a different variant, and a different payload
     // under the same variant. The first is settled by the tag, the second only by the payload.
     ("subject", |a| {
-        a.subject = Subject::Edge(id::<EdgeId>(3));
+        a.subject = Subject::Edge(CanonicalRef::new(id::<EdgeId>(3)));
     }),
     ("subject", |a| {
         a.subject = Subject::Node(CanonicalRef::new(id::<NodeId>(97)));
@@ -292,10 +292,10 @@ const MUTATIONS: [Mutation; 32] = [
         a.object = Object::Node(CanonicalRef::new(id::<NodeId>(3)));
     }),
     ("evidence", |a| {
-        a.evidence.insert(id::<EvidenceId>(7));
+        a.evidence.insert(CanonicalRef::new(id::<EvidenceId>(7)));
     }),
     ("evidence", |a| {
-        a.evidence.remove(&id::<EvidenceId>(5));
+        a.evidence.remove(&CanonicalRef::new(id::<EvidenceId>(5)));
     }),
     ("proposed_by", |a| {
         a.proposed_by = id::<AgentId>(98);
@@ -337,18 +337,21 @@ const MUTATIONS: [Mutation; 32] = [
     }),
     ("assessment", |a| {
         a.assessment = Assessment::Disputed {
-            competing_assertions: vec![id::<AssertionId>(31)],
+            competing_assertions: vec![CanonicalRef::new(id::<AssertionId>(31))],
         };
     }),
     ("assessment", |a| {
         a.assessment = Assessment::Disputed {
-            competing_assertions: vec![id::<AssertionId>(31), id::<AssertionId>(32)],
+            competing_assertions: vec![
+                CanonicalRef::new(id::<AssertionId>(31)),
+                CanonicalRef::new(id::<AssertionId>(32)),
+            ],
         };
     }),
     // The two withdrawals. The base is `Active`, which carries no payload.
     ("lifecycle", |a| {
         a.lifecycle = AssertionLifecycle::Superseded {
-            by: id::<AssertionId>(41),
+            by: CanonicalRef::new(id::<AssertionId>(41)),
             at_revision: RevisionNumber::new(7),
             effective_from: HANDOVER,
         };
@@ -356,7 +359,7 @@ const MUTATIONS: [Mutation; 32] = [
     ("lifecycle", |a| {
         // `by` alone.
         a.lifecycle = AssertionLifecycle::Superseded {
-            by: id::<AssertionId>(42),
+            by: CanonicalRef::new(id::<AssertionId>(42)),
             at_revision: RevisionNumber::new(7),
             effective_from: HANDOVER,
         };
@@ -364,7 +367,7 @@ const MUTATIONS: [Mutation; 32] = [
     ("lifecycle", |a| {
         // `at_revision` alone.
         a.lifecycle = AssertionLifecycle::Superseded {
-            by: id::<AssertionId>(41),
+            by: CanonicalRef::new(id::<AssertionId>(41)),
             at_revision: RevisionNumber::new(8),
             effective_from: HANDOVER,
         };
@@ -372,7 +375,7 @@ const MUTATIONS: [Mutation; 32] = [
     ("lifecycle", |a| {
         // `effective_from` alone.
         a.lifecycle = AssertionLifecycle::Superseded {
-            by: id::<AssertionId>(41),
+            by: CanonicalRef::new(id::<AssertionId>(41)),
             at_revision: RevisionNumber::new(7),
             effective_from: RECORDED,
         };
@@ -420,7 +423,10 @@ fn two_assertions_equal_in_every_field_hash_equally() {
     let mut right = assertion([1, 2, 3, 4, 5, 6]);
     // The same evidence set, reached the other way round: a content address is a function of the
     // value, never of the order a collection was filled in.
-    right.evidence = BTreeSet::from([id::<EvidenceId>(6), id::<EvidenceId>(5)]);
+    right.evidence = BTreeSet::from([
+        CanonicalRef::new(id::<EvidenceId>(6)),
+        CanonicalRef::new(id::<EvidenceId>(5)),
+    ]);
 
     assert_eq!(left, right, "the fixture builds two equal records");
     assert_eq!(
@@ -834,7 +840,7 @@ const EVIDENCE_MUTATIONS: [EvidenceMutation; 7] = [
         e.source = EvidenceSource::Url("https://example.invalid/b".to_owned());
     }),
     ("source", |e| {
-        e.source = EvidenceSource::GraphAssertion(id::<AssertionId>(73));
+        e.source = EvidenceSource::GraphAssertion(CanonicalRef::new(id::<AssertionId>(73)));
     }),
     ("content_hash", |e| {
         e.content_hash = ContentHash::of_bytes(b"what was read the second time");
@@ -1280,8 +1286,14 @@ fn sum_type_fixtures() -> Vec<(&'static str, Fixtures)> {
                 key: other_text.clone(),
             },
         ),
-        (3, EvidenceSource::GraphAssertion(assertion_id)),
-        (3, EvidenceSource::GraphAssertion(other_assertion)),
+        (
+            3,
+            EvidenceSource::GraphAssertion(CanonicalRef::new(assertion_id)),
+        ),
+        (
+            3,
+            EvidenceSource::GraphAssertion(CanonicalRef::new(other_assertion)),
+        ),
         (4, EvidenceSource::Observation(id::<ObservationId>(11))),
         (4, EvidenceSource::Observation(id::<ObservationId>(12))),
         (
@@ -1965,8 +1977,11 @@ fn confidence_refusal_preserves_the_public_error_and_its_bound() {
 
 #[test]
 fn public_canonical_targets_preserve_deserialized_identity_and_address() {
-    fn round_trip<T: ekr_graph::CanonicalTarget>() {
-        let id = NodeId::mint();
+    // Each kind round-trips the id of its own kind, which is what `CanonicalTarget::Id` now
+    // says. `Observation`, `Support` and `GraphRoot` were targets and are not: canonical state
+    // keeps no map of them, and `compile_fail/a_canonical_reference_targets_only_what_canonical_state_holds.rs`
+    // holds that `CanonicalRef` of any of them is not a type.
+    fn round_trip<T: ekr_graph::CanonicalTarget>(id: T::Id) {
         let reference = CanonicalRef::<T>::new(id);
         let text = id.to_string();
         let input = serde::de::value::StrDeserializer::<serde::de::value::Error>::new(&text);
@@ -1974,13 +1989,10 @@ fn public_canonical_targets_preserve_deserialized_identity_and_address() {
         assert_eq!(restored.canonical_bytes(), id.canonical_bytes());
         assert_eq!(ContentHash::of(&restored), ContentHash::of(&reference));
     }
-    round_trip::<Node>();
-    round_trip::<Edge>();
-    round_trip::<Assertion>();
-    round_trip::<Evidence>();
-    round_trip::<Observation>();
-    round_trip::<Support>();
-    round_trip::<ekr_graph::GraphRoot>();
+    round_trip::<Node>(NodeId::mint());
+    round_trip::<Edge>(EdgeId::mint());
+    round_trip::<Assertion>(AssertionId::mint());
+    round_trip::<Evidence>(EvidenceId::mint());
 }
 
 /// Observe the actual typed refusal passed by the range's TryFrom into serde::Error::custom.

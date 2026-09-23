@@ -1,0 +1,15 @@
+error[E0308]: mismatched types
+  --> tests/adversary_p1_14_exit_compile_fail/retained_evidence_names_its_source_assertion_by_canonical_reference.rs:18:40
+   |
+18 |         EvidenceSource::GraphAssertion(candidate.id());
+   |         ------------------------------ ^^^^^^^^^^^^^^ expected `CanonicalRef<Assertion>`, found `AssertionId`
+   |         |
+   |         arguments to this enum variant are incorrect
+   |
+   = note: expected struct `CanonicalRef<ekr_graph::Assertion>`
+              found struct `AssertionId`
+note: tuple variant defined here
+  --> src/evidence.rs
+   |
+   |     GraphAssertion(CanonicalRef<Assertion>),
+   |     ^^^^^^^^^^^^^^

@@ -318,7 +318,7 @@ fn widen_assertion(assertion: &Assertion<CanonicalValue>) -> Assertion<Value> {
         root_id: assertion.root_id,
         subject: match assertion.subject {
             Subject::Node(node) => Subject::Node(node.node()),
-            Subject::Edge(edge) => Subject::Edge(edge),
+            Subject::Edge(edge) => Subject::Edge(edge.id()),
             Subject::Type(type_id) => Subject::Type(type_id),
         },
         predicate: assertion.predicate,
@@ -327,10 +327,13 @@ fn widen_assertion(assertion: &Assertion<CanonicalValue>) -> Assertion<Value> {
             Object::Node(node) => Object::Node(node.node()),
             Object::Type(type_id) => Object::Type(*type_id),
         },
-        evidence: assertion.evidence.clone(),
+        evidence: assertion.evidence.iter().map(|cited| cited.id()).collect(),
         proposed_by: assertion.proposed_by,
-        assessment: assertion.assessment.clone(),
-        lifecycle: assertion.lifecycle.clone(),
+        assessment: assertion
+            .assessment
+            .clone()
+            .map_assertions(|held| held.id()),
+        lifecycle: assertion.lifecycle.clone().map_assertions(|held| held.id()),
         valid_time: assertion.valid_time,
         transaction_time: assertion.transaction_time,
     }

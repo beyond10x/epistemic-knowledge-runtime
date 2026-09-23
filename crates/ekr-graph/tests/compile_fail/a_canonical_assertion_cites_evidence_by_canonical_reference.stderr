@@ -1,0 +1,25 @@
+error[E0308]: mismatched types
+  --> tests/compile_fail/a_canonical_assertion_cites_evidence_by_canonical_reference.rs:12:31
+   |
+12 |     assertion.evidence.insert(evidence);
+   |                        ------ ^^^^^^^^ expected `CanonicalRef<Evidence>`, found `EvidenceId`
+   |                        |
+   |                        arguments to this method are incorrect
+   |
+   = note: expected struct `CanonicalRef<ekr_graph::Evidence>`
+              found struct `EvidenceId`
+note: method defined here
+  --> $RUST/alloc/src/collections/btree/set.rs
+
+error[E0308]: mismatched types
+  --> tests/compile_fail/a_canonical_assertion_cites_evidence_by_canonical_reference.rs:16:31
+   |
+16 |     assertion.evidence.insert(evidence);
+   |                        ------ ^^^^^^^^ expected `CanonicalRef<Evidence>`, found `TransientRef<Evidence>`
+   |                        |
+   |                        arguments to this method are incorrect
+   |
+   = note: expected struct `CanonicalRef<ekr_graph::Evidence>`
+                found enum `TransientRef<ekr_graph::Evidence>`
+note: method defined here
+  --> $RUST/alloc/src/collections/btree/set.rs

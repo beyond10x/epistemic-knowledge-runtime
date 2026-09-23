@@ -1,0 +1,8 @@
+error[E0308]: mismatched types
+  --> tests/adversary_p1_14_exit_compile_fail/a_canonical_dispute_names_its_competitors_by_canonical_reference.rs:17:36
+   |
+17 |         competing_assertions: vec![candidate.id()],
+   |                                    ^^^^^^^^^^^^^^ expected `CanonicalRef<Assertion>`, found `AssertionId`
+   |
+   = note: expected struct `CanonicalRef<ekr_graph::Assertion>`
+              found struct `AssertionId`
