@@ -709,3 +709,67 @@ fn every_declaration_of_the_domain_is_carried_field_for_field() {
         );
     }
 }
+
+/// Property maps are keyed by the property's stable id, on both sides of the boundary.
+///
+/// `graph.yaml` declares every `properties` field as `Map<String, …>`, because `ess/1` keys a map
+/// by `String`, and says in the comment heading `ekr.graph.Node` what the `String` is: the
+/// `PropertyId`'s UUID text, never the property's name. `Node::properties` and `Edge::properties`
+/// key by `PropertyId`. The field-for-field case above checks only that a `properties:` field
+/// exists, so the key could drift on either side — a name-keyed map in the crate, or the sentence
+/// dropped from the domain — and it would stay green. This one would not.
+#[test]
+fn property_maps_are_keyed_by_property_id_in_the_domain_and_the_crate() {
+    let text = domain_text();
+
+    // The comment block directly above `- name: ekr.graph.Node`, joined into one string so a
+    // rewrap of the YAML comment does not break the case.
+    let lines: Vec<&str> = text.lines().collect();
+    let head = lines
+        .iter()
+        .position(|line| line.trim() == "- name: ekr.graph.Node")
+        .expect("the domain declares ekr.graph.Node");
+    let comment: Vec<&str> = lines[..head]
+        .iter()
+        .rev()
+        .take_while(|line| line.trim_start().starts_with('#'))
+        .map(|line| line.trim_start().trim_start_matches('#').trim())
+        .collect();
+    let comment = comment.into_iter().rev().collect::<Vec<_>>().join(" ");
+    assert!(
+        comment.contains("Property maps use stable PropertyId UUID strings as keys, never names."),
+        "the comment heading ekr.graph.Node no longer says what a property map is keyed by: {comment:?}"
+    );
+
+    // Every `properties` field the domain declares is the `String`-keyed map that sentence
+    // governs, and nothing else.
+    let mut declared = 0usize;
+    for (at, line) in lines.iter().enumerate() {
+        if line.trim() != "- name: properties" {
+            continue;
+        }
+        let ty = lines
+            .get(at + 1)
+            .and_then(|next| next.trim().strip_prefix("type: "))
+            .expect("a field name is followed by its type");
+        assert_eq!(
+            ty, "Map<String, List<ekr.graph.TypedValue>>",
+            "a properties field is declared with a key or value the sentence does not cover"
+        );
+        declared += 1;
+    }
+    assert!(
+        declared >= 4,
+        "the properties scan is broken, not the domain: found {declared}"
+    );
+
+    for carrier in ["Node", "Edge"] {
+        let region = type_region(carrier);
+        assert!(
+            region
+                .lines()
+                .any(|line| line.trim() == "pub properties: BTreeMap<PropertyId, Vec<V>>,"),
+            "{carrier}::properties is not keyed by PropertyId"
+        );
+    }
+}

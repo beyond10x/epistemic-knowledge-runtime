@@ -147,9 +147,9 @@ fn ess_uuid_newtypes(domain_file: &str) -> Vec<String> {
 
 #[test]
 fn every_ess_id_type_exists_in_the_crate() {
-    // The three domains `story:kernel-identity-and-hashing` names. `ekr.store.SnapshotId` is the
-    // fourth domain's and arrives with `ekr-store`; this crate is not where it lands.
-    let mut declared: Vec<String> = ["kernel.yaml", "ontology.yaml", "graph.yaml"]
+    // Every domain of the runtime. `store.yaml` declares no id newtype since `ekr.store.SnapshotId`
+    // was removed in wave p1-14; it is scanned so that an id declared there must be carried here too.
+    let mut declared: Vec<String> = ["kernel.yaml", "ontology.yaml", "graph.yaml", "store.yaml"]
         .into_iter()
         .flat_map(ess_uuid_newtypes)
         .collect();

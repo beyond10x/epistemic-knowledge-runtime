@@ -477,6 +477,143 @@ fn find_named(
     }
 }
 
+// Every `types:` and `entities:` declaration of the domain, against the Rust type that carries it.
+//
+// `ekr.store.Snapshot` and `ekr.store.SnapshotId` were declared here and implemented nowhere for
+// three waves, and it took an implementor's report to say so: the cases above hold events and
+// `StorageClass`, and nothing held the rest. This is `crates/ekr-graph/tests/domain_projection.rs`'s
+// PROJECTIONS applied to this domain, so a declaration nothing implements is red rather than
+// invisible.
+
+/// Each declaration under `types:` or `entities:`, and the crate types that carry it.
+///
+/// Transcribed, not derived: a binding read from the thing it binds asserts nothing. The domain's
+/// half is derived, so a declaration added to `store.yaml` without a row here is red.
+const BINDINGS: &[(&str, &[&str])] = &[
+    ("ekr.store.StorageClass", &["StorageClass"]),
+    (
+        "ekr.store.PublicationCommandKind",
+        &["PublicationCommandKind"],
+    ),
+    (
+        "ekr.store.PublicationCommandKey",
+        &["PublicationCommandKey"],
+    ),
+    ("ekr.store.PublicationObject", &["PublicationObject"]),
+    ("ekr.store.Publication", &["Publication"]),
+    ("ekr.store.NativeExpectedKind", &["NativeExpectedKind"]),
+    ("ekr.store.NativeExpected", &["NativeExpected"]),
+    ("ekr.store.NativeStreamId", &["NativeStreamId"]),
+    ("ekr.store.NativeNewEvent", &["NativeNewEvent"]),
+    ("ekr.store.NativeStreamAppend", &["NativeStreamAppend"]),
+    ("ekr.store.NativeClaim", &["NativeClaim"]),
+    ("ekr.store.NativeCommandMeta", &["NativeCommandMeta"]),
+    ("ekr.store.NativeBlobWrite", &["NativeBlobWrite"]),
+    (
+        "ekr.store.NativePublicationRequest",
+        &["NativePublicationRequest"],
+    ),
+    // A one-variant enumeration carried as `PublicationPreparationV1::FORMAT`.
+    (
+        "ekr.store.PublicationPreparationFormatV1",
+        &["PublicationPreparationV1"],
+    ),
+    (
+        "ekr.store.PublicationPreparationV1",
+        &["PublicationPreparationV1"],
+    ),
+    // `Written`/`AlreadyRecorded` are `Appended`; `Conflict`/`UnknownCommit` are refusals.
+    (
+        "ekr.store.PublicationResolution",
+        &["Appended", "StoreError"],
+    ),
+    ("ekr.store.StoredObject", &["StoredObject"]),
+];
+
+/// The qualified name of every declaration under the top-level `types:` and `entities:` keys of
+/// `text`, in document order.
+///
+/// Takes the text rather than reading it so the case can be shown red against a copy of the
+/// document with a declaration added, without editing `systems/`.
+fn declared_types_and_entities(text: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    let mut inside = false;
+    for line in text.lines() {
+        if !line.starts_with(' ') && !line.starts_with('#') && !line.trim().is_empty() {
+            inside = matches!(line.trim_end(), "types:" | "entities:");
+            continue;
+        }
+        if inside {
+            // A declaration head sits at the section's list indent; a field is deeper.
+            if let Some(name) = line.strip_prefix("  - name: ") {
+                found.push(name.trim().to_owned());
+            }
+        }
+    }
+    assert!(
+        found.len() >= 10,
+        "the declaration scan is broken, not the domain: {found:?}"
+    );
+    found
+}
+
+/// Whether some module of this crate's `src/` declares a `pub struct` or `pub enum` named `name`.
+fn crate_declares(name: &str) -> bool {
+    let directory = std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .join("src");
+    std::fs::read_dir(directory)
+        .expect("the crate has a src/")
+        .map(|entry| entry.expect("a directory entry").path())
+        .filter(|path| {
+            path.extension().is_some_and(|e| e == "rs")
+                && path.file_name().is_some_and(|file| file != "legacy.rs")
+        })
+        .map(|path| std::fs::read_to_string(&path).expect("a source file"))
+        .any(|source| {
+            source.lines().any(|line| {
+                let line = line.trim();
+                [format!("pub struct {name} "), format!("pub struct {name}<")]
+                    .iter()
+                    .chain(&[format!("pub enum {name} "), format!("pub enum {name}<")])
+                    .any(|head| line.starts_with(head.as_str()))
+            })
+        })
+}
+
+/// Every `types:` and `entities:` declaration of `store.yaml` is bound to a Rust type this crate
+/// declares, and every binding names a declaration that still exists.
+#[test]
+fn every_type_and_entity_the_domain_declares_names_a_rust_carrier() {
+    let declared: BTreeSet<String> = declared_types_and_entities(&domain_text())
+        .into_iter()
+        .collect();
+    let bound: BTreeSet<String> = BINDINGS
+        .iter()
+        .map(|(name, _)| (*name).to_owned())
+        .collect();
+
+    let unbound: Vec<&String> = declared.difference(&bound).collect();
+    assert!(
+        unbound.is_empty(),
+        "the store domain declares types no Rust type carries: {unbound:?}"
+    );
+    let stale: Vec<&String> = bound.difference(&declared).collect();
+    assert!(
+        stale.is_empty(),
+        "bindings name declarations the store domain no longer has: {stale:?}"
+    );
+    for (declaration, carriers) in BINDINGS {
+        for carrier in *carriers {
+            assert!(
+                crate_declares(carrier),
+                "{declaration} is bound to {carrier}, which this crate does not declare"
+            );
+        }
+    }
+}
+
 /// Every regular file under `directory`, recursively.
 fn collect_files(directory: &std::path::Path, into: &mut Vec<std::path::PathBuf>) {
     let Ok(entries) = std::fs::read_dir(directory) else {

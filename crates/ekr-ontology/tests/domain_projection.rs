@@ -22,7 +22,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use ekr_core::{Canonical, TypeId};
-use ekr_ontology::ValueType;
+use ekr_ontology::{ValueKind, ValueType};
 
 /// `systems/ekr/domains/ontology.yaml`, as text.
 fn domain_text() -> String {
@@ -242,5 +242,120 @@ fn a_timestamp_value_carries_a_timestamp() {
     assert!(
         !source.contains("Timestamp(i64)"),
         "a bare epoch integer survives in this crate"
+    );
+}
+
+/// The field of `ekr.ontology.ValueTypeProjection` that carries a kind's parameters, or `kind`
+/// for a kind that has none.
+///
+/// An exhaustive `match` with no `_` arm, so a twelfth [`ValueKind`] does not compile until
+/// somebody says where its parameters go.
+const fn carrier(kind: ValueKind) -> &'static str {
+    match kind {
+        ValueKind::String
+        | ValueKind::Boolean
+        | ValueKind::Integer
+        | ValueKind::Float
+        | ValueKind::Decimal
+        | ValueKind::Timestamp
+        | ValueKind::Duration => "kind",
+        ValueKind::NodeRef => "allowed_types",
+        ValueKind::Enum => "variants",
+        ValueKind::List => "element",
+        ValueKind::Record => "fields",
+    }
+}
+
+/// The variant names of `pub enum ValueKind` in this crate's source, in declaration order.
+///
+/// Read from the source rather than listed here, so that the crate's half of the comparison below
+/// is not a second hand-written list beside the domain's.
+fn crate_value_kinds() -> Vec<String> {
+    let source = crate_source();
+    let head = "pub enum ValueKind {";
+    let at = source
+        .find(head)
+        .expect("the crate declares `pub enum ValueKind`");
+    let body = &source[at + head.len()..];
+    let body = &body[..body.find('}').expect("the enumeration closes")];
+    let kinds: Vec<String> = body
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with("//") && !line.starts_with('#'))
+        .map(|line| line.trim_end_matches(',').to_owned())
+        .collect();
+    assert!(
+        kinds.len() >= 4,
+        "the variant scan is broken, not the crate: {kinds:?}"
+    );
+    kinds
+}
+
+/// `ekr.ontology.ValueKind` is exactly the crate's [`ValueKind`], and every kind has its carrier
+/// in `ekr.ontology.ValueTypeProjection`.
+///
+/// Three directions, each of which the case above cannot see because its field list is
+/// hand-written:
+///
+/// * a kind the domain declares and the crate does not, or the reverse, fails the set equality;
+/// * a kind whose carrier field the domain stops declaring fails the carrier lookup;
+/// * a projection field no kind is carried by — a carrier left behind after its kind went — fails
+///   the coverage check, as does two compound kinds sharing one parameter field.
+#[test]
+fn every_value_kind_the_domain_declares_is_the_crates_and_has_its_carrier() {
+    let document: serde_yaml_ng::Value =
+        serde_yaml_ng::from_str(&domain_text()).expect("the ESS domain parses");
+    let declared: Vec<String> = document
+        .get("types")
+        .and_then(serde_yaml_ng::Value::as_sequence)
+        .into_iter()
+        .flatten()
+        .find(|declared| {
+            declared.get("name").and_then(serde_yaml_ng::Value::as_str)
+                == Some("ekr.ontology.ValueKind")
+        })
+        .expect("the domain declares ekr.ontology.ValueKind under types:")
+        .get("variants")
+        .and_then(serde_yaml_ng::Value::as_sequence)
+        .expect("ekr.ontology.ValueKind is an enumeration")
+        .iter()
+        .map(|variant| variant.as_str().expect("a variant is a name").to_owned())
+        .collect();
+
+    assert_eq!(
+        declared.iter().collect::<BTreeSet<_>>(),
+        crate_value_kinds().iter().collect::<BTreeSet<_>>(),
+        "ekr.ontology.ValueKind and the crate's ValueKind disagree"
+    );
+
+    let projection = fields_of("ekr.ontology.ValueTypeProjection");
+    let mut carried = BTreeSet::new();
+    let mut parameter_carriers = Vec::new();
+    for name in &declared {
+        let kind: ValueKind = serde_json::from_value(serde_json::Value::String(name.clone()))
+            .unwrap_or_else(|error| panic!("{name} is not a ValueKind: {error}"));
+        assert_eq!(
+            &kind.to_string(),
+            name,
+            "{kind:?} displays as its domain name"
+        );
+        let field = carrier(kind);
+        assert!(
+            projection.contains(field),
+            "{name} is carried by ValueTypeProjection.{field}, which the domain does not declare"
+        );
+        carried.insert(field.to_owned());
+        if field != "kind" {
+            parameter_carriers.push(field);
+        }
+    }
+    assert_eq!(
+        carried, projection,
+        "every field of ekr.ontology.ValueTypeProjection carries some kind"
+    );
+    assert_eq!(
+        parameter_carriers.len(),
+        parameter_carriers.iter().collect::<BTreeSet<_>>().len(),
+        "no two compound kinds share a parameter field: {parameter_carriers:?}"
     );
 }
