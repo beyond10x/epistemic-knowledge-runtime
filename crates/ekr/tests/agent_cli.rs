@@ -520,13 +520,26 @@ fn a_store_verb_without_its_configuration_is_a_usage_error_naming_flag_and_varia
         assert!(output.stdout.is_empty());
     }
     // A backend the variable misspells is refused by the variable's name, for a store verb only.
-    let output = ekr()
-        .env("EKR_BACKEND", "bogus")
-        .args(["--host", "host.json", "--store", "store", "head"])
-        .output()
-        .unwrap();
-    assert_eq!(output.status.code(), Some(2));
-    assert!(String::from_utf8_lossy(&output.stderr).contains("EKR_BACKEND"));
+    // Case-sensitive like the flag: `FILE` is refused both ways.
+    for bad in ["bogus", "FILE", "Sqlite"] {
+        let output = ekr()
+            .env("EKR_BACKEND", bad)
+            .args(["--host", "host.json", "--store", "store", "head"])
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(2), "EKR_BACKEND={bad}");
+        assert!(String::from_utf8_lossy(&output.stderr).contains("EKR_BACKEND"));
+        let flag = run(&[
+            "--host",
+            "host.json",
+            "--store",
+            "store",
+            "--backend",
+            bad,
+            "head",
+        ]);
+        assert_eq!(flag.status.code(), Some(2), "--backend {bad}");
+    }
     for verb in [
         &["guide"][..],
         &["operations"],
@@ -1143,6 +1156,184 @@ fn every_byte_string_prints_as_one_base64_string() {
         assert!(
             found.is_empty(),
             "{backend}: byte strings printed as numbers: {found:#?}"
+        );
+    }
+}
+
+// Correction round 2 -------------------------------------------------------------------------
+
+/// The guide with its line breaks folded, so a sentence can be held across a wrap.
+fn guide_prose() -> String {
+    text(&["guide"])
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// The seed's evidence text is readable from a seeded store: `ekr explain` prints each Evidence
+/// link's retained payload as base64 in `payload` and, being UTF-8, as `text`, as OUTPUT says.
+#[test]
+fn explain_prints_each_evidence_payload_as_base64_and_text() {
+    let guide = guide_prose();
+    for sentence in [
+        "`ekr explain` adds two fields to each Evidence link",
+        "`payload`, the evidence's retained bytes as one base64 string",
+        "`text`, the same bytes as a string when they are valid UTF-8",
+    ] {
+        assert!(
+            guide.contains(sentence),
+            "OUTPUT lacks {sentence:?}: {guide}"
+        );
+    }
+    for backend in BACKENDS {
+        let world = World::new(backend);
+        world.seed_from_example();
+        let snapshot = world.ok(&["snapshot"]);
+        for (id, claim) in [
+            (
+                "00000000-0000-4000-8000-000000000510",
+                "Alice is CEO of Acme.",
+            ),
+            (
+                "00000000-0000-4000-8000-000000000511",
+                "Bob became CEO of Acme on 2026-03-12.",
+            ),
+        ] {
+            assert!(snapshot["graph"]["graph"]["assertions"][id].is_object());
+            let explained = world.ok(&["explain", id]);
+            let evidence: Vec<&Value> = explained["links"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|link| link["kind"] == "Evidence")
+                .collect();
+            assert_eq!(evidence.len(), 1, "{backend} {id}: {explained}");
+            assert_eq!(
+                evidence[0]["payload"],
+                base64(claim.as_bytes()),
+                "{explained}"
+            );
+            assert_eq!(evidence[0]["text"], claim, "{explained}");
+        }
+        // Links of other kinds carry no payload.
+        let explained = world.ok(&["explain", "00000000-0000-4000-8000-000000000510"]);
+        for link in explained["links"].as_array().unwrap() {
+            assert_eq!(
+                link.get("payload").is_some(),
+                link["kind"] == "Evidence",
+                "{link}"
+            );
+        }
+    }
+}
+
+/// ASSESSMENT says acceptance is judged at commit, and what an assertion added and retracted in
+/// one transaction becomes: it validates, commits, and reads back Accepted and Retracted.
+#[test]
+fn an_assertion_added_and_retracted_in_one_transaction_commits_as_the_guide_says() {
+    let guide = guide_prose();
+    for sentence in [
+        "Acceptance is judged at commit",
+        "An assertion added and retracted in the same transaction validates and commits, and \
+         reads back Accepted and Retracted.",
+    ] {
+        assert!(
+            guide.contains(sentence),
+            "ASSESSMENT lacks {sentence:?}: {guide}"
+        );
+    }
+    let host: Value = serde_json::from_str(&text(&["example", "ekr.cli-host/1"])).unwrap();
+    let operator = host["context"]["operator"].as_str().unwrap().to_owned();
+    for backend in BACKENDS {
+        let world = World::new(backend);
+        world.seed_from_example();
+        let add = example_operation("AddAssertion");
+        let GraphOperation::AddAssertion(printed) = parse_one(&add) else {
+            unreachable!()
+        };
+        let id = minted("assertion");
+        let add = add.replace(&printed.id.to_string(), &id);
+        let retract = example_operation("RetractAssertion");
+        let GraphOperation::RetractAssertion(printed_retraction) = parse_one(&retract) else {
+            unreachable!()
+        };
+        let retract = retract.replace(&printed_retraction.assertion.to_string(), &id);
+        let evidence = cited(&add);
+        let path = world.file(
+            "add-and-retract.yaml",
+            &document(
+                &minted("transaction"),
+                &operator,
+                &[add, retract],
+                &[evidence[0].as_str()],
+            ),
+        );
+        let transaction = world.ok(&["propose", &path])["transaction_id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert_eq!(world.ok(&["validate", &transaction])["kind"], "Validated");
+        assert_eq!(world.ok(&["commit", &transaction])["kind"], "Committed");
+        let held = &world.ok(&["snapshot"])["graph"]["graph"]["assertions"][&id];
+        assert!(
+            held["assessment"]["Accepted"].is_object(),
+            "{backend}: {held}"
+        );
+        assert!(
+            held["lifecycle"]["Retracted"].is_object(),
+            "{backend}: {held}"
+        );
+    }
+}
+
+/// ASSESSMENT says what happens to an assertion that states its own verdict: propose records
+/// it, validation rejects it with assertion-states-its-own-verdict. No refusal is claimed.
+#[test]
+fn an_assertion_stating_its_own_verdict_is_recorded_then_rejected_as_the_guide_says() {
+    let guide = guide_prose();
+    assert!(
+        guide.contains(
+            "propose records it (exit 0) and validation rejects it with the issue code \
+             assertion-states-its-own-verdict"
+        ),
+        "{guide}"
+    );
+    assert!(!guide.contains("verdict is refused"), "{guide}");
+    let host: Value = serde_json::from_str(&text(&["example", "ekr.cli-host/1"])).unwrap();
+    let operator = host["context"]["operator"].as_str().unwrap().to_owned();
+    let validator = host["context"]["validator"].as_str().unwrap().to_owned();
+    for backend in BACKENDS {
+        let world = World::new(backend);
+        world.seed_from_example();
+        let add = example_operation("AddAssertion");
+        let GraphOperation::AddAssertion(printed) = parse_one(&add) else {
+            unreachable!()
+        };
+        let evidence = cited(&add);
+        let add = add
+            .replace(&printed.id.to_string(), &minted("assertion"))
+            .replace(
+                "  assessment: Proposed",
+                &format!("  assessment: !Accepted\n    validators:\n    - {validator}"),
+            );
+        let transaction = minted("transaction");
+        let path = world.file(
+            "self-accepted.yaml",
+            &document(&transaction, &operator, &[add], &[evidence[0].as_str()]),
+        );
+        let proposed = world.ok(&["propose", &path]);
+        assert_eq!(proposed["transaction_id"], transaction.as_str());
+        let listed = world.ok(&["transactions", "--state", "Proposed"]);
+        assert_eq!(
+            listed[0]["transaction_id"],
+            transaction.as_str(),
+            "{listed}"
+        );
+        let validated = world.ok(&["validate", &transaction]);
+        assert_eq!(validated["kind"], "Rejected", "{backend}: {validated}");
+        assert!(
+            issue_codes(&validated).contains("assertion-states-its-own-verdict"),
+            "{validated}"
         );
     }
 }

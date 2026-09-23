@@ -61,10 +61,15 @@ RELATIONS: CreateEdge, an assertion, or both
   when a reader of the graph's edges should see the relation too.
 
 ASSESSMENT: Proposed -> Accepted
-  Every assertion is proposed with `assessment: Proposed`; one that states its own verdict is
-  refused. It becomes Accepted, with the validator's id, when its transaction is committed after
-  a successful validate. Seeding does the same for the seed's own assertions. Only accepted,
-  active assertions can be retracted or superseded.
+  Write every assertion with `assessment: Proposed`. An assertion written with any other
+  assessment states its own verdict: propose records it (exit 0) and validation rejects it with
+  the issue code assertion-states-its-own-verdict.
+  Acceptance is judged at commit: committing a validated transaction makes each assertion it
+  adds Accepted, with the validator's id, and seeding does the same for the seed's own
+  assertions. RetractAssertion and SupersedeAssertion need an assertion that is accepted and
+  active as of that commit, so one added earlier in the same transaction counts. An assertion
+  added and retracted in the same transaction validates and commits, and reads back Accepted
+  and Retracted.
 
 NOT APPLIED IN P1
   DefineNodeType, DefineEdgeType, ModifyProperty and MergeEntity are not applied in P1: they
@@ -88,9 +93,13 @@ EXIT CODES
   exit 2  a named refusal (its ekr.kernel.* name on stderr, nothing recorded) or a usage error.
 
 OUTPUT
-  guide, operations and example print text; every other verb prints one JSON document. Byte
-  strings (a proposal's document_bytes, the seed's evidence payloads) print as one standard
-  padded base64 string (RFC 4648), not as a number array.
+  guide, operations and example print text; every other verb prints one JSON document.
+  A proposal record's document_bytes (in the results of propose, commit and explain) prints as
+  one standard padded base64 string (RFC 4648), not as a number array.
+  To read the seed's evidence payloads, explain an assertion that cites them: `ekr explain` adds
+  two fields to each Evidence link, `payload`, the evidence's retained bytes as one base64 string, and `text`, the
+  same bytes as a string when they are valid UTF-8 (absent otherwise). No other verb prints a
+  payload.
 ";
 
 /// One `ekr.kernel.OperationKind`: a `GraphOperation` variant, by its YAML tag.

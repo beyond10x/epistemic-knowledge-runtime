@@ -287,7 +287,7 @@ pub fn execute(
         }
         Command::Explain { assertion_id } => {
             let runtime = configured.resolve("explain")?.open()?;
-            render(&explain::run(runtime, assertion_id)?)
+            render(&explain::run(&runtime, assertion_id)?)
         }
         Command::Head => render(&head::run(&configured.resolve("head")?.open()?)?),
         Command::Transactions { state } => {
@@ -340,14 +340,14 @@ impl Configured {
         let backend = match self.backend {
             Some(backend) => Some(backend),
             None => match std::env::var("EKR_BACKEND") {
-                Ok(value) if !value.is_empty() => {
-                    Some(Backend::from_str(&value, true).map_err(|_| Failure::Usage {
+                Ok(value) if !value.is_empty() => Some(Backend::from_str(&value, false).map_err(
+                    |_| Failure::Usage {
                         message: format!(
-                            "ekr: EKR_BACKEND={value:?} is not a backend (file or sqlite) for \
-                             `{verb}`; --backend overrides it"
+                            "ekr: EKR_BACKEND={value:?} is not a backend (`file` or `sqlite`, \
+                             lowercase, as for --backend) for `{verb}`"
                         ),
-                    })?)
-                }
+                    },
+                )?),
                 Ok(_) | Err(std::env::VarError::NotPresent) => None,
                 Err(std::env::VarError::NotUnicode(_)) => {
                     return Err(Failure::Usage {
@@ -400,17 +400,14 @@ fn render(result: &impl Serialize) -> Result<String, Failure> {
     Ok(text)
 }
 
-/// The byte-string fields of the kernel's records: `ProposalRecordV1.document_bytes` and the
-/// values of `SeedDocument.evidence_payloads`, wherever a result nests them.
+/// The one byte-string field any verb's result carries: `ProposalRecordV1.document_bytes`,
+/// wherever a result nests a proposal record (propose, commit and explain).
 fn bytes_as_base64(value: &mut serde_json::Value) {
     match value {
         serde_json::Value::Object(map) => {
             for (key, item) in map.iter_mut() {
                 match (key.as_str(), item) {
                     ("document_bytes", item) => encode(item),
-                    ("evidence_payloads", serde_json::Value::Object(payloads)) => {
-                        payloads.values_mut().for_each(encode);
-                    }
                     (_, item) => bytes_as_base64(item),
                 }
             }
@@ -435,7 +432,7 @@ fn encode(value: &mut serde_json::Value) {
 }
 
 /// Standard padded base64 (RFC 4648 § 4).
-fn base64(bytes: &[u8]) -> String {
+pub(super) fn base64(bytes: &[u8]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
     for chunk in bytes.chunks(3) {

@@ -63,6 +63,27 @@ fn document_bytes_as_base64(value: &mut Value) {
     }
 }
 
+/// The explanation as the CLI prints it (`ekr guide`, OUTPUT): each Evidence link gains
+/// `payload`, its retained bytes read through `Runtime::content` as base64, and `text` when
+/// those bytes are UTF-8. Every other field of every link is compared unchanged.
+fn evidence_as_printed(runtime: &Runtime, value: &mut Value) {
+    for link in value["links"].as_array_mut().expect("links") {
+        if link["kind"] != "Evidence" {
+            continue;
+        }
+        let hash: ekr_core::ContentHash = link["content_hash"].as_str().unwrap().parse().unwrap();
+        let bytes = runtime.content(&hash).unwrap().expect("retained payload");
+        let mut encoded = Value::Array(bytes.iter().map(|b| Value::from(*b)).collect());
+        let mut wrapper = serde_json::json!({ "document_bytes": encoded.take() });
+        document_bytes_as_base64(&mut wrapper);
+        let fields = link.as_object_mut().unwrap();
+        fields.insert("payload".to_owned(), wrapper["document_bytes"].take());
+        if let Ok(text) = String::from_utf8(bytes) {
+            fields.insert("text".to_owned(), Value::String(text));
+        }
+    }
+}
+
 fn fixture(name: &str) -> PathBuf {
     let manifest = std::env::var("CARGO_MANIFEST_DIR")
         .expect("cargo sets CARGO_MANIFEST_DIR for a test process at run time");
@@ -166,6 +187,7 @@ impl World {
         let read = self.runtime().read(None).unwrap();
         let mut value = serde_json::to_value(read.explain(id).unwrap()).unwrap();
         document_bytes_as_base64(&mut value);
+        evidence_as_printed(&self.runtime(), &mut value);
         value
     }
 
