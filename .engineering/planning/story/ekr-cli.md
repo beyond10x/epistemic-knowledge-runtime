@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:ekr-cli
 kind: story
-status: active
+status: implemented
 title: 'The ekr binary: seed, propose, validate, commit, snapshot, explain'
 relations:
 - decomposes: epic:p1-kernel-ontology-core
@@ -31,7 +31,7 @@ scope:
   path: crates/ekr/tests/retraction_example.rs
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 14
+revision: 15
 ---
 ## Context
 
