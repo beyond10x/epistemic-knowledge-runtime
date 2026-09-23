@@ -1333,8 +1333,6 @@ views:
   - name: ekr.kernel.CurrentRevision
     source: ekr.kernel.Revision
     consistency: read_your_writes
-    order_by:
-      - number desc
     fields:
       - name: revision_id
         type: ekr.kernel.RevisionId
