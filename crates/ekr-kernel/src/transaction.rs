@@ -524,8 +524,8 @@ fn canonical_operation(
     })
 }
 
-/// One claim, with the value its object may carry made admissible and its two node references
-/// minted.
+/// One claim, with the value its object may carry made admissible and its references — node, edge
+/// and evidence, since wave p1-14 — minted.
 ///
 /// **This is the only place in the workspace where a [`CanonicalRef`] is minted from a proposal's
 /// id**, and it is reached only from [`Pipeline::validate`](crate::Pipeline::validate) after every
@@ -542,7 +542,7 @@ fn canonical_assertion(
         root_id: assertion.root_id,
         subject: match assertion.subject {
             Subject::Node(node) => Subject::Node(CanonicalRef::new(node)),
-            Subject::Edge(edge) => Subject::Edge(edge),
+            Subject::Edge(edge) => Subject::Edge(CanonicalRef::new(edge)),
             Subject::Type(type_id) => Subject::Type(type_id),
         },
         predicate: assertion.predicate,
@@ -551,7 +551,11 @@ fn canonical_assertion(
             Object::Node(node) => Object::Node(CanonicalRef::new(node)),
             Object::Type(type_id) => Object::Type(type_id),
         },
-        evidence: assertion.evidence,
+        evidence: assertion
+            .evidence
+            .into_iter()
+            .map(CanonicalRef::new)
+            .collect(),
         proposed_by: assertion.proposed_by,
         assessment: assertion.assessment,
         lifecycle: assertion.lifecycle,

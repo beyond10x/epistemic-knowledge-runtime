@@ -207,7 +207,7 @@ impl VerifiedRead {
                 return unverified("replacement-assertion-missing");
             };
             links.push(ExplanationLink::Assertion(assertion.clone()));
-            support.extend(assertion.evidence.iter().copied());
+            support.extend(assertion.evidence.iter().map(|cited| cited.id()));
 
             let origins: Vec<&Committed<'_>> = committed
                 .iter()

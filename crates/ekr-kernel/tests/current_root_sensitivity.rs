@@ -118,7 +118,12 @@ fn canonical(tx: &GraphTransaction) -> GraphTransaction<CanonicalValue> {
                     subject: Subject::Node(CanonicalRef::new(node)),
                     predicate: assertion.predicate,
                     object: Object::Value(string(value)),
-                    evidence: assertion.evidence.clone(),
+                    evidence: assertion
+                        .evidence
+                        .iter()
+                        .copied()
+                        .map(CanonicalRef::new)
+                        .collect(),
                     proposed_by: assertion.proposed_by,
                     assessment: assertion.assessment.clone(),
                     lifecycle: assertion.lifecycle.clone(),

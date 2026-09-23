@@ -1,0 +1,170 @@
+error[E0277]: the trait bound `ekr_graph::Observation: CanonicalTarget` is not satisfied
+  --> tests/compile_fail/a_canonical_reference_targets_only_what_canonical_state_holds.rs:10:25
+   |
+10 | fn to_an_observation(_: CanonicalRef<Observation>) {}
+   |                         ^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `CanonicalTarget` is not implemented for `ekr_graph::Observation`
+   |
+help: the following other types implement trait `CanonicalTarget`
+  --> src/canonical.rs
+   |
+   |               impl CanonicalTarget for $type {
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |               |
+   |               `ekr_graph::Assertion`
+   |               `ekr_graph::Edge`
+   |               `ekr_graph::Evidence`
+   |               `ekr_graph::Node`
+...
+   | / canonical_target!(
+   | |     Node => NodeId, nodes;
+   | |     Edge => EdgeId, edges;
+   | |     Assertion => AssertionId, assertions;
+   | |     Evidence => EvidenceId, evidence;
+   | | );
+   | |_- in this macro invocation
+note: required by a bound in `CanonicalRef`
+  --> src/canonical.rs
+   |
+   | pub struct CanonicalRef<T: CanonicalTarget> {
+   |                            ^^^^^^^^^^^^^^^ required by this bound in `CanonicalRef`
+   = note: this error originates in the macro `canonical_target` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Support: CanonicalTarget` is not satisfied
+  --> tests/compile_fail/a_canonical_reference_targets_only_what_canonical_state_holds.rs:12:20
+   |
+12 | fn to_a_support(_: CanonicalRef<Support>) {}
+   |                    ^^^^^^^^^^^^^^^^^^^^^ the trait `CanonicalTarget` is not implemented for `Support`
+   |
+help: the following other types implement trait `CanonicalTarget`
+  --> src/canonical.rs
+   |
+   |               impl CanonicalTarget for $type {
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |               |
+   |               `ekr_graph::Assertion`
+   |               `ekr_graph::Edge`
+   |               `ekr_graph::Evidence`
+   |               `ekr_graph::Node`
+...
+   | / canonical_target!(
+   | |     Node => NodeId, nodes;
+   | |     Edge => EdgeId, edges;
+   | |     Assertion => AssertionId, assertions;
+   | |     Evidence => EvidenceId, evidence;
+   | | );
+   | |_- in this macro invocation
+note: required by a bound in `CanonicalRef`
+  --> src/canonical.rs
+   |
+   | pub struct CanonicalRef<T: CanonicalTarget> {
+   |                            ^^^^^^^^^^^^^^^ required by this bound in `CanonicalRef`
+   = note: this error originates in the macro `canonical_target` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `ekr_graph::GraphRoot: CanonicalTarget` is not satisfied
+  --> tests/compile_fail/a_canonical_reference_targets_only_what_canonical_state_holds.rs:14:23
+   |
+14 | fn to_a_graph_root(_: CanonicalRef<GraphRoot>) {}
+   |                       ^^^^^^^^^^^^^^^^^^^^^^^ the trait `CanonicalTarget` is not implemented for `ekr_graph::GraphRoot`
+   |
+help: the following other types implement trait `CanonicalTarget`
+  --> src/canonical.rs
+   |
+   |               impl CanonicalTarget for $type {
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |               |
+   |               `ekr_graph::Assertion`
+   |               `ekr_graph::Edge`
+   |               `ekr_graph::Evidence`
+   |               `ekr_graph::Node`
+...
+   | / canonical_target!(
+   | |     Node => NodeId, nodes;
+   | |     Edge => EdgeId, edges;
+   | |     Assertion => AssertionId, assertions;
+   | |     Evidence => EvidenceId, evidence;
+   | | );
+   | |_- in this macro invocation
+note: required by a bound in `CanonicalRef`
+  --> src/canonical.rs
+   |
+   | pub struct CanonicalRef<T: CanonicalTarget> {
+   |                            ^^^^^^^^^^^^^^^ required by this bound in `CanonicalRef`
+   = note: this error originates in the macro `canonical_target` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `ekr_graph::Observation: CanonicalTarget` is not satisfied
+  --> tests/compile_fail/a_canonical_reference_targets_only_what_canonical_state_holds.rs:10:22
+   |
+10 | fn to_an_observation(_: CanonicalRef<Observation>) {}
+   |                      ^ the trait `CanonicalTarget` is not implemented for `ekr_graph::Observation`
+   |
+help: the following other types implement trait `CanonicalTarget`
+  --> src/canonical.rs
+   |
+   |               impl CanonicalTarget for $type {
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |               |
+   |               `ekr_graph::Assertion`
+   |               `ekr_graph::Edge`
+   |               `ekr_graph::Evidence`
+   |               `ekr_graph::Node`
+...
+   | / canonical_target!(
+   | |     Node => NodeId, nodes;
+   | |     Edge => EdgeId, edges;
+   | |     Assertion => AssertionId, assertions;
+   | |     Evidence => EvidenceId, evidence;
+   | | );
+   | |_- in this macro invocation
+   = note: this error originates in the macro `canonical_target` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Support: CanonicalTarget` is not satisfied
+  --> tests/compile_fail/a_canonical_reference_targets_only_what_canonical_state_holds.rs:12:17
+   |
+12 | fn to_a_support(_: CanonicalRef<Support>) {}
+   |                 ^ the trait `CanonicalTarget` is not implemented for `Support`
+   |
+help: the following other types implement trait `CanonicalTarget`
+  --> src/canonical.rs
+   |
+   |               impl CanonicalTarget for $type {
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |               |
+   |               `ekr_graph::Assertion`
+   |               `ekr_graph::Edge`
+   |               `ekr_graph::Evidence`
+   |               `ekr_graph::Node`
+...
+   | / canonical_target!(
+   | |     Node => NodeId, nodes;
+   | |     Edge => EdgeId, edges;
+   | |     Assertion => AssertionId, assertions;
+   | |     Evidence => EvidenceId, evidence;
+   | | );
+   | |_- in this macro invocation
+   = note: this error originates in the macro `canonical_target` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `ekr_graph::GraphRoot: CanonicalTarget` is not satisfied
+  --> tests/compile_fail/a_canonical_reference_targets_only_what_canonical_state_holds.rs:14:20
+   |
+14 | fn to_a_graph_root(_: CanonicalRef<GraphRoot>) {}
+   |                    ^ the trait `CanonicalTarget` is not implemented for `ekr_graph::GraphRoot`
+   |
+help: the following other types implement trait `CanonicalTarget`
+  --> src/canonical.rs
+   |
+   |               impl CanonicalTarget for $type {
+   |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |               |
+   |               `ekr_graph::Assertion`
+   |               `ekr_graph::Edge`
+   |               `ekr_graph::Evidence`
+   |               `ekr_graph::Node`
+...
+   | / canonical_target!(
+   | |     Node => NodeId, nodes;
+   | |     Edge => EdgeId, edges;
+   | |     Assertion => AssertionId, assertions;
+   | |     Evidence => EvidenceId, evidence;
+   | | );
+   | |_- in this macro invocation
+   = note: this error originates in the macro `canonical_target` (in Nightly builds, run with -Z macro-backtrace for more info)

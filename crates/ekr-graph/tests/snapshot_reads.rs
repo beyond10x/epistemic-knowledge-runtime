@@ -109,7 +109,7 @@ fn fixture() -> Fixture {
                 subject: Subject::Node(CanonicalRef::new(subject)),
                 predicate: Predicate::Relation(ceo_of),
                 object: Object::Node(CanonicalRef::new(acme)),
-                evidence: BTreeSet::from([EvidenceId::mint()]),
+                evidence: BTreeSet::from([CanonicalRef::new(EvidenceId::mint())]),
                 proposed_by: proposer,
                 assessment: accepted(),
                 lifecycle,

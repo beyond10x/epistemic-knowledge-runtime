@@ -46,7 +46,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::assertion::Assertion;
 use crate::edge::Edge;
-use crate::evidence::{Evidence, Observation, Support};
+use crate::evidence::Evidence;
 use crate::node::Node;
 use crate::root::GraphRoot;
 use crate::value::CanonicalValue;
@@ -86,34 +86,59 @@ pub(crate) mod sealed {
 /// [`LocalRef`](crate::LocalRef) and [`TransientGraph`](crate::TransientGraph) are not among them
 /// and cannot be added from outside.
 ///
-/// # And the marker does not do that job yet
+/// # Each kind names its id, and the map canonical state keeps it in
 ///
-/// `task:canonical-reference-holds-a-node-id-for-every-target`. [`CanonicalRef<T>`] stores a
-/// [`NodeId`] for **all seven** of the types below, and [`CanonicalGraph::resolve`] looks it up in
-/// the `nodes` map — so a `CanonicalRef<Evidence>` answers a node. Exactly one of the seven,
-/// `Node`, has a caller; the other six are available and wrong. Wave p1-06 made this marker the
-/// bound on five implementations canonical state is now made of, which is why the task exists and
-/// why it is worth more than it was. `crates/ekr-graph/tests/adversary_p1_06_reference_markers.rs`
-/// is that measured.
-pub trait CanonicalTarget: sealed::SealedTarget {}
+/// `task:canonical-reference-holds-a-node-id-for-every-target`. [`CanonicalRef<T>`] used to store
+/// a [`NodeId`] for all seven types this trait was implemented for, and [`CanonicalGraph::resolve`]
+/// looked every one of them up in the `nodes` map — so a `CanonicalRef<Evidence>` answered a node.
+/// [`Id`](Self::Id) is what the reference now holds, and [`held_in`](Self::held_in) is the map
+/// `resolve` reads for the kind, so the marker is no longer decoration on the one operation that
+/// reads it. `crates/ekr-graph/tests/adversary_p1_06_reference_markers.rs` asserts that, and
+/// `tests/compile_fail/a_canonical_reference_holds_the_id_of_its_kind.rs` that a node id does not
+/// make a reference to evidence.
+///
+/// **Four kinds, because canonical state keeps four maps.** `Observation`, `Support` and
+/// `GraphRoot` were targets too, and [`CanonicalGraph`] holds none of them by id: observations are
+/// not canonical state (design § 15), a support is not stored beside the assertion it joins, and a
+/// graph has one root, which the kernel's reference validator resolves as an equality. A reference
+/// nothing can resolve is not one canonical state can depend on, so they are not targets;
+/// `tests/compile_fail/a_canonical_reference_targets_only_what_canonical_state_holds.rs` holds it.
+pub trait CanonicalTarget: sealed::SealedTarget {
+    /// The id a reference to this kind holds.
+    type Id: Canonical
+        + Copy
+        + std::fmt::Debug
+        + std::fmt::Display
+        + Eq
+        + Ord
+        + Hash
+        + Serialize
+        + serde::de::DeserializeOwned;
+
+    /// The entity of this kind `graph` holds under `id`, from the map it keeps this kind in.
+    fn held_in(graph: &CanonicalGraph, id: Self::Id) -> Option<&Self>;
+}
 
 macro_rules! canonical_target {
-    ($($type:ty),+ $(,)?) => {
+    ($($type:ty => $id:ty, $map:ident);+ $(;)?) => {
         $(
             impl sealed::SealedTarget for $type {}
-            impl CanonicalTarget for $type {}
+            impl CanonicalTarget for $type {
+                type Id = $id;
+
+                fn held_in(graph: &CanonicalGraph, id: $id) -> Option<&Self> {
+                    graph.$map.get(&id)
+                }
+            }
         )+
     };
 }
 
 canonical_target!(
-    Node,
-    Edge,
-    Assertion,
-    Evidence,
-    Observation,
-    Support,
-    GraphRoot
+    Node => NodeId, nodes;
+    Edge => EdgeId, edges;
+    Assertion => AssertionId, assertions;
+    Evidence => EvidenceId, evidence;
 );
 
 /// The side of the membrane a graph's entities are on, and therefore the reference they hold.
@@ -158,17 +183,60 @@ pub trait ValueSpace: sealed::SealedSpace {
     /// `tests/validate_properties.rs` builds one proposal generator for both spaces and is what
     /// needs it.
     fn node_ref(node: NodeId) -> Self::NodeRef;
+
+    /// The reference an edge-valued field carries in this space: the edge arm of an assertion's
+    /// [`Subject`](crate::Subject).
+    type EdgeRef: Canonical
+        + Copy
+        + std::fmt::Debug
+        + Eq
+        + Ord
+        + Hash
+        + Serialize
+        + serde::de::DeserializeOwned;
+
+    /// This space's reference to `edge`. Minting it is not resolving it, as for
+    /// [`node_ref`](Self::node_ref).
+    fn edge_ref(edge: EdgeId) -> Self::EdgeRef;
+
+    /// The reference an assertion's [`evidence`](crate::Assertion::evidence) holds in this space.
+    ///
+    /// AGENTS.md invariant 2 names evidence by kind — "canonical knowledge depends only on
+    /// canonical knowledge or retained admissible evidence" — so the one dependency the invariant
+    /// spells out is typed like the others.
+    type EvidenceRef: Canonical
+        + Copy
+        + std::fmt::Debug
+        + Eq
+        + Ord
+        + Hash
+        + Serialize
+        + serde::de::DeserializeOwned;
+
+    /// This space's reference to `evidence`. Minting it is not resolving it, as for
+    /// [`node_ref`](Self::node_ref).
+    fn evidence_ref(evidence: EvidenceId) -> Self::EvidenceRef;
 }
 
 impl sealed::SealedSpace for CanonicalValue {}
 
 impl ValueSpace for CanonicalValue {
     type NodeRef = CanonicalRef<Node>;
+    type EdgeRef = CanonicalRef<Edge>;
+    type EvidenceRef = CanonicalRef<Evidence>;
 
     // Spelled out rather than `Self::NodeRef`, which is ambiguous here: `CanonicalValue` has a
     // variant of that name, and it is the one this associated type exists to have parameterised.
     fn node_ref(node: NodeId) -> CanonicalRef<Node> {
         CanonicalRef::new(node)
+    }
+
+    fn edge_ref(edge: EdgeId) -> CanonicalRef<Edge> {
+        CanonicalRef::new(edge)
+    }
+
+    fn evidence_ref(evidence: EvidenceId) -> CanonicalRef<Evidence> {
+        CanonicalRef::new(evidence)
     }
 }
 
@@ -176,9 +244,19 @@ impl sealed::SealedSpace for ekr_ontology::Value {}
 
 impl ValueSpace for ekr_ontology::Value {
     type NodeRef = NodeId;
+    type EdgeRef = EdgeId;
+    type EvidenceRef = EvidenceId;
 
     fn node_ref(node: NodeId) -> NodeId {
         node
+    }
+
+    fn edge_ref(edge: EdgeId) -> EdgeId {
+        edge
+    }
+
+    fn evidence_ref(evidence: EvidenceId) -> EvidenceId {
+        evidence
     }
 }
 
@@ -189,36 +267,56 @@ impl ValueSpace for ekr_ontology::Value {
 /// `CanonicalGraph -> TransientRef` should exist", and a bound is how that is said to the
 /// compiler rather than to a reviewer.
 pub trait CanonicalDependency: sealed::Sealed {
-    /// The node the reference points at.
-    fn node(&self) -> NodeId;
+    /// The kind of thing the reference points at.
+    type Target: CanonicalTarget;
+
+    /// The id of what the reference points at, typed by its kind.
+    fn id(&self) -> <Self::Target as CanonicalTarget>::Id;
 }
 
 /// A reference into canonical state, parameterised by what it points at.
 ///
 /// Design § 23. `T` is a marker and carries no data: it is what keeps a reference to one kind of
-/// thing out of a slot that wants another, at compile time. The [`PhantomData`] is
-/// `fn() -> T` rather than `T`, so the reference is [`Copy`], [`Send`] and [`Sync`] whatever `T`
-/// is — a reference is an id, and an id has no ownership of the thing it names.
-#[derive(Debug)]
+/// thing out of a slot that wants another, at compile time, and it names the id the reference
+/// holds — [`CanonicalTarget::Id`]. The [`PhantomData`] is `fn() -> T` rather than `T`, so the
+/// reference is [`Copy`], [`Send`] and [`Sync`] whatever `T` is — a reference is an id, and an id
+/// has no ownership of the thing it names.
 pub struct CanonicalRef<T: CanonicalTarget> {
-    node: NodeId,
+    id: T::Id,
     marker: PhantomData<fn() -> T>,
 }
 
 impl<T: CanonicalTarget> CanonicalRef<T> {
-    /// A reference to `node`.
+    /// A reference to the entity of kind `T` with `id`.
     #[must_use]
-    pub const fn new(node: NodeId) -> Self {
+    pub const fn new(id: T::Id) -> Self {
         Self {
-            node,
+            id,
             marker: PhantomData,
         }
     }
 
-    /// The node it points at.
+    /// The id of what it points at.
+    #[must_use]
+    pub const fn id(&self) -> T::Id {
+        self.id
+    }
+}
+
+impl CanonicalRef<Node> {
+    /// The node it points at: [`id`](Self::id), under the name a node reference's callers use.
     #[must_use]
     pub const fn node(&self) -> NodeId {
-        self.node
+        self.id
+    }
+}
+
+// By hand rather than derived, for the reason [`Clone`] is: `derive` would bound `T`.
+impl<T: CanonicalTarget> std::fmt::Debug for CanonicalRef<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CanonicalRef")
+            .field("id", &self.id)
+            .finish()
     }
 }
 
@@ -234,7 +332,7 @@ impl<T: CanonicalTarget> Copy for CanonicalRef<T> {}
 
 impl<T: CanonicalTarget> PartialEq for CanonicalRef<T> {
     fn eq(&self, other: &Self) -> bool {
-        self.node == other.node
+        self.id == other.id
     }
 }
 
@@ -252,51 +350,54 @@ impl<T: CanonicalTarget> PartialOrd for CanonicalRef<T> {
 
 impl<T: CanonicalTarget> Ord for CanonicalRef<T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.node.cmp(&other.node)
+        self.id.cmp(&other.id)
     }
 }
 
 impl<T: CanonicalTarget> Hash for CanonicalRef<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.node.hash(state);
+        self.id.hash(state);
     }
 }
 
 /// The id it wraps, and nothing else: the wire shape of canonical state is unchanged by this type
 /// existing.
 ///
-/// ADR 0008 states the serde boundary rather than hiding it. A stored document carries node ids,
-/// and a reference read out of one is a reference the *caller* named the type of — so the
-/// guarantee this type carries holds inside Rust and stops there. Which path the id arrived by
-/// decides which validator resolves it. Both transaction and bootstrap admission belong to the
-/// kernel; see this module's header.
+/// ADR 0008 states the serde boundary rather than hiding it. A stored document carries ids, and a
+/// reference read out of one is a reference the *caller* named the type of — so the guarantee this
+/// type carries holds inside Rust and stops there. Which path the id arrived by decides which
+/// validator resolves it. Both transaction and bootstrap admission belong to the kernel; see this
+/// module's header.
 impl<T: CanonicalTarget> Serialize for CanonicalRef<T> {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        self.node.serialize(serializer)
+        self.id.serialize(serializer)
     }
 }
 
 impl<'de, T: CanonicalTarget> Deserialize<'de> for CanonicalRef<T> {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        NodeId::deserialize(deserializer).map(Self::new)
+        T::Id::deserialize(deserializer).map(Self::new)
     }
 }
 
 impl<T: CanonicalTarget> Canonical for CanonicalRef<T> {
     /// The id, structurally: rule 5 of `ekr_core::canonical` makes a newtype structural, and this
-    /// is one. **Every address that contained a `NodeId` before ADR 0008 contains the same bytes
-    /// after it** — the marker is a [`PhantomData`] and is not encoded, because what a reference
-    /// points at is the node and not the slot it sits in.
+    /// is one. **Every address that contained a bare id before ADR 0008 and wave p1-14 contains the
+    /// same bytes after them** — the marker is a [`PhantomData`] and is not encoded, and every id
+    /// type of `ekr_core` encodes as its tagged sixteen bytes, so a `CanonicalRef<Evidence>`
+    /// encodes exactly as the `EvidenceId` it replaced.
     fn encode(&self, out: &mut Encoder) {
-        self.node.encode(out);
+        self.id.encode(out);
     }
 }
 
 impl<T: CanonicalTarget> sealed::Sealed for CanonicalRef<T> {}
 
 impl<T: CanonicalTarget> CanonicalDependency for CanonicalRef<T> {
-    fn node(&self) -> NodeId {
-        self.node
+    type Target = T;
+
+    fn id(&self) -> T::Id {
+        self.id
     }
 }
 
@@ -328,14 +429,15 @@ pub struct CanonicalGraph {
 }
 
 impl CanonicalGraph {
-    /// The node a canonical reference points at, or `None` if this state does not hold it.
+    /// What a canonical reference points at, from the map this state keeps its kind in, or `None`
+    /// if this state does not hold it.
     ///
     /// The bound is the membrane: a [`TransientRef`](crate::TransientRef) is not a
     /// [`CanonicalDependency`], so this does not compile for one. A dangling canonical reference
     /// is a different thing from a forbidden one, and is answered with `None` — the reference
     /// validator of design § 20 is what refuses it at commit time.
     #[must_use]
-    pub fn resolve<R: CanonicalDependency>(&self, reference: &R) -> Option<&Node> {
-        self.nodes.get(&reference.node())
+    pub fn resolve<R: CanonicalDependency>(&self, reference: &R) -> Option<&R::Target> {
+        R::Target::held_in(self, reference.id())
     }
 }

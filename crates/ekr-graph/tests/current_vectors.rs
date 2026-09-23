@@ -60,7 +60,7 @@ fn base_assertion() -> Assertion {
         subject: Subject::Node(CanonicalRef::new(id::<NodeId>(0x12))),
         predicate: Predicate::Property(id::<PropertyId>(0x13)),
         object: Object::Value(CanonicalValue::String("fixed".into())),
-        evidence: BTreeSet::from([id::<EvidenceId>(0x14)]),
+        evidence: BTreeSet::from([CanonicalRef::new(id::<EvidenceId>(0x14))]),
         proposed_by: id(0x15),
         assessment: Assessment::Proposed,
         lifecycle: AssertionLifecycle::Active,

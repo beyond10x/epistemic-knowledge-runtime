@@ -96,7 +96,7 @@ impl World {
             object: Object::Value(CanonicalValue::String(
                 "Adopt the eventlog store".to_owned(),
             )),
-            evidence: [retained_evidence].into_iter().collect(),
+            evidence: [CanonicalRef::new(retained_evidence)].into_iter().collect(),
             proposed_by: proposer,
             lifecycle: ekr_graph::AssertionLifecycle::Active,
             assessment: Assessment::Accepted {

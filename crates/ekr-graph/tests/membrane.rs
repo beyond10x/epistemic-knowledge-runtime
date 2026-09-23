@@ -207,8 +207,8 @@ fn a_canonical_reference_is_the_only_canonical_dependency() {
     let node = NodeId::mint();
     let reference: CanonicalRef<Node> = CanonicalRef::new(node);
 
-    fn only_canonical<R: CanonicalDependency>(reference: &R) -> NodeId {
-        reference.node()
+    fn only_canonical<R: CanonicalDependency<Target = Node>>(reference: &R) -> NodeId {
+        reference.id()
     }
 
     assert_eq!(only_canonical(&reference), node);
@@ -216,10 +216,12 @@ fn a_canonical_reference_is_the_only_canonical_dependency() {
 
 /// Every guarantee in `tests/compile_fail/`, as a build failure rather than a review comment.
 ///
-/// The directory is globbed, so a case added there is run without this file changing. Four today:
-/// three about which references canonical state may hold, and one about which state has a content
-/// address. Each names in its own doc comment what it is about; this case asserts only that each
-/// fails to compile with the message recorded beside it.
+/// The directory is globbed, so a case added there is run without this file changing. Eight today:
+/// seven about which references canonical state may hold — four of them added by wave p1-14: a
+/// reference holds its own kind's id, a subject's edge arm and an assertion's evidence are
+/// canonical references, and the kinds canonical state keeps no map of are not targets — and one
+/// about which state has a content address. Each names in its own doc comment what it is about;
+/// this case asserts only that each fails to compile with the message recorded beside it.
 #[test]
 fn the_membrane_is_a_set_of_build_failures() {
     let cases = trybuild::TestCases::new();

@@ -52,7 +52,10 @@ fn assertion(
         subject,
         predicate,
         object,
-        evidence: BTreeSet::from([EvidenceId::mint(), EvidenceId::mint()]),
+        evidence: BTreeSet::from([
+            CanonicalRef::new(EvidenceId::mint()),
+            CanonicalRef::new(EvidenceId::mint()),
+        ]),
         proposed_by: AgentId::mint(),
         assessment,
         lifecycle: AssertionLifecycle::Active,
@@ -66,7 +69,7 @@ fn assertion(
 fn every_shape() -> Vec<Assertion> {
     let subjects = [
         Subject::Node(CanonicalRef::new(NodeId::mint())),
-        Subject::Edge(EdgeId::mint()),
+        Subject::Edge(CanonicalRef::new(EdgeId::mint())),
         Subject::Type(TypeId::mint()),
     ];
     let predicates = [

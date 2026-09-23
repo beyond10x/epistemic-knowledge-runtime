@@ -32,6 +32,12 @@
 //! marker is bounded by the sealed [`CanonicalTarget`], so `CanonicalRef<TransientRef<Node>>` is
 //! not a type. `tests/compile_fail/` holds all three.
 //!
+//! Every kind of reference canonical state holds goes through that machinery, since wave p1-14:
+//! a [`CanonicalRef<T>`] holds [`CanonicalTarget::Id`] for its kind and resolves against that
+//! kind's map, and [`Subject::Edge`] and [`Assertion::evidence`] are canonical references in
+//! canonical state, so neither a bare id nor a [`TransientRef`] inhabits them. One compile-fail
+//! case per kind holds it, beside the three above.
+//!
 //! # The address is a type too
 //!
 //! `architecture-decision-record:0005-float-is-not-canonical`, as amended: [`Node`], [`Edge`] and

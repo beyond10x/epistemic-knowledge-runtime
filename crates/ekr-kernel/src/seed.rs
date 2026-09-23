@@ -402,12 +402,16 @@ fn narrow_assertion(
         root_id: assertion.root_id,
         subject: match assertion.subject {
             Subject::Node(node) => Subject::Node(CanonicalRef::new(node)),
-            Subject::Edge(edge) => Subject::Edge(edge),
+            Subject::Edge(edge) => Subject::Edge(CanonicalRef::new(edge)),
             Subject::Type(type_id) => Subject::Type(type_id),
         },
         predicate: assertion.predicate,
         object,
-        evidence: assertion.evidence,
+        evidence: assertion
+            .evidence
+            .into_iter()
+            .map(CanonicalRef::new)
+            .collect(),
         proposed_by: assertion.proposed_by,
         assessment: assertion.assessment,
         lifecycle: assertion.lifecycle,

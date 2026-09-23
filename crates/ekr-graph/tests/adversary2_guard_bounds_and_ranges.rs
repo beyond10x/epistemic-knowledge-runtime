@@ -389,7 +389,7 @@ fn accepted_assertion(valid_time: TemporalRange, transaction_time: TransactionTi
         subject: Subject::Node(CanonicalRef::new(NodeId::mint())),
         predicate: Predicate::Relation(TypeId::mint()),
         object: Object::Node(CanonicalRef::new(NodeId::mint())),
-        evidence: BTreeSet::from([EvidenceId::mint()]),
+        evidence: BTreeSet::from([CanonicalRef::new(EvidenceId::mint())]),
         proposed_by: AgentId::mint(),
         assessment: Assessment::Accepted {
             validators: [AgentId::mint()].into_iter().collect(),

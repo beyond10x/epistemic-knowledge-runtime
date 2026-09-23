@@ -5,45 +5,50 @@ use std::collections::BTreeSet;
 
 use ekr_core::canonical::{Canonical, Encoder};
 use ekr_core::{
-    AgentId, AssertionId, EdgeId, EvidenceId, GraphRootId, IssueId, PropertyId, RevisionNumber,
-    Timestamp, TypeId,
+    AgentId, AssertionId, GraphRootId, IssueId, PropertyId, RevisionNumber, Timestamp, TypeId,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::canonical::{CanonicalRef, ValueSpace};
+use crate::edge::Edge;
 use crate::node::Node;
 use crate::value::CanonicalValue;
 
 /// What an assertion is about: `ekr.graph.SubjectKind` plus the identity it names.
 ///
-/// Generic over the reference its node arm carries, defaulting to
-/// [`CanonicalRef<Node>`](crate::CanonicalRef):
-/// `architecture-decision-record:0008-canonical-state-references-are-typed`. The parameter is the
-/// *reference* and not the value, because that is all this type holds — an
-/// [`Assertion`] instantiates it as `Subject<V::NodeRef>` for the space its value belongs to, and
-/// a canonical claim about a candidate is therefore not a value of this type.
+/// Generic over the references its node and edge arms carry, defaulting to
+/// [`CanonicalRef<Node>`](crate::CanonicalRef) and [`CanonicalRef<Edge>`](crate::CanonicalRef):
+/// `architecture-decision-record:0008-canonical-state-references-are-typed`. The parameters are
+/// *references* and not the value, because that is all this type holds — an
+/// [`Assertion`] instantiates it as `Subject<V::NodeRef, V::EdgeRef>` for the space its value
+/// belongs to, and a canonical claim about a candidate is therefore not a value of this type.
+///
+/// The edge arm was a bare [`EdgeId`](ekr_core::EdgeId) until wave p1-14, beside a typed node arm in the same enum:
+/// a canonical claim about an edge was written with an id, and the kernel refused a dangling one
+/// at commit time rather than the type refusing a transient one.
+/// `tests/compile_fail/a_canonical_subject_names_its_edge_by_canonical_reference.rs` holds it.
 ///
 /// **It carries no value, so it cannot carry [`Object`]'s defect**, which was a reference default
 /// disagreeing with a value parameter beside it. There is nothing here for a default to disagree
 /// with: `Subject` on its own is canonical state's, exactly as [`Node`] and [`Edge`](crate::Edge)
-/// on their own are, and a transient root's is `Subject<NodeId>`. Rust has no
+/// on their own are, and a transient root's is `Subject<NodeId, EdgeId>`. Rust has no
 /// way to give this type `Object`'s shape either — a `V` it never held would be a parameter that is
 /// never used, which does not compile.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub enum Subject<R = CanonicalRef<Node>> {
+pub enum Subject<R = CanonicalRef<Node>, E = CanonicalRef<Edge>> {
     /// A node.
     Node(R),
     /// An edge.
-    Edge(EdgeId),
+    Edge(E),
     /// A type in the ontology — a schema-level claim shares the provenance model of every other.
     Type(TypeId),
 }
 
-impl<R: Canonical> Canonical for Subject<R> {
+impl<R: Canonical, E: Canonical> Canonical for Subject<R, E> {
     /// The variant marker, then the id it names.
     ///
     /// The marker is what separates the three, and is not optional: rule 5 of
-    /// `ekr_core::canonical` makes a newtype structural, so a [`NodeId`](ekr_core::NodeId), an [`EdgeId`] and a
+    /// `ekr_core::canonical` makes a newtype structural, so a [`NodeId`](ekr_core::NodeId), an [`EdgeId`](ekr_core::EdgeId) and a
     /// [`TypeId`] over one UUID encode identically. Without the tag, an assertion about a node
     /// and an assertion about the edge that happened to share its bits would share an address.
     fn encode(&self, out: &mut Encoder) {
@@ -535,14 +540,15 @@ pub struct Assertion<V: ValueSpace = CanonicalValue> {
     /// Owning graph root.
     pub root_id: GraphRootId,
     /// What the claim describes.
-    pub subject: Subject<V::NodeRef>,
+    pub subject: Subject<V::NodeRef, V::EdgeRef>,
     /// The declared relation or property.
     pub predicate: Predicate,
     /// The claimed object.
     pub object: Object<V, V::NodeRef>,
-    /// Retained supporting evidence.
+    /// Retained supporting evidence: `CanonicalRef<Evidence>` in canonical state, the bare id in a
+    /// transient root (`tests/compile_fail/a_canonical_assertion_cites_evidence_by_canonical_reference.rs`).
     #[serde(deserialize_with = "ekr_core::decode::unique_set")]
-    pub evidence: BTreeSet<EvidenceId>,
+    pub evidence: BTreeSet<V::EvidenceRef>,
     /// Authenticated proposer.
     pub proposed_by: AgentId,
     /// Verdict, retained through subsequent withdrawal.

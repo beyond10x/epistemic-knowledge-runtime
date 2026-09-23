@@ -88,7 +88,7 @@ fn assertion_with(
         subject: Subject::Node(CanonicalRef::new(NodeId::mint())),
         predicate: Predicate::Relation(TypeId::mint()),
         object: Object::Node(CanonicalRef::new(NodeId::mint())),
-        evidence: BTreeSet::from([EvidenceId::mint()]),
+        evidence: BTreeSet::from([CanonicalRef::new(EvidenceId::mint())]),
         proposed_by: AgentId::mint(),
         assessment,
         lifecycle,

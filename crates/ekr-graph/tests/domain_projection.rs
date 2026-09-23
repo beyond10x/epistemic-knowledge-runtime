@@ -530,13 +530,13 @@ const FUSIONS: &[(&str, &str, &str, &[&str])] = &[
         "ekr.graph.SubjectProjection",
         "kind",
         "Subject",
-        &["Node(R)", "Edge(EdgeId)", "Type(TypeId)"],
+        &["Node(R)", "Edge(E)", "Type(TypeId)"],
     ),
     (
         "ekr.graph.SubjectProjection",
         "id",
         "Subject",
-        &["Node(R)", "Edge(EdgeId)", "Type(TypeId)"],
+        &["Node(R)", "Edge(E)", "Type(TypeId)"],
     ),
     (
         "ekr.graph.PredicateProjection",
@@ -602,7 +602,7 @@ const FUSIONS: &[(&str, &str, &str, &[&str])] = &[
         "ekr.graph.Assertion",
         "subject_kind",
         "Subject",
-        &["Node(R)", "Edge(EdgeId)", "Type(TypeId)"],
+        &["Node(R)", "Edge(E)", "Type(TypeId)"],
     ),
     (
         "ekr.graph.Assertion",
