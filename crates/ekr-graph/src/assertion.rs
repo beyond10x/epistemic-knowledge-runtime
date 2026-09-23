@@ -30,7 +30,7 @@ use crate::value::CanonicalValue;
 ///
 /// **It carries no value, so it cannot carry [`Object`]'s defect**, which was a reference default
 /// disagreeing with a value parameter beside it. There is nothing here for a default to disagree
-/// with: `Subject` on its own is canonical state's, exactly as [`Node`] and [`Edge`](crate::Edge)
+/// with: `Subject` on its own is canonical state's, exactly as [`Node`] and [`Edge`]
 /// on their own are, and a transient root's is `Subject<NodeId, EdgeId>`. Rust has no
 /// way to give this type `Object`'s shape either — a `V` it never held would be a parameter that is
 /// never used, which does not compile.
