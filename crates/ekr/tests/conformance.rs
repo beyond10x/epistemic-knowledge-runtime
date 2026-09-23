@@ -249,6 +249,15 @@ enum Defect {
     WrongStateAsNotFound,
     /// The all-state Transactions view reports a committed transaction as still Validated.
     CommittedReadAsValidated,
+    /// A snapshot reports a revision it was not asked for and a root no revision holds
+    /// (adversary pass 1, finding 2).
+    ForgedSnapshot,
+    /// Every Transactions row returns null for the six Optional fields it declares beside
+    /// `validated_against` (adversary pass 1, finding 4).
+    NulledOptionalTransactionFields,
+    /// A command reports none of the store events the provider log gained
+    /// (adversary pass 1, finding 1).
+    DroppedStoreEvents,
 }
 
 struct Defective<'a> {
@@ -268,6 +277,7 @@ impl ConformanceTarget for Defective<'_> {
         request: SemanticCommandRequest,
     ) -> Result<SemanticCommandResult, TargetError> {
         let commit = request.command.to_string() == "ekr.kernel.Commit";
+        let request_is_snapshot = request.command.to_string() == "ekr.kernel.Snapshot";
         let mut result = self.inner.execute_command(request)?;
         match self.defect {
             Defect::ResampledRetainedCommit
@@ -289,6 +299,23 @@ impl ConformanceTarget for Defective<'_> {
                     Node::Text("2100-01-01T00:00:00.000Z".to_owned()),
                 );
             }
+            Defect::ForgedSnapshot if request_is_snapshot => {
+                for event in &mut result.direct_events {
+                    if event.event.to_string() == "ekr.kernel.SnapshotTaken" {
+                        event
+                            .payload
+                            .insert("number".to_owned(), Node::Number(424_242_i64.into()));
+                        event
+                            .payload
+                            .insert("knowledge_root".to_owned(), Node::Text("forged".to_owned()));
+                    }
+                }
+            }
+            Defect::DroppedStoreEvents => {
+                result
+                    .direct_events
+                    .retain(|event| !event.event.to_string().starts_with("ekr.store."));
+            }
             Defect::WrongStateAsNotFound => {
                 if let Some(error) = result.error.as_mut() {
                     if error.error.to_string() == "ekr.kernel.TransactionStateConflict" {
@@ -307,6 +334,20 @@ impl ConformanceTarget for Defective<'_> {
             for row in &mut result.rows {
                 if row.get("state") == Some(&Node::Text("Committed".to_owned())) {
                     row.insert("state".to_owned(), Node::Text("Validated".to_owned()));
+                }
+            }
+        }
+        if matches!(self.defect, Defect::NulledOptionalTransactionFields) && transactions {
+            for row in &mut result.rows {
+                for field in [
+                    "canonical_transaction_hash",
+                    "canonical_operations_hash",
+                    "validation_basis",
+                    "validation_hash",
+                    "validation_record_hash",
+                    "terminal_record_hash",
+                ] {
+                    row.insert(field.to_owned(), Node::Null);
                 }
             }
         }
@@ -332,11 +373,47 @@ impl ConformanceTarget for Defective<'_> {
     }
 }
 
+/// Every admitted scenario that requires a store event (`ekr.store.*`) to be published, read off
+/// the admitted suite itself rather than listed: after the kernel.yaml decision every durable kernel
+/// outcome emits `PublicationPrepared` and `ObjectStored`, and a list written by hand would miss
+/// the next outcome that gains one.
+fn store_event_scenarios(admitted: &AdmittedSuite) -> Vec<String> {
+    let suite: serde_json::Value =
+        serde_json::from_str(&read("systems/ekr/conformance/suite.json")).expect("suite JSON");
+    let names: Vec<String> = suite["scenarios"]
+        .as_object()
+        .expect("scenarios")
+        .iter()
+        .filter(|(_, scenario)| {
+            scenario["steps"].as_array().is_some_and(|steps| {
+                steps.iter().any(|step| {
+                    step["step"] == "expect_event"
+                        && step["event"]
+                            .as_str()
+                            .is_some_and(|event| event.starts_with("ekr.store."))
+                })
+            })
+        })
+        .map(|(name, _)| name.clone())
+        .collect();
+    assert_eq!(
+        suite["scenarios"].as_object().map(|s| s.len()),
+        Some(admitted.suite().len()),
+        "the suite read here is the admitted one"
+    );
+    assert!(
+        !names.is_empty(),
+        "no admitted scenario expects a store event, so DroppedStoreEvents shows nothing"
+    );
+    names
+}
+
 /// Each defect fails exactly its named scenarios and leaves every other passing scenario passing.
 #[test]
 fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
     let admitted = admitted();
     let work = tempfile::TempDir::new().expect("isolated provider root");
+    let store_events = store_event_scenarios(&admitted);
     let matrix = [
         (
             Defect::ResampledRetainedCommit,
@@ -362,10 +439,26 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
                 "ekr.kernel.Commit/outcome/retained-commit",
                 "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/committed",
                 "ekr.kernel.GraphTransaction/transition/commit/by/ekr.kernel.Commit/committed",
+                "ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names",
             ],
         ),
+        (
+            Defect::ForgedSnapshot,
+            vec![
+                "ekr.kernel/authored/snapshot-at-a-past-revision-reports-that-revision",
+                "ekr.kernel/authored/snapshot-without-a-revision-reports-the-newest",
+            ],
+        ),
+        (
+            Defect::NulledOptionalTransactionFields,
+            vec!["ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names"],
+        ),
+        (
+            Defect::DroppedStoreEvents,
+            store_events.iter().map(String::as_str).collect(),
+        ),
     ];
-    // Four complete independent runs, each over its own provider roots, on their own threads.
+    // One clean run and one per defect, each over its own provider roots, on their own threads.
     let (clean, faulted) = std::thread::scope(|scope| {
         let (admitted, work) = (&admitted, work.path());
         let clean = scope.spawn(move || {

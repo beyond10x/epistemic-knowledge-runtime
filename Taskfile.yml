@@ -68,7 +68,7 @@ tasks:
     desc: the committed ekr-kernel suite is fresh synthesis and both native providers pass it
     cmds:
       - mkdir -p "${CARGO_TARGET_DIR:-target}/ekr-conformance"
-      - ess conform synthesize --path systems/ekr --component ekr-kernel --suite-format 5 --target ir --out "$(realpath "${CARGO_TARGET_DIR:-target}")/ekr-conformance/fresh-suite.json"
+      - ess conform synthesize --path systems/ekr --component ekr-kernel --suite-format 5 --target ir --scenarios crates/ekr/tests/fixtures/conformance/scenarios --out "$(realpath "${CARGO_TARGET_DIR:-target}")/ekr-conformance/fresh-suite.json"
       - cmp systems/ekr/conformance/suite.json "${CARGO_TARGET_DIR:-target}/ekr-conformance/fresh-suite.json"
       - cargo test --locked -p ekr --test conformance -- --nocapture
 

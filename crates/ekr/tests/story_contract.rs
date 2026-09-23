@@ -37,6 +37,20 @@
 //! is `CanonicalGraph.ontology`, which `RevisionLog::fold` returns. The skeleton story's own table
 //! is therefore out of date and is amended in the planning store alongside this change; this file
 //! is the tree's copy of it, and the two move together.
+//!
+//! # `ekr`'s conformance edges, wave p1-14
+//!
+//! `story:ess-conformance-kernel` adds the ESS conformance target to `ekr`: `ess-conformance` and
+//! `ess-primitives` are the pinned runner library and its value type. Adversary pass 1 on that unit
+//! found the target reporting only kernel records, so the store's own events were never observed.
+//! The correction reads the provider log through `ekr_kernel::Runtime::published_events`, which
+//! reads through the provider handle the runtime already holds. So `ekr` declares no eventlog
+//! crate and no `tokio`. Each eventlog crate exports a writer, and
+//! [`ekr_names_no_eventlog_item`] holds that no source of `ekr` names any path into one.
+//!
+//! The same wave's binding unit read the domain documents in `ekr-core`, `ekr-graph` and
+//! `ekr-store` tests with `serde_yaml_ng`, a dev-dependency of each; nothing the runtime ships gains
+//! an edge.
 
 mod authority_scan;
 
@@ -98,7 +112,7 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
     (
         "ekr-core",
         &["uuid", "sha2", "hex", "serde", "serde_json", "thiserror"],
-        &["proptest"],
+        &["proptest", "serde_yaml_ng"],
     ),
     (
         "ekr-kernel",
@@ -119,7 +133,11 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
         &["serde", "serde_json", "serde_yaml_ng", "thiserror"],
         &["proptest"],
     ),
-    ("ekr-graph", &["serde", "thiserror"], &["trybuild"]),
+    (
+        "ekr-graph",
+        &["serde", "thiserror"],
+        &["serde_yaml_ng", "trybuild"],
+    ),
     (
         "ekr-store",
         &[
@@ -132,7 +150,7 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
             "time",
             "tokio",
         ],
-        &["tempfile"],
+        &["serde_yaml_ng", "tempfile"],
     ),
     (
         "ekr",
@@ -386,6 +404,139 @@ fn only_the_kernel_implements_the_commit_authority() {
          CommitAuthority in a crate's src/ is ekr-kernel's, and a second one is a second thing \
          the fold will commit for: {:?}",
         authority_scan::second_authorities(&found)
+    );
+}
+
+/// The eventlog crates `ekr` may not reach, by any path.
+///
+/// `story:ess-conformance-kernel`, wave p1-14 (adversary pass 1, finding 1): the conformance target
+/// reports the store's own events. It reads them through `Runtime::published_events`, because each
+/// of these crates exports a writer: a native event store, the `EventStore` port, the atomic blob
+/// store. A binary that could name one could append to a provider log without passing anything
+/// through the kernel, and invariant 1's second half says no consumer of this runtime has that
+/// reach. The manifest edge is held by [`external_dependencies_match_the_story`]. The source is held
+/// by [`ekr_names_no_eventlog_item`], so an edge re-added later without the story would still be
+/// caught at its first use.
+///
+/// Crate names are spelled with their hyphens and turned into paths at run time, so that no line of
+/// this file is itself a use site the scan would have to exempt.
+const EVENTLOG_CRATES: [&str; 3] = ["eventlog-core", "eventlog-file", "eventlog-sqlite"];
+
+/// Every path one source opens into an eventlog crate, each described for a failure message.
+///
+/// A path is one of the crate names, underscored, standing as a whole identifier: in a `use`, in an
+/// expression, after `extern crate`, or renamed. No item is admitted, so the scan does not read past
+/// the name. It reads comments too, and this file spells no such name out for that reason.
+fn eventlog_paths(text: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    for krate in EVENTLOG_CRATES {
+        let path = krate.replace('-', "_");
+        let mut rest = text;
+        while let Some(at) = rest.find(&path) {
+            let before = rest[..at].chars().next_back();
+            let after = &rest[at + path.len()..];
+            rest = after;
+            if before.is_some_and(|c| c.is_alphanumeric() || c == '_') {
+                continue;
+            }
+            if after.starts_with(|c: char| c.is_alphanumeric() || c == '_') {
+                continue;
+            }
+            let shown: String = after.chars().take_while(|c| *c != '\n').take(40).collect();
+            found.push(format!("`{path}{shown}`"));
+        }
+    }
+    found
+}
+
+/// The scan's reader, held to every spelling a path into an eventlog crate can take, and to the
+/// words it must not mistake for one. Each sample is assembled from the table's own names.
+#[test]
+fn the_eventlog_scan_refuses_every_path_and_nothing_else() {
+    let [core, file, sqlite] = EVENTLOG_CRATES.map(|c| c.replace('-', "_"));
+    for refused in [
+        format!("use {core}::{{InspectHistory, InspectionLimits}};"),
+        format!("use {file}::FileHistoryInspector;"),
+        format!("use {file}::FileEventStore;"),
+        format!("use {sqlite}::SqliteEventStore;"),
+        format!("use {core}::EventStore;"),
+        format!("use {core}::{{AtomicBlobEventStore as Quiet}};"),
+        format!("let s = {file}::FileEventStore::open(path);"),
+        format!("fn f(e: {core}::InspectionError) {{}}"),
+        format!("use {core}::*;"),
+        format!("use {file} as log;"),
+        format!("use {sqlite};"),
+        format!("extern crate {core};"),
+        format!("let x = ::{core}::MAX_READ_LIMIT;"),
+    ] {
+        assert_eq!(
+            eventlog_paths(&refused).len(),
+            1,
+            "a path into an eventlog crate the scan must see exactly once: {refused}"
+        );
+    }
+    for admitted in [
+        "use my_eventlog_core_like::Anything;".to_owned(),
+        format!("use {core}2::Anything;"),
+        "/// read through the provider handle; this crate names no eventlog item".to_owned(),
+        "let log = runtime.published_events()?;".to_owned(),
+    ] {
+        assert_eq!(
+            eventlog_paths(&admitted),
+            Vec::<String>::new(),
+            "not a path into an eventlog crate: {admitted}"
+        );
+    }
+}
+
+/// `ekr` reaches no eventlog item: no Rust source of the crate names a path into one.
+///
+/// The half of invariant 1 this holds: `ekr-kernel` stays the only crate that declares `ekr-store`
+/// ([`crate_dependency_edges_match_the_story`]), and the native writers under it are not reachable
+/// from `ekr` by another road. The walk covers the whole crate, including `src/`, `tests/` and
+/// anything added beside them. It must reach the conformance target's source, the one file that
+/// reads the provider log, so a walk that finds nothing or reads another tree does not report
+/// clean.
+#[test]
+fn ekr_names_no_eventlog_item() {
+    let root = workspace_root().join("crates/ekr");
+    let mut stack = vec![root.clone()];
+    let mut offenders: Vec<String> = Vec::new();
+    let mut visited: BTreeSet<String> = BTreeSet::new();
+    while let Some(dir) = stack.pop() {
+        for entry in std::fs::read_dir(&dir)
+            .unwrap_or_else(|e| panic!("reading {}: {e}", dir.display()))
+            .flatten()
+        {
+            let path = entry.path();
+            if path.is_dir() {
+                if entry.file_name() != "target" {
+                    stack.push(path);
+                }
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                let shown = path
+                    .strip_prefix(&root)
+                    .unwrap_or(&path)
+                    .display()
+                    .to_string();
+                let text = std::fs::read_to_string(&path).expect("a source file is readable");
+                for found in eventlog_paths(&text) {
+                    offenders.push(format!("crates/ekr/{shown}: {found}"));
+                }
+                visited.insert(shown);
+            }
+        }
+    }
+    assert!(
+        visited.contains("src/conformance.rs") && visited.len() > 2,
+        "the walk did not reach the conformance target's source, so it is not reading the tree \
+         this case is about: {visited:?}"
+    );
+    assert!(
+        offenders.is_empty(),
+        "AGENTS.md invariant 1: ekr names paths into eventlog crates, each of which exports a \
+         provider-log writer the kernel does not stand behind:\n  {}",
+        offenders.join("\n  ")
     );
 }
 

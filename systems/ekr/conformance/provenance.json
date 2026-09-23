@@ -19,8 +19,14 @@
     "5",
     "--target",
     "ir",
+    "--scenarios",
+    "crates/ekr/tests/fixtures/conformance/scenarios",
     "--out",
     "systems/ekr/conformance/suite.json"
   ],
-  "authored_scenarios": []
+  "authored_scenarios": [
+    "crates/ekr/tests/fixtures/conformance/scenarios/a-committed-transaction-row-carries-every-record-it-names.yaml",
+    "crates/ekr/tests/fixtures/conformance/scenarios/snapshot-at-a-past-revision-reports-that-revision.yaml",
+    "crates/ekr/tests/fixtures/conformance/scenarios/snapshot-without-a-revision-reports-the-newest.yaml"
+  ]
 }

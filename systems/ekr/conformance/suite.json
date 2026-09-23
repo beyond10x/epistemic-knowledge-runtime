@@ -1,9 +1,29 @@
 {
   "coverage": {
-    "authored": [],
-    "authored_sources": {},
+    "authored": [
+      "ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names",
+      "ekr.kernel/authored/snapshot-at-a-past-revision-reports-that-revision",
+      "ekr.kernel/authored/snapshot-without-a-revision-reports-the-newest"
+    ],
+    "authored_sources": {
+      "a-committed-transaction-row-carries-every-record-it-names.yaml": {
+        "digest": "sha256:2b9d4b1974ec1637a6efe64232cb3009ee059a2220a81f3774891b463e415409",
+        "disposition": "accepted",
+        "scenario": "ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names"
+      },
+      "snapshot-at-a-past-revision-reports-that-revision.yaml": {
+        "digest": "sha256:b20a345e9968429060f591a2424e74368615fb4e8973b34230ff8e77b5dac3be",
+        "disposition": "accepted",
+        "scenario": "ekr.kernel/authored/snapshot-at-a-past-revision-reports-that-revision"
+      },
+      "snapshot-without-a-revision-reports-the-newest.yaml": {
+        "digest": "sha256:7010dcf553e54ea0a59097eb1df581ab6ca06e4a36ab338af52def160ba7573f",
+        "disposition": "accepted",
+        "scenario": "ekr.kernel/authored/snapshot-without-a-revision-reports-the-newest"
+      }
+    },
     "counts": {
-      "authored": 0,
+      "authored": 3,
       "generated": 36,
       "outside": 0,
       "refused": 0
@@ -53,7 +73,7 @@
       "filter": {
         "kind": "all"
       },
-      "origins": "generated",
+      "origins": "generated_and_authored",
       "scope": {
         "component": "ekr-kernel",
         "kind": "component"
@@ -62,8 +82,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "05bf3150b3b2dc62c0f57150b59d704b8a734851a1c1db674364178891ebb901",
-    "spec_digest": "c5ddf4337e440d473b623208e0541af03b229b03765842d2444ac5b24d2d14a5",
+    "contract_digest": "d8e3f560dffe477c0ff249dc4f0eba769763485e197c53348c0f92074b57469c",
+    "spec_digest": "ea28ece286fce87238d62573bf54738ffdb210bc8a9e3b81e19ec49f729cb38e",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"
@@ -91,6 +111,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.TransactionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.store.StorageClass"
         },
         {
           "kind": "entity",
@@ -325,6 +349,53 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.store.PublicationPrepared",
+          "shape": {
+            "attempt_number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "preparation_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "previous_attempt_hash": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "shape": {
+            "byte_len": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "content_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "storage_class": {
+              "holds": "enum",
+              "variants": [
+                "Canonical",
+                "Provenance",
+                "Incubating",
+                "Cache",
+                "Ephemeral"
+              ]
+            },
+            "stored_at": {
+              "holds": "primitive",
+              "kind": "timestamp"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -354,14 +425,6 @@
         },
         {
           "event": "ekr.store.ObjectRetentionRaised",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.ObjectStored",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
         },
         {
@@ -645,6 +708,53 @@
             "transaction_id": {
               "holds": "primitive",
               "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "shape": {
+            "attempt_number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "preparation_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "previous_attempt_hash": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "shape": {
+            "byte_len": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "content_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "storage_class": {
+              "holds": "enum",
+              "variants": [
+                "Canonical",
+                "Provenance",
+                "Incubating",
+                "Cache",
+                "Ephemeral"
+              ]
+            },
+            "stored_at": {
+              "holds": "primitive",
+              "kind": "timestamp"
             }
           },
           "step": "expect_event"
@@ -1677,6 +1787,10 @@
           "name": "ekr.kernel.TransactionId"
         },
         {
+          "kind": "type",
+          "name": "ekr.store.StorageClass"
+        },
+        {
           "kind": "entity",
           "name": "ekr.kernel.GraphTransaction"
         },
@@ -1891,6 +2005,53 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.store.PublicationPrepared",
+          "shape": {
+            "attempt_number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "preparation_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "previous_attempt_hash": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "shape": {
+            "byte_len": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "content_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "storage_class": {
+              "holds": "enum",
+              "variants": [
+                "Canonical",
+                "Provenance",
+                "Incubating",
+                "Cache",
+                "Ephemeral"
+              ]
+            },
+            "stored_at": {
+              "holds": "primitive",
+              "kind": "timestamp"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -1920,14 +2081,6 @@
         },
         {
           "event": "ekr.store.ObjectRetentionRaised",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.ObjectStored",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
         },
         {
@@ -6755,6 +6908,10 @@
           "name": "ekr.kernel.TransactionId"
         },
         {
+          "kind": "type",
+          "name": "ekr.store.StorageClass"
+        },
+        {
           "kind": "entity",
           "name": "ekr.kernel.GraphTransaction"
         },
@@ -6987,6 +7144,53 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.store.PublicationPrepared",
+          "shape": {
+            "attempt_number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "preparation_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "previous_attempt_hash": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "shape": {
+            "byte_len": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "content_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "storage_class": {
+              "holds": "enum",
+              "variants": [
+                "Canonical",
+                "Provenance",
+                "Incubating",
+                "Cache",
+                "Ephemeral"
+              ]
+            },
+            "stored_at": {
+              "holds": "primitive",
+              "kind": "timestamp"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -7016,14 +7220,6 @@
         },
         {
           "event": "ekr.store.ObjectRetentionRaised",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.ObjectStored",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
         },
         {
@@ -7084,6 +7280,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.TransactionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.store.StorageClass"
         },
         {
           "kind": "entity",
@@ -7246,6 +7446,53 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.store.PublicationPrepared",
+          "shape": {
+            "attempt_number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "preparation_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "previous_attempt_hash": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "shape": {
+            "byte_len": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "content_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "storage_class": {
+              "holds": "enum",
+              "variants": [
+                "Canonical",
+                "Provenance",
+                "Incubating",
+                "Cache",
+                "Ephemeral"
+              ]
+            },
+            "stored_at": {
+              "holds": "primitive",
+              "kind": "timestamp"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -7275,14 +7522,6 @@
         },
         {
           "event": "ekr.store.ObjectRetentionRaised",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.ObjectStored",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
         },
         {
@@ -7339,6 +7578,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.TransactionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.store.StorageClass"
         },
         {
           "kind": "entity",
@@ -7555,6 +7798,53 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.store.PublicationPrepared",
+          "shape": {
+            "attempt_number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "preparation_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "previous_attempt_hash": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "shape": {
+            "byte_len": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "content_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "storage_class": {
+              "holds": "enum",
+              "variants": [
+                "Canonical",
+                "Provenance",
+                "Incubating",
+                "Cache",
+                "Ephemeral"
+              ]
+            },
+            "stored_at": {
+              "holds": "primitive",
+              "kind": "timestamp"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -7584,14 +7874,6 @@
         },
         {
           "event": "ekr.store.ObjectRetentionRaised",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.ObjectStored",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
         },
         {
@@ -7652,6 +7934,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.TransactionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.store.StorageClass"
         },
         {
           "kind": "entity",
@@ -7814,6 +8100,53 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.store.PublicationPrepared",
+          "shape": {
+            "attempt_number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "preparation_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "previous_attempt_hash": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "shape": {
+            "byte_len": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "content_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "storage_class": {
+              "holds": "enum",
+              "variants": [
+                "Canonical",
+                "Provenance",
+                "Incubating",
+                "Cache",
+                "Ephemeral"
+              ]
+            },
+            "stored_at": {
+              "holds": "primitive",
+              "kind": "timestamp"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -7843,14 +8176,6 @@
         },
         {
           "event": "ekr.store.ObjectRetentionRaised",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.ObjectStored",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
         },
         {
@@ -8215,6 +8540,10 @@
           "name": "ekr.kernel.TransactionId"
         },
         {
+          "kind": "type",
+          "name": "ekr.store.StorageClass"
+        },
+        {
           "kind": "entity",
           "name": "ekr.kernel.GraphTransaction"
         },
@@ -8333,6 +8662,53 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.store.PublicationPrepared",
+          "shape": {
+            "attempt_number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "preparation_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "previous_attempt_hash": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "shape": {
+            "byte_len": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "content_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "storage_class": {
+              "holds": "enum",
+              "variants": [
+                "Canonical",
+                "Provenance",
+                "Incubating",
+                "Cache",
+                "Ephemeral"
+              ]
+            },
+            "stored_at": {
+              "holds": "primitive",
+              "kind": "timestamp"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -8362,14 +8738,6 @@
         },
         {
           "event": "ekr.store.ObjectRetentionRaised",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.ObjectStored",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
         },
         {
@@ -8834,6 +9202,53 @@
             "seed_hash": {
               "holds": "primitive",
               "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "shape": {
+            "attempt_number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "preparation_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "previous_attempt_hash": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "shape": {
+            "byte_len": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "content_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "storage_class": {
+              "holds": "enum",
+              "variants": [
+                "Canonical",
+                "Provenance",
+                "Incubating",
+                "Cache",
+                "Ephemeral"
+              ]
+            },
+            "stored_at": {
+              "holds": "primitive",
+              "kind": "timestamp"
             }
           },
           "step": "expect_event"
@@ -9309,6 +9724,10 @@
           "name": "ekr.kernel.SeedDocumentPath"
         },
         {
+          "kind": "type",
+          "name": "ekr.store.StorageClass"
+        },
+        {
           "kind": "entity",
           "name": "ekr.kernel.Revision"
         },
@@ -9422,6 +9841,53 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.store.PublicationPrepared",
+          "shape": {
+            "attempt_number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "preparation_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "previous_attempt_hash": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "shape": {
+            "byte_len": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "content_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "storage_class": {
+              "holds": "enum",
+              "variants": [
+                "Canonical",
+                "Provenance",
+                "Incubating",
+                "Cache",
+                "Ephemeral"
+              ]
+            },
+            "stored_at": {
+              "holds": "primitive",
+              "kind": "timestamp"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -9451,14 +9917,6 @@
         },
         {
           "event": "ekr.store.ObjectRetentionRaised",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.ObjectStored",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
         },
         {
@@ -9820,6 +10278,10 @@
           "name": "ekr.kernel.TransactionId"
         },
         {
+          "kind": "type",
+          "name": "ekr.store.StorageClass"
+        },
+        {
           "kind": "entity",
           "name": "ekr.kernel.GraphTransaction"
         },
@@ -9980,6 +10442,53 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.store.PublicationPrepared",
+          "shape": {
+            "attempt_number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "preparation_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "previous_attempt_hash": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "shape": {
+            "byte_len": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "content_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "storage_class": {
+              "holds": "enum",
+              "variants": [
+                "Canonical",
+                "Provenance",
+                "Incubating",
+                "Cache",
+                "Ephemeral"
+              ]
+            },
+            "stored_at": {
+              "holds": "primitive",
+              "kind": "timestamp"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -10009,14 +10518,6 @@
         },
         {
           "event": "ekr.store.ObjectRetentionRaised",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.ObjectStored",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
         },
         {
@@ -10385,6 +10886,10 @@
           "name": "ekr.kernel.TransactionId"
         },
         {
+          "kind": "type",
+          "name": "ekr.store.StorageClass"
+        },
+        {
           "kind": "entity",
           "name": "ekr.kernel.GraphTransaction"
         },
@@ -10545,6 +11050,53 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.store.PublicationPrepared",
+          "shape": {
+            "attempt_number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "preparation_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "previous_attempt_hash": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "shape": {
+            "byte_len": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "content_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "storage_class": {
+              "holds": "enum",
+              "variants": [
+                "Canonical",
+                "Provenance",
+                "Incubating",
+                "Cache",
+                "Ephemeral"
+              ]
+            },
+            "stored_at": {
+              "holds": "primitive",
+              "kind": "timestamp"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -10574,14 +11126,6 @@
         },
         {
           "event": "ekr.store.ObjectRetentionRaised",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.ObjectStored",
-          "step": "expect_no_event"
-        },
-        {
-          "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
         },
         {
@@ -10621,6 +11165,580 @@
           },
           "step": "expect_view",
           "view": "ekr.kernel.Transactions"
+        }
+      ]
+    },
+    "ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names": {
+      "purpose": "A transaction proposed, validated and committed has a Transactions row whose hashes are the ones its own occurrences published, and no committed row has a null Optional field.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.kernel"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.GraphRootId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.RevisionRoot"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AgentId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.EventId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.GraphTransaction.State"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TransactionDocumentPath"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TransactionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ValidationBasisFormatV1"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ValidationBasisV1"
+        },
+        {
+          "kind": "entity",
+          "name": "ekr.kernel.GraphTransaction"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Commit"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Propose"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Validate"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Commit",
+            "outcome": "committed"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Propose",
+            "outcome": "proposed"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Validate",
+            "outcome": "validated"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "view",
+          "name": "ekr.kernel.Transactions"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Committer"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Proposer"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Validator"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.kernel.Proposer",
+          "command": "ekr.kernel.Propose",
+          "input": {
+            "transaction_document": {
+              "kind": "literal",
+              "value": "transaction_document"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Propose",
+            "outcome": "proposed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "shape": {
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "operations_hash": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            },
+            "proposer": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "transaction_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "entity": "ekr.kernel.GraphTransaction",
+          "event": "ekr.kernel.TransactionProposed",
+          "field": "transaction_id",
+          "instance": "proposal",
+          "step": "capture_instance"
+        },
+        {
+          "actor": "ekr.kernel.Validator",
+          "command": "ekr.kernel.Validate",
+          "input": {
+            "against": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "transaction_id": {
+              "instance": "proposal",
+              "kind": "instance"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Validate",
+            "outcome": "validated"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "payload": {
+            "against": 1.0
+          },
+          "shape": {
+            "against": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "transaction_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "validation_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.kernel.Committer",
+          "command": "ekr.kernel.Commit",
+          "input": {
+            "transaction_id": {
+              "instance": "proposal",
+              "kind": "instance"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Commit",
+            "outcome": "committed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "payload": {
+            "number": 2.0
+          },
+          "shape": {
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "knowledge_root": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "transaction_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.kernel.Transactions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "canonical_operations_hash": {
+                "event": "ekr.kernel.TransactionProposed",
+                "field": "operations_hash",
+                "kind": "observed"
+              },
+              "proposal_record_hash": {
+                "event": "ekr.kernel.TransactionProposed",
+                "field": "record_hash",
+                "kind": "observed"
+              },
+              "state": {
+                "kind": "literal",
+                "value": "Committed"
+              },
+              "terminal_record_hash": {
+                "event": "ekr.kernel.RevisionCommitted",
+                "field": "record_hash",
+                "kind": "observed"
+              },
+              "transaction_id": {
+                "instance": "proposal",
+                "kind": "instance"
+              },
+              "validated_against": {
+                "kind": "literal",
+                "value": 1.0
+              },
+              "validation_hash": {
+                "event": "ekr.kernel.TransactionValidated",
+                "field": "validation_hash",
+                "kind": "observed"
+              },
+              "validation_record_hash": {
+                "event": "ekr.kernel.TransactionValidated",
+                "field": "record_hash",
+                "kind": "observed"
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.kernel.Transactions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.kernel.Transactions"
+        },
+        {
+          "expectation": {
+            "expect": "satisfies",
+            "predicate": {
+              "all": [
+                "state == Committed",
+                "defined(canonical_transaction_hash)",
+                "defined(canonical_operations_hash)",
+                "defined(validation_basis.previous_record_hash)",
+                "defined(validation_basis.previous_root_hash)",
+                "defined(validated_against)",
+                "defined(validation_hash)",
+                "defined(validation_record_hash)",
+                "defined(terminal_record_hash)"
+              ]
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.kernel.Transactions"
+        }
+      ]
+    },
+    "ekr.kernel/authored/snapshot-at-a-past-revision-reports-that-revision": {
+      "purpose": "A snapshot at revision 0, read while revision 1 is the newest, reports revision 0 and revision 0's knowledge root.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.kernel"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.Revision.State"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TransactionId"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Snapshot"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Snapshot",
+            "outcome": "taken"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "view",
+          "name": "ekr.kernel.Revisions"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Operator"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.kernel.Operator",
+          "command": "ekr.kernel.Snapshot",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "valid_at": {
+              "kind": "literal",
+              "value": null
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Snapshot",
+            "outcome": "taken"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "payload": {
+            "number": 0.0
+          },
+          "shape": {
+            "knowledge_root": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "number": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.kernel.Revisions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "knowledge_root": {
+                "event": "ekr.kernel.SnapshotTaken",
+                "field": "knowledge_root",
+                "kind": "observed"
+              },
+              "number": {
+                "kind": "literal",
+                "value": 0.0
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.kernel.Revisions"
+        }
+      ]
+    },
+    "ekr.kernel/authored/snapshot-without-a-revision-reports-the-newest": {
+      "purpose": "A snapshot that names no revision reports the newest revision, 1, and that revision's knowledge root.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.kernel"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Snapshot"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Snapshot",
+            "outcome": "taken"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "view",
+          "name": "ekr.kernel.CurrentRevision"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Operator"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.kernel.Operator",
+          "command": "ekr.kernel.Snapshot",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "valid_at": {
+              "kind": "literal",
+              "value": null
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Snapshot",
+            "outcome": "taken"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "payload": {
+            "number": 1.0
+          },
+          "shape": {
+            "knowledge_root": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "number": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.kernel.CurrentRevision"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "knowledge_root": {
+                "event": "ekr.kernel.SnapshotTaken",
+                "field": "knowledge_root",
+                "kind": "observed"
+              },
+              "number": {
+                "kind": "literal",
+                "value": 1.0
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.kernel.CurrentRevision"
         }
       ]
     }

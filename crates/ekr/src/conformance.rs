@@ -17,18 +17,29 @@
 //!   handlers before the first such command. An external control establishes the state its
 //!   branch declares — an intervening canonical commit, a different retained seed, an absent
 //!   revision, transaction or assertion — and never selects the reported outcome.
-//! * **Observations.** Events are the retained occurrences a command added to the verified
-//!   history, read back from their real records; a retained retry adds none. Views are rows
-//!   reconstructed from the verified history. Records project into ESS values with exact integer
-//!   constructors, RFC 3339 instants, padded base64 bytes and `kind`/`value` tagged unions.
+//! * **Observations.** Events are everything the scenario's provider log gained during a command,
+//!   in log order, read through [`Runtime::published_events`]: a kernel occurrence is answered by
+//!   its retained record read back from the verified history, and a store event
+//!   (`ekr.store.ObjectStored`, `PublicationPrepared`, `ObjectRetentionRaised`) by the payload the
+//!   provider logged. A retained retry adds none. Views are rows reconstructed from the verified
+//!   history. Records project into ESS values with exact integer constructors, RFC 3339 instants,
+//!   padded base64 bytes and `kind`/`value` tagged unions.
+//! * **Responses.** Seed, Propose, Validate and Commit answer their declared response. Snapshot and
+//!   Explain answer none (`None`), although `kernel.yaml` declares `SnapshotResult` and
+//!   `ExplanationResult`: ESS 0.29.0 cannot observe a command response from any scenario, so a
+//!   projection here would be checked by nothing in the suite
+//!   (`task:conformance-cannot-observe-command-responses`). Their read results reach the suite
+//!   through `SnapshotTaken` and `Explained`, and the authored Snapshot scenarios hold the revision
+//!   and root those report.
 
 use std::cell::{Cell, RefCell};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 
 use ekr_core::{AssertionId, ContentHash, EventId, RevisionNumber, Timestamp, TransactionId};
 use ekr_graph::Root;
+use ekr_kernel::runtime::PublishedEvent;
 use ekr_kernel::{
     CommitCommandResult, CommitError, CommitReceiptV1, DocumentError, PersistenceError,
     ProjectionError, ProposalRecordV1, RejectionRecordV1, Runtime, SeedDocument, SeedError,
@@ -291,15 +302,8 @@ impl KernelTarget {
     }
 
     /// The shared seed handler, as `ekr seed` runs it over an opened document.
-    fn seed_from(
-        &self,
-        runtime: &Runtime,
-        reader: &mut dyn Read,
-    ) -> Result<SeedResultV1, SeedError> {
-        let mut bytes = Vec::new();
-        reader
-            .read_to_end(&mut bytes)
-            .map_err(|e| SeedError::Invalid(format!("seed-read: {e}")))?;
+    /// A document read failure is a fault, exactly as `ekr seed` reports one, never `InvalidSeed`.
+    fn seed_from(&self, runtime: &Runtime, bytes: Vec<u8>) -> Result<SeedResultV1, SeedError> {
         let text = String::from_utf8(bytes)
             .map_err(|_| SeedError::Invalid("seed-decode: the document is not UTF-8".to_owned()))?;
         let document = SeedDocument::from_yaml(&text)?;
@@ -310,7 +314,7 @@ impl KernelTarget {
     fn establish_seed(&self, fixture: &str) -> Result<(), TargetError> {
         let runtime = self.runtime()?;
         let bytes = self.fixture(fixture)?;
-        self.seed_from(&runtime, &mut bytes.as_slice())
+        self.seed_from(&runtime, bytes)
             .map(|_| ())
             .map_err(|e| unavailable("establishing the seed", e))
     }
@@ -391,6 +395,15 @@ impl KernelTarget {
         })
     }
 
+    /// Every event the scenario's native provider log holds, in log order, read through the
+    /// runtime's own provider handle ([`Runtime::published_events`]). It appends nothing, and this
+    /// crate names no eventlog item to get it.
+    fn provider_log(&self, runtime: &Runtime) -> Result<Vec<PublishedEvent>, TargetError> {
+        runtime
+            .published_events()
+            .map_err(|e| unavailable("reading the provider log", e))
+    }
+
     /// Every retained occurrence of the verified history, keyed by its occurrence identity.
     fn occurrences(&self, runtime: &Runtime) -> Result<Occurrences, TargetError> {
         let read = match runtime.read(None) {
@@ -414,6 +427,11 @@ impl KernelTarget {
         }
         let runtime = self.runtime()?;
         let before = self.occurrences(&runtime)?;
+        let logged: BTreeSet<String> = self
+            .provider_log(&runtime)?
+            .into_iter()
+            .map(|event| event.event_id)
+            .collect();
         let mut result = match command.as_str() {
             SEED => self.seed(&runtime, request, &before)?,
             PROPOSE => self.propose(&runtime, request)?,
@@ -429,7 +447,12 @@ impl KernelTarget {
             }
         };
         let after = self.occurrences(&runtime)?;
-        let after_count = after.events.len();
+        let log = self.provider_log(&runtime)?;
+        let after_count = log.len();
+        let appended: Vec<&PublishedEvent> = log
+            .iter()
+            .filter(|event| !logged.contains(&event.event_id))
+            .collect();
         let added = after.since(&before);
         let published = std::mem::take(&mut result.published);
         if let Some(expected) = published {
@@ -459,7 +482,10 @@ impl KernelTarget {
         };
         observed.error = result.error;
         observed.response = result.response;
-        observed.direct_events = added.into_iter().map(|(_, event)| event).collect();
+        // Every event the provider log gained, in commit order: the kernel occurrences read back
+        // from their retained records, and the store's own events from their logged payloads.
+        let kernel: BTreeSet<EventId> = added.iter().map(|(id, _)| *id).collect();
+        observed.direct_events = provider_events(&appended, &after, Some(&kernel))?;
         observed.direct_events.extend(result.read_events);
         observed.consistency = Some(token(after_count)?);
         Ok(observed)
@@ -555,9 +581,12 @@ impl KernelTarget {
     ) -> Result<Answer, TargetError> {
         let relative = text_input(request, "seed_document")?;
         let path = self.stage(&relative)?;
-        let mut file =
-            std::fs::File::open(&path).map_err(|e| unavailable("opening the seed document", e))?;
-        Ok(match self.seed_from(runtime, &mut file) {
+        // `ekr seed` reports an open or read failure as a fault (exit 1), not as `InvalidSeed`.
+        let mut bytes = Vec::new();
+        std::fs::File::open(&path)
+            .and_then(|mut file| file.read_to_end(&mut bytes))
+            .map_err(|e| unavailable("reading the seed document", e))?;
+        Ok(match self.seed_from(runtime, bytes) {
             Ok(result) => {
                 // A retained retry answers the occurrence the history already held.
                 let retained = before.events.contains_key(&result.event_id);
@@ -937,10 +966,7 @@ impl ConformanceTarget for KernelTarget {
                 .strip_prefix("occurrences:")
                 .and_then(|count| count.parse::<usize>().ok())
                 .ok_or_else(|| unavailable("reading a view", "a token this target did not mint"))?;
-            let held = match &read {
-                Some(read) => occurrences(read)?.events.len(),
-                None => 0,
-            };
+            let held = self.provider_log(&self.runtime()?)?.len();
             if held < wanted {
                 return Err(unavailable(
                     "reading a view",
@@ -958,10 +984,12 @@ impl ConformanceTarget for KernelTarget {
         &self,
         request: EventObservationRequest,
     ) -> Result<Vec<ObservedEvent>, TargetError> {
-        let occurrences = self.occurrences(&self.runtime()?)?;
-        Ok(occurrences
-            .events
-            .into_values()
+        let runtime = self.runtime()?;
+        let kernel = self.occurrences(&runtime)?;
+        let log = self.provider_log(&runtime)?;
+        let every: Vec<&PublishedEvent> = log.iter().collect();
+        Ok(provider_events(&every, &kernel, None)?
+            .into_iter()
             .filter(|event| event.event == request.event)
             .collect())
     }
@@ -1207,6 +1235,115 @@ fn occurrences(read: &VerifiedRead) -> Result<Occurrences, TargetError> {
                     ],
                 )?,
             )?;
+        }
+    }
+    Ok(out)
+}
+
+// ---- the provider log ------------------------------------------------------------------------
+
+/// Projects logged provider events, in commit order, into declared ESS occurrences.
+///
+/// A kernel revision event is answered by the occurrence read back from its retained record, and
+/// every kernel event in `logged` must have one (and, when `expected` is given, exactly the new
+/// kernel occurrences must appear). A store event is projected from the payload the provider
+/// actually logged. An event name the specification does not declare is refused, never dropped.
+fn provider_events(
+    logged: &[&PublishedEvent],
+    kernel: &Occurrences,
+    expected: Option<&BTreeSet<EventId>>,
+) -> Result<Vec<ObservedEvent>, TargetError> {
+    let refuse = |detail: String| unavailable("reading the provider log", detail);
+    let mut out = Vec::with_capacity(logged.len());
+    let mut seen = BTreeSet::new();
+    for event in logged {
+        let data = event
+            .data
+            .as_object()
+            .ok_or_else(|| refuse(format!("{} carries no object payload", event.name)))?;
+        let field = |name: &str| {
+            data.get(name)
+                .ok_or_else(|| refuse(format!("{} lacks `{name}`", event.name)))
+        };
+        let string = |name: &str| -> Result<Node, TargetError> {
+            field(name)?
+                .as_str()
+                .map(text)
+                .ok_or_else(|| refuse(format!("{}.{name} is not text", event.name)))
+        };
+        let unsigned = |name: &str| -> Result<Node, TargetError> {
+            field(name)?
+                .as_u64()
+                .ok_or_else(|| refuse(format!("{}.{name} is not an exact integer", event.name)))
+                .and_then(integer)
+        };
+        let observed = match (event.name.as_str(), event.schema_version) {
+            (name, 2) if name.starts_with("ekr.kernel.") => {
+                let id: EventId = field("event_id")?
+                    .as_str()
+                    .and_then(|id| id.parse().ok())
+                    .ok_or_else(|| refuse(format!("{name} has no occurrence identity")))?;
+                let occurrence = kernel.events.get(&id).ok_or_else(|| {
+                    refuse(format!("{name} {id} has no verified retained record"))
+                })?;
+                if occurrence.event.to_string() != name {
+                    return Err(refuse(format!("{id} is logged as {name}")));
+                }
+                seen.insert(id);
+                occurrence.clone()
+            }
+            ("ekr.store.ObjectStored", 2) => occurrence(
+                "ekr.store.ObjectStored",
+                vec![
+                    ("content_hash", string("content_hash")?),
+                    ("storage_class", string("storage_class")?),
+                    ("byte_len", unsigned("byte_len")?),
+                    (
+                        "stored_at",
+                        field("stored_at")?
+                            .as_i64()
+                            .map(Timestamp::from_millis)
+                            .ok_or_else(|| refuse("ObjectStored.stored_at".to_owned()))
+                            .and_then(instant)?,
+                    ),
+                ],
+            )?,
+            ("ekr.store.ObjectRetentionRaised", 1) => occurrence(
+                "ekr.store.ObjectRetentionRaised",
+                vec![
+                    ("content_hash", string("content_hash")?),
+                    ("from", string("from")?),
+                    ("to", string("to")?),
+                ],
+            )?,
+            ("ekr.store.PublicationPrepared", 1) => occurrence(
+                "ekr.store.PublicationPrepared",
+                vec![
+                    ("preparation_hash", string("preparation_hash")?),
+                    ("attempt_number", unsigned("attempt_number")?),
+                    (
+                        "previous_attempt_hash",
+                        match field("previous_attempt_hash")? {
+                            serde_json::Value::Null => Node::Null,
+                            _ => string("previous_attempt_hash")?,
+                        },
+                    ),
+                ],
+            )?,
+            (name, schema) => {
+                return Err(refuse(format!(
+                    "`{name}` schema {schema} is not an event the specification declares"
+                )))
+            }
+        };
+        out.push(observed.at(event.position));
+    }
+    if let Some(expected) = expected {
+        if &seen != expected {
+            return Err(refuse(format!(
+                "the log's new kernel events {seen:?} are not the new retained occurrences \
+                 {expected:?}"
+            )));
         }
     }
     Ok(out)
