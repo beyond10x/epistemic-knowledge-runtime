@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:ess-conformance-kernel
 kind: story
-status: draft
+status: active
 title: ESS conformance suite over the kernel domain
 relations:
 - decomposes: epic:p1-kernel-ontology-core
@@ -32,7 +32,7 @@ scope:
   path: systems/ekr/conformance/suite.json
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 8
+revision: 10
 ---
 ## Context
 

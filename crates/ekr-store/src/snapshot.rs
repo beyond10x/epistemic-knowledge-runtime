@@ -17,7 +17,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::StoreError;
 
-/// A graph written down: `ekr.store.Snapshot`'s materialised fold, as bytes.
+/// A graph written down: the materialised fold at one revision, as bytes.
 ///
 /// Holds the **transient** instantiation of every graph type, which is what makes the crossing a
 /// place rather than a habit. See the module documentation for why that is the shape.

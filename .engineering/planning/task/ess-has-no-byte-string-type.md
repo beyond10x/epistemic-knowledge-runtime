@@ -6,7 +6,7 @@ status: draft
 title: A byte is declared as an unbounded Integer, because ess/1 has no byte-string type
 relations:
 - serves: vision:o2
-revision: 3
+revision: 4
 ---
 ## What is wrong
 
@@ -62,3 +62,13 @@ Rescoped in wave p1-14 (2026-09-23): the plan review of 72779f9 found this task'
 resolved in `systems/` at b2b64f8. The only remaining obligation is a binding case in the owning
 crate's `tests/domain_projection.rs` that fails if the declaration and the Rust type drift. If that
 case already exists, the wave cites it and archives this task.
+
+## Scope
+
+Derived 2026-09-23 by `story-scoper` (wave p1-14). Verdict: already-held.
+
+- `systems/ekr/system.yaml:1` is `format: ess/7`; `List<Integer>` appears nowhere under `systems/`; `Bytes` is used (`store.yaml:53-54`, `graph.yaml:171`) — cited
+- `ekr.store.ObjectStored` (`store.yaml:280`) is metadata-only; payload bytes go through provider blob bindings — cited
+- held by `crates/ekr-store/tests/domain_projection.rs::every_event_the_crate_writes_carries_the_fields_the_domain_declares` (exact field-set equality on the written body) and `crates/ekr-store/tests/current_legacy_object_refusal.rs` — cited
+- not covered: the store guard compares field names, not types; `ekr.graph.ObservationContent::Blob` has no payload case — cited, left for P2 (Blob, amendment 86)
+- Confidence: high

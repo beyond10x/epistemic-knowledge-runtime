@@ -2,12 +2,12 @@
 format: aep.planning-md/1
 id: task:canonical-reference-holds-a-node-id-for-every-target
 kind: task
-status: draft
+status: active
 title: A canonical reference to evidence resolves to a node, because the marker is decoration
 relations:
 - serves: vision:o2
 - decomposes: story:p1-exit-properties
-revision: 1
+revision: 4
 ---
 ## What is wrong
 
@@ -48,3 +48,16 @@ convert. The second is honest and small.
 It reproduces at that wave's base (`canonical.rs:92` is `node: NodeId`, `:174` reads
 `self.nodes.get(…)`), and nothing in the tree reaches it — the adversary built the state. Closing it
 is a design change to the marker rather than a repair of the two invariants that wave exists for.
+
+## Scope
+
+Derived 2026-09-23 by `story-scoper` (wave p1-14). Coordinator decision: the parent story requires `Subject::Edge`, `Assertion.evidence` and `CanonicalRef<Evidence>` typed, so the fix retypes them and reaches `ekr-kernel` and `ekr-store`.
+
+- `crates/ekr-graph/src/canonical.rs:98-117` (`CanonicalTarget`), `:203-301` (`CanonicalRef<T>` stores `node: NodeId`; Serialize/Deserialize/Canonical/Ord/Hash keyed on it), `:338` (`resolve` reads `nodes`) — cited
+- `crates/ekr-graph/src/transient.rs:81-97,166-180` — cited
+- `crates/ekr-graph/tests/adversary_p1_06_reference_markers.rs:113-123` pins the defect and must be inverted — cited
+- `crates/ekr-graph/tests/compile_fail/{canonical_ref_cannot_target_a_transient_type,canonical_graph_rejects_a_transient_ref,canonical_dependency_is_sealed}.stderr` — cited
+- `Observation`, `Support`, `GraphRoot` markers have no map in `CanonicalGraph` — cited; remove or add maps
+- if `Subject::Edge` is retyped: `crates/ekr-graph/src/assertion.rs:33-60`, `crates/ekr-graph/tests/domain_projection.rs:533,539`, `crates/ekr-kernel/src/{transaction.rs,seed.rs,validate/reference.rs,validate/ontology.rs,validate/types.rs}`, `crates/ekr-store/src/snapshot.rs:304-327` and their tests — inferred
+- `systems/ekr/domains/graph.yaml` unchanged while references encode the bare id; `crates/ekr-graph/tests/current_vectors.rs` holds the bytes — inferred
+- Confidence: high for the primary surface, medium for the kernel/store spread

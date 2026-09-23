@@ -2,13 +2,13 @@
 format: aep.planning-md/1
 id: task:ess-domain-carries-compound-value-types
 kind: task
-status: draft
+status: active
 title: The ESS domain has no representation for a List or Record property type
 relations:
 - informed_by: review-result:adversary-ontology-pass-2
 - derived_from: story:ontology-types-and-values
 - serves: vision:o2
-revision: 2
+revision: 5
 ---
 ## Context
 
@@ -32,9 +32,13 @@ Settle it no later than P3, which is the first wave whose store must persist a `
 
 ## Scope
 
-- `systems/ekr/domains/ontology.yaml`
-- `crates/ekr-ontology/src/value.rs`
-- `crates/ekr-ontology/tests/domain_projection.rs`
+Derived 2026-09-23 by `story-scoper` (wave p1-14). Verdict: binding-case-needed.
+
+- premise resolved at HEAD 014c901: `systems/ekr/domains/ontology.yaml` declares `ekr.ontology.ValueTypeProjection` with recursive `element` and `fields`; `ValueKind` lists `List` and `Record` — cited
+- `crates/ekr-ontology/tests/domain_projection.rs::the_domain_and_current_codec_retain_all_recursive_compound_parameters` checks the YAML against a hard-coded field list and never derives kinds from the crate, so a new `ValueKind` variant passes it — cited
+- closing change: one case in `crates/ekr-ontology/tests/domain_projection.rs` that equates the YAML `ValueKind` set with the crate set and maps each kind to its carrier through an exhaustive `match` — inferred
+- `crates/ekr-ontology/src/value.rs` read, not changed — inferred
+- Confidence: high
 
 ## Wave p1-14 rescope
 

@@ -2,11 +2,11 @@
 format: aep.planning-md/1
 id: task:store-snapshot-and-its-id-are-declared-not-implemented
 kind: task
-status: draft
+status: active
 title: ekr.store.Snapshot and SnapshotId are declared by the domain and bound to no Rust type
 relations:
 - serves: vision:o2
-revision: 2
+revision: 5
 ---
 ## What is wrong
 
@@ -54,3 +54,13 @@ Rescoped in wave p1-14 (2026-09-23): both homes this task named shipped without 
 `ekr.store.Snapshot` and `SnapshotId` are declared in `systems/ekr/domains/store.yaml`, no Rust type
 binds them, and the `snapshot` verb returns `ekr.kernel.SnapshotResult`. Decision owed: remove the
 two declarations, or bind them with a projection case. Coordinator default: remove them in wave p1-14.
+
+## Scope
+
+Derived 2026-09-23 by `story-scoper` (wave p1-14). Coordinator default: remove both declarations.
+
+- `systems/ekr/domains/store.yaml:14-16` (`ekr.store.SnapshotId`) and `:213-234` (`ekr.store.Snapshot`, the only user) — cited
+- stale after removal: `crates/ekr-store/src/snapshot.rs:20` doc names `ekr.store.Snapshot`; `crates/ekr-core/tests/identity_serde.rs:150` comment says `SnapshotId` arrives with `ekr-store` — cited
+- not affected: `components.yaml` and `kernel.yaml` name `ekr.kernel.Snapshot`, a separate declaration — cited
+- `crates/ekr-store/tests/domain_projection.rs` covers only `StorageClass` and events; no case holds `types:` or `entities:` declarations, so a declaration-coverage case is the one that stops this recurring — inferred
+- Confidence: high for the removal set, medium for the test line

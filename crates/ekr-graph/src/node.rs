@@ -19,18 +19,18 @@ use crate::value::CanonicalValue;
 /// properties, and [`id`](Node::id) is minted once. A rename writes a new `canonical_name`; it
 /// does not produce a new node, and nothing downstream has to notice.
 ///
-/// # Two field shapes that are not the domain's, and why
+/// # How `properties` projects onto the domain
 ///
-/// * `properties` is keyed by [`PropertyId`], where `graph.yaml` declares
-///   `Map<String, ekr.graph.TypedValue>`. A map keyed by the property's *name* makes the name an
-///   identity, which AGENTS.md invariant 3 says it is not — a property renamed in a schema
-///   transaction would silently orphan every value stored under the old key.
-/// * a property's value is a `V`, where the domain carries a `TypedValue { kind, canonical }`.
-///   That is the same flattening `ekr.ontology.PropertyDefinition` applies to `ValueType`, and for
-///   the same stated reason: `ess/1` types are not recursive, so a `List` or a `Record` value
-///   cannot be expressed there. The crate holds the recursive value the type checker needs.
-///
-/// Both are reported rather than reconciled; `systems/` is not this crate's to edit.
+/// * The map is keyed by [`PropertyId`]. `graph.yaml` declares it `Map<String, …>` and states,
+///   in the comment heading `ekr.graph.Node`, that the `String` is the `PropertyId`'s UUID text and
+///   never the property's name. A map keyed by the *name* would make the name an identity, which
+///   AGENTS.md invariant 3 says it is not: a property renamed in a schema transaction would orphan
+///   every value stored under the old key. `tests/domain_projection.rs`
+///   (`property_maps_are_keyed_by_property_id_in_the_domain_and_the_crate`) holds both halves.
+/// * Each value is a `V`, which in canonical state is the recursive [`CanonicalValue`]; the domain
+///   projects it as `ekr.graph.TypedValue`, a kind and the canonical bytes of the value.
+///   `tests/domain_projection.rs` (`every_declaration_of_the_domain_is_carried_field_for_field`)
+///   binds that projection to `CanonicalValue`.
 ///
 /// # Why the value is a parameter
 ///

@@ -308,6 +308,7 @@ dependencies = [
  "proptest",
  "serde",
  "serde_json",
+ "serde_yaml_ng",
  "sha2 0.11.0",
  "thiserror",
  "uuid",
@@ -320,6 +321,7 @@ dependencies = [
  "ekr-core",
  "ekr-ontology",
  "serde",
+ "serde_yaml_ng",
  "thiserror",
  "trybuild",
 ]
@@ -370,6 +372,7 @@ dependencies = [
  "eventlog-sqlite",
  "serde",
  "serde_json",
+ "serde_yaml_ng",
  "tempfile",
  "thiserror",
  "time",
