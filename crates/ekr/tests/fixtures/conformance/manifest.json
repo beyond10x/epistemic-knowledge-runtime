@@ -1,0 +1,44 @@
+{
+  "format": "ekr.conformance-fixtures/1",
+  "host": "host.json",
+  "setup": {
+    "seed": "seed.yaml",
+    "revision_1": "revision-1.yaml",
+    "different_seed": "seed-different.yaml",
+    "intervening": "intervening.yaml"
+  },
+  "documents": {
+    "seed_document": "seed.yaml",
+    "seed_document-1": "seed-different.yaml",
+    "transaction_document": "propose-node.yaml"
+  },
+  "scenarios": {
+    "ekr.kernel.Seed/outcome/invalid-seed": {
+      "seed_document": "seed-unknown-format.yaml"
+    },
+    "ekr.kernel.Propose/outcome/malformed": {
+      "transaction_document": "propose-unknown-format.yaml"
+    },
+    "ekr.kernel.Propose/outcome/misattributed": {
+      "transaction_document": "propose-foreign-proposer.yaml"
+    },
+    "ekr.kernel.Validate/outcome/rejected": {
+      "transaction_document": "propose-rejected.yaml"
+    },
+    "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/rejected": {
+      "transaction_document": "propose-rejected.yaml"
+    },
+    "ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Commit": {
+      "transaction_document": "propose-rejected.yaml"
+    },
+    "ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Validate": {
+      "transaction_document": "propose-rejected.yaml"
+    },
+    "ekr.kernel.GraphTransaction/transition/reject/by/ekr.kernel.Validate/rejected": {
+      "transaction_document": "propose-rejected.yaml"
+    }
+  },
+  "proposals": {
+    "00000000-0000-4000-8000-523a4c729a79": "proposed-for-missing-revision.yaml"
+  }
+}

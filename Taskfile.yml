@@ -10,6 +10,7 @@ tasks:
       - task: doc-check
       - task: vendor-check
       - task: spec-check
+      - task: conform-check
       - task: plan-check
 
   fmt-check:
@@ -62,6 +63,14 @@ tasks:
     desc: the runtime's own ESS contract validates
     cmds:
       - ess specify validate --path systems/ekr
+
+  conform-check:
+    desc: the committed ekr-kernel suite is fresh synthesis and both native providers pass it
+    cmds:
+      - mkdir -p "${CARGO_TARGET_DIR:-target}/ekr-conformance"
+      - ess conform synthesize --path systems/ekr --component ekr-kernel --suite-format 5 --target ir --out "$(realpath "${CARGO_TARGET_DIR:-target}")/ekr-conformance/fresh-suite.json"
+      - cmp systems/ekr/conformance/suite.json "${CARGO_TARGET_DIR:-target}/ekr-conformance/fresh-suite.json"
+      - cargo test --locked -p ekr --test conformance -- --nocapture
 
   plan-check:
     desc: the planning store validates

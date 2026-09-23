@@ -26,6 +26,8 @@ ekr-graph = { path = "crates/ekr-graph" }
 ekr-kernel = { path = "crates/ekr-kernel" }
 ekr-ontology = { path = "crates/ekr-ontology" }
 ekr-store = { path = "crates/ekr-store" }
+ess-conformance = { git = "https://github.com/beyond10x/ess", rev = "8bef63a21766c54f0d809b4decf1d9f7bd587118" }
+ess-primitives = { git = "https://github.com/beyond10x/ess", rev = "8bef63a21766c54f0d809b4decf1d9f7bd587118" }
 eventlog-core = { git = "https://github.com/beyond10x/eventlog", rev = "28e578568846fc860e44a5f7c76b7e807abddc12" }
 eventlog-file = { git = "https://github.com/beyond10x/eventlog", rev = "28e578568846fc860e44a5f7c76b7e807abddc12" }
 eventlog-sqlite = { git = "https://github.com/beyond10x/eventlog", rev = "28e578568846fc860e44a5f7c76b7e807abddc12" }

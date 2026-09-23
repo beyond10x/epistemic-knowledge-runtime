@@ -136,7 +136,14 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
     ),
     (
         "ekr",
-        &["clap", "serde", "serde_json", "time"],
+        &[
+            "clap",
+            "ess-conformance",
+            "ess-primitives",
+            "serde",
+            "serde_json",
+            "time",
+        ],
         &["assert_cmd", "tempfile"],
     ),
 ];
