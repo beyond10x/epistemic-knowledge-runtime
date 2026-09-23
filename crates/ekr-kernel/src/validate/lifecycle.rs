@@ -9,7 +9,9 @@ struct Claim {
     accepted: bool,
     active: bool,
     range: TemporalRange,
-    lifecycle: AssertionLifecycle,
+    // By id: this validator follows supersession chains through canonical and candidate claims
+    // alike, so it reads both sides in the one shape they share.
+    lifecycle: AssertionLifecycle<AssertionId>,
 }
 pub(super) fn check(snapshot: &GraphSnapshot<'_>, tx: &GraphTransaction) -> Vec<ValidationIssue> {
     let mut claims: BTreeMap<AssertionId, Claim> = snapshot
@@ -23,7 +25,7 @@ pub(super) fn check(snapshot: &GraphSnapshot<'_>, tx: &GraphTransaction) -> Vec<
                     accepted: a.assessment.is_accepted(),
                     active: a.is_current(),
                     range: a.valid_time,
-                    lifecycle: a.lifecycle.clone(),
+                    lifecycle: a.lifecycle.clone().map_assertions(|by| by.id()),
                 },
             )
         })

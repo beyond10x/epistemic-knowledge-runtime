@@ -399,7 +399,7 @@ fn a_supersession_chain_is_followed_at_the_head_and_stops_at_the_earlier_revisio
                 seed.assertion,
                 &one,
                 AssertionLifecycle::Superseded {
-                    by: b.id,
+                    by: CanonicalRef::new(b.id),
                     at_revision: RevisionNumber::new(1),
                     effective_from: Timestamp::from_millis(100),
                 },
@@ -411,7 +411,7 @@ fn a_supersession_chain_is_followed_at_the_head_and_stops_at_the_earlier_revisio
             b.id,
             &two,
             AssertionLifecycle::Superseded {
-                by: c.id,
+                by: CanonicalRef::new(c.id),
                 at_revision: RevisionNumber::new(2),
                 effective_from: Timestamp::from_millis(200),
             },
@@ -432,7 +432,7 @@ fn a_supersession_chain_is_followed_at_the_head_and_stops_at_the_earlier_revisio
                 seed.assertion,
                 &one,
                 AssertionLifecycle::Superseded {
-                    by: b.id,
+                    by: CanonicalRef::new(b.id),
                     at_revision: RevisionNumber::new(1),
                     effective_from: Timestamp::from_millis(100),
                 },

@@ -10,6 +10,9 @@ use ekr_core::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::assertion::Assertion;
+use crate::canonical::CanonicalRef;
+
 /// The form of an evidence source: `ekr.graph.EvidenceKind`.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum EvidenceKind {
@@ -56,8 +59,11 @@ pub enum EvidenceSource {
         /// The record's key.
         key: String,
     },
-    /// Another assertion in this graph.
-    GraphAssertion(AssertionId),
+    /// Another assertion in this graph: a [`CanonicalRef`], because retained evidence is canonical
+    /// state and P1 has no transient evidence.
+    /// `tests/adversary_p1_14_exit_compile_fail/retained_evidence_names_its_source_assertion_by_canonical_reference.rs`
+    /// holds it.
+    GraphAssertion(CanonicalRef<Assertion>),
     /// An observation the runtime captured.
     Observation(ObservationId),
     /// A statement by a person, identified where policy allows it.
@@ -146,7 +152,7 @@ impl EvidenceSource {
                 table,
                 key,
             } => format!("{database}/{table}/{key}"),
-            Self::GraphAssertion(id) => id.to_string(),
+            Self::GraphAssertion(assertion) => assertion.id().to_string(),
             Self::Observation(id) => id.to_string(),
             Self::HumanStatement { identity } => identity.clone().unwrap_or_default(),
         }

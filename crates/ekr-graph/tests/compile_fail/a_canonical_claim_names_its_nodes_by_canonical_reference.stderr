@@ -1,0 +1,61 @@
+error[E0308]: mismatched types
+  --> tests/compile_fail/a_canonical_claim_names_its_nodes_by_canonical_reference.rs:14:19
+   |
+14 |     Subject::Node(node)
+   |     ------------- ^^^^ expected `CanonicalRef<Node>`, found `NodeId`
+   |     |
+   |     arguments to this enum variant are incorrect
+   |
+   = note: expected struct `CanonicalRef<ekr_graph::Node>`
+              found struct `NodeId`
+help: the type constructed contains `NodeId` due to the type of the argument passed
+  --> tests/compile_fail/a_canonical_claim_names_its_nodes_by_canonical_reference.rs:14:5
+   |
+14 |     Subject::Node(node)
+   |     ^^^^^^^^^^^^^^----^
+   |                   |
+   |                   this argument influences the type of `Node`
+note: tuple variant defined here
+  --> src/assertion.rs
+   |
+   |     Node(R),
+   |     ^^^^
+
+error[E0308]: mismatched types
+  --> tests/compile_fail/a_canonical_claim_names_its_nodes_by_canonical_reference.rs:18:18
+   |
+18 |     Object::Node(node)
+   |     ------------ ^^^^ expected `CanonicalRef<Node>`, found `TransientRef<Node>`
+   |     |
+   |     arguments to this enum variant are incorrect
+   |
+   = note: expected struct `CanonicalRef<ekr_graph::Node>`
+                found enum `TransientRef<ekr_graph::Node>`
+help: the type constructed contains `TransientRef<ekr_graph::Node>` due to the type of the argument passed
+  --> tests/compile_fail/a_canonical_claim_names_its_nodes_by_canonical_reference.rs:18:5
+   |
+18 |     Object::Node(node)
+   |     ^^^^^^^^^^^^^----^
+   |                  |
+   |                  this argument influences the type of `Node`
+note: tuple variant defined here
+  --> src/assertion.rs
+   |
+   |     Node(R),
+   |     ^^^^
+
+error[E0308]: mismatched types
+  --> tests/compile_fail/a_canonical_claim_names_its_nodes_by_canonical_reference.rs:22:29
+   |
+22 |     CanonicalValue::NodeRef(node)
+   |     ----------------------- ^^^^ expected `CanonicalRef<Node>`, found `NodeId`
+   |     |
+   |     arguments to this enum variant are incorrect
+   |
+   = note: expected struct `CanonicalRef<ekr_graph::Node>`
+              found struct `NodeId`
+note: tuple variant defined here
+  --> src/value.rs
+   |
+   |     NodeRef(CanonicalRef<Node>),
+   |     ^^^^^^^

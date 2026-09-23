@@ -88,7 +88,7 @@ fn assertion_with(
         subject: Subject::Node(CanonicalRef::new(NodeId::mint())),
         predicate: Predicate::Relation(TypeId::mint()),
         object: Object::Node(CanonicalRef::new(NodeId::mint())),
-        evidence: BTreeSet::from([EvidenceId::mint()]),
+        evidence: BTreeSet::from([CanonicalRef::new(EvidenceId::mint())]),
         proposed_by: AgentId::mint(),
         assessment,
         lifecycle,
@@ -137,7 +137,7 @@ fn every_assessment() -> Vec<Assessment> {
             issues: vec![IssueId::mint()],
         },
         Assessment::Disputed {
-            competing_assertions: vec![AssertionId::mint()],
+            competing_assertions: vec![CanonicalRef::new(AssertionId::mint())],
         },
     ]
 }
@@ -147,7 +147,7 @@ fn every_lifecycle() -> Vec<AssertionLifecycle> {
     vec![
         AssertionLifecycle::Active,
         AssertionLifecycle::Superseded {
-            by: AssertionId::mint(),
+            by: CanonicalRef::new(AssertionId::mint()),
             at_revision: RevisionNumber::new(5),
             effective_from: HANDOVER,
         },
