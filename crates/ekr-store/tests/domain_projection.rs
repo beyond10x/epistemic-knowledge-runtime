@@ -11,11 +11,11 @@
 //! outside the ordering that decides what a collector may delete. The list is the defect; a missing
 //! entry is only its symptom, so the list is checked against the domain here rather than reviewed.
 //!
-//! `ekr-store` declares no YAML parser, so the document is read as text, and the scan is held to
-//! its own catch: a parse that stops finding declarations fails loudly rather than passing
-//! vacuously.
+//! The document is parsed with `serde_yaml_ng`, and each scan is held to its own catch: a parse
+//! that stops finding declarations fails loudly rather than passing vacuously.
 
 use ekr_store::{ObjectStore, RevisionLog, StorageClass};
+use serde_yaml_ng::Value as Yaml;
 
 /// `systems/ekr/domains/store.yaml`, as text.
 fn domain_text() -> String {
@@ -28,34 +28,19 @@ fn domain_text() -> String {
 
 /// The variants one `kind: enum` type of the domain declares, in document order.
 fn variants_of(type_name: &str) -> Vec<String> {
-    let text = domain_text();
-    let mut lines = text
-        .lines()
-        .skip_while(|line| line.trim_start() != format!("- name: {type_name}"));
-    assert!(
-        lines.next().is_some(),
-        "the domain declares no type named {type_name}"
-    );
-
-    let mut variants = Vec::new();
-    let mut inside = false;
-    for line in lines {
-        let trimmed = line.trim();
-        if trimmed.starts_with("- name: ") {
-            break;
-        }
-        if trimmed == "variants:" {
-            inside = true;
-            continue;
-        }
-        if inside {
-            if let Some(variant) = trimmed.strip_prefix("- ") {
-                variants.push(variant.to_owned());
-            } else if !trimmed.is_empty() && !trimmed.starts_with('#') {
-                break;
-            }
-        }
-    }
+    let document = parse_yaml(&domain_text());
+    let declared = document
+        .get("types")
+        .map_or(&[][..], Yaml::items)
+        .iter()
+        .find(|declared| declared.get("name").and_then(Yaml::as_str) == Some(type_name))
+        .unwrap_or_else(|| panic!("the domain declares no type named {type_name}"));
+    let variants: Vec<String> = declared
+        .get("variants")
+        .map_or(&[][..], Yaml::items)
+        .iter()
+        .map(|variant| variant.as_str().expect("a variant is a name").to_owned())
+        .collect();
     assert!(
         !variants.is_empty(),
         "the variant scan is broken, not the domain: {type_name}"
@@ -251,34 +236,29 @@ fn event_names_the_crate_writes() -> BTreeSet<String> {
 
 /// Every event the domain declares, with its field names in document order.
 fn declared_events() -> BTreeMap<String, Vec<String>> {
-    let text = domain_text();
+    let document = parse_yaml(&domain_text());
     let mut declared: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    let mut current: Option<String> = None;
-    let mut in_events = false;
-    for line in text.lines() {
-        if line.starts_with("events:") {
-            in_events = true;
-            continue;
-        }
-        if !in_events {
-            continue;
-        }
-        // A top-level key ends the section.
-        if !line.starts_with(' ') && !line.trim().is_empty() && !line.starts_with('#') {
-            break;
-        }
-        let trimmed = line.trim();
-        if let Some(name) = trimmed.strip_prefix("- name: ekr.") {
-            current = Some(format!("ekr.{name}"));
-            declared.entry(format!("ekr.{name}")).or_default();
-        } else if let Some(field) = trimmed.strip_prefix("- name: ") {
-            if let Some(event) = &current {
-                declared
-                    .get_mut(event)
-                    .expect("the event was entered when its name was read")
-                    .push(field.to_owned());
-            }
-        }
+    for event in document.get("events").map_or(&[][..], Yaml::items) {
+        let name = event
+            .get("name")
+            .and_then(Yaml::as_str)
+            .unwrap_or_else(|| panic!("an event has no name: {event:?}"));
+        let fields = event
+            .get("fields")
+            .map_or(&[][..], Yaml::items)
+            .iter()
+            .map(|field| {
+                field
+                    .get("name")
+                    .and_then(Yaml::as_str)
+                    .unwrap_or_else(|| panic!("a field of {name} has no name: {field:?}"))
+                    .to_owned()
+            })
+            .collect();
+        assert!(
+            declared.insert(name.to_owned(), fields).is_none(),
+            "{name} is declared twice"
+        );
     }
     assert!(
         !declared.is_empty(),
@@ -474,6 +454,515 @@ fn find_named(
         }
         serde_json::Value::Array(items) => items.iter().find_map(|item| find_named(item, name)),
         _ => None,
+    }
+}
+
+// Every `types:` and `entities:` declaration of the domain, against the Rust type that carries it.
+//
+// `ekr.store.Snapshot` and `ekr.store.SnapshotId` were declared here and implemented nowhere for
+// three waves, and it took an implementor's report to say so: the cases above hold events and
+// `StorageClass`, and nothing held the rest. This is `crates/ekr-graph/tests/domain_projection.rs`'s
+// PROJECTIONS applied to this domain, member for member, so a declaration nothing implements — or
+// a field one side has and the other does not — is red rather than invisible.
+//
+// Adversary pass 1 of wave p1-14 found the first version of this blind twice over: it asked only
+// that a type of the carrier's name exist, and it found a declaration only when `name:` was the
+// first key of its mapping. Both were reading the document by line shape. It is now parsed with
+// `serde_yaml_ng`, and a key is looked up wherever it sits in its mapping.
+
+/// How the crate carries one declaration.
+enum Carrier {
+    /// One Rust type holds the declaration member for member: a struct's fields (with an entity's
+    /// identity field), or an enum's variants.
+    Whole(&'static str),
+    /// The declaration's variants are spread over several Rust types. Each part names the variants
+    /// it holds, and whether they are *all* of that type's variants.
+    Split(&'static [(&'static str, &'static [&'static str], bool)]),
+    /// A one-variant enumeration carried as a string constant, `(type, constant)`.
+    Constant(&'static str, &'static str),
+}
+
+/// Each declaration under `types:` or `entities:`, and how the crate carries it.
+///
+/// Transcribed, not derived: a binding read from the thing it binds asserts nothing. Both halves of
+/// each comparison are derived, so a declaration added without a row, a member added on one side,
+/// or a carrier renamed is red.
+const BINDINGS: &[(&str, Carrier)] = &[
+    ("ekr.store.StorageClass", Carrier::Whole("StorageClass")),
+    (
+        "ekr.store.PublicationCommandKind",
+        Carrier::Whole("PublicationCommandKind"),
+    ),
+    (
+        "ekr.store.PublicationCommandKey",
+        Carrier::Whole("PublicationCommandKey"),
+    ),
+    (
+        "ekr.store.PublicationObject",
+        Carrier::Whole("PublicationObject"),
+    ),
+    ("ekr.store.Publication", Carrier::Whole("Publication")),
+    (
+        "ekr.store.NativeExpectedKind",
+        Carrier::Whole("NativeExpectedKind"),
+    ),
+    ("ekr.store.NativeExpected", Carrier::Whole("NativeExpected")),
+    ("ekr.store.NativeStreamId", Carrier::Whole("NativeStreamId")),
+    ("ekr.store.NativeNewEvent", Carrier::Whole("NativeNewEvent")),
+    (
+        "ekr.store.NativeStreamAppend",
+        Carrier::Whole("NativeStreamAppend"),
+    ),
+    ("ekr.store.NativeClaim", Carrier::Whole("NativeClaim")),
+    (
+        "ekr.store.NativeCommandMeta",
+        Carrier::Whole("NativeCommandMeta"),
+    ),
+    (
+        "ekr.store.NativeBlobWrite",
+        Carrier::Whole("NativeBlobWrite"),
+    ),
+    (
+        "ekr.store.NativePublicationRequest",
+        Carrier::Whole("NativePublicationRequest"),
+    ),
+    (
+        "ekr.store.PublicationPreparationFormatV1",
+        Carrier::Constant("PublicationPreparationV1", "FORMAT"),
+    ),
+    (
+        "ekr.store.PublicationPreparationV1",
+        Carrier::Whole("PublicationPreparationV1"),
+    ),
+    (
+        "ekr.store.PublicationResolution",
+        Carrier::Split(&[
+            ("Appended", &["Written", "AlreadyRecorded"], true),
+            ("StoreError", &["Conflict", "UnknownCommit"], false),
+        ]),
+    ),
+    ("ekr.store.StoredObject", Carrier::Whole("StoredObject")),
+];
+
+/// Every declaration under the top-level `types:` and `entities:` keys of `document`, as
+/// `(name, members)`: an enumeration's variants, or a struct's or entity's field names with an
+/// entity's identity field among them.
+///
+/// Takes the parsed document rather than reading it so the case can be shown red against a copy of
+/// the document, without editing `systems/`.
+fn declared_types_and_entities(document: &Yaml) -> BTreeMap<String, BTreeSet<String>> {
+    let mut found = BTreeMap::new();
+    for section in ["types", "entities"] {
+        for declaration in document.get(section).map_or(&[][..], Yaml::items) {
+            let name = declaration
+                .get("name")
+                .and_then(Yaml::as_str)
+                .unwrap_or_else(|| panic!("a {section} entry has no name: {declaration:?}"));
+            let mut members: BTreeSet<String> = declaration
+                .get("variants")
+                .map_or(&[][..], Yaml::items)
+                .iter()
+                .map(|variant| variant.as_str().expect("a variant is a name").to_owned())
+                .collect();
+            for field in declaration.get("fields").map_or(&[][..], Yaml::items) {
+                members.insert(
+                    field
+                        .get("name")
+                        .and_then(Yaml::as_str)
+                        .unwrap_or_else(|| panic!("a field of {name} has no name: {field:?}"))
+                        .to_owned(),
+                );
+            }
+            if let Some(identity) = declaration.get("identity") {
+                members.insert(
+                    identity
+                        .get("name")
+                        .and_then(Yaml::as_str)
+                        .unwrap_or_else(|| panic!("the identity of {name} has no name"))
+                        .to_owned(),
+                );
+            }
+            assert!(
+                found.insert(name.to_owned(), members).is_none(),
+                "{name} is declared twice"
+            );
+        }
+    }
+    assert!(
+        found.len() >= 10,
+        "the declaration scan is broken, not the domain: {found:?}"
+    );
+    found
+}
+
+/// Every current module of this crate's `src/`, as raw text beside the same text with comments and
+/// literals blanked (see [`code_only`]), excluding the frozen legacy codec.
+fn crate_sources() -> Vec<(String, String)> {
+    let directory = std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .join("src");
+    let mut paths: Vec<std::path::PathBuf> = std::fs::read_dir(directory)
+        .expect("the crate has a src/")
+        .map(|entry| entry.expect("a directory entry").path())
+        .filter(|path| {
+            path.extension().is_some_and(|e| e == "rs")
+                && path.file_name().is_some_and(|file| file != "legacy.rs")
+        })
+        .collect();
+    paths.sort();
+    assert!(paths.len() >= 5, "the module scan is broken: {paths:?}");
+    paths
+        .into_iter()
+        .map(|path| {
+            let raw = std::fs::read_to_string(&path).expect("a source file");
+            let code = code_only(&raw);
+            (raw, code)
+        })
+        .collect()
+}
+
+/// `text` with every comment and the contents of every string and character literal replaced by
+/// spaces of the same byte length, newlines kept, so a brace or comma inside one is not read as
+/// structure and a byte offset into the result is one into `text`.
+fn code_only(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    let blank = |out: &mut String, c: char| {
+        if c == '\n' {
+            out.push('\n');
+        } else {
+            out.extend(std::iter::repeat_n(' ', c.len_utf8()));
+        }
+    };
+    let mut at = 0;
+    while at < chars.len() {
+        let c = chars[at];
+        let next = chars.get(at + 1).copied();
+        if c == '/' && next == Some('/') {
+            while at < chars.len() && chars[at] != '\n' {
+                blank(&mut out, chars[at]);
+                at += 1;
+            }
+        } else if c == '/' && next == Some('*') {
+            let mut depth = 0usize;
+            while at < chars.len() {
+                if chars[at] == '/' && chars.get(at + 1) == Some(&'*') {
+                    depth += 1;
+                    blank(&mut out, '/');
+                    blank(&mut out, '*');
+                    at += 2;
+                } else if chars[at] == '*' && chars.get(at + 1) == Some(&'/') {
+                    depth -= 1;
+                    blank(&mut out, '*');
+                    blank(&mut out, '/');
+                    at += 2;
+                    if depth == 0 {
+                        break;
+                    }
+                } else {
+                    blank(&mut out, chars[at]);
+                    at += 1;
+                }
+            }
+        } else if c == 'r'
+            && (next == Some('"') || next == Some('#'))
+            && !chars
+                .get(at.wrapping_sub(1))
+                .is_some_and(|p| p.is_alphanumeric() || *p == '_')
+        {
+            // A raw string: `r"…"` or `r#"…"#`, closed by a quote and as many hashes.
+            let mut hashes = 0;
+            let mut probe = at + 1;
+            while chars.get(probe) == Some(&'#') {
+                hashes += 1;
+                probe += 1;
+            }
+            if chars.get(probe) != Some(&'"') {
+                out.push(c);
+                at += 1;
+                continue;
+            }
+            for &k in &chars[at..=probe] {
+                out.push(k);
+            }
+            at = probe + 1;
+            while at < chars.len() {
+                if chars[at] == '"' && (1..=hashes).all(|h| chars.get(at + h) == Some(&'#')) {
+                    out.push('"');
+                    out.extend(std::iter::repeat_n('#', hashes));
+                    at += 1 + hashes;
+                    break;
+                }
+                blank(&mut out, chars[at]);
+                at += 1;
+            }
+        } else if c == '"' {
+            out.push('"');
+            at += 1;
+            while at < chars.len() && chars[at] != '"' {
+                if chars[at] == '\\' {
+                    blank(&mut out, '\\');
+                    at += 1;
+                }
+                if at < chars.len() {
+                    blank(&mut out, chars[at]);
+                    at += 1;
+                }
+            }
+            if at < chars.len() {
+                out.push('"');
+                at += 1;
+            }
+        } else if c == '\'' {
+            // A character literal is `'x'` or `'\…'`; anything else is a lifetime.
+            let close = if next == Some('\\') {
+                (at + 2..chars.len().min(at + 12)).find(|&k| chars[k] == '\'')
+            } else if chars.get(at + 2) == Some(&'\'') {
+                Some(at + 2)
+            } else {
+                None
+            };
+            if let Some(close) = close {
+                out.push('\'');
+                for &k in &chars[at + 1..close] {
+                    blank(&mut out, k);
+                }
+                out.push('\'');
+                at = close + 1;
+            } else {
+                out.push(c);
+                at += 1;
+            }
+        } else {
+            out.push(c);
+            at += 1;
+        }
+    }
+    assert_eq!(out.len(), text.len(), "blanking preserves byte offsets");
+    out
+}
+
+/// The byte range of the braced block that follows the first line of `code` for which `head`
+/// holds, from its `{` through its matching `}`.
+fn block_after(code: &str, head: impl Fn(&str) -> bool) -> Option<std::ops::Range<usize>> {
+    let mut offset = 0;
+    for line in code.split_inclusive('\n') {
+        if head(line.trim()) {
+            let open = offset + code[offset..].find('{')?;
+            let mut depth = 0usize;
+            for (at, byte) in code.bytes().enumerate().skip(open) {
+                match byte {
+                    b'{' => depth += 1,
+                    b'}' => {
+                        depth -= 1;
+                        if depth == 0 {
+                            return Some(open..at + 1);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            panic!("an item's braces do not balance");
+        }
+        offset += line.len();
+    }
+    None
+}
+
+/// Whether `line` opens `pub struct name` or `pub enum name`, and not a longer name.
+fn opens_type(line: &str, name: &str) -> bool {
+    ["pub struct ", "pub enum "].iter().any(|keyword| {
+        line.strip_prefix(keyword)
+            .and_then(|rest| rest.strip_prefix(name))
+            .is_some_and(|rest| !rest.starts_with(|c: char| c.is_alphanumeric() || c == '_'))
+    })
+}
+
+/// The member names of `pub struct name` (its fields) or `pub enum name` (its variants), read from
+/// the item's own braces with comments, literals and attributes set aside.
+///
+/// Members are the body's top-level comma-separated entries, where "top level" counts `()`, `[]`,
+/// `{}` and `<>` (a `->` is not a bracket), so a generic `BTreeMap<K, V>` is one entry.
+fn rust_members(name: &str) -> Option<BTreeSet<String>> {
+    for (_, code) in crate_sources() {
+        let Some(block) = block_after(&code, |line| opens_type(line, name)) else {
+            continue;
+        };
+        let body = &code[block.start + 1..block.end - 1];
+        let mut entries = vec![String::new()];
+        let mut depth = 0usize;
+        let mut previous = ' ';
+        for c in body.chars() {
+            match c {
+                '(' | '[' | '{' | '<' => depth += 1,
+                ')' | ']' | '}' => depth -= 1,
+                '>' if previous != '-' => depth -= 1,
+                ',' if depth == 0 => {
+                    entries.push(String::new());
+                    previous = c;
+                    continue;
+                }
+                _ => {}
+            }
+            entries.last_mut().expect("one entry is open").push(c);
+            previous = c;
+        }
+        let is_struct = code[..block.start]
+            .rsplit('\n')
+            .next()
+            .is_some_and(|line| line.trim_start().starts_with("pub struct"));
+        let mut members = BTreeSet::new();
+        for entry in entries {
+            let mut entry = entry.trim();
+            // Attributes before the member: `#[…]`, balanced.
+            while let Some(rest) = entry.strip_prefix("#[") {
+                let mut depth = 1usize;
+                let end = rest
+                    .char_indices()
+                    .find(|&(_, c)| {
+                        match c {
+                            '[' => depth += 1,
+                            ']' => depth -= 1,
+                            _ => {}
+                        }
+                        depth == 0
+                    })
+                    .map(|(at, _)| at)
+                    .expect("an attribute closes");
+                entry = rest[end + 1..].trim_start();
+            }
+            let entry = entry
+                .strip_prefix("pub(crate) ")
+                .or_else(|| entry.strip_prefix("pub "))
+                .unwrap_or(entry);
+            let ident: String = entry
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            if ident.is_empty() {
+                assert!(
+                    entry.is_empty(),
+                    "{name} has a member this scan cannot name: {entry:?}"
+                );
+                continue;
+            }
+            if is_struct {
+                assert!(
+                    entry[ident.len()..].trim_start().starts_with(':'),
+                    "{name} has a field this scan cannot read: {entry:?}"
+                );
+            }
+            members.insert(ident);
+        }
+        return Some(members);
+    }
+    None
+}
+
+/// The value of `pub const constant: &'static str = "…";` inside `impl owner { … }`.
+fn string_constant(owner: &str, constant: &str) -> Option<String> {
+    for (raw, code) in crate_sources() {
+        let Some(block) = block_after(&code, |line| line == format!("impl {owner} {{")) else {
+            continue;
+        };
+        let head = format!("pub const {constant}: &'static str = \"");
+        let body = &raw[block];
+        let at = body.find(&head)? + head.len();
+        return Some(body[at..at + body[at..].find('"')?].to_owned());
+    }
+    None
+}
+
+/// Every `types:` and `entities:` declaration of `store.yaml` is carried member for member by the
+/// crate, and every binding names a declaration that still exists.
+#[test]
+fn every_type_and_entity_the_domain_declares_names_a_rust_carrier() {
+    let declared = declared_types_and_entities(&parse_yaml(&domain_text()));
+    let bound: BTreeSet<String> = BINDINGS
+        .iter()
+        .map(|(name, _)| (*name).to_owned())
+        .collect();
+    let names: BTreeSet<String> = declared.keys().cloned().collect();
+
+    let unbound: Vec<&String> = names.difference(&bound).collect();
+    assert!(
+        unbound.is_empty(),
+        "the store domain declares types no Rust type carries: {unbound:?}"
+    );
+    let stale: Vec<&String> = bound.difference(&names).collect();
+    assert!(
+        stale.is_empty(),
+        "bindings name declarations the store domain no longer has: {stale:?}"
+    );
+
+    for (declaration, carrier) in BINDINGS {
+        let domain = &declared[*declaration];
+        match carrier {
+            Carrier::Whole(rust_type) => {
+                let rust = rust_members(rust_type).unwrap_or_else(|| {
+                    panic!(
+                        "{declaration} is bound to {rust_type}, which this crate does not declare"
+                    )
+                });
+                assert_eq!(
+                    domain, &rust,
+                    "{declaration} (left) and {rust_type} (right) disagree member for member"
+                );
+            }
+            Carrier::Split(parts) => {
+                let mut covered = BTreeSet::new();
+                for (rust_type, held, whole) in *parts {
+                    let rust = rust_members(rust_type).unwrap_or_else(|| {
+                        panic!("{declaration} is bound to {rust_type}, which this crate does not declare")
+                    });
+                    let held: BTreeSet<String> = held.iter().map(|m| (*m).to_owned()).collect();
+                    assert!(
+                        held.is_subset(&rust),
+                        "{declaration} is carried in part by {rust_type}, which lacks {:?}",
+                        held.difference(&rust).collect::<Vec<_>>()
+                    );
+                    if *whole {
+                        assert_eq!(
+                            held, rust,
+                            "{rust_type} carries only {declaration}'s variants"
+                        );
+                    }
+                    covered.extend(held);
+                }
+                assert_eq!(
+                    domain, &covered,
+                    "{declaration} (left) and its carriers (right) disagree member for member"
+                );
+            }
+            Carrier::Constant(owner, constant) => {
+                let value = string_constant(owner, constant).unwrap_or_else(|| {
+                    panic!("{declaration} is bound to {owner}::{constant}, which this crate does not declare")
+                });
+                assert_eq!(
+                    domain,
+                    &BTreeSet::from([value]),
+                    "{declaration} and {owner}::{constant} disagree"
+                );
+            }
+        }
+    }
+}
+
+/// The YAML document `text`, parsed by `serde_yaml_ng`, so a key is found wherever it sits in its
+/// mapping — the order-blindness adversary pass 1 found in the line scans this file used to run.
+fn parse_yaml(text: &str) -> Yaml {
+    serde_yaml_ng::from_str(text).expect("the ESS domain parses")
+}
+
+/// A sequence's items, or none for anything that is not a sequence.
+trait Items {
+    fn items(&self) -> &[Yaml];
+}
+
+impl Items for Yaml {
+    fn items(&self) -> &[Yaml] {
+        self.as_sequence().map_or(&[], Vec::as_slice)
     }
 }
 
