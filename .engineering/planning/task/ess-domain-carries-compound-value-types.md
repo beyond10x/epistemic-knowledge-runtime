@@ -2,13 +2,13 @@
 format: aep.planning-md/1
 id: task:ess-domain-carries-compound-value-types
 kind: task
-status: draft
+status: active
 title: The ESS domain has no representation for a List or Record property type
 relations:
 - informed_by: review-result:adversary-ontology-pass-2
 - derived_from: story:ontology-types-and-values
 - serves: vision:o2
-revision: 3
+revision: 5
 ---
 ## Context
 

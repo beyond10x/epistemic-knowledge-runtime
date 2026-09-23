@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:p1-exit-properties
 kind: story
-status: draft
+status: active
 title: 'P1 exit properties: no dangling reference commits; the membrane holds for every reference'
 relations:
 - decomposes: epic:p1-kernel-ontology-core
@@ -38,7 +38,7 @@ scope:
   path: crates/ekr-store/src/log.rs
 - confidence: inferred
   path: crates/ekr-store/src/snapshot.rs
-revision: 17
+revision: 19
 ---
 ## Acceptance
 
