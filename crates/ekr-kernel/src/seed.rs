@@ -413,8 +413,8 @@ fn narrow_assertion(
             .map(CanonicalRef::new)
             .collect(),
         proposed_by: assertion.proposed_by,
-        assessment: assertion.assessment,
-        lifecycle: assertion.lifecycle,
+        assessment: assertion.assessment.map_assertions(CanonicalRef::new),
+        lifecycle: assertion.lifecycle.map_assertions(CanonicalRef::new),
         valid_time: assertion.valid_time,
         transaction_time: assertion.transaction_time,
     })

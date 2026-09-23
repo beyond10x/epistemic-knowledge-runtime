@@ -8,7 +8,8 @@
 //! from a test:
 //!
 //! * `no_transaction_naming_an_absent_identity_commits_on_either_provider` — a proposal whose
-//!   operations name a node, an edge, an assertion or a piece of evidence nothing holds is
+//!   operations name a node, an edge, an assertion, a piece of evidence or a graph root nothing
+//!   holds, in every one of the 21 places an operation can name one, is
 //!   rejected with the reference validator's named code, cannot be committed, and publishes no
 //!   revision: the head, the revision count and the physical event count are read back;
 //! * `replay_from_the_seed_reproduces_every_root_of_a_generated_lineage_on_both_providers` — a
@@ -24,8 +25,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use ekr_core::{
-    AssertionId, ContentHash, EdgeId, EvidenceId, NodeId, PropertyId, RevisionNumber, Timestamp,
-    TransactionId, TypeId,
+    AssertionId, ContentHash, EdgeId, EvidenceId, GraphRootId, NodeId, PropertyId, RevisionNumber,
+    Timestamp, TransactionId, TypeId,
 };
 use ekr_graph::{
     Assertion, AssertionLifecycle, Assessment, Confidence, Edge, Evidence, EvidenceSource, Node,
@@ -85,6 +86,7 @@ struct World {
     node_type: TypeId,
     edge_type: TypeId,
     label: PropertyId,
+    link: PropertyId,
     nodes: [NodeId; 2],
     edge: EdgeId,
     assertion: AssertionId,
@@ -99,6 +101,18 @@ fn world() -> World {
     let mut labels = PropertyDefinition::new(label, "labels", ValueType::String);
     labels.cardinality = Cardinality::Many;
     declared.properties.insert(label, labels);
+    // A property whose values are node references, so a `NodeRef` inside a value is well typed and
+    // the only thing wrong with it is what it points at.
+    let link = PropertyId::mint();
+    let mut links = PropertyDefinition::new(
+        link,
+        "links",
+        ValueType::NodeRef {
+            allowed_types: BTreeSet::from([node_type]),
+        },
+    );
+    links.cardinality = Cardinality::Many;
+    declared.properties.insert(link, links);
     seed.ontology.node_types.push(declared);
     let mut relation = EdgeType::new(edge_type, "relates_to");
     relation.source_types.insert(node_type);
@@ -140,6 +154,7 @@ fn world() -> World {
         node_type,
         edge_type,
         label,
+        link,
         nodes,
         edge,
         assertion: assertion_id,
@@ -217,13 +232,14 @@ fn physical_events(path: &std::path::Path, file: bool) -> usize {
     })
 }
 
-/// The kind of identity a dangling proposal names, and where its bits come from.
-#[derive(Clone, Copy, Debug)]
+/// The kind of identity a dangling proposal names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Kind {
     Node,
     Edge,
     Assertion,
     Evidence,
+    GraphRoot,
 }
 
 impl Kind {
@@ -234,126 +250,222 @@ impl Kind {
             Self::Edge => "unresolved-edge",
             Self::Assertion => "unresolved-assertion",
             Self::Evidence => "unresolved-evidence",
+            Self::GraphRoot => "unresolved-graph-root",
         }
     }
 }
 
-/// One operation that names an identity of `kind` nothing holds, in the operation shape `shape`
-/// selects among those that can name that kind. `bits` carries the identity's 128 bits.
-fn dangling(world: &World, kind: Kind, shape: usize, bits: NodeId) -> (GraphOperation, bool) {
-    let root = world.seed.graph.root.id;
-    let uuid = bits.to_uuid();
-    match kind {
-        Kind::Node => {
-            let absent = NodeId::from_uuid(uuid);
-            let operation = match shape % 7 {
-                0 => GraphOperation::UpdateProperty(PropertyMutation {
-                    node: absent,
-                    property: world.label,
-                    values: vec![Value::String("changed".into())],
-                }),
-                1 => GraphOperation::CreateEdge(EdgeDraft {
-                    id: EdgeId::mint(),
-                    root_id: root,
-                    type_id: world.edge_type,
-                    source: absent,
-                    target: world.nodes[1],
-                    properties: BTreeMap::new(),
-                }),
-                2 => GraphOperation::CreateEdge(EdgeDraft {
-                    id: EdgeId::mint(),
-                    root_id: root,
-                    type_id: world.edge_type,
-                    source: world.nodes[0],
-                    target: absent,
-                    properties: BTreeMap::new(),
-                }),
-                3 => GraphOperation::AddAssertion(Box::new(claim(
-                    root,
-                    world.label,
-                    absent,
-                    "about nothing",
-                    world.evidence,
-                ))),
-                4 => {
-                    let mut held = claim(root, world.label, world.nodes[0], "x", world.evidence);
-                    held.predicate = Predicate::Relation(world.edge_type);
-                    held.object = Object::Node(absent);
-                    GraphOperation::AddAssertion(Box::new(held))
-                }
-                5 => GraphOperation::MergeEntity(EntityMerge {
-                    absorbed: absent,
-                    into: world.nodes[0],
-                }),
-                _ => GraphOperation::Invoke {
-                    node: absent,
-                    operation: "decide".into(),
-                    arguments: BTreeMap::new(),
-                },
-            };
-            let cites = matches!(operation, GraphOperation::AddAssertion(_));
-            (operation, cites)
-        }
-        Kind::Edge => {
-            let absent = EdgeId::from_uuid(uuid);
-            if shape.is_multiple_of(2) {
-                (GraphOperation::DeleteEdge(absent), false)
-            } else {
-                let mut held = claim(root, world.label, world.nodes[0], "x", world.evidence);
-                held.subject = Subject::Edge(absent);
-                (GraphOperation::AddAssertion(Box::new(held)), true)
+/// Every place an operation can name a graph identity, which is every shape the property is asked
+/// of. **Enumerated rather than drawn**: `ALL` is iterated, so every shape runs in every run and
+/// only what surrounds it is random.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Shape {
+    UpdatedNode,
+    EdgeSource,
+    EdgeTarget,
+    SubjectNode,
+    ObjectNode,
+    MergeAbsorbed,
+    MergeInto,
+    InvokedNode,
+    NodeRefInCreatedProperty,
+    NodeRefInUpdatedProperty,
+    NodeRefInInvokeArgument,
+    NodeRefInAssertedValue,
+    DeletedEdge,
+    SubjectEdge,
+    RetractedAssertion,
+    SupersededAssertion,
+    SupersedingAssertion,
+    CitedEvidence,
+    CreatedNodeRoot,
+    CreatedEdgeRoot,
+    AssertionRoot,
+}
+
+impl Shape {
+    const ALL: [Self; 21] = [
+        Self::UpdatedNode,
+        Self::EdgeSource,
+        Self::EdgeTarget,
+        Self::SubjectNode,
+        Self::ObjectNode,
+        Self::MergeAbsorbed,
+        Self::MergeInto,
+        Self::InvokedNode,
+        Self::NodeRefInCreatedProperty,
+        Self::NodeRefInUpdatedProperty,
+        Self::NodeRefInInvokeArgument,
+        Self::NodeRefInAssertedValue,
+        Self::DeletedEdge,
+        Self::SubjectEdge,
+        Self::RetractedAssertion,
+        Self::SupersededAssertion,
+        Self::SupersedingAssertion,
+        Self::CitedEvidence,
+        Self::CreatedNodeRoot,
+        Self::CreatedEdgeRoot,
+        Self::AssertionRoot,
+    ];
+
+    /// The kind of identity this shape names.
+    fn kind(self) -> Kind {
+        match self {
+            Self::UpdatedNode
+            | Self::EdgeSource
+            | Self::EdgeTarget
+            | Self::SubjectNode
+            | Self::ObjectNode
+            | Self::MergeAbsorbed
+            | Self::MergeInto
+            | Self::InvokedNode
+            | Self::NodeRefInCreatedProperty
+            | Self::NodeRefInUpdatedProperty
+            | Self::NodeRefInInvokeArgument
+            | Self::NodeRefInAssertedValue => Kind::Node,
+            Self::DeletedEdge | Self::SubjectEdge => Kind::Edge,
+            Self::RetractedAssertion | Self::SupersededAssertion | Self::SupersedingAssertion => {
+                Kind::Assertion
             }
-        }
-        Kind::Assertion => {
-            let absent = AssertionId::from_uuid(uuid);
-            let operation = match shape % 3 {
-                0 => GraphOperation::RetractAssertion(Retraction {
-                    assertion: absent,
-                    reason: RetractionReason::new("withdrawn"),
-                }),
-                1 => GraphOperation::SupersedeAssertion(Supersession {
-                    assertion: absent,
-                    by: world.assertion,
-                    effective_from: Timestamp::EPOCH,
-                }),
-                _ => GraphOperation::SupersedeAssertion(Supersession {
-                    assertion: world.assertion,
-                    by: absent,
-                    effective_from: Timestamp::EPOCH,
-                }),
-            };
-            (operation, false)
-        }
-        Kind::Evidence => {
-            let absent = EvidenceId::from_uuid(uuid);
-            let mut held = claim(root, world.label, world.nodes[0], "x", absent);
-            held.evidence.insert(absent);
-            (GraphOperation::AddAssertion(Box::new(held)), true)
+            Self::CitedEvidence => Kind::Evidence,
+            Self::CreatedNodeRoot | Self::CreatedEdgeRoot | Self::AssertionRoot => Kind::GraphRoot,
         }
     }
+}
+
+/// One operation that names an identity nothing holds, in `shape`, and whether it cites the
+/// world's evidence. `bits` carries the absent identity's 128 bits.
+fn dangling(world: &World, shape: Shape, bits: NodeId) -> (GraphOperation, bool) {
+    let root = world.seed.graph.root.id;
+    let uuid = bits.to_uuid();
+    let node = NodeId::from_uuid(uuid);
+    let reference = Value::NodeRef(node);
+    let edge = |source, target, root_id| {
+        GraphOperation::CreateEdge(EdgeDraft {
+            id: EdgeId::mint(),
+            root_id,
+            type_id: world.edge_type,
+            source,
+            target,
+            properties: BTreeMap::new(),
+        })
+    };
+    let asserted = |held: Assertion<Value>| (GraphOperation::AddAssertion(Box::new(held)), true);
+    let about = |subject| claim(root, world.label, subject, "x", world.evidence);
+    let supersession = |assertion, by| {
+        GraphOperation::SupersedeAssertion(Supersession {
+            assertion,
+            by,
+            effective_from: Timestamp::EPOCH,
+        })
+    };
+    let created = |root_id, properties| {
+        GraphOperation::CreateNode(NodeDraft {
+            id: NodeId::mint(),
+            root_id,
+            type_id: world.node_type,
+            canonical_name: "created".into(),
+            properties,
+        })
+    };
+    let operation = match shape {
+        Shape::UpdatedNode => GraphOperation::UpdateProperty(PropertyMutation {
+            node,
+            property: world.label,
+            values: vec![Value::String("changed".into())],
+        }),
+        Shape::EdgeSource => edge(node, world.nodes[1], root),
+        Shape::EdgeTarget => edge(world.nodes[0], node, root),
+        Shape::SubjectNode => return asserted(about(node)),
+        Shape::ObjectNode => {
+            let mut held = about(world.nodes[0]);
+            held.predicate = Predicate::Relation(world.edge_type);
+            held.object = Object::Node(node);
+            return asserted(held);
+        }
+        Shape::MergeAbsorbed => GraphOperation::MergeEntity(EntityMerge {
+            absorbed: node,
+            into: world.nodes[0],
+        }),
+        Shape::MergeInto => GraphOperation::MergeEntity(EntityMerge {
+            absorbed: world.nodes[0],
+            into: node,
+        }),
+        Shape::InvokedNode => GraphOperation::Invoke {
+            node,
+            operation: "decide".into(),
+            arguments: BTreeMap::new(),
+        },
+        Shape::NodeRefInCreatedProperty => {
+            created(root, BTreeMap::from([(world.link, vec![reference])]))
+        }
+        Shape::NodeRefInUpdatedProperty => GraphOperation::UpdateProperty(PropertyMutation {
+            node: world.nodes[1],
+            property: world.link,
+            values: vec![reference],
+        }),
+        Shape::NodeRefInInvokeArgument => GraphOperation::Invoke {
+            node: world.nodes[0],
+            operation: "decide".into(),
+            arguments: BTreeMap::from([("target".into(), reference)]),
+        },
+        Shape::NodeRefInAssertedValue => {
+            let mut held = about(world.nodes[0]);
+            held.predicate = Predicate::Property(world.link);
+            held.object = Object::Value(reference);
+            return asserted(held);
+        }
+        Shape::DeletedEdge => GraphOperation::DeleteEdge(EdgeId::from_uuid(uuid)),
+        Shape::SubjectEdge => {
+            let mut held = about(world.nodes[0]);
+            held.subject = Subject::Edge(EdgeId::from_uuid(uuid));
+            return asserted(held);
+        }
+        Shape::RetractedAssertion => GraphOperation::RetractAssertion(Retraction {
+            assertion: AssertionId::from_uuid(uuid),
+            reason: RetractionReason::new("withdrawn"),
+        }),
+        Shape::SupersededAssertion => supersession(AssertionId::from_uuid(uuid), world.assertion),
+        Shape::SupersedingAssertion => supersession(world.assertion, AssertionId::from_uuid(uuid)),
+        Shape::CitedEvidence => {
+            let absent = EvidenceId::from_uuid(uuid);
+            return (
+                GraphOperation::AddAssertion(Box::new(claim(
+                    root,
+                    world.label,
+                    world.nodes[0],
+                    "x",
+                    absent,
+                ))),
+                true,
+            );
+        }
+        Shape::CreatedNodeRoot => created(GraphRootId::from_uuid(uuid), BTreeMap::new()),
+        Shape::CreatedEdgeRoot => {
+            edge(world.nodes[0], world.nodes[1], GraphRootId::from_uuid(uuid))
+        }
+        Shape::AssertionRoot => {
+            let mut held = about(world.nodes[0]);
+            held.root_id = GraphRootId::from_uuid(uuid);
+            return asserted(held);
+        }
+    };
+    (operation, false)
 }
 
 /// The bits of an entity the world holds that is **not** of `kind`, selected by `at`.
 fn borrowed_bits(world: &World, kind: Kind, at: usize) -> NodeId {
     let others: Vec<NodeId> = [
-        (!matches!(kind, Kind::Node)).then_some(world.nodes[at % 2]),
-        (!matches!(kind, Kind::Edge)).then(|| NodeId::from_uuid(world.edge.to_uuid())),
-        (!matches!(kind, Kind::Assertion)).then(|| NodeId::from_uuid(world.assertion.to_uuid())),
-        (!matches!(kind, Kind::Evidence)).then(|| NodeId::from_uuid(world.evidence.to_uuid())),
+        (kind != Kind::Node).then_some(world.nodes[at % 2]),
+        (kind != Kind::Edge).then(|| NodeId::from_uuid(world.edge.to_uuid())),
+        (kind != Kind::Assertion).then(|| NodeId::from_uuid(world.assertion.to_uuid())),
+        (kind != Kind::Evidence).then(|| NodeId::from_uuid(world.evidence.to_uuid())),
+        (kind != Kind::GraphRoot).then(|| NodeId::from_uuid(world.seed.graph.root.id.to_uuid())),
     ]
     .into_iter()
     .flatten()
     .collect();
     others[at % others.len()]
-}
-
-fn kind() -> impl Strategy<Value = Kind> {
-    prop_oneof![
-        Just(Kind::Node),
-        Just(Kind::Edge),
-        Just(Kind::Assertion),
-        Just(Kind::Evidence),
-    ]
 }
 
 /// A well-formed operation that names only what the world holds, to surround the dangling one
@@ -384,93 +496,197 @@ fn benign(world: &World, at: usize) -> GraphOperation {
     }
 }
 
-proptest! {
-    #![proptest_config(ProptestConfig { cases: 32, failure_persistence: None, ..ProptestConfig::default() })]
+/// What surrounds the dangling operation, drawn at random for each shape.
+#[derive(Clone, Debug)]
+struct Surroundings {
+    borrowed: bool,
+    at: usize,
+    before: Vec<usize>,
+    after: Vec<usize>,
+}
 
-    /// P1 exit: no transaction whose operations reference an absent node, edge, assertion or
-    /// evidence commits. The refusal is named, and nothing is published.
-    ///
-    /// After the fix and before it alike, what this asserts is: validation answers `Rejected`
-    /// with an issue from `ValidatorName::Reference` carrying the kind's own code; `commit`
-    /// refuses with `TransactionStateConflict { state: Rejected }` and appends **zero** events;
-    /// the head root, the revision count and the canonical snapshot equal the seed's.
-    #[test]
-    fn no_transaction_naming_an_absent_identity_commits_on_either_provider(
-        kind in kind(),
-        shape in 0usize..7,
-        borrowed in any::<bool>(),
-        at in 0usize..4,
-        before in proptest::collection::vec(0usize..3, 0..3),
-        after in proptest::collection::vec(0usize..3, 0..2),
-    ) {
-        let world = world();
-        let bits = if borrowed {
-            borrowed_bits(&world, kind, at)
-        } else {
-            NodeId::mint()
-        };
-        let (operation, cites) = dangling(&world, kind, shape, bits);
-        let mut operations: Vec<GraphOperation> =
-            before.iter().map(|at| benign(&world, *at)).collect();
-        operations.push(operation);
-        operations.extend(after.iter().map(|at| benign(&world, *at)));
-        let evidence = match (&kind, cites) {
-            (Kind::Evidence, _) => BTreeSet::from([EvidenceId::from_uuid(bits.to_uuid())]),
-            (_, true) => BTreeSet::from([world.evidence]),
-            (_, false) => BTreeSet::new(),
-        };
-        let tx = GraphTransaction {
-            id: TransactionId::mint(),
-            proposer: context().operator,
-            operations,
-            evidence,
-        };
+fn surroundings() -> impl Strategy<Value = Surroundings> {
+    (
+        any::<bool>(),
+        0usize..5,
+        proptest::collection::vec(0usize..3, 0..3),
+        proptest::collection::vec(0usize..3, 0..2),
+    )
+        .prop_map(|(borrowed, at, before, after)| Surroundings {
+            borrowed,
+            at,
+            before,
+            after,
+        })
+}
 
-        for file in [false, true] {
-            let directory = tempfile::tempdir().unwrap();
-            let kernel = open(directory.path(), file);
-            kernel.seed(world.seed.clone(), || Timestamp::from_millis(10)).unwrap();
-            let head = kernel.head().unwrap();
-            let seeded = kernel.snapshot().unwrap();
-            let revisions = kernel.read(None).unwrap().revisions.len();
+/// Generated cases per shape. Every shape runs this many; 21 shapes, two providers each.
+const CASES_PER_SHAPE: u32 = 3;
 
-            kernel
-                .propose(&encode(&tx), context().operator, || Timestamp::from_millis(20))
-                .unwrap();
-            let verdict = kernel
-                .validate(tx.id, RevisionNumber::SEED, || Timestamp::from_millis(30))
-                .unwrap();
-            let ValidationCommandResult::Rejected(rejection) = verdict else {
-                return Err(TestCaseError::fail(format!(
-                    "file={file}: a proposal naming an absent {kind:?} validated: {tx:?}"
-                )));
-            };
-            prop_assert!(
-                rejection.issues.iter().any(|issue| issue.validator == ValidatorName::Reference
+/// One generated case of the property, for `shape`, on both providers.
+fn refused_and_unpublished(shape: Shape, around: &Surroundings) -> Result<(), TestCaseError> {
+    let world = world();
+    let kind = shape.kind();
+    let bits = if around.borrowed {
+        borrowed_bits(&world, kind, around.at)
+    } else {
+        NodeId::mint()
+    };
+    let (operation, cites) = dangling(&world, shape, bits);
+    let mut operations: Vec<GraphOperation> =
+        around.before.iter().map(|at| benign(&world, *at)).collect();
+    operations.push(operation);
+    operations.extend(around.after.iter().map(|at| benign(&world, *at)));
+    let evidence = match (shape, cites) {
+        (Shape::CitedEvidence, _) => BTreeSet::from([EvidenceId::from_uuid(bits.to_uuid())]),
+        (_, true) => BTreeSet::from([world.evidence]),
+        (_, false) => BTreeSet::new(),
+    };
+    let tx = GraphTransaction {
+        id: TransactionId::mint(),
+        proposer: context().operator,
+        operations,
+        evidence,
+    };
+
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let kernel = open(directory.path(), file);
+        kernel
+            .seed(world.seed.clone(), || Timestamp::from_millis(10))
+            .unwrap();
+        let head = kernel.head().unwrap();
+        let seeded = kernel.snapshot().unwrap();
+        let revisions = kernel.read(None).unwrap().revisions.len();
+
+        kernel
+            .propose(&encode(&tx), context().operator, || {
+                Timestamp::from_millis(20)
+            })
+            .unwrap();
+        let verdict = kernel
+            .validate(tx.id, RevisionNumber::SEED, || Timestamp::from_millis(30))
+            .unwrap();
+        let ValidationCommandResult::Rejected(rejection) = verdict else {
+            return Err(TestCaseError::fail(format!(
+                "file={file}: a proposal naming an absent {kind:?} as {shape:?} validated: {tx:?}"
+            )));
+        };
+        prop_assert!(
+            rejection
+                .issues
+                .iter()
+                .any(|issue| issue.validator == ValidatorName::Reference
                     && issue.code == kind.code()),
-                "file={file}: the refusal names the absent {:?} as {}: {:?}",
-                kind,
-                kind.code(),
-                rejection.issues
-            );
+            "file={file}: the refusal names the absent {:?} of {:?} as {}: {:?}",
+            kind,
+            shape,
+            kind.code(),
+            rejection.issues
+        );
 
-            let events = physical_events(directory.path(), file);
-            let refused = kernel.commit(tx.id, context().operator, || Timestamp::from_millis(40));
-            prop_assert!(
-                matches!(
-                    refused,
-                    Err(CommitError::TransactionStateConflict { state: TransactionState::Rejected, .. })
-                ),
-                "file={file}: a rejected transaction is refused at commit: {refused:?}"
-            );
-            prop_assert_eq!(physical_events(directory.path(), file), events,
-                "file={} a refused commit appended an event", file);
-            prop_assert_eq!(kernel.head().unwrap(), head, "file={} the head moved", file);
-            prop_assert_eq!(kernel.read(None).unwrap().revisions.len(), revisions,
-                "file={} a revision was published", file);
-            prop_assert_eq!(kernel.snapshot().unwrap(), seeded, "file={} canonical state changed", file);
-        }
+        let events = physical_events(directory.path(), file);
+        let refused = kernel.commit(tx.id, context().operator, || Timestamp::from_millis(40));
+        prop_assert!(
+            matches!(
+                refused,
+                Err(CommitError::TransactionStateConflict {
+                    state: TransactionState::Rejected,
+                    ..
+                })
+            ),
+            "file={file}: a rejected transaction is refused at commit: {refused:?}"
+        );
+        prop_assert_eq!(
+            physical_events(directory.path(), file),
+            events,
+            "file={} a refused commit appended an event",
+            file
+        );
+        prop_assert_eq!(kernel.head().unwrap(), head, "file={} the head moved", file);
+        prop_assert_eq!(
+            kernel.read(None).unwrap().revisions.len(),
+            revisions,
+            "file={} a revision was published",
+            file
+        );
+        prop_assert_eq!(
+            kernel.snapshot().unwrap(),
+            seeded,
+            "file={} canonical state changed",
+            file
+        );
     }
+    Ok(())
+}
+
+/// P1 exit: no transaction whose operations reference an absent node, edge, assertion, piece of
+/// evidence or graph root commits. The refusal is named, and nothing is published.
+///
+/// **Stratified**: every entry of [`Shape::ALL`] — each place an operation can name a graph
+/// identity, including a `NodeRef` inside a value, a merge's target and a record's graph root —
+/// runs [`CASES_PER_SHAPE`] generated cases, and only what surrounds the dangling operation is
+/// drawn. Drawing the shape too left most node shapes out of most runs.
+///
+/// What this asserts, per case and provider: validation answers `Rejected` with an issue from
+/// `ValidatorName::Reference` carrying the kind's own code; `commit` refuses with
+/// `TransactionStateConflict { state: Rejected }` and appends **zero** events; the head root, the
+/// revision count and the canonical snapshot equal the seed's. And, over the run, that every shape
+/// executed exactly [`CASES_PER_SHAPE`] cases.
+///
+/// Entity merge has no P1 application path, so a merge is refused whatever it names; the case
+/// still asserts that the reference validator is among the refusals.
+#[test]
+fn no_transaction_naming_an_absent_identity_commits_on_either_provider() {
+    // One thread per shape: each case opens its own directories on both providers, so the shapes
+    // share nothing, and running them one after another made this the slowest case in the crate.
+    let outcomes: Vec<(Shape, u32, Result<(), String>)> = std::thread::scope(|scope| {
+        let running: Vec<_> = Shape::ALL
+            .into_iter()
+            .map(|shape| {
+                scope.spawn(move || {
+                    let mut runner = proptest::test_runner::TestRunner::new(ProptestConfig {
+                        cases: CASES_PER_SHAPE,
+                        failure_persistence: None,
+                        ..ProptestConfig::default()
+                    });
+                    let count = std::cell::Cell::new(0u32);
+                    let outcome = runner.run(&surroundings(), |around| {
+                        count.set(count.get() + 1);
+                        refused_and_unpublished(shape, &around)
+                    });
+                    (
+                        shape,
+                        count.get(),
+                        outcome.map_err(|failure| failure.to_string()),
+                    )
+                })
+            })
+            .collect();
+        running
+            .into_iter()
+            .map(|thread| thread.join().expect("a shape's thread completes"))
+            .collect()
+    });
+    let failures: Vec<String> = outcomes
+        .iter()
+        .filter_map(|(shape, _, outcome)| {
+            outcome
+                .as_ref()
+                .err()
+                .map(|why| format!("{shape:?}: {why}"))
+        })
+        .collect();
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+    let executed: BTreeMap<String, u32> = outcomes
+        .iter()
+        .map(|(shape, count, _)| (format!("{shape:?}"), *count))
+        .collect();
+    assert_eq!(executed.len(), Shape::ALL.len(), "every shape ran");
+    assert!(
+        executed.values().all(|count| *count == CASES_PER_SHAPE),
+        "every shape ran {CASES_PER_SHAPE} cases: {executed:?}"
+    );
 }
 
 /// One step of a generated lineage, with indices resolved against what exists when it runs.

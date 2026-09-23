@@ -21,7 +21,9 @@ use crate::{
     VerifiedRead,
 };
 use ekr_core::{AssertionId, ContentHash, EvidenceId, RevisionId, RevisionNumber, Timestamp};
-use ekr_graph::{Assertion, AssertionLifecycle, Evidence, EvidenceSource, GraphSnapshot, Root};
+use ekr_graph::{
+    Assertion, AssertionLifecycle, CanonicalRef, Evidence, EvidenceSource, GraphSnapshot, Root,
+};
 use ekr_store::{evidence_root, knowledge_root, GraphDocument};
 use serde::Serialize;
 
@@ -244,7 +246,7 @@ impl VerifiedRead {
                         GraphOperation::SupersedeAssertion(s) if s.assertion == id => {
                             pending.insert(s.by);
                             AssertionLifecycle::Superseded {
-                                by: s.by,
+                                by: CanonicalRef::new(s.by),
                                 at_revision: change.revision,
                                 effective_from: s.effective_from,
                             }

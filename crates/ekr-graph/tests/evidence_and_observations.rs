@@ -12,8 +12,8 @@ use ekr_core::{
     AgentId, AssertionId, ContentHash, EvidenceId, ObservationId, SupportId, Timestamp,
 };
 use ekr_graph::{
-    Confidence, Evidence, EvidenceKind, EvidenceSource, Observation, ObservationContent,
-    ObservationKind, Support,
+    CanonicalRef, Confidence, Evidence, EvidenceKind, EvidenceSource, Observation,
+    ObservationContent, ObservationKind, Support,
 };
 
 /// Every source kind, with the locator and section the domain would read off it.
@@ -49,7 +49,7 @@ fn every_evidence_source_answers_the_flat_fields_the_domain_declares() {
             None,
         ),
         (
-            EvidenceSource::GraphAssertion(assertion),
+            EvidenceSource::GraphAssertion(CanonicalRef::new(assertion)),
             EvidenceKind::GraphAssertion,
             assertion.to_string(),
             None,

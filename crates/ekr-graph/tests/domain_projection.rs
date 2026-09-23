@@ -182,8 +182,8 @@ fn assessment_and_lifecycle_retain_independent_payloads() {
         AgentId, AssertionId, Canonical, GraphRootId, IssueId, RevisionNumber, Timestamp, TypeId,
     };
     use ekr_graph::{
-        Assertion, AssertionLifecycle, Assessment, Object, Predicate, RetractionReason, Subject,
-        TemporalRange, TransactionTime,
+        Assertion, AssertionLifecycle, Assessment, CanonicalRef, Object, Predicate,
+        RetractionReason, Subject, TemporalRange, TransactionTime,
     };
     use std::collections::BTreeSet;
 
@@ -215,7 +215,7 @@ fn assessment_and_lifecycle_retain_independent_payloads() {
             issues: vec![IssueId::mint()],
         },
         Assessment::Disputed {
-            competing_assertions: vec![AssertionId::mint()],
+            competing_assertions: vec![CanonicalRef::new(AssertionId::mint())],
         },
     ];
     assert_eq!(
@@ -229,7 +229,7 @@ fn assessment_and_lifecycle_retain_independent_payloads() {
             reason: RetractionReason::new("supplied evidence withdrawn"),
         },
         AssertionLifecycle::Superseded {
-            by: AssertionId::mint(),
+            by: CanonicalRef::new(AssertionId::mint()),
             at_revision: RevisionNumber::new(3),
             effective_from: Timestamp::from_millis(100),
         },
@@ -270,7 +270,7 @@ fn assessment_and_lifecycle_retain_independent_payloads() {
             withdrawal.name()
         );
     }
-    let different_reason = AssertionLifecycle::Retracted {
+    let different_reason: AssertionLifecycle = AssertionLifecycle::Retracted {
         at_revision: RevisionNumber::new(2),
         reason: RetractionReason::new("different reason"),
     };
@@ -584,7 +584,7 @@ const FUSIONS: &[(&str, &str, &str, &[&str])] = &[
         "ekr.graph.EvidenceSourceProjection",
         "assertion",
         "EvidenceSource",
-        &["GraphAssertion(AssertionId)"],
+        &["GraphAssertion(CanonicalRef<Assertion>)"],
     ),
     (
         "ekr.graph.EvidenceSourceProjection",

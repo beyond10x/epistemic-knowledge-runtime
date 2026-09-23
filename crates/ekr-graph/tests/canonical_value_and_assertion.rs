@@ -337,18 +337,21 @@ const MUTATIONS: [Mutation; 32] = [
     }),
     ("assessment", |a| {
         a.assessment = Assessment::Disputed {
-            competing_assertions: vec![id::<AssertionId>(31)],
+            competing_assertions: vec![CanonicalRef::new(id::<AssertionId>(31))],
         };
     }),
     ("assessment", |a| {
         a.assessment = Assessment::Disputed {
-            competing_assertions: vec![id::<AssertionId>(31), id::<AssertionId>(32)],
+            competing_assertions: vec![
+                CanonicalRef::new(id::<AssertionId>(31)),
+                CanonicalRef::new(id::<AssertionId>(32)),
+            ],
         };
     }),
     // The two withdrawals. The base is `Active`, which carries no payload.
     ("lifecycle", |a| {
         a.lifecycle = AssertionLifecycle::Superseded {
-            by: id::<AssertionId>(41),
+            by: CanonicalRef::new(id::<AssertionId>(41)),
             at_revision: RevisionNumber::new(7),
             effective_from: HANDOVER,
         };
@@ -356,7 +359,7 @@ const MUTATIONS: [Mutation; 32] = [
     ("lifecycle", |a| {
         // `by` alone.
         a.lifecycle = AssertionLifecycle::Superseded {
-            by: id::<AssertionId>(42),
+            by: CanonicalRef::new(id::<AssertionId>(42)),
             at_revision: RevisionNumber::new(7),
             effective_from: HANDOVER,
         };
@@ -364,7 +367,7 @@ const MUTATIONS: [Mutation; 32] = [
     ("lifecycle", |a| {
         // `at_revision` alone.
         a.lifecycle = AssertionLifecycle::Superseded {
-            by: id::<AssertionId>(41),
+            by: CanonicalRef::new(id::<AssertionId>(41)),
             at_revision: RevisionNumber::new(8),
             effective_from: HANDOVER,
         };
@@ -372,7 +375,7 @@ const MUTATIONS: [Mutation; 32] = [
     ("lifecycle", |a| {
         // `effective_from` alone.
         a.lifecycle = AssertionLifecycle::Superseded {
-            by: id::<AssertionId>(41),
+            by: CanonicalRef::new(id::<AssertionId>(41)),
             at_revision: RevisionNumber::new(7),
             effective_from: RECORDED,
         };
@@ -837,7 +840,7 @@ const EVIDENCE_MUTATIONS: [EvidenceMutation; 7] = [
         e.source = EvidenceSource::Url("https://example.invalid/b".to_owned());
     }),
     ("source", |e| {
-        e.source = EvidenceSource::GraphAssertion(id::<AssertionId>(73));
+        e.source = EvidenceSource::GraphAssertion(CanonicalRef::new(id::<AssertionId>(73)));
     }),
     ("content_hash", |e| {
         e.content_hash = ContentHash::of_bytes(b"what was read the second time");
@@ -1283,8 +1286,14 @@ fn sum_type_fixtures() -> Vec<(&'static str, Fixtures)> {
                 key: other_text.clone(),
             },
         ),
-        (3, EvidenceSource::GraphAssertion(assertion_id)),
-        (3, EvidenceSource::GraphAssertion(other_assertion)),
+        (
+            3,
+            EvidenceSource::GraphAssertion(CanonicalRef::new(assertion_id)),
+        ),
+        (
+            3,
+            EvidenceSource::GraphAssertion(CanonicalRef::new(other_assertion)),
+        ),
         (4, EvidenceSource::Observation(id::<ObservationId>(11))),
         (4, EvidenceSource::Observation(id::<ObservationId>(12))),
         (

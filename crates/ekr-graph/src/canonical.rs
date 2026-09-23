@@ -216,6 +216,22 @@ pub trait ValueSpace: sealed::SealedSpace {
     /// This space's reference to `evidence`. Minting it is not resolving it, as for
     /// [`node_ref`](Self::node_ref).
     fn evidence_ref(evidence: EvidenceId) -> Self::EvidenceRef;
+
+    /// The reference an assertion-valued field holds in this space: the replacement of a
+    /// superseded [`AssertionLifecycle`](crate::AssertionLifecycle) and the competitors of a
+    /// disputed [`Assessment`](crate::Assessment).
+    type AssertionRef: Canonical
+        + Copy
+        + std::fmt::Debug
+        + Eq
+        + Ord
+        + Hash
+        + Serialize
+        + serde::de::DeserializeOwned;
+
+    /// This space's reference to `assertion`. Minting it is not resolving it, as for
+    /// [`node_ref`](Self::node_ref).
+    fn assertion_ref(assertion: AssertionId) -> Self::AssertionRef;
 }
 
 impl sealed::SealedSpace for CanonicalValue {}
@@ -224,6 +240,7 @@ impl ValueSpace for CanonicalValue {
     type NodeRef = CanonicalRef<Node>;
     type EdgeRef = CanonicalRef<Edge>;
     type EvidenceRef = CanonicalRef<Evidence>;
+    type AssertionRef = CanonicalRef<Assertion>;
 
     // Spelled out rather than `Self::NodeRef`, which is ambiguous here: `CanonicalValue` has a
     // variant of that name, and it is the one this associated type exists to have parameterised.
@@ -238,6 +255,10 @@ impl ValueSpace for CanonicalValue {
     fn evidence_ref(evidence: EvidenceId) -> CanonicalRef<Evidence> {
         CanonicalRef::new(evidence)
     }
+
+    fn assertion_ref(assertion: AssertionId) -> CanonicalRef<Assertion> {
+        CanonicalRef::new(assertion)
+    }
 }
 
 impl sealed::SealedSpace for ekr_ontology::Value {}
@@ -246,6 +267,7 @@ impl ValueSpace for ekr_ontology::Value {
     type NodeRef = NodeId;
     type EdgeRef = EdgeId;
     type EvidenceRef = EvidenceId;
+    type AssertionRef = AssertionId;
 
     fn node_ref(node: NodeId) -> NodeId {
         node
@@ -257,6 +279,10 @@ impl ValueSpace for ekr_ontology::Value {
 
     fn evidence_ref(evidence: EvidenceId) -> EvidenceId {
         evidence
+    }
+
+    fn assertion_ref(assertion: AssertionId) -> AssertionId {
+        assertion
     }
 }
 

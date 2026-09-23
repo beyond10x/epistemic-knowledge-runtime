@@ -208,7 +208,7 @@ fn knowledge_changes() -> Vec<(&'static str, Change)> {
             "assertion.lifecycle",
             Box::new(|g| {
                 assertion(g).lifecycle = AssertionLifecycle::Superseded {
-                    by: id::<AssertionId>(0x7b),
+                    by: CanonicalRef::new(id::<AssertionId>(0x7b)),
                     at_revision: RevisionNumber::new(1),
                     effective_from: Timestamp::from_millis(5),
                 }

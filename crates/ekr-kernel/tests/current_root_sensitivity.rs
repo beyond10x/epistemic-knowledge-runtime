@@ -125,8 +125,14 @@ fn canonical(tx: &GraphTransaction) -> GraphTransaction<CanonicalValue> {
                         .map(CanonicalRef::new)
                         .collect(),
                     proposed_by: assertion.proposed_by,
-                    assessment: assertion.assessment.clone(),
-                    lifecycle: assertion.lifecycle.clone(),
+                    assessment: assertion
+                        .assessment
+                        .clone()
+                        .map_assertions(CanonicalRef::new),
+                    lifecycle: assertion
+                        .lifecycle
+                        .clone()
+                        .map_assertions(CanonicalRef::new),
                     valid_time: assertion.valid_time,
                     transaction_time: assertion.transaction_time,
                 }))

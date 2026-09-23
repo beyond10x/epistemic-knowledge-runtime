@@ -114,7 +114,7 @@ fn assertions() -> Vec<(&'static str, Assertion)> {
             "disputed",
             with(
                 Assessment::Disputed {
-                    competing_assertions: vec![id::<AssertionId>(0x24)],
+                    competing_assertions: vec![CanonicalRef::new(id::<AssertionId>(0x24))],
                 },
                 AssertionLifecycle::Active,
             ),
@@ -138,7 +138,7 @@ fn assertions() -> Vec<(&'static str, Assertion)> {
                     validators: BTreeSet::from([id::<AgentId>(0x20)]),
                 },
                 AssertionLifecycle::Superseded {
-                    by: id(0x25),
+                    by: CanonicalRef::new(id(0x25)),
                     at_revision: RevisionNumber::new(5),
                     effective_from: Timestamp::from_millis(1_500),
                 },

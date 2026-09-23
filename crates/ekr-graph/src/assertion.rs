@@ -394,9 +394,15 @@ impl Canonical for RetractionReason {
 }
 
 /// The independent assessment of a claim (amendment 88).
+///
+/// Generic over the reference [`Disputed`](Self::Disputed) holds to its competitors, defaulting to
+/// [`CanonicalRef<Assertion>`](crate::CanonicalRef): an [`Assertion`] instantiates it as
+/// `Assessment<V::AssertionRef>`, so a canonical dispute cannot name a candidate.
+/// `tests/adversary_p1_14_exit_compile_fail/a_canonical_dispute_names_its_competitors_by_canonical_reference.rs`
+/// holds it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum Assessment {
+pub enum Assessment<A = CanonicalRef<Assertion>> {
     /// No verdict has been attributed yet.
     Proposed,
     /// Deterministic checks are in progress.
@@ -420,10 +426,10 @@ pub enum Assessment {
     /// Competing assertions remain unresolved.
     Disputed {
         /// Ordered competing identities.
-        competing_assertions: Vec<AssertionId>,
+        competing_assertions: Vec<A>,
     },
 }
-impl Assessment {
+impl<A> Assessment<A> {
     /// The declared assessment kind.
     #[must_use]
     pub const fn name(&self) -> &'static str {
@@ -440,8 +446,32 @@ impl Assessment {
     pub const fn is_accepted(&self) -> bool {
         matches!(self, Self::Accepted { .. })
     }
+    /// The same assessment, with each assertion reference it holds mapped by `reference`.
+    ///
+    /// How a candidate's assessment crosses the membrane and back: the kernel mints canonical
+    /// references with it after validation, and a document widens them to ids.
+    #[must_use]
+    pub fn map_assertions<B>(self, reference: impl FnMut(A) -> B) -> Assessment<B> {
+        match self {
+            Self::Proposed => Assessment::Proposed,
+            Self::Validating {
+                completed,
+                required,
+            } => Assessment::Validating {
+                completed,
+                required,
+            },
+            Self::Accepted { validators } => Assessment::Accepted { validators },
+            Self::Rejected { issues } => Assessment::Rejected { issues },
+            Self::Disputed {
+                competing_assertions,
+            } => Assessment::Disputed {
+                competing_assertions: competing_assertions.into_iter().map(reference).collect(),
+            },
+        }
+    }
 }
-impl Canonical for Assessment {
+impl<A: Canonical> Canonical for Assessment<A> {
     fn encode(&self, out: &mut Encoder) {
         match self {
             Self::Proposed => out.variant(0),
@@ -472,9 +502,14 @@ impl Canonical for Assessment {
 }
 
 /// Stored withdrawal state. Neither withdrawal nor replacement erases assessment or provenance.
+///
+/// Generic over the reference [`Superseded`](Self::Superseded) holds to its replacement, for the
+/// reason [`Assessment`] is.
+/// `tests/adversary_p1_14_exit_compile_fail/a_canonical_supersession_names_its_replacement_by_canonical_reference.rs`
+/// holds it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum AssertionLifecycle {
+pub enum AssertionLifecycle<A = CanonicalRef<Assertion>> {
     /// Still active in the selected revision.
     Active,
     /// Withdrawn from every valid time beginning with this committed revision.
@@ -487,14 +522,14 @@ pub enum AssertionLifecycle {
     /// Replaced at a valid-time boundary; the earlier interval remains queryable.
     Superseded {
         /// The accepted replacing assertion.
-        by: AssertionId,
+        by: A,
         /// First revision containing the replacement.
         at_revision: RevisionNumber,
         /// The replacement's valid-time start.
         effective_from: Timestamp,
     },
 }
-impl AssertionLifecycle {
+impl<A> AssertionLifecycle<A> {
     /// The declared lifecycle kind.
     #[must_use]
     pub const fn name(&self) -> &'static str {
@@ -504,8 +539,32 @@ impl AssertionLifecycle {
             Self::Superseded { .. } => "Superseded",
         }
     }
+    /// The same lifecycle, with the assertion reference it holds mapped by `reference`, as
+    /// [`Assessment::map_assertions`].
+    #[must_use]
+    pub fn map_assertions<B>(self, reference: impl FnOnce(A) -> B) -> AssertionLifecycle<B> {
+        match self {
+            Self::Active => AssertionLifecycle::Active,
+            Self::Retracted {
+                at_revision,
+                reason,
+            } => AssertionLifecycle::Retracted {
+                at_revision,
+                reason,
+            },
+            Self::Superseded {
+                by,
+                at_revision,
+                effective_from,
+            } => AssertionLifecycle::Superseded {
+                by: reference(by),
+                at_revision,
+                effective_from,
+            },
+        }
+    }
 }
-impl Canonical for AssertionLifecycle {
+impl<A: Canonical> Canonical for AssertionLifecycle<A> {
     fn encode(&self, out: &mut Encoder) {
         match self {
             Self::Active => out.variant(0),
@@ -552,9 +611,9 @@ pub struct Assertion<V: ValueSpace = CanonicalValue> {
     /// Authenticated proposer.
     pub proposed_by: AgentId,
     /// Verdict, retained through subsequent withdrawal.
-    pub assessment: Assessment,
+    pub assessment: Assessment<V::AssertionRef>,
     /// Independent stored withdrawal state.
-    pub lifecycle: AssertionLifecycle,
+    pub lifecycle: AssertionLifecycle<V::AssertionRef>,
     /// The half-open interval in the represented world.
     pub valid_time: TemporalRange,
     /// The recorded belief interval.
@@ -563,7 +622,7 @@ pub struct Assertion<V: ValueSpace = CanonicalValue> {
 impl<V: ValueSpace> Assertion<V> {
     /// The stored lifecycle, independent of assessment.
     #[must_use]
-    pub fn status(&self) -> AssertionLifecycle {
+    pub fn status(&self) -> AssertionLifecycle<V::AssertionRef> {
         self.lifecycle.clone()
     }
     /// Accepted, active and not closed in recorded time.

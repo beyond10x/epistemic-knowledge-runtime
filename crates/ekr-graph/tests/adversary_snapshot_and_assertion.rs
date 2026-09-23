@@ -137,7 +137,7 @@ fn every_assessment() -> Vec<Assessment> {
             issues: vec![IssueId::mint()],
         },
         Assessment::Disputed {
-            competing_assertions: vec![AssertionId::mint()],
+            competing_assertions: vec![CanonicalRef::new(AssertionId::mint())],
         },
     ]
 }
@@ -147,7 +147,7 @@ fn every_lifecycle() -> Vec<AssertionLifecycle> {
     vec![
         AssertionLifecycle::Active,
         AssertionLifecycle::Superseded {
-            by: AssertionId::mint(),
+            by: CanonicalRef::new(AssertionId::mint()),
             at_revision: RevisionNumber::new(5),
             effective_from: HANDOVER,
         },

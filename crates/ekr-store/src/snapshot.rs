@@ -329,8 +329,11 @@ fn widen_assertion(assertion: &Assertion<CanonicalValue>) -> Assertion<Value> {
         },
         evidence: assertion.evidence.iter().map(|cited| cited.id()).collect(),
         proposed_by: assertion.proposed_by,
-        assessment: assertion.assessment.clone(),
-        lifecycle: assertion.lifecycle.clone(),
+        assessment: assertion
+            .assessment
+            .clone()
+            .map_assertions(|held| held.id()),
+        lifecycle: assertion.lifecycle.clone().map_assertions(|held| held.id()),
         valid_time: assertion.valid_time,
         transaction_time: assertion.transaction_time,
     }

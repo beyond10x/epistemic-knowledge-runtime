@@ -1,0 +1,8 @@
+error[E0308]: mismatched types
+  --> tests/adversary_p1_14_exit_compile_fail/a_canonical_supersession_names_its_replacement_by_canonical_reference.rs:18:13
+   |
+18 |         by: candidate.id(),
+   |             ^^^^^^^^^^^^^^ expected `CanonicalRef<Assertion>`, found `AssertionId`
+   |
+   = note: expected struct `CanonicalRef<ekr_graph::Assertion>`
+              found struct `AssertionId`

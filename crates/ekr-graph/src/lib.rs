@@ -32,11 +32,25 @@
 //! marker is bounded by the sealed [`CanonicalTarget`], so `CanonicalRef<TransientRef<Node>>` is
 //! not a type. `tests/compile_fail/` holds all three.
 //!
-//! Every kind of reference canonical state holds goes through that machinery, since wave p1-14:
-//! a [`CanonicalRef<T>`] holds [`CanonicalTarget::Id`] for its kind and resolves against that
-//! kind's map, and [`Subject::Edge`] and [`Assertion::evidence`] are canonical references in
-//! canonical state, so neither a bare id nor a [`TransientRef`] inhabits them. One compile-fail
-//! case per kind holds it, beside the three above.
+//! Every reference canonical state holds goes through that machinery, since wave p1-14: a
+//! [`CanonicalRef<T>`] holds [`CanonicalTarget::Id`] for its kind and resolves against that kind's
+//! map, and each field below is a `CanonicalRef` in canonical state, so neither a bare id nor a
+//! [`TransientRef`] inhabits it. The case that holds each, as a build failure:
+//!
+//! | Reference | Kind | Case |
+//! |---|---|---|
+//! | [`CanonicalRef<T>`] itself | its own | `tests/compile_fail/a_canonical_reference_holds_the_id_of_its_kind.rs`, `a_canonical_reference_targets_only_what_canonical_state_holds.rs` |
+//! | [`Edge::source`], [`Edge::target`] | node | `tests/review_p1_compile_fail/a_canonical_edge_may_target_a_candidate_node.rs` |
+//! | [`Subject::Node`], [`Object::Node`], [`CanonicalValue::NodeRef`] | node | `tests/compile_fail/a_canonical_claim_names_its_nodes_by_canonical_reference.rs` |
+//! | [`Subject::Edge`] | edge | `tests/compile_fail/a_canonical_subject_names_its_edge_by_canonical_reference.rs` |
+//! | [`Assertion::evidence`] | evidence | `tests/compile_fail/a_canonical_assertion_cites_evidence_by_canonical_reference.rs` |
+//! | [`AssertionLifecycle::Superseded`] `by` | assertion | `tests/adversary_p1_14_exit_compile_fail/a_canonical_supersession_names_its_replacement_by_canonical_reference.rs` |
+//! | [`Assessment::Disputed`] `competing_assertions` | assertion | `tests/adversary_p1_14_exit_compile_fail/a_canonical_dispute_names_its_competitors_by_canonical_reference.rs` |
+//! | [`EvidenceSource::GraphAssertion`] | assertion | `tests/adversary_p1_14_exit_compile_fail/retained_evidence_names_its_source_assertion_by_canonical_reference.rs` |
+//!
+//! Not in the table, because canonical state keeps no map to resolve them against:
+//! [`EvidenceSource::Observation`] (observations are not canonical state) and the graph root, which
+//! the kernel's reference validator resolves as an equality.
 //!
 //! # The address is a type too
 //!

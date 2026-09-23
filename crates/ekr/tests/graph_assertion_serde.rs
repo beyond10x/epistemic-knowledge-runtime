@@ -102,13 +102,16 @@ fn every_shape() -> Vec<Assertion> {
         },
         Assessment::Rejected { issues: Vec::new() },
         Assessment::Disputed {
-            competing_assertions: vec![AssertionId::mint(), AssertionId::mint()],
+            competing_assertions: vec![
+                CanonicalRef::new(AssertionId::mint()),
+                CanonicalRef::new(AssertionId::mint()),
+            ],
         },
     ];
     let lifecycles = [
         AssertionLifecycle::Active,
         AssertionLifecycle::Superseded {
-            by: AssertionId::mint(),
+            by: CanonicalRef::new(AssertionId::mint()),
             at_revision: RevisionNumber::new(9),
             effective_from: HANDOVER,
         },
