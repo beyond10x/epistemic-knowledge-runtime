@@ -322,7 +322,7 @@ fn the_proposer_is_bound_to_the_host_operator_or_refused() {
             &World::fixture_arg("propose-foreign-proposer.yaml"),
         ]);
         assert_eq!(output.status.code(), Some(2), "{backend}");
-        assert!(String::from_utf8_lossy(&output.stderr).contains("ProposalAttribution"));
+        assert!(String::from_utf8_lossy(&output.stderr).contains("ekr.kernel.ProposalAttribution"));
         assert_eq!(world.retained(), before);
         let foreign: TransactionId = T_FOREIGN.parse().unwrap();
         assert!(!world.retained().0.iter().any(|(id, _)| *id == foreign));
@@ -369,8 +369,9 @@ fn help_exposes_the_declared_p1_wire_verbs() {
         .unwrap();
     assert_eq!(output.status.code(), Some(0));
     let help = String::from_utf8_lossy(&output.stdout);
-    // `snapshot` and `explain` join this list with the kernel's SnapshotResult/ExplanationResult.
-    for verb in ["seed", "propose", "validate", "commit"] {
+    for verb in [
+        "seed", "propose", "validate", "commit", "snapshot", "explain",
+    ] {
         assert!(
             help.lines().any(|line| line.trim_start().starts_with(verb)),
             "{verb} missing from {help}"
@@ -438,4 +439,171 @@ fn the_host_clock_is_the_system_clock_in_epoch_milliseconds() {
         (before..=after).contains(&sampled),
         "{before} <= {sampled} <= {after}"
     );
+}
+
+/// Seeds and commits Alice, then Bob superseding her; returns the two commit results.
+fn the_example(world: &World) -> (Value, Value) {
+    seed(world);
+    propose(world, "propose-alice.yaml");
+    validate(world, T_ALICE, 0);
+    let first = commit(world, T_ALICE);
+    propose(world, "propose-bob.yaml");
+    validate(world, T_BOB, 1);
+    let second = commit(world, T_BOB);
+    (first, second)
+}
+
+fn matching(snapshot: &Value) -> Vec<&str> {
+    snapshot["matching_assertions"]
+        .as_array()
+        .unwrap_or_else(|| panic!("no selection in {snapshot}"))
+        .iter()
+        .map(|id| id.as_str().unwrap())
+        .collect()
+}
+
+#[test]
+fn snapshot_selects_alice_and_bob_by_valid_time_at_the_latest_and_an_earlier_revision() {
+    for backend in BACKENDS {
+        let world = World::new(backend);
+        let (first, second) = the_example(&world);
+
+        let full = world.ok(&["snapshot"]);
+        // The binary renders exactly the kernel's own projection of one verified read.
+        let kernel: ekr_kernel::SnapshotResult =
+            world.runtime().read(None).unwrap().snapshot(None).unwrap();
+        assert_eq!(full, serde_json::to_value(kernel).unwrap(), "{backend}");
+        assert_eq!(full["root"], second["result"], "{backend}");
+        assert_eq!(full["revision_id"], second["revision_id"]);
+        assert!(full["valid_at"].is_null() && full["matching_assertions"].is_null());
+        let graph = &full["graph"]["graph"];
+        assert!(graph["assertions"][ALICE].is_object() && graph["assertions"][BOB].is_object());
+
+        let before = world.ok(&["snapshot", "--valid-at", "2026-03-11"]);
+        assert_eq!(matching(&before), [ALICE], "{backend}");
+        assert_eq!(before["valid_at"], MARCH_12 - 86_400_000);
+        assert_eq!(
+            before["root"], full["root"],
+            "a selection keeps the full root"
+        );
+        let after = world.ok(&["snapshot", "--valid-at", "2026-03-12"]);
+        assert_eq!(matching(&after), [BOB], "{backend}");
+        let decimal = world.ok(&["snapshot", "--valid-at", &(MARCH_12 - 1).to_string()]);
+        assert_eq!(matching(&decimal), [ALICE], "{backend}");
+        // The full signed range, separated form: nothing is valid before Alice's start.
+        for pre_epoch in [-1, i64::MIN] {
+            let early = world.ok(&["snapshot", "--valid-at", &pre_epoch.to_string()]);
+            assert_eq!(early["valid_at"], pre_epoch, "{backend}");
+            assert!(matching(&early).is_empty(), "{backend}: {pre_epoch}");
+        }
+
+        let earlier = world.ok(&["snapshot", "--at", "1", "--valid-at", "2026-03-12"]);
+        assert_eq!(earlier["root"], first["result"], "{backend}");
+        assert_eq!(earlier["revision_id"], first["revision_id"]);
+        assert_eq!(
+            matching(&earlier),
+            [ALICE],
+            "{backend}: history at revision 1"
+        );
+        let seeded = world.ok(&["snapshot", "--at", "0", "--valid-at", "2026-03-12"]);
+        assert_eq!(seeded["root"]["revision"], 0);
+        assert!(matching(&seeded).is_empty(), "{backend}: empty, not absent");
+
+        world.refused(&["snapshot", "--at", "9"], "ekr.kernel.RevisionNotFound");
+        let invalid = world.run(&["snapshot", "--valid-at", "2026-02-30"]);
+        assert_eq!(invalid.status.code(), Some(2), "{backend}");
+        assert!(String::from_utf8_lossy(&invalid.stderr).contains("valid-time selector"));
+        assert!(invalid.stdout.is_empty());
+    }
+}
+
+fn kinds(explanation: &Value) -> Vec<&str> {
+    explanation["links"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|link| link["kind"].as_str().unwrap())
+        .collect()
+}
+
+fn evidence_ids(explanation: &Value) -> Vec<&str> {
+    explanation["links"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|link| link["kind"] == "Evidence")
+        .map(|link| link["id"].as_str().unwrap())
+        .collect()
+}
+
+#[test]
+fn explain_follows_the_supersession_to_bob_and_refuses_an_unknown_assertion() {
+    const E_ALICE: &str = "00000000-0000-4000-8000-000000000401";
+    const E_BOB: &str = "00000000-0000-4000-8000-000000000402";
+    for backend in BACKENDS {
+        let world = World::new(backend);
+        let (first, second) = the_example(&world);
+
+        let alice = world.ok(&["explain", ALICE]);
+        assert_eq!(alice["assertion_id"], ALICE, "{backend}");
+        assert_eq!(alice["at"], 2);
+        assert_eq!(
+            kinds(&alice),
+            [
+                "Assertion",
+                "Proposal",
+                "Validation",
+                "Commit",
+                "Lifecycle",
+                "Assertion",
+                "Proposal",
+                "Validation",
+                "Commit",
+                "Evidence",
+                "Evidence",
+            ],
+            "{backend}: {alice}"
+        );
+        let links = alice["links"].as_array().unwrap();
+        assert_eq!(links[0]["id"], ALICE);
+        assert_eq!(links[1]["transaction_id"], T_ALICE);
+        assert_eq!(links[3]["event_id"], first["event_id"]);
+        assert_eq!(links[4]["assertion_id"], ALICE);
+        assert_eq!(links[4]["receipt"]["event_id"], second["event_id"]);
+        assert_eq!(links[5]["id"], BOB);
+        assert_eq!(links[6]["transaction_id"], T_BOB);
+        assert_eq!(links[8]["event_id"], second["event_id"]);
+        assert_eq!(evidence_ids(&alice), [E_ALICE, E_BOB], "{backend}");
+
+        let bob = world.ok(&["explain", BOB]);
+        assert_eq!(
+            kinds(&bob),
+            ["Assertion", "Proposal", "Validation", "Commit", "Evidence"],
+            "{backend}: {bob}"
+        );
+        assert_eq!(
+            evidence_ids(&bob),
+            [E_BOB],
+            "{backend}: only Bob's own support"
+        );
+
+        let before = world.retained();
+        world.refused(
+            &["explain", "00000000-0000-4000-8000-000000000599"],
+            "ekr.kernel.AssertionNotFound",
+        );
+        assert_eq!(world.retained(), before, "{backend}: explain wrote");
+    }
+}
+
+#[test]
+fn reads_before_any_seed_are_operational_faults() {
+    for backend in BACKENDS {
+        let world = World::new(backend);
+        for verb in [&["snapshot"][..], &["explain", ALICE][..]] {
+            let output = world.run(verb);
+            assert_eq!(output.status.code(), Some(1), "{backend} {verb:?}");
+            assert!(output.stdout.is_empty());
+        }
+    }
 }

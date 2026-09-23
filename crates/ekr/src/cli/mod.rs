@@ -5,9 +5,11 @@
 //! kernel handler; nothing here applies, validates or persists anything itself.
 
 mod commit;
+mod explain;
 mod input;
 mod propose;
 mod seed;
+mod snapshot;
 mod validate;
 
 use std::ffi::OsString;
@@ -75,6 +77,20 @@ pub enum Command {
         /// The retained transaction's id.
         transaction_id: ekr_core::TransactionId,
     },
+    /// Read a snapshot (`ekr.kernel.Snapshot`) of one verified revision.
+    Snapshot {
+        /// The committed revision to read; the newest when absent.
+        #[arg(long)]
+        at: Option<u64>,
+        /// Select the assertions valid at this instant: decimal milliseconds or `YYYY-MM-DD`.
+        #[arg(long, allow_negative_numbers = true, value_parser = crate::host::parse_valid_at)]
+        valid_at: Option<Timestamp>,
+    },
+    /// Explain an assertion (`ekr.kernel.Explain`) at the newest verified revision.
+    Explain {
+        /// The assertion's id.
+        assertion_id: ekr_core::AssertionId,
+    },
 }
 
 /// The system clock in milliseconds since the Unix epoch, for a new decision only.
@@ -102,9 +118,23 @@ where
     I: IntoIterator<Item = T>,
     T: Into<OsString> + Clone,
 {
-    let cli = Cli::try_parse_from(argv).map_err(|error| Failure::Usage {
-        message: error.render().to_string(),
-    })?;
+    let cli = match Cli::try_parse_from(argv) {
+        Ok(cli) => cli,
+        // The binary exits 0 for these through `Cli::parse`; the seam reports them the same way.
+        Err(error)
+            if matches!(
+                error.kind(),
+                clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
+            ) =>
+        {
+            return Ok(error.render().to_string());
+        }
+        Err(error) => {
+            return Err(Failure::Usage {
+                message: error.render().to_string(),
+            })
+        }
+    };
     execute(cli, now, stdin)
 }
 
@@ -157,6 +187,8 @@ pub fn execute(
             host.context.operator,
             now,
         )?),
+        Command::Snapshot { at, valid_at } => render(&snapshot::run(open()?, at, valid_at)?),
+        Command::Explain { assertion_id } => render(&explain::run(open()?, assertion_id)?),
     }
 }
 

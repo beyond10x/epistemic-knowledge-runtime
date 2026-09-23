@@ -6,7 +6,7 @@
 
 use std::fmt;
 
-use ekr_kernel::{CommitError, DocumentError, PersistenceError, SeedError};
+use ekr_kernel::{CommitError, DocumentError, PersistenceError, ProjectionError, SeedError};
 
 /// Why a command produced no result.
 #[derive(Debug)]
@@ -103,10 +103,8 @@ impl From<CommitError> for Failure {
             CommitError::Document(document) => {
                 Self::refused("ekr.kernel.StructurallyInvalid", document)
             }
-            // Not declared in `systems/ekr/domains/kernel.yaml`: the kernel refuses a document
-            // whose proposer is not the host operator the CLI submits as.
             error @ CommitError::ProposalAttribution { .. } => {
-                Self::refused("ProposalAttribution", error)
+                Self::refused("ekr.kernel.ProposalAttribution", error)
             }
             error @ CommitError::RevisionNotFound { .. } => {
                 Self::refused("ekr.kernel.RevisionNotFound", error)
@@ -118,6 +116,19 @@ impl From<CommitError> for Failure {
                 Self::refused("ekr.kernel.TransactionNotFound", error)
             }
             error @ (CommitError::NotSeeded | CommitError::Store(_)) => Self::fault(error),
+        }
+    }
+}
+
+impl From<ProjectionError> for Failure {
+    /// `ekr.kernel.AssertionNotFound` is the declared refusal; missing or disagreeing retained
+    /// support is a verification fault, never a partial result.
+    fn from(error: ProjectionError) -> Self {
+        match error {
+            error @ ProjectionError::AssertionNotFound { .. } => {
+                Self::refused("ekr.kernel.AssertionNotFound", error)
+            }
+            error @ ProjectionError::Unverified { .. } => Self::fault(error),
         }
     }
 }
