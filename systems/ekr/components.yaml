@@ -26,6 +26,8 @@ components:
         - ekr.kernel.RevisionCommitted
         - ekr.kernel.SnapshotTaken
         - ekr.kernel.Explained
+        - ekr.store.PublicationPrepared
+        - ekr.store.ObjectStored
 
   - component: ekr-ontology
     summary: >-
