@@ -11,11 +11,11 @@
 //! outside the ordering that decides what a collector may delete. The list is the defect; a missing
 //! entry is only its symptom, so the list is checked against the domain here rather than reviewed.
 //!
-//! `ekr-store` declares no YAML parser, so the document is parsed by the subset parser at the end
-//! of this file, which fails on any line it does not consume, and each scan is held to its own
-//! catch: a parse that stops finding declarations fails loudly rather than passing vacuously.
+//! The document is parsed with `serde_yaml_ng`, and each scan is held to its own catch: a parse
+//! that stops finding declarations fails loudly rather than passing vacuously.
 
 use ekr_store::{ObjectStore, RevisionLog, StorageClass};
+use serde_yaml_ng::Value as Yaml;
 
 /// `systems/ekr/domains/store.yaml`, as text.
 fn domain_text() -> String {
@@ -467,8 +467,8 @@ fn find_named(
 //
 // Adversary pass 1 of wave p1-14 found the first version of this blind twice over: it asked only
 // that a type of the carrier's name exist, and it found a declaration only when `name:` was the
-// first key of its mapping. Both were reading the document by line shape. It is now parsed, by the
-// subset parser at the end of this file, and a key is looked up wherever it sits in its mapping.
+// first key of its mapping. Both were reading the document by line shape. It is now parsed with
+// `serde_yaml_ng`, and a key is looked up wherever it sits in its mapping.
 
 /// How the crate carries one declaration.
 enum Carrier {
@@ -949,156 +949,21 @@ fn every_type_and_entity_the_domain_declares_names_a_rust_carrier() {
     }
 }
 
-/// A node of the YAML subset the ESS domains are written in.
-///
-/// `ekr-store` has no YAML parser among its dependencies, and reading the document by the shape of
-/// its lines is what adversary pass 1 found blind: `- kind: struct` followed by `name: …` is the
-/// same mapping as the other order, and a line scan sees only one of them. This reads block
-/// mappings, block sequences, flow sequences of plain scalars and folded or literal block
-/// scalars. Anything else — a line it does not consume — fails the parse rather than being
-/// skipped. A flow mapping (`{generated: true}`) is kept as one scalar.
-#[derive(Clone, Debug, PartialEq)]
-enum Yaml {
-    Scalar(String),
-    Seq(Vec<Yaml>),
-    Map(Vec<(String, Yaml)>),
-}
-
-impl Yaml {
-    /// The value under `key`, wherever it sits in this mapping.
-    fn get(&self, key: &str) -> Option<&Self> {
-        match self {
-            Self::Map(entries) => entries.iter().find(|(k, _)| k == key).map(|(_, v)| v),
-            _ => None,
-        }
-    }
-
-    fn as_str(&self) -> Option<&str> {
-        match self {
-            Self::Scalar(text) => Some(text),
-            _ => None,
-        }
-    }
-
-    /// A sequence's items, or none for anything else.
-    fn items(&self) -> &[Self] {
-        match self {
-            Self::Seq(items) => items,
-            _ => &[],
-        }
-    }
-}
-
-/// `text` parsed as the YAML subset [`Yaml`] describes.
+/// The YAML document `text`, parsed by `serde_yaml_ng`, so a key is found wherever it sits in its
+/// mapping — the order-blindness adversary pass 1 found in the line scans this file used to run.
 fn parse_yaml(text: &str) -> Yaml {
-    let mut lines: Vec<(usize, String)> = text
-        .lines()
-        .filter_map(|line| {
-            let content = match line.find(" #") {
-                _ if line.trim_start().starts_with('#') => "",
-                Some(at) => &line[..at],
-                None => line,
-            }
-            .trim_end();
-            let body = content.trim_start();
-            (!body.is_empty()).then(|| (content.len() - body.len(), body.to_owned()))
-        })
-        .collect();
-    let mut at = 0;
-    let document = parse_node(&mut lines, &mut at);
-    assert_eq!(
-        at,
-        lines.len(),
-        "the YAML subset parser stopped at {:?}",
-        lines.get(at)
-    );
-    document
+    serde_yaml_ng::from_str(text).expect("the ESS domain parses")
 }
 
-fn is_item(body: &str) -> bool {
-    body == "-" || body.starts_with("- ")
+/// A sequence's items, or none for anything that is not a sequence.
+trait Items {
+    fn items(&self) -> &[Yaml];
 }
 
-/// `(key, value)` when `body` is a `key: value` or `key:` line.
-fn key_of(body: &str) -> Option<(&str, &str)> {
-    if body.starts_with(['[', '"', '\'', '{']) {
-        return None;
+impl Items for Yaml {
+    fn items(&self) -> &[Yaml] {
+        self.as_sequence().map_or(&[], Vec::as_slice)
     }
-    let (key, value) = body.split_once(':')?;
-    (value.is_empty() || value.starts_with(' ')).then(|| (key.trim(), value.trim()))
-}
-
-fn scalar(value: &str) -> Yaml {
-    let unquote = |v: &str| v.trim().trim_matches(['"', '\'']).to_owned();
-    match value.strip_prefix('[').and_then(|v| v.strip_suffix(']')) {
-        Some(inner) => Yaml::Seq(
-            inner
-                .split(',')
-                .filter(|v| !v.trim().is_empty())
-                .map(|v| Yaml::Scalar(unquote(v)))
-                .collect(),
-        ),
-        None => Yaml::Scalar(unquote(value)),
-    }
-}
-
-/// The node starting at `lines[*at]`, at that line's indent.
-fn parse_node(lines: &mut [(usize, String)], at: &mut usize) -> Yaml {
-    let (indent, body) = lines[*at].clone();
-    if is_item(&body) {
-        let mut items = Vec::new();
-        while *at < lines.len() && lines[*at].0 == indent && is_item(&lines[*at].1) {
-            let rest = lines[*at].1[1..].trim_start().to_owned();
-            if rest.is_empty() {
-                *at += 1;
-                items.push(if *at < lines.len() && lines[*at].0 > indent {
-                    parse_node(lines, at)
-                } else {
-                    Yaml::Scalar(String::new())
-                });
-            } else {
-                // The item's content, re-read as a node at the column it starts in.
-                let column = indent + (lines[*at].1.len() - rest.len());
-                lines[*at] = (column, rest);
-                items.push(parse_node(lines, at));
-            }
-        }
-        return Yaml::Seq(items);
-    }
-    if key_of(&body).is_none() {
-        *at += 1;
-        return scalar(&body);
-    }
-    let mut entries = Vec::new();
-    while *at < lines.len() && lines[*at].0 == indent && !is_item(&lines[*at].1) {
-        let Some((key, value)) = key_of(&lines[*at].1).map(|(k, v)| (k.to_owned(), v.to_owned()))
-        else {
-            break;
-        };
-        *at += 1;
-        let deeper = |lines: &[(usize, String)], at: usize| {
-            at < lines.len()
-                && (lines[at].0 > indent || (lines[at].0 == indent && is_item(&lines[at].1)))
-        };
-        let node = if value.is_empty() {
-            if deeper(lines, *at) {
-                parse_node(lines, at)
-            } else {
-                Yaml::Scalar(String::new())
-            }
-        } else if matches!(value.as_str(), ">" | ">-" | ">+" | "|" | "|-" | "|+") {
-            let mut parts = Vec::new();
-            while *at < lines.len() && lines[*at].0 > indent {
-                parts.push(lines[*at].1.clone());
-                *at += 1;
-            }
-            Yaml::Scalar(parts.join(" "))
-        } else {
-            scalar(&value)
-        };
-        entries.push((key, node));
-    }
-    Yaml::Map(entries)
 }
 
 /// Every regular file under `directory`, recursively.

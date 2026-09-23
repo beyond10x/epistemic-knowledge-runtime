@@ -6,10 +6,11 @@
 //! suite checks the crate against itself, so nothing reads the two together. `ekr-graph` projects
 //! more of a domain than any crate before it, so it gets the same case.
 //!
-//! `ekr-graph` declares no YAML parser — its dependencies are `ekr-core`, `ekr-ontology`, `serde`
-//! and `thiserror`, fixed by `story:workspace-crate-skeleton` — so the document is read as text.
-//! The scan is held to its own catch: a parse that stops finding declarations fails loudly rather
-//! than passing vacuously.
+//! Most scans below read the document as text, written when `ekr-graph` had no YAML parser. Wave
+//! p1-14 added `serde_yaml_ng` as a dev-dependency, and the property-key case parses with it; the
+//! older line scans (`variants_of`, `declarations_with_fields`, `fields_of`) still find a
+//! declaration only when `name:` is its first key. Each scan is held to its own catch: a parse that
+//! stops finding declarations fails loudly rather than passing vacuously.
 
 /// `systems/ekr/domains/graph.yaml`, as text.
 fn domain_text() -> String {
@@ -742,21 +743,35 @@ fn property_maps_are_keyed_by_property_id_in_the_domain_and_the_crate() {
     );
 
     // Every `properties` field the domain declares is the `String`-keyed map that sentence
-    // governs, and nothing else.
+    // governs, and nothing else. Read from the parsed document, so a field whose `type:` is written
+    // before its `name:` is seen too.
+    let document: serde_yaml_ng::Value =
+        serde_yaml_ng::from_str(&text).expect("the ESS domain parses");
     let mut declared = 0usize;
-    for (at, line) in lines.iter().enumerate() {
-        if line.trim() != "- name: properties" {
-            continue;
+    for section in ["types", "entities", "views"] {
+        let declarations = document
+            .get(section)
+            .and_then(serde_yaml_ng::Value::as_sequence)
+            .map_or(&[][..], Vec::as_slice);
+        for field in declarations
+            .iter()
+            .filter_map(|declared| declared.get("fields"))
+            .filter_map(serde_yaml_ng::Value::as_sequence)
+            .flatten()
+        {
+            if field.get("name").and_then(serde_yaml_ng::Value::as_str) != Some("properties") {
+                continue;
+            }
+            let ty = field
+                .get("type")
+                .and_then(serde_yaml_ng::Value::as_str)
+                .expect("a properties field declares its type");
+            assert_eq!(
+                ty, "Map<String, List<ekr.graph.TypedValue>>",
+                "a properties field is declared with a key or value the sentence does not cover"
+            );
+            declared += 1;
         }
-        let ty = lines
-            .get(at + 1)
-            .and_then(|next| next.trim().strip_prefix("type: "))
-            .expect("a field name is followed by its type");
-        assert_eq!(
-            ty, "Map<String, List<ekr.graph.TypedValue>>",
-            "a properties field is declared with a key or value the sentence does not cover"
-        );
-        declared += 1;
     }
     assert!(
         declared >= 4,
