@@ -1,0 +1,149 @@
+format: ekr-seed/2
+ontology:
+  version:
+    id: 00000000-0000-4000-8000-000000000001
+    number: 0
+    parent: null
+    created_at: 0
+  node_types:
+  - id: 00000000-0000-4000-8000-000000000201
+    name: Person
+    parents: []
+    properties: {}
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-000000000202
+    name: Organization
+    parents: []
+    properties: {}
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  edge_types:
+  - id: 00000000-0000-4000-8000-000000000203
+    name: CEO_OF
+    source_types:
+    - 00000000-0000-4000-8000-000000000201
+    target_types:
+    - 00000000-0000-4000-8000-000000000202
+    cardinality: One
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+graph:
+  format: ekr.graph-document/2
+  graph:
+    root:
+      id: 00000000-0000-4000-8000-000000000002
+      space: Canonical
+      schema_version_id: 00000000-0000-4000-8000-000000000001
+      parent: null
+      created_at: 0
+    revision: 0
+    nodes:
+      00000000-0000-4000-8000-000000000301:
+        id: 00000000-0000-4000-8000-000000000301
+        root_id: 00000000-0000-4000-8000-000000000002
+        type_id: 00000000-0000-4000-8000-000000000201
+        canonical_name: Alice
+        aliases: []
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-000000000302:
+        id: 00000000-0000-4000-8000-000000000302
+        root_id: 00000000-0000-4000-8000-000000000002
+        type_id: 00000000-0000-4000-8000-000000000201
+        canonical_name: Bob
+        aliases: []
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-000000000303:
+        id: 00000000-0000-4000-8000-000000000303
+        root_id: 00000000-0000-4000-8000-000000000002
+        type_id: 00000000-0000-4000-8000-000000000202
+        canonical_name: Acme Holdings
+        aliases: []
+        type_state: null
+        properties: {}
+    edges: {}
+    assertions: {}
+    evidence:
+      00000000-0000-4000-8000-000000000401:
+        id: 00000000-0000-4000-8000-000000000401
+        source: !HumanStatement
+          identity: Runtime operator
+        content_hash: 2f954f8f77731e11a4dca21e0bb6c566f719aae4116838f3095f60649e5429db
+        extracted_by: 00000000-0000-4000-8000-000000000101
+        observed_at: 1773273600000
+        confidence: 10000
+      00000000-0000-4000-8000-000000000402:
+        id: 00000000-0000-4000-8000-000000000402
+        source: !HumanStatement
+          identity: Runtime operator
+        content_hash: bd1d4dc9ba5012df5e43505418aa7728c15bca052a1ad43b1a2d00d04b75bdd6
+        extracted_by: 00000000-0000-4000-8000-000000000101
+        observed_at: 1773273600000
+        confidence: 10000
+evidence_payloads:
+  2f954f8f77731e11a4dca21e0bb6c566f719aae4116838f3095f60649e5429db:
+  - 65
+  - 108
+  - 105
+  - 99
+  - 101
+  - 32
+  - 105
+  - 115
+  - 32
+  - 67
+  - 69
+  - 79
+  - 32
+  - 111
+  - 102
+  - 32
+  - 65
+  - 99
+  - 109
+  - 101
+  - 46
+  bd1d4dc9ba5012df5e43505418aa7728c15bca052a1ad43b1a2d00d04b75bdd6:
+  - 66
+  - 111
+  - 98
+  - 32
+  - 98
+  - 101
+  - 99
+  - 97
+  - 109
+  - 101
+  - 32
+  - 67
+  - 69
+  - 79
+  - 32
+  - 111
+  - 102
+  - 32
+  - 65
+  - 99
+  - 109
+  - 101
+  - 32
+  - 111
+  - 110
+  - 32
+  - 50
+  - 48
+  - 50
+  - 54
+  - 45
+  - 48
+  - 51
+  - 45
+  - 49
+  - 50
+  - 46
