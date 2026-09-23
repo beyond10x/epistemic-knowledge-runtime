@@ -2,11 +2,11 @@
 format: aep.planning-md/1
 id: task:graph-domain-carries-validation-state-payloads
 kind: task
-status: draft
+status: archived
 title: The graph domain has a carrier for one of the four ValidationState payloads and claims four
 relations:
 - serves: vision:o2
-revision: 4
+revision: 6
 ---
 ## What is wrong
 
@@ -60,3 +60,10 @@ Derived 2026-09-23 by `story-scoper` (wave p1-14). Verdict: already-held.
 - not covered: a new Rust variant without a YAML declaration (the enumeration check runs YAML to Rust only) — cited
 - the case this body cites, `the_domain_carries_only_the_supersession_payload_of_a_validation_state`, no longer exists — cited
 - Confidence: high
+
+## Wave p1-14 close
+
+Archived in wave p1-14: the premise is resolved (`b2b64f8`, `094f043`) and cases hold it.
+
+- `crates/ekr-graph/tests/domain_projection.rs::assessment_and_lifecycle_retain_independent_payloads` and `::every_declaration_of_the_domain_is_carried_field_for_field`: `test result: ok. 2 passed` (bindings unit run, 2026-09-23).
+- The case this body named earlier, `the_domain_carries_only_the_supersession_payload_of_a_validation_state`, no longer exists.

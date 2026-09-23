@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:ess-conformance-kernel
 kind: story
-status: active
+status: implemented
 title: ESS conformance suite over the kernel domain
 relations:
 - decomposes: epic:p1-kernel-ontology-core
@@ -32,7 +32,7 @@ scope:
   path: systems/ekr/conformance/suite.json
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 10
+revision: 12
 ---
 ## Context
 
@@ -126,3 +126,11 @@ Record the exact passed report as evidence on executable-system-specification:ek
 and let its lifecycle decide the conforming move. Do not claim conformance from
 synthesis, an empty suite, or a substitute target. The ess-specify:coverage skill
 supplies the executed-coverage and mutation requirements.
+
+## Scope confirmation
+
+Confirmed by the implementor of unit p1-14-conformance at close of wave p1-14:
+
+- confirmed: `Taskfile.yml`, `crates/ekr/src/conformance.rs`, `crates/ekr/tests/conformance.rs`, `systems/ekr/conformance/`, `Cargo.toml`, `Cargo.lock`, `crates/ekr/Cargo.toml`
+- not touched by the unit: `.github/workflows/correctness.yml` (CI already runs task check with ESS 0.29.0); `systems/ekr/components.yaml` and `domains/kernel.yaml` were changed by the coordinator (`e128e4e`, `74e7fb0`)
+- not listed: `crates/ekr/src/lib.rs`, `crates/ekr/tests/fixtures/conformance/` (authored scenarios live here, not under `systems/`, because `ess specify validate` reads `systems/` as specification), `crates/ekr/tests/story_contract.rs`, `crates/ekr-store/src/{eventlog.rs,lib.rs}` and `crates/ekr-kernel/src/runtime.rs` (read-only store-event read, option B)

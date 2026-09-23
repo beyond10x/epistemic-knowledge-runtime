@@ -2,12 +2,12 @@
 format: aep.planning-md/1
 id: task:canonical-reference-holds-a-node-id-for-every-target
 kind: task
-status: active
+status: implemented
 title: A canonical reference to evidence resolves to a node, because the marker is decoration
 relations:
 - serves: vision:o2
 - decomposes: story:p1-exit-properties
-revision: 4
+revision: 5
 ---
 ## What is wrong
 

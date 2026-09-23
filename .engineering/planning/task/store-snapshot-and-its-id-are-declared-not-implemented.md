@@ -2,11 +2,11 @@
 format: aep.planning-md/1
 id: task:store-snapshot-and-its-id-are-declared-not-implemented
 kind: task
-status: active
+status: implemented
 title: ekr.store.Snapshot and SnapshotId are declared by the domain and bound to no Rust type
 relations:
 - serves: vision:o2
-revision: 5
+revision: 6
 ---
 ## What is wrong
 

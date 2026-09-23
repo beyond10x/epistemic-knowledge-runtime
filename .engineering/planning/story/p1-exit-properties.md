@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:p1-exit-properties
 kind: story
-status: active
+status: implemented
 title: 'P1 exit properties: no dangling reference commits; the membrane holds for every reference'
 relations:
 - decomposes: epic:p1-kernel-ontology-core
@@ -38,7 +38,7 @@ scope:
   path: crates/ekr-store/src/log.rs
 - confidence: inferred
   path: crates/ekr-store/src/snapshot.rs
-revision: 19
+revision: 21
 ---
 ## Acceptance
 
@@ -67,3 +67,12 @@ Derived 2026-09-23 by `story-scoper` (wave p1-14). Folded with `task:canonical-r
 - `docs/roadmap.md:144-146` read for the verification report — cited
 - already held: `crates/ekr-kernel/tests/validation.rs::every_kind_of_dangling_reference_is_refused` (hand-written, pipeline only); `crates/ekr-kernel/tests/seed.rs::a_seed_with_a_dangling_edge_is_refused_by_both_backends`; `crates/ekr/tests/retraction_example.rs::the_retraction_example_runs_through_fresh_processes_on_both_providers` (fixed lineage) — cited
 - Confidence: medium
+
+## Scope confirmation
+
+Confirmed by the implementor of unit p1-14-exit at close of wave p1-14:
+
+- confirmed: `crates/ekr-kernel/src/{explain.rs,seed.rs,transaction.rs,validate/reference.rs}`, `crates/ekr-store/src/snapshot.rs`, `crates/ekr-graph/src/lib.rs` (doc only); `graph.yaml` unchanged
+- wrong: `crates/ekr-kernel/src/document/shape.rs`, `replay.rs`, `crates/ekr-store/src/log.rs` needed no change; `validate/ontology.rs`, `validate/types.rs` match only proposal types
+- wrong: the both-provider harness is `durable_commands.rs`, not `validate_properties.rs`; forced test edits were 15 files, not about 25
+- not listed: `crates/ekr-graph/src/transient.rs`, `crates/ekr-kernel/src/apply.rs`, `validate/lifecycle.rs`, four ekr-store test files, `crates/ekr/tests/graph_assertion_serde.rs`, `crates/ekr-graph/tests/current_vectors.rs:63` (construction only)

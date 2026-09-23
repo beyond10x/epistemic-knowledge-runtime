@@ -2,11 +2,11 @@
 format: aep.planning-md/1
 id: task:ess-has-no-byte-string-type
 kind: task
-status: draft
+status: archived
 title: A byte is declared as an unbounded Integer, because ess/1 has no byte-string type
 relations:
 - serves: vision:o2
-revision: 4
+revision: 6
 ---
 ## What is wrong
 
@@ -72,3 +72,10 @@ Derived 2026-09-23 by `story-scoper` (wave p1-14). Verdict: already-held.
 - held by `crates/ekr-store/tests/domain_projection.rs::every_event_the_crate_writes_carries_the_fields_the_domain_declares` (exact field-set equality on the written body) and `crates/ekr-store/tests/current_legacy_object_refusal.rs` — cited
 - not covered: the store guard compares field names, not types; `ekr.graph.ObservationContent::Blob` has no payload case — cited, left for P2 (Blob, amendment 86)
 - Confidence: high
+
+## Wave p1-14 close
+
+Archived in wave p1-14: the premise is resolved at `f282e15` and a case already holds it.
+
+- `crates/ekr-store/tests/domain_projection.rs::every_event_the_crate_writes_carries_the_fields_the_domain_declares`: `test result: ok. 1 passed` (bindings unit run, 2026-09-23).
+- `ekr.store.ObjectStored` is metadata-only; `Bytes` is an ESS type in `system.yaml` format `ess/7`.

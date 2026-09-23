@@ -2,11 +2,11 @@
 format: aep.planning-md/1
 id: task:typed-value-canonical-field-is-undecided
 kind: task
-status: draft
+status: archived
 title: TypedValue.canonical is declared a String and was described as the content-hash bytes, which it cannot be
 relations:
 - serves: vision:o2
-revision: 4
+revision: 6
 ---
 ## What is wrong
 
@@ -71,3 +71,9 @@ Derived 2026-09-23 by `story-scoper` (wave p1-14). Verdict: already-held.
 - held by `crates/ekr-graph/tests/domain_projection.rs::every_declaration_of_the_domain_is_carried_field_for_field` — cited
 - stale doc: `crates/ekr-graph/src/node.rs:28` still says `TypedValue { kind, canonical }` — cited
 - Confidence: high
+
+## Wave p1-14 close
+
+Archived in wave p1-14: `ekr.graph.TypedValue` declares `canonical_bytes: Bytes`, bound to `CanonicalValue` since `094f043`.
+
+- `crates/ekr-graph/tests/domain_projection.rs::every_declaration_of_the_domain_is_carried_field_for_field`: `test result: ok` (bindings unit run, 2026-09-23).

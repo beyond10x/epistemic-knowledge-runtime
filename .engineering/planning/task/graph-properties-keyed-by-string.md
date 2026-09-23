@@ -2,11 +2,11 @@
 format: aep.planning-md/1
 id: task:graph-properties-keyed-by-string
 kind: task
-status: active
+status: implemented
 title: Node and Edge properties are declared keyed by String, and the crate keys by PropertyId
 relations:
 - serves: vision:o2
-revision: 5
+revision: 6
 ---
 ## What is wrong
 

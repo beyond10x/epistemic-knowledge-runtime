@@ -2,11 +2,11 @@
 format: aep.planning-md/1
 id: executable-system-specification:ekr-v1
 kind: executable-system-specification
-status: validated
+status: conforming
 title: systems/ekr — the runtime's executable system specification, v1
 relations:
 - specifies: epic:p1-kernel-ontology-core
-revision: 2
+revision: 3
 ---
 ## What this is
 

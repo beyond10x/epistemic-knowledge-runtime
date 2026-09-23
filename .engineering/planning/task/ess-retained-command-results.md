@@ -2,12 +2,12 @@
 format: aep.planning-md/1
 id: task:ess-retained-command-results
 kind: task
-status: active
+status: implemented
 title: Adopt executable exact-result retry contracts from ESS
 relations:
 - derived_from: story:ess-conformance-kernel
 - serves: vision:o2
-revision: 5
+revision: 6
 ---
 ## Measured upstream boundary
 
