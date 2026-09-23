@@ -213,6 +213,19 @@ fn guide_prints_the_workflow_roles_exit_codes_and_where_ids_come_from() {
         "ekr example",
         "ekr transactions",
         "EKR_HOST",
+        // Correction round 1: what the kernel does not apply, how bytes print, relations,
+        // acceptance, and how to read what is valid now.
+        "not applied in P1",
+        "unsupported-operation",
+        "DefineNodeType",
+        "MergeEntity",
+        "base64",
+        "document_bytes",
+        "CreateEdge",
+        "!Relation",
+        "Accepted",
+        "--valid-at",
+        "matching_assertions",
     ] {
         assert!(guide.contains(needle), "guide lacks {needle:?}:\n{guide}");
     }
@@ -426,9 +439,29 @@ fn ontology_prints_types_and_properties_by_name_and_id() {
             edge["target_types"][0]["name"], "Organization",
             "{ontology}"
         );
-        for node_type in ontology["node_types"].as_array().unwrap() {
-            assert!(node_type["properties"].is_array(), "{ontology}");
-        }
+        // The example seed declares one property, on Organization: read it by name and id.
+        let organization = ontology["node_types"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["name"] == "Organization")
+            .unwrap();
+        let properties = organization["properties"].as_array().unwrap();
+        assert_eq!(properties.len(), 1, "{ontology}");
+        assert_eq!(properties[0]["name"], "legal_name", "{ontology}");
+        assert!(properties[0]["id"]
+            .as_str()
+            .unwrap()
+            .parse::<ekr_core::PropertyId>()
+            .is_ok());
+        assert_eq!(properties[0]["value_type"]["value_kind"], "String");
+        let person = ontology["node_types"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["name"] == "Person")
+            .unwrap();
+        assert_eq!(person["properties"], serde_json::json!([]), "{ontology}");
     }
 }
 
@@ -479,6 +512,35 @@ fn a_store_verb_without_its_configuration_is_a_usage_error_naming_flag_and_varia
         let stderr = String::from_utf8_lossy(&output.stderr);
         assert!(stderr.contains(flag) && stderr.contains(var), "{stderr}");
         assert!(output.stdout.is_empty());
+        // An empty variable is no configuration either, and is named the same way.
+        let output = ekr().env(var, "").args(&args).output().unwrap();
+        assert_eq!(output.status.code(), Some(2), "{var}=\"\" {args:?}");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(stderr.contains(flag) && stderr.contains(var), "{stderr}");
+        assert!(output.stdout.is_empty());
+    }
+    // A backend the variable misspells is refused by the variable's name, for a store verb only.
+    let output = ekr()
+        .env("EKR_BACKEND", "bogus")
+        .args(["--host", "host.json", "--store", "store", "head"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("EKR_BACKEND"));
+    for verb in [
+        &["guide"][..],
+        &["operations"],
+        &["example", "ekr-seed/2"],
+        &["mint", "node"],
+    ] {
+        for (var, value) in [
+            ("EKR_BACKEND", "bogus"),
+            ("EKR_STORE", ""),
+            ("EKR_HOST", ""),
+        ] {
+            let output = ekr().env(var, value).args(verb).output().unwrap();
+            assert_eq!(output.status.code(), Some(0), "{var}={value:?} {verb:?}");
+        }
     }
 }
 
@@ -527,11 +589,69 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
             "{verb} --help points at no example:\n{out}"
         );
     }
-    for (verb, format) in [
-        ("seed", "ekr-seed/2"),
-        ("propose", "ekr.transaction-document/1"),
-    ] {
-        assert!(text(&[verb, "--help"]).contains(format), "{verb}");
+
+    // The verb's own text — its about, its own (non-global) arguments and their possible values,
+    // never the shared footer or the global --host/--store/--backend — names what it reads and
+    // where to get it. Every verb `ekr --help` lists has a row, so a new verb needs one.
+    let store = "ekr.cli-host/1";
+    let own: &[(&str, &[&str])] = &[
+        ("seed", &["ekr-seed/2", "ekr example ekr-seed/2", store]),
+        (
+            "propose",
+            &[
+                "ekr.transaction-document/1",
+                "ekr example ekr.transaction-document/1",
+                "ekr operations",
+                store,
+            ],
+        ),
+        ("validate", &["ekr propose", "ekr head", store]),
+        ("commit", &["ekr propose", "ekr validate", store]),
+        ("snapshot", &["ekr head", "YYYY-MM-DD", store]),
+        ("explain", &["ekr snapshot", store]),
+        ("guide", &["workflow"]),
+        ("operations", &["ekr.transaction-document/1", "CreateNode"]),
+        (
+            "example",
+            &["ekr.transaction-document/1", "ekr-seed/2", "ekr.cli-host/1"],
+        ),
+        ("mint", &["node", "assertion", "transaction"]),
+        ("head", &["revision", store]),
+        ("transactions", &["Proposed", "Committed", store]),
+        ("ontology", &["ekr ontology", store]),
+    ];
+    let listed: BTreeSet<&str> = verbs.iter().map(String::as_str).collect();
+    let rows: BTreeSet<&str> = own.iter().map(|(verb, _)| *verb).collect();
+    assert_eq!(listed, rows, "every verb has its own-text row");
+    let command = <ekr::cli::Cli as clap::CommandFactory>::command();
+    for (verb, needles) in own {
+        let sub = command.find_subcommand(verb).unwrap();
+        let mut own_text = format!(
+            "{} {}",
+            sub.get_about().map(ToString::to_string).unwrap_or_default(),
+            sub.get_long_about()
+                .map(ToString::to_string)
+                .unwrap_or_default()
+        );
+        for arg in sub.get_arguments().filter(|a| !a.is_global_set()) {
+            for help in [arg.get_help(), arg.get_long_help()].into_iter().flatten() {
+                own_text.push(' ');
+                own_text.push_str(&help.to_string());
+            }
+            for value in arg.get_possible_values() {
+                own_text.push(' ');
+                own_text.push_str(value.get_name());
+            }
+        }
+        for needle in *needles {
+            assert!(
+                own_text.contains(needle),
+                "`ekr {verb}`'s own help does not name {needle:?}: {own_text}"
+            );
+        }
+        let printed = text(&[verb, "--help"]);
+        let about = sub.get_about().unwrap().to_string();
+        assert!(printed.contains(&about), "{verb}: {printed}");
     }
 }
 
@@ -795,12 +915,15 @@ fn the_retraction_example_runs_from_printed_strings_only_on_both_providers() {
         );
         let before = world.ok(&["snapshot", "--valid-at", "2026-03-11"]);
         let after = world.ok(&["snapshot", "--valid-at", "2026-03-12"]);
+        // The example seed carries assertions of its own; only this case's three are asked about.
+        let created = [a_alice.clone(), a_bob.clone(), a_bob_globex.clone()];
         let matching = |v: &Value| -> BTreeSet<String> {
             v["matching_assertions"]
                 .as_array()
                 .unwrap()
                 .iter()
                 .map(|a| a.as_str().unwrap().to_owned())
+                .filter(|a| created.contains(a))
                 .collect()
         };
         assert_eq!(
@@ -824,5 +947,202 @@ fn the_retraction_example_runs_from_printed_strings_only_on_both_providers() {
         );
         assert!(after["graph"]["graph"]["nodes"][&globex].is_object());
         assert!(after["graph"]["graph"]["edges"][&edge].is_object());
+    }
+}
+
+// Correction round 1 -------------------------------------------------------------------------
+
+/// The four kinds the P1 kernel refuses to apply, by `ekr.kernel` issue code.
+const NOT_APPLIED: [&str; 4] = [
+    "DefineNodeType",
+    "DefineEdgeType",
+    "ModifyProperty",
+    "MergeEntity",
+];
+
+/// The evidence a single printed operation cites, which its transaction must list.
+fn cited(example: &str) -> Vec<String> {
+    match parse_one(example) {
+        GraphOperation::AddAssertion(assertion) => {
+            assertion.evidence.iter().map(ToString::to_string).collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Every issue `code` a validation record carries.
+fn issue_codes(value: &Value) -> BTreeSet<String> {
+    let mut found = BTreeSet::new();
+    let mut stack = vec![value];
+    while let Some(value) = stack.pop() {
+        match value {
+            Value::Object(map) => {
+                if let Some(Value::String(code)) = map.get("code") {
+                    found.insert(code.clone());
+                }
+                stack.extend(map.values());
+            }
+            Value::Array(items) => stack.extend(items),
+            _ => {}
+        }
+    }
+    found
+}
+
+/// Every example the kernel applies commits, in the order `ekr operations` lists them, one
+/// transaction each, against a store seeded from `ekr example ekr-seed/2`. The four kinds it does
+/// not apply are marked so on their list line and page, and validation refuses exactly them with
+/// the code those marks name.
+#[test]
+fn every_applicable_example_commits_in_listed_order_against_the_example_seed() {
+    let host: Value = serde_json::from_str(&text(&["example", "ekr.cli-host/1"])).unwrap();
+    let operator = host["context"]["operator"].as_str().unwrap().to_owned();
+    let listing = text(&["operations"]);
+    for backend in BACKENDS {
+        let world = World::new(backend);
+        world.seed_from_example();
+        let mut committed = 0;
+        for kind in listed_kinds() {
+            let line = listing
+                .lines()
+                .find(|l| l.split_whitespace().next() == Some(kind.as_str()))
+                .unwrap();
+            let page = text(&["operations", &kind]);
+            let marked =
+                line.contains("not applied in P1") && line.contains("unsupported-operation");
+            assert_eq!(
+                marked,
+                NOT_APPLIED.contains(&kind.as_str()),
+                "{kind}: list line {line:?}"
+            );
+            assert_eq!(
+                page.contains("not applied in P1") && page.contains("unsupported-operation"),
+                marked,
+                "{kind}: page\n{page}"
+            );
+            assert_eq!(
+                page.contains("validates against a store seeded from it"),
+                !marked,
+                "{kind}: {page}"
+            );
+            let example = example_operation(&kind);
+            let evidence = cited(&example);
+            let evidence: Vec<&str> = evidence.iter().map(String::as_str).collect();
+            let path = world.file(
+                &format!("{kind}.yaml"),
+                &document(&minted("transaction"), &operator, &[example], &evidence),
+            );
+            let id = world.ok(&["propose", &path])["transaction_id"]
+                .as_str()
+                .unwrap()
+                .to_owned();
+            let validated = world.ok(&["validate", &id]);
+            if marked {
+                assert_eq!(
+                    validated["kind"], "Rejected",
+                    "{backend} {kind}: {validated}"
+                );
+                assert!(
+                    issue_codes(&validated).contains("unsupported-operation"),
+                    "{backend} {kind}: {validated}"
+                );
+                continue;
+            }
+            assert_eq!(
+                validated["kind"], "Validated",
+                "{backend} {kind}: {validated}"
+            );
+            let receipt = world.ok(&["commit", &id]);
+            assert_eq!(receipt["kind"], "Committed", "{backend} {kind}: {receipt}");
+            committed += 1;
+        }
+        assert_eq!(committed, KIND_COUNT - NOT_APPLIED.len(), "{backend}");
+        assert_eq!(
+            world.ok(&["head"])["revision"],
+            u64::try_from(committed).unwrap()
+        );
+    }
+}
+
+/// Standard padded base64, as the guide says byte strings print.
+fn base64(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for chunk in bytes.chunks(3) {
+        let mut triple = [0_u8; 3];
+        triple[..chunk.len()].copy_from_slice(chunk);
+        let n = (u32::from(triple[0]) << 16) | (u32::from(triple[1]) << 8) | u32::from(triple[2]);
+        for position in 0..4 {
+            if position <= chunk.len() {
+                out.push(char::from(
+                    ALPHABET[((n >> (18 - 6 * position)) & 0x3f) as usize],
+                ));
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
+/// Every array of small integers anywhere in a JSON result: what a byte string printed as
+/// numbers looks like.
+fn byte_arrays(value: &Value, path: &str, into: &mut Vec<String>) {
+    match value {
+        Value::Array(items) => {
+            let bytes =
+                items.len() >= 2 && items.iter().all(|i| i.as_u64().is_some_and(|n| n <= 255));
+            if bytes {
+                into.push(path.to_owned());
+            }
+            for (at, item) in items.iter().enumerate() {
+                byte_arrays(item, &format!("{path}[{at}]"), into);
+            }
+        }
+        Value::Object(map) => {
+            for (key, item) in map {
+                byte_arrays(item, &format!("{path}.{key}"), into);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// No verb prints a byte string as a number array: every one is one base64 string, and
+/// `document_bytes` decodes to exactly the submitted document.
+#[test]
+fn every_byte_string_prints_as_one_base64_string() {
+    for backend in BACKENDS {
+        let world = World::new(backend);
+        let mut results = vec![("seed", world.seed_from_example())];
+        let submitted = text(&["example", "ekr.transaction-document/1"]);
+        let path = world.file("transaction.yaml", &submitted);
+        let proposed = world.ok(&["propose", &path]);
+        assert_eq!(
+            proposed["document_bytes"],
+            base64(submitted.as_bytes()),
+            "{backend}: {proposed}"
+        );
+        let id = proposed["transaction_id"].as_str().unwrap().to_owned();
+        results.push(("propose", proposed));
+        results.push(("validate", world.ok(&["validate", &id])));
+        results.push(("commit", world.ok(&["commit", &id])));
+        let assertion = parse_one(&example_operation("AddAssertion"));
+        let GraphOperation::AddAssertion(assertion) = assertion else {
+            unreachable!()
+        };
+        results.push(("explain", world.ok(&["explain", &assertion.id.to_string()])));
+        results.push(("snapshot", world.ok(&["snapshot"])));
+        results.push(("transactions", world.ok(&["transactions"])));
+        results.push(("head", world.ok(&["head"])));
+        results.push(("ontology", world.ok(&["ontology"])));
+        let mut found = Vec::new();
+        for (verb, result) in &results {
+            byte_arrays(result, verb, &mut found);
+        }
+        assert!(
+            found.is_empty(),
+            "{backend}: byte strings printed as numbers: {found:#?}"
+        );
     }
 }

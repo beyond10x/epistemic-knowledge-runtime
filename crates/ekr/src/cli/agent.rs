@@ -24,7 +24,8 @@ CONFIGURATION (every store verb)
   --host <ekr.cli-host/1 JSON>   or EKR_HOST
   --store <dir | sqlite file>    or EKR_STORE
   --backend <file | sqlite>      or EKR_BACKEND
-  guide, operations, example and mint need none of them.
+  A flag wins over its variable; an empty variable counts as unset. guide, operations,
+  example and mint need none of them and ignore the variables.
 
 WORKFLOW
   1. ekr example ekr.cli-host/1 > host.json       a host document to start from
@@ -45,6 +46,31 @@ WORKFLOW
      ekr snapshot [--at N] [--valid-at YYYY-MM-DD]  read the result back
      ekr explain <assertion_id>                    why an assertion is what it is
 
+WHAT IS TRUE NOW
+  ekr snapshot --valid-at <ms | YYYY-MM-DD> lists the assertions believed at that instant in
+  `matching_assertions` (a date is midnight UTC). A plain `ekr snapshot` leaves
+  matching_assertions null and returns every assertion, including retracted and superseded ones.
+
+RELATIONS: CreateEdge, an assertion, or both
+  A claim that a relation holds is an AddAssertion with `predicate: !Relation <edge type id>`,
+  subject and object `!Node`. It carries evidence and a valid time, and it is what
+  `snapshot --valid-at`, explain, RetractAssertion and SupersedeAssertion act on. The assertion
+  alone is enough to state the claim.
+  CreateEdge is the structural record of the relation: it has no evidence and no valid time, is
+  held to the edge type's endpoint types and cardinality, and is removed with DeleteEdge. Add one
+  when a reader of the graph's edges should see the relation too.
+
+ASSESSMENT: Proposed -> Accepted
+  Every assertion is proposed with `assessment: Proposed`; one that states its own verdict is
+  refused. It becomes Accepted, with the validator's id, when its transaction is committed after
+  a successful validate. Seeding does the same for the seed's own assertions. Only accepted,
+  active assertions can be retracted or superseded.
+
+NOT APPLIED IN P1
+  DefineNodeType, DefineEdgeType, ModifyProperty and MergeEntity are not applied in P1: they
+  parse, but validation rejects every proposal of them with the issue code
+  unsupported-operation. The ontology is the seed's. `ekr operations` marks them.
+
 WHERE VALUES COME FROM
   new ids          ekr mint <kind>; ids are never derived from names
   existing ids     ekr ontology (type ids), ekr snapshot (root, node, edge, assertion,
@@ -61,7 +87,10 @@ EXIT CODES
   exit 1  a fault: provider, verification, unreadable input, host configuration, not seeded.
   exit 2  a named refusal (its ekr.kernel.* name on stderr, nothing recorded) or a usage error.
 
-guide, operations and example print text; every other verb prints one JSON document.
+OUTPUT
+  guide, operations and example print text; every other verb prints one JSON document. Byte
+  strings (a proposal's document_bytes, the seed's evidence payloads) print as one standard
+  padded base64 string (RFC 4648), not as a number array.
 ";
 
 /// One `ekr.kernel.OperationKind`: a `GraphOperation` variant, by its YAML tag.
@@ -132,6 +161,26 @@ impl OperationKind {
         }
     }
 
+    /// Whether the P1 kernel applies this kind. The four it does not are rejected at validation
+    /// with `unsupported-operation` (`crates/ekr-kernel/src/validate/structural.rs`), and
+    /// `apply.rs` refuses them the same way. No `_` arm: a new kind states its own answer.
+    const fn applied_in_p1(self) -> bool {
+        match self {
+            Self::CreateNode
+            | Self::UpdateProperty
+            | Self::CreateEdge
+            | Self::DeleteEdge
+            | Self::AddAssertion
+            | Self::RetractAssertion
+            | Self::Invoke
+            | Self::SupersedeAssertion => true,
+            Self::DefineNodeType
+            | Self::DefineEdgeType
+            | Self::ModifyProperty
+            | Self::MergeEntity => false,
+        }
+    }
+
     /// `(summary, fields, example operation)`. The example is one entry of
     /// `transaction.operations`, using the ids of `ekr example ekr-seed/2`.
     #[allow(clippy::too_many_lines)]
@@ -163,7 +212,7 @@ impl OperationKind {
   property: 00000000-0000-4000-8000-000000000801
   values:
   - value_kind: String
-    value: Acme Holdings",
+    value: Acme Holdings Ltd",
             ),
             Self::CreateEdge => (
                 "create an edge of a declared edge type between two nodes",
@@ -178,13 +227,13 @@ impl OperationKind {
   root_id: 00000000-0000-4000-8000-000000000002
   type_id: 00000000-0000-4000-8000-000000000203
   source: 00000000-0000-4000-8000-000000000302
-  target: 00000000-0000-4000-8000-000000000304
+  target: 00000000-0000-4000-8000-000000000303
   properties: {}",
             ),
             Self::DeleteEdge => (
                 "remove an edge (a claim that it held is retracted, not deleted)",
                 "  (the value)  EdgeId  an existing edge",
-                "- !DeleteEdge 00000000-0000-4000-8000-000000000701",
+                "- !DeleteEdge 00000000-0000-4000-8000-000000000700",
             ),
             Self::AddAssertion => (
                 "add an assertion, citing retained evidence",
@@ -223,8 +272,8 @@ impl OperationKind {
                 "  assertion  AssertionId  an existing assertion
   reason     String       why",
                 "- !RetractAssertion
-  assertion: 00000000-0000-4000-8000-000000000501
-  reason: recorded in error",
+  assertion: 00000000-0000-4000-8000-000000000512
+  reason: recorded in error; Bob became CEO on 2026-03-12",
             ),
             Self::DefineNodeType => (
                 "declare a node type",
@@ -294,8 +343,8 @@ impl OperationKind {
                 "  absorbed  NodeId  the node that stops being its own entity
   into      NodeId  the node that remains",
                 "- !MergeEntity
-  absorbed: 00000000-0000-4000-8000-000000000304
-  into: 00000000-0000-4000-8000-000000000303",
+  absorbed: 00000000-0000-4000-8000-000000000302
+  into: 00000000-0000-4000-8000-000000000301",
             ),
             Self::Invoke => (
                 "invoke a named operation the node's type declares",
@@ -304,11 +353,11 @@ impl OperationKind {
   arguments  map String -> Value",
                 "- !Invoke
   node: 00000000-0000-4000-8000-000000000303
-  operation: close
+  operation: record_review
   arguments:
-    reason:
+    note:
       value_kind: String
-      value: merged into another organization",
+      value: annual review done",
             ),
             Self::SupersedeAssertion => (
                 "replace an accepted assertion from a valid-time instant on",
@@ -316,8 +365,8 @@ impl OperationKind {
   by              AssertionId  its replacement, possibly added in the same transaction
   effective_from  ms           the replacement's valid_time.from",
                 "- !SupersedeAssertion
-  assertion: 00000000-0000-4000-8000-000000000501
-  by: 00000000-0000-4000-8000-000000000502
+  assertion: 00000000-0000-4000-8000-000000000510
+  by: 00000000-0000-4000-8000-000000000511
   effective_from: 1773273600000",
             ),
         }
@@ -329,19 +378,39 @@ pub(super) fn operation_list() -> String {
     let mut out = String::new();
     for kind in OperationKind::value_variants() {
         let (summary, _, _) = kind.text();
-        let _ = writeln!(out, "{:<20}{summary}", kind.name());
+        let _ = write!(out, "{:<20}{summary}", kind.name());
+        if !kind.applied_in_p1() {
+            out.push_str(" [not applied in P1: validation rejects it as unsupported-operation]");
+        }
+        out.push('\n');
     }
     out
 }
 
+/// What a page says about a kind the P1 kernel does not apply.
+const NOT_APPLIED: &str =
+    "This kind is not applied in P1: validation rejects every proposal of this kind with \
+the issue code unsupported-operation. The example shows the shape only and is not accepted today.";
+
 /// `ekr operations <Kind>`: summary, fields and one example operation, last.
 pub(super) fn operation(kind: OperationKind) -> String {
     let (summary, fields, example) = kind.text();
+    let (status, heading) = if kind.applied_in_p1() {
+        (
+            String::new(),
+            "Example (ids from ekr example ekr-seed/2; validates against a store seeded from it):",
+        )
+    } else {
+        (
+            format!("{NOT_APPLIED}\n\n"),
+            "Example (ids from ekr example ekr-seed/2; not accepted today):",
+        )
+    };
     format!(
-        "{name} — {summary}\n\nFields:\n{fields}\n\n\
+        "{name} — {summary}\n\n{status}Fields:\n{fields}\n\n\
          Put it in transaction.operations of an ekr.transaction-document/1 \
          (ekr example ekr.transaction-document/1).\n\
-         Example (ids from ekr example ekr-seed/2):\n{example}\n",
+         {heading}\n{example}\n",
         name = kind.name()
     )
 }

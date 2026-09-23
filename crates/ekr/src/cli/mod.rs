@@ -49,13 +49,15 @@ validates and commits them. Run `ekr guide` for the workflow.",
 )]
 pub struct Cli {
     /// Trusted host configuration: an `ekr.cli-host/1` JSON document (`ekr example ekr.cli-host/1`).
-    #[arg(long, env = "EKR_HOST", global = true)]
+    /// Store verbs only; `EKR_HOST` when absent.
+    #[arg(long, global = true)]
     pub host: Option<PathBuf>,
     /// The provider location: a directory for `file`, a database file for `sqlite`.
-    #[arg(long, env = "EKR_STORE", global = true)]
+    /// Store verbs only; `EKR_STORE` when absent.
+    #[arg(long, global = true)]
     pub store: Option<PathBuf>,
-    /// The native provider.
-    #[arg(long, value_enum, env = "EKR_BACKEND", global = true)]
+    /// The native provider. Store verbs only; `EKR_BACKEND` (`file` or `sqlite`) when absent.
+    #[arg(long, value_enum, global = true)]
     pub backend: Option<Backend>,
     /// The command.
     #[command(subcommand)]
@@ -75,12 +77,16 @@ pub enum Backend {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     /// Load the seed (`ekr.kernel.Seed`).
+    ///
+    /// A store verb: writes revision 0 under the `ekr.cli-host/1` host (--host or EKR_HOST).
     #[command(after_help = SEE)]
     Seed {
         /// An `ekr-seed/2` YAML document, or `-` for stdin (`ekr example ekr-seed/2`).
         document: PathBuf,
     },
     /// Propose a transaction (`ekr.kernel.Propose`) as the host operator.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST).
     #[command(after_help = SEE)]
     Propose {
         /// An `ekr.transaction-document/1` YAML document, or `-` for stdin
@@ -88,6 +94,8 @@ pub enum Command {
         document: PathBuf,
     },
     /// Validate a transaction (`ekr.kernel.Validate`) as the host's profile validator.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST).
     #[command(after_help = SEE)]
     Validate {
         /// The retained transaction's id, as `ekr propose` printed it.
@@ -97,25 +105,32 @@ pub enum Command {
         against: Option<u64>,
     },
     /// Commit a validated transaction (`ekr.kernel.Commit`) as the host operator.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST).
     #[command(after_help = SEE)]
     Commit {
-        /// The retained transaction's id.
+        /// The retained transaction's id, as `ekr propose` printed it, after `ekr validate`.
         transaction_id: ekr_core::TransactionId,
     },
     /// Read a snapshot (`ekr.kernel.Snapshot`) of one verified revision.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST).
     #[command(after_help = SEE)]
     Snapshot {
-        /// The committed revision to read; the newest when absent.
+        /// The committed revision to read; the newest (`ekr head`) when absent.
         #[arg(long)]
         at: Option<u64>,
-        /// Select the assertions valid at this instant: decimal milliseconds or `YYYY-MM-DD`.
+        /// Select the assertions valid at this instant, into `matching_assertions`: decimal
+        /// milliseconds or `YYYY-MM-DD` (midnight UTC).
         #[arg(long, allow_negative_numbers = true, value_parser = crate::host::parse_valid_at)]
         valid_at: Option<Timestamp>,
     },
     /// Explain an assertion (`ekr.kernel.Explain`) at the newest verified revision.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST).
     #[command(after_help = SEE)]
     Explain {
-        /// The assertion's id.
+        /// The assertion's id, as `ekr snapshot` prints it.
         assertion_id: ekr_core::AssertionId,
     },
     /// Print the workflow: roles, propose → validate → commit, exit codes, where ids come from.
@@ -141,9 +156,13 @@ pub enum Command {
         kind: IdKind,
     },
     /// Print the head revision number and root as JSON.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST).
     #[command(after_help = SEE)]
     Head,
     /// List retained transactions: id, state and proposer.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST).
     #[command(after_help = SEE)]
     Transactions {
         /// Only transactions in this state.
@@ -151,6 +170,9 @@ pub enum Command {
         state: Option<StateFilter>,
     },
     /// Print node types, edge types and properties, by name and id, at the head.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST). The ids `ekr ontology`
+    /// prints are the `type_id`, `predicate: !Relation` and property ids a document uses.
     #[command(after_help = SEE)]
     Ontology,
 }
@@ -290,11 +312,53 @@ struct Store {
     backend: Backend,
 }
 
+/// A flag's value, else its environment variable's; an empty value of either is unset. Read
+/// only when a store verb resolves its configuration, so no other verb sees the environment.
+fn flag_or_var(flag: Option<PathBuf>, var: &str) -> Option<PathBuf> {
+    flag.filter(|path| !path.as_os_str().is_empty())
+        .or_else(|| {
+            std::env::var_os(var)
+                .filter(|value| !value.is_empty())
+                .map(PathBuf::from)
+        })
+}
+
 impl Configured {
     fn resolve(self, verb: &str) -> Result<Store, Failure> {
-        let host = required(self.host, "--host", "EKR_HOST", verb)?;
-        let store = required(self.store, "--store", "EKR_STORE", verb)?;
-        let backend = required(self.backend, "--backend", "EKR_BACKEND", verb)?;
+        let host = required(
+            flag_or_var(self.host, "EKR_HOST"),
+            "--host",
+            "EKR_HOST",
+            verb,
+        )?;
+        let store = required(
+            flag_or_var(self.store, "EKR_STORE"),
+            "--store",
+            "EKR_STORE",
+            verb,
+        )?;
+        let backend = match self.backend {
+            Some(backend) => Some(backend),
+            None => match std::env::var("EKR_BACKEND") {
+                Ok(value) if !value.is_empty() => {
+                    Some(Backend::from_str(&value, true).map_err(|_| Failure::Usage {
+                        message: format!(
+                            "ekr: EKR_BACKEND={value:?} is not a backend (file or sqlite) for \
+                             `{verb}`; --backend overrides it"
+                        ),
+                    })?)
+                }
+                Ok(_) | Err(std::env::VarError::NotPresent) => None,
+                Err(std::env::VarError::NotUnicode(_)) => {
+                    return Err(Failure::Usage {
+                        message: format!(
+                            "ekr: EKR_BACKEND is not text; `{verb}` needs --backend or EKR_BACKEND"
+                        ),
+                    })
+                }
+            },
+        };
+        let backend = required(backend, "--backend", "EKR_BACKEND", verb)?;
         let host = std::fs::read(&host)
             .map_err(|error| Failure::fault(format!("reading host {}: {error}", host.display())))
             .and_then(|bytes| {
@@ -325,8 +389,68 @@ impl Store {
     }
 }
 
+/// One JSON document. The kernel's byte strings serialise as number arrays; the CLI prints each
+/// as one standard padded base64 string instead, and the guide says so. Kernel types are not
+/// changed; `crates/ekr/tests/agent_cli.rs` holds every verb's output free of number arrays.
 fn render(result: &impl Serialize) -> Result<String, Failure> {
-    let mut text = serde_json::to_string_pretty(result).map_err(Failure::fault)?;
+    let mut value = serde_json::to_value(result).map_err(Failure::fault)?;
+    bytes_as_base64(&mut value);
+    let mut text = serde_json::to_string_pretty(&value).map_err(Failure::fault)?;
     text.push('\n');
     Ok(text)
+}
+
+/// The byte-string fields of the kernel's records: `ProposalRecordV1.document_bytes` and the
+/// values of `SeedDocument.evidence_payloads`, wherever a result nests them.
+fn bytes_as_base64(value: &mut serde_json::Value) {
+    match value {
+        serde_json::Value::Object(map) => {
+            for (key, item) in map.iter_mut() {
+                match (key.as_str(), item) {
+                    ("document_bytes", item) => encode(item),
+                    ("evidence_payloads", serde_json::Value::Object(payloads)) => {
+                        payloads.values_mut().for_each(encode);
+                    }
+                    (_, item) => bytes_as_base64(item),
+                }
+            }
+        }
+        serde_json::Value::Array(items) => items.iter_mut().for_each(bytes_as_base64),
+        _ => {}
+    }
+}
+
+/// Replaces a number array of bytes with its base64 string; anything else is left as it is.
+fn encode(value: &mut serde_json::Value) {
+    let serde_json::Value::Array(items) = value else {
+        return;
+    };
+    let bytes: Option<Vec<u8>> = items
+        .iter()
+        .map(|item| item.as_u64().and_then(|n| u8::try_from(n).ok()))
+        .collect();
+    if let Some(bytes) = bytes {
+        *value = serde_json::Value::String(base64(&bytes));
+    }
+}
+
+/// Standard padded base64 (RFC 4648 § 4).
+fn base64(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let triple = chunk.iter().enumerate().fold(0_u32, |acc, (at, byte)| {
+            acc | (u32::from(*byte) << (16 - 8 * at))
+        });
+        for position in 0..4 {
+            if position <= chunk.len() {
+                out.push(char::from(
+                    ALPHABET[((triple >> (18 - 6 * position)) & 0x3f) as usize],
+                ));
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
 }

@@ -25,6 +25,44 @@ const T_BOB_ADD: &str = "00000000-0000-4000-8000-000000000611";
 const T_SUPERSEDE: &str = "00000000-0000-4000-8000-000000000613";
 const BACKENDS: [&str; 2] = ["file", "sqlite"];
 
+/// The kernel carrier as the CLI prints it (`ekr guide`, OUTPUT): each `document_bytes` number
+/// array becomes one standard padded base64 string; every other field is compared unchanged.
+fn document_bytes_as_base64(value: &mut Value) {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    match value {
+        Value::Object(map) => {
+            for (key, item) in map.iter_mut() {
+                if key == "document_bytes" {
+                    let bytes: Vec<u8> = item
+                        .as_array()
+                        .expect("document_bytes is a byte array in the kernel carrier")
+                        .iter()
+                        .map(|b| u8::try_from(b.as_u64().unwrap()).unwrap())
+                        .collect();
+                    let mut text = String::new();
+                    for chunk in bytes.chunks(3) {
+                        let mut triple = [0_u8; 3];
+                        triple[..chunk.len()].copy_from_slice(chunk);
+                        let n = u32::from_be_bytes([0, triple[0], triple[1], triple[2]]);
+                        for position in 0..4 {
+                            text.push(if position <= chunk.len() {
+                                char::from(ALPHABET[((n >> (18 - 6 * position)) & 0x3f) as usize])
+                            } else {
+                                '='
+                            });
+                        }
+                    }
+                    *item = Value::String(text);
+                } else {
+                    document_bytes_as_base64(item);
+                }
+            }
+        }
+        Value::Array(items) => items.iter_mut().for_each(document_bytes_as_base64),
+        _ => {}
+    }
+}
+
 fn fixture(name: &str) -> PathBuf {
     let manifest = std::env::var("CARGO_MANIFEST_DIR")
         .expect("cargo sets CARGO_MANIFEST_DIR for a test process at run time");
@@ -126,7 +164,9 @@ impl World {
     fn kernel_explain(&self, id: &str) -> Value {
         let id: AssertionId = id.parse().unwrap();
         let read = self.runtime().read(None).unwrap();
-        serde_json::to_value(read.explain(id).unwrap()).unwrap()
+        let mut value = serde_json::to_value(read.explain(id).unwrap()).unwrap();
+        document_bytes_as_base64(&mut value);
+        value
     }
 
     fn step(&self, document: &str, transaction: &str, against: u64) -> Value {

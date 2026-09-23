@@ -1,3 +1,7 @@
+# An ekr-seed/2 document: the ontology, the graph at revision 0, and the evidence it rests on.
+# Every `ekr operations <Kind>` example the P1 kernel applies validates against a store seeded
+# from this document. Assertions are written Proposed; seeding accepts them. The reader ignores
+# comments.
 format: ekr-seed/2
 ontology:
   version:
@@ -16,10 +20,26 @@ ontology:
   - id: 00000000-0000-4000-8000-000000000202
     name: Organization
     parents: []
-    properties: {}
+    properties:
+      00000000-0000-4000-8000-000000000801:
+        id: 00000000-0000-4000-8000-000000000801
+        name: legal_name
+        value_type:
+          value_kind: String
+        cardinality: One
+        required: false
+        constraints: []
     abstract_type: false
     lifecycle: null
-    operations: {}
+    operations:
+      record_review:
+        name: record_review
+        arguments:
+          note:
+            value_kind: String
+        preconditions: []
+        transition: null
+        emits: []
   edge_types:
   - id: 00000000-0000-4000-8000-000000000203
     name: CEO_OF
@@ -67,9 +87,72 @@ graph:
         aliases: []
         type_state: null
         properties: {}
-    edges: {}
-    assertions: {}
+    edges:
+      # Alice -CEO_OF-> Acme, the structural relation; the claim that it holds is 0510.
+      00000000-0000-4000-8000-000000000700:
+        id: 00000000-0000-4000-8000-000000000700
+        root_id: 00000000-0000-4000-8000-000000000002
+        type_id: 00000000-0000-4000-8000-000000000203
+        source: 00000000-0000-4000-8000-000000000301
+        target: 00000000-0000-4000-8000-000000000303
+        properties: {}
+    assertions:
+      # Alice is CEO of Acme from 2020-01-01. Backed by evidence 0401.
+      00000000-0000-4000-8000-000000000510:
+        id: 00000000-0000-4000-8000-000000000510
+        root_id: 00000000-0000-4000-8000-000000000002
+        subject: !Node 00000000-0000-4000-8000-000000000301
+        predicate: !Relation 00000000-0000-4000-8000-000000000203
+        object: !Node 00000000-0000-4000-8000-000000000303
+        evidence:
+        - 00000000-0000-4000-8000-000000000401
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: 1577836800000
+          to: null
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+      # Bob is CEO of Acme from 2026-03-12. Backed by evidence 0402.
+      00000000-0000-4000-8000-000000000511:
+        id: 00000000-0000-4000-8000-000000000511
+        root_id: 00000000-0000-4000-8000-000000000002
+        subject: !Node 00000000-0000-4000-8000-000000000302
+        predicate: !Relation 00000000-0000-4000-8000-000000000203
+        object: !Node 00000000-0000-4000-8000-000000000303
+        evidence:
+        - 00000000-0000-4000-8000-000000000402
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: 1773273600000
+          to: null
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+      # Bob is CEO of Acme from 2020-01-01: recorded in error (evidence 0402 dates it 2026).
+      00000000-0000-4000-8000-000000000512:
+        id: 00000000-0000-4000-8000-000000000512
+        root_id: 00000000-0000-4000-8000-000000000002
+        subject: !Node 00000000-0000-4000-8000-000000000302
+        predicate: !Relation 00000000-0000-4000-8000-000000000203
+        object: !Node 00000000-0000-4000-8000-000000000303
+        evidence:
+        - 00000000-0000-4000-8000-000000000402
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: 1577836800000
+          to: null
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
     evidence:
+      # "Alice is CEO of Acme."
       00000000-0000-4000-8000-000000000401:
         id: 00000000-0000-4000-8000-000000000401
         source: !HumanStatement
@@ -78,6 +161,7 @@ graph:
         extracted_by: 00000000-0000-4000-8000-000000000101
         observed_at: 1773273600000
         confidence: 10000
+      # "Bob became CEO of Acme on 2026-03-12."
       00000000-0000-4000-8000-000000000402:
         id: 00000000-0000-4000-8000-000000000402
         source: !HumanStatement
@@ -86,64 +170,9 @@ graph:
         extracted_by: 00000000-0000-4000-8000-000000000101
         observed_at: 1773273600000
         confidence: 10000
+# The retained payload bytes of each evidence content_hash, as UTF-8 byte values.
 evidence_payloads:
-  2f954f8f77731e11a4dca21e0bb6c566f719aae4116838f3095f60649e5429db:
-  - 65
-  - 108
-  - 105
-  - 99
-  - 101
-  - 32
-  - 105
-  - 115
-  - 32
-  - 67
-  - 69
-  - 79
-  - 32
-  - 111
-  - 102
-  - 32
-  - 65
-  - 99
-  - 109
-  - 101
-  - 46
-  bd1d4dc9ba5012df5e43505418aa7728c15bca052a1ad43b1a2d00d04b75bdd6:
-  - 66
-  - 111
-  - 98
-  - 32
-  - 98
-  - 101
-  - 99
-  - 97
-  - 109
-  - 101
-  - 32
-  - 67
-  - 69
-  - 79
-  - 32
-  - 111
-  - 102
-  - 32
-  - 65
-  - 99
-  - 109
-  - 101
-  - 32
-  - 111
-  - 110
-  - 32
-  - 50
-  - 48
-  - 50
-  - 54
-  - 45
-  - 48
-  - 51
-  - 45
-  - 49
-  - 50
-  - 46
+  # "Alice is CEO of Acme." (evidence 0401)
+  2f954f8f77731e11a4dca21e0bb6c566f719aae4116838f3095f60649e5429db: [65, 108, 105, 99, 101, 32, 105, 115, 32, 67, 69, 79, 32, 111, 102, 32, 65, 99, 109, 101, 46]
+  # "Bob became CEO of Acme on 2026-03-12." (evidence 0402)
+  bd1d4dc9ba5012df5e43505418aa7728c15bca052a1ad43b1a2d00d04b75bdd6: [66, 111, 98, 32, 98, 101, 99, 97, 109, 101, 32, 67, 69, 79, 32, 111, 102, 32, 65, 99, 109, 101, 32, 111, 110, 32, 50, 48, 50, 54, 45, 48, 51, 45, 49, 50, 46]
