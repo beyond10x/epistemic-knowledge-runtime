@@ -1,0 +1,12 @@
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-8000-000000000604
+  proposer: 00000000-0000-4000-8000-000000000101
+  operations:
+  - !CreateNode
+    id: 00000000-0000-4000-8000-000000000304
+    root_id: 00000000-0000-4000-8000-000000000002
+    type_id: 00000000-0000-4000-8000-000000000202
+    canonical_name: Globex
+    properties: {}
+  evidence: []
