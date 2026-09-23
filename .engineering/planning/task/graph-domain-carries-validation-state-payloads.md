@@ -6,7 +6,7 @@ status: draft
 title: The graph domain has a carrier for one of the four ValidationState payloads and claims four
 relations:
 - serves: vision:o2
-revision: 3
+revision: 4
 ---
 ## What is wrong
 
@@ -49,3 +49,14 @@ Rescoped in wave p1-14 (2026-09-23): the plan review of 72779f9 found this task'
 resolved in `systems/` at b2b64f8. The only remaining obligation is a binding case in the owning
 crate's `tests/domain_projection.rs` that fails if the declaration and the Rust type drift. If that
 case already exists, the wave cites it and archives this task.
+
+## Scope
+
+Derived 2026-09-23 by `story-scoper` (wave p1-14). Verdict: already-held.
+
+- `systems/ekr/domains/graph.yaml:70-97` declares `ekr.graph.AssessmentProjection` (`validators`, `issues`, `competing_assertions`) and `ekr.graph.AssertionLifecycleProjection` (`at_revision`, `reason`, `by`, `effective_from`) — cited
+- carried by `Assessment` and `AssertionLifecycle`, `crates/ekr-graph/src/assertion.rs:394,472` — cited
+- held by `crates/ekr-graph/tests/domain_projection.rs::assessment_and_lifecycle_retain_independent_payloads` and `::every_declaration_of_the_domain_is_carried_field_for_field` — cited
+- not covered: a new Rust variant without a YAML declaration (the enumeration check runs YAML to Rust only) — cited
+- the case this body cites, `the_domain_carries_only_the_supersession_payload_of_a_validation_state`, no longer exists — cited
+- Confidence: high

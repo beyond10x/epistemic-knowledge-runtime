@@ -6,7 +6,7 @@ status: draft
 title: TypedValue.canonical is declared a String and was described as the content-hash bytes, which it cannot be
 relations:
 - serves: vision:o2
-revision: 3
+revision: 4
 ---
 ## What is wrong
 
@@ -61,3 +61,13 @@ Rescoped in wave p1-14 (2026-09-23): the plan review of 72779f9 found this task'
 resolved in `systems/` at b2b64f8. The only remaining obligation is a binding case in the owning
 crate's `tests/domain_projection.rs` that fails if the declaration and the Rust type drift. If that
 case already exists, the wave cites it and archives this task.
+
+## Scope
+
+Derived 2026-09-23 by `story-scoper` (wave p1-14). Verdict: already-held.
+
+- `systems/ekr/domains/graph.yaml:165-171` declares `ekr.graph.TypedValue { kind: ekr.graph.CanonicalValueKind, canonical_bytes: Bytes }`; the `canonical: String` field is gone — cited
+- bound to `CanonicalValue` (`crates/ekr-graph/src/value.rs:46`) in `crates/ekr-graph/tests/domain_projection.rs:464` (PROJECTIONS) and `:517` (FUSIONS), since `094f043` — cited
+- held by `crates/ekr-graph/tests/domain_projection.rs::every_declaration_of_the_domain_is_carried_field_for_field` — cited
+- stale doc: `crates/ekr-graph/src/node.rs:28` still says `TypedValue { kind, canonical }` — cited
+- Confidence: high
