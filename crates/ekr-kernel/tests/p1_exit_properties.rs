@@ -17,8 +17,8 @@
 //!   in a freshly opened runtime, reproduces the root recorded at every revision, and the two
 //!   providers agree on every one of them.
 //!
-//! The absent identity is drawn two ways: freshly minted, and **with the bits of an entity of a
-//! different kind the graph does hold**. The second is the shape
+//! The absent identity takes every form, enumerated rather than drawn: freshly minted, and **with
+//! the bits of an entity of each other kind the graph does hold**. The second is the shape
 //! `task:canonical-reference-holds-a-node-id-for-every-target` was about — an identity that
 //! resolves if anything reads it as the wrong kind.
 
@@ -453,19 +453,54 @@ fn dangling(world: &World, shape: Shape, bits: NodeId) -> (GraphOperation, bool)
     (operation, false)
 }
 
-/// The bits of an entity the world holds that is **not** of `kind`, selected by `at`.
-fn borrowed_bits(world: &World, kind: Kind, at: usize) -> NodeId {
-    let others: Vec<NodeId> = [
-        (kind != Kind::Node).then_some(world.nodes[at % 2]),
-        (kind != Kind::Edge).then(|| NodeId::from_uuid(world.edge.to_uuid())),
-        (kind != Kind::Assertion).then(|| NodeId::from_uuid(world.assertion.to_uuid())),
-        (kind != Kind::Evidence).then(|| NodeId::from_uuid(world.evidence.to_uuid())),
-        (kind != Kind::GraphRoot).then(|| NodeId::from_uuid(world.seed.graph.root.id.to_uuid())),
-    ]
-    .into_iter()
-    .flatten()
-    .collect();
-    others[at % others.len()]
+impl Kind {
+    const ALL: [Self; 5] = [
+        Self::Node,
+        Self::Edge,
+        Self::Assertion,
+        Self::Evidence,
+        Self::GraphRoot,
+    ];
+}
+
+/// Where the absent identity's bits come from. **Enumerated, not drawn**: every shape runs with a
+/// fresh id and with the bits of an entity of each *other* kind the world holds, which is the form
+/// `task:canonical-reference-holds-a-node-id-for-every-target` was about — an id that resolves if
+/// anything reads it as the wrong kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Absence {
+    /// A freshly minted id nothing holds.
+    Fresh,
+    /// The bits of an entity of this other kind, which the world holds.
+    BorrowedFrom(Kind),
+}
+
+impl Absence {
+    /// Every form for an identity of `kind`: one fresh, and one borrowed from each other kind.
+    fn every_form_for(kind: Kind) -> Vec<Self> {
+        std::iter::once(Self::Fresh)
+            .chain(
+                Kind::ALL
+                    .into_iter()
+                    .filter(|other| *other != kind)
+                    .map(Self::BorrowedFrom),
+            )
+            .collect()
+    }
+
+    /// The absent identity's bits. `at` picks which of the world's two nodes a node borrow uses.
+    fn bits(self, world: &World, at: usize) -> NodeId {
+        match self {
+            Self::Fresh => NodeId::mint(),
+            Self::BorrowedFrom(Kind::Node) => world.nodes[at % 2],
+            Self::BorrowedFrom(Kind::Edge) => NodeId::from_uuid(world.edge.to_uuid()),
+            Self::BorrowedFrom(Kind::Assertion) => NodeId::from_uuid(world.assertion.to_uuid()),
+            Self::BorrowedFrom(Kind::Evidence) => NodeId::from_uuid(world.evidence.to_uuid()),
+            Self::BorrowedFrom(Kind::GraphRoot) => {
+                NodeId::from_uuid(world.seed.graph.root.id.to_uuid())
+            }
+        }
+    }
 }
 
 /// A well-formed operation that names only what the world holds, to surround the dangling one
@@ -496,10 +531,9 @@ fn benign(world: &World, at: usize) -> GraphOperation {
     }
 }
 
-/// What surrounds the dangling operation, drawn at random for each shape.
+/// What surrounds the dangling operation: the only part of a case that is drawn.
 #[derive(Clone, Debug)]
 struct Surroundings {
-    borrowed: bool,
     at: usize,
     before: Vec<usize>,
     after: Vec<usize>,
@@ -507,31 +541,42 @@ struct Surroundings {
 
 fn surroundings() -> impl Strategy<Value = Surroundings> {
     (
-        any::<bool>(),
-        0usize..5,
+        0usize..2,
         proptest::collection::vec(0usize..3, 0..3),
         proptest::collection::vec(0usize..3, 0..2),
     )
-        .prop_map(|(borrowed, at, before, after)| Surroundings {
-            borrowed,
-            at,
-            before,
-            after,
-        })
+        .prop_map(|(at, before, after)| Surroundings { at, before, after })
 }
 
-/// Generated cases per shape. Every shape runs this many; 21 shapes, two providers each.
-const CASES_PER_SHAPE: u32 = 3;
+/// Generated cases per stratum. A stratum is one shape with one absent-id form: 21 shapes, five
+/// forms each, two providers per case.
+const CASES_PER_STRATUM: u32 = 2;
 
-/// One generated case of the property, for `shape`, on both providers.
-fn refused_and_unpublished(shape: Shape, around: &Surroundings) -> Result<(), TestCaseError> {
+/// The seed of stratum `index`'s generator. Fixed, so a red run is a red run again: its message
+/// names the stratum, and the stratum names the seed.
+const SEED: u64 = 0x0001_0014_e417;
+
+/// Every stratum the property runs, in a fixed order.
+fn strata() -> Vec<(Shape, Absence)> {
+    Shape::ALL
+        .into_iter()
+        .flat_map(|shape| {
+            Absence::every_form_for(shape.kind())
+                .into_iter()
+                .map(move |absence| (shape, absence))
+        })
+        .collect()
+}
+
+/// One generated case of the property, for `shape` with `absence`, on both providers.
+fn refused_and_unpublished(
+    shape: Shape,
+    absence: Absence,
+    around: &Surroundings,
+) -> Result<(), TestCaseError> {
     let world = world();
     let kind = shape.kind();
-    let bits = if around.borrowed {
-        borrowed_bits(&world, kind, around.at)
-    } else {
-        NodeId::mint()
-    };
+    let bits = absence.bits(&world, around.at);
     let (operation, cites) = dangling(&world, shape, bits);
     let mut operations: Vec<GraphOperation> =
         around.before.iter().map(|at| benign(&world, *at)).collect();
@@ -625,38 +670,50 @@ fn refused_and_unpublished(shape: Shape, around: &Surroundings) -> Result<(), Te
 ///
 /// **Stratified**: every entry of [`Shape::ALL`] — each place an operation can name a graph
 /// identity, including a `NodeRef` inside a value, a merge's target and a record's graph root —
-/// runs [`CASES_PER_SHAPE`] generated cases, and only what surrounds the dangling operation is
-/// drawn. Drawing the shape too left most node shapes out of most runs.
+/// runs with every [`Absence`]: a fresh id, and the bits of an entity of each other kind the world
+/// holds. Each of those 105 strata runs [`CASES_PER_STRATUM`] generated cases from a fixed seed
+/// ([`SEED`] plus the stratum's index), and only what surrounds the dangling operation is drawn.
+/// Drawing the shape, and then the form, left most combinations out of most runs.
 ///
 /// What this asserts, per case and provider: validation answers `Rejected` with an issue from
 /// `ValidatorName::Reference` carrying the kind's own code; `commit` refuses with
 /// `TransactionStateConflict { state: Rejected }` and appends **zero** events; the head root, the
-/// revision count and the canonical snapshot equal the seed's. And, over the run, that every shape
-/// executed exactly [`CASES_PER_SHAPE`] cases.
+/// revision count and the canonical snapshot equal the seed's. And, over the run, that every
+/// stratum executed exactly [`CASES_PER_STRATUM`] cases.
 ///
 /// Entity merge has no P1 application path, so a merge is refused whatever it names; the case
 /// still asserts that the reference validator is among the refusals.
 #[test]
 fn no_transaction_naming_an_absent_identity_commits_on_either_provider() {
-    // One thread per shape: each case opens its own directories on both providers, so the shapes
+    let strata = strata();
+    assert_eq!(
+        strata.len(),
+        Shape::ALL.len() * Kind::ALL.len(),
+        "21 shapes, 5 forms each"
+    );
+    // One thread per stratum: each case opens its own directories on both providers, so strata
     // share nothing, and running them one after another made this the slowest case in the crate.
-    let outcomes: Vec<(Shape, u32, Result<(), String>)> = std::thread::scope(|scope| {
-        let running: Vec<_> = Shape::ALL
-            .into_iter()
-            .map(|shape| {
+    let outcomes: Vec<(String, u32, Result<(), String>)> = std::thread::scope(|scope| {
+        let running: Vec<_> = strata
+            .iter()
+            .copied()
+            .zip(0u64..)
+            .map(|((shape, absence), index)| {
                 scope.spawn(move || {
+                    let seed = SEED + index;
                     let mut runner = proptest::test_runner::TestRunner::new(ProptestConfig {
-                        cases: CASES_PER_SHAPE,
+                        cases: CASES_PER_STRATUM,
                         failure_persistence: None,
+                        rng_seed: proptest::test_runner::RngSeed::Fixed(seed),
                         ..ProptestConfig::default()
                     });
                     let count = std::cell::Cell::new(0u32);
                     let outcome = runner.run(&surroundings(), |around| {
                         count.set(count.get() + 1);
-                        refused_and_unpublished(shape, &around)
+                        refused_and_unpublished(shape, absence, &around)
                     });
                     (
-                        shape,
+                        format!("{shape:?}/{absence:?} (seed {seed:#x})"),
                         count.get(),
                         outcome.map_err(|failure| failure.to_string()),
                     )
@@ -665,27 +722,27 @@ fn no_transaction_naming_an_absent_identity_commits_on_either_provider() {
             .collect();
         running
             .into_iter()
-            .map(|thread| thread.join().expect("a shape's thread completes"))
+            .map(|thread| thread.join().expect("a stratum's thread completes"))
             .collect()
     });
     let failures: Vec<String> = outcomes
         .iter()
-        .filter_map(|(shape, _, outcome)| {
+        .filter_map(|(stratum, _, outcome)| {
             outcome
                 .as_ref()
                 .err()
-                .map(|why| format!("{shape:?}: {why}"))
+                .map(|why| format!("{stratum}: {why}"))
         })
         .collect();
     assert!(failures.is_empty(), "{}", failures.join("\n"));
-    let executed: BTreeMap<String, u32> = outcomes
+    let executed: BTreeMap<&str, u32> = outcomes
         .iter()
-        .map(|(shape, count, _)| (format!("{shape:?}"), *count))
+        .map(|(stratum, count, _)| (stratum.as_str(), *count))
         .collect();
-    assert_eq!(executed.len(), Shape::ALL.len(), "every shape ran");
+    assert_eq!(executed.len(), strata.len(), "every stratum ran");
     assert!(
-        executed.values().all(|count| *count == CASES_PER_SHAPE),
-        "every shape ran {CASES_PER_SHAPE} cases: {executed:?}"
+        executed.values().all(|count| *count == CASES_PER_STRATUM),
+        "every stratum ran {CASES_PER_STRATUM} cases: {executed:?}"
     );
 }
 
@@ -841,7 +898,13 @@ impl Lineage {
 }
 
 proptest! {
-    #![proptest_config(ProptestConfig { cases: 16, failure_persistence: None, ..ProptestConfig::default() })]
+    // A fixed seed, for the reason `SEED` is one: a red lineage is the same lineage when rerun.
+    #![proptest_config(ProptestConfig {
+        cases: 16,
+        failure_persistence: None,
+        rng_seed: proptest::test_runner::RngSeed::Fixed(SEED),
+        ..ProptestConfig::default()
+    })]
 
     /// P1 exit: replay from the seed reproduces the head root, for generated lineages.
     ///
