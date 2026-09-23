@@ -103,6 +103,7 @@ pub mod authority;
 pub mod commands;
 pub mod commit;
 pub mod document;
+mod explain;
 pub mod issue;
 mod read;
 pub mod records;
@@ -120,6 +121,10 @@ pub use document::{
 };
 /// Typed persistence failures exposed without granting the caller storage or writer access.
 pub use ekr_store::StoreError as PersistenceError;
+pub use explain::{
+    ExplainedLifecycle, ExplainedSeed, ExplainedValidation, ExplanationLink, ExplanationResult,
+    ProjectionError, SnapshotResult,
+};
 pub use issue::{ValidationIssue, ValidatorName};
 pub use read::{VerifiedRead, VerifiedRevision};
 pub use records::{
