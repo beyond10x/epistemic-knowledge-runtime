@@ -6,8 +6,8 @@ status: draft
 title: Move object payloads out of event bodies while preserving atomic publication
 relations:
 - derived_from: story:version-persisted-contracts
-- blocks: story:commit-and-revision-lineage
-revision: 3
+- serves: vision:o2
+revision: 4
 ---
 ## Confirmed persistence-contract mismatch
 
@@ -83,3 +83,24 @@ This supplies the provider capability. EKR still needs metadata-only schema2
 ObjectStored publication, versioned readers, actual durable application and
 the preserving migration. No existing runtime event format has been changed
 by this dependency selection alone.
+
+## Wave p1-12 rescope
+
+Rescoped in wave p1-12 (2026-09-23) after an evidence audit and the vectors unit's cases.
+
+**Done, with the case that executes it:**
+
+- New object payloads are provider blobs, and their events carry schema-2 metadata only
+  (`crates/ekr-store/src/eventlog.rs:427`, `:556-561`):
+  `crates/ekr-store/tests/durable_objects.rs::new_object_events_are_schema_two_metadata_with_verified_native_blobs`.
+- Reads verify blob hash and length (`eventlog.rs:250-263`).
+- A schema-1 inline object is refused on read and write, with its bytes left untouched:
+  `crates/ekr-store/tests/current_legacy_object_refusal.rs`.
+
+**Still open, and the only thing this task now covers:** the preserving migration of legacy
+schema-1 inline objects to schema-2 metadata plus a blob (design §89, §91.6). No migration code
+exists: `eventlog.rs:250-252` refuses them with "legacy inline records require migration".
+
+This no longer blocks `story:commit-and-revision-lineage`. That story's acceptance is about
+current-format persistence, and it passes (wave p1-12 gate: 680 passed). The migration belongs with
+the P7 import path; that placement is a coordinator judgement, not a recorded decision.

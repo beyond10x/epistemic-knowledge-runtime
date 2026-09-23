@@ -45,7 +45,7 @@ a dependency; their data enters through the import policy in `docs/predecessors.
 - `.engineering/planning/` — governed through `aep plan artifact`. Never hand-edit its records or
   journal. Before an agent writes, set `AEP_ACTOR` to the agent's execution identity.
 - `.engineering/waves/COORDINATOR.md` — **read before opening a wave and again before its closing
-  commit.** Seven checks, each with a command, each written because it was skipped and cost
+  commit.** Eight checks, each with a command, each written because it was skipped and cost
   something named. The wave pages and review records carry the individual findings; counts must
   be measured from those records rather than inferred from the number of review passes.
 

@@ -138,3 +138,16 @@ claim widened past what was reported, and a vacuous case flagged rather than sat
 
 **The check.** When a sub-agent contradicts something the coordinator wrote, verify the contradiction
 before answering it, and record the verification. Not one of these has been wrong yet.
+
+## 8. A merge is a bot commit, and a reset reads the tree first
+
+**Wave p1-12.** The coordinator merged a unit with plain `git merge`, which records the local Git
+identity, not `b10x-bot[bot]`. To redo it, the coordinator ran `git reset --hard HEAD~1` in the
+integration tree, which had five uncommitted planning-store writes. The journal entries and five
+review outcomes were lost and had to be rebuilt through `aep` from saved bodies. `b10x-gates bot`
+wraps only commit, tag, push and fetch, so `bot -- merge` is refused.
+
+**The check.** Merge with `git merge --no-ff --no-commit <branch>` and finish with
+`b10x-gates bot -- commit -F <file>`, then read `git log --format='%an|%cn' -1`. Commit store writes
+as soon as they are made. Before any `git reset`, `checkout` or `restore`, run
+`git status --porcelain` and do not proceed while it lists anything you have not committed.
