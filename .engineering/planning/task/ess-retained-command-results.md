@@ -2,13 +2,12 @@
 format: aep.planning-md/1
 id: task:ess-retained-command-results
 kind: task
-status: active
+status: implemented
 title: Adopt executable exact-result retry contracts from ESS
 relations:
 - derived_from: story:ess-conformance-kernel
-- blocks: story:ess-conformance-kernel
 - serves: vision:o2
-revision: 4
+revision: 6
 ---
 ## Measured upstream boundary
 
@@ -63,3 +62,10 @@ acceptance also requires execution through actual EKR handlers, restart and
 later-head controls, which remain unfinished. Requiring those runtime results
 before implementing the contract would create a sequencing cycle. No runtime
 requirement is dropped or counted as passed.
+
+## Wave p1-14 note
+
+Wave p1-14 (2026-09-23): the compiler prerequisite is discharged and `kernel.yaml` :971-974 and
+:1112-1115 declare the retained Seed and Commit replays. The remaining obligation, executing them
+through the real EKR handlers, is `story:ess-conformance-kernel`'s acceptance; the blocks edge was
+a cycle and is removed. This task closes on the same test_result as that story.

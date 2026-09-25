@@ -7,6 +7,7 @@ title: P3 — Incubation, interpretation, integration
 relations:
 - decomposes: initiative:epistemic-knowledge-runtime
 - depends_on: epic:p2-observation-layer
+- serves: vision:o5
 revision: 1
 ---
 ## Context

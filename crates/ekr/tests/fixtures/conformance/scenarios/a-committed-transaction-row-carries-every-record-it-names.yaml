@@ -1,0 +1,75 @@
+# Adversary pass 1 on story:ess-conformance-kernel, finding 4.
+#
+# The generated Transactions checks read `state` and `validated_against` and never compare the six
+# Optional fields `ekr.kernel.Transactions` declares. A target that returns null for all six passes
+# every generated scenario. This scenario takes one transaction through Propose, Validate and
+# Commit, then requires two things. First, that transaction's row carries the hashes its own
+# occurrences published. Second, every row of the view (the target's revision 1 transaction and
+# this one, both Committed) has a value in each Optional field a committed transaction has.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: a-committed-transaction-row-carries-every-record-it-names
+summary: A transaction proposed, validated and committed has a Transactions row whose hashes are the ones its own occurrences published, and no committed row has a null Optional field.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: transaction_document
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 1
+    outcome: validated
+    events:
+      - event: ekr.kernel.TransactionValidated
+        payload:
+          against: 1
+
+  - at: 2027-01-15T08:00:02Z
+    command: ekr.kernel.Commit
+    actor: ekr.kernel.Committer
+    input:
+      transaction_id: {$instance: proposal}
+    outcome: committed
+    events:
+      - event: ekr.kernel.RevisionCommitted
+        payload:
+          number: 2
+
+assert:
+  - view: ekr.kernel.Transactions
+    contains:
+      transaction_id: {$instance: proposal}
+      state: Committed
+      validated_against: 1
+      proposal_record_hash: {$observed: {event: ekr.kernel.TransactionProposed, field: record_hash}}
+      canonical_operations_hash: {$observed: {event: ekr.kernel.TransactionProposed, field: operations_hash}}
+      validation_hash: {$observed: {event: ekr.kernel.TransactionValidated, field: validation_hash}}
+      validation_record_hash: {$observed: {event: ekr.kernel.TransactionValidated, field: record_hash}}
+      terminal_record_hash: {$observed: {event: ekr.kernel.RevisionCommitted, field: record_hash}}
+
+  - view: ekr.kernel.Transactions
+    satisfies:
+      all:
+        - state == Committed
+        - defined(canonical_transaction_hash)
+        - defined(canonical_operations_hash)
+        - defined(validation_basis.previous_record_hash)
+        - defined(validation_basis.previous_root_hash)
+        - defined(validated_against)
+        - defined(validation_hash)
+        - defined(validation_record_hash)
+        - defined(terminal_record_hash)

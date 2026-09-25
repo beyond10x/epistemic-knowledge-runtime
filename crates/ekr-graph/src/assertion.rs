@@ -5,45 +5,50 @@ use std::collections::BTreeSet;
 
 use ekr_core::canonical::{Canonical, Encoder};
 use ekr_core::{
-    AgentId, AssertionId, EdgeId, EvidenceId, GraphRootId, IssueId, PropertyId, RevisionNumber,
-    Timestamp, TypeId,
+    AgentId, AssertionId, GraphRootId, IssueId, PropertyId, RevisionNumber, Timestamp, TypeId,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::canonical::{CanonicalRef, ValueSpace};
+use crate::edge::Edge;
 use crate::node::Node;
 use crate::value::CanonicalValue;
 
 /// What an assertion is about: `ekr.graph.SubjectKind` plus the identity it names.
 ///
-/// Generic over the reference its node arm carries, defaulting to
-/// [`CanonicalRef<Node>`](crate::CanonicalRef):
-/// `architecture-decision-record:0008-canonical-state-references-are-typed`. The parameter is the
-/// *reference* and not the value, because that is all this type holds — an
-/// [`Assertion`] instantiates it as `Subject<V::NodeRef>` for the space its value belongs to, and
-/// a canonical claim about a candidate is therefore not a value of this type.
+/// Generic over the references its node and edge arms carry, defaulting to
+/// [`CanonicalRef<Node>`](crate::CanonicalRef) and [`CanonicalRef<Edge>`](crate::CanonicalRef):
+/// `architecture-decision-record:0008-canonical-state-references-are-typed`. The parameters are
+/// *references* and not the value, because that is all this type holds — an
+/// [`Assertion`] instantiates it as `Subject<V::NodeRef, V::EdgeRef>` for the space its value
+/// belongs to, and a canonical claim about a candidate is therefore not a value of this type.
+///
+/// The edge arm was a bare [`EdgeId`](ekr_core::EdgeId) until wave p1-14, beside a typed node arm in the same enum:
+/// a canonical claim about an edge was written with an id, and the kernel refused a dangling one
+/// at commit time rather than the type refusing a transient one.
+/// `tests/compile_fail/a_canonical_subject_names_its_edge_by_canonical_reference.rs` holds it.
 ///
 /// **It carries no value, so it cannot carry [`Object`]'s defect**, which was a reference default
 /// disagreeing with a value parameter beside it. There is nothing here for a default to disagree
-/// with: `Subject` on its own is canonical state's, exactly as [`Node`] and [`Edge`](crate::Edge)
-/// on their own are, and a transient root's is `Subject<NodeId>`. Rust has no
+/// with: `Subject` on its own is canonical state's, exactly as [`Node`] and [`Edge`]
+/// on their own are, and a transient root's is `Subject<NodeId, EdgeId>`. Rust has no
 /// way to give this type `Object`'s shape either — a `V` it never held would be a parameter that is
 /// never used, which does not compile.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-pub enum Subject<R = CanonicalRef<Node>> {
+pub enum Subject<R = CanonicalRef<Node>, E = CanonicalRef<Edge>> {
     /// A node.
     Node(R),
     /// An edge.
-    Edge(EdgeId),
+    Edge(E),
     /// A type in the ontology — a schema-level claim shares the provenance model of every other.
     Type(TypeId),
 }
 
-impl<R: Canonical> Canonical for Subject<R> {
+impl<R: Canonical, E: Canonical> Canonical for Subject<R, E> {
     /// The variant marker, then the id it names.
     ///
     /// The marker is what separates the three, and is not optional: rule 5 of
-    /// `ekr_core::canonical` makes a newtype structural, so a [`NodeId`](ekr_core::NodeId), an [`EdgeId`] and a
+    /// `ekr_core::canonical` makes a newtype structural, so a [`NodeId`](ekr_core::NodeId), an [`EdgeId`](ekr_core::EdgeId) and a
     /// [`TypeId`] over one UUID encode identically. Without the tag, an assertion about a node
     /// and an assertion about the edge that happened to share its bits would share an address.
     fn encode(&self, out: &mut Encoder) {
@@ -389,9 +394,15 @@ impl Canonical for RetractionReason {
 }
 
 /// The independent assessment of a claim (amendment 88).
+///
+/// Generic over the reference [`Disputed`](Self::Disputed) holds to its competitors, defaulting to
+/// [`CanonicalRef<Assertion>`](crate::CanonicalRef): an [`Assertion`] instantiates it as
+/// `Assessment<V::AssertionRef>`, so a canonical dispute cannot name a candidate.
+/// `tests/adversary_p1_14_exit_compile_fail/a_canonical_dispute_names_its_competitors_by_canonical_reference.rs`
+/// holds it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum Assessment {
+pub enum Assessment<A = CanonicalRef<Assertion>> {
     /// No verdict has been attributed yet.
     Proposed,
     /// Deterministic checks are in progress.
@@ -415,10 +426,10 @@ pub enum Assessment {
     /// Competing assertions remain unresolved.
     Disputed {
         /// Ordered competing identities.
-        competing_assertions: Vec<AssertionId>,
+        competing_assertions: Vec<A>,
     },
 }
-impl Assessment {
+impl<A> Assessment<A> {
     /// The declared assessment kind.
     #[must_use]
     pub const fn name(&self) -> &'static str {
@@ -435,8 +446,32 @@ impl Assessment {
     pub const fn is_accepted(&self) -> bool {
         matches!(self, Self::Accepted { .. })
     }
+    /// The same assessment, with each assertion reference it holds mapped by `reference`.
+    ///
+    /// How a candidate's assessment crosses the membrane and back: the kernel mints canonical
+    /// references with it after validation, and a document widens them to ids.
+    #[must_use]
+    pub fn map_assertions<B>(self, reference: impl FnMut(A) -> B) -> Assessment<B> {
+        match self {
+            Self::Proposed => Assessment::Proposed,
+            Self::Validating {
+                completed,
+                required,
+            } => Assessment::Validating {
+                completed,
+                required,
+            },
+            Self::Accepted { validators } => Assessment::Accepted { validators },
+            Self::Rejected { issues } => Assessment::Rejected { issues },
+            Self::Disputed {
+                competing_assertions,
+            } => Assessment::Disputed {
+                competing_assertions: competing_assertions.into_iter().map(reference).collect(),
+            },
+        }
+    }
 }
-impl Canonical for Assessment {
+impl<A: Canonical> Canonical for Assessment<A> {
     fn encode(&self, out: &mut Encoder) {
         match self {
             Self::Proposed => out.variant(0),
@@ -467,9 +502,14 @@ impl Canonical for Assessment {
 }
 
 /// Stored withdrawal state. Neither withdrawal nor replacement erases assessment or provenance.
+///
+/// Generic over the reference [`Superseded`](Self::Superseded) holds to its replacement, for the
+/// reason [`Assessment`] is.
+/// `tests/adversary_p1_14_exit_compile_fail/a_canonical_supersession_names_its_replacement_by_canonical_reference.rs`
+/// holds it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub enum AssertionLifecycle {
+pub enum AssertionLifecycle<A = CanonicalRef<Assertion>> {
     /// Still active in the selected revision.
     Active,
     /// Withdrawn from every valid time beginning with this committed revision.
@@ -482,14 +522,14 @@ pub enum AssertionLifecycle {
     /// Replaced at a valid-time boundary; the earlier interval remains queryable.
     Superseded {
         /// The accepted replacing assertion.
-        by: AssertionId,
+        by: A,
         /// First revision containing the replacement.
         at_revision: RevisionNumber,
         /// The replacement's valid-time start.
         effective_from: Timestamp,
     },
 }
-impl AssertionLifecycle {
+impl<A> AssertionLifecycle<A> {
     /// The declared lifecycle kind.
     #[must_use]
     pub const fn name(&self) -> &'static str {
@@ -499,8 +539,32 @@ impl AssertionLifecycle {
             Self::Superseded { .. } => "Superseded",
         }
     }
+    /// The same lifecycle, with the assertion reference it holds mapped by `reference`, as
+    /// [`Assessment::map_assertions`].
+    #[must_use]
+    pub fn map_assertions<B>(self, reference: impl FnOnce(A) -> B) -> AssertionLifecycle<B> {
+        match self {
+            Self::Active => AssertionLifecycle::Active,
+            Self::Retracted {
+                at_revision,
+                reason,
+            } => AssertionLifecycle::Retracted {
+                at_revision,
+                reason,
+            },
+            Self::Superseded {
+                by,
+                at_revision,
+                effective_from,
+            } => AssertionLifecycle::Superseded {
+                by: reference(by),
+                at_revision,
+                effective_from,
+            },
+        }
+    }
 }
-impl Canonical for AssertionLifecycle {
+impl<A: Canonical> Canonical for AssertionLifecycle<A> {
     fn encode(&self, out: &mut Encoder) {
         match self {
             Self::Active => out.variant(0),
@@ -535,20 +599,21 @@ pub struct Assertion<V: ValueSpace = CanonicalValue> {
     /// Owning graph root.
     pub root_id: GraphRootId,
     /// What the claim describes.
-    pub subject: Subject<V::NodeRef>,
+    pub subject: Subject<V::NodeRef, V::EdgeRef>,
     /// The declared relation or property.
     pub predicate: Predicate,
     /// The claimed object.
     pub object: Object<V, V::NodeRef>,
-    /// Retained supporting evidence.
+    /// Retained supporting evidence: `CanonicalRef<Evidence>` in canonical state, the bare id in a
+    /// transient root (`tests/compile_fail/a_canonical_assertion_cites_evidence_by_canonical_reference.rs`).
     #[serde(deserialize_with = "ekr_core::decode::unique_set")]
-    pub evidence: BTreeSet<EvidenceId>,
+    pub evidence: BTreeSet<V::EvidenceRef>,
     /// Authenticated proposer.
     pub proposed_by: AgentId,
     /// Verdict, retained through subsequent withdrawal.
-    pub assessment: Assessment,
+    pub assessment: Assessment<V::AssertionRef>,
     /// Independent stored withdrawal state.
-    pub lifecycle: AssertionLifecycle,
+    pub lifecycle: AssertionLifecycle<V::AssertionRef>,
     /// The half-open interval in the represented world.
     pub valid_time: TemporalRange,
     /// The recorded belief interval.
@@ -557,7 +622,7 @@ pub struct Assertion<V: ValueSpace = CanonicalValue> {
 impl<V: ValueSpace> Assertion<V> {
     /// The stored lifecycle, independent of assessment.
     #[must_use]
-    pub fn status(&self) -> AssertionLifecycle {
+    pub fn status(&self) -> AssertionLifecycle<V::AssertionRef> {
         self.lifecycle.clone()
     }
     /// Accepted, active and not closed in recorded time.

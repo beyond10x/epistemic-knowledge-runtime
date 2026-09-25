@@ -65,7 +65,7 @@ fn graph() -> CanonicalGraph {
         subject: Subject::Node(CanonicalRef::new(node.id)),
         predicate: Predicate::Property(id(0x06)),
         object: Object::Value(CanonicalValue::String("alpha".into())),
-        evidence: BTreeSet::from([evidence.id]),
+        evidence: BTreeSet::from([CanonicalRef::new(evidence.id)]),
         proposed_by: id(0x03),
         assessment: Assessment::Accepted {
             validators: BTreeSet::from([id::<AgentId>(0x04)]),
@@ -168,7 +168,9 @@ fn knowledge_changes() -> Vec<(&'static str, Change)> {
         ),
         (
             "assertion.subject",
-            Box::new(|g| assertion(g).subject = Subject::Edge(id::<EdgeId>(EDGE))),
+            Box::new(|g| {
+                assertion(g).subject = Subject::Edge(CanonicalRef::new(id::<EdgeId>(EDGE)))
+            }),
         ),
         (
             "assertion.predicate",
@@ -206,7 +208,7 @@ fn knowledge_changes() -> Vec<(&'static str, Change)> {
             "assertion.lifecycle",
             Box::new(|g| {
                 assertion(g).lifecycle = AssertionLifecycle::Superseded {
-                    by: id::<AssertionId>(0x7b),
+                    by: CanonicalRef::new(id::<AssertionId>(0x7b)),
                     at_revision: RevisionNumber::new(1),
                     effective_from: Timestamp::from_millis(5),
                 }

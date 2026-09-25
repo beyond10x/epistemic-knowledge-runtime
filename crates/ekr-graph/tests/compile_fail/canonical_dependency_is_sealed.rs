@@ -5,12 +5,14 @@
 //! reference type — and AGENTS.md invariant 2 becomes a convention again.
 
 use ekr_core::NodeId;
-use ekr_graph::CanonicalDependency;
+use ekr_graph::{CanonicalDependency, Node};
 
 struct Smuggled(NodeId);
 
 impl CanonicalDependency for Smuggled {
-    fn node(&self) -> NodeId {
+    type Target = Node;
+
+    fn id(&self) -> NodeId {
         self.0
     }
 }

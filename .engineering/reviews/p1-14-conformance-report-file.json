@@ -1,0 +1,92 @@
+{
+  "completed_at": 1700000015400,
+  "conformance_status": "passed",
+  "counts": {
+    "error": 0,
+    "failed": 0,
+    "passed": 40,
+    "skipped": 0,
+    "total": 40,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 4,
+      "generated": 36,
+      "outside": 0,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "kind": "all"
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "component": "ekr-kernel",
+        "kind": "component"
+      }
+    }
+  },
+  "execution_status": "passed",
+  "format": "ess-conformance-report/2",
+  "implementation": "ekr-kernel (file provider) 0.0.1",
+  "outcomes": {
+    "error": [],
+    "failed": [],
+    "passed": [
+      "ekr.kernel.Commit/outcome/committed",
+      "ekr.kernel.Commit/outcome/retained-commit",
+      "ekr.kernel.Commit/outcome/stale",
+      "ekr.kernel.Commit/outcome/transaction-not-found",
+      "ekr.kernel.Commit/outcome/wrong-state",
+      "ekr.kernel.Explain/outcome/explained",
+      "ekr.kernel.Explain/outcome/not-found",
+      "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/committed",
+      "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/stale",
+      "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Propose/proposed",
+      "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/rejected",
+      "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/validated",
+      "ekr.kernel.GraphTransaction/state/Committed/refuses/ekr.kernel.Validate",
+      "ekr.kernel.GraphTransaction/state/Proposed/refuses/ekr.kernel.Commit",
+      "ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Commit",
+      "ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Validate",
+      "ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Commit",
+      "ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Validate",
+      "ekr.kernel.GraphTransaction/state/Validated/refuses/ekr.kernel.Validate",
+      "ekr.kernel.GraphTransaction/transition/commit/by/ekr.kernel.Commit/committed",
+      "ekr.kernel.GraphTransaction/transition/reject/by/ekr.kernel.Validate/rejected",
+      "ekr.kernel.GraphTransaction/transition/stale/by/ekr.kernel.Commit/stale",
+      "ekr.kernel.GraphTransaction/transition/validate/by/ekr.kernel.Validate/validated",
+      "ekr.kernel.Propose/outcome/malformed",
+      "ekr.kernel.Propose/outcome/misattributed",
+      "ekr.kernel.Propose/outcome/proposed",
+      "ekr.kernel.Seed/outcome/already-seeded",
+      "ekr.kernel.Seed/outcome/invalid-seed",
+      "ekr.kernel.Seed/outcome/retained-seed",
+      "ekr.kernel.Seed/outcome/seeded",
+      "ekr.kernel.Snapshot/outcome/not-found",
+      "ekr.kernel.Snapshot/outcome/taken",
+      "ekr.kernel.Validate/outcome/rejected",
+      "ekr.kernel.Validate/outcome/revision-not-found",
+      "ekr.kernel.Validate/outcome/transaction-not-found",
+      "ekr.kernel.Validate/outcome/validated",
+      "ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names",
+      "ekr.kernel/authored/a-proposal-is-stored-as-its-canonical-record",
+      "ekr.kernel/authored/snapshot-at-a-past-revision-reports-that-revision",
+      "ekr.kernel/authored/snapshot-without-a-revision-reports-the-newest"
+    ],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "ea28ece286fce87238d62573bf54738ffdb210bc8a9e3b81e19ec49f729cb38e",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:da6728bc453153489690d01ec5e583f970874eb8c5aa20d7d88d65d8f40a5c28",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/13"
+  }
+}

@@ -119,6 +119,10 @@ fn workspace_root() -> PathBuf {
 }
 
 /// Every `kind: newtype, of: Uuid` declaration of one ESS domain file, by its bare Rust name.
+///
+/// Read from the document as `serde_yaml_ng` parses it, so each key is found wherever it sits in
+/// its mapping: the line scan this replaced saw a declaration only when `name:` came first
+/// (adversary pass 1, wave p1-14).
 fn ess_uuid_newtypes(domain_file: &str) -> Vec<String> {
     let path = workspace_root()
         .join("systems/ekr/domains")
@@ -126,19 +130,25 @@ fn ess_uuid_newtypes(domain_file: &str) -> Vec<String> {
     let text = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
 
+    let document: serde_yaml_ng::Value = serde_yaml_ng::from_str(&text)
+        .unwrap_or_else(|e| panic!("parsing {}: {e}", path.display()));
+    let sections = document
+        .as_mapping()
+        .unwrap_or_else(|| panic!("{} is not a mapping", path.display()));
     let mut found = Vec::new();
-    let mut current: Option<String> = None;
-    let mut is_newtype = false;
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if let Some(name) = trimmed.strip_prefix("- name: ") {
-            current = name.rsplit('.').next().map(str::to_owned);
-            is_newtype = false;
-        } else if trimmed == "kind: newtype" {
-            is_newtype = true;
-        } else if trimmed == "of: Uuid" && is_newtype {
-            if let Some(name) = current.take() {
-                found.push(name);
+    for section in sections.values() {
+        for declared in section.as_sequence().map_or(&[][..], Vec::as_slice) {
+            let field = |key: &str| declared.get(key).and_then(serde_yaml_ng::Value::as_str);
+            if field("kind") == Some("newtype") && field("of") == Some("Uuid") {
+                let name = field("name").unwrap_or_else(|| {
+                    panic!("a Uuid newtype in {domain_file} has no name: {declared:?}")
+                });
+                found.push(
+                    name.rsplit('.')
+                        .next()
+                        .expect("a name has a last segment")
+                        .to_owned(),
+                );
             }
         }
     }
@@ -147,9 +157,9 @@ fn ess_uuid_newtypes(domain_file: &str) -> Vec<String> {
 
 #[test]
 fn every_ess_id_type_exists_in_the_crate() {
-    // The three domains `story:kernel-identity-and-hashing` names. `ekr.store.SnapshotId` is the
-    // fourth domain's and arrives with `ekr-store`; this crate is not where it lands.
-    let mut declared: Vec<String> = ["kernel.yaml", "ontology.yaml", "graph.yaml"]
+    // Every domain of the runtime. `store.yaml` declares no id newtype since `ekr.store.SnapshotId`
+    // was removed in wave p1-14; it is scanned so that an id declared there must be carried here too.
+    let mut declared: Vec<String> = ["kernel.yaml", "ontology.yaml", "graph.yaml", "store.yaml"]
         .into_iter()
         .flat_map(ess_uuid_newtypes)
         .collect();

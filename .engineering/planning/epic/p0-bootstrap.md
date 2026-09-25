@@ -6,6 +6,7 @@ status: implemented
 title: P0 — Bootstrap and design v3.1
 relations:
 - decomposes: initiative:epistemic-knowledge-runtime
+- serves: vision:o2
 revision: 4
 ---
 ## Context

@@ -58,6 +58,30 @@ struct RetentionRaised {
     to: StorageClass,
 }
 
+/// One event the provider log published, as the provider recorded it.
+///
+/// Plain values only: holding one grants nothing, and no provider type crosses this boundary, so a
+/// reader of the log never has to name the eventlog crates.
+#[derive(Clone, Debug, PartialEq)]
+pub struct PublishedEvent {
+    /// Its place in the tenant's whole log; strictly ascending in [`EventlogStore::published_events`].
+    pub position: u64,
+    /// The stream it was appended to.
+    pub stream_type: String,
+    /// The stream instance it was appended to.
+    pub stream_id: String,
+    /// Its version within that stream.
+    pub version: u64,
+    /// The provider's identity for it.
+    pub event_id: String,
+    /// The event name, e.g. `ekr.store.ObjectStored`.
+    pub name: String,
+    /// The schema version it was written under.
+    pub schema_version: u32,
+    /// The payload exactly as logged.
+    pub data: serde_json::Value,
+}
+
 /// Synchronous storage with a fallible injected kernel authority and an owned async runtime.
 pub struct EventlogStore<S: EventStore> {
     runtime: Option<Runtime>,
@@ -158,6 +182,55 @@ impl<S: EventStore> EventlogStore<S> {
             OBJECT_STREAM_TYPE,
             hash.to_hex(),
         )?)
+    }
+    /// Every event this tenant's provider log has published, in log order, across every stream.
+    ///
+    /// Read through this store's own open provider handle (`EventStore::read_feed`), so it opens
+    /// no second connection and appends nothing. It interprets nothing either: a kernel revision,
+    /// a stored object and a publication preparation come back exactly as the provider recorded
+    /// them. A redacted event, another tenant's event, or a position that does not ascend is
+    /// refused rather than skipped, because a log read that silently drops an entry reports less
+    /// than was written.
+    /// # Errors
+    /// Runtime-context refusal, provider failure or a feed that disagrees with itself.
+    pub fn published_events(&self) -> Result<Vec<PublishedEvent>, StoreError> {
+        ensure_sync_context()?;
+        let mut events: Vec<PublishedEvent> = Vec::new();
+        let mut after = 0;
+        loop {
+            let page = self.runtime().block_on(self.store.read_feed(
+                &self.tenant,
+                after,
+                MAX_READ_LIMIT,
+            ))?;
+            for event in page.events {
+                if event.is_redacted()
+                    || event.tenant != self.tenant
+                    || events
+                        .last()
+                        .is_some_and(|last| last.position >= event.global_seq)
+                {
+                    return Err(StoreError::Document("feed-envelope-disagrees".into()));
+                }
+                events.push(PublishedEvent {
+                    position: event.global_seq,
+                    stream_type: event.stream_type,
+                    stream_id: event.stream_id,
+                    version: event.version,
+                    event_id: event.event_id,
+                    name: event.name,
+                    schema_version: event.schema_version,
+                    data: event.data,
+                });
+            }
+            if !page.has_more {
+                return Ok(events);
+            }
+            if page.next_position <= after {
+                return Err(StoreError::Document("feed-cursor-stalled".into()));
+            }
+            after = page.next_position;
+        }
     }
     fn read_all(&self, stream: &StreamId, limit: usize) -> Result<Vec<RecordedEvent>, StoreError> {
         self.read_until(stream, limit, |_| false)

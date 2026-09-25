@@ -5,7 +5,6 @@ kind: task
 status: implemented
 title: A transaction rejected twice publishes two byte-identical events, so one of them can be lost
 relations:
-- blocks: story:commit-and-revision-lineage
 - serves: vision:o2
 - derived_from: story:version-persisted-contracts
 revision: 5

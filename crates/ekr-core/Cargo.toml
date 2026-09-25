@@ -17,6 +17,7 @@ uuid.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
+serde_yaml_ng.workspace = true
 
 [lints]
 workspace = true

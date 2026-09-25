@@ -6,7 +6,6 @@ status: implemented
 title: ontology_root and agent_root have no type to hash and stay placeholders in P1
 relations:
 - serves: vision:o2
-- blocks: story:commit-and-revision-lineage
 revision: 5
 ---
 ## What is wrong

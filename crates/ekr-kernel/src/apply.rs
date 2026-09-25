@@ -138,7 +138,7 @@ pub(crate) fn apply(
                         })?;
                 held.valid_time.to = Some(change.effective_from);
                 held.lifecycle = AssertionLifecycle::Superseded {
-                    by: change.by,
+                    by: CanonicalRef::new(change.by),
                     at_revision: graph.revision,
                     effective_from: change.effective_from,
                 };

@@ -124,7 +124,7 @@ impl World {
             object: Object::Value(CanonicalValue::String(
                 "Adopt the eventlog store".to_owned(),
             )),
-            evidence: [retained_evidence].into_iter().collect(),
+            evidence: [CanonicalRef::new(retained_evidence)].into_iter().collect(),
             proposed_by: proposer,
             lifecycle: ekr_graph::AssertionLifecycle::Active,
             assessment: Assessment::Accepted {
@@ -401,7 +401,7 @@ fn retracting_a_retained_edge_assertion_does_not_erase_its_reference() {
         .assertions
         .get_mut(&world.held_assertion)
         .unwrap()
-        .subject = Subject::Edge(world.existing_edge);
+        .subject = Subject::Edge(CanonicalRef::new(world.existing_edge));
     let retract = GraphOperation::RetractAssertion(ekr_kernel::Retraction {
         assertion: world.held_assertion,
         reason: ekr_graph::RetractionReason::new("fixture withdrawal"),

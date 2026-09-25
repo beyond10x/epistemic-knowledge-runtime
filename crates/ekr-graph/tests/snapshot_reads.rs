@@ -109,7 +109,7 @@ fn fixture() -> Fixture {
                 subject: Subject::Node(CanonicalRef::new(subject)),
                 predicate: Predicate::Relation(ceo_of),
                 object: Object::Node(CanonicalRef::new(acme)),
-                evidence: BTreeSet::from([EvidenceId::mint()]),
+                evidence: BTreeSet::from([CanonicalRef::new(EvidenceId::mint())]),
                 proposed_by: proposer,
                 assessment: accepted(),
                 lifecycle,
@@ -130,7 +130,7 @@ fn fixture() -> Fixture {
         TemporalRange::new(Some(TENURE_BEGAN), Some(HANDOVER))
             .expect("Alice's tenure is not inverted"),
         AssertionLifecycle::Superseded {
-            by: bob,
+            by: CanonicalRef::new(bob),
             at_revision: RevisionNumber::new(5),
             effective_from: HANDOVER,
         },
@@ -350,7 +350,7 @@ fn a_superseded_assertion_answers_only_inside_its_closed_interval() {
     assert!(matches!(
         alice.status(),
         AssertionLifecycle::Superseded { by, effective_from, .. }
-            if by == fixture.bob && effective_from == HANDOVER
+            if by.id() == fixture.bob && effective_from == HANDOVER
     ));
     assert!(!alice.transaction_time.is_open(), "the fixture closes it");
     assert!(!alice.is_current(), "a superseded record is not current");
@@ -422,18 +422,20 @@ fn a_proposed_assertion_is_never_answered() {
         );
     }
     assert_eq!(
-        Assessment::Proposed.name(),
+        <Assessment>::Proposed.name(),
         "Proposed",
         "the state names are the domain's, and the snapshot filters on them"
     );
     assert!(
-        !Assessment::Proposed.is_accepted(),
+        !<Assessment>::Proposed.is_accepted(),
         "a proposal has not crossed the integrity boundary"
     );
-    assert!(Assessment::Accepted {
-        validators: std::collections::BTreeSet::new()
-    }
-    .is_accepted());
+    assert!(
+        Assessment::<ekr_graph::CanonicalRef<ekr_graph::Assertion>>::Accepted {
+            validators: std::collections::BTreeSet::new()
+        }
+        .is_accepted()
+    );
 }
 
 /// A record whose transaction time has been closed is a record the graph no longer believes.

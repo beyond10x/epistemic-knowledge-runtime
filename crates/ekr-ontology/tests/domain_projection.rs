@@ -22,7 +22,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use ekr_core::{Canonical, TypeId};
-use ekr_ontology::ValueType;
+use ekr_ontology::{ValueKind, ValueType};
 
 /// `systems/ekr/domains/ontology.yaml`, as text.
 fn domain_text() -> String {
@@ -242,5 +242,280 @@ fn a_timestamp_value_carries_a_timestamp() {
     assert!(
         !source.contains("Timestamp(i64)"),
         "a bare epoch integer survives in this crate"
+    );
+}
+
+/// The field of `ekr.ontology.ValueTypeProjection` that carries a kind's parameters, or `kind`
+/// for a kind that has none.
+///
+/// An exhaustive `match` with no `_` arm, so a twelfth [`ValueKind`] does not compile until
+/// somebody says where its parameters go.
+const fn carrier(kind: ValueKind) -> &'static str {
+    match kind {
+        ValueKind::String
+        | ValueKind::Boolean
+        | ValueKind::Integer
+        | ValueKind::Float
+        | ValueKind::Decimal
+        | ValueKind::Timestamp
+        | ValueKind::Duration => "kind",
+        ValueKind::NodeRef => "allowed_types",
+        ValueKind::Enum => "variants",
+        ValueKind::List => "element",
+        ValueKind::Record => "fields",
+    }
+}
+
+/// The variant names of `pub enum ValueKind` in this crate's source, in declaration order.
+///
+/// Read from the source rather than listed here, so that the crate's half of the comparison below
+/// is not a second hand-written list beside the domain's. Comments and literals are blanked first
+/// and the enumeration's braces are matched, so a `}` in a doc comment — `{ name: type }` in a
+/// variant's description — neither ends the body early nor turns into a variant (adversary pass 1,
+/// wave p1-14).
+fn crate_value_kinds() -> Vec<String> {
+    let code = code_only(&crate_source());
+    let head = "pub enum ValueKind {";
+    let open = code
+        .find(head)
+        .expect("the crate declares `pub enum ValueKind`")
+        + head.len()
+        - 1;
+    let mut depth = 0usize;
+    let close = code[open..]
+        .char_indices()
+        .find(|&(_, c)| {
+            match c {
+                '{' => depth += 1,
+                '}' => depth -= 1,
+                _ => {}
+            }
+            depth == 0
+        })
+        .map(|(at, _)| open + at)
+        .expect("the enumeration's braces balance");
+    let mut kinds = Vec::new();
+    for entry in code[open + 1..close].split(',') {
+        let mut entry = entry.trim();
+        // Attributes before the variant: `#[…]`, balanced.
+        while let Some(rest) = entry.strip_prefix("#[") {
+            let mut depth = 1usize;
+            let end = rest
+                .char_indices()
+                .find(|&(_, c)| {
+                    match c {
+                        '[' => depth += 1,
+                        ']' => depth -= 1,
+                        _ => {}
+                    }
+                    depth == 0
+                })
+                .map(|(at, _)| at)
+                .expect("an attribute closes");
+            entry = rest[end + 1..].trim_start();
+        }
+        if entry.is_empty() {
+            continue;
+        }
+        assert!(
+            entry.chars().all(|c| c.is_alphanumeric() || c == '_'),
+            "ValueKind has a variant this scan cannot read, so the scan is broken: {entry:?}"
+        );
+        kinds.push(entry.to_owned());
+    }
+    assert!(
+        kinds.len() >= 4,
+        "the variant scan is broken, not the crate: {kinds:?}"
+    );
+    kinds
+}
+
+/// `text` with every comment and the contents of every string and character literal replaced by
+/// spaces of the same byte length, newlines kept, so a brace or comma inside one is not read as
+/// structure and a byte offset into the result is one into `text`.
+fn code_only(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out = String::with_capacity(text.len());
+    let blank = |out: &mut String, c: char| {
+        if c == '\n' {
+            out.push('\n');
+        } else {
+            out.extend(std::iter::repeat_n(' ', c.len_utf8()));
+        }
+    };
+    let mut at = 0;
+    while at < chars.len() {
+        let c = chars[at];
+        let next = chars.get(at + 1).copied();
+        if c == '/' && next == Some('/') {
+            while at < chars.len() && chars[at] != '\n' {
+                blank(&mut out, chars[at]);
+                at += 1;
+            }
+        } else if c == '/' && next == Some('*') {
+            let mut depth = 0usize;
+            while at < chars.len() {
+                if chars[at] == '/' && chars.get(at + 1) == Some(&'*') {
+                    depth += 1;
+                    blank(&mut out, '/');
+                    blank(&mut out, '*');
+                    at += 2;
+                } else if chars[at] == '*' && chars.get(at + 1) == Some(&'/') {
+                    depth -= 1;
+                    blank(&mut out, '*');
+                    blank(&mut out, '/');
+                    at += 2;
+                    if depth == 0 {
+                        break;
+                    }
+                } else {
+                    blank(&mut out, chars[at]);
+                    at += 1;
+                }
+            }
+        } else if c == 'r'
+            && (next == Some('"') || next == Some('#'))
+            && !chars
+                .get(at.wrapping_sub(1))
+                .is_some_and(|p| p.is_alphanumeric() || *p == '_')
+        {
+            // A raw string: `r"…"` or `r#"…"#`, closed by a quote and as many hashes.
+            let mut hashes = 0;
+            let mut probe = at + 1;
+            while chars.get(probe) == Some(&'#') {
+                hashes += 1;
+                probe += 1;
+            }
+            if chars.get(probe) != Some(&'"') {
+                out.push(c);
+                at += 1;
+                continue;
+            }
+            for &k in &chars[at..=probe] {
+                out.push(k);
+            }
+            at = probe + 1;
+            while at < chars.len() {
+                if chars[at] == '"' && (1..=hashes).all(|h| chars.get(at + h) == Some(&'#')) {
+                    out.push('"');
+                    out.extend(std::iter::repeat_n('#', hashes));
+                    at += 1 + hashes;
+                    break;
+                }
+                blank(&mut out, chars[at]);
+                at += 1;
+            }
+        } else if c == '"' {
+            out.push('"');
+            at += 1;
+            while at < chars.len() && chars[at] != '"' {
+                if chars[at] == '\\' {
+                    blank(&mut out, '\\');
+                    at += 1;
+                }
+                if at < chars.len() {
+                    blank(&mut out, chars[at]);
+                    at += 1;
+                }
+            }
+            if at < chars.len() {
+                out.push('"');
+                at += 1;
+            }
+        } else if c == '\'' {
+            // A character literal is `'x'` or `'\…'`; anything else is a lifetime.
+            let close = if next == Some('\\') {
+                (at + 2..chars.len().min(at + 12)).find(|&k| chars[k] == '\'')
+            } else if chars.get(at + 2) == Some(&'\'') {
+                Some(at + 2)
+            } else {
+                None
+            };
+            if let Some(close) = close {
+                out.push('\'');
+                for &k in &chars[at + 1..close] {
+                    blank(&mut out, k);
+                }
+                out.push('\'');
+                at = close + 1;
+            } else {
+                out.push(c);
+                at += 1;
+            }
+        } else {
+            out.push(c);
+            at += 1;
+        }
+    }
+    assert_eq!(out.len(), text.len(), "blanking preserves byte offsets");
+    out
+}
+
+/// `ekr.ontology.ValueKind` is exactly the crate's [`ValueKind`], and every kind has its carrier
+/// in `ekr.ontology.ValueTypeProjection`.
+///
+/// Three directions, each of which the case above cannot see because its field list is
+/// hand-written:
+///
+/// * a kind the domain declares and the crate does not, or the reverse, fails the set equality;
+/// * a kind whose carrier field the domain stops declaring fails the carrier lookup;
+/// * a projection field no kind is carried by — a carrier left behind after its kind went — fails
+///   the coverage check, as does two compound kinds sharing one parameter field.
+#[test]
+fn every_value_kind_the_domain_declares_is_the_crates_and_has_its_carrier() {
+    let document: serde_yaml_ng::Value =
+        serde_yaml_ng::from_str(&domain_text()).expect("the ESS domain parses");
+    let declared: Vec<String> = document
+        .get("types")
+        .and_then(serde_yaml_ng::Value::as_sequence)
+        .into_iter()
+        .flatten()
+        .find(|declared| {
+            declared.get("name").and_then(serde_yaml_ng::Value::as_str)
+                == Some("ekr.ontology.ValueKind")
+        })
+        .expect("the domain declares ekr.ontology.ValueKind under types:")
+        .get("variants")
+        .and_then(serde_yaml_ng::Value::as_sequence)
+        .expect("ekr.ontology.ValueKind is an enumeration")
+        .iter()
+        .map(|variant| variant.as_str().expect("a variant is a name").to_owned())
+        .collect();
+
+    assert_eq!(
+        declared.iter().collect::<BTreeSet<_>>(),
+        crate_value_kinds().iter().collect::<BTreeSet<_>>(),
+        "ekr.ontology.ValueKind and the crate's ValueKind disagree"
+    );
+
+    let projection = fields_of("ekr.ontology.ValueTypeProjection");
+    let mut carried = BTreeSet::new();
+    let mut parameter_carriers = Vec::new();
+    for name in &declared {
+        let kind: ValueKind = serde_json::from_value(serde_json::Value::String(name.clone()))
+            .unwrap_or_else(|error| panic!("{name} is not a ValueKind: {error}"));
+        assert_eq!(
+            &kind.to_string(),
+            name,
+            "{kind:?} displays as its domain name"
+        );
+        let field = carrier(kind);
+        assert!(
+            projection.contains(field),
+            "{name} is carried by ValueTypeProjection.{field}, which the domain does not declare"
+        );
+        carried.insert(field.to_owned());
+        if field != "kind" {
+            parameter_carriers.push(field);
+        }
+    }
+    assert_eq!(
+        carried, projection,
+        "every field of ekr.ontology.ValueTypeProjection carries some kind"
+    );
+    assert_eq!(
+        parameter_carriers.len(),
+        parameter_carriers.iter().collect::<BTreeSet<_>>().len(),
+        "no two compound kinds share a parameter field: {parameter_carriers:?}"
     );
 }

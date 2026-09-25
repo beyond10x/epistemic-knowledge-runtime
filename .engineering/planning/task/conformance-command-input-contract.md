@@ -2,12 +2,11 @@
 format: aep.planning-md/1
 id: task:conformance-command-input-contract
 kind: task
-status: draft
+status: archived
 title: Align ESS command inputs and observable transaction states with the real kernel
 relations:
 - derived_from: story:ess-conformance-kernel
-- blocks: story:ess-conformance-kernel
-revision: 3
+revision: 5
 ---
 ## Measured prerequisites for executable conformance
 
@@ -58,3 +57,12 @@ Transactions view readable across terminal states and restart, real document-pat
 Seed and Propose in `systems/ekr/domains/kernel.yaml` instead of hash placeholders, and the
 Rust `ConformanceTarget` executing them. It now blocks `story:ess-conformance-kernel` instead of
 `story:ekr-cli`.
+
+## Wave p1-14 close
+
+Archived in wave p1-14 (2026-09-23) after the plan review of 72779f9.
+
+The ESS half this task still claimed is already declared: document-path inputs for Seed and
+Propose (`systems/ekr/domains/kernel.yaml` :77-83, :949-950, :986-987) and the all-states
+Transactions view (:1270-1304). What remains, executing them through a Rust ConformanceTarget, is
+the acceptance of `story:ess-conformance-kernel` itself, so the blocks edge was a cycle.

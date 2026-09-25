@@ -5,7 +5,6 @@ kind: task
 status: implemented
 title: A retraction replaces the Accepted state and discards the validators that accepted it
 relations:
-- blocks: story:commit-and-revision-lineage
 - derived_from: story:version-persisted-contracts
 - serves: vision:o2
 revision: 4

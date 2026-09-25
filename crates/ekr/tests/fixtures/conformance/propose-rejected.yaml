@@ -1,0 +1,9 @@
+format: ekr.transaction-document/1
+transaction:
+  id: 00000000-0000-4000-8000-000000000704
+  proposer: 00000000-0000-4000-8000-000000000101
+  operations:
+  - !RetractAssertion
+    assertion: 00000000-0000-4000-8000-000000000599
+    reason: no such assertion
+  evidence: []

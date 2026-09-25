@@ -6,10 +6,11 @@
 //! suite checks the crate against itself, so nothing reads the two together. `ekr-graph` projects
 //! more of a domain than any crate before it, so it gets the same case.
 //!
-//! `ekr-graph` declares no YAML parser — its dependencies are `ekr-core`, `ekr-ontology`, `serde`
-//! and `thiserror`, fixed by `story:workspace-crate-skeleton` — so the document is read as text.
-//! The scan is held to its own catch: a parse that stops finding declarations fails loudly rather
-//! than passing vacuously.
+//! Most scans below read the document as text, written when `ekr-graph` had no YAML parser. Wave
+//! p1-14 added `serde_yaml_ng` as a dev-dependency, and the property-key case parses with it; the
+//! older line scans (`variants_of`, `declarations_with_fields`, `fields_of`) still find a
+//! declaration only when `name:` is its first key. Each scan is held to its own catch: a parse that
+//! stops finding declarations fails loudly rather than passing vacuously.
 
 /// `systems/ekr/domains/graph.yaml`, as text.
 fn domain_text() -> String {
@@ -182,8 +183,8 @@ fn assessment_and_lifecycle_retain_independent_payloads() {
         AgentId, AssertionId, Canonical, GraphRootId, IssueId, RevisionNumber, Timestamp, TypeId,
     };
     use ekr_graph::{
-        Assertion, AssertionLifecycle, Assessment, Object, Predicate, RetractionReason, Subject,
-        TemporalRange, TransactionTime,
+        Assertion, AssertionLifecycle, Assessment, CanonicalRef, Object, Predicate,
+        RetractionReason, Subject, TemporalRange, TransactionTime,
     };
     use std::collections::BTreeSet;
 
@@ -215,7 +216,7 @@ fn assessment_and_lifecycle_retain_independent_payloads() {
             issues: vec![IssueId::mint()],
         },
         Assessment::Disputed {
-            competing_assertions: vec![AssertionId::mint()],
+            competing_assertions: vec![CanonicalRef::new(AssertionId::mint())],
         },
     ];
     assert_eq!(
@@ -229,7 +230,7 @@ fn assessment_and_lifecycle_retain_independent_payloads() {
             reason: RetractionReason::new("supplied evidence withdrawn"),
         },
         AssertionLifecycle::Superseded {
-            by: AssertionId::mint(),
+            by: CanonicalRef::new(AssertionId::mint()),
             at_revision: RevisionNumber::new(3),
             effective_from: Timestamp::from_millis(100),
         },
@@ -270,7 +271,7 @@ fn assessment_and_lifecycle_retain_independent_payloads() {
             withdrawal.name()
         );
     }
-    let different_reason = AssertionLifecycle::Retracted {
+    let different_reason: AssertionLifecycle = AssertionLifecycle::Retracted {
         at_revision: RevisionNumber::new(2),
         reason: RetractionReason::new("different reason"),
     };
@@ -530,13 +531,13 @@ const FUSIONS: &[(&str, &str, &str, &[&str])] = &[
         "ekr.graph.SubjectProjection",
         "kind",
         "Subject",
-        &["Node(R)", "Edge(EdgeId)", "Type(TypeId)"],
+        &["Node(R)", "Edge(E)", "Type(TypeId)"],
     ),
     (
         "ekr.graph.SubjectProjection",
         "id",
         "Subject",
-        &["Node(R)", "Edge(EdgeId)", "Type(TypeId)"],
+        &["Node(R)", "Edge(E)", "Type(TypeId)"],
     ),
     (
         "ekr.graph.PredicateProjection",
@@ -584,7 +585,7 @@ const FUSIONS: &[(&str, &str, &str, &[&str])] = &[
         "ekr.graph.EvidenceSourceProjection",
         "assertion",
         "EvidenceSource",
-        &["GraphAssertion(AssertionId)"],
+        &["GraphAssertion(CanonicalRef<Assertion>)"],
     ),
     (
         "ekr.graph.EvidenceSourceProjection",
@@ -602,7 +603,7 @@ const FUSIONS: &[(&str, &str, &str, &[&str])] = &[
         "ekr.graph.Assertion",
         "subject_kind",
         "Subject",
-        &["Node(R)", "Edge(EdgeId)", "Type(TypeId)"],
+        &["Node(R)", "Edge(E)", "Type(TypeId)"],
     ),
     (
         "ekr.graph.Assertion",
@@ -708,4 +709,251 @@ fn every_declaration_of_the_domain_is_carried_field_for_field() {
             "stale renamed-field mapping {owner}.{field}"
         );
     }
+}
+
+/// Property maps are keyed by the property's stable id, on both sides of the boundary.
+///
+/// `graph.yaml` declares every `properties` field as `Map<String, …>`, because `ess/1` keys a map
+/// by `String`, and says in the comment heading `ekr.graph.Node` what the `String` is: the
+/// `PropertyId`'s UUID text, never the property's name. `Node::properties` and `Edge::properties`
+/// key by `PropertyId`. The field-for-field case above checks only that a `properties:` field
+/// exists, so the key could drift on either side — a name-keyed map in the crate, or the sentence
+/// dropped from the domain — and it would stay green. This one would not.
+#[test]
+fn property_maps_are_keyed_by_property_id_in_the_domain_and_the_crate() {
+    let text = domain_text();
+
+    // The comment block directly above `- name: ekr.graph.Node`, joined into one string so a
+    // rewrap of the YAML comment does not break the case.
+    let lines: Vec<&str> = text.lines().collect();
+    let head = lines
+        .iter()
+        .position(|line| line.trim() == "- name: ekr.graph.Node")
+        .expect("the domain declares ekr.graph.Node");
+    let comment: Vec<&str> = lines[..head]
+        .iter()
+        .rev()
+        .take_while(|line| line.trim_start().starts_with('#'))
+        .map(|line| line.trim_start().trim_start_matches('#').trim())
+        .collect();
+    let comment = comment.into_iter().rev().collect::<Vec<_>>().join(" ");
+    assert!(
+        comment.contains("Property maps use stable PropertyId UUID strings as keys, never names."),
+        "the comment heading ekr.graph.Node no longer says what a property map is keyed by: {comment:?}"
+    );
+
+    // Every `properties` field the domain declares is the `String`-keyed map that sentence
+    // governs, and nothing else. Read from the parsed document, so a field whose `type:` is written
+    // before its `name:` is seen too.
+    let document: serde_yaml_ng::Value =
+        serde_yaml_ng::from_str(&text).expect("the ESS domain parses");
+    let mut declared = 0usize;
+    for section in ["types", "entities", "views"] {
+        let declarations = document
+            .get(section)
+            .and_then(serde_yaml_ng::Value::as_sequence)
+            .map_or(&[][..], Vec::as_slice);
+        for field in declarations
+            .iter()
+            .filter_map(|declared| declared.get("fields"))
+            .filter_map(serde_yaml_ng::Value::as_sequence)
+            .flatten()
+        {
+            if field.get("name").and_then(serde_yaml_ng::Value::as_str) != Some("properties") {
+                continue;
+            }
+            let ty = field
+                .get("type")
+                .and_then(serde_yaml_ng::Value::as_str)
+                .expect("a properties field declares its type");
+            assert_eq!(
+                ty, "Map<String, List<ekr.graph.TypedValue>>",
+                "a properties field is declared with a key or value the sentence does not cover"
+            );
+            declared += 1;
+        }
+    }
+    assert!(
+        declared >= 4,
+        "the properties scan is broken, not the domain: found {declared}"
+    );
+
+    for carrier in ["Node", "Edge"] {
+        properties_are_keyed_by_property_id(carrier, &type_region(carrier));
+        serialisation_is_derived(carrier);
+    }
+
+    // The deserialiser the field names reads into the same key.
+    let modules = crate_modules();
+    let node = &modules
+        .iter()
+        .find(|(name, _)| name == "node.rs")
+        .expect("the crate has node.rs")
+        .1;
+    let at = node
+        .find("fn property_values<")
+        .expect("node.rs declares property_values");
+    let signature = &node[at..at + node[at..].find('{').expect("property_values has a body")];
+    let returned = signature
+        .split_once("-> Result<")
+        .map(|(_, rest)| rest)
+        .expect("property_values returns a Result");
+    assert!(
+        returned.trim_start().starts_with("BTreeMap<")
+            && key_is_property_id(&returned.trim_start()["BTreeMap<".len()..]),
+        "property_values reads a map not keyed by PropertyId: {signature}"
+    );
+}
+
+/// Whether the first type argument of `arguments` (the text after a map's `<`) is `PropertyId`,
+/// bare or path-qualified.
+fn key_is_property_id(arguments: &str) -> bool {
+    let key = arguments.split(',').next().unwrap_or_default().trim();
+    let segments: Vec<&str> = key.split("::").collect();
+    segments.last() == Some(&"PropertyId")
+        && segments
+            .iter()
+            .all(|s| !s.is_empty() && s.chars().all(|c| c.is_alphanumeric() || c == '_'))
+}
+
+/// The top-level `key` of each entry of every `#[serde(…)]` attribute in `text`, with the entry.
+fn serde_entries(text: &str) -> Vec<(String, String)> {
+    let mut entries = Vec::new();
+    for (at, _) in text.match_indices("#[serde(") {
+        let inner = &text[at + "#[serde(".len()..];
+        let mut depth = 1usize;
+        let mut in_string = false;
+        let mut entry = String::new();
+        for c in inner.chars() {
+            match c {
+                '"' => in_string = !in_string,
+                '(' if !in_string => depth += 1,
+                ')' if !in_string => {
+                    depth -= 1;
+                    if depth == 0 {
+                        break;
+                    }
+                }
+                ',' if !in_string && depth == 1 => {
+                    entries.push(std::mem::take(&mut entry));
+                    continue;
+                }
+                _ => {}
+            }
+            entry.push(c);
+        }
+        entries.push(entry);
+    }
+    entries
+        .into_iter()
+        .map(|entry| entry.trim().to_owned())
+        .filter(|entry| !entry.is_empty())
+        .map(|entry| {
+            let key: String = entry
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || *c == '_')
+                .collect();
+            (key, entry)
+        })
+        .collect()
+}
+
+/// `carrier`'s `properties` field is a `BTreeMap` keyed by `PropertyId`, and no serde attribute on
+/// it changes how that key is written.
+///
+/// The only serde entries the field may carry are `deserialize_with` naming
+/// `crate::node::property_values` (checked above to read the same key) and `bound`. A
+/// `serialize_with`, `with`, `rename`, `flatten` or anything else is a change to what the map looks
+/// on the wire, and this case goes red and asks for the domain's sentence to be re-read.
+fn properties_are_keyed_by_property_id(carrier: &str, region: &str) {
+    let lines: Vec<&str> = region.lines().map(str::trim).collect();
+    let at = lines
+        .iter()
+        .position(|line| line.starts_with("pub properties:"))
+        .unwrap_or_else(|| panic!("{carrier} has no `pub properties` field"));
+    let ty = lines[at]["pub properties:".len()..]
+        .trim()
+        .trim_end_matches(',');
+    let (map, arguments) = ty
+        .split_once('<')
+        .unwrap_or_else(|| panic!("{carrier}::properties is not a map: {ty}"));
+    assert_eq!(
+        map.rsplit("::").next(),
+        Some("BTreeMap"),
+        "{carrier}::properties is a {map}, not a BTreeMap"
+    );
+    assert!(
+        key_is_property_id(arguments),
+        "{carrier}::properties is keyed by {arguments:?}, not PropertyId"
+    );
+
+    // The field's attributes: the lines above it, back to the previous field or the struct's `{`.
+    let preamble: Vec<&str> = lines[..at]
+        .iter()
+        .rev()
+        .take_while(|line| **line != "{" && !(line.starts_with("pub ") && line.ends_with(',')))
+        .filter(|line| !line.starts_with("//"))
+        .copied()
+        .collect();
+    let attributes = preamble.into_iter().rev().collect::<Vec<_>>().join(" ");
+    for (key, entry) in serde_entries(&attributes) {
+        match key.as_str() {
+            "deserialize_with" => assert_eq!(
+                entry.replace(' ', ""),
+                "deserialize_with=\"crate::node::property_values\"",
+                "{carrier}::properties is read by a deserialiser this case has not checked"
+            ),
+            "bound" => {}
+            _ => panic!(
+                "{carrier}::properties carries `#[serde({entry})]`, which can change how its \
+                 PropertyId key is written; graph.yaml says the key is the id's UUID text"
+            ),
+        }
+    }
+}
+
+/// `carrier` derives `Serialize`, carries no container-level serde entry that reroutes it, and has
+/// no hand-written `Serialize` implementation.
+///
+/// With serialisation derived and nothing above overriding the field, a `properties` key is
+/// written by `PropertyId`'s own `Serialize`, which `crates/ekr-core/tests/identity_serde.rs`
+/// (`assert_id_contract`) holds is the id's UUID text — the form `graph.yaml` declares.
+fn serialisation_is_derived(carrier: &str) {
+    let mut preambles = 0usize;
+    for (module, text) in crate_modules() {
+        for line in text.lines() {
+            assert!(
+                !(line.contains("Serialize for") && opens_item(line, carrier)),
+                "{module} implements Serialize for {carrier} by hand: {line}"
+            );
+        }
+        let lines: Vec<&str> = text.lines().collect();
+        for (at, line) in lines.iter().enumerate() {
+            let head = line.trim();
+            if !(head.starts_with(&format!("pub struct {carrier}<"))
+                || head.starts_with(&format!("pub struct {carrier} ")))
+            {
+                continue;
+            }
+            let preamble: Vec<&str> = lines[..at]
+                .iter()
+                .rev()
+                .map(|line| line.trim())
+                .take_while(|line| !line.is_empty() && !line.starts_with("///"))
+                .collect();
+            let preamble = preamble.into_iter().rev().collect::<Vec<_>>().join(" ");
+            assert!(
+                preamble.contains("#[derive(") && preamble.contains("Serialize"),
+                "{carrier} does not derive Serialize: {preamble}"
+            );
+            for (key, entry) in serde_entries(&preamble) {
+                assert!(
+                    matches!(key.as_str(), "deny_unknown_fields" | "bound"),
+                    "{carrier} carries `#[serde({entry})]`, which reroutes its serialisation"
+                );
+            }
+            preambles += 1;
+        }
+    }
+    assert_eq!(preambles, 1, "{carrier} is declared once in this crate");
 }

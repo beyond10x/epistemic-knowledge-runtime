@@ -2,11 +2,11 @@
 format: aep.planning-md/1
 id: task:typed-value-canonical-field-is-undecided
 kind: task
-status: draft
+status: archived
 title: TypedValue.canonical is declared a String and was described as the content-hash bytes, which it cannot be
 relations:
 - serves: vision:o2
-revision: 2
+revision: 6
 ---
 ## What is wrong
 
@@ -54,3 +54,26 @@ declaration is the day the sentence would have been believed.
 ## Reconciliation, 2026-09-22
 
 The false claim that the String carries binary hash bytes was corrected, but the residual projection remains explicit: `crates/ekr-graph/tests/domain_projection.rs` records TypedValue as an unbound flattening. A corrected comment alone does not supply an executable wire representation. Keep the residual projection work open and reconcile it with the versioned persisted-contract work before durable application. The approved plan does not authorize inventing canonical text or silently migrating existing values.
+
+## Wave p1-14 rescope
+
+Rescoped in wave p1-14 (2026-09-23): the plan review of 72779f9 found this task's premise already
+resolved in `systems/` at b2b64f8. The only remaining obligation is a binding case in the owning
+crate's `tests/domain_projection.rs` that fails if the declaration and the Rust type drift. If that
+case already exists, the wave cites it and archives this task.
+
+## Scope
+
+Derived 2026-09-23 by `story-scoper` (wave p1-14). Verdict: already-held.
+
+- `systems/ekr/domains/graph.yaml:165-171` declares `ekr.graph.TypedValue { kind: ekr.graph.CanonicalValueKind, canonical_bytes: Bytes }`; the `canonical: String` field is gone — cited
+- bound to `CanonicalValue` (`crates/ekr-graph/src/value.rs:46`) in `crates/ekr-graph/tests/domain_projection.rs:464` (PROJECTIONS) and `:517` (FUSIONS), since `094f043` — cited
+- held by `crates/ekr-graph/tests/domain_projection.rs::every_declaration_of_the_domain_is_carried_field_for_field` — cited
+- stale doc: `crates/ekr-graph/src/node.rs:28` still says `TypedValue { kind, canonical }` — cited
+- Confidence: high
+
+## Wave p1-14 close
+
+Archived in wave p1-14: `ekr.graph.TypedValue` declares `canonical_bytes: Bytes`, bound to `CanonicalValue` since `094f043`.
+
+- `crates/ekr-graph/tests/domain_projection.rs::every_declaration_of_the_domain_is_carried_field_for_field`: `test result: ok` (bindings unit run, 2026-09-23).

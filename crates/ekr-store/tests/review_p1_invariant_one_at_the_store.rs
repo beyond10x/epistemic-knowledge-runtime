@@ -219,8 +219,13 @@ fn declared_entry_points() -> BTreeSet<String> {
 }
 
 /// The store's read-only entry points and its constructors: none of them can write an occurrence.
-const NOT_WRITERS: [&str; 11] = [
+///
+/// `published_events` (wave p1-14) reads the provider's own feed through the open handle and
+/// nothing else. `tests/published_events.rs` and ekr-kernel's `tests/runtime_published_events.rs`
+/// hold that a reread and a reopen return the identical log, so the read itself adds nothing.
+const NOT_WRITERS: [&str; 12] = [
     "preparation",
+    "published_events",
     "history",
     "history_at",
     "seed_bytes",

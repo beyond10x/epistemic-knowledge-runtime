@@ -371,7 +371,7 @@ fn seed_graph(ontology: &Ontology) -> CanonicalGraph {
         subject: Subject::Node(CanonicalRef::new(subject)),
         predicate: Predicate::Relation(type_id),
         object: Object::Node(CanonicalRef::new(object)),
-        evidence: BTreeSet::from([evidence_id]),
+        evidence: BTreeSet::from([CanonicalRef::new(evidence_id)]),
         proposed_by: AgentId::mint(),
         assessment: Assessment::Accepted {
             validators: BTreeSet::new(),

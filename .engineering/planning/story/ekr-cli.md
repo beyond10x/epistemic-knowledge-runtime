@@ -31,7 +31,7 @@ scope:
   path: crates/ekr/tests/retraction_example.rs
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 15
+revision: 16
 ---
 ## Context
 
@@ -129,3 +129,10 @@ ready wave. Final integration uses the actual shared runtime and no replacement.
 
 The coordinator owns shared specifications/manifests. CLI already declares
 workspace serde/time; no package pin changes or new dependency are authorized.
+
+## Completion
+
+Executed in wave p1-13 (2026-09-23): `crates/ekr/tests/retraction_example.rs` (11 cases) runs the
+design § 65 example through fresh binary processes on both providers; adversary files
+`adversary_p1_13_cli_*.rs` add 17. Gate on `wave/wave-p1-13` @ `8fe1b04`: 730 passed. Earlier
+sentences in this body that call the acceptance unexecuted describe the state before that wave.

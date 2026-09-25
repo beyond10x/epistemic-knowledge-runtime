@@ -957,7 +957,18 @@ commands:
         instance: revision_id
         emits:
           - ekr.kernel.Seeded
+          - ekr.store.PublicationPrepared
+          - ekr.store.ObjectStored
         payload:
+          ekr.store.PublicationPrepared:
+            preparation_hash: {generated: true}
+            attempt_number: {generated: true}
+            previous_attempt_hash: {generated: true}
+          ekr.store.ObjectStored:
+            content_hash: {generated: true}
+            storage_class: {generated: true}
+            byte_len: {generated: true}
+            stored_at: {generated: true}
           ekr.kernel.Seeded:
             event_id: {generated: true}
             record_hash: {generated: true}
@@ -994,7 +1005,18 @@ commands:
         instance: transaction_id
         emits:
           - ekr.kernel.TransactionProposed
+          - ekr.store.PublicationPrepared
+          - ekr.store.ObjectStored
         payload:
+          ekr.store.PublicationPrepared:
+            preparation_hash: {generated: true}
+            attempt_number: {generated: true}
+            previous_attempt_hash: {generated: true}
+          ekr.store.ObjectStored:
+            content_hash: {generated: true}
+            storage_class: {generated: true}
+            byte_len: {generated: true}
+            stored_at: {generated: true}
           ekr.kernel.TransactionProposed:
             event_id: {generated: true}
             record_hash: {generated: true}
@@ -1031,7 +1053,18 @@ commands:
         instance: transaction_id
         emits:
           - ekr.kernel.TransactionValidated
+          - ekr.store.PublicationPrepared
+          - ekr.store.ObjectStored
         payload:
+          ekr.store.PublicationPrepared:
+            preparation_hash: {generated: true}
+            attempt_number: {generated: true}
+            previous_attempt_hash: {generated: true}
+          ekr.store.ObjectStored:
+            content_hash: {generated: true}
+            storage_class: {generated: true}
+            byte_len: {generated: true}
+            stored_at: {generated: true}
           ekr.kernel.TransactionValidated:
             event_id: {generated: true}
             record_hash: {generated: true}
@@ -1047,7 +1080,18 @@ commands:
         instance: transaction_id
         emits:
           - ekr.kernel.TransactionRejected
+          - ekr.store.PublicationPrepared
+          - ekr.store.ObjectStored
         payload:
+          ekr.store.PublicationPrepared:
+            preparation_hash: {generated: true}
+            attempt_number: {generated: true}
+            previous_attempt_hash: {generated: true}
+          ekr.store.ObjectStored:
+            content_hash: {generated: true}
+            storage_class: {generated: true}
+            byte_len: {generated: true}
+            stored_at: {generated: true}
           ekr.kernel.TransactionRejected:
             event_id: {generated: true}
             record_hash: {generated: true}
@@ -1086,7 +1130,18 @@ commands:
         instance: transaction_id
         emits:
           - ekr.kernel.RevisionCommitted
+          - ekr.store.PublicationPrepared
+          - ekr.store.ObjectStored
         payload:
+          ekr.store.PublicationPrepared:
+            preparation_hash: {generated: true}
+            attempt_number: {generated: true}
+            previous_attempt_hash: {generated: true}
+          ekr.store.ObjectStored:
+            content_hash: {generated: true}
+            storage_class: {generated: true}
+            byte_len: {generated: true}
+            stored_at: {generated: true}
           ekr.kernel.RevisionCommitted:
             event_id: {generated: true}
             record_hash: {generated: true}
@@ -1101,7 +1156,18 @@ commands:
         instance: transaction_id
         emits:
           - ekr.kernel.TransactionStale
+          - ekr.store.PublicationPrepared
+          - ekr.store.ObjectStored
         payload:
+          ekr.store.PublicationPrepared:
+            preparation_hash: {generated: true}
+            attempt_number: {generated: true}
+            previous_attempt_hash: {generated: true}
+          ekr.store.ObjectStored:
+            content_hash: {generated: true}
+            storage_class: {generated: true}
+            byte_len: {generated: true}
+            stored_at: {generated: true}
           ekr.kernel.TransactionStale:
             event_id: {generated: true}
             record_hash: {generated: true}
@@ -1333,8 +1399,6 @@ views:
   - name: ekr.kernel.CurrentRevision
     source: ekr.kernel.Revision
     consistency: read_your_writes
-    order_by:
-      - number desc
     fields:
       - name: revision_id
         type: ekr.kernel.RevisionId

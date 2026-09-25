@@ -69,7 +69,7 @@ scope:
   path: crates/ekr/tests
 - confidence: inferred
   path: vendor/serde_yaml_ng
-revision: 36
+revision: 37
 ---
 ## Context
 
@@ -354,3 +354,10 @@ acceptance remains unexecuted: both public handlers must refuse an unknown ID
 after restart on both providers and preserve objects, events and complete state.
 This is part of the existing durable writer scope, not a lifecycle or persisted
 format change. The completion record must name the actual cases that enforce it.
+
+## Completion
+
+Executed in wave p1-12 (2026-09-23): recovery across a process boundary for every decision kind
+(`crates/ekr-kernel/tests/recovery.rs`), replay refusals of forged history
+(`replay_forgery.rs`), current-format vectors and root sensitivity (`current_*.rs`). Gate on
+`wave/wave-p1-12` @ `8f0ebd0`: 680 passed.

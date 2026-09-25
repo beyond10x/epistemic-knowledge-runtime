@@ -7,6 +7,7 @@ title: Move object payloads out of event bodies while preserving atomic publicat
 relations:
 - derived_from: story:version-persisted-contracts
 - serves: vision:o2
+- derived_from: epic:p7-migration-cutover
 revision: 4
 ---
 ## Confirmed persistence-contract mismatch

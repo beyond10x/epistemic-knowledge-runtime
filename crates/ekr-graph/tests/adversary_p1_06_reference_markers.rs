@@ -6,9 +6,13 @@
 
 use std::collections::BTreeMap;
 
-use ekr_core::{GraphRootId, NodeId, RevisionNumber, SchemaVersionId, Timestamp, TypeId};
+use ekr_core::{
+    AgentId, ContentHash, EvidenceId, GraphRootId, NodeId, RevisionNumber, SchemaVersionId,
+    Timestamp, TypeId,
+};
 use ekr_graph::{
-    CanonicalGraph, CanonicalRef, Evidence, GraphRoot, Node, Object, Space, ValueSpace,
+    CanonicalGraph, CanonicalRef, Confidence, Evidence, EvidenceSource, GraphRoot, Node, Object,
+    Space, ValueSpace,
 };
 use ekr_ontology::{Ontology, OntologyDocument, SchemaVersion, Value};
 
@@ -60,35 +64,29 @@ fn the_default_reference_of_a_transient_claim_is_the_transient_reference() {
     );
 }
 
-/// `CanonicalRef<T>`'s marker does not keep a reference to one kind of thing out of a slot that
-/// wants another, which is the one job its own doc comment gives it.
+/// `CanonicalRef<T>`'s marker keeps a reference to one kind of thing out of a slot that wants
+/// another, which is the one job its own doc comment gives it.
 ///
-/// `crates/ekr-graph/src/canonical.rs:68-71`:
+/// What the adversary of wave p1-06 measured: `CanonicalTarget` was implemented for seven types —
+/// `Node`, `Edge`, `Assertion`, `Evidence`, `Observation`, `Support`, `GraphRoot` — and
+/// `CanonicalRef<T>` held a `NodeId` for every one of them, so `CanonicalGraph::resolve` looked a
+/// reference to evidence up in the **nodes** map and answered a node. Until wave p1-14 this case
+/// asserted that defect, so that it would go red the day the task closed.
 ///
-/// > The `T` of [`CanonicalRef`] is a marker with no data, and its whole job is to keep a reference
-/// > to one kind of thing out of a slot that wants another.
+/// # Inverted by wave p1-14
 ///
-/// `CanonicalTarget` is implemented for seven types — `Node`, `Edge`, `Assertion`, `Evidence`,
-/// `Observation`, `Support`, `GraphRoot` — and `CanonicalRef<T>` holds a `NodeId` for every one of
-/// them. `CanonicalDependency::node` therefore answers a `NodeId` for a reference that says it
-/// points at evidence, and `CanonicalGraph::resolve` looks it up in the **nodes** map. A reference
-/// to evidence resolves to a node.
+/// `task:canonical-reference-holds-a-node-id-for-every-target` closed it with an associated `Id`
+/// on `CanonicalTarget`: `CanonicalRef<Evidence>` holds an `EvidenceId`, and `resolve` looks in
+/// the map for its kind. The adversary's construction is kept — one graph, a node the reference
+/// could be confused with — and sharpened: the node and the evidence carry the **same 128 bits**,
+/// so the only thing that can tell them apart is the marker. The case now asserts the assertion
+/// the adversary wrote: a reference to evidence answers the evidence, and a reference to a node
+/// with those bits answers the node.
 ///
-/// This wave is what makes it load-bearing: `CanonicalTarget` is now the bound on `Serialize`,
-/// `Deserialize`, `Canonical`, `Ord` and `Hash` for the type canonical state is made of.
-///
-/// **Filed rather than fixed, and this case asserts what is true.** Closing it is a design change
-/// to the marker — the id a reference holds has to be typed by `T`, which is a change to
-/// `CanonicalTarget`, to `CanonicalDependency::node` and to `CanonicalGraph::resolve` together —
-/// and it is pre-existing: nothing in the tree reaches it, because `Node` is the only one of the
-/// seven with a caller. `task:canonical-reference-holds-a-node-id-for-every-target` carries it, and
-/// `crates/ekr-graph/src/canonical.rs`'s `CanonicalTarget` names it where the markers are declared.
-///
-/// So this asserts the defect and **goes red the day that task closes**, which is when somebody
-/// should read it again and turn it back into the assertion the adversary wrote. The construction
-/// is the adversary's, unchanged.
+/// That `CanonicalRef::<Evidence>::new` no longer accepts a `NodeId` at all is a build failure,
+/// not a case: `tests/compile_fail/a_canonical_reference_holds_the_id_of_its_kind.rs`.
 #[test]
-fn a_reference_to_evidence_resolves_to_a_node_because_the_marker_is_decoration() {
+fn a_reference_to_evidence_resolves_to_evidence_and_never_to_a_node() {
     let root = GraphRoot {
         id: GraphRootId::mint(),
         space: Space::Canonical,
@@ -96,30 +94,48 @@ fn a_reference_to_evidence_resolves_to_a_node_because_the_marker_is_decoration()
         parent: None,
         created_at: Timestamp::EPOCH,
     };
-    let held = Node::new(NodeId::mint(), root.id, TypeId::mint(), "held");
-    let held_id = held.id;
-    let canonical = CanonicalGraph {
+    let bits = NodeId::mint().to_uuid();
+    let held = Node::new(NodeId::from_uuid(bits), root.id, TypeId::mint(), "held");
+    let retained = Evidence {
+        id: EvidenceId::from_uuid(bits),
+        source: EvidenceSource::HumanStatement { identity: None },
+        content_hash: ContentHash::of_bytes(b"retained"),
+        extracted_by: AgentId::mint(),
+        observed_at: Timestamp::EPOCH,
+        confidence: Confidence::CERTAIN,
+    };
+    let with_both = CanonicalGraph {
         root,
         revision: RevisionNumber::SEED,
         ontology: ontology(),
-        nodes: [(held_id, held)].into_iter().collect(),
+        nodes: [(held.id, held.clone())].into_iter().collect(),
         edges: BTreeMap::new(),
         assertions: BTreeMap::new(),
+        evidence: [(retained.id, retained.clone())].into_iter().collect(),
+    };
+    let nodes_only = CanonicalGraph {
         evidence: BTreeMap::new(),
+        ..with_both.clone()
     };
 
-    // A reference that says it points at a piece of evidence. `Evidence` is a `CanonicalTarget`,
-    // so this is a well-formed value and a `CanonicalDependency`.
-    let to_evidence: CanonicalRef<Evidence> = CanonicalRef::new(held_id);
+    let to_evidence: CanonicalRef<Evidence> = CanonicalRef::new(EvidenceId::from_uuid(bits));
+    let to_node: CanonicalRef<Node> = CanonicalRef::new(NodeId::from_uuid(bits));
 
+    let answered: Option<&Evidence> = with_both.resolve(&to_evidence);
     assert_eq!(
-        canonical.resolve(&to_evidence).map(|node| node.id),
-        Some(held_id),
-        "canonical.rs says the marker's whole job is to keep a reference to one kind of thing out \
-         of a slot that wants another. CanonicalRef<T> holds a NodeId for all seven targets, so a \
-         CanonicalRef<Evidence> resolves against the nodes map and answers the node {held_id}: the \
-         marker is decoration on the one operation that reads it. \
-         task:canonical-reference-holds-a-node-id-for-every-target is what closes this, and the \
-         day it does this case goes red"
+        answered,
+        Some(&retained),
+        "a CanonicalRef<Evidence> resolves against the evidence map and answers the evidence"
+    );
+    assert_eq!(
+        with_both.resolve(&to_node),
+        Some(&held),
+        "a CanonicalRef<Node> with the same bits still answers the node"
+    );
+    assert_eq!(
+        nodes_only.resolve(&to_evidence),
+        None,
+        "a graph holding a node with the reference's bits and no evidence does not resolve a \
+         reference to evidence: the marker, and not the bits, decides where it looks"
     );
 }

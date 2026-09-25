@@ -1,0 +1,32 @@
+# Adversary pass 1 on story:ess-conformance-kernel, finding 2.
+#
+# The generated `ekr.kernel.Snapshot/outcome/taken` checks only the shape of `SnapshotTaken`: both
+# fields are `generated`, and `number` cannot be declared `input.at` because an absent `at` reads
+# the newest revision (ESS refuses the Optional-to-required crossing, ESS-COMMAND-002). So a target
+# reporting any revision and any root passes it. This scenario names a revision that is not the
+# newest one. The target has committed revision 1 before the first act. It requires the snapshot to
+# report revision 0, and it requires the root it reports to be the one the Revisions view holds for
+# revision 0.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: snapshot-at-a-past-revision-reports-that-revision
+summary: A snapshot at revision 0, read while revision 1 is the newest, reports revision 0 and revision 0's knowledge root.
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Snapshot
+    actor: ekr.kernel.Operator
+    input:
+      at: 0
+      valid_at: null
+    outcome: taken
+    events:
+      - event: ekr.kernel.SnapshotTaken
+        payload:
+          number: 0
+
+assert:
+  - view: ekr.kernel.Revisions
+    contains:
+      number: 0
+      knowledge_root: {$observed: {event: ekr.kernel.SnapshotTaken, field: knowledge_root}}

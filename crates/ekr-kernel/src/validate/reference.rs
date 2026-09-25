@@ -176,7 +176,7 @@ impl Validator for Reference {
         // Retraction retains an assertion and its provenance; it does not erase its references.
         for assertion in graph.graph().assertions.values() {
             if let Subject::Edge(edge) = assertion.subject {
-                known.edge(tx, edge, &mut issues);
+                known.edge(tx, edge.id(), &mut issues);
             }
         }
 

@@ -11,10 +11,6 @@ naming:
   display: Store
 
 types:
-  - name: ekr.store.SnapshotId
-    kind: newtype
-    of: Uuid
-
   # Design § 37.
   - name: ekr.store.StorageClass
     kind: enum
@@ -209,29 +205,6 @@ entities:
       initial: Stored
       states: [Stored]
       terminal: [Stored]
-
-  # Design § 71. A materialised fold at one revision.
-  - name: ekr.store.Snapshot
-    identity:
-      name: snapshot_id
-      type: ekr.store.SnapshotId
-    fields:
-      - name: revision_id
-        type: ekr.kernel.RevisionId
-      - name: knowledge_root
-        type: ekr.kernel.ContentHash
-      - name: taken_at
-        type: Timestamp
-    relations:
-      - name: revision
-        kind: references
-        target: ekr.kernel.Revision
-        cardinality: one
-        via: revision_id
-    lifecycle:
-      initial: Taken
-      states: [Taken]
-      terminal: [Taken]
 
 events:
   # Private selection metadata, backend schema1; payload is a private native blob.

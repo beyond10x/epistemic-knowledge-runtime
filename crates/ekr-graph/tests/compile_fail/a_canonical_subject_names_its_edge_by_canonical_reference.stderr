@@ -1,0 +1,45 @@
+error[E0308]: mismatched types
+  --> tests/compile_fail/a_canonical_subject_names_its_edge_by_canonical_reference.rs:12:19
+   |
+12 |     Subject::Edge(edge)
+   |     ------------- ^^^^ expected `CanonicalRef<Edge>`, found `EdgeId`
+   |     |
+   |     arguments to this enum variant are incorrect
+   |
+   = note: expected struct `CanonicalRef<ekr_graph::Edge>`
+              found struct `EdgeId`
+help: the type constructed contains `EdgeId` due to the type of the argument passed
+  --> tests/compile_fail/a_canonical_subject_names_its_edge_by_canonical_reference.rs:12:5
+   |
+12 |     Subject::Edge(edge)
+   |     ^^^^^^^^^^^^^^----^
+   |                   |
+   |                   this argument influences the type of `Edge`
+note: tuple variant defined here
+  --> src/assertion.rs
+   |
+   |     Edge(E),
+   |     ^^^^
+
+error[E0308]: mismatched types
+  --> tests/compile_fail/a_canonical_subject_names_its_edge_by_canonical_reference.rs:16:19
+   |
+16 |     Subject::Edge(edge)
+   |     ------------- ^^^^ expected `CanonicalRef<Edge>`, found `TransientRef<Edge>`
+   |     |
+   |     arguments to this enum variant are incorrect
+   |
+   = note: expected struct `CanonicalRef<ekr_graph::Edge>`
+                found enum `TransientRef<ekr_graph::Edge>`
+help: the type constructed contains `TransientRef<ekr_graph::Edge>` due to the type of the argument passed
+  --> tests/compile_fail/a_canonical_subject_names_its_edge_by_canonical_reference.rs:16:5
+   |
+16 |     Subject::Edge(edge)
+   |     ^^^^^^^^^^^^^^----^
+   |                   |
+   |                   this argument influences the type of `Edge`
+note: tuple variant defined here
+  --> src/assertion.rs
+   |
+   |     Edge(E),
+   |     ^^^^

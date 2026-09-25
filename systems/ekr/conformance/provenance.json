@@ -1,0 +1,33 @@
+{
+  "format": "ekr.conformance-provenance/1",
+  "suite": "systems/ekr/conformance/suite.json",
+  "producer": {
+    "tool": "ess",
+    "version": "0.29.0",
+    "source": "https://github.com/beyond10x/ess",
+    "rev": "8bef63a21766c54f0d809b4decf1d9f7bd587118"
+  },
+  "command": [
+    "ess",
+    "conform",
+    "synthesize",
+    "--path",
+    "systems/ekr",
+    "--component",
+    "ekr-kernel",
+    "--suite-format",
+    "5",
+    "--target",
+    "ir",
+    "--scenarios",
+    "crates/ekr/tests/fixtures/conformance/scenarios",
+    "--out",
+    "systems/ekr/conformance/suite.json"
+  ],
+  "authored_scenarios": [
+    "crates/ekr/tests/fixtures/conformance/scenarios/a-committed-transaction-row-carries-every-record-it-names.yaml",
+    "crates/ekr/tests/fixtures/conformance/scenarios/a-proposal-is-stored-as-its-canonical-record.yaml",
+    "crates/ekr/tests/fixtures/conformance/scenarios/snapshot-at-a-past-revision-reports-that-revision.yaml",
+    "crates/ekr/tests/fixtures/conformance/scenarios/snapshot-without-a-revision-reports-the-newest.yaml"
+  ]
+}
