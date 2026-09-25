@@ -7,7 +7,8 @@ Python), bot authorship of every GitHub write, the public-source provenance rule
 a change to bytes another repository verifies is a coordinated migration — live in
 `atlas/AGENTS.md` and the workspace `AGENTS.md` and are not restated here.
 
-`README.md` orients a reader. This file says what must not break.
+`README.md` orients a reader and `docs/cli.md` is the user reference for the `ekr` binary. This
+file says what must not break.
 
 ## Serves
 
@@ -31,6 +32,21 @@ roadmap § 3, and is not repeated here.
 
 The runtime supersedes `company-brain` (v1) and `org-brain` (v2). Their code is a lift source, never
 a dependency; their data enters through the import policy in `docs/predecessors.md` § 9.
+
+## Agents that use the `ekr` binary
+
+An agent that seeds a store and records knowledge through `ekr`, rather than changing this
+repository, reads [`docs/cli.md`](docs/cli.md) and runs `ekr guide`; the rest of this file is for
+contributors. Two rules hold for it:
+
+- it writes only through `ekr propose`, `ekr validate` and `ekr commit`, never to a store's files
+  or database;
+- it takes ids from `ekr mint`, `ekr ontology` and `ekr snapshot`, and never derives one from a
+  name.
+
+A change to the binary's verbs, global options, operation kinds, value kinds or named refusals
+updates `docs/cli.md` in the same change: `crates/ekr/tests/docs_cli.rs` compares the page with
+the binary and runs its worked example on both providers.
 
 ## Normative documents
 
