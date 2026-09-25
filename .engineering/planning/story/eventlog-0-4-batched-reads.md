@@ -22,7 +22,7 @@ scope:
   path: crates/ekr-store/src/preparation.rs
 - confidence: cited
   path: crates/ekr/tests/story_contract.rs
-revision: 11
+revision: 12
 ---
 ## Context
 
@@ -46,3 +46,7 @@ Derived 2026-09-25 by `story-scoper` (wave p1-15). Confidence: high for store, p
 - `crates/ekr-store/src/preparation.rs:217` `native_expected` matches `Expected` exhaustively; 0.4.0 makes it `#[non_exhaustive]` with `Merge` — inferred, not built
 - benchmark home unset (`crates/ekr-kernel/tests` guessed) — inferred
 - not addressed by `read_many`: `history_at`/`replay` read the revision stream one event per call (`read_until` limit 1)
+
+## Coordinator decision: the bench bound
+
+Decided 2026-09-25 by the coordinator after adversary pass 1 (`review-result:p1-15-eventlog-adversary-r1`): the acceptance "file-provider propose at revision 40 is at most 3 times revision 1" is unreachable on a quiet machine, because each command still opens the store and verifies its whole log once, a linear cost that dominates when the fixed cost is small (quiet run: 42 → 277 ms). What the story fixes is the quadratic term. The acceptance becomes: a history load costs a constant number of provider calls (held by a unit test), and the bench asserts linear growth: the revision 20 → 40 increase is at most twice the revision 1 → 20 increase, on both providers. The per-open verification is eventlog's (`story:incremental-history-digest-for-a-resumed-handle`, draft).
