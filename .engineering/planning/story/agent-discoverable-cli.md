@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:agent-discoverable-cli
 kind: story
-status: active
+status: implemented
 title: The ekr binary is usable and discoverable by an agent through the CLI alone
 relations:
 - decomposes: epic:p4-operator-surface
@@ -18,7 +18,7 @@ scope:
   path: crates/ekr/tests
 - confidence: cited
   path: crates/ekr/tests/agent_cli.rs
-revision: 8
+revision: 9
 ---
 ## Context
 
