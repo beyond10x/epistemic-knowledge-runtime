@@ -617,6 +617,117 @@ fn a_yaml_tag_is_spelled_as_a_one_key_object_the_readers_do_not_accept() {
     );
 }
 
+/// A document with one `CreateNode` whose single property value is `value` (already YAML).
+fn node_with_value(value: &str) -> String {
+    format!(
+        "format: {TRANSACTION}\ntransaction:\n  id: 00000000-0000-4000-8000-000000000601\n  \
+         proposer: 00000000-0000-4000-8000-000000000101\n  operations:\n  - !CreateNode\n    \
+         id: 00000000-0000-4000-8000-000000000304\n    root_id: \
+         00000000-0000-4000-8000-000000000002\n    type_id: \
+         00000000-0000-4000-8000-000000000202\n    canonical_name: Globex\n    properties:\n      \
+         00000000-0000-4000-8000-000000000801:\n      - {value}\n  evidence: []\n"
+    )
+}
+
+/// The gaps each YAML schema's description names that no other case of this file shows are gaps,
+/// each held here as what it says: the named phrase is in the description, and on the named
+/// document the reader and the schema really disagree, in the direction the description says.
+///
+/// * a tag on a scalar (`proposer: !AgentId <id>`): the reader ignores it, the schema refuses the
+///   one-key object it projects to;
+/// * a Float written `.nan` or `.inf`: the reader keeps it, the projection writes `null` and the
+///   schema refuses it;
+/// * a value's `value` before its `value_kind` holding a plain number for a text kind: the reader
+///   refuses it, the schema, which sees no key order, accepts it.
+#[test]
+fn each_gap_the_description_names_is_a_real_disagreement() {
+    let description = schema(TRANSACTION)["description"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let seed = schema(SEED)["description"].as_str().unwrap().to_owned();
+    let validator = validator(TRANSACTION);
+    let example = text(&["example", TRANSACTION]);
+    let operator = "proposer: 00000000-0000-4000-8000-000000000101";
+    let cases = [
+        (
+            "a tag on a scalar",
+            edit(
+                &example,
+                operator,
+                "proposer: !AgentId 00000000-0000-4000-8000-000000000101",
+            ),
+            true,
+        ),
+        (
+            "`.nan` or `.inf`",
+            node_with_value("value_kind: Float\n        value: .nan"),
+            true,
+        ),
+        (
+            "`.nan` or `.inf`",
+            node_with_value("value_kind: Float\n        value: .inf"),
+            true,
+        ),
+        (
+            "before its `value_kind`",
+            node_with_value("value: 12.50\n        value_kind: Decimal"),
+            false,
+        ),
+    ];
+    for (named, document, reader_accepts) in cases {
+        assert!(
+            description.contains(named) && seed.contains(named),
+            "the descriptions do not name {named:?}: {description}"
+        );
+        assert_eq!(
+            read(TRANSACTION, &document).is_ok(),
+            reader_accepts,
+            "{named}: {document}"
+        );
+        assert_eq!(
+            refusals(&validator, TRANSACTION, &document).is_empty(),
+            !reader_accepts,
+            "{named}: the schema agrees with the reader, so this is no gap: {document}"
+        );
+    }
+}
+
+/// The printed schemas are read by agents, not maintainers: no rustdoc path, test path, design
+/// section, decision record or intra-doc link survives into them, and the root and every
+/// top-level field of each format say, in their own words, what they are.
+#[test]
+fn a_printed_schema_carries_agent_facing_descriptions_only() {
+    for (format, _) in FORMATS {
+        let out = text(&["schema", format]);
+        for needle in [
+            "crate::",
+            "tests/",
+            "design §",
+            "architecture-decision-record",
+            "AGENTS.md",
+            "[`",
+            "wave p1",
+        ] {
+            assert!(
+                !out.contains(needle),
+                "{format}: the printed schema carries {needle:?}"
+            );
+        }
+        let printed: Value = serde_json::from_str(&out).unwrap();
+        let mut described = vec![("(root)".to_owned(), printed["description"].clone())];
+        for (field, property) in printed["properties"].as_object().unwrap() {
+            described.push((field.clone(), property["description"].clone()));
+        }
+        for (field, description) in described {
+            assert!(
+                description.as_str().is_some_and(|d| !d.trim().is_empty()),
+                "{format}: {field} has no description"
+            );
+        }
+    }
+}
+
 // 5 --------------------------------------------------------------------------------------------
 
 /// `ekr guide` and `ekr --help` name `ekr schema`, and it needs no store configuration: it exits

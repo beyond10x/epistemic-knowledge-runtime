@@ -86,9 +86,44 @@ impl CliHostConfigurationV1 {
     /// type: what `ekr schema ekr.cli-host/1` prints.
     #[must_use]
     pub fn json_schema_document() -> schemars::Schema {
+        // The derive copies maintainers' rustdoc into descriptions; an agent reads this one.
         let mut schema = schemars::generate::SchemaSettings::draft2020_12()
+            .with_transform(schemars::transform::RecursiveTransform(
+                |schema: &mut schemars::Schema| {
+                    schema.remove("description");
+                },
+            ))
             .into_generator()
             .into_root_schema_for::<Self>();
+        for (field, description) in [
+            ("format", "Exactly `ekr.cli-host/1`."),
+            ("tenant", "The provider namespace the store verbs open."),
+            (
+                "context",
+                "The host's operator (proposes and commits) and its distinct validator.",
+            ),
+            (
+                "authority",
+                "The authority anchor: the registered agents and the P1 validation profile, \
+                 as `ekr example ekr.cli-host/1` prints them.",
+            ),
+        ] {
+            schema
+                .get_mut("properties")
+                .and_then(|properties| properties.get_mut(field))
+                .and_then(serde_json::Value::as_object_mut)
+                .map(|property| property.insert("description".to_owned(), description.into()));
+        }
+        schema
+            .get_mut("$defs")
+            .and_then(|definitions| definitions.get_mut("AgentId"))
+            .and_then(serde_json::Value::as_object_mut)
+            .map(|agent| {
+                agent.insert(
+                    "description".to_owned(),
+                    "An agent id: a UUID in lowercase hyphenated form.".into(),
+                )
+            });
         schema.insert("title".to_owned(), "ekr.cli-host/1".into());
         schema.insert(
             "description".to_owned(),
