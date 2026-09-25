@@ -56,7 +56,7 @@ the flag wins, and an empty variable counts as unset.
 
 The store need not exist before `ekr seed`: the file provider creates the directory and any missing
 parents, the SQLite provider creates the database file but not its directory. `guide`, `operations`,
-`example`, `mint` and `hash` open no store, need none of the settings and ignore the variables.
+`example`, `mint`, `hash` and `schema` open no store, need none of the settings and ignore the variables.
 
 ```console
 export EKR_HOST=host.json EKR_STORE=./store EKR_BACKEND=file
@@ -121,6 +121,7 @@ tag `!Node <id>`. A proposal record's `document_bytes` prints as one standard ba
 | `ekr example` | none | `ekr.transaction-document/1`, `ekr-seed/2` or `ekr.cli-host/1` (aliases `transaction`, `seed`, `host`) | a complete example document |
 | `ekr mint` | none | an id kind | `{"id", "kind"}`: a fresh id |
 | `ekr hash` | none | a payload file, or `-` | the payload's `content_hash` and its `payload_yaml` |
+| `ekr schema` | none | `ekr.transaction-document/1`, `ekr-seed/2` or `ekr.cli-host/1` (aliases `transaction`, `seed`, `host`) | the format's JSON Schema (draft 2020-12) |
 
 Every verb has `--help`.
 
@@ -225,6 +226,15 @@ UUID; any UUID in that form is accepted, and `ekr mint` is the easy way to get a
 Prints the content hash of a payload file (or stdin): `content_hash` is
 sha256(`ekr.payload.v1` || bytes) over the exact bytes, trailing newline included; `payload_yaml`
 is the same bytes as a YAML list of byte values, ready to paste into `evidence_payloads`.
+
+### `ekr schema`
+
+Prints the JSON Schema (draft 2020-12) of one format, generated from the types the reader decodes:
+`ekr schema ekr-seed/2`. Use it to check a document before `ekr seed` or `ekr propose`. The YAML
+formats' schemas validate the document read as YAML and written as JSON, where a tag `!Kind value`
+is the one-key object `{"!Kind": value}`; the readers do not accept that object in place of the tag,
+so write the tag. The schema cannot see a key written twice, a range that ends before it starts, or
+`1.0` where an integer belongs; the reader refuses those.
 
 ## The workflow
 

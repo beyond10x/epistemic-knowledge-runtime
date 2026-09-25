@@ -645,3 +645,63 @@ fn guide_and_help_name_schema_and_it_needs_no_configuration() {
         assert_eq!(output.status.code(), Some(0), "{var}={value:?}");
     }
 }
+
+// 6 --------------------------------------------------------------------------------------------
+
+/// Every fenced ```yaml or ```json block in `docs/cli.md` whose top-level `format` names one of
+/// the three formats is accepted by that format's reader and validates against its printed
+/// schema; the page carries at least one such block, so a missing or renamed page is red.
+#[test]
+fn every_document_block_in_the_cli_docs_validates_against_its_printed_schema() {
+    let page = std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .join("../../docs/cli.md");
+    let page = std::fs::read_to_string(&page)
+        .unwrap_or_else(|e| panic!("reading {}: {e}", page.display()));
+    let validators: Vec<(&str, jsonschema::Validator)> = FORMATS
+        .iter()
+        .map(|(format, _)| (*format, validator(format)))
+        .collect();
+    let mut checked = 0;
+    let mut block: Option<String> = None;
+    for line in page.lines() {
+        match (&mut block, line.trim_start()) {
+            (None, fence) if fence.starts_with("```yaml") || fence.starts_with("```json") => {
+                block = Some(String::new());
+            }
+            (Some(_), "```") => {
+                let document = block.take().unwrap();
+                let Ok(parsed) = serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&document) else {
+                    continue;
+                };
+                let Some(format) = parsed.get("format").and_then(|f| f.as_str()) else {
+                    continue;
+                };
+                let Some((format, validator)) = validators.iter().find(|(f, _)| *f == format)
+                else {
+                    continue;
+                };
+                read(format, &document).unwrap_or_else(|e| {
+                    panic!("docs/cli.md: the {format} reader refuses {document}: {e}")
+                });
+                let refused = refusals(validator, format, &document);
+                assert!(
+                    refused.is_empty(),
+                    "docs/cli.md: the {format} schema refuses {document}:\n{}",
+                    refused.join("\n")
+                );
+                checked += 1;
+            }
+            (Some(text), _) => {
+                text.push_str(line);
+                text.push('\n');
+            }
+            (None, _) => {}
+        }
+    }
+    assert!(
+        checked > 0,
+        "docs/cli.md carries no document block of the three formats"
+    );
+}
