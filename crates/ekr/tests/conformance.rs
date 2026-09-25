@@ -326,26 +326,44 @@ fn every_ess_pin_site_names_one_release() {
 }
 
 /// The shell guard a Taskfile task declares as a precondition naming `ess --version`.
+///
+/// Only a `sh:` that go-task reads as a precondition counts: the first key of a list item sitting
+/// directly under the task's own `preconditions:` key, inside the top-level `tasks:` map. A `- sh:`
+/// filed under any other key (a misspelled `precondition:`, `cmds:`, `deps:`) is not a guard, and
+/// task runs the commands without it (adversary pass 1 on p1-15-ess, finding 1).
 fn taskfile_guard(task: &str) -> String {
     let taskfile = read("Taskfile.yml");
     let header = format!("  {task}:");
     let body: Vec<&str> = taskfile
         .lines()
+        .skip_while(|line| *line != "tasks:")
+        .skip(1)
+        .take_while(|line| line.is_empty() || line.starts_with(' '))
         .skip_while(|line| *line != header)
         .skip(1)
         .take_while(|line| line.is_empty() || line.starts_with("   "))
         .collect();
-    assert!(!body.is_empty(), "Taskfile.yml has no task {task}");
-    let guards: Vec<String> = body
+    assert!(
+        !body.is_empty(),
+        "Taskfile.yml has no task {task} under tasks:"
+    );
+    let preconditions: Vec<&str> = body
         .iter()
-        .filter_map(|line| line.trim_start().strip_prefix("- sh: "))
+        .skip_while(|line| **line != "    preconditions:")
+        .skip(1)
+        .take_while(|line| line.is_empty() || line.starts_with("     "))
+        .copied()
+        .collect();
+    let guards: Vec<String> = preconditions
+        .iter()
+        .filter_map(|line| line.strip_prefix("      - sh: "))
         .filter(|sh| sh.contains("ess --version"))
         .map(str::to_owned)
         .collect();
     assert_eq!(
         guards.len(),
         1,
-        "{task} declares one `ess --version` precondition: {body:#?}"
+        "{task} declares one `ess --version` guard under its `preconditions:` key: {body:#?}"
     );
     guards.into_iter().next().expect("one guard")
 }
@@ -372,7 +390,8 @@ fn guard_admits(guard: &str, reported: &str) -> bool {
         .success()
 }
 
-/// `spec-check` and `conform-check` refuse an `ess` that is not the pinned release, and admit it.
+/// `spec-check` and `conform-check` refuse an `ess` whose `--version` is not `ess ESS_VERSION`, and
+/// admit one whose `--version` is. The guard reads the version string only, not the build's commit.
 #[cfg(unix)]
 #[test]
 fn spec_and_conform_checks_refuse_an_ess_that_is_not_the_pinned_release() {
