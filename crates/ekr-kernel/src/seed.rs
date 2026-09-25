@@ -82,6 +82,33 @@ fn invalid<T>(code: &str) -> Result<T, SeedError> {
     Err(SeedError::Invalid(code.to_owned()))
 }
 
+/// `seed-evidence-payload-missing`, naming the entry's `content_hash`, every `evidence_payloads`
+/// key no evidence entry names — where a half-applied correction left the payload — and the rule
+/// that the two are one value.
+fn payload_missing<T>(
+    evidence: &ekr_graph::Evidence,
+    entries: &BTreeMap<ekr_core::EvidenceId, ekr_graph::Evidence>,
+    payloads: &BTreeMap<ContentHash, Vec<u8>>,
+) -> Result<T, SeedError> {
+    let named: BTreeSet<ContentHash> = entries.values().map(|e| e.content_hash).collect();
+    let unnamed: Vec<String> = payloads
+        .keys()
+        .filter(|key| !named.contains(key))
+        .map(ToString::to_string)
+        .collect();
+    let unnamed = if unnamed.is_empty() {
+        "none".to_owned()
+    } else {
+        unnamed.join(", ")
+    };
+    Err(SeedError::Invalid(format!(
+        "seed-evidence-payload-missing: evidence {} has content_hash {}, which is not a key of \
+         evidence_payloads; an evidence entry's content_hash and its evidence_payloads key must \
+         be the same value (`ekr hash` of the payload); keys no evidence entry names: {unnamed}",
+        evidence.id, evidence.content_hash
+    )))
+}
+
 /// `seed-evidence-payload-mismatch`, naming the content hash the payload's bytes have (expected)
 /// and the one the seed wrote for them (found), so the author can correct the entry.
 fn payload_mismatch<T>(expected: ContentHash, found: ContentHash) -> Result<T, SeedError> {
@@ -201,7 +228,7 @@ pub(crate) fn admitted_graph(
             return invalid("seed-attribution-mismatch");
         }
         let Some(payload) = input.evidence_payloads.get(&evidence.content_hash) else {
-            return invalid("seed-evidence-payload-missing");
+            return payload_missing(evidence, &document.evidence, &input.evidence_payloads);
         };
         let expected = ContentHash::of_bytes(payload);
         if expected != evidence.content_hash {

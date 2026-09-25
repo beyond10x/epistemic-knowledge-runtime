@@ -581,6 +581,33 @@ fn a_payload_mismatch_names_the_expected_and_the_found_content_hash() {
     }
 }
 
+/// Correction round 1 (p1-15): `seed-evidence-payload-missing` names the evidence entry's
+/// `content_hash`, the `evidence_payloads` keys no entry names, and that the entry's hash and its
+/// key must be the same value. The code string is unchanged.
+///
+/// After the fix: on both providers, a payload filed under another key than its entry's hash is
+/// refused with the code, `has content_hash <entry's>`, `keys no evidence entry names: <key>`
+/// and "must be the same value"; with no payloads at all the key list reads `none`.
+#[test]
+fn a_missing_payload_names_the_entry_hash_and_the_keys_no_entry_names() {
+    let f = Fixture::new();
+    let mut misfiled = f.document();
+    let (entry, payload) = misfiled.evidence_payloads.pop_first().unwrap();
+    let key = ContentHash::of_bytes(b"another payload");
+    misfiled.evidence_payloads.insert(key, payload);
+    for needle in [
+        "seed-evidence-payload-missing: ".to_owned(),
+        format!("has content_hash {entry}"),
+        format!("keys no evidence entry names: {key}"),
+        "must be the same value".to_owned(),
+    ] {
+        refuses(&f, &misfiled, &needle);
+    }
+    let mut none = f.document();
+    none.evidence_payloads.clear();
+    refuses(&f, &none, "keys no evidence entry names: none");
+}
+
 #[test]
 fn actual_bootstrap_identities_refuse_self_validation_and_false_attribution() {
     let mut f = Fixture::new();

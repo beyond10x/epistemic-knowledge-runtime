@@ -1349,8 +1349,9 @@ fn an_assertion_stating_its_own_verdict_is_recorded_then_rejected_as_the_guide_s
 /// The algorithm `ekr hash` states; `ContentHash::of_bytes` (`crates/ekr-core/src/hash.rs`).
 const PAYLOAD_ALGORITHM: &str = "sha256(\"ekr.payload.v1\" || bytes)";
 
-/// `ekr hash <path>`, holding the printed document to exactly its three fields.
-fn hashed(path: &str) -> String {
+/// `ekr hash <path>`'s document, held to exactly its four fields: `payload_yaml` is one string,
+/// the file's bytes as the flow sequence `evidence_payloads` takes.
+fn hash_document(path: &str) -> Value {
     let printed = json(&["hash", path]);
     let keys: BTreeSet<&str> = printed
         .as_object()
@@ -1360,9 +1361,17 @@ fn hashed(path: &str) -> String {
         .collect();
     assert_eq!(
         keys,
-        BTreeSet::from(["algorithm", "byte_len", "content_hash"]),
+        BTreeSet::from(["algorithm", "byte_len", "content_hash", "payload_yaml"]),
         "{printed}"
     );
+    let bytes = std::fs::read(path).unwrap();
+    assert_eq!(printed["payload_yaml"], byte_list(&bytes), "{printed}");
+    printed
+}
+
+/// `ekr hash <path>`'s `content_hash`, after [`hash_document`]'s checks.
+fn hashed(path: &str) -> String {
+    let printed = hash_document(path);
     assert_eq!(printed["algorithm"], PAYLOAD_ALGORITHM, "{printed}");
     let hash = printed["content_hash"].as_str().unwrap().to_owned();
     assert_eq!(hash.len(), 64, "{printed}");
@@ -1431,6 +1440,7 @@ fn hash_prints_the_content_hash_the_seed_expects_for_a_file_or_stdin() {
         let from_stdin: Value = serde_json::from_slice(&from_stdin.stdout).unwrap();
         assert_eq!(from_stdin["content_hash"], from_file.as_str());
         assert_eq!(from_stdin["byte_len"], payload.len());
+        assert_eq!(from_stdin["payload_yaml"], byte_list(payload.as_bytes()));
     }
     let missing = run(&["hash", "no-such-payload"]);
     assert_ne!(missing.status.code(), Some(0));
@@ -1454,6 +1464,12 @@ fn guide_says_how_to_add_evidence_to_a_seed() {
         "the payload's bytes as a list of byte values",
         PAYLOAD_ALGORITHM,
         "guide, operations, example, mint and hash need none of them",
+        // Correction round 1 (p1-15): paste payload_yaml; both refusals, each as it is raised.
+        "paste the printed `payload_yaml` as its value",
+        "An entry whose `content_hash` is not a key of `evidence_payloads` is refused as \
+         seed-evidence-payload-missing, naming that hash and the keys no entry names",
+        "A payload whose bytes do not hash to its key is refused as \
+         seed-evidence-payload-mismatch, naming the expected and the found hash",
     ] {
         assert!(
             prose.contains(sentence),
@@ -1480,6 +1496,8 @@ fn a_new_evidence_entry_hashed_by_ekr_hash_seeds_and_a_committed_assertion_cites
         let world = World::new(backend);
         let payload = world.file("payload.txt", statement);
         let content_hash = hashed(&payload);
+        let printed_hash = json(&["hash", &payload]);
+        let payload_yaml = printed_hash["payload_yaml"].as_str().unwrap();
         let evidence = minted("evidence");
         let printed = text(&["example", "ekr-seed/2"]);
         assert_eq!(printed.matches("\n    evidence:\n").count(), 1);
@@ -1488,10 +1506,8 @@ fn a_new_evidence_entry_hashed_by_ekr_hash_seeds_and_a_committed_assertion_cites
         );
         let mut seed = printed.replace("\n    evidence:\n", &entry);
         assert!(seed.ends_with('\n'));
-        seed.push_str(&format!(
-            "  {content_hash}: {}\n",
-            byte_list(statement.as_bytes())
-        ));
+        // Pasted exactly as `ekr hash` printed it, not rebuilt by the test.
+        seed.push_str(&format!("  {content_hash}: {payload_yaml}\n"));
         let seed = world.file("seed.yaml", &seed);
         let seeded = world.ok(&["seed", &seed]);
         assert_eq!(seeded["result"]["revision"], 0, "{backend}: {seeded}");
@@ -1569,4 +1585,114 @@ fn a_payload_mismatch_names_the_hash_ekr_hash_prints_and_the_one_written() {
         }
         assert_eq!(world.run(&["head"]).status.code(), Some(1), "{backend}");
     }
+}
+
+/// Correction round 1 (p1-15), the adversary's finding: a half-applied correction — the hash
+/// changed in the entry's `content_hash` or in the `evidence_payloads` key, not both — leaves an
+/// entry whose hash is no key. That is `seed-evidence-payload-missing`, and its reason names the
+/// entry's hash, the key no entry names, and that the two must be the same value.
+///
+/// After the fix: for either half on both providers, `ekr seed` exits 2 and stderr names
+/// `seed-evidence-payload-missing`, both hashes and "must be the same value"; nothing is seeded.
+#[test]
+fn a_half_applied_hash_correction_is_refused_naming_both_hashes() {
+    let alice = "2f954f8f77731e11a4dca21e0bb6c566f719aae4116838f3095f60649e5429db";
+    let printed = text(&["example", "ekr-seed/2"]);
+    let entry_line = format!("content_hash: {alice}");
+    let key_line = format!("\n  {alice}: ");
+    assert_eq!(printed.matches(&entry_line).count(), 1);
+    assert_eq!(printed.matches(&key_line).count(), 1);
+    for backend in BACKENDS {
+        let world = World::new(backend);
+        let other = hashed(&world.file("other.txt", "Alice is CEO of Acme.\n"));
+        for (half, seed, entry, key) in [
+            (
+                "entry",
+                printed.replace(&entry_line, &format!("content_hash: {other}")),
+                other.as_str(),
+                alice,
+            ),
+            (
+                "key",
+                printed.replace(&key_line, &format!("\n  {other}: ")),
+                alice,
+                other.as_str(),
+            ),
+        ] {
+            let path = world.file(&format!("{half}.yaml"), &seed);
+            let output = world.run(&["seed", &path]);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert_eq!(output.status.code(), Some(2), "{backend} {half}: {stderr}");
+            assert!(output.stdout.is_empty());
+            for needle in [
+                "ekr.kernel.InvalidSeed: seed-evidence-payload-missing:".to_owned(),
+                format!("content_hash {entry}"),
+                format!("keys no evidence entry names: {key}"),
+                "must be the same value".to_owned(),
+            ] {
+                assert!(
+                    stderr.contains(&needle),
+                    "{backend} {half}: no {needle:?} in {stderr}"
+                );
+            }
+            assert_eq!(world.run(&["head"]).status.code(), Some(1), "{backend}");
+        }
+    }
+}
+
+/// Correction round 1 (p1-15), trial friction 4: CONFIGURATION says what `--store` must be
+/// before `ekr seed`, per provider.
+///
+/// After the fix: the guide says it; the file provider creates a store directory whose parents
+/// do not exist either; the sqlite provider creates its database file in an existing directory
+/// and exits 1, creating nothing, when that directory is missing.
+#[test]
+fn seed_creates_the_store_as_the_guide_says() {
+    let prose = guide_prose();
+    for sentence in [
+        "--store need not exist: `ekr seed` creates it.",
+        "The file provider creates the directory and any missing parents;",
+        "the sqlite provider creates the database file, but its directory must already exist \
+         (exit 1 otherwise).",
+    ] {
+        assert!(
+            prose.contains(sentence),
+            "guide lacks {sentence:?}: {prose}"
+        );
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let host = directory.path().join("host.json");
+    std::fs::write(&host, text(&["example", "ekr.cli-host/1"])).unwrap();
+    let seed = directory.path().join("seed.yaml");
+    std::fs::write(&seed, text(&["example", "ekr-seed/2"])).unwrap();
+    let seed_into = |backend: &str, store: &std::path::Path| {
+        ekr()
+            .arg("--host")
+            .arg(&host)
+            .arg("--store")
+            .arg(store)
+            .args(["--backend", backend, "seed"])
+            .arg(&seed)
+            .output()
+            .unwrap()
+    };
+    let nested = directory
+        .path()
+        .join("absent")
+        .join("parents")
+        .join("store");
+    let output = seed_into("file", &nested);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(nested.is_dir());
+
+    let database = directory.path().join("state.db");
+    let output = seed_into("sqlite", &database);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert!(database.is_file());
+
+    let orphan = directory.path().join("no-such-directory").join("state.db");
+    let output = seed_into("sqlite", &orphan);
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(output.stdout.is_empty());
+    assert!(!orphan.parent().unwrap().exists());
 }

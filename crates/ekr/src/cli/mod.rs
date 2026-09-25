@@ -160,7 +160,8 @@ pub enum Command {
     /// entry and the key of its `evidence_payloads` entry.
     ///
     /// The hash is sha256("ekr.payload.v1" || bytes), over the bytes exactly as given (a trailing
-    /// newline counts). Needs no store configuration.
+    /// newline counts); `payload_yaml` is the `evidence_payloads` value to paste. Needs no store
+    /// configuration.
     #[command(after_help = SEE)]
     Hash {
         /// The payload file, or `-` for stdin.
