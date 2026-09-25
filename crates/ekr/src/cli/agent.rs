@@ -25,7 +25,8 @@ CONFIGURATION (every store verb)
   --store <dir | sqlite file>    or EKR_STORE
   --backend <file | sqlite>      or EKR_BACKEND
   A flag wins over its variable; an empty variable counts as unset. guide, operations,
-  example, mint and hash need none of them and ignore the variables.
+  example, mint and hash need none of them and ignore the variables. So does
+  schema.
   --store need not exist: `ekr seed` creates it. The file provider creates the directory and
   any missing parents; the sqlite provider creates the database file, but its directory must
   already exist (exit 1 otherwise).
@@ -41,6 +42,8 @@ WORKFLOW
   5. ekr operations                                the operation kinds, one line each
      ekr operations <Kind>                         its fields and an example operation
      ekr example ekr.transaction-document/1        a complete transaction document
+     ekr schema <format>                           a format's JSON Schema (draft 2020-12), to check
+                                                   a document before propose or seed
   6. ekr propose doc.yaml                          -> transaction_id (state Proposed)
   7. ekr validate <transaction_id>                 against the head (`ekr head`), or --against N
   8. ekr commit <transaction_id>                   -> a new revision

@@ -26,6 +26,7 @@ use serde::{Deserialize, Serialize};
 #[derive(
     Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Cardinality {
     /// At most one value.
     #[default]
@@ -120,6 +121,7 @@ impl fmt::Display for ValueKind {
 /// field names differ from this strict tagged codec; neither loses nested List or Record
 /// parameters. Canonical encoding includes every recursive parameter.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(tag = "value_kind", content = "parameters", deny_unknown_fields)]
 pub enum ValueType {
     /// Text.
@@ -181,6 +183,7 @@ impl ValueType {
 /// Serialised the same way its type is, with `value_kind` as the discriminant, so that a value and
 /// the type it claims to satisfy are read the same way by anything that reads both.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(tag = "value_kind", content = "value", deny_unknown_fields)]
 pub enum Value {
     /// Text.

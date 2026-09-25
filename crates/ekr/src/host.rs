@@ -37,7 +37,8 @@ impl<'de> Deserialize<'de> for CliHostFormatV1 {
 ///
 /// Successful decoding does not establish that the authority profile is supported or that its
 /// registered agents and retained anchor agree. Those semantic checks belong to the kernel.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, schemars::JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct CliHostConfigurationV1 {
     /// Exactly `ekr.cli-host/1`.
     pub format: CliHostFormatV1,
@@ -70,7 +71,35 @@ impl<'de> Deserialize<'de> for CliHostConfigurationV1 {
     }
 }
 
+impl schemars::JsonSchema for CliHostFormatV1 {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "CliHostFormatV1".into()
+    }
+
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({ "const": "ekr.cli-host/1" })
+    }
+}
+
 impl CliHostConfigurationV1 {
+    /// The JSON Schema (draft 2020-12) of an `ekr.cli-host/1` document, generated from this
+    /// type: what `ekr schema ekr.cli-host/1` prints.
+    #[must_use]
+    pub fn json_schema_document() -> schemars::Schema {
+        let mut schema = schemars::generate::SchemaSettings::draft2020_12()
+            .into_generator()
+            .into_root_schema_for::<Self>();
+        schema.insert("title".to_owned(), "ekr.cli-host/1".into());
+        schema.insert(
+            "description".to_owned(),
+            "The trusted host document for --host or EKR_HOST: the provider namespace, the \
+             operator and validator, and the authority anchor (`ekr example ekr.cli-host/1`). \
+             Beyond the schema, the reader also refuses a key written twice."
+                .into(),
+        );
+        schema
+    }
+
     /// Decode one complete UTF-8 JSON host document, allowing surrounding JSON whitespace.
     ///
     /// Decodes the original input directly into typed carriers, preserving duplicate detection.

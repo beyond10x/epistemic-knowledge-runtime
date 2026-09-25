@@ -109,6 +109,8 @@ mod read;
 pub mod records;
 mod replay;
 pub mod runtime;
+#[cfg(feature = "schema")]
+pub mod schema;
 pub mod seed;
 pub mod transaction;
 pub mod validate;

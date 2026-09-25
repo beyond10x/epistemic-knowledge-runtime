@@ -9,6 +9,7 @@ rust-version.workspace = true
 
 [dependencies]
 ekr-core.workspace = true
+schemars = { version = "1.2", optional = true }
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml_ng.workspace = true
@@ -16,6 +17,9 @@ thiserror.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
+
+[features]
+schema = ["dep:schemars", "ekr-core/schema"]
 
 [lints]
 workspace = true

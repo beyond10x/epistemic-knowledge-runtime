@@ -29,6 +29,11 @@ use crate::value::CanonicalValue;
 /// canonical edge into a transient root was a well-formed value of this type until then, which is
 /// the word AGENTS.md invariant 2 excludes.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[cfg_attr(
+    feature = "schema",
+    schemars(bound = "V: schemars::JsonSchema, V::NodeRef: schemars::JsonSchema")
+)]
 #[serde(deny_unknown_fields)]
 pub struct Edge<V: ValueSpace = CanonicalValue> {
     /// The edge's stable id.
@@ -43,6 +48,10 @@ pub struct Edge<V: ValueSpace = CanonicalValue> {
     pub target: V::NodeRef,
     /// Its property values, by the property's id — keyed as [`Node::properties`](crate::Node) is,
     /// and for the same reason.
+    #[cfg_attr(
+        feature = "schema",
+        schemars(with = "BTreeMap<PropertyId, crate::schema::NonEmptyValues<V>>")
+    )]
     #[serde(
         deserialize_with = "crate::node::property_values",
         bound(deserialize = "V: Deserialize<'de>")

@@ -35,12 +35,16 @@ use crate::value::CanonicalValue;
 /// way to give this type `Object`'s shape either — a `V` it never held would be a parameter that is
 /// never used, which does not compile.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Subject<R = CanonicalRef<Node>, E = CanonicalRef<Edge>> {
     /// A node.
+    #[cfg_attr(feature = "schema", schemars(rename = "!Node"))]
     Node(R),
     /// An edge.
+    #[cfg_attr(feature = "schema", schemars(rename = "!Edge"))]
     Edge(E),
     /// A type in the ontology — a schema-level claim shares the provenance model of every other.
+    #[cfg_attr(feature = "schema", schemars(rename = "!Type"))]
     Type(TypeId),
 }
 
@@ -71,10 +75,13 @@ impl<R: Canonical, E: Canonical> Canonical for Subject<R, E> {
 
 /// What is being said about the subject: `ekr.graph.PredicateKind` plus the identity it names.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Predicate {
     /// A declared property of the subject.
+    #[cfg_attr(feature = "schema", schemars(rename = "!Property"))]
     Property(PropertyId),
     /// A relation, named by its edge type.
+    #[cfg_attr(feature = "schema", schemars(rename = "!Relation"))]
     Relation(TypeId),
 }
 
@@ -115,12 +122,16 @@ impl Canonical for Predicate {
 /// [`Assertion`] writes `Object<V, V::NodeRef>` explicitly and was never affected, which is why
 /// nothing else caught it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Object<V: ValueSpace = CanonicalValue, R = <V as ValueSpace>::NodeRef> {
     /// A literal value, typed by the ontology.
+    #[cfg_attr(feature = "schema", schemars(rename = "!Value"))]
     Value(V),
     /// Another node.
+    #[cfg_attr(feature = "schema", schemars(rename = "!Node"))]
     Node(R),
     /// A type in the ontology.
+    #[cfg_attr(feature = "schema", schemars(rename = "!Type"))]
     Type(TypeId),
 }
 
@@ -159,6 +170,7 @@ impl<V: ValueSpace + Canonical, R: Canonical> Canonical for Object<V, R> {
 /// for the one instant the example is named after. Half-open makes consecutive ranges partition
 /// the timeline instead of overlapping at their joins.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(try_from = "TemporalRangeFields")]
 pub struct TemporalRange {
     /// The first instant in the range, or `None` for "as far back as the record goes".
@@ -242,6 +254,7 @@ pub struct InvertedRange {
 /// The wire shape of a [`TemporalRange`], so that serde goes through the same refusal a caller
 /// does. Without it, an inverted range is unconstructible in Rust and arrives from a document.
 #[derive(Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct TemporalRangeFields {
     from: Option<Timestamp>,
@@ -280,6 +293,7 @@ impl TryFrom<TemporalRangeFields> for TemporalRange {
 /// cases written about it. It arrives with design § 47's `QueryScope` in P4, together with the
 /// read that needs it.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(try_from = "TransactionTimeFields")]
 pub struct TransactionTime {
     /// When the runtime began holding the record. Not optional: `ekr.graph.Assertion.recorded_from`
@@ -333,6 +347,7 @@ impl TransactionTime {
 
 /// The wire shape of a [`TransactionTime`], so that serde goes through the same refusal.
 #[derive(Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 struct TransactionTimeFields {
     recorded_from: Timestamp,
@@ -368,6 +383,7 @@ impl Canonical for TransactionTime {
 /// reason at all. So this is the stated reason as text rather than a taxonomy invented here; the
 /// vocabulary arrives with the retraction command, which is P3.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(transparent)]
 pub struct RetractionReason(String);
 
@@ -401,11 +417,13 @@ impl Canonical for RetractionReason {
 /// `tests/adversary_p1_14_exit_compile_fail/a_canonical_dispute_names_its_competitors_by_canonical_reference.rs`
 /// holds it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub enum Assessment<A = CanonicalRef<Assertion>> {
     /// No verdict has been attributed yet.
     Proposed,
     /// Deterministic checks are in progress.
+    #[cfg_attr(feature = "schema", schemars(rename = "!Validating"))]
     Validating {
         /// Finished checks.
         completed: u32,
@@ -413,17 +431,20 @@ pub enum Assessment<A = CanonicalRef<Assertion>> {
         required: u32,
     },
     /// Accepted by these actual validators.
+    #[cfg_attr(feature = "schema", schemars(rename = "!Accepted"))]
     Accepted {
         /// The validating agents, without duplicates.
         #[serde(deserialize_with = "ekr_core::decode::unique_set")]
         validators: BTreeSet<AgentId>,
     },
     /// Refused, retaining the ordered issue identities.
+    #[cfg_attr(feature = "schema", schemars(rename = "!Rejected"))]
     Rejected {
         /// Issues raised by validation.
         issues: Vec<IssueId>,
     },
     /// Competing assertions remain unresolved.
+    #[cfg_attr(feature = "schema", schemars(rename = "!Disputed"))]
     Disputed {
         /// Ordered competing identities.
         competing_assertions: Vec<A>,
@@ -508,11 +529,13 @@ impl<A: Canonical> Canonical for Assessment<A> {
 /// `tests/adversary_p1_14_exit_compile_fail/a_canonical_supersession_names_its_replacement_by_canonical_reference.rs`
 /// holds it.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub enum AssertionLifecycle<A = CanonicalRef<Assertion>> {
     /// Still active in the selected revision.
     Active,
     /// Withdrawn from every valid time beginning with this committed revision.
+    #[cfg_attr(feature = "schema", schemars(rename = "!Retracted"))]
     Retracted {
         /// First revision containing the withdrawal.
         at_revision: RevisionNumber,
@@ -520,6 +543,7 @@ pub enum AssertionLifecycle<A = CanonicalRef<Assertion>> {
         reason: RetractionReason,
     },
     /// Replaced at a valid-time boundary; the earlier interval remains queryable.
+    #[cfg_attr(feature = "schema", schemars(rename = "!Superseded"))]
     Superseded {
         /// The accepted replacing assertion.
         by: A,
@@ -592,6 +616,13 @@ impl<A: Canonical> Canonical for AssertionLifecycle<A> {
 
 /// One claim with independent assessment, lifecycle, provenance and both time dimensions.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[cfg_attr(
+    feature = "schema",
+    schemars(bound = "V: schemars::JsonSchema, V::NodeRef: schemars::JsonSchema, \
+        V::EdgeRef: schemars::JsonSchema, V::EvidenceRef: schemars::JsonSchema, \
+        V::AssertionRef: schemars::JsonSchema")
+)]
 #[serde(deny_unknown_fields)]
 pub struct Assertion<V: ValueSpace = CanonicalValue> {
     /// Stable assertion identity.

@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 /// A registered execution identity; capabilities are retained metadata in P1.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Agent {
     /// Stable identity, equal to its registry key.
@@ -19,6 +20,7 @@ pub struct Agent {
 
 /// The complete fixed profile under which P1 seals and replays decisions.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct ValidationProfileV1 {
     /// Exactly `ekr.p1-validation-profile/1`.
@@ -62,6 +64,7 @@ impl ValidationProfileV1 {
 
 /// Trusted host input, retained completely and compared again on every reopening.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct AuthorityStateV1 {
     /// Exactly `ekr.authority-state/1`.
