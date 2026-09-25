@@ -716,33 +716,288 @@ fn sources(directories: &[&str]) -> String {
     all
 }
 
+/// The `where` cell of a refusal the validators raise as an issue rather than a verb refusing.
+const ISSUE: &str = "validation issue";
+
+/// One row of the page's refusal table: the refusal's name, where it arises and its exit status.
+struct Refusal {
+    name: String,
+    at: String,
+    exit: i32,
+}
+
+fn refusal_table(page: &str) -> Vec<Refusal> {
+    rows(section(page, "## Common refusals"))
+        .into_iter()
+        .map(|cells| {
+            assert_eq!(
+                cells.len(),
+                5,
+                "refusal | where | exit | means | fix: {cells:?}"
+            );
+            let name = code(&cells[0])
+                .unwrap_or_else(|| panic!("a refusal row starts with a code span: {cells:?}"));
+            Refusal {
+                name: name.to_owned(),
+                at: cells[1].clone(),
+                exit: cells[2]
+                    .parse()
+                    .unwrap_or_else(|_| panic!("{name}: exit {:?} is not a number", cells[2])),
+            }
+        })
+        .collect()
+}
+
+/// Whether `source` holds `name` as a whole string literal — `"name"` — or as the literal a
+/// refusal with a detail starts with — `"name: …"`. A truncated or extended name matches neither.
+fn emits(source: &str, name: &str) -> bool {
+    source.contains(&format!("\"{name}\"")) || source.contains(&format!("\"{name}: "))
+}
+
 #[test]
-fn every_refusal_the_page_names_is_one_the_runtime_emits() {
+fn every_refusal_the_page_names_is_a_whole_name_the_runtime_emits() {
     let page = page();
     let source = sources(&[
         "crates/ekr/src",
         "crates/ekr-kernel/src",
         "crates/ekr-ontology/src",
         "crates/ekr-graph/src",
+        "crates/ekr-store/src",
     ]);
-    let table = rows(section(&page, "## Common refusals"));
+    let table = refusal_table(&page);
     assert!(
         table.len() >= 10,
         "the refusal table has {} rows",
         table.len()
     );
-    let mut missing = Vec::new();
-    for cells in &table {
-        let Some(name) = code(&cells[0]) else {
-            panic!("a refusal row starts with a code span: {cells:?}");
+    let missing: Vec<&str> = table
+        .iter()
+        .map(|row| row.name.as_str())
+        .filter(|name| !emits(&source, name))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "docs/cli.md names refusals no runtime source emits as a whole literal: {missing:?}"
+    );
+    for row in &table {
+        assert_eq!(
+            row.at == ISSUE,
+            row.exit == 0,
+            "{}: a validation issue exits 0 and nothing else does",
+            row.name
+        );
+    }
+    // The matcher itself: a prefix of a real code is not a code.
+    assert!(emits(&source, "seed-decode") && !emits(&source, "seed-dec"));
+    assert!(emits(&source, "wrong-type") && !emits(&source, "wrong-typ"));
+}
+
+/// The worked example's files, in one fresh directory, driven on the file provider.
+struct Lab {
+    directory: tempfile::TempDir,
+}
+
+impl Lab {
+    fn new(page: &str) -> Self {
+        let directory = tempfile::tempdir().unwrap();
+        for block in blocks(page) {
+            if let Some(name) = block.attribute("file") {
+                std::fs::write(directory.path().join(name), &block.body).unwrap();
+            }
+        }
+        Self { directory }
+    }
+
+    fn read(&self, name: &str) -> String {
+        std::fs::read_to_string(self.directory.path().join(name)).unwrap()
+    }
+
+    /// Writes `name` as `from` with the first `old` replaced by `new`.
+    fn edit(&self, from: &str, name: &str, old: &str, new: &str) {
+        let body = self.read(from);
+        assert!(body.contains(old), "{from} does not contain {old:?}");
+        std::fs::write(self.directory.path().join(name), body.replacen(old, new, 1)).unwrap();
+    }
+
+    fn run(&self, host: &str, verb: &[&str]) -> Output {
+        let at = self.directory.path();
+        ekr()
+            .current_dir(at)
+            .arg("--host")
+            .arg(at.join(host))
+            .arg("--store")
+            .arg(at.join("store"))
+            .args(["--backend", "file"])
+            .args(verb)
+            .output()
+            .unwrap()
+    }
+
+    fn seeded(page: &str) -> Self {
+        let lab = Self::new(page);
+        let output = lab.run("host.json", &["seed", "seed.yaml"]);
+        assert_eq!(output.status.code(), Some(0), "the worked seed seeds");
+        lab
+    }
+}
+
+const TX_WROTE: &str = "00000000-0000-4000-a000-000000000701";
+const TX_UNKNOWN: &str = "00000000-0000-4000-a000-000000000799";
+
+/// Runs each way the test knows to reach `name` from the worked example, returning the outputs of
+/// the refused commands, or `None` for a refusal it has no trigger for.
+fn trigger(page: &str, name: &str) -> Option<Vec<Output>> {
+    let seed_edit = |old: &str, new: &str| {
+        let lab = Lab::new(page);
+        lab.edit("seed.yaml", "edited.yaml", old, new);
+        vec![lab.run("host.json", &["seed", "edited.yaml"])]
+    };
+    let outputs = match name {
+        "seed-decode" => seed_edit(
+            "    abstract_type: true\n",
+            "    abstract_type: true\n    colour: red\n",
+        ),
+        "seed-ontology" => seed_edit("        to: out_of_print", "        to: pulped"),
+        "seed-ontology-lineage" => seed_edit("    number: 0\n", "    number: 1\n"),
+        "seed-root-lineage" => seed_edit("    revision: 0\n", "    revision: 1\n"),
+        "seed-schema-version" => seed_edit(
+            "schema_version_id: 00000000-0000-4000-a000-000000000001",
+            "schema_version_id: 00000000-0000-4000-a000-000000000009",
+        ),
+        "seed-initial-lifecycle" => seed_edit("type_state: manuscript", "type_state: null"),
+        "seed-attribution-mismatch" => seed_edit(
+            "extracted_by: 00000000-0000-4000-a000-000000000011",
+            "extracted_by: 00000000-0000-4000-a000-000000000012",
+        ),
+        "seed-misfiled-entity" => seed_edit(
+            "      00000000-0000-4000-a000-000000000301:\n",
+            "      00000000-0000-4000-a000-000000000399:\n",
+        ),
+        "seed-misrooted-entity" => seed_edit(
+            "        root_id: 00000000-0000-4000-a000-000000000002",
+            "        root_id: 00000000-0000-4000-a000-000000000009",
+        ),
+        "seed-unsupported-source" => seed_edit(
+            "source: !HumanStatement\n          identity: Library catalogue desk",
+            "source: !Url https://example.org/catalogue",
+        ),
+        "seed-evidence-payload-missing" => seed_edit("content_hash: b40f", "content_hash: 0000"),
+        "seed-evidence-payload-mismatch" => seed_edit(": [84, 104", ": [85, 104"),
+        "ekr.kernel.AlreadySeeded" => {
+            let lab = Lab::seeded(page);
+            lab.edit("seed.yaml", "other.yaml", "value: 212", "value: 213");
+            vec![lab.run("host.json", &["seed", "other.yaml"])]
+        }
+        "seed-authority-profile" => {
+            let lab = Lab::new(page);
+            lab.edit(
+                "host.json",
+                "other.json",
+                "\"ruleset\": \"ekr.p1-deterministic/1\"",
+                "\"ruleset\": \"ekr.p1-other/1\"",
+            );
+            vec![lab.run("other.json", &["seed", "seed.yaml"])]
+        }
+        "bootstrap-authority-mismatch" => {
+            let lab = Lab::seeded(page);
+            lab.edit(
+                "host.json",
+                "other.json",
+                "Catalogue validator",
+                "Catalogue checker",
+            );
+            vec![lab.run("other.json", &["head"])]
+        }
+        "ekr.kernel.ProposalAttribution" => {
+            let lab = Lab::seeded(page);
+            lab.edit(
+                "wrote.yaml",
+                "edited.yaml",
+                "proposer: 00000000-0000-4000-a000-000000000011",
+                "proposer: 00000000-0000-4000-a000-000000000012",
+            );
+            vec![lab.run("host.json", &["propose", "edited.yaml"])]
+        }
+        "ekr.kernel.StructurallyInvalid" => {
+            let lab = Lab::seeded(page);
+            lab.edit(
+                "wrote.yaml",
+                "edited.yaml",
+                "assessment: Proposed",
+                "assessment: Accepted",
+            );
+            vec![lab.run("host.json", &["propose", "edited.yaml"])]
+        }
+        "ekr.kernel.TransactionNotFound" => {
+            let lab = Lab::seeded(page);
+            vec![
+                lab.run("host.json", &["validate", TX_UNKNOWN]),
+                lab.run("host.json", &["commit", TX_UNKNOWN]),
+            ]
+        }
+        "ekr.kernel.TransactionStateConflict" => {
+            let lab = Lab::seeded(page);
+            let proposed = lab.run("host.json", &["propose", "wrote.yaml"]);
+            assert_eq!(proposed.status.code(), Some(0));
+            let committed_early = lab.run("host.json", &["commit", TX_WROTE]);
+            let validated = lab.run("host.json", &["validate", TX_WROTE]);
+            assert_eq!(validated.status.code(), Some(0));
+            vec![
+                committed_early,
+                lab.run("host.json", &["validate", TX_WROTE]),
+            ]
+        }
+        "ekr.kernel.AssertionNotFound" => {
+            let lab = Lab::seeded(page);
+            vec![lab.run(
+                "host.json",
+                &["explain", "00000000-0000-4000-a000-000000000599"],
+            )]
+        }
+        _ => return None,
+    };
+    Some(outputs)
+}
+
+/// Every refusal row that is not a validation issue is reached from the worked example, exits as the
+/// row says and names itself on stderr in the form the page's introduction to the table gives.
+#[test]
+fn every_refusal_outside_validation_exits_and_reads_as_the_page_says() {
+    let page = page();
+    let table = refusal_table(&page);
+    let mut untriggered = Vec::new();
+    for row in table.iter().filter(|row| row.at != ISSUE) {
+        let Some(outputs) = trigger(&page, &row.name) else {
+            untriggered.push(row.name.clone());
+            continue;
         };
-        if !source.contains(&format!("\"{name}")) {
-            missing.push(name.to_owned());
+        for output in outputs {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert_eq!(
+                output.status.code(),
+                Some(row.exit),
+                "{}: the page says exit {}; stderr {stderr}",
+                row.name,
+                row.exit
+            );
+            let form = match (row.exit, row.name.starts_with("ekr.kernel.")) {
+                (2, true) => format!("ekr: {}: ", row.name),
+                (2, false) => format!("ekr: ekr.kernel.InvalidSeed: {}", row.name),
+                (1, _) if row.at == "host" && row.name.starts_with("seed-") => {
+                    format!("ekr: opening the provider: invalid seed: {}", row.name)
+                }
+                _ => format!("ekr: {}", row.name),
+            };
+            assert!(
+                stderr.starts_with(&form),
+                "{}: stderr {stderr:?} does not read {form:?}",
+                row.name
+            );
         }
     }
     assert!(
-        missing.is_empty(),
-        "docs/cli.md names refusals no runtime source emits: {missing:?}"
+        untriggered.is_empty(),
+        "refusal rows this suite does not run, which the page says it runs: {untriggered:?}"
     );
 }
 

@@ -12,8 +12,8 @@ and `ekr example <format>` a complete document of each input format.
 
 `crates/ekr/tests/docs_cli.rs` holds this page to the binary: every seed, transaction and host
 document below is parsed by the real readers, the worked example is seeded and committed on both
-storage providers, and the verb, option, operation-kind, value-kind and refusal tables are compared
-with what the binary and its source actually have.
+storage providers, the verb, option, operation-kind and value-kind tables are compared with what the
+binary has, and the refusal table is checked as [its introduction](#common-refusals) says.
 
 Contents:
 
@@ -78,7 +78,11 @@ not input: keep it next to the store and use the same file for every command aga
 | `authority.agents` | a map from agent id to `{id, name, capabilities}`. The key must equal `id`; both the operator and the validator must be registered. `name` is a label. `capabilities` is a list of distinct strings that P1 records and does not interpret (the example uses `propose`, `read` and `validate`) |
 | `authority.validation_profile` | the deterministic P1 validation profile. Copy it from `ekr example ekr.cli-host/1` unchanged except `validator`, which must equal `context.validator` |
 
-Unknown, missing or duplicated fields are refused. The host's authority is retained with the seed:
+Unknown, missing or duplicated fields are refused. A host document that parses but whose profile or
+agent registry is not the P1 one is refused when the store is opened, by any store verb including
+`ekr seed`: `ekr: opening the provider: invalid seed: seed-authority-profile`, exit 1 (an operator
+equal to the validator reads `…: invalid seed: proposer-is-validator`). The host's authority is
+retained with the seed:
 after `ekr seed`, a host document whose authority differs is refused (`bootstrap-authority-mismatch`,
 exit 1), and one naming another tenant finds no seed (exit 1).
 
@@ -108,7 +112,7 @@ tag `!Node <id>`. A proposal record's `document_bytes` prints as one standard ba
 | `ekr validate` | writes | a transaction id; `--against <revision>` | the validation outcome: `kind` is `Validated` or `Rejected` (with `issues`) |
 | `ekr commit` | writes | a transaction id | the commit outcome: `kind` is `Committed` (with `result.revision`) or `Stale` |
 | `ekr snapshot` | reads | `--at <revision>`, `--valid-at <ms or YYYY-MM-DD>` | the whole graph at one revision |
-| `ekr explain` | reads | an assertion id | the assertion and its proposal, validation, commit and evidence |
+| `ekr explain` | reads | an assertion id | the assertion, where it came from, what later changed it, and its evidence |
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
 | `ekr ontology` | reads | none | node types, edge types and properties with names and ids |
@@ -162,10 +166,21 @@ not.
 
 ### `ekr explain`
 
-Explains one assertion at the head: `links` holds the assertion itself, the proposal that added it,
-its validation, its commit and each evidence entry it cites. Each evidence link adds `payload` (the
-retained bytes, base64) and `text` (the same bytes as a string, when they are UTF-8). An unknown id
-is refused as `ekr.kernel.AssertionNotFound`.
+Explains one assertion at the head. `links` is a list of objects, each with a `kind`:
+
+| `kind` | what it is | when it appears |
+|---|---|---|
+| `Assertion` | an assertion as it stands at the head | first, for the requested assertion; again for each assertion that superseded it, followed by that one's own origin and lifecycle links |
+| `Seed` | the seed the assertion came from | for an assertion written in the seed, in place of `Proposal`, `Validation` and `Commit` |
+| `Proposal` | the retained proposal of the transaction that added it | for an assertion added by a transaction |
+| `Validation` | that transaction's validation | with `Proposal` |
+| `Commit` | that transaction's commit receipt | with `Proposal` |
+| `Lifecycle` | a later committed retraction or supersession of it | once per such change |
+| `Evidence` | an evidence entry cited, with `payload` (the retained bytes, base64) and `text` (the same bytes as a string, when they are UTF-8) | last, once per evidence id cited by an assertion in the chain or listed in the `evidence` of a transaction that added or changed one |
+
+Read links by their `kind` and, for `Assertion` and `Lifecycle`, by the assertion id they carry;
+do not read them by position, because the number and order of links depend on the assertion's
+history. An unknown id is refused as `ekr.kernel.AssertionNotFound`.
 
 ### `ekr head`
 
@@ -276,6 +291,9 @@ is refused as `seed-ontology` with the reason. The rules:
 - a lifecycle names only its own states, and an operation's `transition` is one its type's lifecycle
   declares.
 
+Not checked: that an operation's `name` equals its map key. Keep them equal yourself; `!Invoke` uses
+the key.
+
 ### Node types
 
 | field | type | meaning |
@@ -310,7 +328,7 @@ with the same `value_kind` and a `value`. These are all eleven kinds:
 | `Boolean` | `{value_kind: Boolean}` | `{value_kind: Boolean, value: true}` | |
 | `Integer` | `{value_kind: Integer}` | `{value_kind: Integer, value: 212}` | a signed 64-bit whole number |
 | `Float` | `{value_kind: Float}` | `{value_kind: Float, value: 310.5}` | may be declared, but **no Float value can be committed**: it is refused as `inadmissible-value`, at any depth. Use `Integer` in a fixed unit or `Decimal` |
-| `Decimal` | `{value_kind: Decimal}` | `{value_kind: Decimal, value: "24.90"}` | an exact number held as a string. Quote it |
+| `Decimal` | `{value_kind: Decimal}` | `{value_kind: Decimal, value: "24.90"}` | a number meant to be exact, held as a string. Quote it. P1 does not check that the string is a number: any text is accepted and compared as text, so `"24.90"` and `"24.9"` are different values. Write one canonical form |
 | `Timestamp` | `{value_kind: Timestamp}` | `{value_kind: Timestamp, value: 1554076800000}` | milliseconds since the Unix epoch, UTC |
 | `Duration` | `{value_kind: Duration}` | `{value_kind: Duration, value: 21600000}` | a signed whole number; the runtime does not interpret its unit, so state one (milliseconds is the convention) |
 | `NodeRef` | `{value_kind: NodeRef, parameters: {allowed_types: [<node type id>, ...]}}` | `{value_kind: NodeRef, value: <node id>}` | the node must exist and be of an allowed type or a subtype of one |
@@ -365,7 +383,7 @@ transaction starts in `initial`.
 
 | operation field | meaning |
 |---|---|
-| `name` | the operation's name; equal to its map key. `!Invoke` calls it by this name |
+| `name` | the operation's name. Write it equal to its map key: `!Invoke` finds an operation by its **map key**, never by `name`, and the seed does not check that the two agree, so a `name` that differs from its key is accepted and then cannot be used to invoke anything |
 | `arguments` | map argument name → value type. An invocation must pass every argument, and only these, each of its declared type |
 | `preconditions` | reserved; must be `[]`. An operation with preconditions is refused when invoked (`unsupported-constraint`) |
 | `transition` | `{from, to}` or `null`. Invoking moves the node from `from` to `to`; a node in any other state is refused (`transition-refused`) |
@@ -471,7 +489,7 @@ fixed at seeding.
 | `DeleteEdge` | applied | removes an edge: `!DeleteEdge <edge id>` |
 | `AddAssertion` | applied | adds an assertion that cites evidence ([below](#assertions)) |
 | `RetractAssertion` | applied | withdraws an accepted, active assertion with a reason: `assertion`, `reason`. It is kept, marked retracted |
-| `Invoke` | applied | calls a named operation of the node's type: `node`, `operation`, `arguments` (map name → value) |
+| `Invoke` | applied | calls an operation of the node's type: `node`, `operation` (the operation's key under the type's `operations`, not its `name` field), `arguments` (map name → value) |
 | `SupersedeAssertion` | applied | replaces an accepted assertion from an instant on: `assertion`, `by` (the replacement, which may be added in the same transaction), `effective_from` (the replacement's `valid_time.from`) |
 | `DefineNodeType` | refused | would declare a node type |
 | `DefineEdgeType` | refused | would declare an edge type |
@@ -492,7 +510,7 @@ An assertion is a claim with evidence and a valid time. It is what `snapshot --v
 | `object` | `!Node <node id>`, `!Type <type id>` or `!Value <value>` |
 | `evidence` | a non-empty list of retained evidence ids |
 | `proposed_by` | the host operator |
-| `assessment` | `Proposed`. Committing makes it `Accepted` by the validator; any other value is rejected as `assertion-states-its-own-verdict` |
+| `assessment` | `Proposed`. Committing makes it `Accepted` by the validator. Any other value is refused, in one of two places: a bare word such as `assessment: Accepted` is not a valid assessment at all and `ekr propose` refuses the document as `ekr.kernel.StructurallyInvalid` (exit 2, nothing recorded); a complete other assessment such as `assessment: !Accepted {validators: [<id>]}` is recorded by `propose` and then rejected by `ekr validate` with the issue `assertion-states-its-own-verdict` (exit 0, `kind: Rejected`) |
 | `lifecycle` | `Active` |
 | `valid_time` | `{from: <ms or null>, to: <ms or null>}`: when the claim is true in the world; `null` is unbounded |
 | `transaction_time` | `{recorded_from: 0, recorded_to: null}`; the kernel sets it at commit |
@@ -916,9 +934,10 @@ ekr explain 00000000-0000-4000-a000-000000000501
 ```
 
 The snapshot's `matching_assertions` contains `00000000-0000-4000-a000-000000000501`: the claim is
-believed on 2020-01-01, because its valid time starts on 2019-04-01. `ekr explain` prints five links
-in order — `Assertion` (now `Accepted` by the validator), `Proposal`, `Validation`, `Commit` and
-`Evidence` — and the evidence link's `text` is the statement in `wrote.txt`.
+believed on 2020-01-01, because its valid time starts on 2019-04-01. For this assertion, which a
+transaction added and nothing has retracted or superseded, `ekr explain` prints five links:
+`Assertion` (now `Accepted` by the validator), `Proposal`, `Validation`, `Commit` and `Evidence`,
+and the evidence link's `text` is the statement in `wrote.txt`.
 
 ### 6. Publish the book and add a translation
 
@@ -1053,45 +1072,61 @@ Because a P1 schema is fixed at seeding, most of the work is in the seed. What h
 
 ## Common refusals
 
-A seed refusal is `ekr.kernel.InvalidSeed: <code>: <detail>` on stderr, exit 2. A validation
-refusal is an issue with this `code` in a `Rejected` outcome, exit 0; a seed runs the same
-validators, so the same codes appear after `ekr.kernel.InvalidSeed:`.
+There are three forms, and the `exit` column says which one each refusal takes:
 
-| refusal | where | what it means | what to fix |
-|---|---|---|---|
-| `seed-decode` | seed | the YAML does not have the expected shape: an unknown or missing field, a wrong type, a duplicate key, an empty property value list | the field and line it names |
-| `seed-ontology` | seed | the ontology does not cohere | the rule it names ([the ontology section](#the-ontology-section)) |
-| `seed-initial-lifecycle` | seed | a node's `type_state` is not its type's `initial` state, or is set for a type without a lifecycle | write `initial`, or `null` |
-| `seed-attribution-mismatch` | seed | an assertion's `proposed_by` or an evidence entry's `extracted_by` is not the host operator | use `context.operator` |
-| `seed-schema-version` | seed | the graph root's `schema_version_id` is not the ontology's `version.id` | make them equal |
-| `seed-misfiled-entity` | seed | a node, edge or assertion is filed under a key that is not its own `id` | make the key equal the id |
-| `seed-misrooted-entity` | seed | an entity's `root_id` is not the graph root's `id` | use the root id |
-| `seed-evidence-payload-missing` | seed | an evidence entry's `content_hash` is not a key of `evidence_payloads` | paste the hash `ekr hash` prints as the key |
-| `seed-evidence-payload-mismatch` | seed | a payload's bytes do not hash to its key | re-run `ekr hash` on the exact bytes |
-| `seed-authority-profile` | host | the host's `validation_profile` or agent registry is not the P1 profile for these agents | copy the profile from the example; set `validator` to `context.validator` |
-| `ekr.kernel.AlreadySeeded` | seed | the store already holds a different seed | use a new store or tenant |
-| `ekr.kernel.ProposalAttribution` | propose | the document's `proposer` is not the host operator | use `context.operator` |
-| `ekr.kernel.StructurallyInvalid` | propose | the transaction document does not parse | the field it names; compare with `ekr operations <Kind>` |
-| `ekr.kernel.TransactionStateConflict` | validate, commit | the transaction is not in the state the verb needs (for example committing a `Rejected` one) | propose a corrected document under a new id |
-| `ekr.kernel.AssertionNotFound` | explain | no assertion has that id at the head | take the id from `ekr snapshot` |
-| `unsupported-operation` | validate | a `DefineNodeType`, `DefineEdgeType`, `ModifyProperty` or `MergeEntity` operation | none in P1: the schema is the seed's |
-| `unknown-type` | validate | a `type_id` or `!Relation` id the ontology does not declare | take ids from `ekr ontology` |
-| `abstract-type` | validate | a node of an abstract type | use a concrete subtype |
-| `undeclared-property` | validate | a property the node's or edge's type (and its parents) does not declare | take property ids from `ekr ontology` |
-| `wrong-type` | validate | a value of the wrong kind, an undeclared `Enum` variant, a `NodeRef` to a disallowed type, a `Record` with missing or extra fields | match the property's `value_type` |
-| `inadmissible-value` | validate | a `Float` value anywhere | use `Integer` or `Decimal` |
-| `missing-required-property` | validate | a required property with no value | supply it |
-| `property-cardinality` | validate | more values than a `cardinality: One` property allows | one value, or a `Many` property |
-| `edge-cardinality` | validate | a second edge of a `cardinality: One` edge type from the same source | delete the old edge first, or use `Many` |
-| `edge-endpoint-type` | validate | an edge's or relation assertion's source or target is not of an allowed type | check the edge type's `source_types` and `target_types` |
-| `unresolved-node` | validate | a node id that does not exist | take ids from `ekr snapshot`, or create the node earlier in the same transaction |
-| `unresolved-evidence` | validate | an assertion cites evidence that is not retained | cite seeded evidence |
-| `evidence-set-mismatch` | validate | `transaction.evidence` is not exactly the evidence the assertions cite | list exactly those ids |
-| `assertion-without-evidence` | validate | an assertion cites no evidence | cite at least one evidence id |
-| `assertion-states-its-own-verdict` | validate | an assertion written with an `assessment` other than `Proposed` | write `assessment: Proposed` |
-| `identity-already-exists` | validate | a create reuses an id that already exists | `ekr mint` a fresh id |
-| `operation-not-declared` | validate | `!Invoke` names an operation the node's type does not declare | check the type's `operations` |
-| `transition-refused` | validate | the node is not in the operation's `from` state | check the node's `type_state` |
-| `missing-argument` | validate | `!Invoke` omits a declared argument | pass every declared argument |
-| `undeclared-argument` | validate | `!Invoke` passes an argument the operation does not declare | remove it |
-| `unsupported-constraint` | validate | the affected type has property `constraints`, or the operation has `preconditions` or `emits` | none in P1: those must be `[]` in the seed |
+- **A named refusal, exit 2.** Nothing was recorded. stderr is `ekr: ekr.kernel.<Name>: <reason>`.
+  A refused seed is `ekr.kernel.InvalidSeed: <code>`, followed by `: <detail>` for most codes.
+- **A fault, exit 1.** stderr is `ekr: <message>`. A host document the kernel does not accept is
+  reported while the provider is opened, as `ekr: opening the provider: invalid seed: <code>`.
+- **A validation issue, exit 0.** `ekr validate` records `"kind": "Rejected"`, and each issue carries
+  the `code`. A seed runs the same validators, so a seed with the same defect is refused as
+  `ekr.kernel.InvalidSeed: <code>: <detail>`, exit 2.
+
+`crates/ekr/tests/docs_cli.rs` triggers every row below that is not a validation issue against the
+worked example's files, and checks the exit status in this table and that stderr names the refusal.
+For the validation-issue rows it checks only that the code is one the runtime's source emits; the
+worked example itself produces `inadmissible-value` and `unsupported-operation`.
+
+| refusal | where | exit | what it means | what to fix |
+|---|---|---|---|---|
+| `seed-decode` | seed | 2 | the YAML does not have the expected shape: an unknown or missing field, a wrong type, a duplicate key, an empty property value list | the field and line it names |
+| `seed-ontology` | seed | 2 | the ontology does not cohere | the rule it names ([the ontology section](#the-ontology-section)) |
+| `seed-ontology-lineage` | seed | 2 | the ontology's `version` is not a first version: `number` is not `0` or `parent` is not `null` | `number: 0`, `parent: null` |
+| `seed-root-lineage` | seed | 2 | the graph is not revision 0: `revision` is not `0` or `root.parent` is not `null` | `revision: 0`, `parent: null` |
+| `seed-schema-version` | seed | 2 | the graph root's `schema_version_id` is not the ontology's `version.id` | make them equal |
+| `seed-initial-lifecycle` | seed | 2 | a node's `type_state` is not its type's `initial` state, or is set for a type without a lifecycle | write `initial`, or `null` |
+| `seed-attribution-mismatch` | seed | 2 | an assertion's `proposed_by` or an evidence entry's `extracted_by` is not the host operator | use `context.operator` |
+| `seed-misfiled-entity` | seed | 2 | a node, edge or assertion is filed under a key that is not its own `id` | make the key equal the id |
+| `seed-misrooted-entity` | seed | 2 | an entity's `root_id` is not the graph root's `id` | use the root id |
+| `seed-unsupported-source` | seed | 2 | an evidence entry's `source` is not `!HumanStatement` | P1 seeds accept only `!HumanStatement` |
+| `seed-evidence-payload-missing` | seed | 2 | an evidence entry's `content_hash` is not a key of `evidence_payloads` | paste the hash `ekr hash` prints as the key |
+| `seed-evidence-payload-mismatch` | seed | 2 | a payload's bytes do not hash to its key | re-run `ekr hash` on the exact bytes |
+| `ekr.kernel.AlreadySeeded` | seed | 2 | the store already holds a different seed | use a new store or tenant |
+| `seed-authority-profile` | host | 1 | the host's `validation_profile` or agent registry is not the P1 profile for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example; set `validator` to `context.validator` |
+| `bootstrap-authority-mismatch` | host | 1 | the store was seeded under a host document whose authority differs from this one | use the host document the store was seeded with |
+| `ekr.kernel.ProposalAttribution` | propose | 2 | the document's `proposer` is not the host operator | use `context.operator` |
+| `ekr.kernel.StructurallyInvalid` | propose | 2 | the transaction document does not parse, for example a bare `assessment: Accepted` | the field it names; compare with `ekr operations <Kind>` |
+| `ekr.kernel.TransactionNotFound` | validate, commit | 2 | no transaction has that id | take the id `ekr propose` printed, or `ekr transactions` |
+| `ekr.kernel.TransactionStateConflict` | validate, commit | 2 | the transaction is not in the state the verb needs: validating one that is already validated, committing one that is only proposed or was rejected | propose a corrected document under a new id |
+| `ekr.kernel.AssertionNotFound` | explain | 2 | no assertion has that id at the head | take the id from `ekr snapshot` |
+| `unsupported-operation` | validation issue | 0 | a `DefineNodeType`, `DefineEdgeType`, `ModifyProperty` or `MergeEntity` operation | none in P1: the schema is the seed's |
+| `unknown-type` | validation issue | 0 | a `type_id` or `!Relation` id the ontology does not declare | take ids from `ekr ontology` |
+| `abstract-type` | validation issue | 0 | a node of an abstract type | use a concrete subtype |
+| `undeclared-property` | validation issue | 0 | a property the node's or edge's type (and its parents) does not declare | take property ids from `ekr ontology` |
+| `wrong-type` | validation issue | 0 | a value of the wrong kind, an undeclared `Enum` variant, a `NodeRef` to a disallowed type, a `Record` with missing or extra fields | match the property's `value_type` |
+| `inadmissible-value` | validation issue | 0 | a `Float` value anywhere | use `Integer` or `Decimal` |
+| `missing-required-property` | validation issue | 0 | a required property with no value | supply it |
+| `property-cardinality` | validation issue | 0 | more values than a `cardinality: One` property allows | one value, or a `Many` property |
+| `edge-cardinality` | validation issue | 0 | a second edge of a `cardinality: One` edge type from the same source | delete the old edge first, or use `Many` |
+| `edge-endpoint-type` | validation issue | 0 | an edge's or relation assertion's source or target is not of an allowed type | check the edge type's `source_types` and `target_types` |
+| `unresolved-node` | validation issue | 0 | a node id that does not exist | take ids from `ekr snapshot`, or create the node earlier in the same transaction |
+| `unresolved-evidence` | validation issue | 0 | an assertion cites evidence that is not retained | cite seeded evidence |
+| `evidence-set-mismatch` | validation issue | 0 | `transaction.evidence` is not exactly the evidence the assertions cite | list exactly those ids |
+| `assertion-without-evidence` | validation issue | 0 | an assertion cites no evidence | cite at least one evidence id |
+| `assertion-states-its-own-verdict` | validation issue | 0 | an assertion written with a complete assessment other than `Proposed`, such as `!Accepted {validators: [...]}` (a bare `Accepted` is refused earlier, as `ekr.kernel.StructurallyInvalid`) | write `assessment: Proposed` |
+| `identity-already-exists` | validation issue | 0 | a create reuses an id that already exists | `ekr mint` a fresh id |
+| `operation-not-declared` | validation issue | 0 | `!Invoke` names no operation **key** of the node's type (an operation's `name` field is not consulted) | use the key under `operations` |
+| `transition-refused` | validation issue | 0 | the node is not in the operation's `from` state | check the node's `type_state` |
+| `missing-argument` | validation issue | 0 | `!Invoke` omits a declared argument | pass every declared argument |
+| `undeclared-argument` | validation issue | 0 | `!Invoke` passes an argument the operation does not declare | remove it |
+| `unsupported-constraint` | validation issue | 0 | the affected type has property `constraints`, or the operation has `preconditions` or `emits` | none in P1: those must be `[]` in the seed |
