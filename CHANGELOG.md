@@ -4,7 +4,40 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.2] — 2026-09-25
+
+The P1 exit: the kernel, ontology, graph and store are complete, conforming and reachable through
+the `ekr` binary. This section also carries the entries written before 0.0.1, which had no section
+of its own.
+
 ### Added
+
+- **ESS conformance.** The kernel's executable specification runs through the real runtime on the
+  file and SQLite providers: 40 of 40 scenarios (36 generated, 4 authored), gated as
+  `task conform-check` (wave p1-14).
+- **P1 exit properties.** No transaction naming an absent node, edge, assertion, evidence or graph
+  root commits (105 generated strata, both providers); replay from the seed reproduces every root
+  of a generated lineage; every canonical reference kind is typed by its target, with a
+  compile-fail case per kind (wave p1-14).
+- `ekr-store` and the kernel `Runtime`: a read-only read of the events the store published.
+- `ekr`: `seed`, `propose`, `validate`, `commit`, `snapshot` and `explain` over both providers, with
+  exit codes 0 (declared outcome), 1 (fault) and 2 (declared refusal) (wave p1-13).
+
+### Changed
+
+- The kernel domain declares the store publications its writing commands emit, and
+  `ekr.kernel.CurrentRevision` no longer declares an order (wave p1-14).
+- `ekr.store.Snapshot` and `ekr.store.SnapshotId` are removed from the store domain; nothing
+  implemented them (wave p1-14).
+
+### Known
+
+- On the file provider every read re-hashes the whole event log, so a command's cost grows with
+  the square of the number of revisions (propose: 344 ms at revision 1, 2,487 ms at revision 40,
+  release build). SQLite grows about linearly. Eventlog 0.4.0 addresses it; adopting it is pending
+  (`task:store-reads-rehash-the-whole-log`).
+
+### Added before 0.0.1
 
 - **Invariants 1 and 2 are now true.** An independent review found both claimed and carried by
   nothing. Only the kernel reaches a writer to canonical state: the binary no longer declares the
