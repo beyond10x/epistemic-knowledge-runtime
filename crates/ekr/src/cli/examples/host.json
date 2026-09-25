@@ -1,0 +1,45 @@
+{
+  "authority": {
+    "agents": {
+      "00000000-0000-4000-8000-000000000101": {
+        "capabilities": [
+          "propose",
+          "read"
+        ],
+        "id": "00000000-0000-4000-8000-000000000101",
+        "name": "Runtime operator"
+      },
+      "00000000-0000-4000-8000-000000000102": {
+        "capabilities": [
+          "validate"
+        ],
+        "id": "00000000-0000-4000-8000-000000000102",
+        "name": "Runtime validator"
+      }
+    },
+    "format": "ekr.authority-state/1",
+    "validation_profile": {
+      "application": "ekr.p1-apply/1",
+      "checks": [
+        "Structural",
+        "Reference",
+        "Type",
+        "Cardinality",
+        "OntologyConstraint",
+        "Provenance",
+        "Authorization"
+      ],
+      "format": "ekr.p1-validation-profile/1",
+      "proposer_separation": "distinct-authenticated-actor/1",
+      "provenance": "retained-admissible-evidence/1",
+      "ruleset": "ekr.p1-deterministic/1",
+      "validator": "00000000-0000-4000-8000-000000000102"
+    }
+  },
+  "context": {
+    "operator": "00000000-0000-4000-8000-000000000101",
+    "validator": "00000000-0000-4000-8000-000000000102"
+  },
+  "format": "ekr.cli-host/1",
+  "tenant": "retraction-example"
+}
