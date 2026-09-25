@@ -61,11 +61,17 @@ tasks:
 
   spec-check:
     desc: the runtime's own ESS contract validates
+    preconditions:
+      - sh: test "$(ess --version)" = "ess 0.32.0"
+        msg: spec-check needs ess 0.32.0 on PATH, the release Cargo.toml and CI pin
     cmds:
       - ess specify validate --path systems/ekr
 
   conform-check:
     desc: the committed ekr-kernel suite is fresh synthesis and both native providers pass it
+    preconditions:
+      - sh: test "$(ess --version)" = "ess 0.32.0"
+        msg: conform-check needs ess 0.32.0 on PATH, the release Cargo.toml and CI pin
     cmds:
       - mkdir -p "${CARGO_TARGET_DIR:-target}/ekr-conformance"
       - ess conform synthesize --path systems/ekr --component ekr-kernel --suite-format 5 --target ir --scenarios crates/ekr/tests/fixtures/conformance/scenarios --out "$(realpath "${CARGO_TARGET_DIR:-target}")/ekr-conformance/fresh-suite.json"
