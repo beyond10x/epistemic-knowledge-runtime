@@ -15,9 +15,13 @@
 //! ```
 //!
 //! Each provider's history is built `ROUNDS` times from nothing. It prints every round and then
-//! the fastest of them per (provider, revision) and command, and asserts the story's bound on that
-//! fastest row: on the file provider, `propose` at revision 40 costs at most three times
-//! `propose` at revision 1. Timings are wall-clock and only ever grow with the machine's load.
+//! the fastest of them per (provider, revision) and command, and asserts on those fastest rows
+//! that growth is linear (the story's coordinator decision on the bench bound): for `propose`,
+//! `validate` and `commit` on both providers, the increase from revision 20 to 40 is at most
+//! twice the increase from revision 1 to 20. Linear cost adds about as much over the second
+//! twenty revisions as over the first nineteen; the quadratic cost this story removed added about
+//! three times as much. `head` is printed but not bounded: at 1–30 ms its steps are within timer
+//! and scheduling noise. Timings are wall-clock and only ever grow with the machine's load.
 use ekr_core::*;
 use ekr_graph::*;
 use ekr_kernel::*;
@@ -204,6 +208,9 @@ fn measure(file: bool) -> Vec<Row> {
     rows
 }
 
+/// One command's cell of a row.
+type Pick = fn(&Row) -> Duration;
+
 /// Independent histories built per provider; each cell reports the fastest of them.
 const ROUNDS: usize = 3;
 
@@ -252,17 +259,37 @@ fn command_cost_against_history_length_on_both_providers() {
         rows.extend(fastest(&rounds));
     }
     print(&format!("fastest of {ROUNDS} rounds"), &rows);
-    let propose = |revision| {
-        rows.iter()
-            .find(|row| row.provider == "file" && row.revision == revision)
-            .unwrap()
-            .propose
-    };
-    let (first, last) = (propose(1), propose(40));
+    let mut quadratic = Vec::new();
+    for provider in ["sqlite", "file"] {
+        let at = |revision| {
+            rows.iter()
+                .find(|row| row.provider == provider && row.revision == revision)
+                .unwrap()
+        };
+        let cells: [(&str, Pick); 3] = [
+            ("propose", |row| row.propose),
+            ("validate", |row| row.validate),
+            ("commit", |row| row.commit),
+        ];
+        for (command, pick) in cells {
+            let [first, middle, last] = MEASURED.map(|revision| pick(at(revision)));
+            let (early, late) = (middle.saturating_sub(first), last.saturating_sub(middle));
+            if late > early * 2 {
+                quadratic.push(format!(
+                    "{provider} {command}: {} -> {} -> {} ms, so revision 20 -> 40 added {} ms, \
+                     more than twice the {} ms revision 1 -> 20 added",
+                    first.as_millis(),
+                    middle.as_millis(),
+                    last.as_millis(),
+                    late.as_millis(),
+                    early.as_millis()
+                ));
+            }
+        }
+    }
     assert!(
-        last <= first * 3,
-        "file-provider propose at revision 40 took {} ms, more than three times revision 1's {} ms",
-        last.as_millis(),
-        first.as_millis()
+        quadratic.is_empty(),
+        "command cost grows faster than linearly in the revisions:\n  {}",
+        quadratic.join("\n  ")
     );
 }

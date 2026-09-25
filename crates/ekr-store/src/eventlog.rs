@@ -307,66 +307,96 @@ impl<S: EventStore> EventlogStore<S> {
         hash: ContentHash,
     ) -> Result<Option<(RetainedObject, u64)>, StoreError> {
         let events = self.read_all(&self.object_stream(hash)?, MAX_READ_LIMIT)?;
-        if events.is_empty() {
+        let Some(meta) = stored_metadata(&events)? else {
             return Ok(None);
-        }
+        };
         let blob = self
             .runtime()
             .block_on(self.store.get_blob(&self.tenant, &hash.to_hex()))?;
-        retained_object(hash, &events, blob)
+        retained_object(hash, &events, meta, blob).map(Some)
     }
-    /// Every object in `hashes`, in their order, read through one provider batch: each object's
-    /// stream and its blob. An absent object is refused in its place in that order. A stream
-    /// longer than one page continues with ordinary reads, which only an object whose retention
-    /// was raised more than a page's worth of times needs.
+    /// Every object in `hashes`, checked in their order as [`Self::object_versioned`] checks one,
+    /// through two provider batches: every object's stream, then the blobs of the objects before
+    /// the first that fails a stream check. An absent object is refused `required-object-missing`
+    /// in its place in that order: every object before it is checked in full first, and no blob at
+    /// or after it is read. A stream longer than one page continues with ordinary reads, which
+    /// only an object whose retention was raised more than a page's worth of times needs.
     ///
-    /// Each object passes [`retained_object`], the function [`Self::object_versioned`] applies to
-    /// the same two reads made separately, so a batched load refuses exactly what a single read
-    /// refuses.
+    /// Each object passes [`StreamRead::absorb`], [`stored_metadata`] and [`retained_object`], the
+    /// functions [`Self::object_versioned`] applies to the same reads made separately, so a
+    /// batched load refuses what the per-object load refused, and first the refusal it met first.
+    /// One ordering differs: a provider failure of the stream batch as a whole comes before any
+    /// blob check, where per-object reads would have met it at the failing stream.
     fn required(&self, hashes: &[ContentHash]) -> Result<Vec<RetainedObject>, StoreError> {
         let streams = hashes
             .iter()
             .map(|hash| self.object_stream(*hash))
             .collect::<Result<Vec<_>, _>>()?;
-        let reads: Vec<Read> = hashes
+        let reads: Vec<Read> = streams
             .iter()
-            .zip(&streams)
-            .flat_map(|(hash, stream)| {
-                [
-                    Read::Stream {
-                        stream: stream.clone(),
-                        after_version: 0,
-                        limit: MAX_READ_LIMIT,
-                    },
-                    Read::Blob {
-                        tenant: self.tenant.clone(),
-                        digest: hash.to_hex(),
-                    },
-                ]
+            .map(|stream| Read::Stream {
+                stream: stream.clone(),
+                after_version: 0,
+                limit: MAX_READ_LIMIT,
             })
             .collect();
-        let results = self.runtime().block_on(self.store.read_many(&reads))?;
-        if results.len() != reads.len() {
+        let slices = self.batch(&reads)?;
+        let mut stored = Vec::with_capacity(hashes.len());
+        let mut refusal = None;
+        for ((hash, stream), slice) in hashes.iter().zip(&streams).zip(slices) {
+            match self.stored_object(stream, slice) {
+                Ok((events, meta)) => stored.push((*hash, events, meta)),
+                Err(error) => {
+                    refusal = Some(error);
+                    break;
+                }
+            }
+        }
+        let mut objects = Vec::with_capacity(stored.len());
+        if !stored.is_empty() {
+            let reads: Vec<Read> = stored
+                .iter()
+                .map(|(hash, _, _)| Read::Blob {
+                    tenant: self.tenant.clone(),
+                    digest: hash.to_hex(),
+                })
+                .collect();
+            for ((hash, events, meta), blob) in stored.into_iter().zip(self.batch(&reads)?) {
+                let ReadResult::Blob(blob) = blob else {
+                    return Err(StoreError::Document("batch-read-disagrees".into()));
+                };
+                objects.push(retained_object(hash, &events, meta, blob)?.0);
+            }
+        }
+        match refusal {
+            Some(error) => Err(error),
+            None => Ok(objects),
+        }
+    }
+    /// One provider batch, answered read for read.
+    fn batch(&self, reads: &[Read]) -> Result<Vec<ReadResult>, StoreError> {
+        let results = self.runtime().block_on(self.store.read_many(reads))?;
+        if results.len() == reads.len() {
+            Ok(results)
+        } else {
+            Err(StoreError::Document("batch-read-disagrees".into()))
+        }
+    }
+    /// A required object's whole stream from its first batched slice, with its stored metadata.
+    fn stored_object(
+        &self,
+        stream: &StreamId,
+        slice: ReadResult,
+    ) -> Result<(Vec<RecordedEvent>, ObjectMetadata), StoreError> {
+        let ReadResult::Stream(slice) = slice else {
             return Err(StoreError::Document("batch-read-disagrees".into()));
-        }
-        let mut results = results.into_iter();
-        let mut objects = Vec::with_capacity(hashes.len());
-        for (hash, stream) in hashes.iter().zip(&streams) {
-            let (Some(ReadResult::Stream(slice)), Some(ReadResult::Blob(blob))) =
-                (results.next(), results.next())
-            else {
-                return Err(StoreError::Document("batch-read-disagrees".into()));
-            };
-            let mut read = StreamRead::new(stream);
-            read.absorb(&self.tenant, slice, &|_| false)?;
-            let events = self.read_rest(read, MAX_READ_LIMIT, |_| false)?;
-            objects.push(
-                retained_object(*hash, &events, blob)?
-                    .ok_or_else(|| StoreError::Document("required-object-missing".into()))?
-                    .0,
-            );
-        }
-        Ok(objects)
+        };
+        let mut read = StreamRead::new(stream);
+        read.absorb(&self.tenant, slice, &|_| false)?;
+        let events = self.read_rest(read, MAX_READ_LIMIT, |_| false)?;
+        let meta = stored_metadata(&events)?
+            .ok_or_else(|| StoreError::Document("required-object-missing".into()))?;
+        Ok((events, meta))
     }
     fn load_object(
         &self,
@@ -820,18 +850,12 @@ impl<'s> StreamRead<'s> {
         Ok(())
     }
 }
-/// One retained object from its whole stream and its blob, however the two were read.
+/// What an object's stream says was stored, checked before its blob is read.
 ///
 /// `None` for an object with no stream. Otherwise the first event must be a current
-/// `ObjectStored` envelope, the blob must be present and hash to the address with the recorded
-/// length, and every later event must be a retention raise that only strengthens the class.
-/// Returns the object at its strongest class and the stream's length.
-fn retained_object(
-    hash: ContentHash,
-    events: &[RecordedEvent],
-    blob: Option<Vec<u8>>,
-) -> Result<Option<(RetainedObject, u64)>, StoreError> {
-    let Some((first, later)) = events.split_first() else {
+/// `ObjectStored` envelope whose payload is the stored metadata.
+fn stored_metadata(events: &[RecordedEvent]) -> Result<Option<ObjectMetadata>, StoreError> {
+    let Some(first) = events.first() else {
         return Ok(None);
     };
     if first.name != OBJECT_STORED || first.schema_version != 2 {
@@ -839,8 +863,23 @@ fn retained_object(
             "unsupported-object-envelope: legacy inline records require migration".into(),
         ));
     }
-    let mut meta: ObjectMetadata = serde_json::from_value(first.data.clone())
-        .map_err(|e| StoreError::Document(e.to_string()))?;
+    serde_json::from_value(first.data.clone())
+        .map(Some)
+        .map_err(|e| StoreError::Document(e.to_string()))
+}
+/// One retained object from its whole stream, the metadata [`stored_metadata`] read from it, and
+/// its blob, however the three were read.
+///
+/// The blob must be present and hash to the address with the recorded length, and every later
+/// event must be a retention raise that only strengthens the class. Returns the object at its
+/// strongest class and the stream's length.
+fn retained_object(
+    hash: ContentHash,
+    events: &[RecordedEvent],
+    mut meta: ObjectMetadata,
+    blob: Option<Vec<u8>>,
+) -> Result<(RetainedObject, u64), StoreError> {
+    let later = events.get(1..).unwrap_or_default();
     let bytes =
         blob.ok_or_else(|| StoreError::Document("object-integrity: native blob missing".into()))?;
     if meta.content_hash != hash
@@ -869,7 +908,7 @@ fn retained_object(
         }
         meta.storage_class = meta.storage_class.strongest(raised.to);
     }
-    Ok(Some((
+    Ok((
         RetainedObject {
             metadata: StoredObject {
                 content_hash: hash,
@@ -880,7 +919,7 @@ fn retained_object(
             bytes,
         },
         events.len() as u64,
-    )))
+    ))
 }
 fn json_error(error: serde_json::Error) -> StoreError {
     StoreError::Document(error.to_string())

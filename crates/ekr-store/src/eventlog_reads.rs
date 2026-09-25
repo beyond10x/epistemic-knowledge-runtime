@@ -5,8 +5,10 @@
 //! reads each object stream and each blob with its own call therefore costs the log's size once
 //! per object, and the objects grow with the revisions. These cases put a counter between the
 //! store and the file provider and assert that loading a history costs the same, small number of
-//! provider calls whatever the history's length: one for the revision stream, one batch for the
-//! objects the occurrences name, and one batch for the objects the authority then requires.
+//! provider calls whatever the history's length: one for the revision stream, then for the
+//! objects the occurrences name and again for the objects the authority requires, one batch of
+//! their streams and one of their blobs. Streams go first so that an absent object is refused
+//! before any blob is read, as the per-object load refused it.
 //!
 //! They live beside the store because the counting provider is injected through the store's
 //! private constructor; no public surface exists to hand the store another provider, and none is
@@ -402,7 +404,7 @@ fn load_cost(proposals: u64) -> (usize, RetainedHistory) {
 }
 
 #[test]
-fn a_history_load_costs_three_provider_calls_whatever_its_length() {
+fn a_history_load_costs_five_provider_calls_whatever_its_length() {
     let mut costs = Vec::new();
     for proposals in [2, 24] {
         let (calls, history) = load_cost(proposals);
@@ -420,10 +422,10 @@ fn a_history_load_costs_three_provider_calls_whatever_its_length() {
         costs.push((proposals, calls));
     }
     assert!(
-        costs.iter().all(|&(_, calls)| calls == 3),
-        "a history load is one revision-stream read, one batch for the objects the occurrences \
-         name and one for the objects the authority requires; (proposals, provider calls) \
-         measured {costs:?}"
+        costs.iter().all(|&(_, calls)| calls == 5),
+        "a history load is one revision-stream read, then a stream batch and a blob batch for the \
+         objects the occurrences name and again for the objects the authority requires; \
+         (proposals, provider calls) measured {costs:?}"
     );
 }
 
@@ -454,6 +456,53 @@ fn a_missing_blob_is_refused_alike_by_the_single_and_the_batched_path() {
         "single-object path: {single}"
     );
     assert_eq!(single, batched, "the two paths refused differently");
+}
+
+/// The refusal a batched load gives is the one the per-object load met first, in address order,
+/// whichever of two faults sorts first: an object whose blob is missing, and an object with no
+/// stream at all. Absent first, the load refuses `required-object-missing` and reads no blob;
+/// blob first, it refuses the blob and the absent object after it is never reached.
+#[test]
+fn of_two_faulty_objects_the_first_in_order_decides_the_refusal() {
+    let directory = tempfile::tempdir().unwrap();
+    let extras = written(directory.path(), 1);
+    let (store, _) = counted(directory.path());
+    let victim = *extras.iter().next().unwrap();
+    store
+        .runtime()
+        .block_on(
+            store
+                .store
+                .inner
+                .delete_blob(&store.tenant, &victim.to_hex()),
+        )
+        .unwrap();
+    let absent = |before: bool| {
+        (0u32..)
+            .map(|n| ContentHash::of_bytes(format!("never stored {n}").as_bytes()))
+            .find(|hash| (*hash < victim) == before)
+            .unwrap()
+    };
+    let refusal = |absent: ContentHash| {
+        store
+            .load_history_requiring(MAX_READ_LIMIT, None, |_| {
+                Ok(BTreeSet::from([victim, absent]))
+            })
+            .unwrap_err()
+            .to_string()
+    };
+    let (earlier, later) = (absent(true), absent(false));
+    assert!(store.object(earlier).unwrap().is_none());
+    assert!(
+        refusal(earlier).contains("required-object-missing"),
+        "absent object first: {}",
+        refusal(earlier)
+    );
+    assert!(
+        refusal(later).contains("object-integrity: native blob missing"),
+        "missing blob first: {}",
+        refusal(later)
+    );
 }
 
 /// Eventlog 0.4.0 adds a merge expectation for forked streams. A publication preparation can
