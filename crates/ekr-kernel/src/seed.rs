@@ -82,6 +82,15 @@ fn invalid<T>(code: &str) -> Result<T, SeedError> {
     Err(SeedError::Invalid(code.to_owned()))
 }
 
+/// `seed-evidence-payload-mismatch`, naming the content hash the payload's bytes have (expected)
+/// and the one the seed wrote for them (found), so the author can correct the entry.
+fn payload_mismatch<T>(expected: ContentHash, found: ContentHash) -> Result<T, SeedError> {
+    Err(SeedError::Invalid(format!(
+        "seed-evidence-payload-mismatch: expected {expected} \
+         (sha256(\"ekr.payload.v1\" || the payload's bytes)), found {found}"
+    )))
+}
+
 pub(crate) fn envelope(bytes: &[u8]) -> Result<SeedEnvelope, StoreError> {
     let shape: serde_json::Value = serde_json::from_slice(bytes)
         .map_err(|error| StoreError::InvalidSeed(format!("seed-decode: {error}")))?;
@@ -194,14 +203,16 @@ pub(crate) fn admitted_graph(
         let Some(payload) = input.evidence_payloads.get(&evidence.content_hash) else {
             return invalid("seed-evidence-payload-missing");
         };
-        if ContentHash::of_bytes(payload) != evidence.content_hash {
-            return invalid("seed-evidence-payload-mismatch");
+        let expected = ContentHash::of_bytes(payload);
+        if expected != evidence.content_hash {
+            return payload_mismatch(expected, evidence.content_hash);
         }
     }
     // An extra map entry is still retained input: verify every content address, cited or not.
     for (hash, payload) in &input.evidence_payloads {
-        if ContentHash::of_bytes(payload) != *hash {
-            return invalid("seed-evidence-payload-mismatch");
+        let expected = ContentHash::of_bytes(payload);
+        if expected != *hash {
+            return payload_mismatch(expected, *hash);
         }
     }
 

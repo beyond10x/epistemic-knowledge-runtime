@@ -544,6 +544,43 @@ fn seed_support_checks_missing_uncited_and_unsupported_evidence() {
     refuses(&f, &dangling, "unresolved-evidence");
 }
 
+/// `story:seed-evidence-content-hash`: `seed-evidence-payload-mismatch` names the content hash
+/// the payload actually has (expected) and the one the seed wrote for it (found), at both sites
+/// that raise it — a cited evidence entry's payload and an uncited `evidence_payloads` entry.
+///
+/// After the fix: on both providers the refusal carries the code, `expected <payload's hash>`
+/// and `found <declared hash>`, and nothing is written.
+#[test]
+fn a_payload_mismatch_names_the_expected_and_the_found_content_hash() {
+    let f = Fixture::new();
+    let mut cited = f.document();
+    let (&found, payload) = cited.evidence_payloads.iter_mut().next().unwrap();
+    payload.push(0);
+    let expected = ContentHash::of_bytes(payload);
+    assert_ne!(expected, found);
+    for needle in [
+        "seed-evidence-payload-mismatch".to_owned(),
+        format!("expected {expected}"),
+        format!("found {found}"),
+    ] {
+        refuses(&f, &cited, &needle);
+    }
+
+    let mut uncited = f.document();
+    let found = ContentHash::of_bytes(b"declared bytes");
+    let expected = ContentHash::of_bytes(b"retained bytes");
+    uncited
+        .evidence_payloads
+        .insert(found, b"retained bytes".to_vec());
+    for needle in [
+        "seed-evidence-payload-mismatch".to_owned(),
+        format!("expected {expected}"),
+        format!("found {found}"),
+    ] {
+        refuses(&f, &uncited, &needle);
+    }
+}
+
 #[test]
 fn actual_bootstrap_identities_refuse_self_validation_and_false_attribution() {
     let mut f = Fixture::new();

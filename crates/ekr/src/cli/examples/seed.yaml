@@ -170,7 +170,8 @@ graph:
         extracted_by: 00000000-0000-4000-8000-000000000101
         observed_at: 1773273600000
         confidence: 10000
-# The retained payload bytes of each evidence content_hash, as UTF-8 byte values.
+# The retained payload bytes of each evidence content_hash, as UTF-8 byte values. For a new
+# payload, `ekr hash <file>` prints the content_hash its evidence entry and its key here carry.
 evidence_payloads:
   # "Alice is CEO of Acme." (evidence 0401)
   2f954f8f77731e11a4dca21e0bb6c566f719aae4116838f3095f60649e5429db: [65, 108, 105, 99, 101, 32, 105, 115, 32, 67, 69, 79, 32, 111, 102, 32, 65, 99, 109, 101, 46]

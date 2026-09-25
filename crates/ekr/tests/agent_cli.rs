@@ -545,6 +545,7 @@ fn a_store_verb_without_its_configuration_is_a_usage_error_naming_flag_and_varia
         &["operations"],
         &["example", "ekr-seed/2"],
         &["mint", "node"],
+        &["hash", "-"],
     ] {
         for (var, value) in [
             ("EKR_BACKEND", "bogus"),
@@ -584,6 +585,7 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         "head",
         "transactions",
         "ontology",
+        "hash",
     ] {
         assert!(
             verbs.iter().any(|v| v == verb),
@@ -632,6 +634,10 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         ("head", &["revision", store]),
         ("transactions", &["Proposed", "Committed", store]),
         ("ontology", &["ekr ontology", store]),
+        (
+            "hash",
+            &["content_hash", "evidence_payloads", "ekr-seed/2", "stdin"],
+        ),
     ];
     let listed: BTreeSet<&str> = verbs.iter().map(String::as_str).collect();
     let rows: BTreeSet<&str> = own.iter().map(|(verb, _)| *verb).collect();
@@ -1335,5 +1341,232 @@ fn an_assertion_stating_its_own_verdict_is_recorded_then_rejected_as_the_guide_s
             issue_codes(&validated).contains("assertion-states-its-own-verdict"),
             "{validated}"
         );
+    }
+}
+
+// story:seed-evidence-content-hash ----------------------------------------------------------
+
+/// The algorithm `ekr hash` states; `ContentHash::of_bytes` (`crates/ekr-core/src/hash.rs`).
+const PAYLOAD_ALGORITHM: &str = "sha256(\"ekr.payload.v1\" || bytes)";
+
+/// `ekr hash <path>`, holding the printed document to exactly its three fields.
+fn hashed(path: &str) -> String {
+    let printed = json(&["hash", path]);
+    let keys: BTreeSet<&str> = printed
+        .as_object()
+        .unwrap_or_else(|| panic!("not an object: {printed}"))
+        .keys()
+        .map(String::as_str)
+        .collect();
+    assert_eq!(
+        keys,
+        BTreeSet::from(["algorithm", "byte_len", "content_hash"]),
+        "{printed}"
+    );
+    assert_eq!(printed["algorithm"], PAYLOAD_ALGORITHM, "{printed}");
+    let hash = printed["content_hash"].as_str().unwrap().to_owned();
+    assert_eq!(hash.len(), 64, "{printed}");
+    assert!(
+        hash.bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
+        "{printed}"
+    );
+    hash
+}
+
+/// A payload as the YAML list of byte values `evidence_payloads` holds.
+fn byte_list(bytes: &[u8]) -> String {
+    let values: Vec<String> = bytes.iter().map(ToString::to_string).collect();
+    format!("[{}]", values.join(", "))
+}
+
+/// `ekr hash` prints, for a file or stdin, the content hash the seed expects: the printed seed's
+/// own `content_hash` for its own payload, and `ContentHash::of_bytes` for any other. It is
+/// config-free.
+///
+/// After the fix: `ekr hash <file>` and `ekr hash -` exit 0 with `{content_hash, byte_len,
+/// algorithm}`, and the hash of "Alice is CEO of Acme." is the one `ekr example ekr-seed/2`
+/// already carries for it.
+#[test]
+fn hash_prints_the_content_hash_the_seed_expects_for_a_file_or_stdin() {
+    let directory = tempfile::tempdir().unwrap();
+    let seed = text(&["example", "ekr-seed/2"]);
+    for (payload, printed_in_seed) in [
+        (
+            "Alice is CEO of Acme.",
+            Some("2f954f8f77731e11a4dca21e0bb6c566f719aae4116838f3095f60649e5429db"),
+        ),
+        (
+            "Bob became CEO of Acme on 2026-03-12.",
+            Some("bd1d4dc9ba5012df5e43505418aa7728c15bca052a1ad43b1a2d00d04b75bdd6"),
+        ),
+        ("", None),
+        ("Carol is CFO of Acme.\n", None),
+    ] {
+        let path = directory.path().join("payload");
+        std::fs::write(&path, payload).unwrap();
+        let path = path.display().to_string();
+        let from_file = hashed(&path);
+        assert_eq!(
+            from_file,
+            ekr_core::ContentHash::of_bytes(payload.as_bytes()).to_hex(),
+            "{payload:?}"
+        );
+        if let Some(expected) = printed_in_seed {
+            assert_eq!(from_file, expected, "{payload:?}");
+            assert!(seed.contains(&format!("content_hash: {expected}")));
+            assert!(seed.contains(&format!("{expected}: {}", byte_list(payload.as_bytes()))));
+        }
+        assert_eq!(
+            json(&["hash", &path])["byte_len"],
+            payload.len(),
+            "{payload:?}"
+        );
+        let from_stdin = ekr()
+            .args(["hash", "-"])
+            .stdin(std::fs::File::open(&path).unwrap())
+            .output()
+            .unwrap();
+        assert_eq!(from_stdin.status.code(), Some(0));
+        let from_stdin: Value = serde_json::from_slice(&from_stdin.stdout).unwrap();
+        assert_eq!(from_stdin["content_hash"], from_file.as_str());
+        assert_eq!(from_stdin["byte_len"], payload.len());
+    }
+    let missing = run(&["hash", "no-such-payload"]);
+    assert_ne!(missing.status.code(), Some(0));
+    assert!(missing.stdout.is_empty());
+}
+
+/// The guide says how a new evidence entry is added to a seed, with `ekr hash`.
+///
+/// After the fix: `ekr guide` has an ADDING EVIDENCE TO A SEED section naming `ekr hash`, the
+/// entry's `content_hash`, the `evidence_payloads` key and the byte-list form of the payload,
+/// and lists `hash` among the verbs that need no configuration.
+#[test]
+fn guide_says_how_to_add_evidence_to_a_seed() {
+    let guide = text(&["guide"]);
+    assert!(guide.contains("ADDING EVIDENCE TO A SEED"), "{guide}");
+    let prose = guide_prose();
+    for sentence in [
+        "ekr hash payload.txt",
+        "`content_hash`",
+        "the key of its `evidence_payloads` entry",
+        "the payload's bytes as a list of byte values",
+        PAYLOAD_ALGORITHM,
+        "guide, operations, example, mint and hash need none of them",
+    ] {
+        assert!(
+            prose.contains(sentence),
+            "guide lacks {sentence:?}: {prose}"
+        );
+    }
+    let example = format!("{} for \"Ali\"", byte_list(b"Ali"));
+    assert!(prose.contains(&example), "guide lacks {example:?}: {prose}");
+    let seed = text(&["example", "ekr-seed/2"]);
+    assert!(seed.contains("`ekr hash <file>`"), "{seed}");
+}
+
+/// An agent holding only the binary adds a new evidence entry to the printed seed, with the hash
+/// `ekr hash` printed, seeds a store, and commits an assertion citing it.
+///
+/// After the fix: on both providers the seed exits 0, the new assertion validates and commits,
+/// and `ekr explain` returns the new payload as the assertion's evidence text.
+#[test]
+fn a_new_evidence_entry_hashed_by_ekr_hash_seeds_and_a_committed_assertion_cites_it() {
+    let host: Value = serde_json::from_str(&text(&["example", "ekr.cli-host/1"])).unwrap();
+    let operator = host["context"]["operator"].as_str().unwrap().to_owned();
+    let statement = "Carol confirmed that Alice is CEO of Acme.";
+    for backend in BACKENDS {
+        let world = World::new(backend);
+        let payload = world.file("payload.txt", statement);
+        let content_hash = hashed(&payload);
+        let evidence = minted("evidence");
+        let printed = text(&["example", "ekr-seed/2"]);
+        assert_eq!(printed.matches("\n    evidence:\n").count(), 1);
+        let entry = format!(
+            "\n    evidence:\n      {evidence}:\n        id: {evidence}\n        source: !HumanStatement\n          identity: Runtime operator\n        content_hash: {content_hash}\n        extracted_by: {operator}\n        observed_at: {MARCH_12}\n        confidence: 10000\n"
+        );
+        let mut seed = printed.replace("\n    evidence:\n", &entry);
+        assert!(seed.ends_with('\n'));
+        seed.push_str(&format!(
+            "  {content_hash}: {}\n",
+            byte_list(statement.as_bytes())
+        ));
+        let seed = world.file("seed.yaml", &seed);
+        let seeded = world.ok(&["seed", &seed]);
+        assert_eq!(seeded["result"]["revision"], 0, "{backend}: {seeded}");
+        let held = &world.ok(&["snapshot"])["graph"]["graph"]["evidence"][&evidence];
+        assert_eq!(held["content_hash"], content_hash.as_str(), "{held}");
+
+        let add = example_operation("AddAssertion");
+        let GraphOperation::AddAssertion(printed_assertion) = parse_one(&add) else {
+            unreachable!()
+        };
+        let assertion = minted("assertion");
+        let cited_before = cited(&add);
+        assert_eq!(cited_before.len(), 1);
+        let add = add
+            .replace(&printed_assertion.id.to_string(), &assertion)
+            .replace(&cited_before[0], &evidence);
+        assert_eq!(cited(&add), std::slice::from_ref(&evidence));
+        let transaction = minted("transaction");
+        let path = world.file(
+            "cite-new-evidence.yaml",
+            &document(&transaction, &operator, &[add], &[evidence.as_str()]),
+        );
+        world.ok(&["propose", &path]);
+        let validated = world.ok(&["validate", &transaction]);
+        assert_eq!(validated["kind"], "Validated", "{backend}: {validated}");
+        assert_eq!(
+            world.ok(&["commit", &transaction])["kind"],
+            "Committed",
+            "{backend}"
+        );
+        let explained = world.ok(&["explain", &assertion]);
+        let texts: Vec<&Value> = explained["links"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|link| link["kind"] == "Evidence")
+            .map(|link| &link["text"])
+            .collect();
+        assert_eq!(texts, [statement], "{backend}: {explained}");
+    }
+}
+
+/// The mistake `ekr hash` exists to prevent: an evidence entry and its `evidence_payloads` key
+/// carry the hash of other bytes (here the payload with a trailing newline). The refusal names
+/// both hashes, and the expected one is what `ekr hash` prints for the retained bytes.
+///
+/// After the fix: `ekr seed` exits 2 and stderr names `ekr.kernel.InvalidSeed`,
+/// `seed-evidence-payload-mismatch`, `expected <ekr hash of the bytes>` and `found <written>`.
+#[test]
+fn a_payload_mismatch_names_the_hash_ekr_hash_prints_and_the_one_written() {
+    let statement = "Alice is CEO of Acme.";
+    for backend in BACKENDS {
+        let world = World::new(backend);
+        let exact = world.file("exact.txt", statement);
+        let with_newline = world.file("newline.txt", &format!("{statement}\n"));
+        let expected = hashed(&exact);
+        let found = hashed(&with_newline);
+        let printed = text(&["example", "ekr-seed/2"]);
+        assert_eq!(printed.matches(&expected).count(), 2);
+        let seed = world.file("seed.yaml", &printed.replace(&expected, &found));
+        let output = world.run(&["seed", &seed]);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(output.status.code(), Some(2), "{backend}: {stderr}");
+        assert!(output.stdout.is_empty());
+        for needle in [
+            "ekr.kernel.InvalidSeed".to_owned(),
+            "seed-evidence-payload-mismatch".to_owned(),
+            format!("expected {expected}"),
+            format!("found {found}"),
+        ] {
+            assert!(
+                stderr.contains(&needle),
+                "{backend}: no {needle:?} in {stderr}"
+            );
+        }
+        assert_eq!(world.run(&["head"]).status.code(), Some(1), "{backend}");
     }
 }

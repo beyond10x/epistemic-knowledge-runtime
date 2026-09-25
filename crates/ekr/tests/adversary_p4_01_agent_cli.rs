@@ -255,7 +255,7 @@ fn every_example_operation_names_only_what_the_printed_seed_holds() {
     );
 }
 
-/// The guide: "guide, operations, example and mint need none of them" (--host, --store,
+/// The guide: "guide, operations, example, mint and hash need none of them" (--host, --store,
 /// --backend). An agent whose environment carries a store configuration it has not finished
 /// writing (an empty EKR_STORE) or a mistyped EKR_BACKEND must still be able to read the guide
 /// and mint ids.
@@ -274,6 +274,7 @@ fn verbs_that_need_no_configuration_ignore_the_configuration_environment() {
             vec!["operations"],
             vec!["example", "ekr-seed/2"],
             vec!["mint", "node"],
+            vec!["hash", "-"],
         ] {
             let output = ekr().env(var, value).args(&verb).output().unwrap();
             if output.status.code() != Some(0) {
