@@ -28,9 +28,9 @@ ekr-ontology = { path = "crates/ekr-ontology" }
 ekr-store = { path = "crates/ekr-store" }
 ess-conformance = { git = "https://github.com/beyond10x/ess", rev = "f4c1bb84298e75650674c028f9995b2324f79c06" }
 ess-primitives = { git = "https://github.com/beyond10x/ess", rev = "f4c1bb84298e75650674c028f9995b2324f79c06" }
-eventlog-core = { git = "https://github.com/beyond10x/eventlog", rev = "28e578568846fc860e44a5f7c76b7e807abddc12" }
-eventlog-file = { git = "https://github.com/beyond10x/eventlog", rev = "28e578568846fc860e44a5f7c76b7e807abddc12" }
-eventlog-sqlite = { git = "https://github.com/beyond10x/eventlog", rev = "28e578568846fc860e44a5f7c76b7e807abddc12" }
+eventlog-core = { git = "https://github.com/beyond10x/eventlog", rev = "70096af8c231fedf6d2206c97ce2940b99aecdb8" }
+eventlog-file = { git = "https://github.com/beyond10x/eventlog", rev = "70096af8c231fedf6d2206c97ce2940b99aecdb8" }
+eventlog-sqlite = { git = "https://github.com/beyond10x/eventlog", rev = "70096af8c231fedf6d2206c97ce2940b99aecdb8" }
 hex = "0.4"
 proptest = "1"
 serde = { version = "1", features = ["derive"] }
