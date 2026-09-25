@@ -37,7 +37,7 @@ through the AEP CLI.
 
 Rust 1.91 is the workspace's declared minimum. Builds and compile-fail checks use
 the pinned Rust 1.98.1 toolchain, Cargo, [`task`](https://taskfile.dev),
-ESS 0.29.0 and AEP 0.57.0. The correctness workflow pins both tools to their
+ESS 0.32.0 and AEP 0.57.0. The correctness workflow pins both tools to their
 reviewed source commits.
 
 ```console

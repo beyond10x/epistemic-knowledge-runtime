@@ -397,8 +397,8 @@ dependencies = [
 
 [[package]]
 name = "ess-compiler"
-version = "0.29.0"
-source = "git+https://github.com/beyond10x/ess?rev=8bef63a21766c54f0d809b4decf1d9f7bd587118#8bef63a21766c54f0d809b4decf1d9f7bd587118"
+version = "0.32.0"
+source = "git+https://github.com/beyond10x/ess?rev=f4c1bb84298e75650674c028f9995b2324f79c06#f4c1bb84298e75650674c028f9995b2324f79c06"
 dependencies = [
  "ess-domain",
  "ess-primitives",
@@ -409,8 +409,8 @@ dependencies = [
 
 [[package]]
 name = "ess-conformance"
-version = "0.29.0"
-source = "git+https://github.com/beyond10x/ess?rev=8bef63a21766c54f0d809b4decf1d9f7bd587118#8bef63a21766c54f0d809b4decf1d9f7bd587118"
+version = "0.32.0"
+source = "git+https://github.com/beyond10x/ess?rev=f4c1bb84298e75650674c028f9995b2324f79c06#f4c1bb84298e75650674c028f9995b2324f79c06"
 dependencies = [
  "ess-compiler",
  "ess-domain",
@@ -424,8 +424,8 @@ dependencies = [
 
 [[package]]
 name = "ess-domain"
-version = "0.29.0"
-source = "git+https://github.com/beyond10x/ess?rev=8bef63a21766c54f0d809b4decf1d9f7bd587118#8bef63a21766c54f0d809b4decf1d9f7bd587118"
+version = "0.32.0"
+source = "git+https://github.com/beyond10x/ess?rev=f4c1bb84298e75650674c028f9995b2324f79c06#f4c1bb84298e75650674c028f9995b2324f79c06"
 dependencies = [
  "ess-primitives",
  "schemars",
@@ -437,8 +437,8 @@ dependencies = [
 
 [[package]]
 name = "ess-gen"
-version = "0.29.0"
-source = "git+https://github.com/beyond10x/ess?rev=8bef63a21766c54f0d809b4decf1d9f7bd587118#8bef63a21766c54f0d809b4decf1d9f7bd587118"
+version = "0.32.0"
+source = "git+https://github.com/beyond10x/ess?rev=f4c1bb84298e75650674c028f9995b2324f79c06#f4c1bb84298e75650674c028f9995b2324f79c06"
 dependencies = [
  "ess-compiler",
  "ess-domain",
@@ -452,12 +452,13 @@ dependencies = [
 
 [[package]]
 name = "ess-primitives"
-version = "0.29.0"
-source = "git+https://github.com/beyond10x/ess?rev=8bef63a21766c54f0d809b4decf1d9f7bd587118#8bef63a21766c54f0d809b4decf1d9f7bd587118"
+version = "0.32.0"
+source = "git+https://github.com/beyond10x/ess?rev=f4c1bb84298e75650674c028f9995b2324f79c06#f4c1bb84298e75650674c028f9995b2324f79c06"
 dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "serde_yaml",
  "thiserror",
 ]
 
