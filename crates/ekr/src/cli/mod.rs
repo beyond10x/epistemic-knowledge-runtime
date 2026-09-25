@@ -3,12 +3,13 @@
 //! Verbs carry the `ekr.kernel` ESS wire names. Each store verb opens the configured provider
 //! through `Runtime::file` or `Runtime::sqlite` under the trusted host document and calls exactly
 //! one kernel handler or read; nothing here applies, validates or persists anything itself. The
-//! agent verbs — `guide`, `operations`, `example`, `mint` — print static, tested text or a fresh id
-//! and open no provider.
+//! agent verbs — `guide`, `operations`, `example`, `mint`, `hash` — print static, tested text, a
+//! fresh id or a payload's content hash, and open no provider.
 
 mod agent;
 mod commit;
 mod explain;
+mod hash;
 mod head;
 mod input;
 mod ontology;
@@ -155,6 +156,17 @@ pub enum Command {
         /// The id kind.
         kind: IdKind,
     },
+    /// Print a payload's content hash as JSON: the `content_hash` of an `ekr-seed/2` evidence
+    /// entry and the key of its `evidence_payloads` entry.
+    ///
+    /// The hash is sha256("ekr.payload.v1" || bytes), over the bytes exactly as given (a trailing
+    /// newline counts); `payload_yaml` is the `evidence_payloads` value to paste. Needs no store
+    /// configuration.
+    #[command(after_help = SEE)]
+    Hash {
+        /// The payload file, or `-` for stdin.
+        payload: PathBuf,
+    },
     /// Print the head revision number and root as JSON.
     ///
     /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST).
@@ -250,6 +262,7 @@ pub fn execute(
         Command::Operations { kind: Some(kind) } => Ok(agent::operation(kind)),
         Command::Example { format } => Ok(agent::example(format).to_owned()),
         Command::Mint { kind } => render(&agent::mint(kind)),
+        Command::Hash { payload } => render(&hash::run(&payload, stdin)?),
         Command::Seed { document } => {
             let store = configured.resolve("seed")?;
             render(&seed::run(&document, stdin, || store.open(), now)?)

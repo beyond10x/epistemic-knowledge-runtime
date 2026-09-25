@@ -25,7 +25,10 @@ CONFIGURATION (every store verb)
   --store <dir | sqlite file>    or EKR_STORE
   --backend <file | sqlite>      or EKR_BACKEND
   A flag wins over its variable; an empty variable counts as unset. guide, operations,
-  example and mint need none of them and ignore the variables.
+  example, mint and hash need none of them and ignore the variables.
+  --store need not exist: `ekr seed` creates it. The file provider creates the directory and
+  any missing parents; the sqlite provider creates the database file, but its directory must
+  already exist (exit 1 otherwise).
 
 WORKFLOW
   1. ekr example ekr.cli-host/1 > host.json       a host document to start from
@@ -84,7 +87,26 @@ WHERE VALUES COME FROM
   times            milliseconds since the Unix epoch (valid_time.from, effective_from);
                    transaction_time.recorded_from is written as 0 and set by the kernel
   evidence         a transaction's `evidence` list is exactly the evidence its assertions cite,
-                   and each must already be retained (seeded)
+                   and each must already be retained (seeded; see ADDING EVIDENCE TO A SEED)
+  content hashes   ekr hash <file | ->
+
+ADDING EVIDENCE TO A SEED
+  In P1 evidence enters only through the seed, before `ekr seed`; a transaction can cite only
+  evidence that is already retained. To add a new evidence entry to a seed:
+  1. Write the payload to a file: exactly the bytes to retain (a trailing newline counts).
+  2. ekr hash payload.txt              -> {content_hash, byte_len, algorithm, payload_yaml}
+     The hash is sha256(\"ekr.payload.v1\" || bytes), not the bare SHA-256 of the file.
+  3. Under graph.graph.evidence add an entry keyed by a new id (ekr mint evidence), with that
+     id, `source: !HumanStatement`, `extracted_by` the host operator and `content_hash` the
+     printed hash. `ekr example ekr-seed/2` shows complete entries.
+  4. Put the same hash as the key of its `evidence_payloads` entry, and paste the printed
+     `payload_yaml` as its value: the payload's bytes as a list of byte values,
+     [65, 108, 105] for \"Ali\".
+  An entry whose `content_hash` is not a key of `evidence_payloads` is refused as
+  seed-evidence-payload-missing, naming that hash and the keys no entry names. A payload whose
+  bytes do not hash to its key is refused as seed-evidence-payload-mismatch, naming the
+  expected and the found hash. After seeding, cite the evidence id in an assertion's
+  `evidence` and in the transaction's `evidence`.
 
 EXIT CODES
   exit 0  a declared outcome, JSON on stdout. A validation that rejects and a commit that finds
