@@ -787,6 +787,19 @@ fn every_refusal_the_page_names_is_a_whole_name_the_runtime_emits() {
             row.name
         );
     }
+    // A row filed as a validation issue names a code a validator raises, as a whole literal in the
+    // validator sources: not merely a string somewhere in the runtime.
+    let validators = sources(&["crates/ekr-kernel/src/validate"]);
+    let not_raised: Vec<&str> = table
+        .iter()
+        .filter(|row| row.at == ISSUE)
+        .map(|row| row.name.as_str())
+        .filter(|code| !validators.contains(&format!("\"{code}\"")))
+        .collect();
+    assert!(
+        not_raised.is_empty(),
+        "docs/cli.md files these as validation issues; no validator raises them: {not_raised:?}"
+    );
     // The matcher itself: a prefix of a real code is not a code.
     assert!(emits(&source, "seed-decode") && !emits(&source, "seed-dec"));
     assert!(emits(&source, "wrong-type") && !emits(&source, "wrong-typ"));
@@ -844,13 +857,26 @@ impl Lab {
 const TX_WROTE: &str = "00000000-0000-4000-a000-000000000701";
 const TX_UNKNOWN: &str = "00000000-0000-4000-a000-000000000799";
 
-/// Runs each way the test knows to reach `name` from the worked example, returning the outputs of
-/// the refused commands, or `None` for a refusal it has no trigger for.
-fn trigger(page: &str, name: &str) -> Option<Vec<Output>> {
+/// One refused command: the verb it ran and what the binary returned.
+struct Ran {
+    verb: String,
+    output: Output,
+}
+
+fn ran(lab: &Lab, host: &str, verb: &[&str]) -> Ran {
+    Ran {
+        verb: verb[0].to_owned(),
+        output: lab.run(host, verb),
+    }
+}
+
+/// Runs each way the test knows to reach `name` from the worked example, returning the refused
+/// commands, or `None` for a refusal it has no trigger for.
+fn trigger(page: &str, name: &str) -> Option<Vec<Ran>> {
     let seed_edit = |old: &str, new: &str| {
         let lab = Lab::new(page);
         lab.edit("seed.yaml", "edited.yaml", old, new);
-        vec![lab.run("host.json", &["seed", "edited.yaml"])]
+        vec![ran(&lab, "host.json", &["seed", "edited.yaml"])]
     };
     let outputs = match name {
         "seed-decode" => seed_edit(
@@ -886,7 +912,7 @@ fn trigger(page: &str, name: &str) -> Option<Vec<Output>> {
         "ekr.kernel.AlreadySeeded" => {
             let lab = Lab::seeded(page);
             lab.edit("seed.yaml", "other.yaml", "value: 212", "value: 213");
-            vec![lab.run("host.json", &["seed", "other.yaml"])]
+            vec![ran(&lab, "host.json", &["seed", "other.yaml"])]
         }
         "seed-authority-profile" => {
             let lab = Lab::new(page);
@@ -896,7 +922,10 @@ fn trigger(page: &str, name: &str) -> Option<Vec<Output>> {
                 "\"ruleset\": \"ekr.p1-deterministic/1\"",
                 "\"ruleset\": \"ekr.p1-other/1\"",
             );
-            vec![lab.run("other.json", &["seed", "seed.yaml"])]
+            vec![
+                ran(&lab, "other.json", &["seed", "seed.yaml"]),
+                ran(&lab, "other.json", &["head"]),
+            ]
         }
         "bootstrap-authority-mismatch" => {
             let lab = Lab::seeded(page);
@@ -906,7 +935,10 @@ fn trigger(page: &str, name: &str) -> Option<Vec<Output>> {
                 "Catalogue validator",
                 "Catalogue checker",
             );
-            vec![lab.run("other.json", &["head"])]
+            vec![
+                ran(&lab, "other.json", &["head"]),
+                ran(&lab, "other.json", &["propose", "wrote.yaml"]),
+            ]
         }
         "ekr.kernel.ProposalAttribution" => {
             let lab = Lab::seeded(page);
@@ -916,7 +948,7 @@ fn trigger(page: &str, name: &str) -> Option<Vec<Output>> {
                 "proposer: 00000000-0000-4000-a000-000000000011",
                 "proposer: 00000000-0000-4000-a000-000000000012",
             );
-            vec![lab.run("host.json", &["propose", "edited.yaml"])]
+            vec![ran(&lab, "host.json", &["propose", "edited.yaml"])]
         }
         "ekr.kernel.StructurallyInvalid" => {
             let lab = Lab::seeded(page);
@@ -926,30 +958,31 @@ fn trigger(page: &str, name: &str) -> Option<Vec<Output>> {
                 "assessment: Proposed",
                 "assessment: Accepted",
             );
-            vec![lab.run("host.json", &["propose", "edited.yaml"])]
+            vec![ran(&lab, "host.json", &["propose", "edited.yaml"])]
         }
         "ekr.kernel.TransactionNotFound" => {
             let lab = Lab::seeded(page);
             vec![
-                lab.run("host.json", &["validate", TX_UNKNOWN]),
-                lab.run("host.json", &["commit", TX_UNKNOWN]),
+                ran(&lab, "host.json", &["validate", TX_UNKNOWN]),
+                ran(&lab, "host.json", &["commit", TX_UNKNOWN]),
             ]
         }
         "ekr.kernel.TransactionStateConflict" => {
             let lab = Lab::seeded(page);
             let proposed = lab.run("host.json", &["propose", "wrote.yaml"]);
             assert_eq!(proposed.status.code(), Some(0));
-            let committed_early = lab.run("host.json", &["commit", TX_WROTE]);
+            let committed_early = ran(&lab, "host.json", &["commit", TX_WROTE]);
             let validated = lab.run("host.json", &["validate", TX_WROTE]);
             assert_eq!(validated.status.code(), Some(0));
             vec![
                 committed_early,
-                lab.run("host.json", &["validate", TX_WROTE]),
+                ran(&lab, "host.json", &["validate", TX_WROTE]),
             ]
         }
         "ekr.kernel.AssertionNotFound" => {
             let lab = Lab::seeded(page);
-            vec![lab.run(
+            vec![ran(
+                &lab,
                 "host.json",
                 &["explain", "00000000-0000-4000-a000-000000000599"],
             )]
@@ -959,8 +992,33 @@ fn trigger(page: &str, name: &str) -> Option<Vec<Output>> {
     Some(outputs)
 }
 
-/// Every refusal row that is not a validation issue is reached from the worked example, exits as the
-/// row says and names itself on stderr in the form the page's introduction to the table gives.
+/// The `where` cell meaning every verb that opens the store.
+const ANY_STORE_VERB: &str = "any store verb";
+
+/// Verbs that open the store.
+const STORE_VERBS: [&str; 9] = [
+    "seed",
+    "propose",
+    "validate",
+    "commit",
+    "snapshot",
+    "explain",
+    "head",
+    "transactions",
+    "ontology",
+];
+
+/// Whether `stderr` is `form` followed by `": "` or the end of the line: the refusal's whole name,
+/// not a longer one that starts with it.
+fn reads_as(stderr: &str, form: &str) -> bool {
+    stderr
+        .strip_prefix(form)
+        .is_some_and(|rest| rest.starts_with(": ") || rest.starts_with('\n'))
+}
+
+/// Every refusal row that is not a validation issue is reached from the worked example through
+/// each verb its `where` cell names, exits as the row says, and names itself on stderr in the form
+/// the page's introduction to the table gives.
 #[test]
 fn every_refusal_outside_validation_exits_and_reads_as_the_page_says() {
     let page = page();
@@ -971,26 +1029,48 @@ fn every_refusal_outside_validation_exits_and_reads_as_the_page_says() {
             untriggered.push(row.name.clone());
             continue;
         };
-        for output in outputs {
+        let verbs: BTreeSet<&str> = outputs.iter().map(|r| r.verb.as_str()).collect();
+        if row.at == ANY_STORE_VERB {
+            assert!(
+                verbs.len() >= 2 && verbs.iter().all(|verb| STORE_VERBS.contains(verb)),
+                "{}: `any store verb` is triggered through two store verbs, not {verbs:?}",
+                row.name
+            );
+        } else {
+            let named: BTreeSet<&str> = row.at.split(", ").collect();
+            assert!(
+                named.iter().all(|verb| STORE_VERBS.contains(verb)),
+                "{}: where {:?} names a verb that is not a store verb",
+                row.name,
+                row.at
+            );
+            assert_eq!(
+                verbs, named,
+                "{}: the where column and the verbs that refuse it disagree",
+                row.name
+            );
+        }
+        for Ran { verb, output } in outputs {
             let stderr = String::from_utf8_lossy(&output.stderr);
             assert_eq!(
                 output.status.code(),
                 Some(row.exit),
-                "{}: the page says exit {}; stderr {stderr}",
+                "{} through {verb}: the page says exit {}; stderr {stderr}",
                 row.name,
                 row.exit
             );
             let form = match (row.exit, row.name.starts_with("ekr.kernel.")) {
-                (2, true) => format!("ekr: {}: ", row.name),
+                (2, true) => format!("ekr: {}", row.name),
                 (2, false) => format!("ekr: ekr.kernel.InvalidSeed: {}", row.name),
-                (1, _) if row.at == "host" && row.name.starts_with("seed-") => {
+                (1, _) if row.name.starts_with("seed-") => {
                     format!("ekr: opening the provider: invalid seed: {}", row.name)
                 }
                 _ => format!("ekr: {}", row.name),
             };
             assert!(
-                stderr.starts_with(&form),
-                "{}: stderr {stderr:?} does not read {form:?}",
+                reads_as(&stderr, &form),
+                "{} through {verb}: stderr {stderr:?} does not read {form:?} then `: ` or the \
+                 end of the line",
                 row.name
             );
         }
@@ -999,6 +1079,15 @@ fn every_refusal_outside_validation_exits_and_reads_as_the_page_says() {
         untriggered.is_empty(),
         "refusal rows this suite does not run, which the page says it runs: {untriggered:?}"
     );
+    // The matcher itself: a refusal whose name only starts with the row's does not read as it.
+    assert!(!reads_as(
+        "ekr: ekr.kernel.InvalidSeed: seed-ontology-lineage\n",
+        "ekr: ekr.kernel.InvalidSeed: seed-ontology"
+    ));
+    assert!(reads_as(
+        "ekr: ekr.kernel.InvalidSeed: seed-ontology: the lifecycle …\n",
+        "ekr: ekr.kernel.InvalidSeed: seed-ontology"
+    ));
 }
 
 // 7 --------------------------------------------------------------------------------------------

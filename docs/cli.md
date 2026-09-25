@@ -178,8 +178,8 @@ Explains one assertion at the head. `links` is a list of objects, each with a `k
 | `Lifecycle` | a later committed retraction or supersession of it | once per such change |
 | `Evidence` | an evidence entry cited, with `payload` (the retained bytes, base64) and `text` (the same bytes as a string, when they are UTF-8) | last, once per evidence id cited by an assertion in the chain or listed in the `evidence` of a transaction that added or changed one |
 
-Read links by their `kind` and, for `Assertion` and `Lifecycle`, by the assertion id they carry;
-do not read them by position, because the number and order of links depend on the assertion's
+Read links by their `kind` and, for `Assertion` and `Lifecycle`, by the assertion id they carry:
+`id` on an `Assertion` link, `assertion_id` on a `Lifecycle` link. Do not read them by position, because the number and order of links depend on the assertion's
 history. An unknown id is refused as `ekr.kernel.AssertionNotFound`.
 
 ### `ekr head`
@@ -490,7 +490,7 @@ fixed at seeding.
 | `AddAssertion` | applied | adds an assertion that cites evidence ([below](#assertions)) |
 | `RetractAssertion` | applied | withdraws an accepted, active assertion with a reason: `assertion`, `reason`. It is kept, marked retracted |
 | `Invoke` | applied | calls an operation of the node's type: `node`, `operation` (the operation's key under the type's `operations`, not its `name` field), `arguments` (map name → value) |
-| `SupersedeAssertion` | applied | replaces an accepted assertion from an instant on: `assertion`, `by` (the replacement, which may be added in the same transaction), `effective_from` (the replacement's `valid_time.from`) |
+| `SupersedeAssertion` | applied | replaces an accepted, active assertion from an instant on: `assertion`, `by` (the replacement, which may be added in the same transaction), `effective_from`. [Rules below](#supersession) |
 | `DefineNodeType` | refused | would declare a node type |
 | `DefineEdgeType` | refused | would declare an edge type |
 | `ModifyProperty` | refused | would redeclare a property definition |
@@ -519,6 +519,26 @@ A relation assertion (`!Relation`) needs `!Node` subject and object of the edge 
 target types. A property assertion (`!Property`) needs a property the subject's type declares, and
 an object of its value type: `!Value {value_kind: ..., value: ...}`, or `!Node` for a `NodeRef`
 property.
+
+### Supersession
+
+`!SupersedeAssertion` ends one assertion's valid time where its replacement's begins. It is
+validated as a whole, and any rule below that fails is the issue `invalid-supersession`:
+
+- the replacement (`by`) is a different assertion, accepted and active — one added with
+  `assessment: Proposed` in the same transaction counts;
+- the replacement's `valid_time.from` is **exactly** `effective_from`, never `null`;
+- `effective_from` lies inside the old assertion's valid time: not before its `from`, not after
+  its `to`.
+
+Committing it closes the old assertion's `valid_time.to` at `effective_from` and sets its
+`lifecycle` to superseded, naming the replacement. `snapshot --valid-at` still returns the old assertion for instants before
+`effective_from`, and the replacement from `effective_from` on. The old assertion must be
+accepted and active (`assertion-lifecycle-state` otherwise), one transaction may change an
+assertion's lifecycle once (`conflicting-assertion-lifecycle`), and a chain of supersessions may
+not lead back to where it started (`supersession-cycle`).
+
+### Relations: assertion, edge or both
 
 A relation can be recorded two ways, and often both are wanted. The assertion is the claim, with
 evidence and valid time. `!CreateEdge` is the structural record: no evidence, no valid time, held to
@@ -1082,10 +1102,13 @@ There are three forms, and the `exit` column says which one each refusal takes:
   the `code`. A seed runs the same validators, so a seed with the same defect is refused as
   `ekr.kernel.InvalidSeed: <code>: <detail>`, exit 2.
 
-`crates/ekr/tests/docs_cli.rs` triggers every row below that is not a validation issue against the
-worked example's files, and checks the exit status in this table and that stderr names the refusal.
-For the validation-issue rows it checks only that the code is one the runtime's source emits; the
-worked example itself produces `inadmissible-value` and `unsupported-operation`.
+The `where` column names the verbs that report a refusal; `any store verb` means every verb that
+opens the store. `crates/ekr/tests/docs_cli.rs` triggers every row that is not a validation issue
+against the worked example's files, through each verb its `where` cell names (two different store
+verbs for `any store verb`), and checks the exit status in this table and that stderr names the
+refusal in the form above. For a validation-issue row it checks that the code is a whole string a
+validator in `crates/ekr-kernel/src/validate` raises; it does not run those rows. The worked example
+itself produces `inadmissible-value` and `unsupported-operation`.
 
 | refusal | where | exit | what it means | what to fix |
 |---|---|---|---|---|
@@ -1102,8 +1125,8 @@ worked example itself produces `inadmissible-value` and `unsupported-operation`.
 | `seed-evidence-payload-missing` | seed | 2 | an evidence entry's `content_hash` is not a key of `evidence_payloads` | paste the hash `ekr hash` prints as the key |
 | `seed-evidence-payload-mismatch` | seed | 2 | a payload's bytes do not hash to its key | re-run `ekr hash` on the exact bytes |
 | `ekr.kernel.AlreadySeeded` | seed | 2 | the store already holds a different seed | use a new store or tenant |
-| `seed-authority-profile` | host | 1 | the host's `validation_profile` or agent registry is not the P1 profile for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example; set `validator` to `context.validator` |
-| `bootstrap-authority-mismatch` | host | 1 | the store was seeded under a host document whose authority differs from this one | use the host document the store was seeded with |
+| `seed-authority-profile` | any store verb | 1 | the host's `validation_profile` or agent registry is not the P1 profile for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example; set `validator` to `context.validator` |
+| `bootstrap-authority-mismatch` | any store verb | 1 | the store was seeded under a host document whose authority differs from this one | use the host document the store was seeded with |
 | `ekr.kernel.ProposalAttribution` | propose | 2 | the document's `proposer` is not the host operator | use `context.operator` |
 | `ekr.kernel.StructurallyInvalid` | propose | 2 | the transaction document does not parse, for example a bare `assessment: Accepted` | the field it names; compare with `ekr operations <Kind>` |
 | `ekr.kernel.TransactionNotFound` | validate, commit | 2 | no transaction has that id | take the id `ekr propose` printed, or `ekr transactions` |
@@ -1121,10 +1144,19 @@ worked example itself produces `inadmissible-value` and `unsupported-operation`.
 | `edge-endpoint-type` | validation issue | 0 | an edge's or relation assertion's source or target is not of an allowed type | check the edge type's `source_types` and `target_types` |
 | `unresolved-node` | validation issue | 0 | a node id that does not exist | take ids from `ekr snapshot`, or create the node earlier in the same transaction |
 | `unresolved-evidence` | validation issue | 0 | an assertion cites evidence that is not retained | cite seeded evidence |
+| `unresolved-edge` | validation issue | 0 | an edge id (`!DeleteEdge`, an `!Edge` subject) that does not exist | take ids from `ekr snapshot` |
+| `unresolved-assertion` | validation issue | 0 | a retraction or supersession names an assertion (or a `by`) that does not exist | take ids from `ekr snapshot`, or add the replacement in the same transaction |
+| `unresolved-graph-root` | validation issue | 0 | an entity's `root_id` is not the graph root | use the root id from `ekr snapshot` (`root_id` of any node) |
+| `assertion-lifecycle-state` | validation issue | 0 | a retraction or supersession of an assertion that is not accepted and active, for example one already retracted or superseded | act only on current assertions; check `lifecycle` in `ekr snapshot` |
+| `conflicting-assertion-lifecycle` | validation issue | 0 | one transaction retracts or supersedes the same assertion twice | one lifecycle change per assertion per transaction |
+| `invalid-supersession` | validation issue | 0 | a [supersession rule](#supersession) fails, most often a replacement `valid_time.from` that is not exactly `effective_from` | set the replacement's `from` to `effective_from` |
+| `supersession-cycle` | validation issue | 0 | supersessions would lead back to the assertion they started from | supersede toward a new assertion |
 | `evidence-set-mismatch` | validation issue | 0 | `transaction.evidence` is not exactly the evidence the assertions cite | list exactly those ids |
 | `assertion-without-evidence` | validation issue | 0 | an assertion cites no evidence | cite at least one evidence id |
 | `assertion-states-its-own-verdict` | validation issue | 0 | an assertion written with a complete assessment other than `Proposed`, such as `!Accepted {validators: [...]}` (a bare `Accepted` is refused earlier, as `ekr.kernel.StructurallyInvalid`) | write `assessment: Proposed` |
 | `identity-already-exists` | validation issue | 0 | a create reuses an id that already exists | `ekr mint` a fresh id |
+| `duplicate-identity` | validation issue | 0 | one transaction creates the same id twice | `ekr mint` one id per created thing |
+| `conflicting-write` | validation issue | 0 | one transaction writes the same property of a node twice with different values, or moves one node's lifecycle twice | one write per property and one state move per node per transaction |
 | `operation-not-declared` | validation issue | 0 | `!Invoke` names no operation **key** of the node's type (an operation's `name` field is not consulted) | use the key under `operations` |
 | `transition-refused` | validation issue | 0 | the node is not in the operation's `from` state | check the node's `type_state` |
 | `missing-argument` | validation issue | 0 | `!Invoke` omits a declared argument | pass every declared argument |
