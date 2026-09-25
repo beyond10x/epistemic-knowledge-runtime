@@ -156,6 +156,21 @@ macro_rules! id_newtype {
             }
         }
 
+        #[cfg(feature = "schema")]
+        impl schemars::JsonSchema for $name {
+            fn schema_name() -> std::borrow::Cow<'static, str> {
+                stringify!($name).into()
+            }
+
+            fn schema_id() -> std::borrow::Cow<'static, str> {
+                concat!("ekr_core::", stringify!($name)).into()
+            }
+
+            fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+                crate::schema::id()
+            }
+        }
+
         impl Canonical for $name {
             /// The id's sixteen bytes, tagged — not its text, which would make the encoding
             /// depend on a formatting choice.
@@ -263,6 +278,7 @@ id_newtype! {
 /// { validated_against, current }`. A UUID could not answer "no committed revision carries that
 /// number", so this one counts instead, from zero at the seed, one per commit.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(transparent)]
 pub struct RevisionNumber(u64);
 

@@ -14,6 +14,7 @@ use crate::{AuthorityStateV1, EdgeDraft, GraphOperation, GraphTransaction, NodeD
 
 /// Independently authenticated execution identities, supplied by the host, never the seed input.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct BootstrapContext {
     /// The operator submitting the seed.
@@ -24,13 +25,19 @@ pub struct BootstrapContext {
 
 /// Version two seed input. A graph format change must also change this version.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SeedDocument {
     /// Must be `ekr-seed/2`.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "ekr-seed/2")))]
     pub format: String,
     /// Complete ontology, retained rather than reconstructed from a schema identity.
     pub ontology: OntologyDocument,
     /// Proposed graph records, before the kernel attributes acceptance.
+    #[cfg_attr(
+        feature = "schema",
+        schemars(schema_with = "crate::schema::graph_document")
+    )]
     pub graph: GraphDocument,
     /// Exact retained HumanStatement bytes, keyed by their content address.
     #[serde(deserialize_with = "ekr_core::decode::unique_map")]

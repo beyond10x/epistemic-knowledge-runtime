@@ -134,8 +134,10 @@ pub struct TransactionDocument {
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
-struct Envelope {
+pub(crate) struct Envelope {
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "ekr.transaction-document/1")))]
     format: String,
     transaction: GraphTransaction,
 }

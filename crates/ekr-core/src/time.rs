@@ -55,6 +55,7 @@ impl TimestampParseError {
 ///
 /// Ordered, so a valid-time or transaction-time comparison is the integer comparison it should be.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(transparent)]
 pub struct Timestamp(i64);
 

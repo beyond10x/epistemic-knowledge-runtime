@@ -546,6 +546,7 @@ fn a_store_verb_without_its_configuration_is_a_usage_error_naming_flag_and_varia
         &["example", "ekr-seed/2"],
         &["mint", "node"],
         &["hash", "-"],
+        &["schema", "ekr-seed/2"],
     ] {
         for (var, value) in [
             ("EKR_BACKEND", "bogus"),
@@ -586,6 +587,7 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         "transactions",
         "ontology",
         "hash",
+        "schema",
     ] {
         assert!(
             verbs.iter().any(|v| v == verb),
@@ -637,6 +639,16 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         (
             "hash",
             &["content_hash", "evidence_payloads", "ekr-seed/2", "stdin"],
+        ),
+        (
+            "schema",
+            &[
+                "JSON Schema",
+                "2020-12",
+                "ekr.transaction-document/1",
+                "ekr-seed/2",
+                "ekr.cli-host/1",
+            ],
         ),
     ];
     let listed: BTreeSet<&str> = verbs.iter().map(String::as_str).collect();

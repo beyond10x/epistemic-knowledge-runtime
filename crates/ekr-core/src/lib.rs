@@ -30,6 +30,9 @@ pub mod hash;
 pub mod identity;
 pub mod time;
 
+#[cfg(feature = "schema")]
+mod schema;
+
 pub use canonical::{Canonical, Encoder};
 pub use hash::{ContentHash, ContentHashParseError};
 pub use identity::{

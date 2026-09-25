@@ -12,6 +12,7 @@ ekr-core.workspace = true
 ekr-graph.workspace = true
 ekr-ontology.workspace = true
 ekr-store.workspace = true
+schemars = { version = "1.2", optional = true }
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml_ng.workspace = true
@@ -29,6 +30,7 @@ trybuild.workspace = true
 
 [features]
 bench = []
+schema = ["dep:schemars", "ekr-core/schema", "ekr-ontology/schema", "ekr-graph/schema"]
 
 [[test]]
 name = "command_bench"

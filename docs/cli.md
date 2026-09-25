@@ -56,7 +56,7 @@ the flag wins, and an empty variable counts as unset.
 
 The store need not exist before `ekr seed`: the file provider creates the directory and any missing
 parents, the SQLite provider creates the database file but not its directory. `guide`, `operations`,
-`example`, `mint` and `hash` open no store, need none of the settings and ignore the variables.
+`example`, `mint`, `hash` and `schema` open no store, need none of the settings and ignore the variables.
 
 ```console
 export EKR_HOST=host.json EKR_STORE=./store EKR_BACKEND=file
@@ -121,6 +121,7 @@ tag `!Node <id>`. A proposal record's `document_bytes` prints as one standard ba
 | `ekr example` | none | `ekr.transaction-document/1`, `ekr-seed/2` or `ekr.cli-host/1` (aliases `transaction`, `seed`, `host`) | a complete example document |
 | `ekr mint` | none | an id kind | `{"id", "kind"}`: a fresh id |
 | `ekr hash` | none | a payload file, or `-` | the payload's `content_hash` and its `payload_yaml` |
+| `ekr schema` | none | `ekr.transaction-document/1`, `ekr-seed/2` or `ekr.cli-host/1` (aliases `transaction`, `seed`, `host`) | the format's JSON Schema (draft 2020-12) |
 
 Every verb has `--help`.
 
@@ -225,6 +226,31 @@ UUID; any UUID in that form is accepted, and `ekr mint` is the easy way to get a
 Prints the content hash of a payload file (or stdin): `content_hash` is
 sha256(`ekr.payload.v1` || bytes) over the exact bytes, trailing newline included; `payload_yaml`
 is the same bytes as a YAML list of byte values, ready to paste into `evidence_payloads`.
+
+### `ekr schema`
+
+Prints the JSON Schema (draft 2020-12) of one format, generated from the types the reader decodes:
+`ekr schema ekr-seed/2`. It is a first check for an editor or a script, not a verdict: the reader
+decides, and `ekr seed` or `ekr propose` can still refuse a document the schema passes, or accept one
+it refuses. The YAML formats' schemas validate the document read as YAML and written as JSON, where
+a tag `!Kind value` is the one-key object `{"!Kind": value}`; the readers do not accept that object
+in place of the tag, so write the tag.
+
+The printed `description` names every place the schema and the reader differ:
+
+| the document holds | reader | schema |
+|---|---|---|
+| a tag on a scalar, a mapping or a list that names no variant (`proposer: !AgentId <id>`, `valid_time: !Range {…}`) | ignores the tag, accepts | refuses |
+| a Float written `.nan` or `.inf` | accepts | refuses (JSON writes it as null) |
+| an id or content hash written only in digits, unquoted | accepts | refuses (YAML reads a number); quote it |
+| two texts YAML reads as one value in a uniqueItems list (`[true, True]`, `[1, 1.0]`) | accepts | refuses |
+| one value twice in a uniqueItems list, including the same text plain and quoted (`[1, "1"]`) | refuses | cannot see it |
+| a key written twice | refuses | cannot see it |
+| a range or transaction time that ends before it starts | refuses | cannot see it |
+| `1.0` where an integer belongs | refuses | cannot see it |
+| a value's `value` before its `value_kind` (or `parameters` before `value_kind`), plain number, boolean or null for a text kind | refuses | cannot see it |
+| a string or key within maxLength characters but over the byte limit (text outside ASCII) | refuses | cannot see it |
+| a transaction document over 262144 bytes, nested deeper than 32, with more than 32768 values and keys, or more than 1048576 bytes of text | refuses | cannot see it |
 
 ## The workflow
 

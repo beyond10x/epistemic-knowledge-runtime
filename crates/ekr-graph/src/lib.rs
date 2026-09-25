@@ -145,6 +145,9 @@ pub mod snapshot;
 pub mod transient;
 pub mod value;
 
+#[cfg(feature = "schema")]
+mod schema;
+
 pub use assertion::{
     Assertion, AssertionLifecycle, Assessment, InvertedRange, Object, Predicate, RetractionReason,
     Subject, TemporalRange, TransactionTime,
