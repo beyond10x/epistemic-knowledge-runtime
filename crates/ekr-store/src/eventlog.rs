@@ -325,8 +325,11 @@ impl<S: EventStore> EventlogStore<S> {
     /// Each object passes [`StreamRead::absorb`], [`stored_metadata`] and [`retained_object`], the
     /// functions [`Self::object_versioned`] applies to the same reads made separately, so a
     /// batched load refuses what the per-object load refused, and first the refusal it met first.
-    /// One ordering differs: a provider failure of the stream batch as a whole comes before any
-    /// blob check, where per-object reads would have met it at the failing stream.
+    /// Two orderings differ, both for a provider failure rather than a check of this crate: a
+    /// failure of the stream batch as a whole comes before any blob check, where per-object reads
+    /// would have met it at the failing stream; and a provider refusal of any blob in the blob
+    /// batch (a damaged SQLite blob, for example) comes before the blob checks of earlier objects,
+    /// because a provider without its own `read_many` fails the whole batch on its first error.
     fn required(&self, hashes: &[ContentHash]) -> Result<Vec<RetainedObject>, StoreError> {
         let streams = hashes
             .iter()
