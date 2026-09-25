@@ -230,11 +230,27 @@ is the same bytes as a YAML list of byte values, ready to paste into `evidence_p
 ### `ekr schema`
 
 Prints the JSON Schema (draft 2020-12) of one format, generated from the types the reader decodes:
-`ekr schema ekr-seed/2`. Use it to check a document before `ekr seed` or `ekr propose`. The YAML
-formats' schemas validate the document read as YAML and written as JSON, where a tag `!Kind value`
-is the one-key object `{"!Kind": value}`; the readers do not accept that object in place of the tag,
-so write the tag. The schema cannot see a key written twice, a range that ends before it starts, or
-`1.0` where an integer belongs; the reader refuses those.
+`ekr schema ekr-seed/2`. It is a first check for an editor or a script, not a verdict: the reader
+decides, and `ekr seed` or `ekr propose` can still refuse a document the schema passes, or accept one
+it refuses. The YAML formats' schemas validate the document read as YAML and written as JSON, where
+a tag `!Kind value` is the one-key object `{"!Kind": value}`; the readers do not accept that object
+in place of the tag, so write the tag.
+
+The printed `description` names every place the schema and the reader differ:
+
+| the document holds | reader | schema |
+|---|---|---|
+| a tag on a scalar, a mapping or a list that names no variant (`proposer: !AgentId <id>`, `valid_time: !Range {…}`) | ignores the tag, accepts | refuses |
+| a Float written `.nan` or `.inf` | accepts | refuses (JSON writes it as null) |
+| an id or content hash written only in digits, unquoted | accepts | refuses (YAML reads a number); quote it |
+| two texts YAML reads as one value in a uniqueItems list (`[true, True]`, `[1, 1.0]`) | accepts | refuses |
+| one value twice in a uniqueItems list, including the same text plain and quoted (`[1, "1"]`) | refuses | cannot see it |
+| a key written twice | refuses | cannot see it |
+| a range or transaction time that ends before it starts | refuses | cannot see it |
+| `1.0` where an integer belongs | refuses | cannot see it |
+| a value's `value` before its `value_kind` (or `parameters` before `value_kind`), plain number, boolean or null for a text kind | refuses | cannot see it |
+| a string or key within maxLength characters but over the byte limit (text outside ASCII) | refuses | cannot see it |
+| a transaction document over 262144 bytes, nested deeper than 32, with more than 32768 values and keys, or more than 1048576 bytes of text | refuses | cannot see it |
 
 ## The workflow
 

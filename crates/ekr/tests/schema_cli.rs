@@ -728,6 +728,51 @@ fn a_printed_schema_carries_agent_facing_descriptions_only() {
     }
 }
 
+/// The host schema fixes each text the host's authority check requires to exactly the value the
+/// example host carries (which that check accepts), and refuses any other: a host document the
+/// schema passes is not refused for `seed-authority-profile` over one of these texts.
+#[test]
+fn the_host_schemas_fixed_texts_are_the_ones_the_authority_check_requires() {
+    let printed = schema(HOST);
+    let host: Value = serde_json::from_str(&text(&["example", HOST])).unwrap();
+    let definitions = &printed["$defs"];
+    let authority = &definitions["AuthorityStateV1"]["properties"];
+    let profile = &definitions["ValidationProfileV1"]["properties"];
+    let mut fixed = vec![(
+        "authority.format",
+        &authority["format"]["const"],
+        &host["authority"]["format"],
+    )];
+    for field in [
+        "format",
+        "ruleset",
+        "proposer_separation",
+        "provenance",
+        "application",
+    ] {
+        fixed.push((
+            field,
+            &profile[field]["const"],
+            &host["authority"]["validation_profile"][field],
+        ));
+    }
+    for (field, constant, example) in fixed {
+        assert!(constant.is_string(), "{field}: no const in {printed}");
+        assert_eq!(constant, example, "{field}");
+    }
+    let validator = validator(HOST);
+    let mut other = host.clone();
+    other["authority"]["validation_profile"]["ruleset"] = json!("ekr.p1-deterministic/2");
+    assert!(
+        read(HOST, &other.to_string()).is_ok(),
+        "the decoder takes any text here"
+    );
+    assert!(
+        validator.iter_errors(&other).next().is_some(),
+        "the schema accepts a ruleset the authority check refuses"
+    );
+}
+
 // 5 --------------------------------------------------------------------------------------------
 
 /// `ekr guide` and `ekr --help` name `ekr schema`, and it needs no store configuration: it exits

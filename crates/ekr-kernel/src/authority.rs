@@ -24,18 +24,23 @@ pub struct Agent {
 #[serde(deny_unknown_fields)]
 pub struct ValidationProfileV1 {
     /// Exactly `ekr.p1-validation-profile/1`.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "ekr.p1-validation-profile/1")))]
     pub format: String,
     /// Exactly `ekr.p1-deterministic/1`.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "ekr.p1-deterministic/1")))]
     pub ruleset: String,
     /// All seven checks, in deterministic order.
     pub checks: Vec<ValidatorName>,
     /// The actual independently authenticated validating agent.
     pub validator: AgentId,
     /// Exactly `distinct-authenticated-actor/1`.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "distinct-authenticated-actor/1")))]
     pub proposer_separation: String,
     /// Exactly `retained-admissible-evidence/1`.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "retained-admissible-evidence/1")))]
     pub provenance: String,
     /// Exactly `ekr.p1-apply/1`.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "ekr.p1-apply/1")))]
     pub application: String,
 }
 impl ValidationProfileV1 {
@@ -68,6 +73,7 @@ impl ValidationProfileV1 {
 #[serde(deny_unknown_fields)]
 pub struct AuthorityStateV1 {
     /// Exactly `ekr.authority-state/1`.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "ekr.authority-state/1")))]
     pub format: String,
     /// Complete identity registry, including agents unused by the initial seed.
     #[serde(deserialize_with = "ekr_core::decode::unique_map")]

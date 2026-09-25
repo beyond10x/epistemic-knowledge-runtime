@@ -129,7 +129,10 @@ impl CliHostConfigurationV1 {
             "description".to_owned(),
             "The trusted host document for --host or EKR_HOST: the provider namespace, the \
              operator and validator, and the authority anchor (`ekr example ekr.cli-host/1`). \
-             Beyond the schema, the reader also refuses a key written twice."
+             Its fixed texts (the authority and validation-profile formats, ruleset, proposer \
+             separation, provenance and application) are the ones every store verb requires; the \
+             decoder alone takes any text there. Beyond the schema, the reader also refuses a key \
+             written twice."
                 .into(),
         );
         schema

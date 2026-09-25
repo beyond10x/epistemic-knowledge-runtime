@@ -33,11 +33,14 @@ the document read as plain YAML and written as JSON. A YAML tag `!Kind value` (a
 as `!AddAssertion`, a subject such as `!Node <id>`, an evidence source such as `!HumanStatement`) \
 has no JSON Schema form, so the projection and this schema spell it as the one-key object \
 {\"!Kind\": value}. The readers do not accept that object in place of the tag: write the tag. \
-Where the schema and the readers differ: the readers ignore a tag on a scalar (`!AgentId <id>`), \
-which this schema refuses, and keep a Float written `.nan` or `.inf`, which the projection writes \
-as null and this schema refuses. The readers refuse, and this schema cannot see: a mapping key \
-written twice; a list the schema marks uniqueItems holding one value twice, including the same \
-text written once plain and once quoted; a whole number written with a fraction (`1.0`); a time \
+Where the schema and the readers differ, the readers accept and this schema refuses: a tag on a \
+scalar, a mapping or a list that names no variant (`!AgentId <id>`, `!Range {from, to}`), which \
+the readers ignore; a Float written `.nan` or `.inf`, which the projection writes as null; an id \
+or content hash written only in digits and unquoted, which YAML reads as a number (quote it); and \
+two texts YAML resolves to one value in a list the schema marks uniqueItems (`[true, True]`, \
+`[1, 1.0]`), which the readers hold distinct. The readers refuse, and this schema cannot see: a \
+mapping key written twice; a list the schema marks uniqueItems holding one value twice, including \
+the same text written once plain and once quoted; a whole number written with a fraction (`1.0`); a time \
 range or transaction time that ends before it starts; and a value's `value` written before its \
 `value_kind` (or a value type's `parameters` before its `value_kind`) when it is a plain number, \
 boolean or null for a kind read as text.";
@@ -45,7 +48,9 @@ boolean or null for a kind read as text.";
 /// The frozen `ekr.transaction-document/1` limits the schema cannot express, named on its root.
 const V1_LIMITS_UNSEEN: &str = "The transaction reader also refuses a document over 262144 \
 bytes, nested deeper than 32 containers, with more than 32768 values and keys, or with more than \
-1048576 bytes of text in all; the schema carries the per-list, per-map and per-string limits.";
+1048576 bytes of text in all, and a string or key within maxLength characters but over the \
+byte limit (the limits count bytes, maxLength counts characters: text outside ASCII); the schema \
+carries the per-list, per-map and per-string limits.";
 
 /// The draft 2020-12 generator of the two YAML formats; `limits` adds [`v1_limits`].
 fn generator(limits: bool) -> SchemaGenerator {
@@ -239,10 +244,12 @@ fn scalar_description(name: &str) -> Option<&'static str> {
         "Timestamp" => "Milliseconds since the Unix epoch, UTC.",
         "RevisionNumber" => "A revision number: 0 for the seed, one more per commit (`ekr head`).",
         "Confidence" => "Confidence in basis points, 0 to 10000 (certain).",
-        id if id.ends_with("Id") => {
+        "NodeId" | "EdgeId" | "AssertionId" | "TransactionId" | "EvidenceId" | "TypeId"
+        | "PropertyId" | "AgentId" | "GraphRootId" | "SchemaVersionId" => {
             "An id: a UUID in lowercase hyphenated form. `ekr mint <kind>` prints a new one; \
              `ekr snapshot` and `ekr ontology` print existing ones."
         }
+        id if id.ends_with("Id") => "An id: a UUID in lowercase hyphenated form.",
         _ => return None,
     })
 }
