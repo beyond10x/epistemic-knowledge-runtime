@@ -27,5 +27,12 @@ time.workspace = true
 tokio.workspace = true
 trybuild.workspace = true
 
+[features]
+bench = []
+
+[[test]]
+name = "command_bench"
+required-features = ["bench"]
+
 [lints]
 workspace = true

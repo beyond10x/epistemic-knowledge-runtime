@@ -10,8 +10,8 @@ use ekr_graph::{CanonicalGraph, RevisionEvent, RevisionPayload, Root};
 use ekr_ontology::Ontology;
 use eventlog_core::{
     AppendGroup, AtomicBlobEventStore, BlobAppendGroup, BlobWrite, CommandMeta, EventLogError,
-    EventStore, Expected, NewEvent, RecordedEvent, StreamAppend, StreamId, TenantId,
-    MAX_READ_LIMIT,
+    EventStore, Expected, NewEvent, Read, ReadResult, RecordedEvent, StreamAppend, StreamId,
+    StreamSlice, TenantId, MAX_READ_LIMIT,
 };
 use eventlog_file::FileEventStore;
 use eventlog_sqlite::SqliteEventStore;
@@ -36,6 +36,9 @@ pub use preparation::{
     NativeNewEvent, NativePublicationRequest, NativeStreamAppend, NativeStreamId,
     PublicationCommandKey, PublicationCommandKind, PublicationPreparationV1,
 };
+#[cfg(test)]
+#[path = "eventlog_reads.rs"]
+mod reads;
 
 /// SQLite-backed synchronous runtime storage.
 pub type SqliteStore = EventlogStore<SqliteEventStore>;
@@ -241,36 +244,23 @@ impl<S: EventStore> EventlogStore<S> {
         limit: usize,
         stop: impl Fn(&RecordedEvent) -> bool,
     ) -> Result<Vec<RecordedEvent>, StoreError> {
-        let mut result = Vec::new();
-        let mut native_ids = BTreeSet::new();
-        let mut after = 0;
+        self.read_rest(StreamRead::new(stream), limit, stop)
+    }
+    /// Reads `stream` on from where `read` stopped, through the same checks as its first slice.
+    fn read_rest(
+        &self,
+        mut read: StreamRead<'_>,
+        limit: usize,
+        stop: impl Fn(&RecordedEvent) -> bool,
+    ) -> Result<Vec<RecordedEvent>, StoreError> {
         loop {
-            let slice = self
-                .runtime()
-                .block_on(self.store.read_stream(stream, after, limit))?;
-            for event in slice.events {
-                if event.is_redacted()
-                    || event.version != result.len() as u64 + 1
-                    || event.tenant != self.tenant
-                    || event.stream_type != stream.stream_type()
-                    || event.stream_id != stream.stream_id()
-                    || !native_ids.insert(event.event_id.clone())
-                {
-                    return Err(StoreError::Document("stream-envelope-disagrees".into()));
-                }
-                let reached = stop(&event);
-                result.push(event);
-                if reached {
-                    return Ok(result);
-                }
+            if read.finished {
+                return Ok(read.events);
             }
-            if slice.end_of_stream {
-                return Ok(result);
-            }
-            if slice.next_version <= after {
-                return Err(StoreError::Document("stream-cursor-stalled".into()));
-            }
-            after = slice.next_version;
+            let slice =
+                self.runtime()
+                    .block_on(self.store.read_stream(read.stream, read.after, limit))?;
+            read.absorb(&self.tenant, slice, &stop)?;
         }
     }
     fn occurrences(
@@ -317,69 +307,91 @@ impl<S: EventStore> EventlogStore<S> {
         hash: ContentHash,
     ) -> Result<Option<(RetainedObject, u64)>, StoreError> {
         let events = self.read_all(&self.object_stream(hash)?, MAX_READ_LIMIT)?;
-        let Some((first, later)) = events.split_first() else {
+        if events.is_empty() {
             return Ok(None);
-        };
-        if first.name != OBJECT_STORED || first.schema_version != 2 {
-            return Err(StoreError::Document(
-                "unsupported-object-envelope: legacy inline records require migration".into(),
-            ));
         }
-        let mut meta: ObjectMetadata = serde_json::from_value(first.data.clone())
-            .map_err(|e| StoreError::Document(e.to_string()))?;
-        let bytes = self
+        let blob = self
             .runtime()
-            .block_on(self.store.get_blob(&self.tenant, &hash.to_hex()))?
-            .ok_or_else(|| StoreError::Document("object-integrity: native blob missing".into()))?;
-        if meta.content_hash != hash
-            || meta.byte_len != bytes.len() as u64
-            || ContentHash::of_bytes(&bytes) != hash
-        {
-            return Err(StoreError::Document(
-                "object-integrity: address or byte length disagrees".into(),
-            ));
+            .block_on(self.store.get_blob(&self.tenant, &hash.to_hex()))?;
+        retained_object(hash, &events, blob)
+    }
+    /// Every object in `hashes`, in their order, read through one provider batch: each object's
+    /// stream and its blob. An absent object is refused in its place in that order. A stream
+    /// longer than one page continues with ordinary reads, which only an object whose retention
+    /// was raised more than a page's worth of times needs.
+    ///
+    /// Each object passes [`retained_object`], the function [`Self::object_versioned`] applies to
+    /// the same two reads made separately, so a batched load refuses exactly what a single read
+    /// refuses.
+    fn required(&self, hashes: &[ContentHash]) -> Result<Vec<RetainedObject>, StoreError> {
+        let streams = hashes
+            .iter()
+            .map(|hash| self.object_stream(*hash))
+            .collect::<Result<Vec<_>, _>>()?;
+        let reads: Vec<Read> = hashes
+            .iter()
+            .zip(&streams)
+            .flat_map(|(hash, stream)| {
+                [
+                    Read::Stream {
+                        stream: stream.clone(),
+                        after_version: 0,
+                        limit: MAX_READ_LIMIT,
+                    },
+                    Read::Blob {
+                        tenant: self.tenant.clone(),
+                        digest: hash.to_hex(),
+                    },
+                ]
+            })
+            .collect();
+        let results = self.runtime().block_on(self.store.read_many(&reads))?;
+        if results.len() != reads.len() {
+            return Err(StoreError::Document("batch-read-disagrees".into()));
         }
-        for event in later {
-            if event.name != OBJECT_RETENTION_RAISED || event.schema_version != 1 {
-                return Err(StoreError::Document(
-                    "unsupported-retention-envelope".into(),
-                ));
-            }
-            let raised: RetentionRaised = serde_json::from_value(event.data.clone())
-                .map_err(|e| StoreError::Document(e.to_string()))?;
-            if raised.content_hash != hash
-                || raised.to.retention_rank() <= raised.from.retention_rank()
-                || raised.from.retention_rank() > meta.storage_class.retention_rank()
-            {
-                return Err(StoreError::Document(
-                    "object-integrity: invalid retention metadata".into(),
-                ));
-            }
-            meta.storage_class = meta.storage_class.strongest(raised.to);
+        let mut results = results.into_iter();
+        let mut objects = Vec::with_capacity(hashes.len());
+        for (hash, stream) in hashes.iter().zip(&streams) {
+            let (Some(ReadResult::Stream(slice)), Some(ReadResult::Blob(blob))) =
+                (results.next(), results.next())
+            else {
+                return Err(StoreError::Document("batch-read-disagrees".into()));
+            };
+            let mut read = StreamRead::new(stream);
+            read.absorb(&self.tenant, slice, &|_| false)?;
+            let events = self.read_rest(read, MAX_READ_LIMIT, |_| false)?;
+            objects.push(
+                retained_object(*hash, &events, blob)?
+                    .ok_or_else(|| StoreError::Document("required-object-missing".into()))?
+                    .0,
+            );
         }
-        Ok(Some((
-            RetainedObject {
-                metadata: StoredObject {
-                    content_hash: hash,
-                    storage_class: meta.storage_class,
-                    byte_len: meta.byte_len,
-                    stored_at: meta.stored_at,
-                },
-                bytes,
-            },
-            events.len() as u64,
-        )))
+        Ok(objects)
     }
     fn load_object(
         &self,
         history: &mut RetainedHistory,
         hash: ContentHash,
     ) -> Result<(), StoreError> {
-        if let std::collections::btree_map::Entry::Vacant(entry) = history.objects.entry(hash) {
-            entry.insert(
-                self.object(hash)?
-                    .ok_or_else(|| StoreError::Document("required-object-missing".into()))?,
-            );
+        self.load_objects(history, [hash])
+    }
+    /// Loads every object in `hashes` the history does not already hold, in one provider batch.
+    fn load_objects(
+        &self,
+        history: &mut RetainedHistory,
+        hashes: impl IntoIterator<Item = ContentHash>,
+    ) -> Result<(), StoreError> {
+        let missing: Vec<ContentHash> = hashes
+            .into_iter()
+            .filter(|hash| !history.objects.contains_key(hash))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        if missing.is_empty() {
+            return Ok(());
+        }
+        for (hash, object) in missing.iter().zip(self.required(&missing)?) {
+            history.objects.insert(*hash, object);
         }
         Ok(())
     }
@@ -387,6 +399,16 @@ impl<S: EventStore> EventlogStore<S> {
         &self,
         limit: usize,
         selected: Option<RevisionNumber>,
+    ) -> Result<RetainedHistory, StoreError> {
+        self.load_history_requiring(limit, selected, |history| {
+            self.authority()?.required_objects(history)
+        })
+    }
+    fn load_history_requiring(
+        &self,
+        limit: usize,
+        selected: Option<RevisionNumber>,
+        required_objects: impl Fn(&RetainedHistory) -> Result<BTreeSet<ContentHash>, StoreError>,
     ) -> Result<RetainedHistory, StoreError> {
         let mut history = RetainedHistory {
             occurrences: self.occurrences(limit, selected)?,
@@ -399,13 +421,10 @@ impl<S: EventStore> EventlogStore<S> {
                 required.insert(seed_hash);
             }
         }
-        for hash in required {
-            self.load_object(&mut history, hash)?;
-        }
+        self.load_objects(&mut history, required)?;
         if !history.occurrences.is_empty() {
-            for hash in self.authority()?.required_objects(&history)? {
-                self.load_object(&mut history, hash)?;
-            }
+            let required = required_objects(&history)?;
+            self.load_objects(&mut history, required)?;
         }
         Ok(history)
     }
@@ -594,9 +613,8 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
                 event: publication.event.clone(),
             });
             self.load_object(&mut history, publication.event.record_hash)?;
-            for hash in self.authority()?.required_objects(&history)? {
-                self.load_object(&mut history, hash)?;
-            }
+            let required = self.authority()?.required_objects(&history)?;
+            self.load_objects(&mut history, required)?;
             self.authority()?
                 .replay(&history, self.ontology.as_ref(), None)?;
             let mut appends = vec![StreamAppend {
@@ -743,6 +761,126 @@ impl<S: AtomicBlobEventStore> ObjectStore for EventlogStore<S> {
         ensure_sync_context()?;
         Ok(self.object(*hash)?.map(|o| o.bytes))
     }
+}
+/// A stream read in progress: what it has accepted so far and where the next slice starts.
+///
+/// Every slice, whether it came from its own provider call or from a batch, is accepted through
+/// [`StreamRead::absorb`], so a batched read and a single one refuse the same envelopes.
+struct StreamRead<'s> {
+    stream: &'s StreamId,
+    events: Vec<RecordedEvent>,
+    native_ids: BTreeSet<String>,
+    after: u64,
+    finished: bool,
+}
+impl<'s> StreamRead<'s> {
+    fn new(stream: &'s StreamId) -> Self {
+        Self {
+            stream,
+            events: Vec::new(),
+            native_ids: BTreeSet::new(),
+            after: 0,
+            finished: false,
+        }
+    }
+    /// Accepts one slice read after `self.after`: each event must be unredacted, this tenant's and
+    /// this stream's, the next version and a provider identity not seen before. Stops at the first
+    /// event `stop` names or at the end of the stream; refuses a cursor that does not advance.
+    fn absorb(
+        &mut self,
+        tenant: &TenantId,
+        slice: StreamSlice,
+        stop: &impl Fn(&RecordedEvent) -> bool,
+    ) -> Result<(), StoreError> {
+        for event in slice.events {
+            if event.is_redacted()
+                || event.version != self.events.len() as u64 + 1
+                || &event.tenant != tenant
+                || event.stream_type != self.stream.stream_type()
+                || event.stream_id != self.stream.stream_id()
+                || !self.native_ids.insert(event.event_id.clone())
+            {
+                return Err(StoreError::Document("stream-envelope-disagrees".into()));
+            }
+            let reached = stop(&event);
+            self.events.push(event);
+            if reached {
+                self.finished = true;
+                return Ok(());
+            }
+        }
+        if slice.end_of_stream {
+            self.finished = true;
+            return Ok(());
+        }
+        if slice.next_version <= self.after {
+            return Err(StoreError::Document("stream-cursor-stalled".into()));
+        }
+        self.after = slice.next_version;
+        Ok(())
+    }
+}
+/// One retained object from its whole stream and its blob, however the two were read.
+///
+/// `None` for an object with no stream. Otherwise the first event must be a current
+/// `ObjectStored` envelope, the blob must be present and hash to the address with the recorded
+/// length, and every later event must be a retention raise that only strengthens the class.
+/// Returns the object at its strongest class and the stream's length.
+fn retained_object(
+    hash: ContentHash,
+    events: &[RecordedEvent],
+    blob: Option<Vec<u8>>,
+) -> Result<Option<(RetainedObject, u64)>, StoreError> {
+    let Some((first, later)) = events.split_first() else {
+        return Ok(None);
+    };
+    if first.name != OBJECT_STORED || first.schema_version != 2 {
+        return Err(StoreError::Document(
+            "unsupported-object-envelope: legacy inline records require migration".into(),
+        ));
+    }
+    let mut meta: ObjectMetadata = serde_json::from_value(first.data.clone())
+        .map_err(|e| StoreError::Document(e.to_string()))?;
+    let bytes =
+        blob.ok_or_else(|| StoreError::Document("object-integrity: native blob missing".into()))?;
+    if meta.content_hash != hash
+        || meta.byte_len != bytes.len() as u64
+        || ContentHash::of_bytes(&bytes) != hash
+    {
+        return Err(StoreError::Document(
+            "object-integrity: address or byte length disagrees".into(),
+        ));
+    }
+    for event in later {
+        if event.name != OBJECT_RETENTION_RAISED || event.schema_version != 1 {
+            return Err(StoreError::Document(
+                "unsupported-retention-envelope".into(),
+            ));
+        }
+        let raised: RetentionRaised = serde_json::from_value(event.data.clone())
+            .map_err(|e| StoreError::Document(e.to_string()))?;
+        if raised.content_hash != hash
+            || raised.to.retention_rank() <= raised.from.retention_rank()
+            || raised.from.retention_rank() > meta.storage_class.retention_rank()
+        {
+            return Err(StoreError::Document(
+                "object-integrity: invalid retention metadata".into(),
+            ));
+        }
+        meta.storage_class = meta.storage_class.strongest(raised.to);
+    }
+    Ok(Some((
+        RetainedObject {
+            metadata: StoredObject {
+                content_hash: hash,
+                storage_class: meta.storage_class,
+                byte_len: meta.byte_len,
+                stored_at: meta.stored_at,
+            },
+            bytes,
+        },
+        events.len() as u64,
+    )))
 }
 fn json_error(error: serde_json::Error) -> StoreError {
     StoreError::Document(error.to_string())
