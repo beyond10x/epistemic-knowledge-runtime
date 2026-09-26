@@ -4,6 +4,23 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.6] — 2026-09-26
+
+Seed evidence from files, and the visual documentation.
+
+### Added
+
+- `ekr seed --evidence <file>`, repeatable: each file's exact bytes join `evidence_payloads` under
+  their content hash, so a seed can say `evidence_payloads: {}` instead of carrying byte lists. The
+  kernel checks the completed document as it does a pasted one, and gives the same roots; a payload
+  both pasted and passed lands once. A file that cannot be read exits 1 before any store is opened.
+  `ekr guide` and `docs/cli.md` § `ekr seed` say how.
+- `docs/overview.md` (how EKR works, with diagrams, and what 0.0.6 has versus what is planned),
+  `docs/guide.md` (a task-oriented walk through a real store) and `docs/schema-evolution.md`
+  (growing the schema under validation profile v2). The documentation manifest publishes them with
+  `docs/cli.md`.
+- `docs/cli.md`'s refusal table lists `seed-space`: a seed whose graph root is not `Canonical`.
+
 ## [0.0.5] — 2026-09-26
 
 The latest beyond10x dependencies.
