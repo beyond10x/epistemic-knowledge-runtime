@@ -154,14 +154,14 @@ fn holds_something(path: &Path) -> Result<(), StoreError> {
     }
 }
 /// What `SqliteEventStore::open_existing` reports for a database that holds no `ekr` owner at all
-/// (`Inner::require_existing_schema`, eventlog-sqlite `70096af`: the events table is checked
+/// (`Inner::require_existing_schema`, eventlog-sqlite `fe8a0a7`: the events table is checked
 /// first). `open` creates every owner table in one `BEGIN IMMEDIATE` transaction, so a reader sees
 /// either none of them — an empty database, or one a first seed has not committed its tables to
 /// yet — or all of them. A database without the events table therefore holds no store.
 const SQLITE_NO_OWNER_EVENTS: &str = "SQLite owner table ekr_events is absent";
 /// [`StoreError::NoStore`] for a File-provider directory that holds only what the provider's own
 /// open-or-create writes before its `manifest.json` lands (`Journal::open_with_creation`,
-/// eventlog-file `70096af`): `writer.lock`, an empty `events.jsonl` and `.write-*` staging files.
+/// eventlog-file `fe8a0a7`): `writer.lock`, an empty `events.jsonl` and `.write-*` staging files.
 /// Such a directory is a store being created, or one whose creation was killed, and holds no
 /// history. A directory without a manifest but with anything else is left to the provider, which
 /// refuses it as corrupt.

@@ -3,9 +3,9 @@
   "suite": "systems/ekr/conformance/suite.json",
   "producer": {
     "tool": "ess",
-    "version": "0.32.0",
+    "version": "0.33.0",
     "source": "https://github.com/beyond10x/ess",
-    "rev": "f4c1bb84298e75650674c028f9995b2324f79c06"
+    "rev": "3ec2deb977bb19c292a611dcf92a3e676352864a"
   },
   "command": [
     "ess",
