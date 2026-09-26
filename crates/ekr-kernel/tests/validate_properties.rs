@@ -297,7 +297,7 @@ where
         edge_type().prop_map(|declared| GraphOperation::DefineEdgeType(Box::new(declared))),
         (0usize..2, definition()).prop_map(|(at, property)| GraphOperation::ModifyProperty(
             ekr_kernel::PropertyModification {
-                owner: POOL.types[at],
+                owner: Some(POOL.types[at]),
                 property
             }
         )),

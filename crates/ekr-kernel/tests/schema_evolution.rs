@@ -199,7 +199,10 @@ impl World {
     }
 
     fn modify(&self, owner: TypeId, property: PropertyDefinition) -> GraphOperation {
-        GraphOperation::ModifyProperty(PropertyModification { owner, property })
+        GraphOperation::ModifyProperty(PropertyModification {
+            owner: Some(owner),
+            property,
+        })
     }
 
     fn declared(&self, property: PropertyId) -> PropertyDefinition {
@@ -564,6 +567,28 @@ fn requiring_a_property_held_only_through_assertions_is_refused() {
     );
 }
 
+/// Under v2 a `ModifyProperty` names its owner: the ownerless P1 shape still parses, for v1 stores
+/// that retain it, and v2 refuses it by name.
+#[test]
+fn an_ownerless_modify_property_is_refused_under_profile_two() {
+    let world = World::new();
+    let ownerless = GraphOperation::ModifyProperty(PropertyModification {
+        owner: None,
+        property: PropertyDefinition::new(PropertyId::mint(), "rationale", ValueType::String),
+    });
+    let issues = world.refuse(vec![ownerless.clone()]);
+    assert_eq!(codes(&issues), vec!["modify-property-without-owner"]);
+    assert_eq!(validators(&issues), vec![ValidatorName::Structural]);
+
+    // And v1 refuses it exactly as P1 did.
+    let v1 = Pipeline::deterministic(world.reviewer);
+    let issues = world
+        .validate(&v1, vec![ownerless], None)
+        .expect_err("v1 admits no schema change");
+    assert_eq!(codes(&issues), vec!["unsupported-operation"]);
+    assert_eq!(issues[0].message, "ModifyProperty is not supported in P1");
+}
+
 // Encoding and document -------------------------------------------------------------------------
 
 /// A transaction without a version id encodes exactly as the four fields did before the field
@@ -601,7 +626,14 @@ fn the_modify_property_owner_reaches_the_encoding() {
         })
         .canonical_bytes()
     };
-    assert_ne!(encode(TypeId::mint()), encode(TypeId::mint()));
+    assert_ne!(encode(Some(TypeId::mint())), encode(Some(TypeId::mint())));
+    // The P1 shape, with no owner, encodes as P1 did: the variant, then the bare declaration. An
+    // owner is written as a tagged `Some`, so the two shapes cannot share bytes.
+    let mut p1 = Encoder::new();
+    p1.variant(8);
+    property.encode(&mut p1);
+    assert_eq!(encode(None), p1.finish());
+    assert_ne!(encode(Some(TypeId::mint()))[..10], encode(None)[..10]);
 }
 
 const TX: &str = "00000000-0000-4000-8000-0000000000a1";
@@ -639,14 +671,19 @@ fn the_transaction_document_takes_one_optional_version_key() {
     let GraphOperation::ModifyProperty(modification) = &with.transaction().operations[0] else {
         panic!("a ModifyProperty")
     };
-    assert_eq!(modification.owner, TYPE.parse::<TypeId>().unwrap());
+    assert_eq!(modification.owner, Some(TYPE.parse::<TypeId>().unwrap()));
     assert_eq!(modification.property.id, PROPERTY.parse().unwrap());
 
-    // The ownerless P1 shape is not a `ModifyProperty` any more.
+    // The ownerless P1 shape still reads, as a modification with no owner: v1 stores retain it
+    // (correction 1; `base_era_v1_replay.rs`), and v2 refuses it at validation, not at parse.
     let ownerless = format!(
         "!ModifyProperty {{id: {PROPERTY}, name: note, value_type: {{value_kind: String}}}}"
     );
-    assert!(TransactionDocument::parse(document("", &ownerless).as_bytes()).is_err());
+    let p1 = TransactionDocument::parse(document("", &ownerless).as_bytes()).unwrap();
+    let GraphOperation::ModifyProperty(modification) = &p1.transaction().operations[0] else {
+        panic!("a ModifyProperty")
+    };
+    assert_eq!(modification.owner, None);
     // And a key that is not the version is still refused.
     assert!(TransactionDocument::parse(
         document(&format!("  schema_versions: {VERSION}\n"), &modify).as_bytes()
