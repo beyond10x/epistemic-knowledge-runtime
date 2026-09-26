@@ -352,25 +352,29 @@ impl OperationKind {
   transitive: false",
             ),
             Self::ModifyProperty => (
-                "redeclare a property definition",
-                "  id           PropertyId  new: ekr mint property, or an existing one
-  name         String
-  value_type   {value_kind: String|Boolean|Integer|Float|Decimal|Timestamp|Duration}
-               | {value_kind: NodeRef, parameters: {allowed_types: [TypeId]}}
-               | {value_kind: Enum, parameters: {variants: [String]}}
-               | {value_kind: List, parameters: <value_type>}
-               | {value_kind: Record, parameters: {field: <value_type>}}
-  cardinality  One | Many
-  required     bool
-  constraints  [String]    opaque; writes they apply to are refused",
+                "add a property to a type, or redeclare one it declares",
+                "  owner          TypeId      the node type or edge type that declares it
+  property       the declaration:
+    id           PropertyId  new: ekr mint property, or an existing one
+    name         String
+    value_type   {value_kind: String|Boolean|Integer|Float|Decimal|Timestamp|Duration}
+                 | {value_kind: NodeRef, parameters: {allowed_types: [TypeId]}}
+                 | {value_kind: Enum, parameters: {variants: [String]}}
+                 | {value_kind: List, parameters: <value_type>}
+                 | {value_kind: Record, parameters: {field: <value_type>}}
+    cardinality  One | Many
+    required     bool
+    constraints  [String]    opaque; writes they apply to are refused",
                 "- !ModifyProperty
-  id: 00000000-0000-4000-8000-000000000801
-  name: legal_name
-  value_type:
-    value_kind: String
-  cardinality: One
-  required: false
-  constraints: []",
+  owner: 00000000-0000-4000-8000-000000000201
+  property:
+    id: 00000000-0000-4000-8000-000000000801
+    name: legal_name
+    value_type:
+      value_kind: String
+    cardinality: One
+    required: false
+    constraints: []",
             ),
             Self::MergeEntity => (
                 "hold two nodes to be one; `into` keeps its id",

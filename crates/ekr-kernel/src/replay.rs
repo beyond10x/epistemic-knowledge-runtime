@@ -141,16 +141,34 @@ pub(crate) fn basis(
         validation_profile_hash: ContentHash::of(&anchor.validation_profile),
     }
 }
+/// Validates a retained proposal against `prior` under the store's own profile.
+///
+/// `revisions` are the committed revisions retained so far; those up to `prior` are the lineage a
+/// profile-v2 schema change is held new against. Profile v1 reads none of them, and seals and
+/// refuses exactly as P1 did.
 pub(crate) fn validate(
     proposal: &ProposalRecordV1,
+    revisions: &BTreeMap<RevisionNumber, AdmittedRevision>,
     prior: &AdmittedRevision,
+    anchor: &AuthorityStateV1,
     validator: AgentId,
 ) -> Result<ValidatedTransaction, Vec<crate::ValidationIssue>> {
     // Proposal verification has already parsed these exact retained bytes under their frozen profile.
     let parsed =
         TransactionDocument::parse(&proposal.document_bytes).expect("verified proposal document");
-    Pipeline::deterministic(validator)
-        .validate(&GraphSnapshot::of(&prior.graph), parsed.transaction())
+    let pipeline = if anchor.validation_profile.admits_schema_changes() {
+        Pipeline::schema_evolving(
+            validator,
+            crate::validate::schema::lineage(
+                revisions
+                    .range(..=prior.root.revision)
+                    .map(|(_, revision)| &revision.graph.ontology),
+            ),
+        )
+    } else {
+        Pipeline::deterministic(validator)
+    };
+    pipeline.validate(&GraphSnapshot::of(&prior.graph), parsed.transaction())
 }
 pub(crate) fn validation_record(
     proposal: &ProposalRecordV1,
@@ -286,8 +304,14 @@ impl KernelAuthority {
                             && record.validated_at >= prior.committed_at,
                         "validation-time-order",
                     )?;
-                    let validated = validate(&tx.proposal, prior, self.context.validator)
-                        .map_err(|_| refuse("retained-validation-refused"))?;
+                    let validated = validate(
+                        &tx.proposal,
+                        &state.revisions,
+                        prior,
+                        &self.anchor,
+                        self.context.validator,
+                    )
+                    .map_err(|_| refuse("retained-validation-refused"))?;
                     let expected = validation_record(
                         &tx.proposal,
                         tx.proposal_record_hash,
@@ -329,9 +353,15 @@ impl KernelAuthority {
                             && record.rejected_at >= prior.committed_at,
                         "rejection-record-disagrees",
                     )?;
-                    let actual = validate(&tx.proposal, prior, self.context.validator)
-                        .err()
-                        .ok_or_else(|| refuse("rejection-of-valid-transaction"))?;
+                    let actual = validate(
+                        &tx.proposal,
+                        &state.revisions,
+                        prior,
+                        &self.anchor,
+                        self.context.validator,
+                    )
+                    .err()
+                    .ok_or_else(|| refuse("rejection-of-valid-transaction"))?;
                     require(
                         !actual.is_empty()
                             && record.issues.len() == actual.len()
@@ -392,8 +422,14 @@ impl KernelAuthority {
                         record.committed_at >= validation.validated_at,
                         "commit-time-order",
                     )?;
-                    let validated = validate(&tx.proposal, prior, self.context.validator)
-                        .map_err(|_| refuse("retained-commit-validation-refused"))?;
+                    let validated = validate(
+                        &tx.proposal,
+                        &state.revisions,
+                        prior,
+                        &self.anchor,
+                        self.context.validator,
+                    )
+                    .map_err(|_| refuse("retained-commit-validation-refused"))?;
                     let (graph, root) = crate::apply::apply(
                         prior,
                         &validated,

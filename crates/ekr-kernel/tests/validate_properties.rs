@@ -295,7 +295,12 @@ where
         )),
         node_type().prop_map(|declared| GraphOperation::DefineNodeType(Box::new(declared))),
         edge_type().prop_map(|declared| GraphOperation::DefineEdgeType(Box::new(declared))),
-        definition().prop_map(GraphOperation::ModifyProperty),
+        (0usize..2, definition()).prop_map(|(at, property)| GraphOperation::ModifyProperty(
+            ekr_kernel::PropertyModification {
+                owner: POOL.types[at],
+                property
+            }
+        )),
         // The second index steps past the first, so `absorbed != into` always. Drawing the two
         // independently from a pool of three produced a node merged into itself about one
         // proposal in three — a shape the structural validator now refuses, so a generator that
@@ -338,6 +343,7 @@ where
                 proposer: POOL.agents[agent_at],
                 operations,
                 evidence: evidence.into_iter().map(|at| POOL.evidence[at]).collect(),
+                schema_version: None,
             },
         )
 }

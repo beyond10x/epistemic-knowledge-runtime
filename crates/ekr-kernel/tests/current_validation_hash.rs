@@ -83,6 +83,7 @@ impl World {
                 properties: BTreeMap::new(),
             })],
             evidence: BTreeSet::new(),
+            schema_version: None,
         }
     }
     fn validate(&self, graph: &CanonicalGraph, tx: &GraphTransaction) -> ValidatedTransaction {

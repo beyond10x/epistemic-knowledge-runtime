@@ -743,13 +743,7 @@ fn the_host_schemas_fixed_texts_are_the_ones_the_authority_check_requires() {
         &authority["format"]["const"],
         &host["authority"]["format"],
     )];
-    for field in [
-        "format",
-        "ruleset",
-        "proposer_separation",
-        "provenance",
-        "application",
-    ] {
+    for field in ["format", "proposer_separation", "provenance"] {
         fixed.push((
             field,
             &profile[field]["const"],
@@ -759,6 +753,24 @@ fn the_host_schemas_fixed_texts_are_the_ones_the_authority_check_requires() {
     for (field, constant, example) in fixed {
         assert!(constant.is_string(), "{field}: no const in {printed}");
         assert_eq!(constant, example, "{field}");
+    }
+    // Two profiles are accepted (design § 95): v1 and v2, each one exact pair of ruleset and
+    // application. The example host carries v1.
+    for (field, admitted) in [
+        (
+            "ruleset",
+            json!(["ekr.p1-deterministic/1", "ekr.p2-deterministic/1"]),
+        ),
+        ("application", json!(["ekr.p1-apply/1", "ekr.p2-apply/1"])),
+    ] {
+        assert_eq!(profile[field]["enum"], admitted, "{field} in {printed}");
+        assert!(
+            admitted
+                .as_array()
+                .unwrap()
+                .contains(&host["authority"]["validation_profile"][field]),
+            "{field}"
+        );
     }
     let validator = validator(HOST);
     let mut other = host.clone();
@@ -770,6 +782,20 @@ fn the_host_schemas_fixed_texts_are_the_ones_the_authority_check_requires() {
     assert!(
         validator.iter_errors(&other).next().is_some(),
         "the schema accepts a ruleset the authority check refuses"
+    );
+    // Profile v2 passes; a pair mixing the two profiles does not.
+    let mut v2 = host.clone();
+    v2["authority"]["validation_profile"]["ruleset"] = json!("ekr.p2-deterministic/1");
+    v2["authority"]["validation_profile"]["application"] = json!("ekr.p2-apply/1");
+    assert!(
+        validator.iter_errors(&v2).next().is_none(),
+        "the schema refuses profile v2"
+    );
+    let mut mixed = host.clone();
+    mixed["authority"]["validation_profile"]["ruleset"] = json!("ekr.p2-deterministic/1");
+    assert!(
+        validator.iter_errors(&mixed).next().is_some(),
+        "the schema accepts a ruleset paired with the other profile's application"
     );
 }
 

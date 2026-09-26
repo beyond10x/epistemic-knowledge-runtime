@@ -92,7 +92,9 @@ types:
     kind: newtype
     of: String
 
-  # Required literal: "ekr.p1-deterministic/1". Runtime version dispatch enforces it.
+  # Required literal: "ekr.p1-deterministic/1" (validation profile v1) or "ekr.p2-deterministic/1"
+  # (profile v2, which admits schema changes), paired with the matching application. Runtime version
+  # dispatch enforces it; a store keeps the profile its authority anchor named at seed.
   - name: ekr.kernel.RulesetV1
     kind: newtype
     of: String
@@ -107,7 +109,9 @@ types:
     kind: newtype
     of: String
 
-  # Required literal: "ekr.p1-apply/1". Runtime version dispatch enforces it.
+  # Required literal: "ekr.p1-apply/1" (profile v1) or "ekr.p2-apply/1" (profile v2, under which a
+  # committed schema change replaces the ontology with the version it names). Runtime version
+  # dispatch enforces it.
   - name: ekr.kernel.ApplicationProfileV1
     kind: newtype
     of: String
@@ -516,7 +520,7 @@ types:
       RetractAssertion: ekr.kernel.Retraction
       DefineNodeType: ekr.ontology.NodeTypeDeclaration
       DefineEdgeType: ekr.ontology.EdgeTypeDeclaration
-      ModifyProperty: ekr.ontology.PropertyDeclaration
+      ModifyProperty: ekr.ontology.PropertyModification
       MergeEntity: ekr.kernel.EntityMerge
       Invoke: ekr.kernel.InvocationProjection
       SupersedeAssertion: ekr.kernel.Supersession
@@ -532,6 +536,10 @@ types:
         type: List<ekr.kernel.CanonicalOperationProjection>
       - name: evidence
         type: List<ekr.graph.EvidenceId>
+      # Present exactly when the operations change the schema (profile v2); absent, it is absent
+      # from the canonical encoding, so a transaction without it hashes as it did before.
+      - name: schema_version
+        type: Optional<ekr.ontology.SchemaVersionId>
 
   - name: ekr.kernel.ValidationMaterialV1Projection
     kind: struct

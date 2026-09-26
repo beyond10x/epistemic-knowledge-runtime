@@ -592,6 +592,7 @@ fn refused_and_unpublished(
         proposer: context().operator,
         operations,
         evidence,
+        schema_version: None,
     };
 
     for file in [false, true] {
@@ -893,6 +894,7 @@ impl Lineage {
             } else {
                 BTreeSet::new()
             },
+            schema_version: None,
         }
     }
 }

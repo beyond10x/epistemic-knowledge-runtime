@@ -137,6 +137,7 @@ impl World {
             proposer: self.proposer,
             operations,
             evidence,
+            schema_version: None,
         }
     }
 

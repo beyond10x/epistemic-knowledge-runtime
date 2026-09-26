@@ -135,6 +135,7 @@ fn proposal(seed: &SeedDocument) -> (GraphTransaction, NodeId) {
                 }),
             ],
             evidence: BTreeSet::from([evidence]),
+            schema_version: None,
         },
         id,
     )

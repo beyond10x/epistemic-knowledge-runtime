@@ -17,7 +17,7 @@
 //!   (`architecture-decision-record:0007-the-commit-path-is-the-kernels`).
 //! * [`document`] — bounded, exact-byte `ekr.transaction-document/1` ingress.
 //! * [`seed`] — bootstrap admission, without a preceding committed revision.
-//! * [`authority`] — the host-supplied authority anchor and the P1 validation profile.
+//! * [`authority`] — the host-supplied authority anchor and the two validation profiles.
 //! * [`commands`] and [`records`] — the durable command handlers and the strict retained records
 //!   they return.
 //! * [`runtime`] — [`Runtime`], provider opening for consumers that must never depend on the raw
@@ -85,6 +85,7 @@
 //!         properties: BTreeMap::new(),
 //!     })],
 //!     evidence: BTreeSet::new(),
+//!     schema_version: None,
 //! };
 //!
 //! let snapshot = GraphSnapshot::of(&graph);
@@ -137,8 +138,8 @@ pub use replay::{TransactionRecord, TransactionState};
 pub use runtime::Runtime;
 pub use seed::{BootstrapContext, SeedDocument, SeedError};
 pub use transaction::{
-    EdgeDraft, EntityMerge, GraphOperation, GraphTransaction, NodeDraft, PropertyMutation,
-    Retraction, Supersession, ValidatedTransaction,
+    EdgeDraft, EntityMerge, GraphOperation, GraphTransaction, NodeDraft, PropertyModification,
+    PropertyMutation, Retraction, Supersession, ValidatedTransaction,
 };
 pub use validate::{
     Authorization, Cardinality, OntologyConstraint, Pipeline, Provenance, Reference, Structural,
