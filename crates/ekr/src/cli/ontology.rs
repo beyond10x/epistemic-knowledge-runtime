@@ -1,9 +1,9 @@
-//! `ekr ontology`: the node types, edge types and properties at the head, by name and id,
-//! through one `Runtime::read`.
+//! `ekr ontology`: the node types, edge types and properties at the head or at one committed
+//! revision, by name and id, with the schema version in force there, through one `Runtime::read`.
 
 use std::collections::BTreeMap;
 
-use ekr_core::{SchemaVersionId, TypeId};
+use ekr_core::{RevisionNumber, SchemaVersionId, TypeId};
 use ekr_kernel::Runtime;
 use ekr_ontology::{Cardinality, PropertyDefinition};
 use serde::Serialize;
@@ -14,6 +14,10 @@ use crate::exit::Failure;
 pub(super) struct Ontology {
     revision: u64,
     schema_version: SchemaVersionId,
+    /// The version's place in the lineage: 0 at the seed, one more per committed schema change.
+    schema_version_number: u64,
+    /// The version it was derived from; `null` at the seed.
+    schema_version_parent: Option<SchemaVersionId>,
     node_types: Vec<NodeType>,
     edge_types: Vec<EdgeType>,
 }
@@ -43,8 +47,10 @@ struct EdgeType {
     properties: Vec<PropertyDefinition>,
 }
 
-pub(super) fn run(runtime: &Runtime) -> Result<Ontology, Failure> {
-    let read = runtime.read(None)?;
+/// The ontology of the requested (or newest) committed revision; a missing revision is the
+/// kernel's `RevisionNotFound`, as for `ekr snapshot --at`.
+pub(super) fn run(runtime: &Runtime, at: Option<u64>) -> Result<Ontology, Failure> {
+    let read = runtime.read(at.map(RevisionNumber::new))?;
     let document = read.graph.ontology.to_document();
     let names: BTreeMap<TypeId, String> = document
         .node_types
@@ -62,6 +68,8 @@ pub(super) fn run(runtime: &Runtime) -> Result<Ontology, Failure> {
     Ok(Ontology {
         revision: read.root.revision.get(),
         schema_version: document.version.id,
+        schema_version_number: document.version.number,
+        schema_version_parent: document.version.parent,
         node_types: document
             .node_types
             .iter()

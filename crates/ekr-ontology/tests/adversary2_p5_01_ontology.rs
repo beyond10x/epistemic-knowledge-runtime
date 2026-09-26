@@ -398,7 +398,7 @@ fn narrowing_a_reference_from_an_abstract_type_to_its_only_concrete_subtype_admi
             .expect("precondition: next admits the node");
     }
 
-    let found = incompatibilities(&prior, &next, &Faithful(&nodes));
+    let found = ekr_ontology::incompatibilities(&prior, &next, &Faithful(&nodes));
     assert!(
         found.is_empty(),
         "every node is admitted by the next version, and incompatibilities refused: {found:?}"

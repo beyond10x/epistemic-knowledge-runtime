@@ -282,10 +282,21 @@ fn every_row_filed_as_a_validation_issue_names_a_code_a_validator_raises() {
         .filter(|row| row.1 == "validation issue")
         .collect();
     assert!(issue_rows.len() >= 20, "{issue_rows:?}");
+    // Under validation profile v2 the schema validator (`validate/schema.rs`) raises the
+    // ontology's own refusal codes through `code()`, not as literals of its own: those count as
+    // raised while that call stands. A named refusal relabelled as a validation issue is in
+    // neither set and still fails here.
+    let ontology: Vec<&str> = ekr_ontology::EvolveError::CODES
+        .into_iter()
+        .chain(ekr_ontology::Incompatibility::CODES)
+        .collect();
+    for call in ["error.code()", "found.code()"] {
+        assert!(source.contains(call), "validate/ no longer raises `{call}`");
+    }
     let not_raised: Vec<&str> = issue_rows
         .iter()
         .map(|row| row.0.as_str())
-        .filter(|code| !source.contains(&format!("\"{code}\"")))
+        .filter(|code| !source.contains(&format!("\"{code}\"")) && !ontology.contains(code))
         .collect();
     assert!(
         not_raised.is_empty(),

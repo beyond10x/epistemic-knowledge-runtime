@@ -17,18 +17,24 @@ What they proved necessary and how their data enters this runtime is written dow
 
 ## Status
 
-P1 is released as 0.0.2: the kernel, the typed graph and ontology, the store and the `ekr` binary.
-Product crates: `ekr-core`, `ekr-kernel`, `ekr-ontology`, `ekr-graph`, `ekr-store`, and
-the `ekr` binary.
+0.0.3 is the latest release: the kernel, the typed graph and ontology, the store and the `ekr`
+binary, with the user documentation. Product crates: `ekr-core`, `ekr-kernel`, `ekr-ontology`,
+`ekr-graph`, `ekr-store`, and the `ekr` binary.
 
 Repository utility: `xtask`.
 
-| works in 0.0.2 | not yet |
+| works in 0.0.3 | not in 0.0.3 |
 |---|---|
 | a schema of node types, edge types, typed properties, lifecycles and named operations, declared in the seed | changing the schema after seeding: `DefineNodeType`, `DefineEdgeType`, `ModifyProperty` and `MergeEntity` are refused as `unsupported-operation` |
-| propose → validate → commit of nodes, edges, property updates, assertions, retractions, supersessions and named operations | adding evidence after seeding: in P1 evidence enters only through the seed |
+| propose → validate → commit of nodes, edges, property updates, assertions, retractions, supersessions and named operations | adding evidence after seeding: evidence enters only through the seed |
 | reads: snapshots at any revision, what is believed at a valid time, and the full explanation of an assertion | property constraints, operation preconditions and emitted events: declared, but writes touching them are refused |
-| file and SQLite storage, with the kernel's executable specification passing on both | ingestion, the incubation forest, schema evolution and maintenance: later phases of [`docs/roadmap.md`](docs/roadmap.md) |
+| file and SQLite storage, with the kernel's executable specification passing on both | ingestion, the incubation forest, schema discovery from evidence and maintenance: later phases of [`docs/roadmap.md`](docs/roadmap.md) |
+
+`main` adds, not yet released: in a store seeded under validation profile v2 the schema grows
+after seeding. A committed transaction adds a node or edge type, or adds or redeclares a property,
+and each change is a new schema version; see
+[Evolve the schema](docs/cli.md#evolve-the-schema). A store seeded under profile v1, the example
+host's, keeps the seed's schema, and `MergeEntity` is still refused.
 
 On the file provider every read re-hashes the whole event log, so commands slow down as revisions
 accumulate; SQLite grows about linearly. [`CHANGELOG.md`](CHANGELOG.md) has the details.

@@ -10,12 +10,16 @@
 //!   what the page says they print;
 //! * the verb table equals the verbs `ekr --help` lists, and the configuration table equals its
 //!   global options;
-//! * the operation-kind table equals `ekr operations`, applied/refused split included, and every
-//!   operation kind the page names anywhere is one the binary has;
+//! * the schema evolution example's blocks (those carrying `evolve=`) seed a store under
+//!   validation profile v2 from the worked seed, reach their declared outcomes on both providers,
+//!   and `ekr ontology --at 0` and `ekr ontology` print the seed's and the evolved schema;
+//! * the operation-kind table equals `ekr operations`, applied/schema-change/refused split
+//!   included, and every operation kind the page names anywhere is one the binary has;
 //! * the value-kind table names every `ValueKind` and no other, and the worked schema declares a
 //!   property of each;
 //! * every refusal code and refusal name the page tells a reader to look for is one the runtime's
-//!   source emits;
+//!   source emits, and every code a schema change can be refused with is a row of the page or
+//!   named unreachable with its reason, each row drawn by a transaction this suite writes;
 //! * `README.md`'s first run runs as written on both providers, and `README.md` and `AGENTS.md`
 //!   point at the page without repeating each other.
 
@@ -546,16 +550,24 @@ fn the_configuration_table_equals_the_global_options_and_names_their_variables()
 
 // 4 --------------------------------------------------------------------------------------------
 
-/// `ekr operations`: each kind and whether the P1 kernel applies it.
-fn binary_kinds() -> BTreeMap<String, bool> {
+/// `ekr operations`: each kind and what its line says of it — `applied`, `schema change` (applied
+/// under validation profile v2 in a schema-only transaction) or `refused` (applied under neither
+/// profile).
+fn binary_kinds() -> BTreeMap<String, &'static str> {
     stdout(&["operations"])
         .lines()
         .filter(|line| !line.trim().is_empty())
         .map(|line| {
-            (
-                line.split_whitespace().next().unwrap().to_owned(),
-                !line.contains("not applied in P1"),
-            )
+            let status = match (
+                line.contains("[schema change:"),
+                line.contains("[not applied:"),
+            ) {
+                (false, false) => "applied",
+                (true, false) => "schema change",
+                (false, true) => "refused",
+                (true, true) => panic!("`ekr operations` marks a line both ways: {line:?}"),
+            };
+            (line.split_whitespace().next().unwrap().to_owned(), status)
         })
         .collect()
 }
@@ -579,18 +591,26 @@ fn the_operation_kind_table_and_its_applied_split_match_ekr_operations() {
     let binary = binary_kinds();
     assert_eq!(binary.len(), 12, "ekr operations: {binary:?}");
 
-    let table: BTreeMap<String, bool> = rows(section(&page, "### Operation kinds"))
+    let table: BTreeMap<String, &'static str> = rows(section(&page, "### Operation kinds"))
         .iter()
         .filter_map(|cells| {
             let kind = code(&cells[0])?.to_owned();
-            let applied = match cells[1].as_str() {
-                "applied" => true,
-                "refused" => false,
-                other => panic!("the {kind} row says {other:?}; write applied or refused"),
+            let status = match cells[1].as_str() {
+                "applied" => "applied",
+                "schema change" => "schema change",
+                "refused" => "refused",
+                other => {
+                    panic!("the {kind} row says {other:?}; write applied, schema change or refused")
+                }
             };
-            Some((kind, applied))
+            Some((kind, status))
         })
         .collect();
+    assert_eq!(
+        table.values().filter(|s| **s == "schema change").count(),
+        3,
+        "three kinds change the schema: {table:?}"
+    );
     assert_eq!(
         table, binary,
         "the operation-kind table of docs/cli.md and `ekr operations` disagree"
@@ -788,13 +808,24 @@ fn every_refusal_the_page_names_is_a_whole_name_the_runtime_emits() {
         );
     }
     // A row filed as a validation issue names a code a validator raises, as a whole literal in the
-    // validator sources: not merely a string somewhere in the runtime.
+    // validator sources: not merely a string somewhere in the runtime. The schema validator raises
+    // the ontology's own codes through `code()` (`crates/ekr-kernel/src/validate/schema.rs`), so a
+    // code of `EvolveError::CODES` or `Incompatibility::CODES` counts too; which of those the page
+    // lists is held by `every_code_a_schema_change_is_refused_with_is_listed_or_unreachable`.
     let validators = sources(&["crates/ekr-kernel/src/validate"]);
+    for call in ["error.code()", "found.code()", "reused.code()"] {
+        assert!(
+            validators.contains(call),
+            "the schema validator no longer raises the ontology's codes through `{call}`"
+        );
+    }
     let not_raised: Vec<&str> = table
         .iter()
         .filter(|row| row.at == ISSUE)
         .map(|row| row.name.as_str())
-        .filter(|code| !validators.contains(&format!("\"{code}\"")))
+        .filter(|code| {
+            !validators.contains(&format!("\"{code}\"")) && !ontology_codes().contains(code)
+        })
         .collect();
     assert!(
         not_raised.is_empty(),
@@ -1227,4 +1258,870 @@ fn readme_and_agents_point_at_the_page_without_duplicating_each_other() {
             "{name} carries an absolute home path"
         );
     }
+}
+
+// 9 --------------------------------------------------------------------------------------------
+
+/// The ontology's refusal codes, which the schema validator raises through `code()`.
+fn ontology_codes() -> BTreeSet<&'static str> {
+    ekr_ontology::EvolveError::CODES
+        .into_iter()
+        .chain(ekr_ontology::Incompatibility::CODES)
+        .collect()
+}
+
+/// The structural validator's three codes for the shape of a schema-changing transaction.
+const SCHEMA_SHAPE_CODES: [&str; 4] = [
+    "schema-version-missing",
+    "schema-version-without-schema-change",
+    "mixed-schema-transaction",
+    "modify-property-without-owner",
+];
+
+/// The seed version of the worked example, which the evolution example evolves.
+const WORKED_SEED_VERSION: &str = "00000000-0000-4000-a000-000000000001";
+
+/// The page's read-back commands for the evolution example.
+const MINT_VERSION: &str = "ekr mint schema-version";
+const ONTOLOGY_AT_SEED: &str = "ekr ontology --at 0";
+const ONTOLOGY_AT_HEAD: &str = "ekr ontology";
+
+/// The evolution example's files, beside the worked example's, in one fresh directory; its store
+/// is seeded from the worked seed under the evolution example's own host.
+struct Evolution {
+    directory: tempfile::TempDir,
+    backend: &'static str,
+    host: String,
+}
+
+impl Evolution {
+    fn new(page: &str, backend: &'static str) -> Self {
+        let directory = tempfile::tempdir().unwrap();
+        let mut host = None;
+        for block in blocks(page) {
+            let name = block
+                .attribute("file")
+                .or_else(|| block.attribute("evolve"));
+            if let Some(name) = name {
+                std::fs::write(directory.path().join(name), &block.body).unwrap();
+            }
+            if block.tagged(HOST) {
+                if let Some(name) = block.attribute("evolve") {
+                    host = Some(name.to_owned());
+                }
+            }
+        }
+        Self {
+            directory,
+            backend,
+            host: host.expect("the evolution example has a host file"),
+        }
+    }
+
+    fn run(&self, verb: &[&str]) -> Output {
+        let at = self.directory.path();
+        let store = match self.backend {
+            "file" => at.join("evolving-store"),
+            _ => at.join("evolving.db"),
+        };
+        ekr()
+            .current_dir(at)
+            .arg("--host")
+            .arg(at.join(&self.host))
+            .arg("--store")
+            .arg(store)
+            .args(["--backend", self.backend])
+            .args(verb)
+            .output()
+            .unwrap()
+    }
+
+    fn ok(&self, verb: &[&str]) -> Value {
+        let output = self.run(verb);
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{} {verb:?}: {}",
+            self.backend,
+            String::from_utf8_lossy(&output.stderr)
+        );
+        serde_json::from_slice(&output.stdout).unwrap()
+    }
+
+    fn seeded(page: &str, backend: &'static str) -> Self {
+        let evolution = Self::new(page, backend);
+        let seeded = evolution.ok(&["seed", "seed.yaml"]);
+        assert_eq!(seeded["result"]["revision"], 0, "{backend}: {seeded}");
+        evolution
+    }
+
+    /// Writes `body` as `name`, proposes and validates it, and returns the validation record.
+    fn validate(&self, name: &str, body: &str) -> Value {
+        std::fs::write(self.directory.path().join(name), body).unwrap();
+        let proposed = self.ok(&["propose", name]);
+        let id = proposed["transaction_id"].as_str().unwrap().to_owned();
+        self.ok(&["validate", &id])
+    }
+}
+
+fn names_of(ontology: &Value, key: &str) -> BTreeSet<String> {
+    ontology[key]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t["name"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+/// `docs/cli.md` § Evolve the schema: its host is the worked example's host with validation
+/// profile v2 and nothing else changed; seeded from the worked seed, every transaction block of
+/// the section (those carrying `evolve=`) reaches the outcome it declares on both providers; and
+/// the page's read-back commands print the seed's schema at revision 0 and the evolved one, with
+/// its number and parent, at the head.
+#[test]
+fn the_schema_evolution_example_commits_and_reads_each_version_back_on_both_providers() {
+    let page = page();
+    let section_text = section(&page, "## Evolve the schema");
+    for needle in [MINT_VERSION, ONTOLOGY_AT_SEED, ONTOLOGY_AT_HEAD] {
+        assert!(
+            section_text
+                .lines()
+                .any(|line| line.split(" #").next().unwrap().trim() == needle),
+            "§ Evolve the schema does not show {needle:?}"
+        );
+    }
+    let evolving: Vec<Block> = blocks(section_text)
+        .into_iter()
+        .filter(|block| block.attribute("evolve").is_some())
+        .collect();
+    let hosts: Vec<&Block> = evolving.iter().filter(|b| b.tagged(HOST)).collect();
+    assert_eq!(hosts.len(), 1, "the evolution example has one host file");
+    let transactions: Vec<&Block> = evolving.iter().filter(|b| b.tagged(TRANSACTION)).collect();
+    assert!(
+        transactions.len() >= 3,
+        "the evolution example changes the schema, uses it and is refused: {} files",
+        transactions.len()
+    );
+    assert!(
+        evolving
+            .iter()
+            .all(|b| b.tagged(HOST) || b.tagged(TRANSACTION)),
+        "an evolve= block is a host or a transaction document"
+    );
+
+    // The host is the worked host with the v2 ruleset and application, and admits schema changes.
+    let worked = blocks(&page)
+        .into_iter()
+        .find(|b| b.tagged(HOST) && b.attribute("file").is_some())
+        .unwrap();
+    let v1 = CliHostConfigurationV1::from_json(worked.body.as_bytes()).unwrap();
+    let v2 = CliHostConfigurationV1::from_json(hosts[0].body.as_bytes()).unwrap();
+    assert!(!v1.authority.validation_profile.admits_schema_changes());
+    assert!(v2.authority.validation_profile.admits_schema_changes());
+    let mut expected: Value = serde_json::from_str(&worked.body).unwrap();
+    expected["authority"]["validation_profile"]["ruleset"] = "ekr.p2-deterministic/1".into();
+    expected["authority"]["validation_profile"]["application"] = "ekr.p2-apply/1".into();
+    let written: Value = serde_json::from_str(&hosts[0].body).unwrap();
+    assert_eq!(
+        written, expected,
+        "the evolution host differs from the worked host in more than its profile"
+    );
+
+    // The types the committed schema changes define, by name.
+    let mut defined = BTreeSet::new();
+    for block in &transactions {
+        if block.attribute("outcome") != Some("Committed") {
+            continue;
+        }
+        let parsed = TransactionDocument::parse(block.body.as_bytes()).unwrap();
+        for operation in &parsed.transaction().operations {
+            match operation {
+                ekr_kernel::GraphOperation::DefineNodeType(t) => {
+                    defined.insert(("node_types", t.name.clone()));
+                }
+                ekr_kernel::GraphOperation::DefineEdgeType(t) => {
+                    defined.insert(("edge_types", t.name.clone()));
+                }
+                _ => {}
+            }
+        }
+    }
+    assert!(!defined.is_empty(), "the evolution example defines no type");
+
+    for backend in BACKENDS {
+        let evolution = Evolution::seeded(&page, backend);
+        let mut revision = 0;
+        let mut versions = vec![WORKED_SEED_VERSION.to_owned()];
+        for block in &transactions {
+            let file = block.attribute("evolve").unwrap();
+            let outcome = block.attribute("outcome").unwrap_or_else(|| {
+                panic!(
+                    "docs/cli.md:{}: an evolve transaction declares outcome=",
+                    block.line
+                )
+            });
+            let proposed = evolution.ok(&["propose", file]);
+            let id = proposed["transaction_id"].as_str().unwrap().to_owned();
+            let validated = evolution.ok(&["validate", &id]);
+            let version = TransactionDocument::parse(block.body.as_bytes())
+                .unwrap()
+                .transaction()
+                .schema_version;
+            if outcome == "Committed" {
+                assert_eq!(
+                    validated["kind"], "Validated",
+                    "{backend} {file}: {}",
+                    validated["issues"]
+                );
+                let committed = evolution.ok(&["commit", &id]);
+                revision += 1;
+                assert_eq!(
+                    committed["result"]["revision"], revision,
+                    "{backend} {file}"
+                );
+                if let Some(version) = version {
+                    versions.push(version.to_string());
+                }
+            } else {
+                let codes = outcome
+                    .strip_prefix("Rejected:")
+                    .unwrap_or_else(|| panic!("{file}: outcome {outcome} is not understood"));
+                let wanted: BTreeSet<String> = codes.split(',').map(str::to_owned).collect();
+                assert_eq!(validated["kind"], "Rejected", "{backend} {file}");
+                assert_eq!(issue_codes(&validated), wanted, "{backend} {file}");
+                let refused = evolution.run(&["commit", &id]);
+                assert_eq!(refused.status.code(), Some(2), "{backend} {file}");
+            }
+        }
+        assert!(versions.len() >= 2, "{backend}: no schema change committed");
+
+        let words: Vec<&str> = ONTOLOGY_AT_SEED.split_whitespace().skip(1).collect();
+        let seed = evolution.ok(&words);
+        assert_eq!(seed["revision"], 0, "{backend}: {seed}");
+        assert_eq!(seed["schema_version"], WORKED_SEED_VERSION, "{backend}");
+        assert_eq!(seed["schema_version_number"], 0, "{backend}");
+        assert_eq!(seed["schema_version_parent"], Value::Null, "{backend}");
+        let head = evolution.ok(&["ontology"]);
+        assert_eq!(head["revision"], revision, "{backend}: {head}");
+        let number = versions.len() - 1;
+        assert_eq!(
+            head["schema_version"],
+            versions[number].as_str(),
+            "{backend}"
+        );
+        assert_eq!(head["schema_version_number"], number, "{backend}");
+        assert_eq!(
+            head["schema_version_parent"],
+            versions[number - 1].as_str(),
+            "{backend}"
+        );
+        for (key, name) in &defined {
+            assert!(
+                !names_of(&seed, key).contains(name),
+                "{backend}: {name} at revision 0"
+            );
+            assert!(
+                names_of(&head, key).contains(name),
+                "{backend}: {name} not at the head"
+            );
+        }
+    }
+}
+
+/// Codes of the schema class that no `ekr.transaction-document/1` can reach, each with the reason.
+/// The page lists every other code of the class; a new code fails
+/// `every_code_a_schema_change_is_refused_with_is_listed_or_unreachable` until it is one or the
+/// other.
+const UNREACHABLE_SCHEMA_CODES: [(&str, &str); 7] = [
+    (
+        "empty-schema-change",
+        "`ekr propose` refuses a document with no operations (ekr.kernel.StructurallyInvalid), and \
+         the schema validator reaches Ontology::evolve only when every operation is a schema change",
+    ),
+    (
+        "schema-version-exhausted",
+        "the version number would pass u64::MAX",
+    ),
+    (
+        "type-already-declared",
+        "the Structural validator reports a type id that is held or defined twice as \
+         identity-already-exists or duplicate-identity, and the schema validator then says nothing",
+    ),
+    ("type-removed", "no operation removes a type"),
+    ("property-removed", "no operation removes a property"),
+    (
+        "type-declaration-changed",
+        "ModifyProperty changes only a type's properties, and a type is defined only once",
+    ),
+    (
+        "not-a-successor",
+        "the kernel derives the next version from the prior one",
+    ),
+];
+
+/// A schema-changing transaction against the worked seed, proposed by the worked operator.
+fn schema_tx(id: u32, version: Option<&str>, operations: &str) -> String {
+    let mut text = format!(
+        "format: ekr.transaction-document/1\ntransaction:\n  id: 00000000-0000-4000-a000-00000000{id:04}\n  \
+         proposer: 00000000-0000-4000-a000-000000000011\n  operations:{operations}\n  evidence: []\n"
+    );
+    if let Some(version) = version {
+        text.push_str(&format!("  schema_version: {version}\n"));
+    }
+    text
+}
+
+/// A `ModifyProperty` of `owner` in the worked seed, redeclaring one property.
+fn modify(owner: &str, property: &str, name: &str, value_type: &str, rest: &str) -> String {
+    format!(
+        "\n  - !ModifyProperty\n    owner: 00000000-0000-4000-a000-000000000{owner}\n    property:\n      \
+         id: 00000000-0000-4000-a000-000000000{property}\n      name: {name}\n      value_type:\n{value_type}{rest}"
+    )
+}
+
+const JOURNAL: &str = "\n  - !DefineNodeType\n    id: 00000000-0000-4000-a000-000000000105\n    \
+name: Journal\n    parents:\n    - 00000000-0000-4000-a000-000000000101\n    properties: {}\n    \
+abstract_type: false\n    lifecycle: null\n    operations: {}";
+const PAGES: &str = "\n  - !UpdateProperty\n    node: 00000000-0000-4000-a000-000000000302\n    \
+property: 00000000-0000-4000-a000-000000000203\n    values:\n    - value_kind: Integer\n      value: 224";
+const VERSION: &str = "00000000-0000-4000-a000-000000000009";
+
+/// A transaction against the worked seed under profile v2 that draws `code`, or `None` for a code
+/// this suite has no trigger for.
+fn schema_trigger(code: &str) -> Option<String> {
+    let string = "        value_kind: String\n";
+    let one = "      cardinality: One\n      required: false\n      constraints: []";
+    Some(match code {
+        "schema-version-missing" => schema_tx(1, None, JOURNAL),
+        "schema-version-without-schema-change" => schema_tx(2, Some(VERSION), PAGES),
+        "mixed-schema-transaction" => schema_tx(3, Some(VERSION), &format!("{JOURNAL}{PAGES}")),
+        "modify-property-without-owner" => schema_tx(
+            16,
+            Some(VERSION),
+            "\n  - !ModifyProperty\n    id: 00000000-0000-4000-a000-000000000215\n    name: nickname\n    \
+             value_type:\n      value_kind: String\n    cardinality: One\n    required: false\n    \
+             constraints: []",
+        ),
+        "schema-version-reused" => schema_tx(5, Some(WORKED_SEED_VERSION), JOURNAL),
+        "unknown-property-owner" => schema_tx(
+            6,
+            Some(VERSION),
+            &modify("199", "214", "issn", string, &format!("\n{one}")),
+        ),
+        "incoherent-schema" => schema_tx(
+            7,
+            Some(VERSION),
+            "\n  - !DefineEdgeType\n    id: 00000000-0000-4000-a000-000000000106\n    name: EDITED\n    \
+             source_types:\n    - 00000000-0000-4000-a000-000000000103\n    target_types:\n    \
+             - 00000000-0000-4000-a000-000000000199\n    cardinality: Many\n    properties: {}\n    \
+             inverse: null\n    symmetric: false\n    transitive: false",
+        ),
+        "schema-change-without-effect" => schema_tx(
+            8,
+            Some(VERSION),
+            &modify(
+                "101",
+                "201",
+                "title",
+                string,
+                "\n      cardinality: One\n      required: true\n      constraints: []",
+            ),
+        ),
+        "required-property-missing" => schema_tx(
+            9,
+            Some(VERSION),
+            &modify(
+                "102",
+                "208",
+                "translation_of",
+                "        value_kind: NodeRef\n        parameters:\n          allowed_types:\n          \
+                 - 00000000-0000-4000-a000-000000000102\n",
+                "\n      cardinality: One\n      required: true\n      constraints: []",
+            ),
+        ),
+        "cardinality-narrowed" => schema_tx(
+            10,
+            Some(VERSION),
+            &modify("102", "210", "subjects", string, &format!("\n{one}")),
+        ),
+        "value-kind-not-admitted" => schema_tx(
+            11,
+            Some(VERSION),
+            &modify("102", "203", "page_count", string, &format!("\n{one}")),
+        ),
+        "value-type-narrowed" => schema_tx(
+            12,
+            Some(VERSION),
+            &modify(
+                "102",
+                "209",
+                "binding",
+                "        value_kind: Enum\n        parameters:\n          variants:\n          \
+                 - hardcover\n          - ebook\n",
+                &format!("\n{one}"),
+            ),
+        ),
+        "constraint-changed" => schema_tx(
+            13,
+            Some(VERSION),
+            &modify(
+                "102",
+                "202",
+                "in_print",
+                "        value_kind: Boolean\n",
+                "\n      cardinality: One\n      required: false\n      constraints: [reviewed]",
+            ),
+        ),
+        _ => return None,
+    })
+}
+
+/// Every code a schema change can be refused with — the Structural validator's three for the
+/// transaction's shape, and every code of `EvolveError` and `Incompatibility`, which the schema
+/// validator raises as they are — is either a validation-issue row of the page's refusal table or
+/// one of [`UNREACHABLE_SCHEMA_CODES`], never both. Every listed one is drawn, on a store seeded
+/// from the worked seed under the evolution example's host, by a transaction this case writes;
+/// and the unreachability of `type-already-declared` is measured, not assumed.
+#[test]
+fn every_code_a_schema_change_is_refused_with_is_listed_or_unreachable() {
+    let page = page();
+    let class: BTreeSet<&str> = ontology_codes()
+        .into_iter()
+        .chain(SCHEMA_SHAPE_CODES)
+        .collect();
+    let listed: BTreeSet<String> = refusal_table(&page)
+        .into_iter()
+        .filter(|row| row.at == ISSUE && class.contains(row.name.as_str()))
+        .map(|row| row.name)
+        .collect();
+    let unreachable: BTreeSet<&str> = UNREACHABLE_SCHEMA_CODES.iter().map(|(c, _)| *c).collect();
+    let both: Vec<&String> = listed
+        .iter()
+        .filter(|c| unreachable.contains(c.as_str()))
+        .collect();
+    assert!(both.is_empty(), "listed and called unreachable: {both:?}");
+    let neither: Vec<&&str> = class
+        .iter()
+        .filter(|c| !listed.contains(**c) && !unreachable.contains(**c))
+        .collect();
+    assert!(
+        neither.is_empty(),
+        "codes a schema change can be refused with that docs/cli.md does not list: {neither:?}"
+    );
+    assert!(
+        unreachable.iter().all(|c| class.contains(c)),
+        "an unreachable code is not of the class: {unreachable:?}"
+    );
+
+    let evolution = Evolution::seeded(&page, "file");
+    let mut untriggered = Vec::new();
+    for code in &listed {
+        let Some(document) = schema_trigger(code) else {
+            untriggered.push(code.clone());
+            continue;
+        };
+        let validated = evolution.validate(&format!("{code}.yaml"), &document);
+        assert_eq!(validated["kind"], "Rejected", "{code}: {validated}");
+        assert!(
+            issue_codes(&validated).contains(code.as_str()),
+            "{code}: the trigger drew {:?}",
+            issue_codes(&validated)
+        );
+    }
+    assert!(
+        untriggered.is_empty(),
+        "listed schema refusals this suite does not draw: {untriggered:?}"
+    );
+
+    let redefined = schema_tx(
+        14,
+        Some(VERSION),
+        &JOURNAL.replace("000000000105", "000000000102"),
+    );
+    let validated = evolution.validate("redefined.yaml", &redefined);
+    let codes = issue_codes(&validated);
+    assert!(
+        codes.contains("identity-already-exists") && !codes.contains("type-already-declared"),
+        "a type defined over a held one: {codes:?}"
+    );
+    // `empty-schema-change`: a versioned document with no operations never reaches validation.
+    std::fs::write(
+        evolution.directory.path().join("empty.yaml"),
+        schema_tx(15, Some(VERSION), " []"),
+    )
+    .unwrap();
+    let empty = evolution.run(&["propose", "empty.yaml"]);
+    assert_eq!(empty.status.code(), Some(2), "{empty:?}");
+    assert!(
+        String::from_utf8_lossy(&empty.stderr).starts_with("ekr: ekr.kernel.StructurallyInvalid"),
+        "{empty:?}"
+    );
+}
+
+// Correction round 1 (p5-01-cli) ---------------------------------------------------------------
+
+/// Phrases that tell a reader only the P1 validation profile is accepted. The binary accepts two
+/// profiles (v1 and v2), so no text an agent or a person reads may say either of these.
+const P1_ONLY: [&str; 4] = [
+    "the P1 profile",
+    "P1 validation profile",
+    "is not the P1 one",
+    "the deterministic P1 validation profile",
+];
+
+/// Every text a reader meets that states which validation profile a host carries or a store
+/// accepts — `README.md`, `docs/cli.md`, `ekr guide`, every verb's `--help`, and the three
+/// JSON Schemas `ekr schema` prints — names both profiles rather than the P1 one alone. The
+/// `seed-authority-profile` row names both accepted pairs in its fix.
+#[test]
+fn no_text_a_reader_meets_says_only_the_p1_profile_is_accepted() {
+    let mut texts: Vec<(String, String)> = vec![
+        ("README.md".to_owned(), read("README.md")),
+        ("docs/cli.md".to_owned(), page()),
+        ("ekr guide".to_owned(), stdout(&["guide"])),
+    ];
+    for format in [SEED, TRANSACTION, HOST] {
+        texts.push((format!("ekr schema {format}"), stdout(&["schema", format])));
+    }
+    let help = stdout(&["--help"]);
+    texts.push(("ekr --help".to_owned(), help.clone()));
+    for verb in help
+        .lines()
+        .skip_while(|line| !line.starts_with("Commands:"))
+        .skip(1)
+        .take_while(|line| line.starts_with("  "))
+        .filter_map(|line| line.split_whitespace().next())
+        .filter(|verb| *verb != "help")
+    {
+        texts.push((format!("ekr {verb} --help"), stdout(&[verb, "--help"])));
+    }
+    let mut found = Vec::new();
+    for (name, text) in &texts {
+        let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
+        for phrase in P1_ONLY {
+            if flat.contains(phrase) {
+                found.push(format!("{name}: {phrase:?}"));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "texts that accept only the P1 profile: {found:?}"
+    );
+
+    let host = stdout(&["schema", HOST]);
+    let schema: Value = serde_json::from_str(&host).unwrap();
+    let authority = schema["properties"]["authority"]["description"]
+        .as_str()
+        .unwrap();
+    for needle in [
+        "ekr.p1-deterministic/1",
+        "ekr.p2-deterministic/1",
+        "schema change",
+    ] {
+        assert!(
+            authority.contains(needle),
+            "`ekr schema ekr.cli-host/1` authority description lacks {needle:?}: {authority}"
+        );
+    }
+
+    let page = page();
+    let row = refusal_table(&page)
+        .into_iter()
+        .map(|row| row.name)
+        .find(|name| name == "seed-authority-profile")
+        .expect("a seed-authority-profile row");
+    let line = page
+        .lines()
+        .find(|line| line.starts_with(&format!("| `{row}` |")))
+        .unwrap();
+    for needle in [
+        "`ekr.p1-deterministic/1` with `ekr.p1-apply/1`",
+        "`ekr.p2-deterministic/1` with `ekr.p2-apply/1`",
+    ] {
+        assert!(
+            line.contains(needle),
+            "the {row} row lacks {needle:?}: {line}"
+        );
+    }
+    // The row's example cause, measured: a v2 ruleset with the v1 application is refused.
+    let lab = Lab::new(&page);
+    lab.edit(
+        "host.json",
+        "mixed.json",
+        "\"ruleset\": \"ekr.p1-deterministic/1\"",
+        "\"ruleset\": \"ekr.p2-deterministic/1\"",
+    );
+    let output = lab.run("mixed.json", &["seed", "seed.yaml"]);
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(
+        reads_as(
+            &String::from_utf8_lossy(&output.stderr),
+            "ekr: opening the provider: invalid seed: seed-authority-profile"
+        ),
+        "{output:?}"
+    );
+}
+
+/// `README.md` is true of the release and of `main` (correction round 2): its status table is
+/// headed by the latest release, 0.0.3, and keeps that release's schema-change refusal; a separate
+/// statement says what `main` adds — schema evolution under validation profile v2, with
+/// `MergeEntity` still refused — and links the page's § Evolve the schema. Schema evolution is no
+/// longer called a later phase.
+#[test]
+fn readme_says_the_schema_evolves_under_profile_v2() {
+    let readme = read("README.md");
+    let flat = readme.split_whitespace().collect::<Vec<_>>().join(" ");
+    for stale in [
+        "works in 0.0.2",
+        "the incubation forest, schema evolution and maintenance",
+    ] {
+        assert!(!flat.contains(stale), "README.md still says {stale:?}");
+    }
+    let header = readme
+        .lines()
+        .find(|line| line.starts_with("| works in "))
+        .expect("README.md has a status table");
+    assert!(header.starts_with("| works in 0.0.3 |"), "{header}");
+    let prefixed = format!("\n{readme}");
+    let released = section(&prefixed, "## Status");
+    let table: String = released
+        .lines()
+        .filter(|line| line.starts_with('|'))
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(
+        table.contains(
+            "`DefineNodeType`, `DefineEdgeType`, `ModifyProperty` and `MergeEntity` are refused \
+             as `unsupported-operation`"
+        ),
+        "the 0.0.3 table does not keep that release's schema-change refusal: {table}"
+    );
+    for needle in [
+        "not yet released",
+        "docs/cli.md#evolve-the-schema",
+        "validation profile v2",
+        "`MergeEntity` is still refused",
+    ] {
+        assert!(flat.contains(needle), "README.md lacks {needle:?}");
+    }
+    // The link lands: the page has that heading.
+    section(&page(), "## Evolve the schema");
+}
+
+/// The `unsupported-constraint` row's fix is true under both profiles: under v2 a
+/// `ModifyProperty` can change a property's `constraints`, so "must be `[]` in the seed" is not
+/// the only way out.
+#[test]
+fn the_unsupported_constraint_fix_names_modify_property_under_profile_v2() {
+    let page = page();
+    let line = page
+        .lines()
+        .find(|line| line.starts_with("| `unsupported-constraint` |"))
+        .expect("an unsupported-constraint row");
+    assert!(
+        !line.contains("none in P1: those must be `[]` in the seed"),
+        "{line}"
+    );
+    for needle in ["`ModifyProperty`", "profile v2", "constraint-changed"] {
+        assert!(line.contains(needle), "the row lacks {needle:?}: {line}");
+    }
+    // What the fix says, measured under v2: a type declared with a constrained property and no
+    // instances has its constraints cleared by a ModifyProperty, and a node of it then commits.
+    let evolution = Evolution::seeded(&page, "file");
+    let issn = |constraints: &str| {
+        modify(
+            "105",
+            "214",
+            "issn",
+            "        value_kind: String\n",
+            &format!(
+                "\n      cardinality: One\n      required: false\n      constraints: {constraints}"
+            ),
+        )
+    };
+    let commit = |name: &str, body: &str| {
+        std::fs::write(evolution.directory.path().join(name), body).unwrap();
+        let proposed = evolution.ok(&["propose", name]);
+        let id = proposed["transaction_id"].as_str().unwrap().to_owned();
+        let validated = evolution.ok(&["validate", &id]);
+        assert_eq!(validated["kind"], "Validated", "{name}: {validated}");
+        assert_eq!(
+            evolution.ok(&["commit", &id])["kind"],
+            "Committed",
+            "{name}"
+        );
+    };
+    commit(
+        "constrained.yaml",
+        &schema_tx(
+            21,
+            Some("00000000-0000-4000-a000-000000000021"),
+            &format!("{JOURNAL}{}", issn("[reviewed]")),
+        ),
+    );
+    commit(
+        "cleared.yaml",
+        &schema_tx(
+            22,
+            Some("00000000-0000-4000-a000-000000000022"),
+            &issn("[]"),
+        ),
+    );
+    let node = "\n  - !CreateNode\n    id: 00000000-0000-4000-a000-000000000304\n    \
+                root_id: 00000000-0000-4000-a000-000000000002\n    \
+                type_id: 00000000-0000-4000-a000-000000000105\n    canonical_name: Q\n    \
+                properties:\n      00000000-0000-4000-a000-000000000201:\n      \
+                - value_kind: String\n        value: Q\n      \
+                00000000-0000-4000-a000-000000000214:\n      \
+                - value_kind: String\n        value: x";
+    commit("journal-node.yaml", &schema_tx(23, None, node));
+}
+
+// Correction round 2 (p5-01-cli) ---------------------------------------------------------------
+
+/// Every whole kebab-case string literal in the given validator sources: the issue codes they
+/// raise. (Every such literal under `crates/ekr-kernel/src/validate` is a code; the partition
+/// below fails on one that is neither listed nor classified, which is how a new one is found.)
+fn validator_codes(files: &[&str]) -> BTreeSet<String> {
+    let mut found = BTreeSet::new();
+    for file in files {
+        let source = read(file);
+        for piece in source.split('"').skip(1).step_by(2) {
+            let kebab = piece.contains('-')
+                && piece
+                    .split('-')
+                    .all(|word| !word.is_empty() && word.chars().all(|c| c.is_ascii_lowercase()));
+            if kebab {
+                found.insert(piece.to_owned());
+            }
+        }
+    }
+    found
+}
+
+/// The Structural validator's codes that are not about the shape of a schema change. With
+/// [`SCHEMA_SHAPE_CODES`] they partition `validate/structural.rs`: a code added there fails
+/// `the_structural_codes_are_partitioned_into_schema_shape_and_the_rest` until it is put in one
+/// of the two lists, and one put in `SCHEMA_SHAPE_CODES` must then be listed and drawn by
+/// `every_code_a_schema_change_is_refused_with_is_listed_or_unreachable`.
+const STRUCTURAL_NOT_SCHEMA_SHAPE: [&str; 7] = [
+    "empty-transaction",
+    "duplicate-identity",
+    "identity-already-exists",
+    "evidence-set-mismatch",
+    "merge-into-itself",
+    "conflicting-write",
+    "unsupported-operation",
+];
+
+#[test]
+fn the_structural_codes_are_partitioned_into_schema_shape_and_the_rest() {
+    let structural = validator_codes(&["crates/ekr-kernel/src/validate/structural.rs"]);
+    let shape: BTreeSet<String> = SCHEMA_SHAPE_CODES.iter().map(|c| (*c).to_owned()).collect();
+    let rest: BTreeSet<String> = STRUCTURAL_NOT_SCHEMA_SHAPE
+        .iter()
+        .map(|c| (*c).to_owned())
+        .collect();
+    assert!(shape.is_disjoint(&rest), "a code in both lists");
+    let classified: BTreeSet<String> = shape.union(&rest).cloned().collect();
+    assert_eq!(
+        structural, classified,
+        "validate/structural.rs raises codes this suite has not classified as schema shape or \
+         not (left), or the lists name codes it no longer raises (right)"
+    );
+}
+
+/// Validator codes a transaction written through `ekr propose` cannot draw, each with the reason
+/// and a measurement in the case below.
+const NOT_A_VALIDATION_ISSUE_HERE: [(&str, &str); 2] = [
+    (
+        "empty-transaction",
+        "`ekr propose` refuses a document with no operations as ekr.kernel.StructurallyInvalid",
+    ),
+    (
+        "proposer-is-validator",
+        "a host whose operator is its validator is refused when the store is opened, exit 1, \
+         as `opening the provider: invalid seed: proposer-is-validator`",
+    ),
+];
+
+/// Every code any validator raises is a validation-issue row of the refusal table, an ontology
+/// code (held by the schema-class case), or one of [`NOT_A_VALIDATION_ISSUE_HERE`] with its reason
+/// measured here. `merge-into-itself`, which the table lists, is drawn.
+#[test]
+fn every_code_a_validator_raises_is_a_row_or_measured_unreachable() {
+    let page = page();
+    let validate = workspace_root().join("crates/ekr-kernel/src/validate");
+    let files: Vec<String> = std::fs::read_dir(&validate)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|e| e == "rs"))
+        .map(|path| {
+            path.strip_prefix(workspace_root())
+                .unwrap()
+                .display()
+                .to_string()
+        })
+        .collect();
+    let files: Vec<&str> = files.iter().map(String::as_str).collect();
+    let codes = validator_codes(&files);
+    assert!(codes.len() >= 30, "the code scan is broken: {codes:?}");
+    let rows: BTreeSet<String> = refusal_table(&page)
+        .into_iter()
+        .filter(|row| row.at == ISSUE)
+        .map(|row| row.name)
+        .collect();
+    let excluded: BTreeSet<&str> = NOT_A_VALIDATION_ISSUE_HERE
+        .iter()
+        .map(|(c, _)| *c)
+        .collect();
+    let unaccounted: Vec<&String> = codes
+        .iter()
+        .filter(|c| !rows.contains(*c) && !excluded.contains(c.as_str()))
+        .collect();
+    assert!(
+        unaccounted.is_empty(),
+        "validator codes docs/cli.md neither lists nor names unreachable: {unaccounted:?}"
+    );
+    let listed_and_excluded: Vec<&&str> = excluded.iter().filter(|c| rows.contains(**c)).collect();
+    assert!(listed_and_excluded.is_empty(), "{listed_and_excluded:?}");
+
+    // empty-transaction: refused before validation.
+    let evolution = Evolution::seeded(&page, "file");
+    std::fs::write(
+        evolution.directory.path().join("empty.yaml"),
+        schema_tx(31, None, " []"),
+    )
+    .unwrap();
+    let empty = evolution.run(&["propose", "empty.yaml"]);
+    assert_eq!(empty.status.code(), Some(2), "{empty:?}");
+    assert!(
+        String::from_utf8_lossy(&empty.stderr).starts_with("ekr: ekr.kernel.StructurallyInvalid")
+    );
+
+    // proposer-is-validator: refused when the store is opened.
+    let lab = Lab::new(&page);
+    lab.edit(
+        "host.json",
+        "same.json",
+        "\"validator\": \"00000000-0000-4000-a000-000000000012\"\n  },",
+        "\"validator\": \"00000000-0000-4000-a000-000000000011\"\n  },",
+    );
+    let same = lab.run("same.json", &["seed", "seed.yaml"]);
+    assert_eq!(same.status.code(), Some(1), "{same:?}");
+    let stderr = String::from_utf8_lossy(&same.stderr);
+    assert!(
+        stderr.starts_with("ekr: opening the provider: invalid seed: "),
+        "{stderr}"
+    );
+
+    // merge-into-itself is drawn.
+    let merge = "\n  - !MergeEntity\n    absorbed: 00000000-0000-4000-a000-000000000302\n    \
+                 into: 00000000-0000-4000-a000-000000000302";
+    let validated = evolution.validate("merge.yaml", &schema_tx(32, None, merge));
+    assert!(
+        issue_codes(&validated).contains("merge-into-itself"),
+        "{validated}"
+    );
 }

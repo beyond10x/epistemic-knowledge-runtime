@@ -11,9 +11,10 @@ binary also describes itself: `ekr guide` prints the workflow, `ekr operations` 
 and `ekr example <format>` a complete document of each input format.
 
 `crates/ekr/tests/docs_cli.rs` holds this page to the binary: every seed, transaction and host
-document below is parsed by the real readers, the worked example is seeded and committed on both
-storage providers, the verb, option, operation-kind and value-kind tables are compared with what the
-binary has, and the refusal table is checked as [its introduction](#common-refusals) says.
+document below is parsed by the real readers, the worked example and the schema evolution example
+are seeded and committed on both storage providers, the verb, option, operation-kind and
+value-kind tables are compared with what the binary has, and the refusal table is checked as
+[its introduction](#common-refusals) says.
 
 Contents:
 
@@ -27,6 +28,7 @@ Contents:
 - [Transaction documents](#transaction-documents-ekrtransaction-document1) and
   [operation kinds](#operation-kinds)
 - [Worked example: a library catalogue](#worked-example-a-library-catalogue)
+- [Evolve the schema](#evolve-the-schema)
 - [Designing a schema](#designing-a-schema)
 - [Common refusals](#common-refusals)
 
@@ -76,10 +78,11 @@ not input: keep it next to the store and use the same file for every command aga
 | `context.validator` | the agent id that validates. It must differ from the operator |
 | `authority.format` | exactly `ekr.authority-state/1` |
 | `authority.agents` | a map from agent id to `{id, name, capabilities}`. The key must equal `id`; both the operator and the validator must be registered. `name` is a label. `capabilities` is a list of distinct strings that P1 records and does not interpret (the example uses `propose`, `read` and `validate`) |
-| `authority.validation_profile` | the deterministic P1 validation profile. Copy it from `ekr example ekr.cli-host/1` unchanged except `validator`, which must equal `context.validator` |
+| `authority.validation_profile` | one of the two deterministic validation profiles. Copy it from `ekr example ekr.cli-host/1` unchanged except `validator`, which must equal `context.validator`. That is profile v1 (`ruleset` `ekr.p1-deterministic/1`, `application` `ekr.p1-apply/1`), under which the schema is fixed at seeding. Profile v2 is the same with `ruleset` `ekr.p2-deterministic/1` and `application` `ekr.p2-apply/1`, and admits [schema changes](#evolve-the-schema). A store keeps the profile it was seeded under |
 
-Unknown, missing or duplicated fields are refused. A host document that parses but whose profile or
-agent registry is not the P1 one is refused when the store is opened, by any store verb including
+Unknown, missing or duplicated fields are refused. A host document that parses but whose profile is
+neither of the two, or whose agent registry the kernel does not accept, is refused when the
+store is opened, by any store verb including
 `ekr seed`: `ekr: opening the provider: invalid seed: seed-authority-profile`, exit 1 (an operator
 equal to the validator reads `…: invalid seed: proposer-is-validator`). The host's authority is
 retained with the seed:
@@ -96,7 +99,7 @@ exactly that.
 | exit | meaning | output |
 |---|---|---|
 | 0 | a declared outcome | one JSON document on stdout. A validation that rejects (`"kind": "Rejected"`) and a commit that finds the head moved (`"kind": "Stale"`) are outcomes too: read `kind` |
-| 1 | a fault: provider, verification, unreadable input, host configuration, a store that is not seeded | a message on stderr |
+| 1 | a fault: provider, verification, unreadable input, host configuration, a store that is not seeded, no store at `--store` (`store-not-found`) | a message on stderr |
 | 2 | a named refusal or a usage error. Nothing was recorded | `ekr: ekr.kernel.<Name>: <reason>` on stderr, or clap's usage message |
 
 `guide`, `operations` and `example` print text; every other verb prints one JSON document. In JSON
@@ -115,10 +118,10 @@ tag `!Node <id>`. A proposal record's `document_bytes` prints as one standard ba
 | `ekr explain` | reads | an assertion id | the assertion, where it came from, what later changed it, and its evidence |
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
-| `ekr ontology` | reads | none | node types, edge types and properties with names and ids |
+| `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent` |
 | `ekr guide` | none | none | the workflow, as text |
 | `ekr operations` | none | an operation kind, optionally | the kinds, or one kind's fields and example |
-| `ekr example` | none | `ekr.transaction-document/1`, `ekr-seed/2` or `ekr.cli-host/1` (aliases `transaction`, `seed`, `host`) | a complete example document |
+| `ekr example` | none | `ekr.transaction-document/1`, `schema-change`, `ekr-seed/2` or `ekr.cli-host/1` (aliases `transaction`, `seed`, `host`) | a complete example document |
 | `ekr mint` | none | an id kind | `{"id", "kind"}`: a fresh id |
 | `ekr hash` | none | a payload file, or `-` | the payload's `content_hash` and its `payload_yaml` |
 | `ekr schema` | none | `ekr.transaction-document/1`, `ekr-seed/2` or `ekr.cli-host/1` (aliases `transaction`, `seed`, `host`) | the format's JSON Schema (draft 2020-12) |
@@ -196,24 +199,31 @@ Lists every retained transaction with `transaction_id`, `state`, `proposer`, `op
 
 ### `ekr ontology`
 
-Prints the schema in force: `node_types` and `edge_types` with their ids, names, parents, endpoint
-types and properties. These are the ids a transaction document uses for `type_id`,
-`predicate: !Relation` and property keys.
+Prints the schema in force at the head, or at `--at N` as of that committed revision:
+`node_types` and `edge_types` with their ids, names, parents, endpoint types and properties, and the
+schema version — `schema_version` (its id), `schema_version_number` (`0` at the seed, one more per
+committed schema change) and `schema_version_parent` (the version it was derived from, `null` at the
+seed). These are the ids a transaction document uses for `type_id`, `predicate: !Relation` and
+property keys. A revision that does not exist is refused as `ekr.kernel.RevisionNotFound`, exit 2,
+as for `ekr snapshot --at`.
 
 ### `ekr guide`
 
-Prints the workflow for an agent: roles, propose → validate → commit, exit codes, where ids come from
-and how to add evidence to a seed.
+Prints the workflow for an agent: roles, propose → validate → commit, exit codes, where ids come from,
+how to add evidence to a seed and how to change the schema.
 
 ### `ekr operations`
 
-Without an argument, lists the twelve operation kinds, one per line, marking the four P1 does not
-apply. With a kind (`ekr operations AddAssertion`), prints its fields and an example operation.
+Without an argument, lists the twelve operation kinds, one per line, marking the three schema
+changes (`[schema change: …]`) and the one kind that is not applied (`[not applied: …]`). With a
+kind (`ekr operations AddAssertion`), prints its fields and an example operation.
 
 ### `ekr example`
 
 Prints a complete document of one format. The three examples fit together: seed a store from the
-example seed under the example host, and the example transaction commits.
+example seed under the example host, and the example transaction commits. `ekr example
+schema-change` prints a schema change against the same seed, which commits in a store seeded under
+[validation profile v2](#evolve-the-schema).
 
 ### `ekr mint`
 
@@ -251,6 +261,7 @@ The printed `description` names every place the schema and the reader differ:
 | a value's `value` before its `value_kind` (or `parameters` before `value_kind`), plain number, boolean or null for a text kind | refuses | cannot see it |
 | a string or key within maxLength characters but over the byte limit (text outside ASCII) | refuses | cannot see it |
 | a transaction document over 262144 bytes, nested deeper than 32, with more than 32768 values and keys, or more than 1048576 bytes of text | refuses | cannot see it |
+| a `ModifyProperty` written as a bare property declaration, without `owner` and `property` (the P1 shape) | accepts; validation then rejects it (`unsupported-operation` under profile v1, `modify-property-without-owner` under v2) | refuses |
 
 ## The workflow
 
@@ -280,9 +291,11 @@ Where values come from:
 
 ## The seed document (`ekr-seed/2`)
 
-A seed is a YAML document with four top-level fields. It is the only place a schema is declared:
-**in P1 the schema cannot change after seeding**, because the operations that would change it are
-refused (see [operation kinds](#operation-kinds)). Design the schema before you seed.
+A seed is a YAML document with four top-level fields. It declares the first version of the schema.
+Under validation profile v1, the example host's, **the schema cannot change after seeding**; under
+profile v2 a transaction can add types and add or redeclare properties
+([Evolve the schema](#evolve-the-schema)), but nothing removes a type or a property. Design the
+schema before you seed.
 
 | field | content |
 |---|---|
@@ -495,6 +508,10 @@ transaction:
   evidence: []                                    # the evidence the AddAssertions cite
 ```
 
+A schema change adds one key, `schema_version`, after `evidence`: the id of the version it
+produces, from `ekr mint schema-version` ([Evolve the schema](#evolve-the-schema)). Every other
+transaction omits it.
+
 `operations` is a non-empty list applied in order, all or nothing. `evidence` is exactly the set of
 evidence ids cited by the transaction's `!AddAssertion` operations — no more, no fewer
 (`evidence-set-mismatch`) — and `[]` when it adds no assertion. Every cited evidence id must already
@@ -503,11 +520,13 @@ document, and `ekr operations <Kind>` prints each kind's fields.
 
 ### Operation kinds
 
-There are twelve kinds. Eight are applied in P1. Four parse but are **refused**: validation rejects
-every proposal containing them with the issue code `unsupported-operation`. That is why the schema is
-fixed at seeding.
+There are twelve kinds. Eight are applied under either validation profile. Three are **schema
+changes**, applied only under profile v2 and only in a transaction of their own that names its
+`schema_version` ([Evolve the schema](#evolve-the-schema)); under profile v1 validation rejects them
+with the issue code `unsupported-operation`, so the schema is fixed at seeding. One, `MergeEntity`,
+parses but is **refused** under either profile, with the same code.
 
-| kind | P1 | what it does |
+| kind | applied | what it does |
 |---|---|---|
 | `CreateNode` | applied | creates a node: `id`, `root_id`, `type_id`, `canonical_name`, `properties` |
 | `UpdateProperty` | applied | sets all values of one property of one node: `node`, `property`, `values` (`[]` clears it) |
@@ -517,9 +536,9 @@ fixed at seeding.
 | `RetractAssertion` | applied | withdraws an accepted, active assertion with a reason: `assertion`, `reason`. It is kept, marked retracted |
 | `Invoke` | applied | calls an operation of the node's type: `node`, `operation` (the operation's key under the type's `operations`, not its `name` field), `arguments` (map name → value) |
 | `SupersedeAssertion` | applied | replaces an accepted, active assertion from an instant on: `assertion`, `by` (the replacement, which may be added in the same transaction), `effective_from`. [Rules below](#supersession) |
-| `DefineNodeType` | refused | would declare a node type |
-| `DefineEdgeType` | refused | would declare an edge type |
-| `ModifyProperty` | refused | would redeclare a property definition |
+| `DefineNodeType` | schema change | declares a node type: `id`, `name`, `parents`, `properties`, `abstract_type`, `lifecycle`, `operations`, as in the seed |
+| `DefineEdgeType` | schema change | declares an edge type: `id`, `name`, `source_types`, `target_types`, `cardinality`, `properties`, `inverse`, `symmetric`, `transitive`, as in the seed |
+| `ModifyProperty` | schema change | adds a property to a type or redeclares one it declares: `owner` (the node or edge type) and `property` (a [property definition](#property-definitions)) |
 | `MergeEntity` | refused | would merge two nodes |
 
 ### Assertions
@@ -1078,11 +1097,225 @@ transaction:
 `inadmissible-value` from the `Type` validator and `unsupported-operation` from the `Structural`
 validator. `ekr commit` then refuses with `ekr.kernel.TransactionStateConflict` (exit 2). Nothing
 changed: the head is still revision 2. To store a weight, the schema would need an `Integer` or
-`Decimal` property — which, in P1, means a new seed in a new store.
+`Decimal` property. This store runs validation profile v1, whose schema is fixed at seeding, so here
+that means a new seed in a new store; a store seeded under profile v2 can add the property with
+`!ModifyProperty` ([Evolve the schema](#evolve-the-schema)).
+
+## Evolve the schema
+
+A store seeded under **validation profile v2** can change its schema after seeding: a committed
+transaction adds a node type (`!DefineNodeType`), adds an edge type (`!DefineEdgeType`), or adds a
+property to a type or redeclares one it declares (`!ModifyProperty`). Each committed change produces
+the next schema version, numbered one more than the last and naming it as its parent. Nothing
+already committed changes: every earlier revision keeps the schema it was committed under, and
+`ekr ontology --at <revision>` prints it. No operation removes a type or a property.
+
+Three rules decide whether a schema change is applied:
+
+- **The store runs profile v2.** A store keeps the profile it was seeded under, from the host
+  document's `authority.validation_profile`. The worked example's store runs profile v1, so its
+  schema stays the seed's; nothing moves a store from v1 to v2.
+- **A schema change travels alone.** A transaction that holds a schema change holds nothing but
+  schema changes (`mixed-schema-transaction`). Commit the change, then write data against it.
+- **It names the version it produces.** The transaction carries `schema_version`, a fresh id from
+  `ekr mint schema-version` (`schema-version-missing` without one, `schema-version-reused` for an
+  id the lineage already has).
+
+The kernel then checks the change against the canonical state it would govern, and refuses one
+that state would violate — a property made required that a node lacks, a cardinality narrowed
+below what a node holds, a value type that no longer admits a held value — with the codes in
+[the refusal table](#common-refusals).
+
+This example evolves the catalogue of the worked example in a second store. Every block below with
+an `evolve=` name is exactly the file the test suite writes and runs, in this order, on both
+providers, beside the worked example's files.
+
+### 1. A host under profile v2
+
+The worked example's host with the v2 `ruleset` and `application`, and nothing else changed:
+
+```json ekr.cli-host/1 evolve=host-v2.json
+{
+  "format": "ekr.cli-host/1",
+  "tenant": "library",
+  "context": {
+    "operator": "00000000-0000-4000-a000-000000000011",
+    "validator": "00000000-0000-4000-a000-000000000012"
+  },
+  "authority": {
+    "format": "ekr.authority-state/1",
+    "agents": {
+      "00000000-0000-4000-a000-000000000011": {
+        "id": "00000000-0000-4000-a000-000000000011",
+        "name": "Catalogue operator",
+        "capabilities": ["propose", "read"]
+      },
+      "00000000-0000-4000-a000-000000000012": {
+        "id": "00000000-0000-4000-a000-000000000012",
+        "name": "Catalogue validator",
+        "capabilities": ["validate"]
+      }
+    },
+    "validation_profile": {
+      "format": "ekr.p1-validation-profile/1",
+      "ruleset": "ekr.p2-deterministic/1",
+      "checks": ["Structural", "Reference", "Type", "Cardinality", "OntologyConstraint", "Provenance", "Authorization"],
+      "validator": "00000000-0000-4000-a000-000000000012",
+      "proposer_separation": "distinct-authenticated-actor/1",
+      "provenance": "retained-admissible-evidence/1",
+      "application": "ekr.p2-apply/1"
+    }
+  }
+}
+```
+
+Seed the worked example's `seed.yaml` into a new store under it:
+
+```console
+export EKR_HOST=host-v2.json EKR_STORE=./evolving-store EKR_BACKEND=file
+ekr seed seed.yaml       # -> "result": {"revision": 0, ...}
+```
+
+The format of `validation_profile` stays `ekr.p1-validation-profile/1` for both profiles.
+
+### 2. Add a type
+
+The catalogue starts taking journals. A journal is a `Publication`, so it inherits the required
+`title`; it adds an `issn`, and an editor is an `Author` linked by a new `EDITED` edge type. Mint
+the version id first; `ModifyProperty` may name a type defined earlier in the same transaction:
+
+```console
+ekr mint schema-version   # {"id": "…", "kind": "schema-version"}; this page uses …0003
+```
+
+```yaml ekr.transaction-document/1 evolve=journal.yaml outcome=Committed
+format: ekr.transaction-document/1
+transaction:
+  id: 00000000-0000-4000-a000-000000000711
+  proposer: 00000000-0000-4000-a000-000000000011
+  operations:
+  - !DefineNodeType
+    id: 00000000-0000-4000-a000-000000000105
+    name: Journal
+    parents:
+    - 00000000-0000-4000-a000-000000000101
+    properties: {}
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - !ModifyProperty
+    owner: 00000000-0000-4000-a000-000000000105
+    property:
+      id: 00000000-0000-4000-a000-000000000214
+      name: issn
+      value_type:
+        value_kind: String
+      cardinality: One
+      required: false
+      constraints: []
+  - !DefineEdgeType
+    id: 00000000-0000-4000-a000-000000000106
+    name: EDITED
+    source_types:
+    - 00000000-0000-4000-a000-000000000103
+    target_types:
+    - 00000000-0000-4000-a000-000000000105
+    cardinality: Many
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+  evidence: []
+  schema_version: 00000000-0000-4000-a000-000000000003
+```
+
+```console
+ekr propose journal.yaml                                  # "transaction_id": "…0711"
+ekr validate 00000000-0000-4000-a000-000000000711         # "kind": "Validated"
+ekr commit 00000000-0000-4000-a000-000000000711           # "kind": "Committed", "revision": 1
+```
+
+### 3. Use it
+
+The next transaction is ordinary data against the new version:
+
+```yaml ekr.transaction-document/1 evolve=issue.yaml outcome=Committed
+format: ekr.transaction-document/1
+transaction:
+  id: 00000000-0000-4000-a000-000000000712
+  proposer: 00000000-0000-4000-a000-000000000011
+  operations:
+  - !CreateNode
+    id: 00000000-0000-4000-a000-000000000304
+    root_id: 00000000-0000-4000-a000-000000000002
+    type_id: 00000000-0000-4000-a000-000000000105
+    canonical_name: The Lichenologist's Quarterly
+    properties:
+      00000000-0000-4000-a000-000000000201:
+      - value_kind: String
+        value: The Lichenologist's Quarterly
+      00000000-0000-4000-a000-000000000214:
+      - value_kind: String
+        value: "0000-0019"
+  - !CreateEdge
+    id: 00000000-0000-4000-a000-000000000602
+    root_id: 00000000-0000-4000-a000-000000000002
+    type_id: 00000000-0000-4000-a000-000000000106
+    source: 00000000-0000-4000-a000-000000000301
+    target: 00000000-0000-4000-a000-000000000304
+    properties: {}
+  evidence: []
+```
+
+It commits as revision 2. The schema version is still `…0003`: only a schema change makes a new
+one.
+
+### 4. What the state refuses
+
+Making `translation_of` required on `Book` would leave the seeded book, which has no translation
+source, invalid:
+
+```yaml ekr.transaction-document/1 evolve=required.yaml outcome=Rejected:required-property-missing
+format: ekr.transaction-document/1
+transaction:
+  id: 00000000-0000-4000-a000-000000000713
+  proposer: 00000000-0000-4000-a000-000000000011
+  operations:
+  - !ModifyProperty
+    owner: 00000000-0000-4000-a000-000000000102
+    property:
+      id: 00000000-0000-4000-a000-000000000208
+      name: translation_of
+      value_type:
+        value_kind: NodeRef
+        parameters:
+          allowed_types:
+          - 00000000-0000-4000-a000-000000000102
+      cardinality: One
+      required: true
+      constraints: []
+  evidence: []
+  schema_version: 00000000-0000-4000-a000-000000000004
+```
+
+`ekr validate` exits 0 with `"kind": "Rejected"` and the issue `required-property-missing` from the
+`OntologyConstraint` validator, naming the property, the type and how many instances it has.
+The head stays at revision 2 and schema version `…0003`.
+
+### 5. Read each version back
+
+```console
+ekr ontology --at 0      # schema_version …0001, schema_version_number 0, parent null: no Journal
+ekr ontology             # revision 2: schema_version …0003, number 1, parent …0001, with Journal and EDITED
+```
+
+`ekr snapshot --at 0` reads the graph as seeded, and `ekr snapshot` shows the journal at the head.
 
 ## Designing a schema
 
-Because a P1 schema is fixed at seeding, most of the work is in the seed. What holds up:
+Under validation profile v1 a schema is fixed at seeding, and under v2 it can grow but never
+shrink: no operation removes a type or a property, and a change that existing state would violate
+is refused. Either way most of the work is in the seed. What holds up:
 
 - **Ids are identities, names are labels.** Every type, property, node, edge, assertion and piece of
   evidence is identified by a UUID that never changes. A name — a node's `canonical_name`, a type's
@@ -1133,8 +1366,12 @@ opens the store. `crates/ekr/tests/docs_cli.rs` triggers every row that is not a
 against the worked example's files, through each verb its `where` cell names (two different store
 verbs for `any store verb`), and checks the exit status in this table and that stderr names the
 refusal in the form above. For a validation-issue row it checks that the code is a whole string a
-validator in `crates/ekr-kernel/src/validate` raises; it does not run those rows. The worked example
-itself produces `inadmissible-value` and `unsupported-operation`.
+validator in `crates/ekr-kernel/src/validate` raises, or, for a schema change, one of the ontology's
+own codes that validator raises as they are. It does not run those rows, except the schema-change
+rows: it lists every code a schema change can be refused with and checks that each is a row here or
+one no transaction document can reach, and it draws each of those rows from the worked seed under
+validation profile v2. The worked example itself produces `inadmissible-value` and
+`unsupported-operation`.
 
 | refusal | where | exit | what it means | what to fix |
 |---|---|---|---|---|
@@ -1151,7 +1388,7 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `seed-evidence-payload-missing` | seed | 2 | an evidence entry's `content_hash` is not a key of `evidence_payloads` | paste the hash `ekr hash` prints as the key |
 | `seed-evidence-payload-mismatch` | seed | 2 | a payload's bytes do not hash to its key | re-run `ekr hash` on the exact bytes |
 | `ekr.kernel.AlreadySeeded` | seed | 2 | the store already holds a different seed | use a new store or tenant |
-| `seed-authority-profile` | any store verb | 1 | the host's `validation_profile` or agent registry is not the P1 profile for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example; set `validator` to `context.validator` |
+| `seed-authority-profile` | any store verb | 1 | the host's `validation_profile` is neither accepted profile exactly — an unknown `ruleset`, or a `ruleset` of one profile with the `application` of the other — or its agent registry does not fit it for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example and keep `ruleset` and `application` a pair: `ekr.p1-deterministic/1` with `ekr.p1-apply/1` (v1) or `ekr.p2-deterministic/1` with `ekr.p2-apply/1` (v2); set `validator` to `context.validator` |
 | `store-not-found` | propose, validate, commit, snapshot, explain, head, transactions, ontology | 1 | `--store` names a path that holds no store: nothing, an empty directory, an empty file, a symlink to nothing, a SQLite database without the runtime's tables, or a file-store directory holding only what `ekr seed` writes before its manifest; nothing is created there. Only `ekr seed` creates a store, and a seed that is refused creates none | check `--store` or `EKR_STORE`; run `ekr seed` first |
 | `bootstrap-authority-mismatch` | any store verb | 1 | the store was seeded under a host document whose authority differs from this one | use the host document the store was seeded with |
 | `ekr.kernel.ProposalAttribution` | propose | 2 | the document's `proposer` is not the host operator | use `context.operator` |
@@ -1159,7 +1396,21 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `ekr.kernel.TransactionNotFound` | validate, commit | 2 | no transaction has that id | take the id `ekr propose` printed, or `ekr transactions` |
 | `ekr.kernel.TransactionStateConflict` | validate, commit | 2 | the transaction is not in the state the verb needs: validating one that is already validated, committing one that is only proposed or was rejected | propose a corrected document under a new id |
 | `ekr.kernel.AssertionNotFound` | explain | 2 | no assertion has that id at the head | take the id from `ekr snapshot` |
-| `unsupported-operation` | validation issue | 0 | a `DefineNodeType`, `DefineEdgeType`, `ModifyProperty` or `MergeEntity` operation | none in P1: the schema is the seed's |
+| `unsupported-operation` | validation issue | 0 | a `MergeEntity` operation under either profile, or a `DefineNodeType`, `DefineEdgeType` or `ModifyProperty` operation under validation profile v1 | none for `MergeEntity`; a schema change needs a store seeded under [profile v2](#evolve-the-schema) |
+| `merge-into-itself` | validation issue | 0 | a `MergeEntity` whose `absorbed` and `into` are the same node | none: `MergeEntity` is not applied under either profile |
+| `schema-version-missing` | validation issue | 0 | a schema change without `schema_version` (profile v2) | add `schema_version: <ekr mint schema-version>` |
+| `schema-version-without-schema-change` | validation issue | 0 | a `schema_version` on a transaction none of whose operations changes the schema | remove it |
+| `mixed-schema-transaction` | validation issue | 0 | a schema change and an operation of another kind in one transaction (profile v2) | propose the schema change alone, commit it, then the rest |
+| `modify-property-without-owner` | validation issue | 0 | a `ModifyProperty` written as a bare property declaration (`id`, `name`, `value_type`, …) without `owner` and `property`, the shape the 0.0.2 and 0.0.3 pages showed (profile v2; profile v1 rejects it as `unsupported-operation`) | write `{owner: <type id from ekr ontology>, property: <the declaration>}`, as `ekr operations ModifyProperty` prints |
+| `schema-version-reused` | validation issue | 0 | a `schema_version` that is already a version of this store's lineage, such as the seed's | `ekr mint schema-version` |
+| `unknown-property-owner` | validation issue | 0 | a `ModifyProperty` whose `owner` is not a declared node or edge type, nor one defined earlier in the same transaction | take the type id from `ekr ontology` |
+| `incoherent-schema` | validation issue | 0 | the evolved schema does not cohere, for example an edge type whose endpoint type is not declared; it names the rule | the rule it names ([the ontology section](#the-ontology-section)) |
+| `schema-change-without-effect` | validation issue | 0 | the changes leave the schema exactly as it was, such as a property redeclared unchanged | drop the transaction, or change something |
+| `required-property-missing` | validation issue | 0 | a property made `required` on a type one of whose nodes or edges has no value of it | give every instance a value first, or leave it optional |
+| `cardinality-narrowed` | validation issue | 0 | a property made `One` where an instance holds several values | reduce the values first, or keep `Many` |
+| `value-kind-not-admitted` | validation issue | 0 | a property's value type changed to one that does not admit a kind of value instances hold, including the objects of active property assertions | keep a value type that admits what is held |
+| `value-type-narrowed` | validation issue | 0 | a value type of the same kind that no longer admits a held value: an `Enum` variant or a `NodeRef` type dropped, at any depth | keep what is held admissible |
+| `constraint-changed` | validation issue | 0 | a property's `constraints` changed on a type that has instances | leave `constraints` as they are (in this release, `[]`) |
 | `unknown-type` | validation issue | 0 | a `type_id` or `!Relation` id the ontology does not declare | take ids from `ekr ontology` |
 | `abstract-type` | validation issue | 0 | a node of an abstract type | use a concrete subtype |
 | `undeclared-property` | validation issue | 0 | a property the node's or edge's type (and its parents) does not declare | take property ids from `ekr ontology` |
@@ -1188,4 +1439,4 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `transition-refused` | validation issue | 0 | the node is not in the operation's `from` state | check the node's `type_state` |
 | `missing-argument` | validation issue | 0 | `!Invoke` omits a declared argument | pass every declared argument |
 | `undeclared-argument` | validation issue | 0 | `!Invoke` passes an argument the operation does not declare | remove it |
-| `unsupported-constraint` | validation issue | 0 | the affected type has property `constraints`, or the operation has `preconditions` or `emits` | none in P1: those must be `[]` in the seed |
+| `unsupported-constraint` | validation issue | 0 | the affected type has property `constraints`, or the operation has `preconditions` or `emits` | keep them `[]` in the seed. Under profile v2 a `ModifyProperty` can set a property's `constraints` to `[]` while its type has no instances (`constraint-changed` once it has any); `preconditions` and `emits` belong to a type's operations, which no operation changes after the type is declared |

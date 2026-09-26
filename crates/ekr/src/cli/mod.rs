@@ -32,7 +32,7 @@ use ekr_core::Timestamp;
 use ekr_kernel::{PersistenceError, Runtime, SeedDocument};
 use serde::Serialize;
 
-pub use agent::{ExampleFormat, IdKind, OperationKind};
+pub use agent::{ExampleDocument, ExampleFormat, IdKind, OperationKind};
 pub use transactions::StateFilter;
 
 use crate::exit::Failure;
@@ -149,11 +149,12 @@ pub enum Command {
         /// The operation kind, as its YAML tag without `!`.
         kind: Option<OperationKind>,
     },
-    /// Print a complete example document of one input format.
+    /// Print a complete example document of one input format, or a schema change.
     #[command(after_help = SEE)]
     Example {
-        /// The format.
-        format: ExampleFormat,
+        /// The format, or `schema-change`: an `ekr.transaction-document/1` that changes the
+        /// schema, for a store under validation profile v2.
+        format: ExampleDocument,
     },
     /// Print the JSON Schema (draft 2020-12) of one input format, generated from the types its
     /// reader decodes.
@@ -198,12 +199,17 @@ pub enum Command {
         #[arg(long, value_enum, ignore_case = true)]
         state: Option<StateFilter>,
     },
-    /// Print node types, edge types and properties, by name and id, at the head.
+    /// Print node types, edge types and properties, by name and id, and the schema version in
+    /// force (id, number, parent), at the head or at a past revision.
     ///
     /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST). The ids `ekr ontology`
     /// prints are the `type_id`, `predicate: !Relation` and property ids a document uses.
     #[command(after_help = SEE)]
-    Ontology,
+    Ontology {
+        /// The committed revision whose schema to print; the newest (`ekr head`) when absent.
+        #[arg(long)]
+        at: Option<u64>,
+    },
 }
 
 /// The system clock in milliseconds since the Unix epoch, for a new decision only.
@@ -330,7 +336,10 @@ pub fn execute(
             let runtime = configured.resolve("transactions")?.open()?;
             render(&transactions::run(&runtime, state)?)
         }
-        Command::Ontology => render(&ontology::run(&configured.resolve("ontology")?.open()?)?),
+        Command::Ontology { at } => render(&ontology::run(
+            &configured.resolve("ontology")?.open()?,
+            at,
+        )?),
     }
 }
 
