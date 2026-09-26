@@ -135,6 +135,67 @@ impl Runtime {
             )?)),
         })
     }
+    /// Opens an already provisioned File store under the explicit trusted host anchor, creating
+    /// nothing at a path that holds no store.
+    /// # Errors
+    /// Invalid authority, runtime-context refusal, a missing store or provider failure.
+    pub fn file_existing(
+        path: &Path,
+        tenant: &str,
+        context: BootstrapContext,
+        anchor: AuthorityStateV1,
+    ) -> Result<Self, StoreError> {
+        Ok(Self {
+            backend: Backend::File(Box::new(Commit::over_with_authority(
+                context,
+                anchor,
+                |authority| {
+                    FileStore::file_existing(path, tenant, None).map(|store| store.under(authority))
+                },
+            )?)),
+        })
+    }
+    /// Opens an already provisioned SQLite store under the explicit trusted host anchor, creating
+    /// nothing at a path that holds no store.
+    /// # Errors
+    /// Invalid authority, runtime-context refusal, a missing store or provider failure.
+    pub fn sqlite_existing(
+        path: &Path,
+        tenant: &str,
+        context: BootstrapContext,
+        anchor: AuthorityStateV1,
+    ) -> Result<Self, StoreError> {
+        Ok(Self {
+            backend: Backend::Sqlite(Box::new(Commit::over_with_authority(
+                context,
+                anchor,
+                |authority| {
+                    SqliteStore::sqlite_existing(path, tenant, None)
+                        .map(|store| store.under(authority))
+                },
+            )?)),
+        })
+    }
+    /// The check every constructor runs on the trusted host anchor before it touches a provider,
+    /// run alone: a host that decides something about the store path first calls this, so an
+    /// anchor refusal is reported before anything about the path.
+    /// # Errors
+    /// The anchor refusal the constructors report.
+    pub fn check_anchor(
+        context: BootstrapContext,
+        anchor: &AuthorityStateV1,
+    ) -> Result<(), StoreError> {
+        anchor.check(context)
+    }
+    /// The kernel's full seed admission of `document`, without a provider: what
+    /// [`Runtime::seed`] would refuse a new seed for. A host about to create a store for a seed
+    /// calls this first, so a refused seed creates nothing.
+    /// # Errors
+    /// [`SeedError::Invalid`] for a seed the kernel does not admit.
+    pub fn admit_seed(document: &SeedDocument, context: BootstrapContext) -> Result<(), SeedError> {
+        // Admission does not depend on the instant: it only stamps the admitted assertions.
+        crate::seed::admitted_graph(document, context, Timestamp::EPOCH).map(|_| ())
+    }
     /// Executes the shared seed handler. A retained retry never calls the supplied host clock.
     /// # Errors
     /// Invalid seed, different existing seed or failed native publication.

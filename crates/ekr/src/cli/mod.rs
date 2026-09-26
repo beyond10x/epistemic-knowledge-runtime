@@ -1,8 +1,11 @@
 //! The clap surface of the `ekr` binary and its thin dispatch to the kernel's `Runtime`.
 //!
 //! Verbs carry the `ekr.kernel` ESS wire names. Each store verb opens the configured provider
-//! through `Runtime::file` or `Runtime::sqlite` under the trusted host document and calls exactly
-//! one kernel handler or read; nothing here applies, validates or persists anything itself. The
+//! under the trusted host document and calls exactly one kernel handler or read; nothing here
+//! applies, validates or persists anything itself. Only `seed` may create a store, through
+//! `Runtime::file` or `Runtime::sqlite` and only for a seed `Runtime::admit_seed` admits; every
+//! other store verb opens an existing one through `Runtime::file_existing` or
+//! `Runtime::sqlite_existing` and refuses a path holding none as `store-not-found`. The
 //! agent verbs — `guide`, `operations`, `example`, `schema`, `mint`, `hash` — print static, tested
 //! text, a generated JSON Schema, a fresh id or a payload's content hash, and open no provider.
 
@@ -26,7 +29,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use ekr_core::Timestamp;
-use ekr_kernel::Runtime;
+use ekr_kernel::{Runtime, SeedDocument};
 use serde::Serialize;
 
 pub use agent::{ExampleFormat, IdKind, OperationKind};
@@ -280,7 +283,12 @@ pub fn execute(
         Command::Hash { payload } => render(&hash::run(&payload, stdin)?),
         Command::Seed { document } => {
             let store = configured.resolve("seed")?;
-            render(&seed::run(&document, stdin, || store.open(), now)?)
+            render(&seed::run(
+                &document,
+                stdin,
+                |seed| store.open_to_seed(seed),
+                now,
+            )?)
         }
         Command::Propose { document } => {
             let store = configured.resolve("propose")?;
@@ -402,6 +410,9 @@ impl Configured {
 }
 
 impl Store {
+    /// Opens the store every verb but `seed` reads or writes: an existing one only. After the
+    /// host anchor check every open runs first, a path that holds nothing is the named
+    /// configuration fault `store-not-found` (exit 1), and nothing is created there.
     fn open(&self) -> Result<Runtime, Failure> {
         let CliHostConfigurationV1 {
             tenant,
@@ -409,12 +420,48 @@ impl Store {
             authority,
             ..
         } = self.host.clone();
+        Runtime::check_anchor(context, &authority).map_err(opening)?;
+        if std::fs::symlink_metadata(&self.store).is_err() {
+            return Err(Failure::fault(format!(
+                "store-not-found: no {} store at {}; `ekr seed` creates one",
+                match self.backend {
+                    Backend::File => "file",
+                    Backend::Sqlite => "sqlite",
+                },
+                self.store.display()
+            )));
+        }
+        match self.backend {
+            Backend::File => Runtime::file_existing(&self.store, &tenant, context, authority),
+            Backend::Sqlite => Runtime::sqlite_existing(&self.store, &tenant, context, authority),
+        }
+        .map_err(opening)
+    }
+
+    /// Opens the store `seed` publishes into, creating it only for a seed the kernel admits: a
+    /// refused seed leaves no store behind. The host anchor is checked first, as every open does.
+    fn open_to_seed(&self, seed: &SeedDocument) -> Result<Runtime, Failure> {
+        let CliHostConfigurationV1 {
+            tenant,
+            context,
+            authority,
+            ..
+        } = self.host.clone();
+        if std::fs::symlink_metadata(&self.store).is_err() {
+            Runtime::check_anchor(context, &authority).map_err(opening)?;
+            Runtime::admit_seed(seed, context)?;
+        }
         match self.backend {
             Backend::File => Runtime::file(&self.store, &tenant, context, authority),
             Backend::Sqlite => Runtime::sqlite(&self.store, &tenant, context, authority),
         }
-        .map_err(|error| Failure::fault(format!("opening the provider: {error}")))
+        .map_err(opening)
     }
+}
+
+/// A provider that did not open: an operational or configuration fault.
+fn opening(error: impl std::fmt::Display) -> Failure {
+    Failure::fault(format!("opening the provider: {error}"))
 }
 
 /// One JSON document. The kernel's byte strings serialise as number arrays; the CLI prints each

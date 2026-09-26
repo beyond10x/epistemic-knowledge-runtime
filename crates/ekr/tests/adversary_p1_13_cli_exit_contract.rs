@@ -403,17 +403,7 @@ fn concurrently(world: &World, verb: &[&str], n: usize) -> Vec<Output> {
 fn assert_one_result(outputs: &[Output], what: &str) -> Value {
     let mut results = Vec::new();
     for output in outputs {
-        // Current state, pinned rather than excused: the sqlite provider can refuse to open
-        // while another process holds its write lock, and the CLI reports that as the
-        // operational fault it is (exit 1). task:sqlite-provider-open-contention owns the
-        // change; when it lands, delete this branch so every invocation must exit 0.
         let stderr = String::from_utf8_lossy(&output.stderr);
-        if what.starts_with("sqlite")
-            && output.status.code() == Some(1)
-            && stderr.contains("database is locked")
-        {
-            continue;
-        }
         assert_eq!(
             output.status.code(),
             Some(0),

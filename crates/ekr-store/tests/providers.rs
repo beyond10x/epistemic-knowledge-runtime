@@ -896,3 +896,46 @@ fn seed_graph(ontology: &Ontology) -> CanonicalGraph {
         evidence: BTreeMap::from([(evidence_id, evidence)]),
     }
 }
+
+/// Every path under `root`, relative to it, directories included.
+fn tree(root: &std::path::Path) -> BTreeSet<std::path::PathBuf> {
+    fn walk(root: &std::path::Path, at: &std::path::Path, into: &mut BTreeSet<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(at).unwrap() {
+            let path = entry.unwrap().path();
+            into.insert(path.strip_prefix(root).unwrap().to_path_buf());
+            if path.is_dir() {
+                walk(root, &path, into);
+            }
+        }
+    }
+    let mut all = BTreeSet::new();
+    walk(root, root, &mut all);
+    all
+}
+
+/// `story:store-open-semantics`: the existing-only constructors refuse a path holding no store and
+/// create nothing there, on both providers; a store the open-or-create
+/// constructor made opens through them.
+#[test]
+fn opening_an_existing_store_refuses_a_path_with_none_and_creates_nothing() {
+    for missing in ["absent", "absent/nested/store"] {
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join(missing);
+        let file = FileStore::file_existing(&path, TENANT, None).map(|_| ());
+        assert!(file.is_err(), "file at {missing}: {file:?}");
+        let sqlite = SqliteStore::sqlite_existing(&path, TENANT, None).map(|_| ());
+        assert!(sqlite.is_err(), "sqlite at {missing}: {sqlite:?}");
+        assert!(
+            tree(directory.path()).is_empty(),
+            "{missing}: an existing-only open created {:?}",
+            tree(directory.path())
+        );
+    }
+    let directory = TempDir::new().unwrap();
+    let files = directory.path().join("revisions");
+    let database = directory.path().join("revisions.db");
+    drop(FileStore::file(&files, TENANT, None).unwrap());
+    drop(SqliteStore::sqlite(&database, TENANT, None).unwrap());
+    FileStore::file_existing(&files, TENANT, None).expect("the created file store opens");
+    SqliteStore::sqlite_existing(&database, TENANT, None).expect("the created database opens");
+}

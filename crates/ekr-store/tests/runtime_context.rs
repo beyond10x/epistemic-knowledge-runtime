@@ -262,6 +262,16 @@ fn constructors_refuse_before_creating_paths() {
             ontology(),
         ));
         refusal(FileStore::file(&file_path, "runtime-fixture", ontology()));
+        refusal(SqliteStore::sqlite_existing(
+            &sqlite_path,
+            "runtime-fixture",
+            ontology(),
+        ));
+        refusal(FileStore::file_existing(
+            &file_path,
+            "runtime-fixture",
+            ontology(),
+        ));
         assert!(!sqlite_path.exists());
         assert!(!file_path.exists());
         assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 0);
@@ -395,7 +405,16 @@ fn all_io_refuses<S: AtomicBlobEventStore>(store: EventlogStore<S>) {
         .into_iter()
         .map(str::to_owned)
         .collect();
-    reached.extend(["sqlite", "file", "under"].map(str::to_owned));
+    reached.extend(
+        [
+            "sqlite",
+            "sqlite_existing",
+            "file",
+            "file_existing",
+            "under",
+        ]
+        .map(str::to_owned),
+    );
     assert_eq!(
         reached,
         declared_entry_points(),

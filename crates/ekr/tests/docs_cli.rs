@@ -987,6 +987,29 @@ fn trigger(page: &str, name: &str) -> Option<Vec<Ran>> {
                 &["explain", "00000000-0000-4000-a000-000000000599"],
             )]
         }
+        "store-not-found" => {
+            // Never seeded: `store` holds nothing, and each verb must leave it that way.
+            let lab = Lab::new(page);
+            let verbs: [&[&str]; 8] = [
+                &["propose", "wrote.yaml"],
+                &["validate", TX_WROTE],
+                &["commit", TX_WROTE],
+                &["snapshot"],
+                &["explain", "00000000-0000-4000-a000-000000000599"],
+                &["head"],
+                &["transactions"],
+                &["ontology"],
+            ];
+            let ran: Vec<Ran> = verbs
+                .into_iter()
+                .map(|verb| ran(&lab, "host.json", verb))
+                .collect();
+            assert!(
+                !lab.directory.path().join("store").exists(),
+                "store-not-found: a refused verb created the store"
+            );
+            ran
+        }
         _ => return None,
     };
     Some(outputs)

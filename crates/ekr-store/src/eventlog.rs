@@ -103,8 +103,54 @@ impl EventlogStore<SqliteEventStore> {
         ontology: impl Into<Option<Ontology>>,
     ) -> Result<Self, StoreError> {
         let runtime = new_runtime()?;
-        let store = runtime.block_on(SqliteEventStore::open(&path.to_string_lossy(), "ekr"))?;
+        let path = path.to_string_lossy();
+        let store =
+            waiting_out_the_lock(|| runtime.block_on(SqliteEventStore::open(&path, "ekr")))?;
         Self::assemble(runtime, store, tenant, ontology.into())
+    }
+    /// Opens an already provisioned SQLite store, creating no database and no tables: a path
+    /// holding none is refused and left as it was.
+    /// # Errors
+    /// Runtime-context refusal, invalid tenant, a missing store or provider failure.
+    pub fn sqlite_existing(
+        path: &Path,
+        tenant: &str,
+        ontology: impl Into<Option<Ontology>>,
+    ) -> Result<Self, StoreError> {
+        let runtime = new_runtime()?;
+        let path = path.to_string_lossy();
+        let store = waiting_out_the_lock(|| {
+            runtime.block_on(SqliteEventStore::open_existing(&path, "ekr"))
+        })?;
+        Self::assemble(runtime, store, tenant, ontology.into())
+    }
+}
+/// How long a SQLite open waits for another connection's lock before reporting it.
+///
+/// `SqliteEventStore::open` runs `PRAGMA journal_mode=WAL`, and on a database another process is
+/// converting at the same moment that statement returns `database is locked` at once, without
+/// consulting the connection's 5 s busy handler (measured: 2 of 48 opens by six concurrent
+/// processes on a new database). Every other statement in the open is `BEGIN IMMEDIATE` under
+/// that handler. Opening is idempotent, so the open is retried until this bound.
+const SQLITE_OPEN_LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+/// The provider's rendering of `SQLITE_BUSY` (`sqlite3_errstr`).
+const SQLITE_BUSY: &str = "database is locked";
+/// Retries `open` while it reports a held SQLite lock, for at most [`SQLITE_OPEN_LOCK_WAIT`].
+fn waiting_out_the_lock<T>(
+    mut open: impl FnMut() -> Result<T, EventLogError>,
+) -> Result<T, EventLogError> {
+    let deadline = std::time::Instant::now() + SQLITE_OPEN_LOCK_WAIT;
+    let mut pause = std::time::Duration::from_millis(5);
+    loop {
+        match open() {
+            Err(EventLogError::Backend(message))
+                if message == SQLITE_BUSY && std::time::Instant::now() < deadline =>
+            {
+                std::thread::sleep(pause);
+                pause = (pause * 2).min(std::time::Duration::from_millis(100));
+            }
+            result => return result,
+        }
     }
 }
 impl EventlogStore<FileEventStore> {
@@ -119,6 +165,19 @@ impl EventlogStore<FileEventStore> {
         let runtime = new_runtime()?;
         std::fs::create_dir_all(path).map_err(|e| StoreError::Backend(e.to_string()))?;
         let store = runtime.block_on(FileEventStore::open(path))?;
+        Self::assemble(runtime, store, tenant, ontology.into())
+    }
+    /// Opens an already provisioned File store, creating no directory, lock or manifest: a path
+    /// holding none is refused and left as it was.
+    /// # Errors
+    /// Runtime-context refusal, invalid tenant, a missing store or provider failure.
+    pub fn file_existing(
+        path: &Path,
+        tenant: &str,
+        ontology: impl Into<Option<Ontology>>,
+    ) -> Result<Self, StoreError> {
+        let runtime = new_runtime()?;
+        let store = runtime.block_on(FileEventStore::open_existing(path))?;
         Self::assemble(runtime, store, tenant, ontology.into())
     }
 }

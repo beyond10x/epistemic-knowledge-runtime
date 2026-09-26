@@ -1152,6 +1152,7 @@ itself produces `inadmissible-value` and `unsupported-operation`.
 | `seed-evidence-payload-mismatch` | seed | 2 | a payload's bytes do not hash to its key | re-run `ekr hash` on the exact bytes |
 | `ekr.kernel.AlreadySeeded` | seed | 2 | the store already holds a different seed | use a new store or tenant |
 | `seed-authority-profile` | any store verb | 1 | the host's `validation_profile` or agent registry is not the P1 profile for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example; set `validator` to `context.validator` |
+| `store-not-found` | propose, validate, commit, snapshot, explain, head, transactions, ontology | 1 | `--store` names a path that holds nothing; only `ekr seed` creates a store, and a seed the kernel refuses creates none | check `--store` or `EKR_STORE`; run `ekr seed` first |
 | `bootstrap-authority-mismatch` | any store verb | 1 | the store was seeded under a host document whose authority differs from this one | use the host document the store was seeded with |
 | `ekr.kernel.ProposalAttribution` | propose | 2 | the document's `proposer` is not the host operator | use `context.operator` |
 | `ekr.kernel.StructurallyInvalid` | propose | 2 | the transaction document does not parse, for example a bare `assessment: Accepted` | the field it names; compare with `ekr operations <Kind>` |
