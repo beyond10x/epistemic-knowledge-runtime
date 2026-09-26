@@ -384,10 +384,9 @@ fn counted(path: &Path) -> (EventlogStore<Counting>, Arc<AtomicUsize>) {
             inner,
             calls: Arc::clone(&calls),
         },
-        "ekr",
+        TenantId::new("ekr").unwrap(),
         None,
-    )
-    .unwrap();
+    );
     (store, calls)
 }
 

@@ -103,51 +103,90 @@ impl EventlogStore<SqliteEventStore> {
         ontology: impl Into<Option<Ontology>>,
     ) -> Result<Self, StoreError> {
         let runtime = new_runtime()?;
+        let tenant = TenantId::new(tenant)?;
         let path = path.to_string_lossy();
         let store =
             waiting_out_the_lock(|| runtime.block_on(SqliteEventStore::open(&path, "ekr")))?;
-        Self::assemble(runtime, store, tenant, ontology.into())
+        Ok(Self::assemble(runtime, store, tenant, ontology.into()))
     }
     /// Opens an already provisioned SQLite store, creating no database and no tables: a path
     /// holding none is refused and left as it was.
     /// # Errors
-    /// Runtime-context refusal, invalid tenant, a missing store or provider failure.
+    /// Runtime-context refusal, invalid tenant, [`StoreError::NoStore`] or provider failure.
     pub fn sqlite_existing(
         path: &Path,
         tenant: &str,
         ontology: impl Into<Option<Ontology>>,
     ) -> Result<Self, StoreError> {
         let runtime = new_runtime()?;
+        let tenant = TenantId::new(tenant)?;
+        holds_something(path)?;
         let path = path.to_string_lossy();
         let store = waiting_out_the_lock(|| {
             runtime.block_on(SqliteEventStore::open_existing(&path, "ekr"))
         })?;
-        Self::assemble(runtime, store, tenant, ontology.into())
+        Ok(Self::assemble(runtime, store, tenant, ontology.into()))
     }
 }
-/// How long a SQLite open waits for another connection's lock before reporting it.
+/// [`StoreError::NoStore`] for a path that holds no store of either provider: nothing at the path
+/// after following symlinks, an empty directory or an empty file. It reads and writes nothing
+/// else; anything else at the path is left to the provider's own open to accept or refuse.
+fn holds_something(path: &Path) -> Result<(), StoreError> {
+    let empty = match std::fs::metadata(path) {
+        Err(error) => error.kind() == std::io::ErrorKind::NotFound,
+        Ok(found) if found.is_dir() => std::fs::read_dir(path)
+            .map_err(|error| StoreError::Backend(error.to_string()))?
+            .next()
+            .is_none(),
+        Ok(found) => found.is_file() && found.len() == 0,
+    };
+    if empty {
+        Err(StoreError::NoStore(path.display().to_string()))
+    } else {
+        Ok(())
+    }
+}
+/// How long a SQLite open keeps starting new attempts while another connection holds the lock.
 ///
 /// `SqliteEventStore::open` runs `PRAGMA journal_mode=WAL`, and on a database another process is
 /// converting at the same moment that statement returns `database is locked` at once, without
-/// consulting the connection's 5 s busy handler (measured: 2 of 48 opens by six concurrent
-/// processes on a new database). Every other statement in the open is `BEGIN IMMEDIATE` under
-/// that handler. Opening is idempotent, so the open is retried until this bound.
-const SQLITE_OPEN_LOCK_WAIT: std::time::Duration = std::time::Duration::from_secs(10);
+/// consulting the connection's busy handler (measured: 2 of 48 opens by six concurrent processes
+/// on a new database). Every other statement in the open is `BEGIN IMMEDIATE` under that handler.
+/// Opening is idempotent, so the open is retried; an attempt is started only inside this window.
+const SQLITE_OPEN_RETRY_WINDOW: std::time::Duration = std::time::Duration::from_secs(5);
+/// The busy handler every provider connection carries: rusqlite 0.40.2 opens each connection
+/// with `sqlite3_busy_timeout(db, 5000)` (`inner_connection.rs`), and eventlog does not change it.
+/// One attempt can therefore wait this long inside the provider before it reports the lock.
+const SQLITE_BUSY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+/// The true bound on how long a SQLite open waits for a held lock before it reports
+/// `database is locked`: the last attempt starts inside [`SQLITE_OPEN_RETRY_WINDOW`] and can wait
+/// [`SQLITE_BUSY_TIMEOUT`] inside the provider, plus at most one 100 ms pause. About 10 s.
+const SQLITE_OPEN_MAX_WAIT: std::time::Duration = SQLITE_OPEN_RETRY_WINDOW
+    .saturating_add(SQLITE_BUSY_TIMEOUT)
+    .saturating_add(SQLITE_OPEN_MAX_PAUSE);
+/// The longest pause between two attempts.
+const SQLITE_OPEN_MAX_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
 /// The provider's rendering of `SQLITE_BUSY` (`sqlite3_errstr`).
 const SQLITE_BUSY: &str = "database is locked";
-/// Retries `open` while it reports a held SQLite lock, for at most [`SQLITE_OPEN_LOCK_WAIT`].
+/// Retries `open` while it reports a held SQLite lock; see [`SQLITE_OPEN_MAX_WAIT`] for the bound.
 fn waiting_out_the_lock<T>(
     mut open: impl FnMut() -> Result<T, EventLogError>,
 ) -> Result<T, EventLogError> {
-    let deadline = std::time::Instant::now() + SQLITE_OPEN_LOCK_WAIT;
+    let window = std::time::Instant::now() + SQLITE_OPEN_RETRY_WINDOW;
     let mut pause = std::time::Duration::from_millis(5);
     loop {
         match open() {
             Err(EventLogError::Backend(message))
-                if message == SQLITE_BUSY && std::time::Instant::now() < deadline =>
+                if message == SQLITE_BUSY && std::time::Instant::now() + pause < window =>
             {
                 std::thread::sleep(pause);
-                pause = (pause * 2).min(std::time::Duration::from_millis(100));
+                pause = (pause * 2).min(SQLITE_OPEN_MAX_PAUSE);
+            }
+            Err(EventLogError::Backend(message)) if message == SQLITE_BUSY => {
+                return Err(EventLogError::Backend(format!(
+                    "{SQLITE_BUSY}: still held when the retry window closed; a SQLite open waits \
+                     at most {SQLITE_OPEN_MAX_WAIT:?}"
+                )));
             }
             result => return result,
         }
@@ -163,22 +202,25 @@ impl EventlogStore<FileEventStore> {
         ontology: impl Into<Option<Ontology>>,
     ) -> Result<Self, StoreError> {
         let runtime = new_runtime()?;
+        let tenant = TenantId::new(tenant)?;
         std::fs::create_dir_all(path).map_err(|e| StoreError::Backend(e.to_string()))?;
         let store = runtime.block_on(FileEventStore::open(path))?;
-        Self::assemble(runtime, store, tenant, ontology.into())
+        Ok(Self::assemble(runtime, store, tenant, ontology.into()))
     }
     /// Opens an already provisioned File store, creating no directory, lock or manifest: a path
     /// holding none is refused and left as it was.
     /// # Errors
-    /// Runtime-context refusal, invalid tenant, a missing store or provider failure.
+    /// Runtime-context refusal, invalid tenant, [`StoreError::NoStore`] or provider failure.
     pub fn file_existing(
         path: &Path,
         tenant: &str,
         ontology: impl Into<Option<Ontology>>,
     ) -> Result<Self, StoreError> {
         let runtime = new_runtime()?;
+        let tenant = TenantId::new(tenant)?;
+        holds_something(path)?;
         let store = runtime.block_on(FileEventStore::open_existing(path))?;
-        Self::assemble(runtime, store, tenant, ontology.into())
+        Ok(Self::assemble(runtime, store, tenant, ontology.into()))
     }
 }
 fn ensure_sync_context() -> Result<(), StoreError> {
@@ -208,19 +250,14 @@ impl<S: EventStore> EventlogStore<S> {
     fn runtime(&self) -> &Runtime {
         self.runtime.as_ref().expect("runtime is owned until drop")
     }
-    fn assemble(
-        runtime: Runtime,
-        store: S,
-        tenant: &str,
-        ontology: Option<Ontology>,
-    ) -> Result<Self, StoreError> {
-        Ok(Self {
+    fn assemble(runtime: Runtime, store: S, tenant: TenantId, ontology: Option<Ontology>) -> Self {
+        Self {
             runtime: Some(runtime),
             store,
-            tenant: TenantId::new(tenant)?,
+            tenant,
             ontology,
             authority: None,
-        })
+        }
     }
     /// Installs the kernel's full replay authority. It receives immutable verified inputs.
     #[must_use]
@@ -998,5 +1035,49 @@ fn envelope(key: &str, hash: String) -> CommandMeta {
         causation_depth: 0,
         occurred_at: OffsetDateTime::UNIX_EPOCH,
         claim: None,
+    }
+}
+
+#[cfg(test)]
+mod lock_wait {
+    use super::{
+        waiting_out_the_lock, EventLogError, SQLITE_BUSY, SQLITE_BUSY_TIMEOUT,
+        SQLITE_OPEN_MAX_WAIT, SQLITE_OPEN_RETRY_WINDOW,
+    };
+    use std::time::Instant;
+
+    /// A lock that is never released: every attempt starts inside the retry window, the last
+    /// report comes back inside it, and so an attempt that also waits out the provider's own busy
+    /// handler ends inside [`SQLITE_OPEN_MAX_WAIT`]. Any other error is returned at once.
+    #[test]
+    fn a_held_lock_is_retried_only_inside_the_window_and_the_bound_is_its_sum() {
+        let start = Instant::now();
+        let mut attempts = Vec::new();
+        let result: Result<(), _> = waiting_out_the_lock(|| {
+            attempts.push(start.elapsed());
+            Err(EventLogError::Backend(SQLITE_BUSY.to_owned()))
+        });
+        let elapsed = start.elapsed();
+        let Err(EventLogError::Backend(reported)) = result else {
+            panic!("{result:?}")
+        };
+        assert!(
+            reported.starts_with(SQLITE_BUSY)
+                && reported.ends_with(&format!("{SQLITE_OPEN_MAX_WAIT:?}")),
+            "{reported}"
+        );
+        assert!(attempts.len() > 1, "{attempts:?}");
+        let last = *attempts.last().unwrap();
+        assert!(last < SQLITE_OPEN_RETRY_WINDOW, "{last:?}");
+        assert!(elapsed < SQLITE_OPEN_RETRY_WINDOW, "{elapsed:?}");
+        assert!(last + SQLITE_BUSY_TIMEOUT < SQLITE_OPEN_MAX_WAIT);
+
+        let mut calls = 0;
+        let other: Result<(), _> = waiting_out_the_lock(|| {
+            calls += 1;
+            Err(EventLogError::Backend("disk I/O error".to_owned()))
+        });
+        assert!(other.is_err());
+        assert_eq!(calls, 1, "only the lock is retried");
     }
 }

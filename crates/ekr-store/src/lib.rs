@@ -111,6 +111,11 @@ pub enum StoreError {
     #[error("the store is unavailable: {0}")]
     Backend(String),
 
+    /// An existing-only open found no store at the path: nothing there, an empty directory, an
+    /// empty file or a symlink to nothing. Nothing was created.
+    #[error("no store at {0}")]
+    NoStore(String),
+
     /// A record could not be read as what it should be — or could not be written as one.
     #[error("a stored document could not be read: {0}")]
     Document(String),

@@ -939,3 +939,89 @@ fn opening_an_existing_store_refuses_a_path_with_none_and_creates_nothing() {
     FileStore::file_existing(&files, TENANT, None).expect("the created file store opens");
     SqliteStore::sqlite_existing(&database, TENANT, None).expect("the created database opens");
 }
+
+/// Each way a path can exist and still hold no store: an empty directory, an empty file and a
+/// symlink whose target does not exist. Each is created under `directory` and returned.
+fn empty_paths(directory: &TempDir) -> Vec<std::path::PathBuf> {
+    let empty_directory = directory.path().join("empty-directory");
+    std::fs::create_dir(&empty_directory).unwrap();
+    let empty_file = directory.path().join("empty-file");
+    std::fs::write(&empty_file, b"").unwrap();
+    let dangling = directory.path().join("dangling");
+    std::os::unix::fs::symlink(directory.path().join("no-target"), &dangling).unwrap();
+    vec![empty_directory, empty_file, dangling]
+}
+
+/// `story:store-open-semantics`, correction round 1: a path that exists but holds no store is
+/// [`StoreError::NoStore`] from both existing-only constructors, whatever the provider, and is
+/// left exactly as it was.
+#[test]
+fn an_existing_path_holding_no_store_is_no_store_and_is_left_as_it_was() {
+    let directory = TempDir::new().unwrap();
+    let paths = empty_paths(&directory);
+    let before = tree(directory.path());
+    for path in &paths {
+        let file = FileStore::file_existing(path, TENANT, None).map(|_| ());
+        assert!(
+            matches!(file, Err(StoreError::NoStore(_))),
+            "file {path:?}: {file:?}"
+        );
+        let sqlite = SqliteStore::sqlite_existing(path, TENANT, None).map(|_| ());
+        assert!(
+            matches!(sqlite, Err(StoreError::NoStore(_))),
+            "sqlite {path:?}: {sqlite:?}"
+        );
+    }
+    assert_eq!(
+        tree(directory.path()),
+        before,
+        "an existing-only open wrote something"
+    );
+    for (missing, file) in [("absent", true), ("absent", false)] {
+        let path = directory.path().join(missing);
+        let opened = if file {
+            FileStore::file_existing(&path, TENANT, None).map(|_| ())
+        } else {
+            SqliteStore::sqlite_existing(&path, TENANT, None).map(|_| ())
+        };
+        assert!(
+            matches!(opened, Err(StoreError::NoStore(_))),
+            "{missing}: {opened:?}"
+        );
+    }
+}
+
+/// Correction round 1: every constructor refuses a tenant the provider would refuse before it
+/// opens or creates anything, so no constructor refusal leaves a store behind.
+#[test]
+fn every_constructor_refuses_an_invalid_tenant_before_creating_anything() {
+    let directory = TempDir::new().unwrap();
+    let files = directory.path().join("revisions");
+    let database = directory.path().join("revisions.db");
+    let refusals = [
+        ("file", FileStore::file(&files, "", None).map(|_| ())),
+        (
+            "sqlite",
+            SqliteStore::sqlite(&database, "", None).map(|_| ()),
+        ),
+        (
+            "file_existing",
+            FileStore::file_existing(&files, "", None).map(|_| ()),
+        ),
+        (
+            "sqlite_existing",
+            SqliteStore::sqlite_existing(&database, "", None).map(|_| ()),
+        ),
+    ];
+    for (constructor, refused) in refusals {
+        assert!(
+            matches!(refused, Err(StoreError::Backend(_))),
+            "{constructor}: {refused:?}"
+        );
+    }
+    assert!(
+        tree(directory.path()).is_empty(),
+        "a constructor refused a tenant after creating {:?}",
+        tree(directory.path())
+    );
+}
