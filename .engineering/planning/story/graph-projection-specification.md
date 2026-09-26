@@ -1,0 +1,96 @@
+---
+format: aep.planning-md/2
+id: story:graph-projection-specification
+kind: story
+status: draft
+title: Specify the graph projection ekr.graph-projection/1 as an ESS domain
+relations:
+- decomposes: epic:p4-operator-surface
+- serves: vision:o5
+scope:
+- confidence: inferred
+  path: Taskfile.yml
+- confidence: inferred
+  path: crates/ekr-views/tests/fixtures/conformance
+- confidence: cited
+  path: systems/ekr/components.yaml
+- confidence: cited
+  path: systems/ekr/conformance
+- confidence: inferred
+  path: systems/ekr/conformance/baseline.json
+- confidence: inferred
+  path: systems/ekr/conformance/suite.json
+- confidence: cited
+  path: systems/ekr/domains/views.yaml
+- confidence: cited
+  path: systems/ekr/system.yaml
+revision: 11
+---
+## Context
+
+Operator request (2026-09-26): a read-only graph viewer for a store (`story:ekr-view-server`, `story:data-free-graph-viewer`). What it reads is a **graph projection**: one JSON document per committed revision. This story states that document in ESS before any Rust renders it, so the renderer, the server and the viewer are held to one declaration.
+
+Design sections served: § 82 (a view is a deterministic function of a snapshot at a revision, a template version and a query scope; every rendered fact carries the id of the assertion it came from; views are `StorageClass::Cache`), § 47 (the projection's scope is *canonical as of revision N*), § 62 (assertion and evidence ids are what reach the explain chain), § 95 (schema version lineage), § 86 (evidence bytes are retained by content hash). Epic exit criterion: two renders of the same revision are byte-identical.
+
+## What to declare
+
+A new ESS domain `ekr.views` at `systems/ekr/domains/views.yaml`, owned by a new component `ekr-views` in `systems/ekr/components.yaml` and listed in `systems/ekr/system.yaml` (one domain per crate, roadmap § 3). It declares the document format `ekr.graph-projection/1` and its parts:
+
+- `meta`: format name and version, the projected revision number, the head revision number, counts of nodes, edges, assertions and evidence. No wall-clock field: nothing that differs between two renders of one revision.
+- `ontology`: node types, edge types (with their allowed source and target types) and property definitions at the projected revision, by id with their names and value kinds. The viewer takes every name it shows from here or from graph state.
+- `nodes[]`: `id`, `name` (the node's `canonical_name`), `type` (type id), `aliases`, lifecycle `state`, `props` (property id to typed values) and `assertions[]` whose subject is that node.
+- `edges[]`: the store's `ekr.graph.Edge` entities: `id`, `source`, `target`, `type`, `props` and `assertions[]` whose subject is that edge.
+- an assertion entry: `id`, predicate kind and id, object kind with value or reference, assessment, lifecycle, `valid_from`, `valid_to`, `recorded_from`, `recorded_to`, and the evidence ids it rests on.
+- `evidence[]`: evidence identities: `id`, `kind`, `locator`, `section`, `content_hash`, `observed_at`, `confidence_bp`, and whether the store retains its bytes. Never the bytes themselves.
+- `schema`: `versions[{number,id,parent,revision,added}]`, where `revision` is the first revision whose canonical state is valid against that version and `added` lists the type and property ids that version declares and its parent does not; and `revisions[]`, one entry per committed revision up to the projected one, with its number, commit time, transaction id (absent for the seed) and schema version id.
+
+Determinism rules, stated in the domain: arrays ordered by id (revisions and versions by number), a fixed key order, one number and timestamp encoding, no optional field emitted as `null` in one render and omitted in another. The format names no domain concept (invariant 8 holds in spirit above `ekr-graph` too: the projection is generic over any ontology).
+
+Authored conformance scenarios for `ekr-views` (the shape `crates/ekr/tests/fixtures/conformance/scenarios` uses) cover: a seed-only store, a store with a schema evolution (two versions), an assertion about an edge, a retracted assertion, and evidence whose bytes are and are not retained. The synthesized suite is committed beside `systems/ekr/conformance/suite.json`; running it against a target is `story:graph-projection-renderer`.
+
+## Domain relations
+
+Every relation the projection joins, each with what settles it:
+
+- `GraphRoot → Node`, one-to-many (zero allowed), root owns node — `systems/ekr/domains/graph.yaml`, entity `ekr.graph.GraphRoot`, relation `nodes`.
+- `GraphRoot → Edge`, one-to-many, root owns edge — `graph.yaml`, `ekr.graph.GraphRoot`, relation `edges`.
+- `GraphRoot → Assertion`, one-to-many, root owns assertion — `graph.yaml`, `ekr.graph.GraphRoot`, relation `assertions`.
+- `Edge → Node` (source and target), many-to-one each, reference — `graph.yaml`, `ekr.graph.Edge`, relations `from` and `to`.
+- `Node → NodeType` and `Edge → EdgeType`, many-to-one, reference — `graph.yaml`, `ekr.graph.Node` relation `type`, `ekr.graph.Edge` relation `type`.
+- `SchemaVersion → NodeType | EdgeType | PropertyDefinition`, one-to-many, version owns — `systems/ekr/domains/ontology.yaml`, `ekr.ontology.SchemaVersion`, relations `node_types`, `edge_types`, `properties`.
+- `Assertion → Support → Evidence`, assertion owns many supports, each references one evidence — `graph.yaml`, `ekr.graph.Assertion` relation `support`, `ekr.graph.Support` relation `evidence`.
+- `Assertion → subject` (a Node, an Edge or a Type), many-to-one — inferable (**inferred** from `crates/ekr-graph/src/assertion.rs:39`, `enum Subject`; `graph.yaml` carries `subject_kind` and `subject` as fields and no `relations:` entry declares this).
+- `Assertion → object Node`, many-to-zero-or-one — inferable (**inferred** from `crates/ekr-graph/src/assertion.rs:126`, `enum Object`; no ess/1 relation declares it).
+- `SchemaVersion → parent SchemaVersion`, many-to-zero-or-one — inferable (**inferred** from `crates/ekr-ontology/src/schema.rs:33`; `ontology.yaml` carries `parent` as a field, not a `relations:` entry).
+- `Revision → SchemaVersion` (the version a revision's canonical state is valid against), many-to-one — inferable (**inferred** from `crates/ekr-graph/src/canonical.rs:446`, `CanonicalGraph.ontology`, read per revision through `crates/ekr-kernel/src/runtime.rs:233`, `Runtime::replay`; no ess/1 relation declares it).
+- `Evidence → retained bytes` (a `StoredObject` by `content_hash`), many-to-zero-or-one — inferable (**inferred** from `crates/ekr-graph/src/evidence.rs:260` and `crates/ekr-kernel/src/runtime.rs:253`, `Runtime::content`; no ess/1 relation declares it).
+
+The projection itself is not an entity: it is rendered, never stored, and nothing owns it. Its tie to one revision is the operator's requirement (brief of 2026-09-26, epic exit criterion) and design § 82, not an ess/1 relation; this story is what declares it in ESS.
+
+**Not assumed.** Whether a relation assertion and an `Edge` with the same source, edge type and target are one projected edge is undecided: `decision-blocker:relation-assertion-edge-correspondence`. This format carries both exactly as the store holds them and joins neither to the other. The prototype's edge-level `lifecycle`, `valid_from`, `valid_to`, `evidence` and `has_edge` are therefore not in `/1`.
+
+## Out of scope
+
+The Rust renderer, the server, the viewer, other query scopes of § 47 (disputed, incubating roots), rendered templates, attention items.
+
+## Acceptance
+
+`ess specify validate --path systems/ekr` exits 0 with `ekr.views` declaring `ekr.graph-projection/1` (every part listed above, its determinism rules and the `ekr-views` component), and `ess conform synthesize --component ekr-views` produces the committed suite byte for byte.
+
+## Scope
+
+Derived 2026-09-26 by `story-scoper`. Every line is **cited** (read from the story or the tree) or
+**inferred** (a reading that could be wrong).
+
+- **Primary surface:** `systems/ekr/` (the ESS contract): a new domain `ekr.views` plus its authored conformance scenarios; no Rust — cited
+- **Files (new):** `systems/ekr/domains/views.yaml` (domain `ekr.views`, format `ekr.graph-projection/1`, determinism rules) — cited
+- **Files (shared, modified):** `systems/ekr/system.yaml` (append `ekr.views` to `domains:`) — cited
+- **Files (shared, modified):** `systems/ekr/components.yaml` (new component `ekr-views` owning `ekr.views`) — cited
+- **Files (new):** a synthesized `ekr-views` suite in `systems/ekr/conformance/` "beside `suite.json`"; file name not given — cited (location), inferred (name)
+- **Also likely:** a provenance record for that suite in `systems/ekr/conformance/` — inferred
+- **Also likely:** authored scenarios under `crates/ekr-views/tests/fixtures/conformance/scenarios/` (the crate is created by `story:graph-projection-renderer`) — inferred
+- **Also likely:** `Taskfile.yml` `conform-check` (lines 70–79 hard-code `--component ekr-kernel` and `cmp` only `suite.json`) — inferred
+- **Also likely (coordinator, 2026-09-26):** `systems/ekr/conformance/suite.json` and `baseline.json` — the `observe-domain-model` scoper found that `provenance.spec_digest` covers the whole compiled system, so any domain addition moves it; this scoper read them as untouched. `task conform-check` decides — inferred
+- **Symbols:** `ekr.graph.GraphRoot`, `ekr.graph.Edge`, `ekr.graph.Assertion`, `ekr.graph.Support`, `ekr.ontology.SchemaVersion` read, not changed — cited
+- **Confidence:** high for the domain, component and system files; medium for suite, provenance, scenario paths and the Taskfile
+- **Would collide with:** any unit adding or changing an ESS domain or component (`system.yaml`, `components.yaml`), any unit resynthesising `systems/ekr/conformance/`, any unit editing `Taskfile.yml` `conform-check`
