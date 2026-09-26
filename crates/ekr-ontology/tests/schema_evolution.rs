@@ -1113,6 +1113,143 @@ fn a_next_that_is_not_the_priors_successor_is_incompatible() {
     }
 }
 
+#[test]
+fn a_value_type_change_is_refused_over_the_kind_of_an_assertion_object_alone() {
+    // No node holds a `title` value; one active property assertion on a note has a String object.
+    // `value_kinds` reports that kind, `max_values` and `min_values` count no assertion.
+    let seed = seed();
+    let assertion_only = State {
+        nodes: BTreeMap::from([(seed.note, 1)]),
+        kinds: BTreeMap::from([((seed.note, seed.title), BTreeSet::from([ValueKind::String]))]),
+        ..State::default()
+    };
+    let retyped = redeclare(
+        &seed,
+        seed.note,
+        PropertyDefinition::new(seed.title, "title", ValueType::Integer),
+    );
+    assert_eq!(
+        incompatibilities(&seed.ontology, &retyped, &assertion_only),
+        vec![Incompatibility::ValueKindNotAdmitted {
+            owner: seed.note,
+            property: seed.title,
+            held: ValueKind::String,
+            declared: ValueKind::Integer,
+        }]
+    );
+
+    // Same kind, narrower parameters, again with only an assertion's object held.
+    let status = PropertyId::mint();
+    let variants = |names: &[&str]| ValueType::Enum {
+        variants: names.iter().map(|name| (*name).to_owned()).collect(),
+    };
+    let prior = redeclare(
+        &seed,
+        seed.note,
+        PropertyDefinition::new(status, "status", variants(&["draft", "final"])),
+    );
+    let narrowed = evolve(
+        &prior,
+        &[SchemaChange::ModifyProperty {
+            owner: seed.note,
+            property: PropertyDefinition::new(status, "status", variants(&["draft"])),
+        }],
+    )
+    .expect("coheres");
+    let assertion_only = State {
+        nodes: BTreeMap::from([(seed.note, 1)]),
+        kinds: BTreeMap::from([((seed.note, status), BTreeSet::from([ValueKind::Enum]))]),
+        ..State::default()
+    };
+    assert_eq!(
+        incompatibilities(&prior, &narrowed, &assertion_only),
+        vec![Incompatibility::ValueTypeNarrowed {
+            owner: seed.note,
+            property: status,
+        }]
+    );
+}
+
+#[test]
+fn a_reference_narrowing_is_judged_by_the_concrete_types_it_admits() {
+    // `Topic` becomes an abstract `Kind` with concrete subtypes; a note's `about` points at it.
+    let seed = seed();
+    let (kind, first, second, about) = (
+        TypeId::mint(),
+        TypeId::mint(),
+        TypeId::mint(),
+        PropertyId::mint(),
+    );
+    let mut kind_type = NodeType::new(kind, "Kind");
+    kind_type.abstract_type = true;
+    let mut first_type = NodeType::new(first, "First");
+    first_type.parents.insert(kind);
+    let mut second_type = NodeType::new(second, "Second");
+    second_type.parents.insert(kind);
+    let refs = |types: &[TypeId]| ValueType::NodeRef {
+        allowed_types: types.iter().copied().collect(),
+    };
+    let narrow_to_first = |prior: &Ontology, wrap: fn(ValueType) -> ValueType| {
+        evolve(
+            prior,
+            &[SchemaChange::ModifyProperty {
+                owner: seed.note,
+                property: PropertyDefinition::new(about, "about", wrap(refs(&[first]))),
+            }],
+        )
+        .expect("coheres")
+    };
+    let top = |value_type: ValueType| value_type;
+    let listed = |value_type: ValueType| ValueType::List(Box::new(value_type));
+
+    for (wrap, held_kind) in [
+        (top as fn(ValueType) -> ValueType, ValueKind::NodeRef),
+        (listed, ValueKind::List),
+    ] {
+        let held = State::default()
+            .nodes(seed.note, 1)
+            .values(seed.note, about, 1, held_kind);
+        // One concrete subtype: `Kind` and `First` admit the same references.
+        let prior = evolve(
+            &seed.ontology,
+            &[
+                SchemaChange::DefineNodeType(kind_type.clone()),
+                SchemaChange::DefineNodeType(first_type.clone()),
+                SchemaChange::ModifyProperty {
+                    owner: seed.note,
+                    property: PropertyDefinition::new(about, "about", wrap(refs(&[kind]))),
+                },
+            ],
+        )
+        .expect("coheres");
+        let next = narrow_to_first(&prior, wrap);
+        assert!(incompatibilities(&prior, &next, &held).is_empty());
+
+        // Two concrete subtypes: narrowing to one loses `Second`.
+        let prior = evolve(
+            &seed.ontology,
+            &[
+                SchemaChange::DefineNodeType(kind_type.clone()),
+                SchemaChange::DefineNodeType(first_type.clone()),
+                SchemaChange::DefineNodeType(second_type.clone()),
+                SchemaChange::ModifyProperty {
+                    owner: seed.note,
+                    property: PropertyDefinition::new(about, "about", wrap(refs(&[kind]))),
+                },
+            ],
+        )
+        .expect("coheres");
+        let next = narrow_to_first(&prior, wrap);
+        assert_eq!(
+            incompatibilities(&prior, &next, &held),
+            vec![Incompatibility::ValueTypeNarrowed {
+                owner: seed.note,
+                property: about,
+            }]
+        );
+    }
+}
+
 // ---------------------------------------------------------------------------------------------
 // codes
 

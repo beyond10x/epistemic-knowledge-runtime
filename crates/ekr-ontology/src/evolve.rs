@@ -223,6 +223,11 @@ impl EvolveError {
 /// what [`PropertyDefinition::cardinality`] bounds — and a [`Value::List`](crate::Value::List) is
 /// one value however many elements it has. Elements and record fields are never counted and their
 /// kinds are never reported; the parameters below that level are compared by declaration.
+///
+/// **Two things are held for a property, and the methods say which they cover.** An instance holds
+/// *values*, and it is the subject of *property assertions*, whose objects the kernel also checks
+/// against the property's declared type. The counts cover held values only; the kinds cover both,
+/// because a value-type change breaks an assertion object exactly as it breaks a value.
 pub trait InstanceState {
     /// How many nodes of exactly this type canonical state holds.
     fn node_count(&self, node_type: TypeId) -> u64;
@@ -231,16 +236,20 @@ pub trait InstanceState {
     /// The largest number of values any instance of `owner` holds for `property`; 0 if none.
     ///
     /// Counts top-level values: a property holding one list of five elements holds one value.
+    /// Property assertions are not counted.
     fn max_values(&self, owner: TypeId, property: PropertyId) -> u64;
     /// The smallest number of values any instance of `owner` holds for `property`; 0 if any
     /// instance lacks it or none exists.
     ///
-    /// Counts top-level values, as [`InstanceState::max_values`] does.
+    /// Counts top-level values, as [`InstanceState::max_values`] does, and no property assertion.
     fn min_values(&self, owner: TypeId, property: PropertyId) -> u64;
-    /// The value kinds held for `property` on instances of `owner`.
+    /// The value kinds held for `property` on instances of `owner`: the kinds of the values
+    /// instances hold, and the kinds of the objects of active property assertions on instances of
+    /// `owner` for `property`.
     ///
-    /// The kinds of top-level values only: a list of integers is reported as
-    /// [`ValueKind::List`], never as [`ValueKind::Integer`].
+    /// Top-level kinds only: a list of integers is reported as [`ValueKind::List`], never as
+    /// [`ValueKind::Integer`]. An implementation that leaves out assertion objects lets a
+    /// value-type change through that breaks them.
     fn value_kinds(&self, owner: TypeId, property: PropertyId) -> BTreeSet<ValueKind>;
 }
 
@@ -308,6 +317,7 @@ pub fn incompatibilities(
             &Owner {
                 type_id,
                 instances,
+                prior,
                 next,
                 state,
             },
@@ -333,6 +343,7 @@ pub fn incompatibilities(
             &Owner {
                 type_id,
                 instances,
+                prior,
                 next,
                 state,
             },
@@ -365,6 +376,7 @@ fn same_apart_from_properties_edge(before: &EdgeType, after: &EdgeType) -> bool 
 struct Owner<'a> {
     type_id: TypeId,
     instances: u64,
+    prior: &'a Ontology,
     next: &'a Ontology,
     state: &'a dyn InstanceState,
 }
@@ -445,7 +457,7 @@ fn compare_properties(
         // old one did is shown compatible.
         if admitted && held.contains(&declared) {
             if let Some(was) = was {
-                if !admits_all_of(owner.next, &was.value_type, &is.value_type) {
+                if !admits_all_of(owner.prior, owner.next, &was.value_type, &is.value_type) {
                     found.push(Incompatibility::ValueTypeNarrowed {
                         owner: owner.type_id,
                         property,
@@ -463,26 +475,40 @@ const fn permits(cardinality: Cardinality, count: u64) -> bool {
     }
 }
 
-/// Whether every value `old` admits is admitted by `new`, read in `next`'s hierarchy.
-fn admits_all_of(next: &Ontology, old: &ValueType, new: &ValueType) -> bool {
+/// Whether every value `old` admits under `prior` is admitted by `new` under `next`.
+fn admits_all_of(prior: &Ontology, next: &Ontology, old: &ValueType, new: &ValueType) -> bool {
     match (old, new) {
         (ValueType::Enum { variants: old }, ValueType::Enum { variants: new }) => {
             old.is_subset(new)
         }
+        // A reference admits a node by the node's own type, and only a concrete type has nodes. So
+        // what a reference admits is the set of concrete types conforming to its allowed types,
+        // and a narrowing is a concrete type lost — not a declared type replaced by a subtype
+        // that is the only concrete type under it.
         (ValueType::NodeRef { allowed_types: old }, ValueType::NodeRef { allowed_types: new }) => {
-            old.iter()
-                .all(|was| new.iter().any(|is| next.conforms_to(*was, *is)))
+            let admitted = concrete_conforming(next, new);
+            concrete_conforming(prior, old).is_subset(&admitted)
         }
-        (ValueType::List(old), ValueType::List(new)) => admits_all_of(next, old, new),
+        (ValueType::List(old), ValueType::List(new)) => admits_all_of(prior, next, old, new),
         (ValueType::Record(old), ValueType::Record(new)) => {
             old.len() == new.len()
                 && old.iter().all(|(field, was)| {
                     new.get(field)
-                        .is_some_and(|is| admits_all_of(next, was, is))
+                        .is_some_and(|is| admits_all_of(prior, next, was, is))
                 })
         }
         (old, new) => old.kind() == new.kind() && is_scalar(old),
     }
+}
+
+/// Every concrete node type of `ontology` that conforms to one of `allowed`.
+fn concrete_conforming(ontology: &Ontology, allowed: &BTreeSet<TypeId>) -> BTreeSet<TypeId> {
+    ontology
+        .node_types()
+        .filter(|(_, declared)| !declared.abstract_type)
+        .map(|(id, _)| *id)
+        .filter(|id| allowed.iter().any(|at| ontology.conforms_to(*id, *at)))
+        .collect()
 }
 
 const fn is_scalar(value_type: &ValueType) -> bool {
@@ -568,7 +594,7 @@ pub enum Incompatibility {
         declared: ValueKind,
     },
     /// A value type of the same kind that no longer admits everything the old one did — a variant
-    /// or a referenced type dropped, at any depth — while instances hold values of it.
+    /// or a concrete referenced type lost, at any depth — while instances hold values of it.
     #[error(
         "value-type-narrowed: property {property} of {owner} admits less than it did, and \
          instances hold values of it"
