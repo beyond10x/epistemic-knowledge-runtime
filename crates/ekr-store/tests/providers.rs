@@ -1025,3 +1025,62 @@ fn every_constructor_refuses_an_invalid_tenant_before_creating_anything() {
         tree(directory.path())
     );
 }
+
+/// Page 1 of an empty WAL-mode SQLite database: what `SqliteEventStore::open` leaves after
+/// `PRAGMA journal_mode=WAL` and before its owner tables commit.
+fn empty_wal_database() -> Vec<u8> {
+    let mut page = vec![0_u8; 4096];
+    page[..16].copy_from_slice(b"SQLite format 3\0");
+    page[16..28].copy_from_slice(&[
+        0x10, 0x00, 0x02, 0x02, 0x00, 0x40, 0x20, 0x20, 0x00, 0x00, 0x00, 0x01,
+    ]);
+    page[28..32].copy_from_slice(&[0x00, 0x00, 0x00, 0x01]);
+    page[92..100].copy_from_slice(&[0x00, 0x00, 0x00, 0x01, 0x00, 0x2e, 0x95, 0xcc]);
+    page[100..105].copy_from_slice(&[0x0d, 0x00, 0x00, 0x00, 0x00]);
+    page[105] = 0x10;
+    page
+}
+
+/// Correction round 2: a store whose creation has begun and not reached its first commit point —
+/// a SQLite database without the owner tables, a File directory holding only what the provider
+/// writes before `manifest.json` — is [`StoreError::NoStore`] too, and is left as it was. A File
+/// directory with history but no manifest is not "no store": the provider refuses it as corrupt.
+#[test]
+fn a_store_whose_creation_has_not_committed_is_no_store_and_is_left_as_it_was() {
+    let directory = TempDir::new().unwrap();
+    let database = directory.path().join("begun.db");
+    std::fs::write(&database, empty_wal_database()).unwrap();
+    let lock_only = directory.path().join("lock-only");
+    std::fs::create_dir(&lock_only).unwrap();
+    std::fs::write(lock_only.join("writer.lock"), b"").unwrap();
+    let staged = directory.path().join("staged");
+    std::fs::create_dir(&staged).unwrap();
+    std::fs::write(staged.join("writer.lock"), b"").unwrap();
+    std::fs::write(staged.join("events.jsonl"), b"").unwrap();
+    std::fs::write(staged.join(".write-0"), b"{}").unwrap();
+    let history = directory.path().join("history-without-manifest");
+    std::fs::create_dir(&history).unwrap();
+    std::fs::write(history.join("writer.lock"), b"").unwrap();
+    std::fs::write(history.join("events.jsonl"), b"{}\n").unwrap();
+    let before = tree(directory.path());
+
+    let sqlite = SqliteStore::sqlite_existing(&database, TENANT, None).map(|_| ());
+    assert!(matches!(sqlite, Err(StoreError::NoStore(_))), "{sqlite:?}");
+    for begun in [&lock_only, &staged] {
+        let file = FileStore::file_existing(begun, TENANT, None).map(|_| ());
+        assert!(
+            matches!(file, Err(StoreError::NoStore(_))),
+            "{begun:?}: {file:?}"
+        );
+    }
+    let corrupt = FileStore::file_existing(&history, TENANT, None).map(|_| ());
+    assert!(
+        matches!(corrupt, Err(StoreError::Backend(_))),
+        "{corrupt:?}"
+    );
+    assert_eq!(
+        tree(directory.path()),
+        before,
+        "an existing-only open wrote something"
+    );
+}

@@ -410,11 +410,8 @@ impl Configured {
 }
 
 impl Store {
-    /// Opens the store every verb but `seed` reads or writes: an existing one only. After the
-    /// host anchor check every open runs first, a path that holds no store — nothing, an empty
-    /// directory, an empty file, a symlink to nothing — is the named configuration fault
-    /// `store-not-found` (exit 1), and nothing is created there.
-    fn open(&self) -> Result<Runtime, Failure> {
+    /// Opens an existing store only, through the constructor that creates nothing.
+    fn open_existing(&self) -> Result<Runtime, PersistenceError> {
         let CliHostConfigurationV1 {
             tenant,
             context,
@@ -425,7 +422,15 @@ impl Store {
             Backend::File => Runtime::file_existing(&self.store, &tenant, context, authority),
             Backend::Sqlite => Runtime::sqlite_existing(&self.store, &tenant, context, authority),
         }
-        .map_err(|error| match error {
+    }
+
+    /// Opens the store every verb but `seed` reads or writes: an existing one only. After the
+    /// host anchor check every open runs first, a path that holds no store — nothing, an empty
+    /// directory, an empty file, a symlink to nothing, a SQLite database without the owner
+    /// tables, a file-store directory the provider has not written a manifest to — is the named
+    /// configuration fault `store-not-found` (exit 1), and nothing is created there.
+    fn open(&self) -> Result<Runtime, Failure> {
+        self.open_existing().map_err(|error| match error {
             PersistenceError::NoStore(_) => Failure::fault(format!(
                 "store-not-found: no {} store at {}; `ekr seed` creates one",
                 match self.backend {
@@ -438,9 +443,12 @@ impl Store {
         })
     }
 
-    /// Opens the store `seed` publishes into. The host anchor and the kernel's full seed
-    /// admission run first, whatever is at the path, and the constructor refuses an invalid
-    /// tenant before it creates anything: a refused seed leaves no store behind.
+    /// Opens the store `seed` publishes into. The host anchor is checked first, as every open
+    /// does. Where a store exists, the host's authority is checked against the retained one
+    /// next, so a different authority is `bootstrap-authority-mismatch` (exit 1) as for every
+    /// store verb (`docs/cli.md`, the host document); then the kernel's full seed admission.
+    /// Where none exists, admission runs before anything is created, and the constructor refuses
+    /// an invalid tenant before it creates anything: a refused seed leaves no store behind.
     fn open_to_seed(&self, seed: &SeedDocument) -> Result<Runtime, Failure> {
         let CliHostConfigurationV1 {
             tenant,
@@ -449,12 +457,24 @@ impl Store {
             ..
         } = self.host.clone();
         Runtime::check_anchor(context, &authority).map_err(opening)?;
-        Runtime::admit_seed(seed, context)?;
-        match self.backend {
-            Backend::File => Runtime::file(&self.store, &tenant, context, authority),
-            Backend::Sqlite => Runtime::sqlite(&self.store, &tenant, context, authority),
+        match self.open_existing() {
+            Ok(runtime) => {
+                if let Err(mismatch @ PersistenceError::AuthorityMismatch) = runtime.head() {
+                    return Err(Failure::fault(mismatch));
+                }
+                Runtime::admit_seed(seed, context)?;
+                Ok(runtime)
+            }
+            Err(PersistenceError::NoStore(_)) => {
+                Runtime::admit_seed(seed, context)?;
+                match self.backend {
+                    Backend::File => Runtime::file(&self.store, &tenant, context, authority),
+                    Backend::Sqlite => Runtime::sqlite(&self.store, &tenant, context, authority),
+                }
+                .map_err(opening)
+            }
+            Err(error) => Err(opening(error)),
         }
-        .map_err(opening)
     }
 }
 

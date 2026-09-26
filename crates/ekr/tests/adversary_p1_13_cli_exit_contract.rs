@@ -193,10 +193,14 @@ fn assert_refused(output: &Output, name: &str, what: &str) {
     assert!(output.stdout.is_empty(), "{what}: a refusal wrote a result");
 }
 
-/// Contract r2: "Seed maps only the [valid-but-different anchor] to AlreadySeeded, exit 2,
-/// with no state exposure or writes; other commands refuse anchor mismatch."
+/// Contract r2 said "Seed maps only the [valid-but-different anchor] to AlreadySeeded, exit 2".
+/// Wave p5-01 (`story:store-open-semantics`, correction round 2, coordinator's decision) moves the
+/// CLI to `docs/cli.md` § The host document: after `ekr seed`, a host whose authority differs is
+/// `bootstrap-authority-mismatch`, exit 1, for every store verb, `seed` included. The kernel's
+/// `Runtime::seed` still answers AlreadySeeded (`systems/ekr/domains/kernel.yaml`). Unchanged:
+/// no state exposure and no writes, and every other command refuses too.
 #[test]
-fn a_different_host_anchor_is_already_seeded_for_seed_and_refused_everywhere_else() {
+fn a_different_host_anchor_is_bootstrap_authority_mismatch_for_seed_and_refused_everywhere_else() {
     let host = std::fs::read_to_string(fixture("host.json")).unwrap();
     let renamed = host.replace("Runtime operator", "Renamed operator");
     assert_ne!(renamed, host);
@@ -208,11 +212,13 @@ fn a_different_host_anchor_is_already_seeded_for_seed_and_refused_everywhere_els
         let other = world.write("other-host.json", renamed.as_bytes());
 
         let seed = world.run_as(&other, &["seed", &arg("seed.yaml")], b"");
-        assert_refused(
-            &seed,
-            "ekr.kernel.AlreadySeeded",
-            "seed under another anchor",
+        let stderr = String::from_utf8_lossy(&seed.stderr);
+        assert_eq!(seed.status.code(), Some(1), "{backend}: {stderr}");
+        assert!(
+            stderr.starts_with("ekr: bootstrap-authority-mismatch"),
+            "{backend}: seed under another anchor: {stderr}"
         );
+        assert!(seed.stdout.is_empty(), "{backend}: seed exposed state");
 
         for verb in [
             &["propose", &arg("propose-stale.yaml")][..],

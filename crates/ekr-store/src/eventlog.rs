@@ -121,9 +121,16 @@ impl EventlogStore<SqliteEventStore> {
         let runtime = new_runtime()?;
         let tenant = TenantId::new(tenant)?;
         holds_something(path)?;
+        let shown = path.display().to_string();
         let path = path.to_string_lossy();
         let store = waiting_out_the_lock(|| {
             runtime.block_on(SqliteEventStore::open_existing(&path, "ekr"))
+        })
+        .map_err(|error| match error {
+            EventLogError::Invalid(message) if message == SQLITE_NO_OWNER_EVENTS => {
+                StoreError::NoStore(shown)
+            }
+            error => error.into(),
         })?;
         Ok(Self::assemble(runtime, store, tenant, ontology.into()))
     }
@@ -145,6 +152,38 @@ fn holds_something(path: &Path) -> Result<(), StoreError> {
     } else {
         Ok(())
     }
+}
+/// What `SqliteEventStore::open_existing` reports for a database that holds no `ekr` owner at all
+/// (`Inner::require_existing_schema`, eventlog-sqlite `70096af`: the events table is checked
+/// first). `open` creates every owner table in one `BEGIN IMMEDIATE` transaction, so a reader sees
+/// either none of them — an empty database, or one a first seed has not committed its tables to
+/// yet — or all of them. A database without the events table therefore holds no store.
+const SQLITE_NO_OWNER_EVENTS: &str = "SQLite owner table ekr_events is absent";
+/// [`StoreError::NoStore`] for a File-provider directory that holds only what the provider's own
+/// open-or-create writes before its `manifest.json` lands (`Journal::open_with_creation`,
+/// eventlog-file `70096af`): `writer.lock`, an empty `events.jsonl` and `.write-*` staging files.
+/// Such a directory is a store being created, or one whose creation was killed, and holds no
+/// history. A directory without a manifest but with anything else is left to the provider, which
+/// refuses it as corrupt.
+fn holds_a_file_store(path: &Path) -> Result<(), StoreError> {
+    let backend = |error: std::io::Error| StoreError::Backend(error.to_string());
+    if !std::fs::metadata(path).map_err(backend)?.is_dir() {
+        return Ok(());
+    }
+    for entry in std::fs::read_dir(path).map_err(backend)? {
+        let entry = entry.map_err(backend)?;
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        let creating = match name.as_ref() {
+            "writer.lock" => true,
+            "events.jsonl" => entry.metadata().map_err(backend)?.len() == 0,
+            staging => staging.starts_with(".write-"),
+        };
+        if !creating {
+            return Ok(());
+        }
+    }
+    Err(StoreError::NoStore(path.display().to_string()))
 }
 /// How long a SQLite open keeps starting new attempts while another connection holds the lock.
 ///
@@ -219,6 +258,7 @@ impl EventlogStore<FileEventStore> {
         let runtime = new_runtime()?;
         let tenant = TenantId::new(tenant)?;
         holds_something(path)?;
+        holds_a_file_store(path)?;
         let store = runtime.block_on(FileEventStore::open_existing(path))?;
         Ok(Self::assemble(runtime, store, tenant, ontology.into()))
     }

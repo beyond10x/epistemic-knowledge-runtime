@@ -936,6 +936,7 @@ fn trigger(page: &str, name: &str) -> Option<Vec<Ran>> {
                 "Catalogue checker",
             );
             vec![
+                ran(&lab, "other.json", &["seed", "seed.yaml"]),
                 ran(&lab, "other.json", &["head"]),
                 ran(&lab, "other.json", &["propose", "wrote.yaml"]),
             ]

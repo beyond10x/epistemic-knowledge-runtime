@@ -218,8 +218,11 @@ impl KernelTarget {
     /// every command. This is not how the CLI opens for a command other than `seed`: the CLI opens
     /// those existing-only and refuses an empty path as `store-not-found`. The target cannot, because
     /// it reads the retained history before every command, the first `Seed` included, and an
-    /// unseeded scenario must read as empty rather than refuse. Seeding answers as the CLI does:
-    /// [`Self::seed_from`] runs `Runtime::admit_seed` before the handler, as `ekr seed` does.
+    /// unseeded scenario must read as empty rather than refuse. [`Self::seed_from`] runs
+    /// `Runtime::admit_seed` before the handler, as `ekr seed` does. One seed answer differs, by
+    /// design: under a host whose authority differs from the retained one this target reports the
+    /// kernel's `ekr.kernel.AlreadySeeded`, as `systems/ekr/domains/kernel.yaml` declares, where
+    /// `ekr seed` reports `bootstrap-authority-mismatch` (exit 1) as `docs/cli.md` documents.
     fn runtime(&self) -> Result<Runtime, TargetError> {
         let directory = self.directory()?;
         let CliHostConfigurationV1 {

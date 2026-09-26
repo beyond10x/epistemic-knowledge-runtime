@@ -112,7 +112,8 @@ pub enum StoreError {
     Backend(String),
 
     /// An existing-only open found no store at the path: nothing there, an empty directory, an
-    /// empty file or a symlink to nothing. Nothing was created.
+    /// empty file, a symlink to nothing, a SQLite database without the owner tables, or a File
+    /// directory holding only what the provider writes before its manifest. Nothing was created.
     #[error("no store at {0}")]
     NoStore(String),
 
