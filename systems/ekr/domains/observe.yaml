@@ -1,9 +1,10 @@
 domain: ekr.observe
 
 summary: >-
-  The observation layer's own vocabulary: the units a source is polled in, the checkpoint a poll
-  resumes from, the health of one poll, and the idempotency key that makes a second observation of
-  the same source record the same observation. Design § 15, § 54–57; predecessors A8. The
+  The observation layer's own vocabulary: source units, the units of source-side progress this
+  domain names, with their granularity held open; the checkpoint a poll resumes from; the health
+  of one poll; and the idempotency key that makes a second observation of the same source record
+  the same observation. Design § 15, § 54–57; predecessors A8. The
   observation itself is `ekr.graph.Observation` and is referenced here, not redeclared. Checkpoint
   state is durable but is not canonical knowledge (§ 55). How units, checkpoints, poll health and
   observations link to one another is held open by four decision-blockers, each named below where
@@ -69,8 +70,9 @@ types:
         type: ekr.graph.ObservationId
 
 entities:
-  # Design § 54–55: what a source is polled in. Predecessors § 8 carries "replies are their own
-  # units" as a requirement.
+  # A source unit is the unit of source-side progress this domain names. Its granularity is held
+  # open by decision-blocker:source-unit-granularity, below. Predecessors § 8 carries "replies are
+  # their own units" as a requirement.
   #
   # UNMAPPED: decision-blocker:source-unit-granularity — what a unit is (one item or the stream a
   # checkpoint advances over), and so both `SourceUnit → Observation` and the link from a
