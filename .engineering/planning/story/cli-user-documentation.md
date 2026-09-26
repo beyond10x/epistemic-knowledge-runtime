@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:cli-user-documentation
 kind: story
-status: active
+status: implemented
 title: Document the ekr CLI and the seed schema for users and agents
 relations:
 - serves: vision:o5
@@ -18,7 +18,7 @@ scope:
   path: crates/ekr/tests/docs_cli.rs
 - confidence: cited
   path: docs/cli.md
-revision: 8
+revision: 9
 ---
 ## Context
 

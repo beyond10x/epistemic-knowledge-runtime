@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:machine-readable-document-schemas
 kind: story
-status: active
+status: implemented
 title: ekr schema prints JSON Schema for the documents an agent writes
 relations:
 - serves: vision:o5
@@ -26,7 +26,7 @@ scope:
   path: crates/ekr/tests/schema_cli.rs
 - confidence: cited
   path: docs/cli.md
-revision: 12
+revision: 13
 ---
 ## Context
 

@@ -2,12 +2,12 @@
 format: aep.planning-md/1
 id: task:store-reads-rehash-the-whole-log
 kind: task
-status: draft
+status: implemented
 title: Every store read re-hashes the whole file-provider log, so commands grow quadratically
 relations:
 - serves: vision:o2
 - derived_from: epic:p6-maintenance-observability
-revision: 1
+revision: 4
 ---
 ## What is wrong
 

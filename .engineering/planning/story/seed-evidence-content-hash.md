@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:seed-evidence-content-hash
 kind: story
-status: active
+status: implemented
 title: The binary prints the content hash a seed evidence entry needs
 relations:
 - serves: vision:o5
@@ -28,7 +28,7 @@ scope:
   path: crates/ekr/tests/adversary_p4_01_agent_cli.rs
 - confidence: inferred
   path: crates/ekr/tests/agent_cli.rs
-revision: 14
+revision: 15
 ---
 ## Context
 

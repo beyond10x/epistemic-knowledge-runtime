@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:pin-ess-0-32
 kind: story
-status: active
+status: implemented
 title: Pin ESS 0.32.0 for the specification and the conformance target
 relations:
 - serves: vision:o2
@@ -29,7 +29,7 @@ scope:
   path: systems/ekr/conformance
 - confidence: inferred
   path: systems/ekr/domains/kernel.yaml
-revision: 15
+revision: 16
 ---
 ## Context
 

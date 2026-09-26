@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:eventlog-0-4-batched-reads
 kind: story
-status: active
+status: implemented
 title: Eventlog 0.4.0 and batched history reads, so file-provider commands stop growing quadratically
 relations:
 - serves: vision:o2
@@ -22,7 +22,7 @@ scope:
   path: crates/ekr-store/src/preparation.rs
 - confidence: cited
   path: crates/ekr/tests/story_contract.rs
-revision: 12
+revision: 13
 ---
 ## Context
 
