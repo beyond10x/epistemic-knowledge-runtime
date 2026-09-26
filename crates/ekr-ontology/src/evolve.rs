@@ -49,11 +49,17 @@ impl Ontology {
     /// "In order" is observable: a type defined by an earlier change may own a property a later
     /// change modifies, and the reverse order is [`EvolveError::UnknownOwner`].
     ///
+    /// **Lineage uniqueness is checked only as far as this version can see.** `next` is refused
+    /// when it is this version's id or its parent's; an `Ontology` holds no older ancestor, so
+    /// that `next` appears nowhere else on the lineage is the kernel's to check against the
+    /// versions it has committed.
+    ///
     /// # Errors
     ///
     /// See [`EvolveError`]. The refusals that belong to a change are made first, as each change
     /// is applied; a result that does not cohere is [`EvolveError::Incoherent`], carrying the
-    /// [`OntologyError`] `load` gave.
+    /// [`OntologyError`] `load` gave; a result that declares exactly what this version declares
+    /// is [`EvolveError::WithoutEffect`].
     pub fn evolve(
         &self,
         next: SchemaVersionId,
@@ -64,7 +70,7 @@ impl Ontology {
             return Err(EvolveError::EmptyChanges);
         }
         let prior = self.version();
-        if next == prior.id {
+        if next == prior.id || prior.parent == Some(next) {
             return Err(EvolveError::VersionIdReused { id: next });
         }
         let Some(number) = prior.number.checked_add(1) else {
@@ -110,7 +116,14 @@ impl Ontology {
             }
         }
 
-        Self::load(document).map_err(EvolveError::Incoherent)
+        let evolved = Self::load(document).map_err(EvolveError::Incoherent)?;
+        // Changes that cancel, or a redeclaration identical to what is declared, derive a version
+        // that differs from this one only in its version record.
+        let (before, after) = (self.to_document(), evolved.to_document());
+        if before.node_types == after.node_types && before.edge_types == after.edge_types {
+            return Err(EvolveError::WithoutEffect);
+        }
+        Ok(evolved)
     }
 }
 
@@ -135,10 +148,9 @@ pub enum EvolveError {
     /// No change at all: a version that changes nothing is not a next version.
     #[error("empty-schema-change: a schema version needs at least one change")]
     EmptyChanges,
-    /// The next version's id is the prior version's own, so its parent would be itself.
-    #[error(
-        "schema-version-reused: {id} is the prior version's id and cannot also be its child's"
-    )]
+    /// The next version's id is already on the lineage this version can see: its own id, so the
+    /// next version's parent would be itself, or its parent's.
+    #[error("schema-version-reused: {id} is already on the prior version's lineage")]
     VersionIdReused {
         /// The id offered for the next version.
         id: SchemaVersionId,
@@ -167,17 +179,22 @@ pub enum EvolveError {
     /// The changed version fails a coherence rule [`Ontology::load`] applies.
     #[error("incoherent-schema: {0}")]
     Incoherent(OntologyError),
+    /// The changes, applied in order, leave every declaration as the prior version has it: an
+    /// identical redeclaration, or changes that cancel.
+    #[error("schema-change-without-effect: the changes leave every declaration as it was")]
+    WithoutEffect,
 }
 
 impl EvolveError {
     /// Every code [`EvolveError::code`] can return.
-    pub const CODES: [&'static str; 6] = [
+    pub const CODES: [&'static str; 7] = [
         "empty-schema-change",
         "schema-version-reused",
         "schema-version-exhausted",
         "type-already-declared",
         "unknown-property-owner",
         "incoherent-schema",
+        "schema-change-without-effect",
     ];
 
     /// The stable kebab-case code of this refusal.
@@ -190,6 +207,7 @@ impl EvolveError {
             Self::TypeAlreadyDeclared { .. } => Self::CODES[3],
             Self::UnknownOwner { .. } => Self::CODES[4],
             Self::Incoherent(_) => Self::CODES[5],
+            Self::WithoutEffect => Self::CODES[6],
         }
     }
 }
@@ -200,29 +218,44 @@ impl EvolveError {
 /// `owner` is the type an instance *is* — a node's own type, an edge's own type — and not any
 /// ancestor of it: [`incompatibilities`] asks about every type whose resolved property set moved,
 /// inherited properties included, so a count that also included subtypes would be counted twice.
+///
+/// **Values are top-level.** A value is one entry of the list a property holds on one instance —
+/// what [`PropertyDefinition::cardinality`] bounds — and a [`Value::List`](crate::Value::List) is
+/// one value however many elements it has. Elements and record fields are never counted and their
+/// kinds are never reported; the parameters below that level are compared by declaration.
 pub trait InstanceState {
     /// How many nodes of exactly this type canonical state holds.
     fn node_count(&self, node_type: TypeId) -> u64;
     /// How many edges of exactly this type canonical state holds.
     fn edge_count(&self, edge_type: TypeId) -> u64;
     /// The largest number of values any instance of `owner` holds for `property`; 0 if none.
+    ///
+    /// Counts top-level values: a property holding one list of five elements holds one value.
     fn max_values(&self, owner: TypeId, property: PropertyId) -> u64;
     /// The smallest number of values any instance of `owner` holds for `property`; 0 if any
     /// instance lacks it or none exists.
+    ///
+    /// Counts top-level values, as [`InstanceState::max_values`] does.
     fn min_values(&self, owner: TypeId, property: PropertyId) -> u64;
     /// The value kinds held for `property` on instances of `owner`.
+    ///
+    /// The kinds of top-level values only: a list of integers is reported as
+    /// [`ValueKind::List`], never as [`ValueKind::Integer`].
     fn value_kinds(&self, owner: TypeId, property: PropertyId) -> BTreeSet<ValueKind>;
 }
 
 /// Why `next` cannot replace `prior` while canonical state is as `state` says.
 ///
-/// Empty when it can. Ordered by owner, node types before edge types, then by property, so two
-/// readers of one answer read it the same way.
+/// Empty when it can. A lineage refusal comes first; the rest are ordered by owner, node types
+/// before edge types, then by property, so two readers of one answer read it the same way.
 ///
-/// For each type `prior` declares: a type `next` no longer declares is refused if it has
+/// First, `next` must be `prior`'s successor: its parent is `prior` and its number is one more.
+/// Then, for each type `prior` declares: a type `next` no longer declares is refused if it has
 /// instances; a type whose declaration moved in anything other than its properties is refused if
-/// it has instances, because `state` cannot say whether they still conform; and every property
-/// whose resolved declaration moved is checked against what instances hold.
+/// it, or any type conforming to it in either version, has instances, because `state` cannot say
+/// whether they still conform; and every property whose resolved declaration moved is checked
+/// against what instances hold. A changed constraint is refused under any instance: nothing can
+/// evaluate one yet, so whether instances satisfy it cannot be shown.
 #[must_use]
 pub fn incompatibilities(
     prior: &Ontology,
@@ -231,17 +264,45 @@ pub fn incompatibilities(
 ) -> Vec<Incompatibility> {
     let mut found = Vec::new();
 
+    let (was, is) = (prior.version(), next.version());
+    if is.id == was.id || is.parent != Some(was.id) || was.number.checked_add(1) != Some(is.number)
+    {
+        found.push(Incompatibility::NotASuccessor {
+            prior: was.id,
+            next: is.id,
+        });
+    }
+
+    // Every node of `type_id` or of a type that specialises it, in either version: a type-level
+    // change to an abstract parent moves the conformance of its concrete children.
+    let node_types: BTreeSet<TypeId> = prior
+        .node_types()
+        .chain(next.node_types())
+        .map(|(id, _)| *id)
+        .collect();
+    let population = |type_id: TypeId| {
+        node_types
+            .iter()
+            .filter(|at| prior.conforms_to(**at, type_id) || next.conforms_to(**at, type_id))
+            .map(|at| state.node_count(*at))
+            .fold(0_u64, u64::saturating_add)
+    };
+
     for (type_id, before) in prior.node_types() {
         let type_id = *type_id;
         let instances = state.node_count(type_id);
         let Some(after) = next.node_type(type_id) else {
+            let instances = population(type_id);
             if instances > 0 {
                 found.push(Incompatibility::TypeRemoved { type_id, instances });
             }
             continue;
         };
-        if instances > 0 && !same_apart_from_properties_node(before, after) {
-            found.push(Incompatibility::DeclarationChanged { type_id, instances });
+        if !same_apart_from_properties_node(before, after) {
+            let instances = population(type_id);
+            if instances > 0 {
+                found.push(Incompatibility::DeclarationChanged { type_id, instances });
+            }
         }
         compare_properties(
             &Owner {
@@ -331,6 +392,18 @@ fn compare_properties(
             }
             continue;
         };
+
+        // The kernel refuses every write to a type whose properties carry a constraint it cannot
+        // evaluate, and it can evaluate none, so a constraint added, tightened, relaxed or dropped
+        // under instances is one whose effect on them cannot be shown.
+        let was_constrained = was.map_or(&[][..], |was| was.constraints.as_slice());
+        if owner.instances > 0 && was_constrained != is.constraints.as_slice() {
+            found.push(Incompatibility::ConstraintChanged {
+                owner: owner.type_id,
+                property,
+                instances: owner.instances,
+            });
+        }
 
         let newly_required = is.required && !was.is_some_and(|was| was.required);
         if newly_required
@@ -428,6 +501,29 @@ const fn is_scalar(value_type: &ValueType) -> bool {
 /// `systems/ekr/domains/ontology.yaml` declares as `ekr.ontology.IncompatibilityCode`.
 #[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
 pub enum Incompatibility {
+    /// `next` is not `prior`'s successor: its parent is not `prior`, or its number is not
+    /// `prior`'s plus one, or it is `prior` itself.
+    #[error("not-a-successor: {next} is not the next version of {prior}")]
+    NotASuccessor {
+        /// The version being replaced.
+        prior: SchemaVersionId,
+        /// The version offered to replace it.
+        next: SchemaVersionId,
+    },
+    /// A property's constraints changed on a type with instances. No constraint can be evaluated
+    /// yet, so whether the instances satisfy the new set cannot be shown.
+    #[error(
+        "constraint-changed: the constraints of property {property} on {owner} changed, and it \
+         has {instances} instances"
+    )]
+    ConstraintChanged {
+        /// The type whose instances resolve the property.
+        owner: TypeId,
+        /// The property.
+        property: PropertyId,
+        /// How many instances there are.
+        instances: u64,
+    },
     /// A property made required on a type at least one of whose instances carries no value of it.
     #[error(
         "required-property-missing: property {property} is required on {owner}, and at least \
@@ -522,7 +618,7 @@ pub enum Incompatibility {
 
 impl Incompatibility {
     /// Every code [`Incompatibility::code`] can return.
-    pub const CODES: [&'static str; 7] = [
+    pub const CODES: [&'static str; 9] = [
         "required-property-missing",
         "cardinality-narrowed",
         "value-kind-not-admitted",
@@ -530,6 +626,8 @@ impl Incompatibility {
         "type-removed",
         "type-declaration-changed",
         "property-removed",
+        "not-a-successor",
+        "constraint-changed",
     ];
 
     /// The stable kebab-case code of this incompatibility.
@@ -543,6 +641,8 @@ impl Incompatibility {
             Self::TypeRemoved { .. } => Self::CODES[4],
             Self::DeclarationChanged { .. } => Self::CODES[5],
             Self::PropertyRemoved { .. } => Self::CODES[6],
+            Self::NotASuccessor { .. } => Self::CODES[7],
+            Self::ConstraintChanged { .. } => Self::CODES[8],
         }
     }
 }

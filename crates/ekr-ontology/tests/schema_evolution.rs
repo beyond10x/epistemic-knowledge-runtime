@@ -70,6 +70,19 @@ fn evolve(prior: &Ontology, changes: &[SchemaChange]) -> Result<Ontology, Evolve
     prior.evolve(SchemaVersionId::mint(), LATER, changes)
 }
 
+/// `prior`'s declarations under a version that is its successor, for a `next` that `evolve`
+/// cannot build (a removal, a type-level change).
+fn successor_document(prior: &Ontology) -> OntologyDocument {
+    let mut document = prior.to_document();
+    document.version = SchemaVersion {
+        id: SchemaVersionId::mint(),
+        number: prior.version().number + 1,
+        parent: Some(prior.version().id),
+        created_at: LATER,
+    };
+    document
+}
+
 // ---------------------------------------------------------------------------------------------
 // evolve: the lineage
 
@@ -412,6 +425,68 @@ fn a_version_that_names_itself_as_its_parent_is_refused() {
         .expect_err("a lineage of one id is a cycle");
     assert_eq!(refused, EvolveError::VersionIdReused { id: same });
     assert_eq!(refused.code(), "schema-version-reused");
+}
+
+#[test]
+fn a_version_that_reuses_its_grandparent_id_is_refused() {
+    let seed = seed();
+    let first = evolve(
+        &seed.ontology,
+        &[SchemaChange::DefineNodeType(NodeType::new(
+            TypeId::mint(),
+            "A",
+        ))],
+    )
+    .expect("first");
+    let grandparent = seed.ontology.version().id;
+    assert_eq!(first.version().parent, Some(grandparent), "precondition");
+    let refused = first
+        .evolve(
+            grandparent,
+            LATER,
+            &[SchemaChange::DefineNodeType(NodeType::new(
+                TypeId::mint(),
+                "B",
+            ))],
+        )
+        .expect_err("the parent's id is already on the lineage");
+    assert_eq!(refused, EvolveError::VersionIdReused { id: grandparent });
+}
+
+#[test]
+fn a_change_list_whose_result_declares_what_the_prior_did_is_refused() {
+    let seed = seed();
+    let same = PropertyDefinition::new(seed.title, "title", ValueType::String);
+    for changes in [
+        vec![SchemaChange::ModifyProperty {
+            owner: seed.note,
+            property: same.clone(),
+        }],
+        // Two changes that cancel: the result still declares exactly the prior.
+        vec![
+            SchemaChange::ModifyProperty {
+                owner: seed.note,
+                property: PropertyDefinition::new(seed.title, "title", ValueType::Integer),
+            },
+            SchemaChange::ModifyProperty {
+                owner: seed.note,
+                property: same.clone(),
+            },
+        ],
+    ] {
+        let refused = evolve(&seed.ontology, &changes).expect_err("no effect");
+        assert_eq!(refused, EvolveError::WithoutEffect);
+        assert_eq!(refused.code(), "schema-change-without-effect");
+    }
+    // A rename is an effect.
+    assert!(evolve(
+        &seed.ontology,
+        &[SchemaChange::ModifyProperty {
+            owner: seed.note,
+            property: PropertyDefinition::new(seed.title, "heading", ValueType::String),
+        }],
+    )
+    .is_ok());
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -819,7 +894,7 @@ fn removing_a_type_or_property_that_instances_hold_is_incompatible() {
     // `evolve` cannot remove anything (wave decision 6), but `incompatibilities` compares any two
     // ontologies, and a second route to `next` must not pass a removal as compatible.
     let seed = seed();
-    let mut document = seed.ontology.to_document();
+    let mut document = successor_document(&seed.ontology);
     document
         .node_types
         .retain(|declared| declared.id != seed.topic);
@@ -846,7 +921,7 @@ fn removing_a_type_or_property_that_instances_hold_is_incompatible() {
 #[test]
 fn a_type_changed_in_more_than_its_properties_is_incompatible_while_it_has_instances() {
     let seed = seed();
-    let mut document = seed.ontology.to_document();
+    let mut document = successor_document(&seed.ontology);
     for declared in &mut document.node_types {
         if declared.id == seed.topic {
             declared.abstract_type = true;
@@ -901,6 +976,143 @@ fn a_prior_at_the_largest_version_number_is_refused_rather_than_wrapped() {
     assert_eq!(refused.code(), "schema-version-exhausted");
 }
 
+#[test]
+fn a_constraint_changed_on_a_property_is_incompatible_wherever_instances_resolve_it() {
+    // The constraint is declared on `Note`; only `Section`, which specialises it, has instances.
+    let seed = seed();
+    let section = TypeId::mint();
+    let mut section_type = NodeType::new(section, "Section");
+    section_type.parents.insert(seed.note);
+    let prior = evolve(
+        &seed.ontology,
+        &[SchemaChange::DefineNodeType(section_type)],
+    )
+    .expect("specialise");
+    let mut constrained = PropertyDefinition::new(seed.title, "title", ValueType::String);
+    constrained.constraints.push("non_empty".to_owned());
+    let next = evolve(
+        &prior,
+        &[SchemaChange::ModifyProperty {
+            owner: seed.note,
+            property: constrained.clone(),
+        }],
+    )
+    .expect("coheres");
+
+    let found = incompatibilities(&prior, &next, &State::default().nodes(section, 2));
+    assert_eq!(
+        found,
+        vec![Incompatibility::ConstraintChanged {
+            owner: section,
+            property: seed.title,
+            instances: 2,
+        }]
+    );
+    assert_eq!(found[0].code(), "constraint-changed");
+    assert!(incompatibilities(&prior, &next, &State::default()).is_empty());
+
+    // Relaxing it back is a change too: the kernel cannot evaluate either side.
+    let relaxed = evolve(
+        &next,
+        &[SchemaChange::ModifyProperty {
+            owner: seed.note,
+            property: PropertyDefinition::new(seed.title, "title", ValueType::String),
+        }],
+    )
+    .expect("coheres");
+    assert_eq!(
+        incompatibilities(&next, &relaxed, &State::default().nodes(section, 2)),
+        vec![Incompatibility::ConstraintChanged {
+            owner: section,
+            property: seed.title,
+            instances: 2,
+        }]
+    );
+
+    // A new constrained property on an edge type with edges.
+    let weight = PropertyId::mint();
+    let mut declared = PropertyDefinition::new(weight, "weight", ValueType::Integer);
+    declared.constraints.push("positive".to_owned());
+    let next = redeclare(&seed, seed.cites, declared);
+    assert_eq!(
+        incompatibilities(
+            &seed.ontology,
+            &next,
+            &State::default().edges(seed.cites, 1)
+        ),
+        vec![Incompatibility::ConstraintChanged {
+            owner: seed.cites,
+            property: weight,
+            instances: 1,
+        }]
+    );
+}
+
+#[test]
+fn a_type_level_change_counts_the_instances_of_every_type_conforming_to_it() {
+    // `Topic` becomes abstract; it has no instances, and `Subtopic`, which specialises it, has.
+    let seed = seed();
+    let subtopic = TypeId::mint();
+    let mut subtopic_type = NodeType::new(subtopic, "Subtopic");
+    subtopic_type.parents.insert(seed.topic);
+    let prior = evolve(
+        &seed.ontology,
+        &[SchemaChange::DefineNodeType(subtopic_type)],
+    )
+    .expect("specialise");
+    let mut document = successor_document(&prior);
+    for declared in &mut document.node_types {
+        if declared.id == seed.topic {
+            declared.abstract_type = true;
+        }
+    }
+    let next = Ontology::load(document).expect("coheres");
+    assert_eq!(
+        incompatibilities(
+            &prior,
+            &next,
+            &State::default().nodes(subtopic, 3).nodes(seed.note, 5)
+        ),
+        vec![Incompatibility::DeclarationChanged {
+            type_id: seed.topic,
+            instances: 3,
+        }]
+    );
+}
+
+#[test]
+fn a_next_that_is_not_the_priors_successor_is_incompatible() {
+    let seed = seed();
+    let successor = evolve(
+        &seed.ontology,
+        &[SchemaChange::DefineNodeType(NodeType::new(
+            TypeId::mint(),
+            "A",
+        ))],
+    )
+    .expect("coheres");
+    assert!(incompatibilities(&seed.ontology, &successor, &State::default()).is_empty());
+
+    let mut orphan = successor.to_document();
+    orphan.version.parent = Some(SchemaVersionId::mint());
+    let mut skipped = successor.to_document();
+    skipped.version.number += 1;
+    let mut seedlike = successor.to_document();
+    seedlike.version.parent = None;
+    for document in [orphan, skipped, seedlike] {
+        let next = Ontology::load(document).expect("coheres");
+        let found = incompatibilities(&seed.ontology, &next, &State::default());
+        assert_eq!(
+            found,
+            vec![Incompatibility::NotASuccessor {
+                prior: seed.ontology.version().id,
+                next: next.version().id,
+            }]
+        );
+        assert_eq!(found[0].code(), "not-a-successor");
+    }
+}
+
 // ---------------------------------------------------------------------------------------------
 // codes
 
@@ -920,12 +1132,22 @@ fn every_evolve_error() -> Vec<EvolveError> {
             id: SchemaVersionId::mint(),
         },
         EvolveError::Incoherent(OntologyError::UnknownType { type_id }),
+        EvolveError::WithoutEffect,
     ]
 }
 
 fn every_incompatibility() -> Vec<Incompatibility> {
     let (owner, property) = (TypeId::mint(), PropertyId::mint());
     vec![
+        Incompatibility::NotASuccessor {
+            prior: SchemaVersionId::mint(),
+            next: SchemaVersionId::mint(),
+        },
+        Incompatibility::ConstraintChanged {
+            owner,
+            property,
+            instances: 1,
+        },
         Incompatibility::RequiredWithoutValues {
             owner,
             property,

@@ -215,6 +215,7 @@ types:
       - type-already-declared
       - unknown-property-owner
       - incoherent-schema
+      - schema-change-without-effect
 
   # Why a derived version cannot replace the prior one over current canonical state. Held equal
   # to `Incompatibility::code` by crates/ekr-ontology/tests/schema_evolution.rs.
@@ -228,6 +229,8 @@ types:
       - type-removed
       - type-declaration-changed
       - property-removed
+      - not-a-successor
+      - constraint-changed
 
 entities:
   # Design § 69 `SchemaRegistry`. One version is canonical at a time. Lineage: the seed has
