@@ -1,8 +1,8 @@
 //! The ESS conformance target over the kernel: `story:ess-conformance-kernel`.
 //!
 //! [`KernelTarget`] answers the admitted `ekr-kernel` suite (`systems/ekr/conformance/suite.json`)
-//! through the same [`Runtime`] provider opening and typed kernel handlers the `ekr` CLI calls:
-//! `Runtime::file`/`Runtime::sqlite` under the trusted `ekr.cli-host/1` document, the kernel's own
+//! through the same typed kernel handlers the `ekr` CLI calls, opening the provider through
+//! `Runtime::file`/`Runtime::sqlite` (the open-or-create constructors `ekr seed` uses) under the trusted `ekr.cli-host/1` document, the kernel's own
 //! seed parser, the bounded `propose_reader` ingress, `validate`, `commit`, and one verified read
 //! for `Snapshot` and `Explain`. It asserts nothing: it reports what those handlers returned and
 //! what the retained history holds afterwards, and the ESS runner decides.
@@ -214,7 +214,15 @@ impl KernelTarget {
         Timestamp::from_millis(now)
     }
 
-    /// Opens the scenario's provider exactly as the CLI does for every command.
+    /// Opens the scenario's provider through the open-or-create constructor `ekr seed` uses, for
+    /// every command. This is not how the CLI opens for a command other than `seed`: the CLI opens
+    /// those existing-only and refuses an empty path as `store-not-found`. The target cannot, because
+    /// it reads the retained history before every command, the first `Seed` included, and an
+    /// unseeded scenario must read as empty rather than refuse. [`Self::seed_from`] runs
+    /// `Runtime::admit_seed` before the handler, as `ekr seed` does. One seed answer differs, by
+    /// design: under a host whose authority differs from the retained one this target reports the
+    /// kernel's `ekr.kernel.AlreadySeeded`, as `systems/ekr/domains/kernel.yaml` declares, where
+    /// `ekr seed` reports `bootstrap-authority-mismatch` (exit 1) as `docs/cli.md` documents.
     fn runtime(&self) -> Result<Runtime, TargetError> {
         let directory = self.directory()?;
         let CliHostConfigurationV1 {
@@ -301,12 +309,14 @@ impl KernelTarget {
         Ok(path)
     }
 
-    /// The shared seed handler, as `ekr seed` runs it over an opened document.
+    /// The shared seed handler, as `ekr seed` runs it over an opened document: full admission
+    /// first, then the handler.
     /// A document read failure is a fault, exactly as `ekr seed` reports one, never `InvalidSeed`.
     fn seed_from(&self, runtime: &Runtime, bytes: Vec<u8>) -> Result<SeedResultV1, SeedError> {
         let text = String::from_utf8(bytes)
             .map_err(|_| SeedError::Invalid("seed-decode: the document is not UTF-8".to_owned()))?;
         let document = SeedDocument::from_yaml(&text)?;
+        Runtime::admit_seed(&document, self.host.context)?;
         runtime.seed(document, || self.tick())
     }
 

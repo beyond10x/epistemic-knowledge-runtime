@@ -896,3 +896,191 @@ fn seed_graph(ontology: &Ontology) -> CanonicalGraph {
         evidence: BTreeMap::from([(evidence_id, evidence)]),
     }
 }
+
+/// Every path under `root`, relative to it, directories included.
+fn tree(root: &std::path::Path) -> BTreeSet<std::path::PathBuf> {
+    fn walk(root: &std::path::Path, at: &std::path::Path, into: &mut BTreeSet<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(at).unwrap() {
+            let path = entry.unwrap().path();
+            into.insert(path.strip_prefix(root).unwrap().to_path_buf());
+            if path.is_dir() {
+                walk(root, &path, into);
+            }
+        }
+    }
+    let mut all = BTreeSet::new();
+    walk(root, root, &mut all);
+    all
+}
+
+/// `story:store-open-semantics`: the existing-only constructors refuse a path holding no store and
+/// create nothing there, on both providers; a store the open-or-create
+/// constructor made opens through them.
+#[test]
+fn opening_an_existing_store_refuses_a_path_with_none_and_creates_nothing() {
+    for missing in ["absent", "absent/nested/store"] {
+        let directory = TempDir::new().unwrap();
+        let path = directory.path().join(missing);
+        let file = FileStore::file_existing(&path, TENANT, None).map(|_| ());
+        assert!(file.is_err(), "file at {missing}: {file:?}");
+        let sqlite = SqliteStore::sqlite_existing(&path, TENANT, None).map(|_| ());
+        assert!(sqlite.is_err(), "sqlite at {missing}: {sqlite:?}");
+        assert!(
+            tree(directory.path()).is_empty(),
+            "{missing}: an existing-only open created {:?}",
+            tree(directory.path())
+        );
+    }
+    let directory = TempDir::new().unwrap();
+    let files = directory.path().join("revisions");
+    let database = directory.path().join("revisions.db");
+    drop(FileStore::file(&files, TENANT, None).unwrap());
+    drop(SqliteStore::sqlite(&database, TENANT, None).unwrap());
+    FileStore::file_existing(&files, TENANT, None).expect("the created file store opens");
+    SqliteStore::sqlite_existing(&database, TENANT, None).expect("the created database opens");
+}
+
+/// Each way a path can exist and still hold no store: an empty directory, an empty file and a
+/// symlink whose target does not exist. Each is created under `directory` and returned.
+fn empty_paths(directory: &TempDir) -> Vec<std::path::PathBuf> {
+    let empty_directory = directory.path().join("empty-directory");
+    std::fs::create_dir(&empty_directory).unwrap();
+    let empty_file = directory.path().join("empty-file");
+    std::fs::write(&empty_file, b"").unwrap();
+    let dangling = directory.path().join("dangling");
+    std::os::unix::fs::symlink(directory.path().join("no-target"), &dangling).unwrap();
+    vec![empty_directory, empty_file, dangling]
+}
+
+/// `story:store-open-semantics`, correction round 1: a path that exists but holds no store is
+/// [`StoreError::NoStore`] from both existing-only constructors, whatever the provider, and is
+/// left exactly as it was.
+#[test]
+fn an_existing_path_holding_no_store_is_no_store_and_is_left_as_it_was() {
+    let directory = TempDir::new().unwrap();
+    let paths = empty_paths(&directory);
+    let before = tree(directory.path());
+    for path in &paths {
+        let file = FileStore::file_existing(path, TENANT, None).map(|_| ());
+        assert!(
+            matches!(file, Err(StoreError::NoStore(_))),
+            "file {path:?}: {file:?}"
+        );
+        let sqlite = SqliteStore::sqlite_existing(path, TENANT, None).map(|_| ());
+        assert!(
+            matches!(sqlite, Err(StoreError::NoStore(_))),
+            "sqlite {path:?}: {sqlite:?}"
+        );
+    }
+    assert_eq!(
+        tree(directory.path()),
+        before,
+        "an existing-only open wrote something"
+    );
+    for (missing, file) in [("absent", true), ("absent", false)] {
+        let path = directory.path().join(missing);
+        let opened = if file {
+            FileStore::file_existing(&path, TENANT, None).map(|_| ())
+        } else {
+            SqliteStore::sqlite_existing(&path, TENANT, None).map(|_| ())
+        };
+        assert!(
+            matches!(opened, Err(StoreError::NoStore(_))),
+            "{missing}: {opened:?}"
+        );
+    }
+}
+
+/// Correction round 1: every constructor refuses a tenant the provider would refuse before it
+/// opens or creates anything, so no constructor refusal leaves a store behind.
+#[test]
+fn every_constructor_refuses_an_invalid_tenant_before_creating_anything() {
+    let directory = TempDir::new().unwrap();
+    let files = directory.path().join("revisions");
+    let database = directory.path().join("revisions.db");
+    let refusals = [
+        ("file", FileStore::file(&files, "", None).map(|_| ())),
+        (
+            "sqlite",
+            SqliteStore::sqlite(&database, "", None).map(|_| ()),
+        ),
+        (
+            "file_existing",
+            FileStore::file_existing(&files, "", None).map(|_| ()),
+        ),
+        (
+            "sqlite_existing",
+            SqliteStore::sqlite_existing(&database, "", None).map(|_| ()),
+        ),
+    ];
+    for (constructor, refused) in refusals {
+        assert!(
+            matches!(refused, Err(StoreError::Backend(_))),
+            "{constructor}: {refused:?}"
+        );
+    }
+    assert!(
+        tree(directory.path()).is_empty(),
+        "a constructor refused a tenant after creating {:?}",
+        tree(directory.path())
+    );
+}
+
+/// Page 1 of an empty WAL-mode SQLite database: what `SqliteEventStore::open` leaves after
+/// `PRAGMA journal_mode=WAL` and before its owner tables commit.
+fn empty_wal_database() -> Vec<u8> {
+    let mut page = vec![0_u8; 4096];
+    page[..16].copy_from_slice(b"SQLite format 3\0");
+    page[16..28].copy_from_slice(&[
+        0x10, 0x00, 0x02, 0x02, 0x00, 0x40, 0x20, 0x20, 0x00, 0x00, 0x00, 0x01,
+    ]);
+    page[28..32].copy_from_slice(&[0x00, 0x00, 0x00, 0x01]);
+    page[92..100].copy_from_slice(&[0x00, 0x00, 0x00, 0x01, 0x00, 0x2e, 0x95, 0xcc]);
+    page[100..105].copy_from_slice(&[0x0d, 0x00, 0x00, 0x00, 0x00]);
+    page[105] = 0x10;
+    page
+}
+
+/// Correction round 2: a store whose creation has begun and not reached its first commit point —
+/// a SQLite database without the owner tables, a File directory holding only what the provider
+/// writes before `manifest.json` — is [`StoreError::NoStore`] too, and is left as it was. A File
+/// directory with history but no manifest is not "no store": the provider refuses it as corrupt.
+#[test]
+fn a_store_whose_creation_has_not_committed_is_no_store_and_is_left_as_it_was() {
+    let directory = TempDir::new().unwrap();
+    let database = directory.path().join("begun.db");
+    std::fs::write(&database, empty_wal_database()).unwrap();
+    let lock_only = directory.path().join("lock-only");
+    std::fs::create_dir(&lock_only).unwrap();
+    std::fs::write(lock_only.join("writer.lock"), b"").unwrap();
+    let staged = directory.path().join("staged");
+    std::fs::create_dir(&staged).unwrap();
+    std::fs::write(staged.join("writer.lock"), b"").unwrap();
+    std::fs::write(staged.join("events.jsonl"), b"").unwrap();
+    std::fs::write(staged.join(".write-0"), b"{}").unwrap();
+    let history = directory.path().join("history-without-manifest");
+    std::fs::create_dir(&history).unwrap();
+    std::fs::write(history.join("writer.lock"), b"").unwrap();
+    std::fs::write(history.join("events.jsonl"), b"{}\n").unwrap();
+    let before = tree(directory.path());
+
+    let sqlite = SqliteStore::sqlite_existing(&database, TENANT, None).map(|_| ());
+    assert!(matches!(sqlite, Err(StoreError::NoStore(_))), "{sqlite:?}");
+    for begun in [&lock_only, &staged] {
+        let file = FileStore::file_existing(begun, TENANT, None).map(|_| ());
+        assert!(
+            matches!(file, Err(StoreError::NoStore(_))),
+            "{begun:?}: {file:?}"
+        );
+    }
+    let corrupt = FileStore::file_existing(&history, TENANT, None).map(|_| ());
+    assert!(
+        matches!(corrupt, Err(StoreError::Backend(_))),
+        "{corrupt:?}"
+    );
+    assert_eq!(
+        tree(directory.path()),
+        before,
+        "an existing-only open wrote something"
+    );
+}
