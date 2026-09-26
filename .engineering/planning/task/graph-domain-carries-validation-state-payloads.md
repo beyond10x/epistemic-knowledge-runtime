@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: task:graph-domain-carries-validation-state-payloads
 kind: task
 status: archived

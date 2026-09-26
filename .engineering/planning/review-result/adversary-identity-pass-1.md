@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: review-result:adversary-identity-pass-1
 kind: review-result
 status: active
@@ -11,7 +11,7 @@ relations:
 revision: 1
 ---
 ```
-unit: story:kernel-identity-and-hashing — working tree $HOME/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-impl-kernel-identity (uncommitted, base 2f2acec)
+unit: story:kernel-identity-and-hashing — working tree home-path:sha256:ebcb5c7535cf87d3081780c3bb65de3318669ebe2e287bd0c05ee853ec531466 (uncommitted, base 2f2acec)
 verdict: NEEDS-CHANGE
 cases: executed 61→70, red 6
 origin: introduced 5 / pre-existing 0 / undecided 0
@@ -110,7 +110,7 @@ rename_stability:     a_thousand_renames_never_change_the_id      ... ok   <- th
 ## 3. The suite run — `task check`, after the cases existed
 
 ```
-$ cd <worktree> && export CARGO_TARGET_DIR=$HOME/.cache/b10x-target/epistemic-knowledge-runtime && task check
+$ cd <worktree> && export CARGO_TARGET_DIR=home-path:sha256:b75f9a061b971f23993e7f85d8bf63ed6eff15c82c05ab13d3f33e64656bc3fe && task check
 ...
 failures:
     a_map_encodes_in_key_order_whatever_order_it_is_handed
@@ -154,7 +154,7 @@ All findings cover the uncommitted working tree above. Origin is `introduced` fo
 
 ## 6. Paths written outside the worktree
 
-All under my assigned scratch `$HOME/.cache/ekr-wave-p1-02/unit-scratch/`:
+All under my assigned scratch `home-path:sha256:56b6888c170eec36decef94ef3c81ba9f30641c94e0de9a0afcf3cccd02d7e9b`:
 
 ```
 adv-mutant/                        mutable copy of crates/ekr-core (Cargo.toml, src/*.rs, tests/*.rs)
@@ -164,7 +164,7 @@ adv-gate.log  adv-fulltest.log  adv-fmt-check.log  adv-clippy.log
 adv-doc-check.log  adv-spec-check.log  adv-plan-check.log
 ```
 
-`adv-mutant/src/*.rs` is left restored to the implementor's bytes (all three mutations reverted). `$HOME/.cache/ekr-wave-p1-02/unit-scratch/adv-target/` (332M scratch build dir) was created and **deleted by me**. The shared `$HOME/.cache/b10x-target/epistemic-knowledge-runtime` was used as the brief directs and left in place. No planning-store write, no `aep plan artifact` write verb, no commit, no branch or worktree command. Lease `ekr-adversary-identity-1` acquired at start and released.
+`adv-mutant/src/*.rs` is left restored to the implementor's bytes (all three mutations reverted). `home-path:sha256:0dfc79401fadf7ee929d54978bd7057b00570a4284a4dd33fe947b96caa7406b` (332M scratch build dir) was created and **deleted by me**. The shared `home-path:sha256:b75f9a061b971f23993e7f85d8bf63ed6eff15c82c05ab13d3f33e64656bc3fe` was used as the brief directs and left in place. No planning-store write, no `aep plan artifact` write verb, no commit, no branch or worktree command. Lease `ekr-adversary-identity-1` acquired at start and released.
 
 ```findings
 - file: crates/ekr-core/src/identity.rs

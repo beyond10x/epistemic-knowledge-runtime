@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: task:store-reads-rehash-the-whole-log
 kind: task
 status: implemented
@@ -11,7 +11,7 @@ revision: 4
 ---
 ## What is wrong
 
-Measured on 2026-09-24 by a performance review of the release `ekr` binary, one commit per revision (`~/.cache/ekr-perf/results/`, single runs, ±30%):
+Measured on 2026-09-24 by a performance review of the release `ekr` binary, one commit per revision (`home-path:sha256:f5de7990e9d5939ff7e52fe511dcc8b7085e9668f8a6d78f4c021e9cb8bc932a`, single runs, ±30%):
 
 | backend | revision | propose ms | commit ms | head ms |
 |---|---|---|---|---|

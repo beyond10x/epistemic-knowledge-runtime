@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: task:no-store-at-a-mistyped-path
 kind: task
 status: implemented

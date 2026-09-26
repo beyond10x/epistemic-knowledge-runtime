@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: story:store-open-semantics
 kind: story
 status: implemented

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: story:transaction-and-validators
 kind: story
 status: implemented

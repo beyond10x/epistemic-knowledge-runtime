@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: task:guards-read-source-through-a-compile-time-path
 kind: task
 status: implemented
@@ -26,7 +26,7 @@ tree that no longer existed.
 thirty-nine uses, and one of them, `xtask/src/main.rs:32`, is not a test. That macro is a *compile-time* constant: it bakes
 in the path of whichever checkout compiled the binary.
 
-`AGENTS.md` § The gate mandates `CARGO_TARGET_DIR=$HOME/.cache/b10x-target/epistemic-knowledge-runtime`,
+`AGENTS.md` § The gate mandates `CARGO_TARGET_DIR=home-path:sha256:b75f9a061b971f23993e7f85d8bf63ed6eff15c82c05ab13d3f33e64656bc3fe`,
 shared by every tree of this repository, precisely so a second checkout does not pay for a second
 full build. So a test binary compiled in a worktree is reused by the primary checkout, and it keeps
 reading the worktree's path.

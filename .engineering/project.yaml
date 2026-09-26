@@ -1,10 +1,1 @@
-version: aep.project/1
-protocol: adp/1
-profile: development.standard
-protocols: git+https://github.com/beyond10x/aep.git#28abe09bb6e5b0a6b4db839f6bf5693957d39324
-
-summary: >-
-  epistemic-knowledge-runtime: a self-maintaining knowledge runtime — observations become typed,
-  provenance-aware, validated, revisable knowledge through a governed epistemic loop; a strongly
-  validated canonical core surrounded by an incubation forest; the third generation after
-  company-brain (v1) and org-brain (v2).
+{"planning_identity":"01a0dc9e-2796-77ca-8d20-46fb5adbf156","planning_scope":"epistemic-knowledge-runtime","planning_tenant":"planning","profile":"development.standard","protocol":"adp/1","protocols":"git+https://github.com/beyond10x/aep.git#28abe09bb6e5b0a6b4db839f6bf5693957d39324","store":{"eventlog":{"path":"state","projection":"planning"}},"summary":"epistemic-knowledge-runtime: a self-maintaining knowledge runtime — observations become typed, provenance-aware, validated, revisable knowledge through a governed epistemic loop; a strongly validated canonical core surrounded by an incubation forest; the third generation after company-brain (v1) and org-brain (v2).","version":"aep.project/3"}

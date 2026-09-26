@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: review-result:p5-01-ontology-adversary-r1
 kind: review-result
 status: active

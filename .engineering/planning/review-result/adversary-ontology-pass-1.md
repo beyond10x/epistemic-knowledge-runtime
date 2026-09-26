@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: review-result:adversary-ontology-pass-1
 kind: review-result
 status: active
@@ -11,7 +11,7 @@ relations:
 revision: 1
 ---
 ```
-unit: story:ontology-types-and-values — uncommitted working tree at $HOME/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-impl-ontology, base 7595dca
+unit: story:ontology-types-and-values — uncommitted working tree at home-path:sha256:6635bceff979fd018d3bee69dc58778211b33c540f98996b434a7afc9f9b8f7d, base 7595dca
 verdict: red
 cases: executed 125→129, red 4
 origin: introduced 4, pre-existing 0, undecided 0
@@ -73,7 +73,7 @@ Note on order: an earlier draft of the fourth case asserted `text.contains("para
 
 ## 3. The suite, after the cases existed
 
-`export CARGO_TARGET_DIR=$HOME/.cache/b10x-target/epistemic-knowledge-runtime && task check` — final lines verbatim:
+`export CARGO_TARGET_DIR=home-path:sha256:b75f9a061b971f23993e7f85d8bf63ed6eff15c82c05ab13d3f33e64656bc3fe && task check` — final lines verbatim:
 
 ```
 test result: FAILED. 0 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
@@ -110,12 +110,12 @@ Base read with `git show 7595dca:...`; at the base `crates/ekr-ontology` held on
 
 ## 6. Paths written outside the worktree
 
-Both in the assigned scratch directory `$HOME/.cache/ekr-wave-p1-03/unit-scratch`, none elsewhere, nothing under `/tmp`:
+Both in the assigned scratch directory `home-path:sha256:6d2a91e475a794c4b6120c0290acb817ec4a0815ce735f935d2e4e81fcfe351b`, none elsewhere, nothing under `/tmp`:
 
 - `adversary-gate.log` — the `task check` run quoted in part 3
 - `adversary-suite.log` — the `--no-fail-fast` run the 125/129 counts come from
 
-Build output went to the assigned `$HOME/.cache/b10x-target/epistemic-knowledge-runtime`. Lease `ekr-adversary-ontology-1` taken at start and released before this report.
+Build output went to the assigned `home-path:sha256:b75f9a061b971f23993e7f85d8bf63ed6eff15c82c05ab13d3f33e64656bc3fe`. Lease `ekr-adversary-ontology-1` taken at start and released before this report.
 
 ```findings
 - file: crates/ekr-ontology/src/schema.rs

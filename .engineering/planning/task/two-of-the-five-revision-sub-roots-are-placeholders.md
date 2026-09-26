@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: task:two-of-the-five-revision-sub-roots-are-placeholders
 kind: task
 status: implemented

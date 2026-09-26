@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: review-result:strict-cli-host-input-review
 kind: review-result
 status: active

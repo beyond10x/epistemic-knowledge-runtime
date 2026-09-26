@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: architecture-decision-record:0008-canonical-state-references-are-typed
 kind: architecture-decision-record
 status: accepted

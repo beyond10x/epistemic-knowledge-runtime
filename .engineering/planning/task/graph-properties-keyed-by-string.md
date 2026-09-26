@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: task:graph-properties-keyed-by-string
 kind: task
 status: implemented

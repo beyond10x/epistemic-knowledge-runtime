@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: review-result:p1-acceptance-round-1
 kind: review-result
 status: active
@@ -31,7 +31,7 @@ story:commit-and-revision-lineage — the acceptance joins the stale-detection b
 story:seed-and-explain — the acceptance joins seed idempotency/cross-machine determinism (seed.rs) to the unrelated explain-chain claim (explain.rs), so seeding can be correct while explain is not — .engineering/planning/story/seed-and-explain.md:32-34
 story:ess-conformance-kernel — the acceptance joins "the conformance run reports every scenario executed and none failed" to the separate "`aep plan artifact evidence …` records it" action, so the suite can be green while the specification never reaches `conforming` — .engineering/planning/story/ess-conformance-kernel.md:31-33
 
-What I read: all 10 artifact ids given plus `executable-system-specification:ekr-v1`, via `aep plan artifact show <id>` for each (full body, not summary); `aep plan artifact kinds`; `aep plan artifact lifecycle story`; `aep plan artifact lifecycle executable-system-specification`; `grep -n`/`awk` over the store files under `$HOME/beyond10x/epistemic-knowledge-runtime/.engineering/planning/story/` to get exact `path:line` citations. 10 of 10 read.
+What I read: all 10 artifact ids given plus `executable-system-specification:ekr-v1`, via `aep plan artifact show <id>` for each (full body, not summary); `aep plan artifact kinds`; `aep plan artifact lifecycle story`; `aep plan artifact lifecycle executable-system-specification`; `grep -n`/`awk` over the store files under `home-path:sha256:f9172517a796d14ad10c2ba76aa7eeb04fde8fb1455523521ca1ff15b9e51547` to get exact `path:line` citations. 10 of 10 read.
 
 What I could not establish: whether `task check` (workspace-crate-skeleton) already enforces missing-docs or a file-manifest lint that would make its exit code actually cover the doc-comment/no-other-code claims — I read the story text only, did not run the task. `story:ekr-cli`'s acceptance also bundles several CLI steps into one integration test, but I did not flag it: it is one test file over one end-to-end scenario, not two independent components, so I read it as a single statement, not a defect in my lane. I did not check whether the "and"-joined clauses above cross story-boundary work that another critic (design/parallel-safety) would also flag as coupling — if any of the two joined outcomes above actually belongs to a different file owned by a different story, that overlap is design-critic's lane, not mine, and I did not chase it further.
 

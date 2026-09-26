@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: review-result:adversary-skeleton-pass-2
 kind: review-result
 status: active
@@ -45,7 +45,7 @@ No non-test path is mine. No existing case deleted, skipped or weakened.
 
 ## 2. The case added, red alone, before the suite
 
-`$HOME/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-impl-workspace-crate-skeleton/crates/ekr/tests/adversary_docs_contract.rs` — three cases, all **red now**.
+`home-path:sha256:d1ca11e5c234657c288e1d7d25689a338435acd005b39ab09336f005a7a558d2` — three cases, all **red now**.
 
 `cargo test -p ekr --locked --test adversary_docs_contract` → exit 101:
 
@@ -97,7 +97,7 @@ test result: ok. 7 passed; 0 failed; ...
 
 ## 3. The suite, after the case existed
 
-`export CARGO_TARGET_DIR=$HOME/.cache/b10x-target/epistemic-knowledge-runtime && task check` — final lines:
+`export CARGO_TARGET_DIR=home-path:sha256:b75f9a061b971f23993e7f85d8bf63ed6eff15c82c05ab13d3f33e64656bc3fe && task check` — final lines:
 
 ```
 test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
@@ -144,10 +144,10 @@ Pass-1 findings 1–4 are all **resolved**: `rust-version` is `1.91` and `msrv_c
 
 | path | what |
 |---|---|
-| `$HOME/.cache/ekr-wave-p1-01/unit-scratch/adv-probe-2/` | 1.1M mutable copy carrying the four mutations; **still present** so the probe reproduces |
-| `$HOME/.cache/ekr-wave-p1-01/unit-scratch/adv2-mutate.py` | the mutation script for probes 3 and 4 |
-| `$HOME/.cache/ekr-wave-p1-01/unit-scratch/adv2-gate.log` | the part-3 `task check` run |
-| `$HOME/.cache/ekr-wave-p1-01/unit-scratch/adv2-count.log` | the `--no-fail-fast` count |
+| `home-path:sha256:320a48d20403f7ca9ea076cfab43a953878e285aa680a6b1b0769c0b8e981e83` | 1.1M mutable copy carrying the four mutations; **still present** so the probe reproduces |
+| `home-path:sha256:c26f5d766f1de59ccffc35cbfb7a1afca28b4c95ae5411d84a5a892432bf1a72` | the mutation script for probes 3 and 4 |
+| `home-path:sha256:a7188ba3b33f05172d12dbe67fac3ff7c4a55b164245ad99ea8bf6a99543e710` | the part-3 `task check` run |
+| `home-path:sha256:23359081c36d11fe6fd740aa916bfc54e4da60c4ebdaa7bc88e442f001f245c8` | the `--no-fail-fast` count |
 
 Pass 1's `adv-probe/`, `adv-gate-red.log`, `adv-count.log` are still there and are not mine to remove. The probe was built into the shared `CARGO_TARGET_DIR` rather than a private one (`/` is at 97%, 28G free); I re-ran the suite in the real worktree afterwards, so its fingerprints are restored. No `target/` inside any worktree; no `/tmp`. Lease `ekr-adversary-skeleton-2` taken and released; no other session's lease touched. No `aep plan artifact` command run, no commit, no worktree command.
 

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: task:store-snapshot-and-its-id-are-declared-not-implemented
 kind: task
 status: implemented

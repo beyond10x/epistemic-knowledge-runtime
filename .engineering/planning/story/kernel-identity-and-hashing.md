@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: story:kernel-identity-and-hashing
 kind: story
 status: implemented

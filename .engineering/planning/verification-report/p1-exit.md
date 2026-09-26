@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: verification-report:p1-exit
 kind: verification-report
 status: draft
@@ -19,8 +19,8 @@ Filed at the close of wave p1-14 by the coordinator. The table below was produce
 The coordinator's `systems/ekr/` changes are also present in the tree, uncommitted.
 
 **Run:** `cargo test --locked --no-fail-fast -p ekr-graph -p ekr-kernel -p ekr-store -p ekr`, with
-`CARGO_TARGET_DIR=$HOME/.cache/b10x-target/ekr-p1-14-exit`. The log is
-`$HOME/.cache/ekr-p1-14/p1-14-exit/r2/suite-final.log`: exit 0, 569 passed, 0 failed, 0 ignored,
+`CARGO_TARGET_DIR=home-path:sha256:90adafd9d0964e2d5825d4e771410292ac0c9687653de7737fb4840470b1752f`. The log is
+`home-path:sha256:beb048c9ff71e28b426766b0ea8f8fc1188591d91216924ce47833a19021d0ae`: exit 0, 569 passed, 0 failed, 0 ignored,
 95 `test result:` lines. "Ran" means the case appears as `... ok` in that log. A case marked `(trybuild)`
 appears there as its own `test tests/<dir>/<file>.rs ... ok` line under its harness.
 
@@ -89,6 +89,6 @@ One runtime case also belongs to this clause:
 - **Dangling references in seed documents are not generated.** The only seed case is the fixed dangling-edge seed.
 - **The transaction's own `evidence` list is not resolved by the reference validator.** The structural validator compares it with the assertions' cited set. The generated `CitedEvidence` shape names the same absent id in both places.
 - **Mutation evidence** that the dangling-reference property can fail:
-  - `$HOME/.cache/ekr-p1-14/p1-14-exit/mutation-kernel-props.log` (round 0);
+  - `home-path:sha256:23066653d684a6fe4f9df99d8654be5379ed4d1ba6a3d42c1a345022d4a58721` (round 0);
   - `r1/stratified-mutation.log` (value and root checks disabled: 7 shapes red);
   - `r2/mutation-borrowed.log` (edges resolved against node bits: exactly `DeletedEdge/BorrowedFrom(Node)` and `SubjectEdge/BorrowedFrom(Node)` red, with the same failing input on rerun in `r2/mutation-borrowed-rerun.log`).

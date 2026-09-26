@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: architecture-decision-record:0007-the-commit-path-is-the-kernels
 kind: architecture-decision-record
 status: accepted

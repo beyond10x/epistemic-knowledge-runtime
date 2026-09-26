@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: review-result:p1-persisted-contract-amendment-review
 kind: review-result
 status: active

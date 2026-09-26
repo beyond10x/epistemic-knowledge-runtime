@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: story:pin-ess-0-32
 kind: story
 status: implemented
