@@ -39,7 +39,7 @@ use crate::exit::Failure;
 use crate::host::CliHostConfigurationV1;
 
 /// Every verb's help ends here, so an agent that reads any one of them finds the rest.
-const SEE: &str = "Start with `ekr guide`. Documents: `ekr example ekr.transaction-document/1`, \
+const SEE: &str = "Start with `ekr guide`. Documents: `ekr example ekr.transaction-document/2`, \
 `ekr example ekr-seed/2`, `ekr example ekr.cli-host/1`; their JSON Schemas: `ekr schema <format>`; \
 operation kinds: `ekr operations`.";
 
@@ -65,6 +65,11 @@ pub struct Cli {
     /// The native provider. Store verbs only; `EKR_BACKEND` (`file` or `sqlite`) when absent.
     #[arg(long, value_enum, global = true)]
     pub backend: Option<Backend>,
+    /// Replay the store's whole history from the seed, re-deriving every retained decision,
+    /// instead of continuing from its replay checkpoint. Store verbs only; `EKR_FULL_REPLAY`
+    /// (`1` or `true`) when absent.
+    #[arg(long, global = true)]
+    pub full_replay: bool,
     /// The command.
     #[command(subcommand)]
     pub command: Command,
@@ -99,8 +104,8 @@ pub enum Command {
     /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST).
     #[command(after_help = SEE)]
     Propose {
-        /// An `ekr.transaction-document/1` YAML document, or `-` for stdin
-        /// (`ekr example ekr.transaction-document/1`, `ekr operations`).
+        /// An `ekr.transaction-document/2` (or `/1`) YAML document, or `-` for stdin
+        /// (`ekr example ekr.transaction-document/2`, `ekr operations`).
         document: PathBuf,
     },
     /// Validate a transaction (`ekr.kernel.Validate`) as the host's profile validator.
@@ -146,7 +151,7 @@ pub enum Command {
     /// Print the workflow: roles, propose → validate → commit, exit codes, where ids come from.
     #[command(after_help = SEE)]
     Guide,
-    /// List the `ekr.transaction-document/1` operation kinds, or print one kind's fields and
+    /// List the `ekr.transaction-document/2` operation kinds, or print one kind's fields and
     /// an example operation.
     #[command(after_help = SEE)]
     Operations {
@@ -156,7 +161,7 @@ pub enum Command {
     /// Print a complete example document of one input format, or a schema change.
     #[command(after_help = SEE)]
     Example {
-        /// The format, or `schema-change`: an `ekr.transaction-document/1` that changes the
+        /// The format, or `schema-change`: an `ekr.transaction-document/2` that changes the
         /// schema, for a store under validation profile v2.
         format: ExampleDocument,
     },
@@ -169,7 +174,8 @@ pub enum Command {
     /// configuration.
     #[command(after_help = SEE)]
     Schema {
-        /// The format: `ekr.transaction-document/1`, `ekr-seed/2` or `ekr.cli-host/1`.
+        /// The format: `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2`
+        /// or `ekr.cli-host/1`.
         format: ExampleFormat,
     },
     /// Print a fresh id of one kind as JSON.
@@ -282,12 +288,13 @@ pub fn execute(
         host: cli.host,
         store: cli.store,
         backend: cli.backend,
+        full_replay: cli.full_replay,
     };
     match cli.command {
         Command::Guide => Ok(agent::GUIDE.to_owned()),
         Command::Operations { kind: None } => Ok(agent::operation_list()),
         Command::Operations { kind: Some(kind) } => Ok(agent::operation(kind)),
-        Command::Example { format } => Ok(agent::example(format).to_owned()),
+        Command::Example { format } => Ok(agent::example(format)),
         Command::Schema { format } => schema::run(format),
         Command::Mint { kind } => render(&agent::mint(kind)),
         Command::Hash { payload } => render(&hash::run(&payload, stdin)?),
@@ -353,6 +360,7 @@ struct Configured {
     host: Option<PathBuf>,
     store: Option<PathBuf>,
     backend: Option<Backend>,
+    full_replay: bool,
 }
 
 /// A store verb's resolved configuration: the trusted host document, read and checked.
@@ -360,6 +368,7 @@ struct Store {
     host: CliHostConfigurationV1,
     store: PathBuf,
     backend: Backend,
+    full_replay: bool,
 }
 
 /// A flag's value, else its environment variable's; an empty value of either is unset. Read
@@ -415,10 +424,24 @@ impl Configured {
                 CliHostConfigurationV1::from_json(&bytes)
                     .map_err(|error| Failure::fault(format!("host configuration: {error}")))
             })?;
+        let full_replay = self.full_replay
+            || match std::env::var("EKR_FULL_REPLAY") {
+                Ok(value) if value == "1" || value == "true" => true,
+                Ok(value) if value.is_empty() || value == "0" || value == "false" => false,
+                Err(std::env::VarError::NotPresent) => false,
+                Ok(_) | Err(std::env::VarError::NotUnicode(_)) => {
+                    return Err(Failure::Usage {
+                        message: format!(
+                            "ekr: EKR_FULL_REPLAY is not `1`, `true`, `0` or `false` for `{verb}`"
+                        ),
+                    })
+                }
+            };
         Ok(Store {
             host,
             store,
             backend,
+            full_replay,
         })
     }
 }
@@ -432,10 +455,12 @@ impl Store {
             authority,
             ..
         } = self.host.clone();
-        match self.backend {
+        let mut runtime = match self.backend {
             Backend::File => Runtime::file_existing(&self.store, &tenant, context, authority),
             Backend::Sqlite => Runtime::sqlite_existing(&self.store, &tenant, context, authority),
-        }
+        }?;
+        runtime.set_full_replay(self.full_replay);
+        Ok(runtime)
     }
 
     /// Opens the store every verb but `seed` reads or writes: an existing one only. After the

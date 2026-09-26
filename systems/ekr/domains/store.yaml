@@ -159,7 +159,7 @@ types:
 
   - name: ekr.store.PublicationPreparationFormatV1
     kind: enum
-    variants: [ekr.publication-preparation/1]
+    variants: [ekr.publication-preparation/1, ekr.publication-preparation/2]
 
   - name: ekr.store.PublicationPreparationV1
     kind: struct
@@ -216,6 +216,15 @@ events:
         type: Integer
       - name: previous_attempt_hash
         type: Optional<ekr.kernel.ContentHash>
+
+  - name: ekr.store.CheckpointWritten
+    fields:
+      - name: checkpoint_hash
+        type: ekr.kernel.ContentHash
+      - name: covered
+        type: Integer
+      - name: binding
+        type: ekr.kernel.ContentHash
 
   # Added 2026-09-21 in wave p1-05. A StoredObject's identity is its content hash, so two writes
   # of the same bytes are one object — and the two writes may ask for different retention. The

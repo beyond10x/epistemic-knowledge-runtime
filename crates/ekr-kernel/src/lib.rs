@@ -15,7 +15,7 @@
 //! * [`commit`] — [`Commit`], the one path that spends a [`ValidatedTransaction`], and
 //!   [`KernelAuthority`], the authority `ekr-store`'s replay admits history through
 //!   (`architecture-decision-record:0007-the-commit-path-is-the-kernels`).
-//! * [`document`] — bounded, exact-byte `ekr.transaction-document/1` ingress.
+//! * [`document`] — bounded, exact-byte `ekr.transaction-document/1` and `/2` ingress.
 //! * [`seed`] — bootstrap admission, without a preceding committed revision.
 //! * [`authority`] — the host-supplied authority anchor and the two validation profiles.
 //! * [`commands`] and [`records`] — the durable command handlers and the strict retained records
@@ -101,6 +101,7 @@
 
 mod apply;
 pub mod authority;
+mod checkpoint;
 pub mod commands;
 pub mod commit;
 pub mod document;
@@ -120,7 +121,8 @@ pub use authority::{Agent, AuthorityStateV1, ValidationProfileV1};
 pub use commands::{CommitCommandResult, ValidationCommandResult};
 pub use commit::{Commit, CommitError, KernelAuthority};
 pub use document::{
-    DocumentError, DocumentLimit, DocumentLimits, TransactionDocument, DOCUMENT_V1_LIMITS,
+    DocumentError, DocumentFormat, DocumentLimit, DocumentLimits, TransactionDocument,
+    DOCUMENT_V1_LIMITS, DOCUMENT_V2_LIMITS,
 };
 /// Typed persistence failures exposed without granting the caller storage or writer access.
 pub use ekr_store::StoreError as PersistenceError;

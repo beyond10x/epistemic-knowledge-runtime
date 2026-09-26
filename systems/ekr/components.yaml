@@ -28,6 +28,7 @@ components:
         - ekr.kernel.Explained
         - ekr.store.PublicationPrepared
         - ekr.store.ObjectStored
+        - ekr.store.CheckpointWritten
 
   - component: ekr-ontology
     summary: >-

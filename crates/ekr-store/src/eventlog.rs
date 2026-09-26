@@ -92,6 +92,34 @@ pub struct EventlogStore<S: EventStore> {
     tenant: TenantId,
     ontology: Option<Ontology>,
     authority: Option<Box<dyn CommitAuthority>>,
+    /// Objects this handle has already read and verified: stream, metadata and bytes.
+    ///
+    /// A digest binds one byte sequence in a tenant until the blob is deleted, and nothing in
+    /// this runtime deletes a retained object, so a verified read is not repeated. The one thing
+    /// that can move is the retention class, and only upwards; an object this handle writes is
+    /// forgotten, and read again when it is next required.
+    verified: std::sync::Mutex<BTreeMap<ContentHash, RetainedObject>>,
+    /// Whether the retained replay checkpoint is offered to the authority. Off for full replay.
+    checkpoints: bool,
+    /// Whether it has been offered already: once per handle, on the first head history read.
+    checkpoint_offered: std::sync::atomic::AtomicBool,
+}
+const CHECKPOINT_STREAM_TYPE: &str = "ekr.checkpoint";
+const CHECKPOINT_STREAM_ID: &str = "canonical";
+const CHECKPOINT_WRITTEN: &str = "ekr.store.CheckpointWritten";
+/// Names the retained replay checkpoint: private cache data, never a canonical object.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CheckpointWritten {
+    /// The retained checkpoint blob's payload address.
+    checkpoint_hash: ContentHash,
+    /// How many revision-stream occurrences the authority verified.
+    covered: u64,
+    /// The authority's own binding of that prefix to itself.
+    binding: ContentHash,
+}
+fn checkpoint_key(hash: ContentHash) -> String {
+    format!("ekr.private.checkpoint.{hash}")
 }
 impl EventlogStore<SqliteEventStore> {
     /// Opens the SQLite provider outside an entered async runtime.
@@ -297,7 +325,84 @@ impl<S: EventStore> EventlogStore<S> {
             tenant,
             ontology,
             authority: None,
+            verified: std::sync::Mutex::default(),
+            checkpoints: true,
+            checkpoint_offered: std::sync::atomic::AtomicBool::new(false),
         }
+    }
+    /// Replays every history read in full from the seed: the retained replay checkpoint is not
+    /// offered to the authority. Checkpoints are still written.
+    pub fn set_full_replay(&mut self, full: bool) {
+        self.checkpoints = !full;
+    }
+    fn checkpoint_stream(&self) -> Result<StreamId, StoreError> {
+        Ok(StreamId::new(
+            self.tenant.clone(),
+            CHECKPOINT_STREAM_TYPE,
+            CHECKPOINT_STREAM_ID,
+        )?)
+    }
+    /// The newest retained checkpoint pointer and its stream length.
+    fn checkpoint_pointer(&self) -> Result<(Option<CheckpointWritten>, u64), StoreError> {
+        let events = self.read_all(&self.checkpoint_stream()?, MAX_READ_LIMIT)?;
+        let length = events.len() as u64;
+        // A newest pointer this store cannot read names no checkpoint: it is cache data, and the
+        // next write appends after it.
+        let pointer = events
+            .into_iter()
+            .last()
+            .filter(|last| last.name == CHECKPOINT_WRITTEN && last.schema_version == 1)
+            .and_then(|last| serde_json::from_value(last.data).ok());
+        Ok((pointer, length))
+    }
+    /// The head root the authority vouches for without a replay: when the newest checkpoint
+    /// pointer records that it verified every occurrence the revision stream holds, the head is
+    /// the root the head revision's retained record carries. Reads the revision stream, the
+    /// pointer and that one record. `None` whenever anything is missing or disagrees.
+    fn checkpointed_head(&self) -> Result<Option<Root>, StoreError> {
+        let Ok(authority) = self.authority() else {
+            return Ok(None);
+        };
+        if !self.checkpoints {
+            return Ok(None);
+        }
+        let Ok((Some(pointer), _)) = self.checkpoint_pointer() else {
+            return Ok(None);
+        };
+        let occurrences = self.occurrences(MAX_READ_LIMIT, None)?;
+        if pointer.covered != occurrences.len() as u64 {
+            return Ok(None);
+        }
+        let Some(record) = occurrences.iter().rev().find_map(|held| {
+            matches!(
+                held.event.payload,
+                RevisionPayload::Seeded { .. } | RevisionPayload::RevisionCommitted { .. }
+            )
+            .then_some(held.event.record_hash)
+        }) else {
+            return Ok(None);
+        };
+        let mut history = RetainedHistory {
+            occurrences,
+            objects: BTreeMap::new(),
+        };
+        if self.load_object(&mut history, record).is_err() {
+            return Ok(None);
+        }
+        Ok(authority
+            .checkpointed_head(&history, pointer.binding)
+            .unwrap_or(None))
+    }
+    /// The newest retained checkpoint's bytes, if its blob is still held and hashes to its name.
+    fn read_checkpoint(&self) -> Result<Option<Vec<u8>>, StoreError> {
+        let (Some(pointer), _) = self.checkpoint_pointer()? else {
+            return Ok(None);
+        };
+        let bytes = self.runtime().block_on(
+            self.store
+                .get_blob(&self.tenant, &checkpoint_key(pointer.checkpoint_hash)),
+        )?;
+        Ok(bytes.filter(|bytes| ContentHash::of_bytes(bytes) == pointer.checkpoint_hash))
     }
     /// Installs the kernel's full replay authority. It receives immutable verified inputs.
     #[must_use]
@@ -467,6 +572,37 @@ impl<S: EventStore> EventlogStore<S> {
     /// batch (a damaged SQLite blob, for example) comes before the blob checks of earlier objects,
     /// because a provider without its own `read_many` fails the whole batch on its first error.
     fn required(&self, hashes: &[ContentHash]) -> Result<Vec<RetainedObject>, StoreError> {
+        let known = self.verified_objects(hashes)?;
+        let unknown: Vec<ContentHash> = hashes
+            .iter()
+            .filter(|hash| !known.contains_key(hash))
+            .copied()
+            .collect();
+        let (read, refusal) = self.read_required(&unknown)?;
+        self.remember_verified(&read)?;
+        let mut read = read.into_iter().collect::<BTreeMap<_, _>>();
+        let mut objects = Vec::with_capacity(hashes.len());
+        for hash in hashes {
+            match known.get(hash).cloned().or_else(|| read.remove(hash)) {
+                Some(object) => objects.push(object),
+                None => break,
+            }
+        }
+        match refusal {
+            Some(error) => Err(error),
+            None => Ok(objects),
+        }
+    }
+    /// [`Self::required`] for objects this handle has not verified yet: their streams in one
+    /// batch, then their blobs in one batch, checked in order up to the first refusal.
+    #[allow(clippy::type_complexity)]
+    fn read_required(
+        &self,
+        hashes: &[ContentHash],
+    ) -> Result<(Vec<(ContentHash, RetainedObject)>, Option<StoreError>), StoreError> {
+        if hashes.is_empty() {
+            return Ok((Vec::new(), None));
+        }
         let streams = hashes
             .iter()
             .map(|hash| self.object_stream(*hash))
@@ -504,12 +640,40 @@ impl<S: EventStore> EventlogStore<S> {
                 let ReadResult::Blob(blob) = blob else {
                     return Err(StoreError::Document("batch-read-disagrees".into()));
                 };
-                objects.push(retained_object(hash, &events, meta, blob)?.0);
+                objects.push((hash, retained_object(hash, &events, meta, blob)?.0));
             }
         }
-        match refusal {
-            Some(error) => Err(error),
-            None => Ok(objects),
+        Ok((objects, refusal))
+    }
+    /// The objects of `hashes` this handle already read and verified.
+    fn verified_objects(
+        &self,
+        hashes: &[ContentHash],
+    ) -> Result<BTreeMap<ContentHash, RetainedObject>, StoreError> {
+        let held = self
+            .verified
+            .lock()
+            .map_err(|_| StoreError::Document("verified-object-memo-poisoned".into()))?;
+        Ok(hashes
+            .iter()
+            .filter_map(|hash| held.get(hash).map(|object| (*hash, object.clone())))
+            .collect())
+    }
+    fn remember_verified(&self, read: &[(ContentHash, RetainedObject)]) -> Result<(), StoreError> {
+        self.verified
+            .lock()
+            .map_err(|_| StoreError::Document("verified-object-memo-poisoned".into()))?
+            .extend(read.iter().cloned());
+        Ok(())
+    }
+    /// Forgets the verified objects a write of this handle may have moved: their retention.
+    fn forget_verified(&self, digests: impl IntoIterator<Item = String>) {
+        if let Ok(mut held) = self.verified.lock() {
+            for digest in digests {
+                if let Ok(hash) = digest.parse::<ContentHash>() {
+                    held.remove(&hash);
+                }
+            }
         }
     }
     /// One provider batch, answered read for read.
@@ -592,10 +756,29 @@ impl<S: EventStore> EventlogStore<S> {
         }
         self.load_objects(&mut history, required)?;
         if !history.occurrences.is_empty() {
+            if selected.is_none() {
+                self.offer_checkpoint(&history)?;
+            }
             let required = required_objects(&history)?;
             self.load_objects(&mut history, required)?;
         }
         Ok(history)
+    }
+    /// Offers the retained replay checkpoint to the authority once per handle, before the first
+    /// head replay. A checkpoint the authority refuses, or one that cannot be read, is ignored:
+    /// the history is then replayed in full, exactly as if there were none.
+    fn offer_checkpoint(&self, history: &RetainedHistory) -> Result<(), StoreError> {
+        use std::sync::atomic::Ordering;
+        let Ok(authority) = self.authority() else {
+            return Ok(());
+        };
+        if !self.checkpoints || self.checkpoint_offered.swap(true, Ordering::SeqCst) {
+            return Ok(());
+        }
+        if let Ok(Some(checkpoint)) = self.read_checkpoint() {
+            let _ = authority.restore(history, &checkpoint);
+        }
+        Ok(())
     }
     fn admitted(
         &self,
@@ -682,6 +865,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
     ) -> Result<eventlog_core::AppendGroupResult, StoreError> {
         // Retry an uncertain outcome with exactly the same group and bindings, never a new identity
         // or an object cleanup. Native receipt lookup precedes blob revalidation on such a retry.
+        self.forget_verified(request.blobs.iter().map(|blob| blob.digest.clone()));
         for _ in 0..16 {
             match self
                 .runtime()
@@ -857,6 +1041,9 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
     }
     fn head(&self) -> Result<Option<Root>, StoreError> {
         ensure_sync_context()?;
+        if let Some(root) = self.checkpointed_head()? {
+            return Ok(Some(root));
+        }
         Ok(self.admitted(None, MAX_READ_LIMIT)?.map(|state| state.root))
     }
     fn replay(&self, revision: RevisionNumber) -> Result<CanonicalGraph, StoreError> {
@@ -865,6 +1052,95 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
             .admitted(Some(revision), 1)?
             .ok_or(StoreError::NotSeeded)?
             .graph)
+    }
+    /// Appends the pointer event and, with `checkpoint`, publishes the checkpoint blob in the same
+    /// atomic group, then deletes the blob of the checkpoint it replaces: one checkpoint is
+    /// retained at a time. Without `checkpoint` the pointer names the retained one again.
+    ///
+    /// The store neither reads nor judges what a checkpoint or a binding says; the kernel admits
+    /// one or not when it next replays. A pointer that loses a race with another writer is
+    /// dropped, which leaves the store as it was and is not an error: a checkpoint is a cache.
+    fn write_checkpoint(
+        &self,
+        covered: u64,
+        binding: ContentHash,
+        checkpoint: Option<&[u8]>,
+    ) -> Result<(), StoreError> {
+        ensure_sync_context()?;
+        let (previous, length) = self.checkpoint_pointer()?;
+        let hash = match (checkpoint, &previous) {
+            (Some(bytes), _) => ContentHash::of_bytes(bytes),
+            (None, Some(previous)) => previous.checkpoint_hash,
+            (None, None) => return Ok(()),
+        };
+        if previous.as_ref().is_some_and(|previous| {
+            previous.checkpoint_hash == hash
+                && previous.covered == covered
+                && previous.binding == binding
+        }) {
+            return Ok(());
+        }
+        let pointer = CheckpointWritten {
+            checkpoint_hash: hash,
+            covered,
+            binding,
+        };
+        let replaced = previous
+            .map(|previous| previous.checkpoint_hash)
+            .filter(|previous| *previous != hash && checkpoint.is_some());
+        let request = BlobAppendGroup {
+            group: AppendGroup {
+                tenant: self.tenant.clone(),
+                appends: vec![StreamAppend {
+                    stream: self.checkpoint_stream()?,
+                    expected: if length == 0 {
+                        Expected::NoStream
+                    } else {
+                        Expected::Exact(length)
+                    },
+                    events: vec![NewEvent::new(
+                        CHECKPOINT_WRITTEN,
+                        1,
+                        serde_json::to_value(&pointer).map_err(json_error)?,
+                    )?],
+                }],
+                meta: envelope(
+                    &format!("ekr.checkpoint.{length}.{covered}.{binding}.{hash}"),
+                    ContentHash::of_bytes(format!("{covered}.{binding}.{hash}").as_bytes())
+                        .to_hex(),
+                ),
+            },
+            blobs: checkpoint
+                .map(|bytes| BlobWrite {
+                    digest: checkpoint_key(hash),
+                    bytes: bytes.to_vec(),
+                })
+                .into_iter()
+                .collect(),
+        };
+        let written = if request.blobs.is_empty() {
+            self.runtime()
+                .block_on(eventlog_core::AtomicEventStore::append_group(
+                    &self.store,
+                    &request.group,
+                ))
+                .map(|_| ())
+                .map_err(StoreError::from)
+        } else {
+            self.atomic(&request).map(|_| ())
+        };
+        match written {
+            Ok(()) => {}
+            Err(StoreError::Conflict) => return Ok(()),
+            Err(error) => return Err(error),
+        }
+        if let Some(replaced) = replaced {
+            self.runtime().block_on(
+                self.store
+                    .delete_blob(&self.tenant, &checkpoint_key(replaced)),
+            )?;
+        }
+        Ok(())
     }
 }
 impl<S: AtomicBlobEventStore> Initialize for EventlogStore<S> {

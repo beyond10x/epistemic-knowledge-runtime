@@ -370,7 +370,7 @@ fn filing(
 }
 
 /// A candidate's node, as canonical state — or the refusal that says why it is not.
-fn narrow_node(node: Node<Value>) -> Result<Node<CanonicalValue>, MembraneError> {
+pub(crate) fn narrow_node(node: Node<Value>) -> Result<Node<CanonicalValue>, MembraneError> {
     let node_id = node.id;
     let mut properties = BTreeMap::new();
     for (property, value) in node.properties {
@@ -400,7 +400,7 @@ fn narrow_node(node: Node<Value>) -> Result<Node<CanonicalValue>, MembraneError>
 /// A candidate's edge, as canonical state — or the refusal that says why it is not.
 ///
 /// References are narrowed only after deterministic bootstrap validation succeeds.
-fn narrow_edge(edge: Edge<Value>) -> Result<Edge<CanonicalValue>, MembraneError> {
+pub(crate) fn narrow_edge(edge: Edge<Value>) -> Result<Edge<CanonicalValue>, MembraneError> {
     let edge_id = edge.id;
     let mut properties = BTreeMap::new();
     for (property, value) in edge.properties {
@@ -427,7 +427,7 @@ fn narrow_edge(edge: Edge<Value>) -> Result<Edge<CanonicalValue>, MembraneError>
 }
 
 /// A candidate's assertion, as canonical state — or the refusal that says why it is not.
-fn narrow_assertion(
+pub(crate) fn narrow_assertion(
     assertion: Assertion<Value>,
 ) -> Result<Assertion<CanonicalValue>, MembraneError> {
     let assertion_id = assertion.id;

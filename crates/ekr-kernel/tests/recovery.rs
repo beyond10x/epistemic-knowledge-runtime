@@ -153,9 +153,17 @@ fn an_elected_unpublished_decision_resumes_exactly_in_a_fresh_process_for_every_
                 1,
                 "{kind:?} file={file}: no second occurrence of this decision"
             );
+            // A publication that moves the head also leaves a replay checkpoint (design § 96),
+            // private cache data in its own stream and no part of the elected request.
+            let published = |events: &[serde_json::Value]| {
+                events
+                    .iter()
+                    .filter(|e| e["stream_type"] != "ekr.checkpoint")
+                    .count()
+            };
             assert_eq!(
-                after.len(),
-                before.len() + elected.native_request.appends.len(),
+                published(&after),
+                published(&before) + elected.native_request.appends.len(),
                 "{kind:?} file={file}: the retry appended exactly the elected request"
             );
             assert_eq!(slot_events(&after, &elected), 1);
@@ -476,7 +484,17 @@ fn missing_corrupt_and_forged_private_preparations_refuse_by_name_and_change_not
                                 bytes: b"unrelated".to_vec(),
                             });
                         forged.native_fingerprint = fingerprint(&forged.native_request);
-                        Outcome::Refused("preparation-blob-set".into())
+                        // `/2` retains no blob list of its own: the reader rebuilds it from the
+                        // decision, so the extra binding is gone and the fingerprint taken over
+                        // it no longer matches. `/1` retains the list and refuses it by name.
+                        Outcome::Refused(
+                            if forged.format == "ekr.publication-preparation/1" {
+                                "preparation-blob-set"
+                            } else {
+                                "preparation-fingerprint"
+                            }
+                            .into(),
+                        )
                     }
                     "foreign-stream" => {
                         let mut stream = forged.native_request.appends[0].stream.clone();

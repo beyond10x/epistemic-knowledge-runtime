@@ -116,7 +116,6 @@ types:
     kind: newtype
     of: String
 
-  # Required literal: "ekr.proposal-record/1". Runtime version dispatch enforces it.
   - name: ekr.kernel.ProposalRecordFormatV1
     kind: newtype
     of: String
@@ -136,7 +135,6 @@ types:
     kind: newtype
     of: String
 
-  # Required literal: "ekr.commit-receipt/1". Runtime version dispatch enforces it.
   - name: ekr.kernel.CommitReceiptFormatV1
     kind: newtype
     of: String
@@ -156,10 +154,9 @@ types:
     kind: newtype
     of: String
 
-  # Required literal: "ekr.transaction-document/1". Runtime version dispatch enforces it.
   - name: ekr.kernel.TransactionDocumentFormatV1
-    kind: newtype
-    of: String
+    kind: enum
+    variants: [ekr.transaction-document/1, ekr.transaction-document/2]
 
   # Required literal: "ekr-seed/2". Runtime version dispatch enforces it.
   - name: ekr.kernel.SeedDocumentFormatV2
@@ -978,7 +975,12 @@ commands:
           - ekr.kernel.Seeded
           - ekr.store.PublicationPrepared
           - ekr.store.ObjectStored
+          - ekr.store.CheckpointWritten
         payload:
+          ekr.store.CheckpointWritten:
+            checkpoint_hash: {generated: true}
+            covered: {generated: true}
+            binding: {generated: true}
           ekr.store.PublicationPrepared:
             preparation_hash: {generated: true}
             attempt_number: {generated: true}
@@ -1026,7 +1028,12 @@ commands:
           - ekr.kernel.TransactionProposed
           - ekr.store.PublicationPrepared
           - ekr.store.ObjectStored
+          - ekr.store.CheckpointWritten
         payload:
+          ekr.store.CheckpointWritten:
+            checkpoint_hash: {generated: true}
+            covered: {generated: true}
+            binding: {generated: true}
           ekr.store.PublicationPrepared:
             preparation_hash: {generated: true}
             attempt_number: {generated: true}
@@ -1046,7 +1053,7 @@ commands:
       - name: malformed
         external: strict document parsing or structural admission refuses before recording
         error: ekr.kernel.StructurallyInvalid
-        summary: Unknown versions, malformed documents and empty operation lists record nothing.
+        summary: Unknown versions, documents over their version's frozen limits, malformed documents and empty operation lists record nothing.
       - name: misattributed
         external: the document names a proposer other than the trusted submitter, or the submitter is unregistered
         error: ekr.kernel.ProposalAttribution
@@ -1074,7 +1081,12 @@ commands:
           - ekr.kernel.TransactionValidated
           - ekr.store.PublicationPrepared
           - ekr.store.ObjectStored
+          - ekr.store.CheckpointWritten
         payload:
+          ekr.store.CheckpointWritten:
+            checkpoint_hash: {generated: true}
+            covered: {generated: true}
+            binding: {generated: true}
           ekr.store.PublicationPrepared:
             preparation_hash: {generated: true}
             attempt_number: {generated: true}
@@ -1101,7 +1113,12 @@ commands:
           - ekr.kernel.TransactionRejected
           - ekr.store.PublicationPrepared
           - ekr.store.ObjectStored
+          - ekr.store.CheckpointWritten
         payload:
+          ekr.store.CheckpointWritten:
+            checkpoint_hash: {generated: true}
+            covered: {generated: true}
+            binding: {generated: true}
           ekr.store.PublicationPrepared:
             preparation_hash: {generated: true}
             attempt_number: {generated: true}
@@ -1151,7 +1168,12 @@ commands:
           - ekr.kernel.RevisionCommitted
           - ekr.store.PublicationPrepared
           - ekr.store.ObjectStored
+          - ekr.store.CheckpointWritten
         payload:
+          ekr.store.CheckpointWritten:
+            checkpoint_hash: {generated: true}
+            covered: {generated: true}
+            binding: {generated: true}
           ekr.store.PublicationPrepared:
             preparation_hash: {generated: true}
             attempt_number: {generated: true}
@@ -1177,7 +1199,12 @@ commands:
           - ekr.kernel.TransactionStale
           - ekr.store.PublicationPrepared
           - ekr.store.ObjectStored
+          - ekr.store.CheckpointWritten
         payload:
+          ekr.store.CheckpointWritten:
+            checkpoint_hash: {generated: true}
+            covered: {generated: true}
+            binding: {generated: true}
           ekr.store.PublicationPrepared:
             preparation_hash: {generated: true}
             attempt_number: {generated: true}

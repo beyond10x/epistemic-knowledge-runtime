@@ -9,7 +9,12 @@ use crate::host::CliHostConfigurationV1;
 /// The printed schema: one pretty JSON document and a newline.
 pub(super) fn run(format: ExampleFormat) -> Result<String, Failure> {
     let schema = match format {
-        ExampleFormat::TransactionDocument => ekr_kernel::schema::transaction_document(),
+        ExampleFormat::TransactionDocument => {
+            ekr_kernel::schema::transaction_document(ekr_kernel::DocumentFormat::V2)
+        }
+        ExampleFormat::TransactionDocumentV1 => {
+            ekr_kernel::schema::transaction_document(ekr_kernel::DocumentFormat::V1)
+        }
         ExampleFormat::Seed => ekr_kernel::schema::seed_document(),
         ExampleFormat::Host => CliHostConfigurationV1::json_schema_document(),
     };

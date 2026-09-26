@@ -10,6 +10,9 @@ This page continues [the guide's](guide.md) store, whose head is revision 4. Eve
 file that was run, in this order, with the released `ekr 0.0.5` binary. Outputs are real and trimmed
 (`…`). The formal rules are in [design § 95](epistemic-knowledge-runtime-design.md#95-schema-evolution-transactions),
 and the field reference is in [the CLI reference](cli.md#evolve-the-schema).
+The documents are `ekr.transaction-document/1`, as run; 0.0.7 still reads them, and a new schema
+change is written as `ekr.transaction-document/2` (`ekr example schema-change`), which differs only
+in its larger [limits](cli.md#document-limits).
 
 ## When a schema change is applied
 

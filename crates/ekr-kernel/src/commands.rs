@@ -205,6 +205,13 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             .reconstruct(&history, None, None)?
             .ok_or(CommitError::NotSeeded)
     }
+    /// [`Self::read_state`], replayed from the seed so that every revision's graph is held.
+    pub(crate) fn read_state_in_full(&self) -> Result<ReplayState, CommitError> {
+        let history = self.store.history()?;
+        self.authority
+            .reconstruct_in_full(&history)?
+            .ok_or(CommitError::NotSeeded)
+    }
     /// Captures all actual retained transaction records, including terminal decisions.
     /// # Errors
     /// Missing initialization or invalid required history.
@@ -274,7 +281,9 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             next.expected_version = state.version;
             Ok(next)
         })?;
-        Ok(ProposalRecordV1::from_bytes(elected_bytes(&prepared)?)?)
+        let record = ProposalRecordV1::from_bytes(elected_bytes(&prepared)?)?;
+        self.retain_verification();
+        Ok(record)
     }
     /// Validates the retained proposal against a complete existing revision basis.
     /// # Errors
@@ -285,7 +294,16 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         against: RevisionNumber,
         now: impl FnOnce() -> Timestamp,
     ) -> Result<ValidationCommandResult, CommitError> {
-        let state = self.read_state()?;
+        let mut state = self.read_state()?;
+        // Validating against an earlier revision needs that revision's graph, which a state
+        // restored from a checkpoint does not hold; the history is then replayed in full.
+        if state
+            .revisions
+            .get(&against)
+            .is_some_and(|revision| revision.graph.is_none())
+        {
+            state = self.read_state_in_full()?;
+        }
         let tx = target(&state, id)?;
         require_state(tx, TransactionState::Proposed)?;
         let key = PublicationCommandKey {
@@ -311,12 +329,12 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 .ok_or(CommitError::RevisionNotFound { against })?;
             let basis = replay::basis(prior, state.seed.seed_hash, &self.authority.anchor);
             let verdict = replay::validate(
-                &tx.proposal,
+                &*state.document(&tx.proposal)?,
                 &state.revisions,
                 prior,
                 &self.authority.anchor,
                 self.authority.context.validator,
-            );
+            )?;
             let at = now();
             replay::require(
                 at >= tx.proposal.submitted_at && at >= prior.committed_at,
@@ -386,7 +404,9 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             next.expected_version = state.version;
             Ok(next)
         })?;
-        validation_result(&prepared)
+        let result = validation_result(&prepared)?;
+        self.retain_verification();
+        Ok(result)
     }
     /// Applies an accepted transaction, or returns its retained success before sampling time.
     /// # Errors
@@ -452,7 +472,43 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 }
             }
         })?;
-        commit_result(&prepared)
+        let result = commit_result(&prepared)?;
+        if matches!(result, CommitCommandResult::Committed(_)) {
+            self.retain_checkpoint();
+        } else {
+            self.retain_verification();
+        }
+        Ok(result)
+    }
+    /// Writes the replay checkpoint of the head this handle just published, so that the next
+    /// open continues from it rather than replaying the lineage from the seed.
+    ///
+    /// Best effort by design: the publication has already succeeded, and a checkpoint that is
+    /// not written costs the next open time, never correctness.
+    pub(crate) fn retain_checkpoint(&self) {
+        let Some(state) = self.published_state() else {
+            return;
+        };
+        if let Ok(Some((covered, binding, bytes))) = self.authority.checkpoint(&state) {
+            let _ = self.store.write_checkpoint(covered, binding, Some(&bytes));
+        }
+    }
+    /// Records that the occurrence this handle just published, which moved no revision, was
+    /// verified with everything before it, keeping the retained checkpoint. Best effort, as
+    /// [`Self::retain_checkpoint`] is.
+    pub(crate) fn retain_verification(&self) {
+        let Some(state) = self.published_state() else {
+            return;
+        };
+        if let Some((covered, binding)) = self.authority.verification(&state) {
+            let _ = self.store.write_checkpoint(covered, binding, None);
+        }
+    }
+    /// The state the publication just made reached: the newest this authority verified, which
+    /// is the published candidate it admitted before writing it. Whatever it is, what is written
+    /// from it is bound to the prefix it covers and is admitted only for exactly that prefix.
+    fn published_state(&self) -> Option<std::sync::Arc<ReplayState>> {
+        self.authority.cache.lock().ok()?.newest()
     }
     fn commit_decision(
         &self,
@@ -490,14 +546,20 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 record.to_bytes()?,
             )
         } else {
-            let validated = replay::validate(
-                &tx.proposal,
-                &state.revisions,
-                head,
-                &self.authority.anchor,
-                self.authority.context.validator,
-            )
-            .map_err(|_| replay::refuse("retained-validation-refused"))?;
+            // The basis is the head, so a validation this state sealed against it is this one.
+            let validated = match state.validated.get(&id) {
+                Some(validated) => std::sync::Arc::clone(validated),
+                None => std::sync::Arc::new(
+                    replay::validate(
+                        &*state.document(&tx.proposal)?,
+                        &state.revisions,
+                        head,
+                        &self.authority.anchor,
+                        self.authority.context.validator,
+                    )?
+                    .map_err(|_| replay::refuse("retained-validation-refused"))?,
+                ),
+            };
             let (_, root) = crate::apply::apply(head, &validated, &validation.validators, at)?;
             let record = CommitReceiptV1 {
                 format: CommitReceiptV1::FORMAT.into(),

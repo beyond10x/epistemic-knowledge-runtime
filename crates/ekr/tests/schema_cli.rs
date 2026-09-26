@@ -20,7 +20,9 @@ use ekr::host::CliHostConfigurationV1;
 use ekr_kernel::{SeedDocument, TransactionDocument};
 use serde_json::{json, Value};
 
-const TRANSACTION: &str = "ekr.transaction-document/1";
+const TRANSACTION: &str = "ekr.transaction-document/2";
+/// The frozen original format, which `ekr schema` still prints and `ekr propose` still reads.
+const TRANSACTION_V1: &str = "ekr.transaction-document/1";
 const SEED: &str = "ekr-seed/2";
 const HOST: &str = "ekr.cli-host/1";
 /// `(format, the alias `ekr example` also accepts)`.
@@ -129,7 +131,7 @@ fn example_operation(kind: &str) -> String {
     example
 }
 
-/// A complete `ekr.transaction-document/1` around one printed operation entry.
+/// A complete `ekr.transaction-document/2` around one printed operation entry.
 fn document_around(operation: &str) -> String {
     let zero = "00000000-0000-4000-8000-000000000000";
     let mut text = format!(
@@ -167,8 +169,29 @@ fn schema_prints_one_draft_2020_12_json_schema_per_format() {
     }
     assert_eq!(
         schema(TRANSACTION),
-        serde_json::to_value(ekr_kernel::schema::transaction_document()).unwrap()
+        serde_json::to_value(ekr_kernel::schema::transaction_document(
+            ekr_kernel::DocumentFormat::V2
+        ))
+        .unwrap()
     );
+    let original = schema(TRANSACTION_V1);
+    assert_eq!(
+        original,
+        serde_json::to_value(ekr_kernel::schema::transaction_document(
+            ekr_kernel::DocumentFormat::V1
+        ))
+        .unwrap()
+    );
+    assert_eq!(original["properties"]["format"]["const"], TRANSACTION_V1);
+    assert_eq!(
+        schema(TRANSACTION)["properties"]["format"]["const"],
+        TRANSACTION
+    );
+    let operations = |schema: &Value| {
+        schema["$defs"]["GraphTransaction"]["properties"]["operations"]["maxItems"].clone()
+    };
+    assert_eq!(operations(&original), 256);
+    assert_eq!(operations(&schema(TRANSACTION)), 10_000);
     assert_eq!(
         schema(SEED),
         serde_json::to_value(ekr_kernel::schema::seed_document()).unwrap()
@@ -281,8 +304,8 @@ fn refused_documents(format: &str) -> Vec<(&'static str, String)> {
                 "another format version",
                 edit(
                     &example,
-                    "format: ekr.transaction-document/1",
                     "format: ekr.transaction-document/2",
+                    "format: ekr.transaction-document/3",
                 ),
             ),
         ],

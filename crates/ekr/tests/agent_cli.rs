@@ -16,7 +16,7 @@ use ekr_kernel::{GraphOperation, SeedDocument, TransactionDocument};
 use serde_json::Value;
 
 const BACKENDS: [&str; 2] = ["file", "sqlite"];
-const FORMATS: [&str; 3] = ["ekr.transaction-document/1", "ekr-seed/2", "ekr.cli-host/1"];
+const FORMATS: [&str; 3] = ["ekr.transaction-document/2", "ekr-seed/2", "ekr.cli-host/1"];
 /// 2026-03-12T00:00:00Z.
 const MARCH_12: i64 = 1_773_273_600_000;
 /// 2020-01-01T00:00:00Z.
@@ -191,10 +191,10 @@ fn example_operation(kind: &str) -> String {
     example
 }
 
-/// A complete `ekr.transaction-document/1` around printed operation entries.
+/// A complete `ekr.transaction-document/2` around printed operation entries.
 fn document(id: &str, proposer: &str, operations: &[String], evidence: &[&str]) -> String {
     let mut text = format!(
-        "format: ekr.transaction-document/1\ntransaction:\n  id: {id}\n  proposer: {proposer}\n  operations:\n"
+        "format: ekr.transaction-document/2\ntransaction:\n  id: {id}\n  proposer: {proposer}\n  operations:\n"
     );
     for operation in operations {
         for line in operation.lines() {
@@ -302,15 +302,30 @@ fn operations_lists_every_kind_and_every_example_parses_as_its_kind() {
 
 #[test]
 fn every_example_document_is_accepted_by_its_real_reader() {
-    let transaction = text(&["example", "ekr.transaction-document/1"]);
+    let transaction = text(&["example", "ekr.transaction-document/2"]);
     let parsed = TransactionDocument::parse(transaction.as_bytes()).unwrap();
     assert!(!parsed.transaction().operations.is_empty());
+    assert_eq!(parsed.format(), ekr_kernel::DocumentFormat::V2);
     SeedDocument::from_yaml(&text(&["example", "ekr-seed/2"])).unwrap();
-    assert_eq!(names::<ekr::cli::ExampleFormat>(), FORMATS);
+    // `ekr schema` also prints the frozen original transaction format, which `ekr propose` reads.
+    let mut schemas = FORMATS.to_vec();
+    schemas.insert(1, "ekr.transaction-document/1");
+    assert_eq!(names::<ekr::cli::ExampleFormat>(), schemas);
     CliHostConfigurationV1::from_json(text(&["example", "ekr.cli-host/1"]).as_bytes()).unwrap();
     // `ekr example` prints one document per format and, besides, a schema change.
-    let mut examples = FORMATS.to_vec();
-    examples.insert(1, "schema-change");
+    let mut examples = schemas.clone();
+    examples.insert(2, "schema-change");
+    let original = text(&["example", "ekr.transaction-document/1"]);
+    assert_eq!(
+        TransactionDocument::parse(original.as_bytes())
+            .unwrap()
+            .format(),
+        ekr_kernel::DocumentFormat::V1
+    );
+    assert_eq!(
+        original.replacen("document/1", "document/2", 1),
+        transaction
+    );
     let command = <ekr::cli::Cli as clap::CommandFactory>::command();
     let accepted: Vec<String> = command
         .find_subcommand("example")
@@ -333,7 +348,7 @@ fn the_seed_and_host_examples_seed_a_fresh_store_and_the_transaction_example_com
         assert_eq!(seeded["result"]["revision"], 0, "{backend}: {seeded}");
         let proposal = world.file(
             "transaction.yaml",
-            &text(&["example", "ekr.transaction-document/1"]),
+            &text(&["example", "ekr.transaction-document/2"]),
         );
         let proposed = world.ok(&["propose", &proposal]);
         let id = proposed["transaction_id"].as_str().unwrap().to_owned();
@@ -381,7 +396,7 @@ fn head_prints_the_revision_and_root_and_validate_defaults_to_it() {
         assert_eq!(head["root"]["revision"], 0, "{head}");
         let proposal = world.file(
             "transaction.yaml",
-            &text(&["example", "ekr.transaction-document/1"]),
+            &text(&["example", "ekr.transaction-document/2"]),
         );
         let id = world.ok(&["propose", &proposal])["transaction_id"]
             .as_str()
@@ -427,7 +442,7 @@ fn transactions_lists_id_state_and_proposer_and_filters_by_state() {
         assert_eq!(world.ok(&["transactions"]), serde_json::json!([]));
         let proposal = world.file(
             "transaction.yaml",
-            &text(&["example", "ekr.transaction-document/1"]),
+            &text(&["example", "ekr.transaction-document/2"]),
         );
         let id = world.ok(&["propose", &proposal])["transaction_id"].clone();
         let host: Value = serde_json::from_str(&text(&["example", "ekr.cli-host/1"])).unwrap();
@@ -668,8 +683,8 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         (
             "propose",
             &[
-                "ekr.transaction-document/1",
-                "ekr example ekr.transaction-document/1",
+                "ekr.transaction-document/2",
+                "ekr example ekr.transaction-document/2",
                 "ekr operations",
                 store,
             ],
@@ -679,11 +694,11 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         ("snapshot", &["ekr head", "YYYY-MM-DD", store]),
         ("explain", &["ekr snapshot", store]),
         ("guide", &["workflow"]),
-        ("operations", &["ekr.transaction-document/1", "CreateNode"]),
+        ("operations", &["ekr.transaction-document/2", "CreateNode"]),
         (
             "example",
             &[
-                "ekr.transaction-document/1",
+                "ekr.transaction-document/2",
                 "schema-change",
                 "ekr-seed/2",
                 "ekr.cli-host/1",
@@ -705,7 +720,7 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
             &[
                 "JSON Schema",
                 "2020-12",
-                "ekr.transaction-document/1",
+                "ekr.transaction-document/2",
                 "ekr-seed/2",
                 "ekr.cli-host/1",
             ],
@@ -1235,7 +1250,7 @@ fn every_byte_string_prints_as_one_base64_string() {
     for backend in BACKENDS {
         let world = World::new(backend);
         let mut results = vec![("seed", world.seed_from_example())];
-        let submitted = text(&["example", "ekr.transaction-document/1"]);
+        let submitted = text(&["example", "ekr.transaction-document/2"]);
         let path = world.file("transaction.yaml", &submitted);
         let proposed = world.ok(&["propose", &path]);
         assert_eq!(
@@ -1803,7 +1818,7 @@ fn seed_creates_the_store_as_the_guide_says() {
 /// The seed version of `ekr example ekr-seed/2`.
 const SEED_VERSION: &str = "00000000-0000-4000-8000-000000000001";
 
-/// A schema-changing `ekr.transaction-document/1`: `document` with `schema_version` added.
+/// A schema-changing `ekr.transaction-document/2`: `document` with `schema_version` added.
 fn schema_document(id: &str, proposer: &str, operations: &[String], version: &str) -> String {
     let mut text = document(id, proposer, operations, &[]);
     text.push_str(&format!("  schema_version: {version}\n"));
@@ -1912,7 +1927,7 @@ fn every_schema_example_commits_alone_under_validation_profile_v2() {
     }
 }
 
-/// `ekr example schema-change` is one schema-only `ekr.transaction-document/1` naming its
+/// `ekr example schema-change` is one schema-only `ekr.transaction-document/2` naming its
 /// `schema_version`, holding the three schema kinds' `ekr operations` examples in listed order
 /// (so `ModifyProperty` carries its `owner`). It commits against a store seeded from the example
 /// seed under profile v2, and under the example host (v1) it is rejected as
@@ -1975,7 +1990,7 @@ fn the_schema_change_example_commits_under_profile_v2_and_is_refused_under_v1() 
 #[test]
 fn ontology_prints_the_schema_at_the_head_and_at_a_past_revision() {
     let example = text(&["example", "schema-change"]);
-    let transaction = text(&["example", "ekr.transaction-document/1"]);
+    let transaction = text(&["example", "ekr.transaction-document/2"]);
     for backend in BACKENDS {
         let v1 = World::new(backend);
         v1.seed_from_example();

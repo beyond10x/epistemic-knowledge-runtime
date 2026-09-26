@@ -1,4 +1,4 @@
-//! Fixed current-format vector for § 94's private `ekr.publication-preparation/1` record, taken
+//! Fixed current-format vector for § 94's private `ekr.publication-preparation/2` record, taken
 //! from the real election path (`RevisionLog::prepare`) on both providers rather than built by
 //! hand, together with the `PublicationCommandKey` bytes its private slot is derived from.
 //!
@@ -132,8 +132,30 @@ fn an_elected_bootstrap_preparation_has_fixed_bytes_on_both_providers() {
         pins.check(
             &format!("{provider} preparation address"),
             ContentHash::of_bytes(&bytes).to_hex(),
+            "686066f11be6b3bad146c7034daf5a1a258a745bc7e7e3ca687861ec7736b03b",
+        );
+        // `/2` holds each staged object once, as base64; the blob list is rebuilt on read.
+        let written: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert!(written["native_request"].get("blobs").is_none());
+        assert!(written["decision"]["objects"]
+            .as_object()
+            .unwrap()
+            .values()
+            .all(|object| object["bytes"].is_string()));
+        // The same attempt in the original `/1` layout is byte for byte the record the
+        // previous release elected, so a retained `/1` attempt keeps its address.
+        let original = PublicationPreparationV1 {
+            format: PublicationPreparationV1::FORMAT_V1.into(),
+            ..prepared.clone()
+        };
+        let original_bytes = serde_json::to_vec(&original).unwrap();
+        pins.check(
+            &format!("{provider} /1 preparation address"),
+            ContentHash::of_bytes(&original_bytes).to_hex(),
             "e2710a346d063cf261004ff0fb4ef98b244c14209b1b923a1e1b3264ce01dd99",
         );
+        let reread: PublicationPreparationV1 = serde_json::from_slice(&original_bytes).unwrap();
+        assert_eq!(reread, original);
         pins.check(
             &format!("{provider} native fingerprint"),
             prepared.native_fingerprint.clone(),

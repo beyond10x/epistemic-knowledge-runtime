@@ -23,7 +23,7 @@ fn records() -> [Value; 7] {
         transaction: hash,
     };
     let proposal = json!({"format":ProposalRecordV1::FORMAT, "event_id":event,
-        "submitted_at":0,"submitter":agent,"document_hash":hash,"document_bytes":[1,2,3],
+        "submitted_at":0,"submitter":agent,"document_hash":hash,"document_bytes":"AQID",
         "transaction_id":TransactionId::mint(),"operation_count":1,"evidence_hash":hash,
         "canonical_transaction_hash":null,"canonical_operations_hash":null});
     let basis = json!({"format":ValidationBasisV1::FORMAT,"graph_root_id":GraphRootId::mint(),
@@ -88,6 +88,72 @@ fn nested_record_versions_and_validator_duplicates_refuse() {
     let validator = values[2]["validators"][0].clone();
     values[2]["validators"] = json!([validator, validator]);
     assert!(ValidationReceiptV1::from_bytes(&serde_json::to_vec(&values[2]).unwrap()).is_err());
+}
+
+/// `ekr.proposal-record/2` writes the document as base64 and `/1` as a number array; each format
+/// reads only its own spelling, a `/1` record re-encodes to its original bytes, and a `/1` commit
+/// receipt embeds only a `/1` proposal while a `/2` receipt embeds either.
+#[test]
+fn each_proposal_format_admits_only_its_own_document_spelling() {
+    let values = records();
+    let current = ProposalRecordV1::from_bytes(&serde_json::to_vec(&values[0]).unwrap()).unwrap();
+    assert_eq!(current.format, "ekr.proposal-record/2");
+    assert_eq!(current.document_bytes, [1, 2, 3]);
+    let written: Value = serde_json::from_slice(&current.to_bytes().unwrap()).unwrap();
+    assert_eq!(written["document_bytes"], json!("AQID"));
+
+    let mut legacy = values[0].clone();
+    legacy["format"] = ProposalRecordV1::FORMAT_V1.into();
+    legacy["document_bytes"] = json!([1, 2, 3]);
+    let read = ProposalRecordV1::from_bytes(&serde_json::to_vec(&legacy).unwrap()).unwrap();
+    assert_eq!(read.document_bytes, [1, 2, 3]);
+    let original = read.to_bytes().unwrap();
+    assert!(String::from_utf8(original.clone())
+        .unwrap()
+        .contains(r#""document_bytes":[1,2,3]"#));
+    assert_eq!(
+        ProposalRecordV1::from_bytes(&original)
+            .unwrap()
+            .to_bytes()
+            .unwrap(),
+        original,
+        "a /1 record keeps its bytes"
+    );
+
+    let mut numbers_in_current = values[0].clone();
+    numbers_in_current["document_bytes"] = json!([1, 2, 3]);
+    let mut text_in_legacy = legacy.clone();
+    text_in_legacy["document_bytes"] = json!("AQID");
+    let mut loose_base64 = values[0].clone();
+    loose_base64["document_bytes"] = json!("AQJ=");
+    for refused in [numbers_in_current, text_in_legacy, loose_base64] {
+        assert!(
+            ProposalRecordV1::from_bytes(&serde_json::to_vec(&refused).unwrap()).is_err(),
+            "{refused}"
+        );
+    }
+
+    let mut legacy_receipt = values[3].clone();
+    legacy_receipt["format"] = CommitReceiptV1::FORMAT_V1.into();
+    assert!(
+        CommitReceiptV1::from_bytes(&serde_json::to_vec(&legacy_receipt).unwrap()).is_err(),
+        "a /1 receipt cannot embed a /2 proposal"
+    );
+    legacy_receipt["proposal"] = legacy.clone();
+    let receipt =
+        CommitReceiptV1::from_bytes(&serde_json::to_vec(&legacy_receipt).unwrap()).unwrap();
+    let original = receipt.to_bytes().unwrap();
+    assert_eq!(
+        CommitReceiptV1::from_bytes(&original)
+            .unwrap()
+            .to_bytes()
+            .unwrap(),
+        original,
+        "a /1 receipt keeps its bytes"
+    );
+    let mut current_receipt = values[3].clone();
+    current_receipt["proposal"] = legacy;
+    assert!(CommitReceiptV1::from_bytes(&serde_json::to_vec(&current_receipt).unwrap()).is_ok());
 }
 
 #[test]

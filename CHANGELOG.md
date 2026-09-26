@@ -4,6 +4,43 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.7] — 2026-09-26
+
+Store performance at a few thousand observations (design § 96), and a transaction document format
+that holds 10,000 operations (design § 97).
+
+### Added
+
+- `ekr.transaction-document/2`: the fields of `/1`, up to 10,000 operations and 10,000 evidence
+  entries in at most 8 MiB (8388608 bytes); `docs/cli.md` § Document limits lists every limit of
+  both versions. `ekr example`, `ekr schema` and `ekr guide` now write `/2`; `ekr schema
+  ekr.transaction-document/1` still prints the original. A `/1` document is still read, validated
+  and replayed under its frozen limits of 256 operations and 262144 bytes, and every retained `/1`
+  proposal is unchanged. Write `format: ekr.transaction-document/2` on its own top-level line, as
+  the examples do: a document over 262144 bytes whose format is not on such a line is held to the
+  `/1` byte cap. On a store of 65 revisions (70 MB, file provider), one propose, validate and
+  commit took 1.20 + 1.08 + 1.31 s (3.60 s) for 2,000 operations and 2.40 + 1.45 + 2.22 s (6.08 s)
+  for 10,000; median of three runs, each on a fresh copy of the store.
+
+### Changed
+
+- A verb no longer replays the whole history on every open. Every commit leaves one replay
+  checkpoint of the head it published; the next verb continues from it, and `ekr head` answers
+  from the checkpoint pointer and the head record alone. On a store of 65 revisions and 7,190
+  assertions `ekr head` takes 0.34 s (from 5.1 s) and one propose, validate and commit of a
+  250-operation document 3.2 s (from 78 s). `--full-replay` replays from the seed, re-deriving
+  every retained decision, as every verb did before.
+- Within one command, a history is replayed once: the states a command reaches are reused, each
+  retained document is parsed once, and a commit reuses its validation's sealed result.
+- New proposal records, commit receipts and publication preparations write byte strings as
+  base64, and a preparation holds each staged object once: `ekr.proposal-record/2`,
+  `ekr.commit-receipt/2`, `ekr.publication-preparation/2`. The same history takes 70 MB where it
+  took 361 MB. Records and preparations in the `/1` formats are still read, and re-encode to their
+  original bytes; a store written by 0.0.6 opens and answers unchanged.
+- A refused document names its own version's bound, for example `transaction document limit:
+  operations (at most 10000 operations per document; split the change into several
+  transactions)`; a `/1` document over 256 operations is told that `/2` admits 10000.
+
 ## [0.0.6] — 2026-09-26
 
 Seed evidence from files, and the visual documentation.

@@ -103,6 +103,28 @@ pub trait CommitAuthority {
         ontology: Option<&ekr_ontology::Ontology>,
         revision: Option<RevisionNumber>,
     ) -> Result<Option<AdmittedRevision>, StoreError>;
+    /// Offers the retained replay checkpoint for `history`, which the authority may admit as the
+    /// state its next replay of that history continues from. An authority that keeps none
+    /// ignores it.
+    /// # Errors
+    /// A checkpoint the authority does not admit; the store then ignores it.
+    fn restore(&self, history: &RetainedHistory, checkpoint: &[u8]) -> Result<(), StoreError> {
+        let _ = (history, checkpoint);
+        Ok(())
+    }
+    /// The head root of `history`, if `binding` is this authority's own record of having
+    /// verified all of its occurrences. `history` holds every occurrence and, of the objects,
+    /// only the head revision's record. `None` sends the caller to a full replay.
+    /// # Errors
+    /// A head record that does not decode.
+    fn checkpointed_head(
+        &self,
+        history: &RetainedHistory,
+        binding: ContentHash,
+    ) -> Result<Option<Root>, StoreError> {
+        let _ = (history, binding);
+        Ok(None)
+    }
 }
 /// One object staged for atomic publication. No provider bytes exist merely because it is staged.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -188,6 +210,22 @@ pub trait RevisionLog {
     /// # Errors
     /// Missing revision or invalid history through that revision.
     fn replay(&self, revision: RevisionNumber) -> Result<CanonicalGraph, StoreError>;
+    /// Records that the authority verified the first `covered` occurrences of the revision stream,
+    /// under its own `binding` of that prefix, and retains `checkpoint` as their replay checkpoint,
+    /// replacing an older one. Without `checkpoint` the retained checkpoint is kept and only the
+    /// record of verification advances. Private cache data: it confers no authority and may be
+    /// lost at any time. A log that keeps none ignores it.
+    /// # Errors
+    /// Provider failure.
+    fn write_checkpoint(
+        &self,
+        covered: u64,
+        binding: ContentHash,
+        checkpoint: Option<&[u8]>,
+    ) -> Result<(), StoreError> {
+        let _ = (covered, binding, checkpoint);
+        Ok(())
+    }
 }
 /// Initialization requires the same complete atomic publication path with no existing stream.
 pub trait Initialize {

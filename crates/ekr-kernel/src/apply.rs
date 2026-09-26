@@ -1,14 +1,15 @@
 //! Pure unordered application, reachable only with the kernel's private validated capability.
+use crate::replay::Revision;
 use crate::{GraphOperation, ValidatedTransaction};
 use ekr_core::{AgentId, ContentHash, Timestamp};
 use ekr_graph::{
     AssertionLifecycle, Assessment, CanonicalGraph, CanonicalRef, Edge, Node, Root, TransactionTime,
 };
-use ekr_store::{evidence_root, knowledge_root, AdmittedRevision, StoreError};
+use ekr_store::{evidence_root, knowledge_root, StoreError};
 use std::collections::BTreeSet;
 
 pub(crate) fn apply(
-    prior: &AdmittedRevision,
+    prior: &Revision,
     validated: &ValidatedTransaction,
     validators: &BTreeSet<AgentId>,
     at: Timestamp,
@@ -16,7 +17,7 @@ pub(crate) fn apply(
     if at < prior.committed_at {
         return Err(StoreError::Document("commit-time-precedes-head".into()));
     }
-    let mut graph = prior.graph.clone();
+    let mut graph = prior.graph()?.clone();
     let tx = validated.transaction();
     graph.revision = prior
         .root

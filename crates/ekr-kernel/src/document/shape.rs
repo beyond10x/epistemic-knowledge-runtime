@@ -7,7 +7,7 @@ use serde_yaml_ng::{
     Error,
 };
 
-use super::{Budget, DocumentLimit, DOCUMENT_V1_LIMITS};
+use super::{Budget, DocumentLimit};
 
 pub(super) enum Shape {
     Scalar,
@@ -101,7 +101,7 @@ impl<'document, 'input> Traversal<'document, 'input, '_> {
     fn container(&self, depth: usize) -> Result<usize, Error> {
         depth
             .checked_add(1)
-            .filter(|depth| *depth <= DOCUMENT_V1_LIMITS.depth)
+            .filter(|depth| *depth <= self.budget.borrow().limits.depth)
             .ok_or_else(|| self.budget.borrow_mut().refuse(DocumentLimit::Depth))
     }
     fn tag(&self, tag: Option<Tag<'_>>) -> Result<Option<usize>, Error> {
@@ -152,13 +152,11 @@ impl<'document, 'input> Traversal<'document, 'input, '_> {
         depth: usize,
         role: Role,
     ) -> Result<(Shape, usize), Error> {
+        let limits = self.budget.borrow().limits;
         let (cap, limit) = match role {
-            Role::Operations => (DOCUMENT_V1_LIMITS.operations, DocumentLimit::Operations),
-            Role::Evidence => (DOCUMENT_V1_LIMITS.evidence, DocumentLimit::Evidence),
-            _ => (
-                DOCUMENT_V1_LIMITS.sequence_elements,
-                DocumentLimit::SequenceElements,
-            ),
+            Role::Operations => (limits.operations, DocumentLimit::Operations),
+            Role::Evidence => (limits.evidence, DocumentLimit::Evidence),
+            _ => (limits.sequence_elements, DocumentLimit::SequenceElements),
         };
         let mut elements = Vec::new();
         loop {
@@ -206,7 +204,7 @@ impl<'document, 'input> Traversal<'document, 'input, '_> {
             if matches!(self.event(index)?, Event::MappingEnd) {
                 break;
             }
-            if entries.len() == DOCUMENT_V1_LIMITS.mapping_entries {
+            if entries.len() == self.budget.borrow().limits.mapping_entries {
                 return Err(self
                     .budget
                     .borrow_mut()

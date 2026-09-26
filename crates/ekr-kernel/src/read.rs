@@ -74,7 +74,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             history.content(state.seed.seed_hash, ekr_store::StorageClass::Canonical)?,
         )?;
         let head = state.head();
-        let graph = head.graph.clone();
+        let graph = head.graph()?.clone();
         let root = head.root;
         Ok(VerifiedRead {
             graph,

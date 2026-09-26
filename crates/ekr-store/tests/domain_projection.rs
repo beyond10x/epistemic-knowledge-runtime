@@ -356,6 +356,13 @@ fn every_event_the_crate_writes_carries_the_fields_the_domain_declares() {
                 None,
             )
             .expect("the preparation is elected");
+        store
+            .write_checkpoint(
+                1,
+                ekr_core::ContentHash::of_bytes(b"binding"),
+                Some(b"replay checkpoint bytes"),
+            )
+            .expect("the checkpoint pointer is written");
     }
 
     let declared = declared_events();
@@ -478,8 +485,8 @@ enum Carrier {
     /// The declaration's variants are spread over several Rust types. Each part names the variants
     /// it holds, and whether they are *all* of that type's variants.
     Split(&'static [(&'static str, &'static [&'static str], bool)]),
-    /// A one-variant enumeration carried as a string constant, `(type, constant)`.
-    Constant(&'static str, &'static str),
+    /// An enumeration of format versions carried as one string constant each, `(type, constants)`.
+    Constants(&'static str, &'static [&'static str]),
 }
 
 /// Each declaration under `types:` or `entities:`, and how the crate carries it.
@@ -528,7 +535,7 @@ const BINDINGS: &[(&str, Carrier)] = &[
     ),
     (
         "ekr.store.PublicationPreparationFormatV1",
-        Carrier::Constant("PublicationPreparationV1", "FORMAT"),
+        Carrier::Constants("PublicationPreparationV1", &["FORMAT_V1", "FORMAT"]),
     ),
     (
         "ekr.store.PublicationPreparationV1",
@@ -935,14 +942,18 @@ fn every_type_and_entity_the_domain_declares_names_a_rust_carrier() {
                     "{declaration} (left) and its carriers (right) disagree member for member"
                 );
             }
-            Carrier::Constant(owner, constant) => {
-                let value = string_constant(owner, constant).unwrap_or_else(|| {
-                    panic!("{declaration} is bound to {owner}::{constant}, which this crate does not declare")
-                });
+            Carrier::Constants(owner, constants) => {
+                let values: BTreeSet<String> = constants
+                    .iter()
+                    .map(|constant| {
+                        string_constant(owner, constant).unwrap_or_else(|| {
+                            panic!("{declaration} is bound to {owner}::{constant}, which this crate does not declare")
+                        })
+                    })
+                    .collect();
                 assert_eq!(
-                    domain,
-                    &BTreeSet::from([value]),
-                    "{declaration} and {owner}::{constant} disagree"
+                    domain, &values,
+                    "{declaration} and {owner}'s formats disagree"
                 );
             }
         }

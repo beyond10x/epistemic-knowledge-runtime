@@ -1,5 +1,5 @@
-//! JSON Schemas (draft 2020-12) of the two YAML documents the kernel reads, behind the `schema`
-//! feature: `ekr.transaction-document/1` ([`TransactionDocument`](crate::TransactionDocument))
+//! JSON Schemas (draft 2020-12) of the YAML documents the kernel reads, behind the `schema`
+//! feature: `ekr.transaction-document/2` and `/1` ([`TransactionDocument`](crate::TransactionDocument))
 //! and `ekr-seed/2` ([`SeedDocument`]).
 //!
 //! Each is generated from the types those readers deserialize. Where a type decodes by hand, its
@@ -9,7 +9,7 @@
 //!
 //! The generated schema is then brought to what the YAML readers accept, by transforms each
 //! named for the reader behaviour it describes: `yaml_unit_forms`, `text_from_any_scalar`,
-//! `integer_ranges` and, for the transaction document's frozen profile, `v1_limits`. The
+//! `integer_ranges` and, for the transaction document's frozen profiles, `v1_limits` or `v2_limits`. The
 //! printed schema is for agents, so `agent_facing` drops the maintainers' rustdoc the derive
 //! copies in, and `describe` writes the few descriptions an agent reads.
 
@@ -23,7 +23,7 @@ use schemars::transform::RecursiveTransform;
 use schemars::{json_schema, Schema, SchemaGenerator};
 use serde_json::{json, Value as Json};
 
-use crate::document::{Envelope, DOCUMENT_V1_LIMITS};
+use crate::document::{DocumentFormat, DocumentLimits, Envelope};
 use crate::SeedDocument;
 
 /// What every YAML format's schema says about what JSON Schema cannot express. Each gap named
@@ -45,12 +45,18 @@ range or transaction time that ends before it starts; and a value's `value` writ
 `value_kind` (or a value type's `parameters` before its `value_kind`) when it is a plain number, \
 boolean or null for a kind read as text.";
 
-/// The frozen `ekr.transaction-document/1` limits the schema cannot express, named on its root.
-const V1_LIMITS_UNSEEN: &str = "The transaction reader also refuses a document over 262144 \
-bytes, nested deeper than 32 containers, with more than 32768 values and keys, or with more than \
-1048576 bytes of text in all, and a string or key within maxLength characters but over the \
-byte limit (the limits count bytes, maxLength counts characters: text outside ASCII); the schema \
-carries the per-list, per-map and per-string limits.";
+/// The frozen limits of `format` the schema cannot express, named on its root.
+fn limits_unseen(format: DocumentFormat) -> String {
+    let limits = format.limits();
+    format!(
+        "The transaction reader also refuses a document over {} bytes, nested deeper than {} \
+         containers, with more than {} values and keys, or with more than {} bytes of text in \
+         all, and a string or key within maxLength characters but over the byte limit (the \
+         limits count bytes, maxLength counts characters: text outside ASCII); the schema \
+         carries the per-list, per-map and per-string limits.",
+        limits.input_bytes, limits.depth, limits.nodes, limits.total_string_bytes
+    )
+}
 
 /// The one operation shape the transaction reader accepts and this schema refuses: the P1
 /// `ModifyProperty`, whose `PropertyModification` the schema requires as `{owner, property}`.
@@ -59,15 +65,21 @@ written as a bare property declaration, without `owner` and `property` (the P1 s
 schema refuses it; validation then rejects it, as `unsupported-operation` under validation profile \
 v1 and as `modify-property-without-owner` under v2. Write `{owner, property}`.";
 
-/// The draft 2020-12 generator of the two YAML formats; `limits` adds [`v1_limits`].
-fn generator(limits: bool) -> SchemaGenerator {
+/// The draft 2020-12 generator of the YAML formats; `limits` adds [`v1_limits`] or [`v2_limits`].
+fn generator(limits: Option<DocumentFormat>) -> SchemaGenerator {
     let mut settings = SchemaSettings::draft2020_12()
         .with_transform(RecursiveTransform(agent_facing))
         .with_transform(RecursiveTransform(yaml_unit_forms))
         .with_transform(RecursiveTransform(text_from_any_scalar))
         .with_transform(RecursiveTransform(integer_ranges));
-    if limits {
-        settings = settings.with_transform(RecursiveTransform(v1_limits));
+    match limits {
+        Some(DocumentFormat::V1) => {
+            settings = settings.with_transform(RecursiveTransform(v1_limits))
+        }
+        Some(DocumentFormat::V2) => {
+            settings = settings.with_transform(RecursiveTransform(v2_limits))
+        }
+        None => {}
     }
     settings.into_generator()
 }
@@ -182,36 +194,37 @@ fn integer_ranges(schema: &mut Schema) {
     }
 }
 
-/// [`DOCUMENT_V1_LIMITS`] where one list, map or string carries it: every list at most
+/// [`crate::DOCUMENT_V1_LIMITS`] where one list, map or string carries it: see [`limits`].
+fn v1_limits(schema: &mut Schema) {
+    limits(schema, &DocumentFormat::V1.limits());
+}
+
+/// [`crate::DOCUMENT_V2_LIMITS`] where one list, map or string carries it: see [`limits`].
+fn v2_limits(schema: &mut Schema) {
+    limits(schema, &DocumentFormat::V2.limits());
+}
+
+/// A profile's limits where one list, map or string carries them: every list at most
 /// `sequence_elements` long, every map at most `mapping_entries` entries with keys of at most
 /// `key_bytes`, every text at most `string_bytes`. `operations` and `evidence` get their own
 /// bounds in [`transaction_document`].
-fn v1_limits(schema: &mut Schema) {
+fn limits(schema: &mut Schema, limits: &DocumentLimits) {
     let kinds = types(schema);
     if kinds.iter().any(|kind| kind == "string") && schema.get("maxLength").is_none() {
-        schema.insert(
-            "maxLength".to_owned(),
-            DOCUMENT_V1_LIMITS.string_bytes.into(),
-        );
+        schema.insert("maxLength".to_owned(), limits.string_bytes.into());
     }
     if kinds.iter().any(|kind| kind == "array") && schema.get("maxItems").is_none() {
-        schema.insert(
-            "maxItems".to_owned(),
-            DOCUMENT_V1_LIMITS.sequence_elements.into(),
-        );
+        schema.insert("maxItems".to_owned(), limits.sequence_elements.into());
     }
     let map = schema.get("patternProperties").is_some()
         || schema
             .get("additionalProperties")
             .is_some_and(Json::is_object);
     if kinds.iter().any(|kind| kind == "object") && map {
-        schema.insert(
-            "maxProperties".to_owned(),
-            DOCUMENT_V1_LIMITS.mapping_entries.into(),
-        );
+        schema.insert("maxProperties".to_owned(), limits.mapping_entries.into());
         schema.insert(
             "propertyNames".to_owned(),
-            json!({ "maxLength": DOCUMENT_V1_LIMITS.key_bytes }),
+            json!({ "maxLength": limits.key_bytes }),
         );
     }
 }
@@ -261,39 +274,50 @@ fn scalar_description(name: &str) -> Option<&'static str> {
     })
 }
 
-/// The JSON Schema of an `ekr.transaction-document/1` document, which `ekr propose` reads.
+/// The JSON Schema of an `ekr.transaction-document/2` or `/1` document, which `ekr propose` reads.
 ///
 /// # Panics
 ///
 /// Never for the types it is generated from: the transaction definition and its `operations` and
 /// `evidence` lists are what the derive of [`crate::GraphTransaction`] writes.
 #[must_use]
-pub fn transaction_document() -> Schema {
-    let mut schema = generator(true).into_root_schema_for::<Envelope>();
+pub fn transaction_document(format: DocumentFormat) -> Schema {
+    let limits = format.limits();
+    let name = format.name();
+    let mut schema = generator(Some(format)).into_root_schema_for::<Envelope>();
+    if let Some(field) = schema
+        .get_mut("properties")
+        .and_then(|properties| properties.get_mut("format"))
+    {
+        field["const"] = name.into();
+    }
     let transaction = schema
         .get_mut("$defs")
         .and_then(|definitions| definitions.get_mut("GraphTransaction"))
         .and_then(|transaction| transaction.get_mut("properties"))
         .expect("the transaction document defines GraphTransaction");
     transaction["operations"]["minItems"] = 1.into();
-    transaction["operations"]["maxItems"] = DOCUMENT_V1_LIMITS.operations.into();
-    transaction["evidence"]["maxItems"] = DOCUMENT_V1_LIMITS.evidence.into();
+    transaction["operations"]["maxItems"] = limits.operations.into();
+    transaction["evidence"]["maxItems"] = limits.evidence.into();
+    let unseen = limits_unseen(format);
+    let exactly = format!("Exactly `{name}`.");
+    let proposal = format!(
+        "The proposal: its new id (`ekr mint transaction`), the proposer (the host's operator), \
+         1 to {} operations (`ekr operations`) and the evidence ids its assertions cite.",
+        limits.operations
+    );
     describe(
         schema,
-        "ekr.transaction-document/1",
+        name,
         &format!(
             "A transaction document for `ekr propose`: one transaction, its operations and the \
-             evidence they cite (`ekr example ekr.transaction-document/1`, `ekr operations`). \
-             {YAML_TAGS} {V1_LIMITS_UNSEEN} {MODIFY_PROPERTY_P1_SHAPE}"
+             evidence they cite (`ekr example {current}`, `ekr operations`). \
+             {YAML_TAGS} {unseen} {MODIFY_PROPERTY_P1_SHAPE}",
+            current = DocumentFormat::CURRENT.name()
         ),
         &[
-            ("format", "Exactly `ekr.transaction-document/1`."),
-            (
-                "transaction",
-                "The proposal: its new id (`ekr mint transaction`), the proposer (the host's \
-                 operator), 1 to 256 operations (`ekr operations`) and the evidence ids its \
-                 assertions cite.",
-            ),
+            ("format", exactly.as_str()),
+            ("transaction", proposal.as_str()),
         ],
     )
 }
@@ -302,7 +326,7 @@ pub fn transaction_document() -> Schema {
 #[must_use]
 pub fn seed_document() -> Schema {
     describe(
-        generator(false).into_root_schema_for::<SeedDocument>(),
+        generator(None).into_root_schema_for::<SeedDocument>(),
         "ekr-seed/2",
         &format!(
             "A seed for `ekr seed`: the ontology, the graph at revision 0 and the payload bytes \

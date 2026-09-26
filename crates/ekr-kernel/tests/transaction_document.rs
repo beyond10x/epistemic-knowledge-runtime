@@ -21,7 +21,7 @@ fn string_value(text: &str) -> String {
 }
 fn refused_as(input: &[u8], limit: DocumentLimit) {
     assert!(
-        matches!(TransactionDocument::parse(input), Err(DocumentError::Limit(actual)) if actual == limit)
+        matches!(TransactionDocument::parse(input), Err(DocumentError::Limit(actual, _)) if actual == limit)
     );
 }
 
@@ -126,7 +126,7 @@ fn only_one_utf8_document_and_the_named_format_are_admitted() {
         format!("{valid}---\n"),
         format!("{valid}---\n{valid}"),
         String::new(),
-        valid.replace("document/1", "document/2"),
+        valid.replace("document/1", "document/3"),
     ] {
         assert!(TransactionDocument::parse(input.as_bytes()).is_err());
     }
@@ -135,7 +135,7 @@ fn only_one_utf8_document_and_the_named_format_are_admitted() {
         Err(DocumentError::InvalidUtf8)
     ));
     assert!(matches!(
-        TransactionDocument::parse(valid.replace("document/1", "document/2").as_bytes()),
+        TransactionDocument::parse(valid.replace("document/1", "document/3").as_bytes()),
         Err(DocumentError::UnsupportedFormat(_))
     ));
 }
@@ -164,7 +164,7 @@ fn a_host_upload_cap_does_not_redefine_historical_parsing() {
     let input = update(&string_value("ok"));
     assert!(matches!(
         TransactionDocument::read_with_upload_limit(input.as_bytes(), input.len() - 1),
-        Err(DocumentError::Limit(DocumentLimit::UploadBytes))
+        Err(DocumentError::Limit(DocumentLimit::UploadBytes, _))
     ));
     let retained = TransactionDocument::parse(input.as_bytes()).unwrap();
     assert_eq!(
@@ -209,7 +209,7 @@ fn read_ingress_handles_short_reads_and_stops_after_limit_plus_one() {
     };
     assert!(matches!(
         TransactionDocument::read(&mut reader),
-        Err(DocumentError::Limit(DocumentLimit::InputBytes))
+        Err(DocumentError::Limit(DocumentLimit::InputBytes, _))
     ));
     assert_eq!(reader.offset, 262_145);
 }
@@ -241,6 +241,23 @@ fn operations_and_input_evidence_have_independent_inclusive_limits() {
     TransactionDocument::parse(repeated(256).as_bytes()).unwrap();
     refused_as(repeated(257).as_bytes(), DocumentLimit::Operations);
     refused_as(repeated(0).as_bytes(), DocumentLimit::EmptyOperations);
+    // The refusal names the bound after the limit's stable name, so an author learns the number.
+    let refusal = TransactionDocument::parse(repeated(257).as_bytes())
+        .unwrap_err()
+        .to_string();
+    assert_eq!(
+        refusal,
+        format!(
+            "transaction document limit: operations ({})",
+            DocumentLimit::Operations.bound(ekr_kernel::DocumentFormat::V1)
+        )
+    );
+    assert!(refusal.contains("at most 256 operations"), "{refusal}");
+    let too_long = vec![b' '; 262_145];
+    assert!(TransactionDocument::parse(&too_long)
+        .unwrap_err()
+        .to_string()
+        .ends_with("input_bytes (at most 262144 bytes)"));
     let evidence = |count: usize| {
         document(&format!("!DeleteEdge {ID}")).replace(
             "evidence: []",

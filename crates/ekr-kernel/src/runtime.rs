@@ -176,6 +176,15 @@ impl Runtime {
             )?)),
         })
     }
+    /// Replays every read of this runtime from the seed, re-deriving every retained decision,
+    /// instead of continuing from the store's replay checkpoint (design § 96). Checkpoints are
+    /// still written. Takes effect only before the first read.
+    pub fn set_full_replay(&mut self, full: bool) {
+        match &mut self.backend {
+            Backend::File(kernel) => kernel.store.set_full_replay(full),
+            Backend::Sqlite(kernel) => kernel.store.set_full_replay(full),
+        }
+    }
     /// The check every constructor runs on the trusted host anchor before it touches a provider,
     /// run alone: a host that decides something about the store path first calls this, so an
     /// anchor refusal is reported before anything about the path.
