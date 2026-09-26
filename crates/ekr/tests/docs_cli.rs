@@ -1863,17 +1863,18 @@ fn no_text_a_reader_meets_says_only_the_p1_profile_is_accepted() {
     );
 }
 
-/// `README.md` is true of the release and of `main` (correction round 2): its status table is
-/// headed by the latest release, 0.0.3, and keeps that release's schema-change refusal; a separate
-/// statement says what `main` adds — schema evolution under validation profile v2, with
-/// `MergeEntity` still refused — and links the page's § Evolve the schema. Schema evolution is no
-/// longer called a later phase.
+/// `README.md` is true of the latest release, 0.0.4: its status table is headed by it, lists schema
+/// evolution under validation profile v2 as working and links the page's § Evolve the schema, and
+/// keeps `MergeEntity` and a v1 store's fixed schema as not in it. Schema evolution is no longer
+/// called a later phase or unreleased.
 #[test]
 fn readme_says_the_schema_evolves_under_profile_v2() {
     let readme = read("README.md");
     let flat = readme.split_whitespace().collect::<Vec<_>>().join(" ");
     for stale in [
         "works in 0.0.2",
+        "works in 0.0.3",
+        "not yet released",
         "the incubation forest, schema evolution and maintenance",
     ] {
         assert!(!flat.contains(stale), "README.md still says {stale:?}");
@@ -1882,7 +1883,7 @@ fn readme_says_the_schema_evolves_under_profile_v2() {
         .lines()
         .find(|line| line.starts_with("| works in "))
         .expect("README.md has a status table");
-    assert!(header.starts_with("| works in 0.0.3 |"), "{header}");
+    assert!(header.starts_with("| works in 0.0.4 |"), "{header}");
     let prefixed = format!("\n{readme}");
     let released = section(&prefixed, "## Status");
     let table: String = released
@@ -1890,20 +1891,16 @@ fn readme_says_the_schema_evolves_under_profile_v2() {
         .filter(|line| line.starts_with('|'))
         .collect::<Vec<_>>()
         .join(" ");
-    assert!(
-        table.contains(
-            "`DefineNodeType`, `DefineEdgeType`, `ModifyProperty` and `MergeEntity` are refused \
-             as `unsupported-operation`"
-        ),
-        "the 0.0.3 table does not keep that release's schema-change refusal: {table}"
-    );
     for needle in [
-        "not yet released",
-        "docs/cli.md#evolve-the-schema",
         "validation profile v2",
-        "`MergeEntity` is still refused",
+        "docs/cli.md#evolve-the-schema",
+        "`MergeEntity`, refused as `unsupported-operation`",
+        "profile v1",
     ] {
-        assert!(flat.contains(needle), "README.md lacks {needle:?}");
+        assert!(
+            table.contains(needle),
+            "the 0.0.4 table lacks {needle:?}: {table}"
+        );
     }
     // The link lands: the page has that heading.
     section(&page(), "## Evolve the schema");
