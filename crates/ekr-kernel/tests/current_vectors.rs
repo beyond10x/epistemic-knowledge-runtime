@@ -54,9 +54,10 @@ fn root() -> Root {
     }
 }
 
+/// The original `ekr.proposal-record/1`, whose bytes a retained record keeps.
 fn proposal() -> ProposalRecordV1 {
     ProposalRecordV1 {
-        format: ProposalRecordV1::FORMAT.into(),
+        format: ProposalRecordV1::FORMAT_V1.into(),
         event_id: id(0x50),
         submitted_at: Timestamp::from_millis(20),
         submitter: id(0x03),
@@ -103,9 +104,18 @@ fn validation() -> ValidationReceiptV1 {
     }
 }
 
+/// The current `ekr.proposal-record/2`: the same fields, the document as base64.
+fn proposal_v2() -> ProposalRecordV1 {
+    ProposalRecordV1 {
+        format: ProposalRecordV1::FORMAT.into(),
+        ..proposal()
+    }
+}
+
+/// The original `ekr.commit-receipt/1`, embedding the original proposal.
 fn commit() -> CommitReceiptV1 {
     CommitReceiptV1 {
-        format: CommitReceiptV1::FORMAT.into(),
+        format: CommitReceiptV1::FORMAT_V1.into(),
         event_id: id(0x55),
         revision_id: id(0x56),
         proposal: proposal(),
@@ -115,6 +125,15 @@ fn commit() -> CommitReceiptV1 {
         committed_at: Timestamp::from_millis(40),
         result: root(),
         result_hash: ContentHash::of(&root()),
+    }
+}
+
+/// The current `ekr.commit-receipt/2`, embedding the current proposal.
+fn commit_v2() -> CommitReceiptV1 {
+    CommitReceiptV1 {
+        format: CommitReceiptV1::FORMAT.into(),
+        proposal: proposal_v2(),
+        ..commit()
     }
 }
 
@@ -214,6 +233,22 @@ fn every_retained_decision_record_has_fixed_bytes_and_address() {
         CommitReceiptV1,
         r#"{"format":"ekr.commit-receipt/1","event_id":"00000000-0000-4000-8000-000000000055","revision_id":"00000000-0000-4000-8000-000000000056","proposal":{"format":"ekr.proposal-record/1","event_id":"00000000-0000-4000-8000-000000000050","submitted_at":20,"submitter":"00000000-0000-4000-8000-000000000003","document_hash":"e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0","document_bytes":[102,111,114,109,97,116,58,32,120],"transaction_id":"00000000-0000-4000-8000-000000000051","operation_count":1,"evidence_hash":"e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1","canonical_transaction_hash":"e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2","canonical_operations_hash":null},"validation":{"format":"ekr.validation-receipt/1","event_id":"00000000-0000-4000-8000-000000000054","proposed_event_id":"00000000-0000-4000-8000-000000000050","proposal_record_hash":"e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6","transaction_hash":"e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2","operations_hash":"e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7","evidence_hash":"e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1","operation_count":1,"basis":{"format":"ekr.validation-basis/1","graph_root_id":"00000000-0000-4000-8000-000000000002","previous_revision_id":"00000000-0000-4000-8000-000000000052","previous_event_id":"00000000-0000-4000-8000-000000000053","previous_record_hash":"e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3","previous_root":{"revision":2,"parent":"d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0","ontology_root":"d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1","knowledge_root":"d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2","evidence_root":"d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3","agent_root":"d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4","transaction":"d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5"},"previous_root_hash":"a3645e9e49c98a12e012c597b50c713be25d00e78d215a4f2cebff28f9651218","seed_hash":"e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4","ontology_root":"d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1","authority_root":"d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4","validation_profile_hash":"e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5"},"validators":["00000000-0000-4000-8000-000000000004"],"validated_at":30,"validation_hash":"e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8"},"validation_record_hash":"e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9","committer":"00000000-0000-4000-8000-000000000003","committed_at":40,"result":{"revision":2,"parent":"d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0","ontology_root":"d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1","knowledge_root":"d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2","evidence_root":"d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3","agent_root":"d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4","transaction":"d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5"},"result_hash":"a3645e9e49c98a12e012c597b50c713be25d00e78d215a4f2cebff28f9651218"}"#,
         "5d717667c25888e6553725ef1e96f6ddba0de65cdeb276397163347203f9f4ed"
+    );
+    record!(
+        pins,
+        "proposal/2",
+        proposal_v2(),
+        ProposalRecordV1,
+        r#"{"format":"ekr.proposal-record/2","event_id":"00000000-0000-4000-8000-000000000050","submitted_at":20,"submitter":"00000000-0000-4000-8000-000000000003","document_hash":"e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0","document_bytes":"Zm9ybWF0OiB4","transaction_id":"00000000-0000-4000-8000-000000000051","operation_count":1,"evidence_hash":"e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1","canonical_transaction_hash":"e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2","canonical_operations_hash":null}"#,
+        "f18f79835a7af0c91cdb32211b244fc264a250f7537a903c19fa3491b9795dff"
+    );
+    record!(
+        pins,
+        "commit/2",
+        commit_v2(),
+        CommitReceiptV1,
+        r#"{"format":"ekr.commit-receipt/2","event_id":"00000000-0000-4000-8000-000000000055","revision_id":"00000000-0000-4000-8000-000000000056","proposal":{"format":"ekr.proposal-record/2","event_id":"00000000-0000-4000-8000-000000000050","submitted_at":20,"submitter":"00000000-0000-4000-8000-000000000003","document_hash":"e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0","document_bytes":"Zm9ybWF0OiB4","transaction_id":"00000000-0000-4000-8000-000000000051","operation_count":1,"evidence_hash":"e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1","canonical_transaction_hash":"e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2","canonical_operations_hash":null},"validation":{"format":"ekr.validation-receipt/1","event_id":"00000000-0000-4000-8000-000000000054","proposed_event_id":"00000000-0000-4000-8000-000000000050","proposal_record_hash":"e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6","transaction_hash":"e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2e2","operations_hash":"e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7e7","evidence_hash":"e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1e1","operation_count":1,"basis":{"format":"ekr.validation-basis/1","graph_root_id":"00000000-0000-4000-8000-000000000002","previous_revision_id":"00000000-0000-4000-8000-000000000052","previous_event_id":"00000000-0000-4000-8000-000000000053","previous_record_hash":"e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3","previous_root":{"revision":2,"parent":"d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0","ontology_root":"d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1","knowledge_root":"d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2","evidence_root":"d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3","agent_root":"d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4","transaction":"d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5"},"previous_root_hash":"a3645e9e49c98a12e012c597b50c713be25d00e78d215a4f2cebff28f9651218","seed_hash":"e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4e4","ontology_root":"d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1","authority_root":"d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4","validation_profile_hash":"e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5e5"},"validators":["00000000-0000-4000-8000-000000000004"],"validated_at":30,"validation_hash":"e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8e8"},"validation_record_hash":"e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9e9","committer":"00000000-0000-4000-8000-000000000003","committed_at":40,"result":{"revision":2,"parent":"d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0","ontology_root":"d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1d1","knowledge_root":"d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2d2","evidence_root":"d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3","agent_root":"d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4d4","transaction":"d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5"},"result_hash":"a3645e9e49c98a12e012c597b50c713be25d00e78d215a4f2cebff28f9651218"}"#,
+        "99ab55a0910d8da908bafb53fdb51b8955430759eae9aed4e5768ef74422cf7a"
     );
     record!(
         pins,

@@ -1,5 +1,6 @@
 //! Private, versioned publication recovery. These records never confer canonical authority.
 use super::*;
+use ekr_core::bytes::{Spell, Spelled};
 use ekr_core::{EventId, TransactionId};
 use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use std::fmt;
@@ -168,10 +169,16 @@ pub struct NativePublicationRequest {
     pub blobs: Vec<NativeBlobWrite>,
 }
 /// An elected immutable attempt. Its strict bytes live only in the private provider namespace.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+///
+/// Two formats, one set of fields. `ekr.publication-preparation/1` writes every byte string as a
+/// number array and repeats every staged object in `native_request.blobs`. `/2`, which every new
+/// attempt is elected in, writes byte strings as base64 ([`ekr_core::bytes`]) and omits
+/// `native_request.blobs`: that list is exactly the decision's objects in address order, which
+/// `/1` authorization already required, so a `/2` reader rebuilds it from the decision. A record
+/// keeps its format, so a `/1` attempt re-encodes to its original bytes and address.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PublicationPreparationV1 {
-    /// Must equal `ekr.publication-preparation/1`.
+    /// `ekr.publication-preparation/2`, or `/1` for an attempt elected before it.
     pub format: String,
     /// Logical CAS slot.
     pub command_key: PublicationCommandKey,
@@ -189,12 +196,274 @@ pub struct PublicationPreparationV1 {
     pub native_fingerprint: String,
 }
 impl PublicationPreparationV1 {
-    /// Exact private payload format.
-    pub const FORMAT: &'static str = "ekr.publication-preparation/1";
+    /// The private payload format new attempts are elected in.
+    pub const FORMAT: &'static str = "ekr.publication-preparation/2";
+    /// The original format, still read and re-encoded exactly.
+    pub const FORMAT_V1: &'static str = "ekr.publication-preparation/1";
     fn hash(&self) -> Result<ContentHash, StoreError> {
         Ok(ContentHash::of_bytes(
             &serde_json::to_vec(self).map_err(json_error)?,
         ))
+    }
+    fn is_supported(&self) -> bool {
+        self.format == Self::FORMAT || self.format == Self::FORMAT_V1
+    }
+}
+
+#[derive(Serialize)]
+struct PreparationWrite<'a> {
+    format: &'a str,
+    command_key: &'a PublicationCommandKey,
+    input_hash: ContentHash,
+    decision: DecisionWrite<'a>,
+    attempt_number: u64,
+    previous_attempt_hash: Option<ContentHash>,
+    native_request: RequestWrite<'a>,
+    native_fingerprint: &'a str,
+}
+#[derive(Serialize)]
+struct DecisionWrite<'a> {
+    event: &'a RevisionEvent,
+    objects: BTreeMap<ContentHash, ObjectWrite<'a>>,
+    expected_version: u64,
+}
+#[derive(Serialize)]
+struct ObjectWrite<'a> {
+    storage_class: StorageClass,
+    stored_at: Timestamp,
+    bytes: Spell<'a>,
+}
+#[derive(Serialize)]
+struct RequestWrite<'a> {
+    tenant: &'a str,
+    appends: Vec<AppendWrite<'a>>,
+    meta: &'a NativeCommandMeta,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    blobs: Option<Vec<BlobWriteRef<'a>>>,
+}
+#[derive(Serialize)]
+struct AppendWrite<'a> {
+    stream: &'a NativeStreamId,
+    expected: &'a NativeExpected,
+    events: Vec<EventWrite<'a>>,
+}
+#[derive(Serialize)]
+struct EventWrite<'a> {
+    name: &'a str,
+    schema_version: u32,
+    data: Spell<'a>,
+}
+#[derive(Serialize)]
+struct BlobWriteRef<'a> {
+    digest: &'a str,
+    bytes: Spell<'a>,
+}
+impl Serialize for PublicationPreparationV1 {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let numbers = self.format == Self::FORMAT_V1;
+        fn spelling(bytes: &[u8], numbers: bool) -> Spell<'_> {
+            Spell { bytes, numbers }
+        }
+        let spell = |bytes| spelling(bytes, numbers);
+        PreparationWrite {
+            format: &self.format,
+            command_key: &self.command_key,
+            input_hash: self.input_hash,
+            decision: DecisionWrite {
+                event: &self.decision.event,
+                objects: self
+                    .decision
+                    .objects
+                    .iter()
+                    .map(|(hash, object)| {
+                        (
+                            *hash,
+                            ObjectWrite {
+                                storage_class: object.storage_class,
+                                stored_at: object.stored_at,
+                                bytes: spell(&object.bytes),
+                            },
+                        )
+                    })
+                    .collect(),
+                expected_version: self.decision.expected_version,
+            },
+            attempt_number: self.attempt_number,
+            previous_attempt_hash: self.previous_attempt_hash,
+            native_request: RequestWrite {
+                tenant: &self.native_request.tenant,
+                appends: self
+                    .native_request
+                    .appends
+                    .iter()
+                    .map(|append| AppendWrite {
+                        stream: &append.stream,
+                        expected: &append.expected,
+                        events: append
+                            .events
+                            .iter()
+                            .map(|event| EventWrite {
+                                name: &event.name,
+                                schema_version: event.schema_version,
+                                data: spell(&event.data),
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+                meta: &self.native_request.meta,
+                blobs: numbers.then(|| {
+                    self.native_request
+                        .blobs
+                        .iter()
+                        .map(|blob| BlobWriteRef {
+                            digest: &blob.digest,
+                            bytes: spell(&blob.bytes),
+                        })
+                        .collect()
+                }),
+            },
+            native_fingerprint: &self.native_fingerprint,
+        }
+        .serialize(serializer)
+    }
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PreparationRead {
+    format: String,
+    command_key: PublicationCommandKey,
+    input_hash: ContentHash,
+    decision: DecisionRead,
+    attempt_number: u64,
+    previous_attempt_hash: Option<ContentHash>,
+    native_request: RequestRead,
+    native_fingerprint: String,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DecisionRead {
+    event: RevisionEvent,
+    #[serde(deserialize_with = "ekr_core::decode::unique_map")]
+    objects: BTreeMap<ContentHash, ObjectRead>,
+    expected_version: u64,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ObjectRead {
+    storage_class: StorageClass,
+    stored_at: Timestamp,
+    bytes: Spelled,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RequestRead {
+    tenant: String,
+    appends: Vec<AppendRead>,
+    meta: NativeCommandMeta,
+    #[serde(default)]
+    blobs: Option<Vec<BlobRead>>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct AppendRead {
+    stream: NativeStreamId,
+    expected: NativeExpected,
+    events: Vec<EventRead>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EventRead {
+    name: String,
+    schema_version: u32,
+    data: Spelled,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct BlobRead {
+    digest: String,
+    bytes: Spelled,
+}
+impl<'de> Deserialize<'de> for PublicationPreparationV1 {
+    /// Each format admits only its own layout: `/1` spells every byte string as a number array
+    /// and carries `native_request.blobs`; `/2` spells them as base64 and carries no blob list.
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let read = PreparationRead::deserialize(deserializer)?;
+        let numbers = read.format == Self::FORMAT_V1;
+        let mismatch = || serde::de::Error::custom("preparation layout disagrees with its format");
+        let spelled = |bytes: Spelled| {
+            if bytes.numbers == numbers {
+                Ok(bytes.bytes)
+            } else {
+                Err(mismatch())
+            }
+        };
+        let mut objects = BTreeMap::new();
+        for (hash, object) in read.decision.objects {
+            objects.insert(
+                hash,
+                crate::PublicationObject {
+                    storage_class: object.storage_class,
+                    stored_at: object.stored_at,
+                    bytes: spelled(object.bytes)?,
+                },
+            );
+        }
+        let decision = Publication {
+            event: read.decision.event,
+            objects,
+            expected_version: read.decision.expected_version,
+        };
+        let mut appends = Vec::with_capacity(read.native_request.appends.len());
+        for append in read.native_request.appends {
+            let mut events = Vec::with_capacity(append.events.len());
+            for event in append.events {
+                events.push(NativeNewEvent {
+                    name: event.name,
+                    schema_version: event.schema_version,
+                    data: spelled(event.data)?,
+                });
+            }
+            appends.push(NativeStreamAppend {
+                stream: append.stream,
+                expected: append.expected,
+                events,
+            });
+        }
+        let blobs = match (numbers, read.native_request.blobs) {
+            (true, Some(blobs)) => blobs
+                .into_iter()
+                .map(|blob| {
+                    Ok(NativeBlobWrite {
+                        digest: blob.digest,
+                        bytes: spelled(blob.bytes)?,
+                    })
+                })
+                .collect::<Result<_, D::Error>>()?,
+            (false, None) => decision
+                .objects
+                .iter()
+                .map(|(hash, object)| NativeBlobWrite {
+                    digest: hash.to_hex(),
+                    bytes: object.bytes.clone(),
+                })
+                .collect(),
+            _ => return Err(mismatch()),
+        };
+        Ok(Self {
+            format: read.format,
+            command_key: read.command_key,
+            input_hash: read.input_hash,
+            decision,
+            attempt_number: read.attempt_number,
+            previous_attempt_hash: read.previous_attempt_hash,
+            native_request: NativePublicationRequest {
+                tenant: read.native_request.tenant,
+                appends,
+                meta: read.native_request.meta,
+                blobs,
+            },
+            native_fingerprint: read.native_fingerprint,
+        })
     }
 }
 #[derive(Serialize, Deserialize)]
@@ -460,10 +729,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         prepared: &PublicationPreparationV1,
     ) -> Result<BlobAppendGroup, StoreError> {
         prepared.command_key.check()?;
-        require(
-            prepared.format == PublicationPreparationV1::FORMAT,
-            "preparation-format",
-        )?;
+        require(prepared.is_supported(), "preparation-format")?;
         let request = prepared.native_request.restore()?;
         require(
             request.fingerprint()? == prepared.native_fingerprint,

@@ -1,6 +1,6 @@
 //! The agent-facing text of the binary: the guide, the operation catalogue and the example
 //! documents. Static text only; `crates/ekr/tests/agent_cli.rs` holds every example to the real
-//! `ekr.transaction-document/1`, `ekr-seed/2` and `ekr.cli-host/1` readers.
+//! `ekr.transaction-document/2`, `ekr-seed/2` and `ekr.cli-host/1` readers.
 
 use std::fmt::Write as _;
 
@@ -31,6 +31,9 @@ CONFIGURATION (every store verb)
   any missing parents; the sqlite provider creates the database file, but its directory must
   already exist (exit 1 otherwise). Every other store verb opens an existing store only: a
   --store that holds none is store-not-found (exit 1), and nothing is created there.
+  --full-replay                  or EKR_FULL_REPLAY=1: replay the whole history from the seed
+                                 instead of continuing from the checkpoint each commit leaves;
+                                 the answer is the same
 
 WORKFLOW
   1. ekr example ekr.cli-host/1 > host.json       a host document to start from
@@ -43,7 +46,7 @@ WORKFLOW
                                                    fresh ids for everything you create
   5. ekr operations                                the operation kinds, one line each
      ekr operations <Kind>                         its fields and an example operation
-     ekr example ekr.transaction-document/1        a complete transaction document
+     ekr example ekr.transaction-document/2        a complete transaction document
      ekr example schema-change                     a complete schema change (see SCHEMA CHANGES)
      ekr schema <format>                           a format's JSON Schema (draft 2020-12), to check
                                                    a document before propose or seed
@@ -54,6 +57,19 @@ WORKFLOW
      ekr transactions [--state <State>]            retained transactions, id, state, proposer
      ekr snapshot [--at N] [--valid-at YYYY-MM-DD]  read the result back
      ekr explain <assertion_id>                    why an assertion is what it is
+
+DOCUMENT LIMITS (fixed by the format version; write ekr.transaction-document/2)
+  An ekr.transaction-document/2 holds 1 to 10000 operations and at most 10000 evidence entries
+  in at most 8388608 bytes (8 MiB): nesting at most 32 deep, 1048576 values and keys, 4096
+  entries per map, 16384 elements per sequence, 65536 bytes per string, 4096 bytes per key and
+  33554432 bytes of text in all. Write `format: ekr.transaction-document/2` on a line of its own
+  at the top level, as the example does: a document over 262144 bytes whose format is not on
+  such a line is held to the /1 byte cap.
+  An ekr.transaction-document/1 is still accepted under its own frozen limits: 1 to 256
+  operations, 1024 evidence entries, 262144 bytes, 32768 values and keys, 4096 elements per
+  sequence and 1048576 bytes of text.
+  Past any limit propose refuses with `transaction document limit: <name> (<bound>)` and
+  records nothing; split a larger change into several transactions.
 
 WHAT IS TRUE NOW
   ekr snapshot --valid-at <ms | YYYY-MM-DD> lists the assertions believed at that instant in
@@ -500,19 +516,22 @@ pub(super) fn operation(kind: OperationKind) -> String {
     };
     format!(
         "{name} — {summary}\n\n{status}Fields:\n{fields}\n\n\
-         Put it in transaction.operations of an ekr.transaction-document/1 \
-         (ekr example ekr.transaction-document/1).\n\
+         Put it in transaction.operations of an ekr.transaction-document/2 \
+         (ekr example ekr.transaction-document/2).\n\
          {heading}\n{example}\n",
         name = kind.name()
     )
 }
 
-/// The three document formats an agent writes.
+/// The document formats an agent writes, and the frozen `/1` transaction document it may hold.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 pub enum ExampleFormat {
     /// A proposal for `ekr propose`.
-    #[value(name = "ekr.transaction-document/1", alias = "transaction")]
+    #[value(name = "ekr.transaction-document/2", alias = "transaction")]
     TransactionDocument,
+    /// A proposal in the original format, still accepted under its frozen limits.
+    #[value(name = "ekr.transaction-document/1")]
+    TransactionDocumentV1,
     /// A seed for `ekr seed`.
     #[value(name = "ekr-seed/2", alias = "seed")]
     Seed,
@@ -525,9 +544,12 @@ pub enum ExampleFormat {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 pub enum ExampleDocument {
     /// A proposal for `ekr propose`.
-    #[value(name = "ekr.transaction-document/1", alias = "transaction")]
+    #[value(name = "ekr.transaction-document/2", alias = "transaction")]
     TransactionDocument,
-    /// An `ekr.transaction-document/1` that changes the schema, for a store seeded from the
+    /// The same proposal in the original format, still accepted under its frozen limits.
+    #[value(name = "ekr.transaction-document/1")]
+    TransactionDocumentV1,
+    /// An `ekr.transaction-document/2` that changes the schema, for a store seeded from the
     /// example seed under validation profile v2.
     #[value(name = "schema-change")]
     SchemaChange,
@@ -539,13 +561,22 @@ pub enum ExampleDocument {
     Host,
 }
 
-/// `ekr example <name>`: a complete document of that format, or the schema change.
-pub(super) const fn example(example: ExampleDocument) -> &'static str {
+/// `ekr example <name>`: a complete document of that format, or the schema change. The `/1`
+/// transaction example is the `/2` one under the original format line: the two differ only there.
+pub(super) fn example(example: ExampleDocument) -> String {
     match example {
-        ExampleDocument::TransactionDocument => include_str!("examples/transaction.yaml"),
-        ExampleDocument::SchemaChange => include_str!("examples/schema-change.yaml"),
-        ExampleDocument::Seed => include_str!("examples/seed.yaml"),
-        ExampleDocument::Host => include_str!("examples/host.json"),
+        ExampleDocument::TransactionDocument => {
+            include_str!("examples/transaction.yaml").to_owned()
+        }
+        ExampleDocument::TransactionDocumentV1 => include_str!("examples/transaction.yaml")
+            .replacen(
+                "format: ekr.transaction-document/2\n",
+                "format: ekr.transaction-document/1\n",
+                1,
+            ),
+        ExampleDocument::SchemaChange => include_str!("examples/schema-change.yaml").to_owned(),
+        ExampleDocument::Seed => include_str!("examples/seed.yaml").to_owned(),
+        ExampleDocument::Host => include_str!("examples/host.json").to_owned(),
     }
 }
 

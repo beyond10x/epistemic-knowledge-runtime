@@ -24,6 +24,7 @@
 //! assert_eq!(ContentHash::of(&"the same bytes".to_owned()).to_string().len(), 64);
 //! ```
 
+pub mod bytes;
 pub mod canonical;
 pub mod decode;
 pub mod hash;

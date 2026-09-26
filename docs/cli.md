@@ -25,7 +25,7 @@ Contents:
 - [The workflow](#the-workflow)
 - [The seed document](#the-seed-document-ekr-seed2): [ontology](#the-ontology-section),
   [value types](#value-types), [graph](#the-graph-section), [evidence](#evidence-and-evidence_payloads)
-- [Transaction documents](#transaction-documents-ekrtransaction-document1) and
+- [Transaction documents](#transaction-documents-ekrtransaction-document2) and
   [operation kinds](#operation-kinds)
 - [Worked example: a library catalogue](#worked-example-a-library-catalogue)
 - [Evolve the schema](#evolve-the-schema)
@@ -47,14 +47,15 @@ Copy it onto your `PATH`; the rest of this page calls it `ekr`.
 
 ## Configuration
 
-Verbs that read or write a store need three settings. Each is a flag or an environment variable;
-the flag wins, and an empty variable counts as unset.
+Verbs that read or write a store need three settings, and take a fourth. Each is a flag or an
+environment variable; the flag wins, and an empty variable counts as unset.
 
 | flag | variable | value |
 |---|---|---|
 | `--host` | `EKR_HOST` | path to the trusted host document, an `ekr.cli-host/1` JSON file (below) |
 | `--store` | `EKR_STORE` | where the data lives: a directory for `file`, a database file for `sqlite` |
 | `--backend` | `EKR_BACKEND` | `file` or `sqlite`, lowercase |
+| `--full-replay` | `EKR_FULL_REPLAY` | optional: replay from the seed (below); the variable is `1` or `true` for on, `0` or `false` for off |
 
 The store need not exist before `ekr seed`: the file provider creates the directory and any missing
 parents, the SQLite provider creates the database file but not its directory. `guide`, `operations`,
@@ -63,6 +64,11 @@ parents, the SQLite provider creates the database file but not its directory. `g
 ```console
 export EKR_HOST=host.json EKR_STORE=./store EKR_BACKEND=file
 ```
+
+Every commit also leaves a replay checkpoint in the store: the verified head state, from which
+the next verb continues instead of replaying every transaction since the seed. `--full-replay`
+ignores it and replays the whole history from the seed, re-deriving every retained decision; a
+verb answers the same either way.
 
 ### The host document (`ekr.cli-host/1`)
 
@@ -111,7 +117,7 @@ tag `!Node <id>`. A proposal record's `document_bytes` prints as one standard ba
 | verb | store | input | prints |
 |---|---|---|---|
 | `ekr seed` | writes | an `ekr-seed/2` file, or `-` for stdin; `--evidence <file>`, repeatable | the seed result: `result.revision` is `0` |
-| `ekr propose` | writes | an `ekr.transaction-document/1` file, or `-` | the proposal record: `transaction_id` |
+| `ekr propose` | writes | an `ekr.transaction-document/2` file, or `-` | the proposal record: `transaction_id` |
 | `ekr validate` | writes | a transaction id; `--against <revision>` | the validation outcome: `kind` is `Validated` or `Rejected` (with `issues`) |
 | `ekr commit` | writes | a transaction id | the commit outcome: `kind` is `Committed` (with `result.revision`) or `Stale` |
 | `ekr snapshot` | reads | `--at <revision>`, `--valid-at <ms or YYYY-MM-DD>` | the whole graph at one revision |
@@ -121,10 +127,10 @@ tag `!Node <id>`. A proposal record's `document_bytes` prints as one standard ba
 | `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent` |
 | `ekr guide` | none | none | the workflow, as text |
 | `ekr operations` | none | an operation kind, optionally | the kinds, or one kind's fields and example |
-| `ekr example` | none | `ekr.transaction-document/1`, `schema-change`, `ekr-seed/2` or `ekr.cli-host/1` (aliases `transaction`, `seed`, `host`) | a complete example document |
+| `ekr example` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `schema-change`, `ekr-seed/2` or `ekr.cli-host/1` (aliases `transaction` for `/2`, `seed`, `host`) | a complete example document |
 | `ekr mint` | none | an id kind | `{"id", "kind"}`: a fresh id |
 | `ekr hash` | none | a payload file, or `-` | the payload's `content_hash` and its `payload_yaml` |
-| `ekr schema` | none | `ekr.transaction-document/1`, `ekr-seed/2` or `ekr.cli-host/1` (aliases `transaction`, `seed`, `host`) | the format's JSON Schema (draft 2020-12) |
+| `ekr schema` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2` or `ekr.cli-host/1` (aliases `transaction` for `/2`, `seed`, `host`) | the format's JSON Schema (draft 2020-12) |
 
 Every verb has `--help`.
 
@@ -273,7 +279,7 @@ The printed `description` names every place the schema and the reader differ:
 | `1.0` where an integer belongs | refuses | cannot see it |
 | a value's `value` before its `value_kind` (or `parameters` before `value_kind`), plain number, boolean or null for a text kind | refuses | cannot see it |
 | a string or key within maxLength characters but over the byte limit (text outside ASCII) | refuses | cannot see it |
-| a transaction document over 262144 bytes, nested deeper than 32, with more than 32768 values and keys, or more than 1048576 bytes of text | refuses | cannot see it |
+| a transaction document over its format's byte cap (8388608 bytes for `/2`, 262144 for `/1`), nested deeper than 32, with more than its format's values and keys (1048576, `/1` 32768) or text in all (33554432 bytes, `/1` 1048576) | refuses | cannot see it |
 | a `ModifyProperty` written as a bare property declaration, without `owner` and `property` (the P1 shape) | accepts; validation then rejects it (`unsupported-operation` under profile v1, `modify-property-without-owner` under v2) | refuses |
 
 ## The workflow
@@ -510,10 +516,10 @@ records where a statement came from; its payload is the statement's exact bytes.
 `ekr seed --evidence file` or paste `payload_yaml` into `evidence_payloads`. The hash is over the
 file's exact bytes, so a trailing newline changes it.
 
-## Transaction documents (`ekr.transaction-document/1`)
+## Transaction documents (`ekr.transaction-document/2`)
 
-```yaml ekr.transaction-document/1
-format: ekr.transaction-document/1
+```yaml ekr.transaction-document/2
+format: ekr.transaction-document/2
 transaction:
   id: 00000000-0000-4000-a000-000000000799        # a fresh transaction id: ekr mint transaction
   proposer: 00000000-0000-4000-a000-000000000011  # the host operator
@@ -529,8 +535,33 @@ transaction omits it.
 `operations` is a non-empty list applied in order, all or nothing. `evidence` is exactly the set of
 evidence ids cited by the transaction's `!AddAssertion` operations — no more, no fewer
 (`evidence-set-mismatch`) — and `[]` when it adds no assertion. Every cited evidence id must already
-be retained, which in P1 means seeded. `ekr example ekr.transaction-document/1` prints a complete
+be retained, which in P1 means seeded. `ekr example ekr.transaction-document/2` prints a complete
 document, and `ekr operations <Kind>` prints each kind's fields.
+
+### Document limits
+
+The format version fixes how large one document may be, and each version's limits are frozen.
+Write `ekr.transaction-document/2`. An `ekr.transaction-document/1` document, the original format,
+is still read, validated and replayed under its own limits; the two differ in nothing else. Past
+any limit `ekr propose` refuses with exit 2,
+`ekr.kernel.StructurallyInvalid: transaction document limit: <name> (<bound>)`, where the bound is
+the document's own version's, and records nothing; split a larger change into several transactions.
+
+| name | `/2` bound | `/1` bound |
+|---|---|---|
+| `input_bytes` | at most 8388608 bytes (8 MiB) | at most 262144 bytes |
+| `operations` | 1 to 10000 operations | 1 to 256 operations |
+| `evidence_elements` | at most 10000 evidence entries | at most 1024 evidence entries |
+| `container_depth` | nesting at most 32 deep | nesting at most 32 deep |
+| `expanded_nodes` | at most 1048576 values and keys | at most 32768 values and keys |
+| `mapping_entries` | at most 4096 entries per map | at most 4096 entries per map |
+| `sequence_elements` | at most 16384 elements per sequence | at most 4096 elements per sequence |
+| `string_bytes`, `key_bytes` | at most 65536 bytes per string, 4096 per key | at most 65536 bytes per string, 4096 per key |
+| `total_string_bytes` | at most 33554432 bytes of text in all | at most 1048576 bytes of text in all |
+
+The byte cap is chosen before the document is parsed, from its top-level `format:` line. Write
+that line on its own, as every example here does: a document over 262144 bytes whose format is not
+on such a line is held to the `/1` cap.
 
 ### Operation kinds
 
@@ -962,8 +993,8 @@ ekr ontology             # the four types and thirteen properties, by name and i
 
 One transaction adds the claim, citing the first statement, and the structural edge:
 
-```yaml ekr.transaction-document/1 file=wrote.yaml outcome=Committed
-format: ekr.transaction-document/1
+```yaml ekr.transaction-document/2 file=wrote.yaml outcome=Committed
+format: ekr.transaction-document/2
 transaction:
   id: 00000000-0000-4000-a000-000000000701
   proposer: 00000000-0000-4000-a000-000000000011
@@ -1023,8 +1054,8 @@ and the evidence link's `text` is the statement in `wrote.txt`.
 The second transaction uses the other applied kinds: a new node with a `NodeRef`, a property
 update, the `publish` operation, and a property assertion.
 
-```yaml ekr.transaction-document/1 file=publish.yaml outcome=Committed
-format: ekr.transaction-document/1
+```yaml ekr.transaction-document/2 file=publish.yaml outcome=Committed
+format: ekr.transaction-document/2
 transaction:
   id: 00000000-0000-4000-a000-000000000702
   proposer: 00000000-0000-4000-a000-000000000011
@@ -1084,8 +1115,8 @@ After proposing, validating and committing it (revision 2), `ekr snapshot` shows
 
 A transaction that writes a `Float` value and tries to declare a new type:
 
-```yaml ekr.transaction-document/1 file=refused.yaml outcome=Rejected:inadmissible-value,unsupported-operation
-format: ekr.transaction-document/1
+```yaml ekr.transaction-document/2 file=refused.yaml outcome=Rejected:inadmissible-value,unsupported-operation
+format: ekr.transaction-document/2
 transaction:
   id: 00000000-0000-4000-a000-000000000703
   proposer: 00000000-0000-4000-a000-000000000011
@@ -1202,8 +1233,8 @@ the version id first; `ModifyProperty` may name a type defined earlier in the sa
 ekr mint schema-version   # {"id": "…", "kind": "schema-version"}; this page uses …0003
 ```
 
-```yaml ekr.transaction-document/1 evolve=journal.yaml outcome=Committed
-format: ekr.transaction-document/1
+```yaml ekr.transaction-document/2 evolve=journal.yaml outcome=Committed
+format: ekr.transaction-document/2
 transaction:
   id: 00000000-0000-4000-a000-000000000711
   proposer: 00000000-0000-4000-a000-000000000011
@@ -1253,8 +1284,8 @@ ekr commit 00000000-0000-4000-a000-000000000711           # "kind": "Committed",
 
 The next transaction is ordinary data against the new version:
 
-```yaml ekr.transaction-document/1 evolve=issue.yaml outcome=Committed
-format: ekr.transaction-document/1
+```yaml ekr.transaction-document/2 evolve=issue.yaml outcome=Committed
+format: ekr.transaction-document/2
 transaction:
   id: 00000000-0000-4000-a000-000000000712
   proposer: 00000000-0000-4000-a000-000000000011
@@ -1289,8 +1320,8 @@ one.
 Making `translation_of` required on `Book` would leave the seeded book, which has no translation
 source, invalid:
 
-```yaml ekr.transaction-document/1 evolve=required.yaml outcome=Rejected:required-property-missing
-format: ekr.transaction-document/1
+```yaml ekr.transaction-document/2 evolve=required.yaml outcome=Rejected:required-property-missing
+format: ekr.transaction-document/2
 transaction:
   id: 00000000-0000-4000-a000-000000000713
   proposer: 00000000-0000-4000-a000-000000000011

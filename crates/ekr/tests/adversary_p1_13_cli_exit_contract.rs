@@ -16,12 +16,20 @@ const BACKENDS: [&str; 2] = ["file", "sqlite"];
 
 /// The kernel carrier as the CLI prints it (`ekr guide`, OUTPUT): each `document_bytes` number
 /// array becomes one standard padded base64 string; every other field is compared unchanged.
+/// An `ekr.proposal-record/2` carrier already spells its document as that string.
 fn document_bytes_as_base64(value: &mut Value) {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     match value {
         Value::Object(map) => {
+            let current =
+                map.get("format").and_then(Value::as_str) == Some("ekr.proposal-record/2");
             for (key, item) in map.iter_mut() {
-                if key == "document_bytes" {
+                if key == "document_bytes" && current {
+                    assert!(
+                        item.is_string(),
+                        "a /2 carrier spells its document as base64"
+                    );
+                } else if key == "document_bytes" {
                     let bytes: Vec<u8> = item
                         .as_array()
                         .expect("document_bytes is a byte array in the kernel carrier")

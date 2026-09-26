@@ -13,7 +13,7 @@
         "scenario": "ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names"
       },
       "a-proposal-is-stored-as-its-canonical-record.yaml": {
-        "digest": "sha256:df61188f01d74fe3bb58b7d33eea1dc67928ca81e8c8e371159f369bcad649c0",
+        "digest": "sha256:3926f877403abfbbe51328e55f6ba999e13962074232a214efb80d69779352dd",
         "disposition": "accepted",
         "scenario": "ekr.kernel/authored/a-proposal-is-stored-as-its-canonical-record"
       },
@@ -88,8 +88,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "4ed8ddf3733bc1ee871cebe31f6fa9c6360e2756707b0ebb9014683049f21c53",
-    "spec_digest": "93d84c3989b00436ce46c2271a688bf5529aac21f055ccf1cb9fdbfbb2a738f4",
+    "contract_digest": "fad95cdd2faa79850518379834eaa3f94925385d8baa863b9964a5e647518117",
+    "spec_digest": "1e7283efb34abe7e4a1347104571fac45c8b478ec317229f9f5f84954e827631",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"
@@ -190,6 +190,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
         },
         {
           "kind": "event",
@@ -402,6 +406,24 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.store.CheckpointWritten",
+          "shape": {
+            "binding": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "checkpoint_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "covered": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -555,6 +577,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
         },
         {
           "kind": "event",
@@ -761,6 +787,24 @@
             "stored_at": {
               "holds": "primitive",
               "kind": "timestamp"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "shape": {
+            "binding": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "checkpoint_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "covered": {
+              "holds": "primitive",
+              "kind": "integer"
             }
           },
           "step": "expect_event"
@@ -1760,6 +1804,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.ObjectRetentionRaised",
           "step": "expect_no_event"
         },
@@ -1864,6 +1912,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
         },
         {
           "kind": "event",
@@ -2058,6 +2110,24 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.store.CheckpointWritten",
+          "shape": {
+            "binding": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "checkpoint_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "covered": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -2181,6 +2251,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
           "name": "ekr.store.ObjectRetentionRaised"
         },
         {
@@ -2263,6 +2337,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.ObjectRetentionRaised",
           "step": "expect_no_event"
         },
@@ -2340,6 +2418,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
         },
         {
           "kind": "event",
@@ -2733,6 +2815,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.ObjectRetentionRaised",
           "step": "expect_no_event"
         },
@@ -2795,6 +2881,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
         },
         {
           "kind": "event",
@@ -2878,6 +2968,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.ObjectRetentionRaised",
           "step": "expect_no_event"
         },
@@ -2940,6 +3034,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
         },
         {
           "kind": "event",
@@ -3022,6 +3120,10 @@
         },
         {
           "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
           "step": "expect_no_event"
         },
         {
@@ -4077,6 +4179,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
           "name": "ekr.store.ObjectRetentionRaised"
         },
         {
@@ -4423,6 +4529,10 @@
         },
         {
           "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
           "step": "expect_no_event"
         },
         {
@@ -5246,6 +5356,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
           "name": "ekr.store.ObjectRetentionRaised"
         },
         {
@@ -5581,6 +5695,10 @@
         },
         {
           "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
           "step": "expect_no_event"
         },
         {
@@ -6078,6 +6196,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
           "name": "ekr.store.ObjectRetentionRaised"
         },
         {
@@ -6434,6 +6556,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.ObjectRetentionRaised",
           "step": "expect_no_event"
         },
@@ -6532,6 +6658,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
         },
         {
           "kind": "event",
@@ -6866,6 +6996,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.ObjectRetentionRaised",
           "step": "expect_no_event"
         },
@@ -6985,6 +7119,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
         },
         {
           "kind": "event",
@@ -7197,6 +7335,24 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.store.CheckpointWritten",
+          "shape": {
+            "binding": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "checkpoint_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "covered": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -7351,6 +7507,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
           "name": "ekr.store.ObjectRetentionRaised"
         },
         {
@@ -7494,6 +7654,24 @@
             "stored_at": {
               "holds": "primitive",
               "kind": "timestamp"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "shape": {
+            "binding": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "checkpoint_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "covered": {
+              "holds": "primitive",
+              "kind": "integer"
             }
           },
           "step": "expect_event"
@@ -7657,6 +7835,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
         },
         {
           "kind": "event",
@@ -7851,6 +8033,24 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.store.CheckpointWritten",
+          "shape": {
+            "binding": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "checkpoint_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "covered": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -8005,6 +8205,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
           "name": "ekr.store.ObjectRetentionRaised"
         },
         {
@@ -8153,6 +8357,24 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.store.CheckpointWritten",
+          "shape": {
+            "binding": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "checkpoint_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "covered": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -8276,6 +8498,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
           "name": "ekr.store.ObjectRetentionRaised"
         },
         {
@@ -8358,6 +8584,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.ObjectRetentionRaised",
           "step": "expect_no_event"
         },
@@ -8424,6 +8654,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
         },
         {
           "kind": "event",
@@ -8506,6 +8740,10 @@
         },
         {
           "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
           "step": "expect_no_event"
         },
         {
@@ -8595,6 +8833,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
         },
         {
           "kind": "event",
@@ -8710,6 +8952,24 @@
             "stored_at": {
               "holds": "primitive",
               "kind": "timestamp"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "shape": {
+            "binding": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "checkpoint_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "covered": {
+              "holds": "primitive",
+              "kind": "integer"
             }
           },
           "step": "expect_event"
@@ -8840,6 +9100,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
           "name": "ekr.store.ObjectRetentionRaised"
         },
         {
@@ -8922,6 +9186,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.ObjectRetentionRaised",
           "step": "expect_no_event"
         },
@@ -8984,6 +9252,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
         },
         {
           "kind": "event",
@@ -9069,6 +9341,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.ObjectRetentionRaised",
           "step": "expect_no_event"
         },
@@ -9142,6 +9418,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
         },
         {
           "kind": "event",
@@ -9255,6 +9535,24 @@
             "stored_at": {
               "holds": "primitive",
               "kind": "timestamp"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "shape": {
+            "binding": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "checkpoint_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "covered": {
+              "holds": "primitive",
+              "kind": "integer"
             }
           },
           "step": "expect_event"
@@ -9697,6 +9995,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.ObjectRetentionRaised",
           "step": "expect_no_event"
         },
@@ -9779,6 +10081,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
         },
         {
           "kind": "event",
@@ -9889,6 +10195,24 @@
             "stored_at": {
               "holds": "primitive",
               "kind": "timestamp"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "shape": {
+            "binding": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "checkpoint_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "covered": {
+              "holds": "primitive",
+              "kind": "integer"
             }
           },
           "step": "expect_event"
@@ -10015,6 +10339,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
           "name": "ekr.store.ObjectRetentionRaised"
         },
         {
@@ -10101,6 +10429,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.ObjectRetentionRaised",
           "step": "expect_no_event"
         },
@@ -10167,6 +10499,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
         },
         {
           "kind": "event",
@@ -10248,6 +10584,10 @@
         },
         {
           "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
           "step": "expect_no_event"
         },
         {
@@ -10344,6 +10684,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
         },
         {
           "kind": "event",
@@ -10495,6 +10839,24 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.store.CheckpointWritten",
+          "shape": {
+            "binding": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "checkpoint_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "covered": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -10618,6 +10980,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
           "name": "ekr.store.ObjectRetentionRaised"
         },
         {
@@ -10704,6 +11070,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.store.ObjectRetentionRaised",
           "step": "expect_no_event"
         },
@@ -10770,6 +11140,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
         },
         {
           "kind": "event",
@@ -10856,6 +11230,10 @@
         },
         {
           "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
           "step": "expect_no_event"
         },
         {
@@ -10952,6 +11330,10 @@
         {
           "kind": "event",
           "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
         },
         {
           "kind": "event",
@@ -11098,6 +11480,24 @@
             "stored_at": {
               "holds": "primitive",
               "kind": "timestamp"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "shape": {
+            "binding": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "checkpoint_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "covered": {
+              "holds": "primitive",
+              "kind": "integer"
             }
           },
           "step": "expect_event"
@@ -11670,7 +12070,7 @@
         {
           "event": "ekr.store.ObjectStored",
           "payload": {
-            "byte_len": 1846.0,
+            "byte_len": 1121.0,
             "storage_class": "Canonical"
           },
           "shape": {

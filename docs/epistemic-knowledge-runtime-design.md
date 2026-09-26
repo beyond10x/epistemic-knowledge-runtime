@@ -4265,3 +4265,185 @@ validated against, and with the lineage of the revisions up to that one. Seed, s
 using the new types, a refused incompatible change, a second schema change and a refused lineage
 reuse reopen with identical roots, graphs and records on the file and SQLite providers. Executed by
 replay: `replay_reproduces_every_root_across_schema_versions_on_both_providers`.
+
+---
+
+# 96. Store Performance: Compact Records, One Replay, Replay Checkpoints
+
+*Added 2026-09-26. Extends §§ 34, 91.3–91.6 and 94. It adds three retained format versions beside
+the originals and one private cache format; it changes no canonical root, no validation rule and
+no `ekr.transaction-document/1` limit. Every `/1` record is still read and re-encodes to its original
+bytes, so every retained address holds.*
+
+**What was measured.** A file store of 65 revisions, 2,257 nodes, 5,727 edges and 7,190 assertions
+(397 log frames, 426 blobs, 361 MB). `ekr head` took 5.1 s and `ekr snapshot` 7.7 s; one propose,
+validate and commit of a 250-operation document took 25, 28 and 25 s. Each open replayed the whole
+lineage — every proposal re-parsed three times, every transaction validated twice, every revision's
+graph re-applied and its knowledge root recomputed — and one command did so eight times: once to
+read its state and twice in each of three preparation authorizations (§ 94.2). Of the 361 MB,
+309 MB were publication preparations: each byte string was a JSON array of decimal numbers, and a
+preparation held each staged object twice, in `decision.objects` and in `native_request.blobs`.
+The File provider hashes every retained blob when it opens (eventlog-file `fe8a0a7`), so the bytes
+alone cost 1.3 s per verb.
+
+## 96.1 Compact records
+
+`ekr.proposal-record/2` holds the fields of `/1`; `document_bytes` is one standard padded base64
+string (RFC 4648 § 4) where `/1` writes a number array. `ekr.commit-receipt/2` holds the fields of
+`/1` and embeds the transaction's retained proposal in whichever of the two formats it was retained
+in; a `/1` receipt embeds only a `/1` proposal. `ekr.publication-preparation/2` writes every byte
+string as base64 and omits `native_request.blobs`: § 94.2 already required that list to be exactly
+the decision's objects in address order, so a `/2` reader rebuilds it, and the native fingerprint
+is still taken over the complete request. New records and attempts are `/2`. Each format admits only
+its own spelling of each byte string, and base64 only in its one canonical spelling
+(`ekr_core::bytes`), so a record has one byte form. An extra native blob binding, refused by name
+as `preparation-blob-set` in `/1`, is unrepresentable in `/2` and refused there as
+`preparation-fingerprint`. Executed by `crates/ekr-kernel/tests/current_records.rs`'s
+`each_proposal_format_admits_only_its_own_document_spelling`, the `proposal/2` and `commit/2` pins of
+`current_vectors.rs` beside the unchanged `/1` pins, `crates/ekr-store/tests/current_vectors.rs`
+(the `/1` layout of an elected attempt is byte for byte the previous release's record) and
+`crates/ekr-kernel/tests/replay_checkpoint.rs`'s
+`retained_records_and_preparations_hold_each_payload_once_as_base64`.
+
+The seed envelope (`ekr-seed-envelope/2`) is unchanged: its evidence payloads are still number
+arrays, because the envelope embeds the `ekr-seed/2` input as given.
+
+## 96.2 One replay per command
+
+A replay state is identified by the prefix it covers: a chain digest over each occurrence's stream
+position and complete domain event, which carries the payload address of every record replay reads
+(`ekr.replay-prefix/1`). Replay is deterministic in exactly those inputs under one host context and
+anchor, and retained objects are content-addressed and checked on load, so two histories with one
+digest reach one state. The kernel authority keeps the few newest states it reached and continues a
+replay from the longest cached prefix; a candidate replayed before publication and the same
+occurrence read back after it share a digest, because the provider's event identity is not an input
+of replay. Within a replay each retained document is parsed once, and a commit whose basis is the
+revision its validation was computed against reuses that validation's sealed result: validation is
+a pure function of the document, that revision and the lineage before it. The store handle keeps
+the objects it verified and rereads one only after writing it. Nothing is reused across processes
+by this cache.
+
+## 96.3 Replay checkpoints
+
+`ekr.replay-checkpoint/1` is private cache data, never a canonical object and never an authority: the
+state one complete kernel replay reached, reduced to what the retained records do not already say —
+the head revision's graph (as an `ekr.graph-document/2`), each schema version from the revision it
+came into force at, the seed's evidence payload addresses, the covered prefix's digest and
+occurrence count, and the host context and anchor it was reached under. Everything else is decoded
+again from the verified records. It lives in the private stream `ekr.checkpoint`/`canonical` as the
+event `ekr.store.CheckpointWritten { checkpoint_hash, covered, binding }` and the private blob
+`ekr.private.checkpoint.<checkpoint_hash>`, published in one atomic group. A kernel writes one after
+it publishes a seed or a commit, and afterwards deletes the blob of the one it replaces, so one is
+retained. After a proposal, a validation or a stale decision it appends only a pointer that names
+the retained blob again with the new coverage. `binding` is the kernel's own value-domain address
+of (host context and anchor, covered, prefix digest). Writing is best effort: a checkpoint that is
+not written costs the next open time, never correctness.
+
+**Admission.** On its first head read, a store handle offers the newest checkpoint to the kernel,
+which admits it only for the exact prefix it names, under the same host, with its head graph
+reproducing the knowledge and evidence roots of the head's retained receipt and each schema version
+reproducing the ontology root of every revision it is in force at; the admitted state holds the
+head graph and no earlier one. Replay continues from it over any later occurrences. A validation
+against an earlier revision, whose graph the state does not hold, replays the whole history instead.
+`ekr head` answers from the pointer alone when it names every occurrence the stream holds and its
+binding is this host's for exactly that prefix: the head is then the root the head revision's
+retained record carries. A checkpoint or pointer that fails any check is ignored and the history is
+replayed in full, as if there were none.
+
+**What a checkpoint takes on trust.** That the prefix it covers was replayed, and every retained
+decision in it re-derived, when it was written: it records that verification, it does not repeat it.
+A writer able to append a self-consistent history and a matching checkpoint to the store could
+therefore have an unvalidated transaction read as canonical until a full replay. `--full-replay`
+(`Runtime::set_full_replay`, `EventlogStore::set_full_replay`) ignores checkpoints and replays from the
+seed, re-deriving every decision, as every open did before this section. Executed by
+`crates/ekr-kernel/src/checkpoint.rs`'s
+`a_fresh_open_restores_the_head_and_replays_nothing_the_checkpoint_covers` and
+`crates/ekr-kernel/tests/replay_checkpoint.rs`'s
+`a_fresh_open_continues_from_the_checkpoint_with_the_answers_of_a_full_replay`,
+`a_checkpoint_that_does_not_verify_is_ignored_and_the_history_replays_in_full` and
+`validating_against_a_revision_the_checkpoint_holds_no_graph_of_replays_in_full`, on both providers.
+
+## 96.4 Result, and what is not changed
+
+On a store rebuilt from the same 66 transactions by this kernel (70 MB): `ekr head` 0.34 s, `ekr
+snapshot` 1.0 s, one propose, validate and commit of 250 operations 0.97 + 1.00 + 1.20 s. What
+remains per verb is mostly the File provider's open, which hashes every retained blob (0.31 s at
+70 MB, linear in the store's size), and the first history load, which reads and hashes every
+retained record. A store written before this section keeps its `/1` bytes: it opens, replays in
+full until its next commit writes a checkpoint, and does not shrink.
+
+The `ekr.transaction-document/1` profile of § 91.3 — 262144 bytes, 256 operations — is unchanged. A
+build with the operation cap at 10,000 and the byte cap at 8 MiB measured 3.2 s for one propose,
+validate and commit of 500 operations, 3.7 s for 2,000 and 6.2 s for 10,000 on the rebuilt store,
+against about 80 s per 256 operations before this section. Raising the caps is a new document format
+version with its own frozen profile, not an edit of this one.
+
+---
+
+# 97. Transaction Document Format 2
+
+*Added 2026-09-26. Extends §§ 91.3 and 96.4. It adds one transaction-document format version beside
+the original; § 91.3's `ekr.transaction-document/1` profile, grammar and refusals are unchanged, and
+every retained `/1` proposal is read, validated and replayed exactly as before. Decision record:
+`architecture-decision-record:0011-transaction-document-format-2`.*
+
+**Why.** A `/1` document holds at most 256 operations in 262144 bytes, so a change of a few thousand
+operations had to be split into many transactions, each proposed, validated and committed on its
+own. § 96.4 measured one propose, validate and commit of 10,000 operations at 6.2 s once the store no
+longer replayed its history per verb; § 91.3 requires a new version for any changed profile.
+
+## 97.1 The format
+
+`ekr.transaction-document/2` has the envelope, the typed grammar and the refusals of § 91.3; only
+`format` differs. It selects this frozen inclusive profile:
+
+| limit | `/2` | `/1` (§ 91.3) |
+|---|---|---|
+| input bytes | 8388608 (8 MiB) | 262144 |
+| container depth | 32 | 32 |
+| expanded representation nodes | 1048576 | 32768 |
+| entries per map | 4096 | 4096 |
+| elements per sequence | 16384 | 4096 |
+| decoded bytes per string / per key | 65536 / 4096 | 65536 / 4096 |
+| total expanded string bytes | 33554432 | 1048576 |
+| operations | 1 through 10000 | 1 through 256 |
+| input evidence entries | 10000 | 1024 |
+
+Every `/2` limit is at least its `/1` value, and each keeps `/1`'s ratio to the input cap where it
+scales with size (one node per 8 input bytes, four string bytes per input byte). Changing any of them
+is a further version. `ekr example`, `ekr schema` and `ekr guide` write `/2`; `ekr schema
+ekr.transaction-document/1` still prints the frozen original.
+
+## 97.2 Selecting the profile before parsing
+
+The raw-byte cap must apply before parsing (§ 91.3), so the version is read before the document is.
+The reader takes the first line that starts at column 0 with the key `format` (plain or quoted),
+removes quotes and a trailing comment, and selects the profile that value names. Without such a line
+the `/1` byte cap applies. A document is then parsed under the selected profile and held to the
+profile of the version it declares: if the two differ it is parsed again under the declared one, and
+a document with no readable `format:` line that `/1` refuses on a limit other than its byte cap is
+admitted only if `/2` accepts it and it declares `/2`. So a `/1` document is always held to § 91.3,
+and a `/2` document within 262144 bytes is admitted whatever its layout. The bounded reader stops
+after the `/1` cap plus one byte unless the bytes read so far name `/2`, and then after the `/2` cap
+plus one byte; a stricter host upload cap still applies to new ingress only. A refusal names the
+declared version's bound: `transaction document limit: operations (at most 10000 operations per
+document; …)`, and a `/1` refusal on operations names `/2`.
+
+## 97.3 What is unchanged, and the evidence
+
+Proposal records keep the exact submitted bytes and `document_hash`; replay reparses them through the
+same selection, so a retained proposal's profile cannot change after it is recorded. No canonical
+root, validation rule, record format or store format changes. `ekr.proposal-record/1` and `/2` embed
+either version's bytes.
+
+Executed by `crates/ekr-kernel/tests/transaction_document_v2.rs`: a `/1` document of 257 operations is
+refused with its own bound; a `/2` document of 10,000 operations parses and one of 10,001 is refused
+naming 10000; 8388608 bytes are read and 8388609 refused naming 8388608, while a `/1` document over
+262144 bytes is refused naming 262144 through both `parse` and `read`; a flow-style document takes
+its declared profile under the `/1` byte cap; and
+`a_v2_document_of_10000_operations_validates_and_commits_on_both_providers`. The conformance fixture
+the generated Propose scenarios submit is a `/2` document, and the unknown-format fixture names `/3`.
+
+**Measured** on the rebuilt store of § 96.4 (70 MB, file provider, release build, median of three
+fresh copies): one propose, validate and commit of a `/2` document of 2,000 operations (714 KB) took
+1.20 + 1.08 + 1.31 s, 3.60 s in all; of 10,000 operations (3.6 MB), 2.40 + 1.45 + 2.22 s, 6.08 s.
