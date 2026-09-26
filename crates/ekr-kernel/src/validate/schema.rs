@@ -46,7 +46,7 @@ pub(crate) const fn is_schema_change<V: ValueSpace>(operation: &GraphOperation<V
 }
 
 /// The operations of `tx` as the ontology's changes, in the order written, or `None` if any
-/// operation is of another kind.
+/// operation is of another kind, or a `ModifyProperty` in the ownerless P1 shape.
 pub(crate) fn changes<V: ValueSpace>(tx: &GraphTransaction<V>) -> Option<Vec<SchemaChange>> {
     tx.operations
         .iter()
@@ -57,10 +57,16 @@ pub(crate) fn changes<V: ValueSpace>(tx: &GraphTransaction<V>) -> Option<Vec<Sch
             GraphOperation::DefineEdgeType(declared) => {
                 Some(SchemaChange::DefineEdgeType((**declared).clone()))
             }
-            GraphOperation::ModifyProperty(modification) => Some(SchemaChange::ModifyProperty {
-                owner: modification.owner,
-                property: modification.property.clone(),
-            }),
+            // The ownerless P1 shape names no owner to evolve; the structural validator refuses it
+            // under v2, and this stage stays silent.
+            GraphOperation::ModifyProperty(modification) => {
+                modification
+                    .owner
+                    .map(|owner| SchemaChange::ModifyProperty {
+                        owner,
+                        property: modification.property.clone(),
+                    })
+            }
             _ => None,
         })
         .collect()

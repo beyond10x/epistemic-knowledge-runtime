@@ -130,24 +130,185 @@ pub struct EntityMerge {
 /// [`GraphOperation::ModifyProperty`], and `ekr.ontology.PropertyModification`.
 ///
 /// The owner is part of the operation because a property is filed under the type that declares
-/// it: without one, the redeclaration names no place in the ontology to land. P1 carried the bare
-/// declaration and refused every instance of it, so no committed history holds the older shape
-/// (wave p5-01, decision 5).
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-#[serde(deny_unknown_fields)]
+/// it: without one, the redeclaration names no place in the ontology to land (wave p5-01,
+/// decision 5).
+///
+/// # Two shapes, because P1 retained the first
+///
+/// P1 carried the bare declaration — `!ModifyProperty {id, name, value_type, …}` — and refused
+/// every instance of it as `unsupported-operation`. Nothing committed one, but v1 stores *retain*
+/// such proposals and their rejections, and replay re-reads the exact retained bytes and
+/// re-derives their canonical hashes. So the P1 shape is frozen here, the way
+/// `crate::legacy` freezes `ModifyProperty(PropertyDefinition)` for the original format — but in
+/// the current variant rather than a separate type, because the current transaction document is
+/// what those retained bytes are:
+///
+/// * **`owner: None`** is the P1 shape. It reads from and writes to the bare declaration, and it
+///   encodes as P1 encoded it: the declaration and nothing else. Profile v1 refuses it as P1 did;
+///   profile v2 refuses it as `modify-property-without-owner`.
+/// * **`owner: Some(type)`** is the current shape, `{owner, property}`. The owner is written as a
+///   tagged `Some` ahead of the declaration, so its bytes cannot be read as a P1 declaration's.
+///
+/// A mapping carrying keys of both shapes is refused. `crates/ekr-kernel/tests/base_era_v1_replay.rs`
+/// holds a store written by the base kernel of wave p5-01 to replaying under this type.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PropertyModification {
-    /// The node type or edge type that declares the property.
-    pub owner: TypeId,
+    /// The node type or edge type that declares the property; `None` only in the P1 shape.
+    pub owner: Option<TypeId>,
     /// The whole new declaration, filed under its own id.
     pub property: PropertyDefinition,
 }
 
 impl Canonical for PropertyModification {
-    /// The two fields in declaration order.
+    /// The P1 shape as P1 wrote it — the declaration alone — and the current shape as a tagged
+    /// `Some(owner)` followed by the declaration.
     fn encode(&self, out: &mut Encoder) {
-        self.owner.encode(out);
+        if let Some(owner) = &self.owner {
+            out.option(Some(owner));
+        }
         self.property.encode(out);
+    }
+}
+
+/// The written form of the current shape, and the only one the published schema describes: the
+/// P1 shape is read for the stores that retain it, not offered to a new proposer.
+#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "schema", schemars(rename = "PropertyModification"))]
+#[serde(deny_unknown_fields)]
+struct OwnedModification {
+    /// The node type or edge type that declares the property.
+    owner: TypeId,
+    /// The whole new declaration, filed under its own id.
+    property: PropertyDefinition,
+}
+
+#[cfg(feature = "schema")]
+impl schemars::JsonSchema for PropertyModification {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        OwnedModification::schema_name()
+    }
+
+    fn json_schema(generator: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        OwnedModification::json_schema(generator)
+    }
+}
+
+impl Serialize for PropertyModification {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self.owner {
+            Some(owner) => OwnedModification {
+                owner,
+                property: self.property.clone(),
+            }
+            .serialize(serializer),
+            None => self.property.serialize(serializer),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for PropertyModification {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        use serde::de::{Error, MapAccess, Visitor};
+
+        /// Every key of both shapes: `owner` and `property` of the current one, then the six
+        /// fields of `PropertyDefinition`, which is the P1 shape.
+        #[derive(Deserialize)]
+        #[serde(field_identifier, rename_all = "snake_case")]
+        enum Key {
+            Owner,
+            Property,
+            Id,
+            Name,
+            ValueType,
+            Cardinality,
+            Required,
+            Constraints,
+        }
+        const KEYS: &[&str] = &[
+            "owner",
+            "property",
+            "id",
+            "name",
+            "value_type",
+            "cardinality",
+            "required",
+            "constraints",
+        ];
+
+        struct Shapes;
+        impl<'de> Visitor<'de> for Shapes {
+            type Value = PropertyModification;
+
+            fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str("{owner, property}, or the P1 property declaration")
+            }
+
+            fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Self::Value, A::Error> {
+                fn once<T, E: Error>(
+                    slot: &mut Option<T>,
+                    key: &'static str,
+                    value: T,
+                ) -> Result<(), E> {
+                    if slot.replace(value).is_some() {
+                        Err(E::duplicate_field(key))
+                    } else {
+                        Ok(())
+                    }
+                }
+                let (mut owner, mut property) = (None, None);
+                let (mut id, mut name, mut value_type) = (None, None, None);
+                let (mut cardinality, mut required, mut constraints) = (None, None, None);
+                while let Some(key) = map.next_key::<Key>()? {
+                    match key {
+                        Key::Owner => once(&mut owner, "owner", map.next_value()?)?,
+                        Key::Property => once(&mut property, "property", map.next_value()?)?,
+                        Key::Id => once(&mut id, "id", map.next_value()?)?,
+                        Key::Name => once(&mut name, "name", map.next_value()?)?,
+                        Key::ValueType => once(&mut value_type, "value_type", map.next_value()?)?,
+                        Key::Cardinality => {
+                            once(&mut cardinality, "cardinality", map.next_value()?)?;
+                        }
+                        Key::Required => once(&mut required, "required", map.next_value()?)?,
+                        Key::Constraints => {
+                            once(&mut constraints, "constraints", map.next_value()?)?;
+                        }
+                    }
+                }
+                let p1 = id.is_some()
+                    || name.is_some()
+                    || value_type.is_some()
+                    || cardinality.is_some()
+                    || required.is_some()
+                    || constraints.is_some();
+                if p1 {
+                    if owner.is_some() || property.is_some() {
+                        return Err(A::Error::custom(
+                            "a ModifyProperty is either {owner, property} or the P1 property \
+                             declaration, not both",
+                        ));
+                    }
+                    return Ok(PropertyModification {
+                        owner: None,
+                        property: PropertyDefinition {
+                            id: id.ok_or_else(|| A::Error::missing_field("id"))?,
+                            name: name.ok_or_else(|| A::Error::missing_field("name"))?,
+                            value_type: value_type
+                                .ok_or_else(|| A::Error::missing_field("value_type"))?,
+                            cardinality: cardinality.unwrap_or_default(),
+                            required: required.unwrap_or_default(),
+                            constraints: constraints.unwrap_or_default(),
+                        },
+                    });
+                }
+                Ok(PropertyModification {
+                    owner: Some(owner.ok_or_else(|| A::Error::missing_field("owner"))?),
+                    property: property.ok_or_else(|| A::Error::missing_field("property"))?,
+                })
+            }
+        }
+
+        deserializer.deserialize_struct("PropertyModification", KEYS, Shapes)
     }
 }
 

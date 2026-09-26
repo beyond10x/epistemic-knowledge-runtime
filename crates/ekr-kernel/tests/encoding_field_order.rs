@@ -285,7 +285,7 @@ fn every_field_of_the_kernels_encodings_is_written_in_declaration_order() {
         declared
     };
     let modification = move |property| PropertyModification {
-        owner: type_id,
+        owner: Some(type_id),
         property,
     };
     fields_ascend(
@@ -296,7 +296,7 @@ fn every_field_of_the_kernels_encodings_is_written_in_declaration_order() {
                 "owner",
                 Box::new(move || {
                     GraphOperation::<CanonicalValue>::ModifyProperty(PropertyModification {
-                        owner: other_type,
+                        owner: Some(other_type),
                         property: definition(),
                     })
                 }) as Box<dyn Fn() -> GraphOperation<CanonicalValue>>,

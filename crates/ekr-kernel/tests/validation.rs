@@ -1709,7 +1709,7 @@ fn one_of_each_operation(world: &World) -> Vec<GraphOperation<CanonicalValue>> {
         GraphOperation::DefineNodeType(Box::new(NodeType::new(TypeId::mint(), "Decision"))),
         GraphOperation::DefineEdgeType(Box::new(EdgeType::new(TypeId::mint(), "depends_on"))),
         GraphOperation::ModifyProperty(ekr_kernel::PropertyModification {
-            owner: world.decision,
+            owner: Some(world.decision),
             property: PropertyDefinition::new(world.title, "title", ValueType::String),
         }),
         GraphOperation::MergeEntity(EntityMerge {
@@ -2312,7 +2312,7 @@ fn unsupported_schema_changes_and_merges_refuse_explicitly() {
         GraphOperation::DefineNodeType(Box::new(invalid_type)),
         GraphOperation::DefineEdgeType(Box::new(EdgeType::new(TypeId::mint(), "invalid"))),
         GraphOperation::ModifyProperty(ekr_kernel::PropertyModification {
-            owner: world.decision,
+            owner: Some(world.decision),
             property: PropertyDefinition::new(PropertyId::mint(), "missing", ValueType::String),
         }),
         GraphOperation::MergeEntity(EntityMerge {

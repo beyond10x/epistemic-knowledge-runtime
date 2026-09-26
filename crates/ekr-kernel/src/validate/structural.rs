@@ -91,6 +91,9 @@ const SCHEMA_VERSION_WITHOUT_CHANGE: &str = "schema-version-without-schema-chang
 /// A schema change proposed together with an operation of another kind.
 const MIXED_SCHEMA_TRANSACTION: &str = "mixed-schema-transaction";
 
+/// A `ModifyProperty` in the ownerless P1 shape, which profile v2 cannot place in the ontology.
+const MODIFY_PROPERTY_WITHOUT_OWNER: &str = "modify-property-without-owner";
+
 impl Validator for Structural {
     fn name(&self) -> ValidatorName {
         ValidatorName::Structural
@@ -156,6 +159,25 @@ fn schema_shape(tx: &GraphTransaction, admits_schema: bool, issues: &mut Vec<Val
                 .to_owned(),
         )),
         _ => {}
+    }
+    if admits_schema {
+        for operation in &tx.operations {
+            if let GraphOperation::ModifyProperty(modification) = operation {
+                if modification.owner.is_none() {
+                    issues.push(issue(
+                        tx,
+                        ValidatorName::Structural,
+                        MODIFY_PROPERTY_WITHOUT_OWNER,
+                        format!(
+                            "ModifyProperty of property {} names no owner; profile v2 files a \
+                             property under the type that declares it: write \
+                             `{{owner: <TypeId>, property: {{...}}}}`",
+                            modification.property.id
+                        ),
+                    ));
+                }
+            }
+        }
     }
     if admits_schema && changes > 0 && changes < tx.operations.len() {
         issues.push(issue(

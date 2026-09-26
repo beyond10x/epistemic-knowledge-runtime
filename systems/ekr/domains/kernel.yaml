@@ -498,6 +498,17 @@ types:
       - name: into
         type: ekr.graph.NodeId
 
+  # `ModifyProperty` in the canonical operation. `owner` is absent only in the P1 shape, the bare
+  # declaration P1 refused and v1 stores retain; it then encodes as P1 encoded it, and profile v2
+  # refuses it (design § 95).
+  - name: ekr.kernel.PropertyModificationProjection
+    kind: struct
+    fields:
+      - name: owner
+        type: Optional<ekr.ontology.TypeId>
+      - name: property
+        type: ekr.ontology.PropertyDeclaration
+
   - name: ekr.kernel.InvocationProjection
     kind: struct
     fields:
@@ -520,7 +531,7 @@ types:
       RetractAssertion: ekr.kernel.Retraction
       DefineNodeType: ekr.ontology.NodeTypeDeclaration
       DefineEdgeType: ekr.ontology.EdgeTypeDeclaration
-      ModifyProperty: ekr.ontology.PropertyModification
+      ModifyProperty: ekr.kernel.PropertyModificationProjection
       MergeEntity: ekr.kernel.EntityMerge
       Invoke: ekr.kernel.InvocationProjection
       SupersedeAssertion: ekr.kernel.Supersession

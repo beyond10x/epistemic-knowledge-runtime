@@ -4162,8 +4162,8 @@ original red and require its unfiltered passing result before writer closure.
 
 *Added 2026-09-26 by wave p5-01 (`story:schema-evolution-transactions`, parts B and C). Extends §§19,
 20, 26 and 91.5. It adds validation profile v2 beside the P1 profile; it changes no retained v1
-record and moves no transaction encoding except `ModifyProperty`'s, which no committed history
-holds.*
+record and moves no retained transaction encoding: `ModifyProperty` gains an owner, and its P1
+shape still reads and encodes as it did.*
 
 A committed transaction can add a node type (`DefineNodeType`), add an edge type
 (`DefineEdgeType`), and add or redeclare a property on a type the ontology declares
@@ -4202,13 +4202,22 @@ A committed transaction can add a node type (`DefineNodeType`), add an edge type
    `schema-version-reused`. Executed by `a_version_id_already_on_the_lineage_is_refused` and replay:
    `replay_reproduces_every_root_across_schema_versions_on_both_providers`, which reuses the seed's
    id two versions later.
-5. **`ModifyProperty` carries its owner.** Its payload is `{ owner: TypeId, property:
-   PropertyDefinition }` (`ekr.ontology.PropertyModification`), in the payload, the canonical
-   encoding (owner, then the declaration), the transaction document and `ekr.kernel`'s operation
-   projection. The encodings of the other eleven kinds do not move. Executed by
-   `the_modify_property_owner_reaches_the_encoding`, `crates/ekr-kernel/tests/encoding_field_order.rs`
-   and `crates/ekr-kernel/tests/validation.rs`'s
-   `the_twelve_current_operation_numbers_are_the_domains_and_the_declarations`.
+5. **`ModifyProperty` carries its owner.** Its payload is `{ owner, property: PropertyDefinition }`
+   (`ekr.kernel.PropertyModificationProjection`), in the payload, the canonical encoding (a tagged
+   `Some(owner)`, then the declaration), the transaction document and `ekr.kernel`'s operation
+   projection. The P1 shape — the bare declaration, which P1 refused and v1 stores retain — is
+   frozen in the same variant as `owner: None`, the way `crate::legacy` freezes the original
+   format: it reads from and writes to the bare declaration and encodes as the declaration alone,
+   exactly as at the wave's base. A mapping mixing the two shapes is refused. Profile v2 refuses
+   the P1 shape with `modify-property-without-owner`. The encodings of the other eleven kinds do
+   not move. Executed by `the_modify_property_owner_reaches_the_encoding`,
+   `an_ownerless_modify_property_is_refused_under_profile_two`,
+   `crates/ekr-kernel/tests/encoding_field_order.rs`, `crates/ekr-kernel/tests/validation.rs`'s
+   `the_twelve_current_operation_numbers_are_the_domains_and_the_declarations`, and — against
+   bytes the base kernel wrote — `crates/ekr-kernel/tests/base_era_v1_replay.rs`'s
+   `the_p1_shape_encodes_exactly_as_the_base_kernel_encoded_it`,
+   `every_operation_kind_in_its_base_era_shape_re_derives_its_retained_hashes` and
+   `a_modify_property_mixing_the_two_shapes_is_refused`.
 6. **No removal.** No operation removes a type or a property.
 
 **Admission under v2.** The structural validator admits the three kinds as above; entity merge
@@ -4232,9 +4241,16 @@ This is the named issue saying the store's profile does not admit schema changes
 reworded, because replay compares every retained rejection's code and message with what the
 ruleset says now: a new message would make every v1 store that retained such a rejection fail
 to reopen. Executed by `profile_one_still_refuses_the_three_schema_kinds` and replay:
-`a_v1_store_with_a_retained_schema_rejection_still_replays_on_both_providers`. That the message is
-the same as in stores written before this wave is held by the literal in the first case, not by a
-retained fixture from such a store: unexecuted against real older bytes.
+`a_v1_store_with_a_retained_schema_rejection_still_replays_on_both_providers`, which build the
+rejection with this wave's kernel. That a store written *before* this wave keeps replaying is held
+against stores the base kernel (`cee0cae`) wrote under v1, each retaining a P1-shape `ModifyProperty`
+proposal and its `unsupported-operation` rejection: on the file provider by
+`crates/ekr-kernel/tests/adversary_p5_01_kernel.rs`'s
+`a_base_era_v1_store_holding_an_ownerless_modify_property_rejection_still_reopens`, and on SQLite
+by `base_era_v1_replay.rs`'s
+`a_base_era_v1_sqlite_store_holding_an_ownerless_modify_property_rejection_still_reopens`, whose
+store also retains one proposal and rejection carrying all twelve operation kinds in their
+base-era shapes.
 
 **Application and replay.** Under `ekr.p2-apply/1` a committed schema change replaces the graph's
 ontology with the evolved version; nodes, edges and assertions are unchanged. Replay revalidates

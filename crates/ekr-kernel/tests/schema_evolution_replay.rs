@@ -256,7 +256,7 @@ fn replay_reproduces_every_root_across_schema_versions_on_both_providers() {
                 GraphOperation::DefineNodeType(Box::new(observation_type)),
                 GraphOperation::DefineEdgeType(Box::new(observes_type)),
                 GraphOperation::ModifyProperty(PropertyModification {
-                    owner: seed.subject_type,
+                    owner: Some(seed.subject_type),
                     property: PropertyDefinition::new(note, "note", ValueType::String),
                 }),
             ],
@@ -323,7 +323,7 @@ fn replay_reproduces_every_root_across_schema_versions_on_both_providers() {
         integer_note.required = false;
         let breaking = transaction(
             vec![GraphOperation::ModifyProperty(PropertyModification {
-                owner: seed.subject_type,
+                owner: Some(seed.subject_type),
                 property: integer_note,
             })],
             BTreeSet::new(),
@@ -338,7 +338,7 @@ fn replay_reproduces_every_root_across_schema_versions_on_both_providers() {
         let second = SchemaVersionId::mint();
         let widen = transaction(
             vec![GraphOperation::ModifyProperty(PropertyModification {
-                owner: observation,
+                owner: Some(observation),
                 property: PropertyDefinition::new(PropertyId::mint(), "source", ValueType::String),
             })],
             BTreeSet::new(),
@@ -400,7 +400,7 @@ fn a_v1_store_with_a_retained_schema_rejection_still_replays_on_both_providers()
         for (at, version) in [(20, None), (30, Some(SchemaVersionId::mint()))] {
             let refused = transaction(
                 vec![GraphOperation::ModifyProperty(PropertyModification {
-                    owner: seed.subject_type,
+                    owner: Some(seed.subject_type),
                     property: PropertyDefinition::new(
                         PropertyId::mint(),
                         "note",
