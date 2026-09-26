@@ -212,6 +212,9 @@ unattended within a budget.
 - The epistemic loop as `ekr` verbs ordered by an AEP driver map, in both timer and continuous
   modes with independent per-source collectors (A11).
 - Cost accounting: micro-USD, daily boundaries, reservations, a stop condition (A7).
+- 2026-09-26: schema evolution through committed transactions (design § 26, § 95) moved ahead of
+  P2 at the operator's direction (`story:schema-evolution-transactions`); schema discovery, risk
+  classes and approval gates stay in this phase. An ordering change; D1–D3 stand.
 
 Carries: A7, A11.
 

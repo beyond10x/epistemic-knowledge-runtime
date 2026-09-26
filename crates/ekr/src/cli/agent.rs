@@ -29,19 +29,22 @@ CONFIGURATION (every store verb)
   schema.
   --store need not exist: `ekr seed` creates it. The file provider creates the directory and
   any missing parents; the sqlite provider creates the database file, but its directory must
-  already exist (exit 1 otherwise).
+  already exist (exit 1 otherwise). Every other store verb opens an existing store only: a
+  --store that holds none is store-not-found (exit 1), and nothing is created there.
 
 WORKFLOW
   1. ekr example ekr.cli-host/1 > host.json       a host document to start from
   2. ekr example ekr-seed/2 > seed.yaml           a seed: ontology, graph, evidence
      ekr seed seed.yaml                            revision 0
-  3. ekr ontology                                  node types, edge types, properties: name and id
+  3. ekr ontology [--at N]                         node types, edge types, properties: name and id;
+                                                   the schema version (id, number, parent)
      ekr snapshot                                  nodes, edges, assertions, evidence at the head
   4. ekr mint node | edge | assertion | transaction | ...
                                                    fresh ids for everything you create
   5. ekr operations                                the operation kinds, one line each
      ekr operations <Kind>                         its fields and an example operation
      ekr example ekr.transaction-document/1        a complete transaction document
+     ekr example schema-change                     a complete schema change (see SCHEMA CHANGES)
      ekr schema <format>                           a format's JSON Schema (draft 2020-12), to check
                                                    a document before propose or seed
   6. ekr propose doc.yaml                          -> transaction_id (state Proposed)
@@ -77,15 +80,30 @@ ASSESSMENT: Proposed -> Accepted
   added and retracted in the same transaction validates and commits, and reads back Accepted
   and Retracted.
 
-NOT APPLIED IN P1
-  DefineNodeType, DefineEdgeType, ModifyProperty and MergeEntity are not applied in P1: they
-  parse, but validation rejects every proposal of them with the issue code
-  unsupported-operation. The ontology is the seed's. `ekr operations` marks them.
+SCHEMA CHANGES: DefineNodeType, DefineEdgeType, ModifyProperty
+  A committed schema change produces the next schema version: its number is one more and its
+  parent is the version before. Three rules decide whether one is applied:
+  1. The store runs validation profile v2. A store keeps the profile it was seeded under, from
+     the host's authority.validation_profile: v2 is the example host's profile with
+     \"ruleset\": \"ekr.p2-deterministic/1\" and \"application\": \"ekr.p2-apply/1\". Under
+     profile v1 validation rejects DefineNodeType, DefineEdgeType and ModifyProperty with the
+     issue code unsupported-operation, and no mechanism moves a store from v1 to v2.
+  2. The transaction holds only schema changes (mixed-schema-transaction otherwise).
+  3. It names the version it produces in transaction.schema_version, a fresh id from
+     `ekr mint schema-version` (schema-version-missing without one;
+     schema-version-without-schema-change on a transaction that changes no schema).
+  A change is checked against the canonical state it would govern: a property made required
+  that a node lacks, a cardinality narrowed below what a node holds, a value type that no
+  longer admits a held value are refused with named issues (docs/cli.md lists them). No
+  operation removes a type or a property. `ekr example schema-change` prints a complete schema
+  change; `ekr ontology --at <revision>` prints the schema, with its version, as of a revision.
+  MergeEntity is not applied under either profile: validation rejects it with the issue code
+  unsupported-operation. `ekr operations` marks all four.
 
 WHERE VALUES COME FROM
   new ids          ekr mint <kind>; ids are never derived from names
-  existing ids     ekr ontology (type ids), ekr snapshot (root, node, edge, assertion,
-                   evidence ids)
+  existing ids     ekr ontology (type and property ids), ekr snapshot (root, node, edge,
+                   assertion, evidence ids)
   revision numbers ekr head; a commit prints its revision
   times            milliseconds since the Unix epoch (valid_time.from, effective_from);
                    transaction_time.recorded_from is written as 0 and set by the kernel
@@ -114,7 +132,8 @@ ADDING EVIDENCE TO A SEED
 EXIT CODES
   exit 0  a declared outcome, JSON on stdout. A validation that rejects and a commit that finds
           the head moved (Stale) are outcomes too: read `kind`.
-  exit 1  a fault: provider, verification, unreadable input, host configuration, not seeded.
+  exit 1  a fault: provider, verification, unreadable input, host configuration, not seeded,
+          store-not-found.
   exit 2  a named refusal (its ekr.kernel.* name on stderr, nothing recorded) or a usage error.
 
 OUTPUT
@@ -195,10 +214,10 @@ impl OperationKind {
         }
     }
 
-    /// Whether the P1 kernel applies this kind. The four it does not are rejected at validation
-    /// with `unsupported-operation` (`crates/ekr-kernel/src/validate/structural.rs`), and
-    /// `apply.rs` refuses them the same way. No `_` arm: a new kind states its own answer.
-    const fn applied_in_p1(self) -> bool {
+    /// Under which validation profile the kernel applies this kind
+    /// (`crates/ekr-kernel/src/validate/structural.rs`, design § 95). No `_` arm: a new kind
+    /// states its own answer.
+    const fn applied(self) -> Applied {
         match self {
             Self::CreateNode
             | Self::UpdateProperty
@@ -207,11 +226,11 @@ impl OperationKind {
             | Self::AddAssertion
             | Self::RetractAssertion
             | Self::Invoke
-            | Self::SupersedeAssertion => true,
-            Self::DefineNodeType
-            | Self::DefineEdgeType
-            | Self::ModifyProperty
-            | Self::MergeEntity => false,
+            | Self::SupersedeAssertion => Applied::Always,
+            Self::DefineNodeType | Self::DefineEdgeType | Self::ModifyProperty => {
+                Applied::SchemaChange
+            }
+            Self::MergeEntity => Applied::Never,
         }
     }
 
@@ -411,38 +430,69 @@ impl OperationKind {
     }
 }
 
+/// Under which validation profile the kernel applies an operation kind.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Applied {
+    /// Under both profiles.
+    Always,
+    /// Under validation profile v2 only, in a schema-only transaction naming its
+    /// `schema_version`; profile v1 rejects it as `unsupported-operation`.
+    SchemaChange,
+    /// Under neither: validation rejects it as `unsupported-operation`.
+    Never,
+}
+
 /// `ekr operations`: every kind, one line each.
 pub(super) fn operation_list() -> String {
     let mut out = String::new();
     for kind in OperationKind::value_variants() {
         let (summary, _, _) = kind.text();
         let _ = write!(out, "{:<20}{summary}", kind.name());
-        if !kind.applied_in_p1() {
-            out.push_str(" [not applied in P1: validation rejects it as unsupported-operation]");
+        match kind.applied() {
+            Applied::Always => {}
+            Applied::SchemaChange => out.push_str(
+                " [schema change: applied under validation profile v2 only, in a schema-only \
+                 transaction with schema_version; profile v1 rejects it as unsupported-operation]",
+            ),
+            Applied::Never => {
+                out.push_str(" [not applied: validation rejects it as unsupported-operation]");
+            }
         }
         out.push('\n');
     }
     out
 }
 
-/// What a page says about a kind the P1 kernel does not apply.
-const NOT_APPLIED: &str =
-    "This kind is not applied in P1: validation rejects every proposal of this kind with \
-the issue code unsupported-operation. The example shows the shape only and is not accepted today.";
+/// What a page says about a schema kind.
+const SCHEMA_CHANGE: &str = "A schema change: applied only under validation profile v2 (a store \
+seeded under a host whose authority.validation_profile has ruleset ekr.p2-deterministic/1 and \
+application ekr.p2-apply/1), in a transaction that holds only schema changes and names the version \
+it produces in transaction.schema_version (ekr mint schema-version). Under profile v1 validation \
+rejects it with the issue code unsupported-operation. `ekr example schema-change` prints a complete \
+schema change; `ekr guide` says more under SCHEMA CHANGES.";
+
+/// What a page says about a kind the kernel applies under no profile.
+const NOT_APPLIED: &str = "This kind is not applied under either validation profile: validation \
+rejects every proposal of this kind with the issue code unsupported-operation. The example shows \
+the shape only and is not accepted today.";
 
 /// `ekr operations <Kind>`: summary, fields and one example operation, last.
 pub(super) fn operation(kind: OperationKind) -> String {
     let (summary, fields, example) = kind.text();
-    let (status, heading) = if kind.applied_in_p1() {
-        (
+    let (status, heading) = match kind.applied() {
+        Applied::Always => (
             String::new(),
             "Example (ids from ekr example ekr-seed/2; validates against a store seeded from it):",
-        )
-    } else {
-        (
+        ),
+        Applied::SchemaChange => (
+            format!("{SCHEMA_CHANGE}\n\n"),
+            "Example (ids from ekr example ekr-seed/2; validates against a store seeded from it \
+             under profile v2, alone in a transaction with schema_version):",
+        ),
+        Applied::Never => (
             format!("{NOT_APPLIED}\n\n"),
             "Example (ids from ekr example ekr-seed/2; not accepted today):",
-        )
+        ),
     };
     format!(
         "{name} — {summary}\n\n{status}Fields:\n{fields}\n\n\
@@ -467,12 +517,31 @@ pub enum ExampleFormat {
     Host,
 }
 
-/// `ekr example <format>`: a complete document of that format.
-pub(super) const fn example(format: ExampleFormat) -> &'static str {
-    match format {
-        ExampleFormat::TransactionDocument => include_str!("examples/transaction.yaml"),
-        ExampleFormat::Seed => include_str!("examples/seed.yaml"),
-        ExampleFormat::Host => include_str!("examples/host.json"),
+/// The examples `ekr example` prints: one complete document of each format, and a schema change.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum ExampleDocument {
+    /// A proposal for `ekr propose`.
+    #[value(name = "ekr.transaction-document/1", alias = "transaction")]
+    TransactionDocument,
+    /// An `ekr.transaction-document/1` that changes the schema, for a store seeded from the
+    /// example seed under validation profile v2.
+    #[value(name = "schema-change")]
+    SchemaChange,
+    /// A seed for `ekr seed`.
+    #[value(name = "ekr-seed/2", alias = "seed")]
+    Seed,
+    /// The trusted host document for `--host`.
+    #[value(name = "ekr.cli-host/1", alias = "host")]
+    Host,
+}
+
+/// `ekr example <name>`: a complete document of that format, or the schema change.
+pub(super) const fn example(example: ExampleDocument) -> &'static str {
+    match example {
+        ExampleDocument::TransactionDocument => include_str!("examples/transaction.yaml"),
+        ExampleDocument::SchemaChange => include_str!("examples/schema-change.yaml"),
+        ExampleDocument::Seed => include_str!("examples/seed.yaml"),
+        ExampleDocument::Host => include_str!("examples/host.json"),
     }
 }
 
