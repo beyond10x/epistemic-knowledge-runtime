@@ -261,6 +261,7 @@ The printed `description` names every place the schema and the reader differ:
 | a value's `value` before its `value_kind` (or `parameters` before `value_kind`), plain number, boolean or null for a text kind | refuses | cannot see it |
 | a string or key within maxLength characters but over the byte limit (text outside ASCII) | refuses | cannot see it |
 | a transaction document over 262144 bytes, nested deeper than 32, with more than 32768 values and keys, or more than 1048576 bytes of text | refuses | cannot see it |
+| a `ModifyProperty` written as a bare property declaration, without `owner` and `property` (the P1 shape) | accepts; validation then rejects it (`unsupported-operation` under profile v1, `modify-property-without-owner` under v2) | refuses |
 
 ## The workflow
 
@@ -1396,9 +1397,11 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `ekr.kernel.TransactionStateConflict` | validate, commit | 2 | the transaction is not in the state the verb needs: validating one that is already validated, committing one that is only proposed or was rejected | propose a corrected document under a new id |
 | `ekr.kernel.AssertionNotFound` | explain | 2 | no assertion has that id at the head | take the id from `ekr snapshot` |
 | `unsupported-operation` | validation issue | 0 | a `MergeEntity` operation under either profile, or a `DefineNodeType`, `DefineEdgeType` or `ModifyProperty` operation under validation profile v1 | none for `MergeEntity`; a schema change needs a store seeded under [profile v2](#evolve-the-schema) |
+| `merge-into-itself` | validation issue | 0 | a `MergeEntity` whose `absorbed` and `into` are the same node | none: `MergeEntity` is not applied under either profile |
 | `schema-version-missing` | validation issue | 0 | a schema change without `schema_version` (profile v2) | add `schema_version: <ekr mint schema-version>` |
 | `schema-version-without-schema-change` | validation issue | 0 | a `schema_version` on a transaction none of whose operations changes the schema | remove it |
 | `mixed-schema-transaction` | validation issue | 0 | a schema change and an operation of another kind in one transaction (profile v2) | propose the schema change alone, commit it, then the rest |
+| `modify-property-without-owner` | validation issue | 0 | a `ModifyProperty` written as a bare property declaration (`id`, `name`, `value_type`, …) without `owner` and `property`, the shape the 0.0.2 and 0.0.3 pages showed (profile v2; profile v1 rejects it as `unsupported-operation`) | write `{owner: <type id from ekr ontology>, property: <the declaration>}`, as `ekr operations ModifyProperty` prints |
 | `schema-version-reused` | validation issue | 0 | a `schema_version` that is already a version of this store's lineage, such as the seed's | `ekr mint schema-version` |
 | `unknown-property-owner` | validation issue | 0 | a `ModifyProperty` whose `owner` is not a declared node or edge type, nor one defined earlier in the same transaction | take the type id from `ekr ontology` |
 | `incoherent-schema` | validation issue | 0 | the evolved schema does not cohere, for example an edge type whose endpoint type is not declared; it names the rule | the rule it names ([the ontology section](#the-ontology-section)) |

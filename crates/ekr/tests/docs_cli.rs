@@ -1271,10 +1271,11 @@ fn ontology_codes() -> BTreeSet<&'static str> {
 }
 
 /// The structural validator's three codes for the shape of a schema-changing transaction.
-const SCHEMA_SHAPE_CODES: [&str; 3] = [
+const SCHEMA_SHAPE_CODES: [&str; 4] = [
     "schema-version-missing",
     "schema-version-without-schema-change",
     "mixed-schema-transaction",
+    "modify-property-without-owner",
 ];
 
 /// The seed version of the worked example, which the evolution example evolves.
@@ -1594,6 +1595,13 @@ fn schema_trigger(code: &str) -> Option<String> {
         "schema-version-missing" => schema_tx(1, None, JOURNAL),
         "schema-version-without-schema-change" => schema_tx(2, Some(VERSION), PAGES),
         "mixed-schema-transaction" => schema_tx(3, Some(VERSION), &format!("{JOURNAL}{PAGES}")),
+        "modify-property-without-owner" => schema_tx(
+            16,
+            Some(VERSION),
+            "\n  - !ModifyProperty\n    id: 00000000-0000-4000-a000-000000000215\n    name: nickname\n    \
+             value_type:\n      value_kind: String\n    cardinality: One\n    required: false\n    \
+             constraints: []",
+        ),
         "schema-version-reused" => schema_tx(5, Some(WORKED_SEED_VERSION), JOURNAL),
         "unknown-property-owner" => schema_tx(
             6,
@@ -1855,23 +1863,45 @@ fn no_text_a_reader_meets_says_only_the_p1_profile_is_accepted() {
     );
 }
 
-/// `README.md` is true of the binary: it does not list the schema kinds as refused or schema
-/// evolution as a later phase, it says `MergeEntity` is not applied, and it links the page's
-/// § Evolve the schema.
+/// `README.md` is true of the release and of `main` (correction round 2): its status table is
+/// headed by the latest release, 0.0.3, and keeps that release's schema-change refusal; a separate
+/// statement says what `main` adds — schema evolution under validation profile v2, with
+/// `MergeEntity` still refused — and links the page's § Evolve the schema. Schema evolution is no
+/// longer called a later phase.
 #[test]
 fn readme_says_the_schema_evolves_under_profile_v2() {
     let readme = read("README.md");
     let flat = readme.split_whitespace().collect::<Vec<_>>().join(" ");
     for stale in [
-        "`DefineNodeType`, `DefineEdgeType`, `ModifyProperty` and `MergeEntity` are refused",
+        "works in 0.0.2",
         "the incubation forest, schema evolution and maintenance",
     ] {
         assert!(!flat.contains(stale), "README.md still says {stale:?}");
     }
+    let header = readme
+        .lines()
+        .find(|line| line.starts_with("| works in "))
+        .expect("README.md has a status table");
+    assert!(header.starts_with("| works in 0.0.3 |"), "{header}");
+    let prefixed = format!("\n{readme}");
+    let released = section(&prefixed, "## Status");
+    let table: String = released
+        .lines()
+        .filter(|line| line.starts_with('|'))
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert!(
+        table.contains(
+            "`DefineNodeType`, `DefineEdgeType`, `ModifyProperty` and `MergeEntity` are refused \
+             as `unsupported-operation`"
+        ),
+        "the 0.0.3 table does not keep that release's schema-change refusal: {table}"
+    );
     for needle in [
+        "not yet released",
         "docs/cli.md#evolve-the-schema",
         "validation profile v2",
-        "`MergeEntity`",
+        "`MergeEntity` is still refused",
     ] {
         assert!(flat.contains(needle), "README.md lacks {needle:?}");
     }
@@ -1946,4 +1976,152 @@ fn the_unsupported_constraint_fix_names_modify_property_under_profile_v2() {
                 00000000-0000-4000-a000-000000000214:\n      \
                 - value_kind: String\n        value: x";
     commit("journal-node.yaml", &schema_tx(23, None, node));
+}
+
+// Correction round 2 (p5-01-cli) ---------------------------------------------------------------
+
+/// Every whole kebab-case string literal in the given validator sources: the issue codes they
+/// raise. (Every such literal under `crates/ekr-kernel/src/validate` is a code; the partition
+/// below fails on one that is neither listed nor classified, which is how a new one is found.)
+fn validator_codes(files: &[&str]) -> BTreeSet<String> {
+    let mut found = BTreeSet::new();
+    for file in files {
+        let source = read(file);
+        for piece in source.split('"').skip(1).step_by(2) {
+            let kebab = piece.contains('-')
+                && piece
+                    .split('-')
+                    .all(|word| !word.is_empty() && word.chars().all(|c| c.is_ascii_lowercase()));
+            if kebab {
+                found.insert(piece.to_owned());
+            }
+        }
+    }
+    found
+}
+
+/// The Structural validator's codes that are not about the shape of a schema change. With
+/// [`SCHEMA_SHAPE_CODES`] they partition `validate/structural.rs`: a code added there fails
+/// `the_structural_codes_are_partitioned_into_schema_shape_and_the_rest` until it is put in one
+/// of the two lists, and one put in `SCHEMA_SHAPE_CODES` must then be listed and drawn by
+/// `every_code_a_schema_change_is_refused_with_is_listed_or_unreachable`.
+const STRUCTURAL_NOT_SCHEMA_SHAPE: [&str; 7] = [
+    "empty-transaction",
+    "duplicate-identity",
+    "identity-already-exists",
+    "evidence-set-mismatch",
+    "merge-into-itself",
+    "conflicting-write",
+    "unsupported-operation",
+];
+
+#[test]
+fn the_structural_codes_are_partitioned_into_schema_shape_and_the_rest() {
+    let structural = validator_codes(&["crates/ekr-kernel/src/validate/structural.rs"]);
+    let shape: BTreeSet<String> = SCHEMA_SHAPE_CODES.iter().map(|c| (*c).to_owned()).collect();
+    let rest: BTreeSet<String> = STRUCTURAL_NOT_SCHEMA_SHAPE
+        .iter()
+        .map(|c| (*c).to_owned())
+        .collect();
+    assert!(shape.is_disjoint(&rest), "a code in both lists");
+    let classified: BTreeSet<String> = shape.union(&rest).cloned().collect();
+    assert_eq!(
+        structural, classified,
+        "validate/structural.rs raises codes this suite has not classified as schema shape or \
+         not (left), or the lists name codes it no longer raises (right)"
+    );
+}
+
+/// Validator codes a transaction written through `ekr propose` cannot draw, each with the reason
+/// and a measurement in the case below.
+const NOT_A_VALIDATION_ISSUE_HERE: [(&str, &str); 2] = [
+    (
+        "empty-transaction",
+        "`ekr propose` refuses a document with no operations as ekr.kernel.StructurallyInvalid",
+    ),
+    (
+        "proposer-is-validator",
+        "a host whose operator is its validator is refused when the store is opened, exit 1, \
+         as `opening the provider: invalid seed: proposer-is-validator`",
+    ),
+];
+
+/// Every code any validator raises is a validation-issue row of the refusal table, an ontology
+/// code (held by the schema-class case), or one of [`NOT_A_VALIDATION_ISSUE_HERE`] with its reason
+/// measured here. `merge-into-itself`, which the table lists, is drawn.
+#[test]
+fn every_code_a_validator_raises_is_a_row_or_measured_unreachable() {
+    let page = page();
+    let validate = workspace_root().join("crates/ekr-kernel/src/validate");
+    let files: Vec<String> = std::fs::read_dir(&validate)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|e| e == "rs"))
+        .map(|path| {
+            path.strip_prefix(workspace_root())
+                .unwrap()
+                .display()
+                .to_string()
+        })
+        .collect();
+    let files: Vec<&str> = files.iter().map(String::as_str).collect();
+    let codes = validator_codes(&files);
+    assert!(codes.len() >= 30, "the code scan is broken: {codes:?}");
+    let rows: BTreeSet<String> = refusal_table(&page)
+        .into_iter()
+        .filter(|row| row.at == ISSUE)
+        .map(|row| row.name)
+        .collect();
+    let excluded: BTreeSet<&str> = NOT_A_VALIDATION_ISSUE_HERE
+        .iter()
+        .map(|(c, _)| *c)
+        .collect();
+    let unaccounted: Vec<&String> = codes
+        .iter()
+        .filter(|c| !rows.contains(*c) && !excluded.contains(c.as_str()))
+        .collect();
+    assert!(
+        unaccounted.is_empty(),
+        "validator codes docs/cli.md neither lists nor names unreachable: {unaccounted:?}"
+    );
+    let listed_and_excluded: Vec<&&str> = excluded.iter().filter(|c| rows.contains(**c)).collect();
+    assert!(listed_and_excluded.is_empty(), "{listed_and_excluded:?}");
+
+    // empty-transaction: refused before validation.
+    let evolution = Evolution::seeded(&page, "file");
+    std::fs::write(
+        evolution.directory.path().join("empty.yaml"),
+        schema_tx(31, None, " []"),
+    )
+    .unwrap();
+    let empty = evolution.run(&["propose", "empty.yaml"]);
+    assert_eq!(empty.status.code(), Some(2), "{empty:?}");
+    assert!(
+        String::from_utf8_lossy(&empty.stderr).starts_with("ekr: ekr.kernel.StructurallyInvalid")
+    );
+
+    // proposer-is-validator: refused when the store is opened.
+    let lab = Lab::new(&page);
+    lab.edit(
+        "host.json",
+        "same.json",
+        "\"validator\": \"00000000-0000-4000-a000-000000000012\"\n  },",
+        "\"validator\": \"00000000-0000-4000-a000-000000000011\"\n  },",
+    );
+    let same = lab.run("same.json", &["seed", "seed.yaml"]);
+    assert_eq!(same.status.code(), Some(1), "{same:?}");
+    let stderr = String::from_utf8_lossy(&same.stderr);
+    assert!(
+        stderr.starts_with("ekr: opening the provider: invalid seed: "),
+        "{stderr}"
+    );
+
+    // merge-into-itself is drawn.
+    let merge = "\n  - !MergeEntity\n    absorbed: 00000000-0000-4000-a000-000000000302\n    \
+                 into: 00000000-0000-4000-a000-000000000302";
+    let validated = evolution.validate("merge.yaml", &schema_tx(32, None, merge));
+    assert!(
+        issue_codes(&validated).contains("merge-into-itself"),
+        "{validated}"
+    );
 }
