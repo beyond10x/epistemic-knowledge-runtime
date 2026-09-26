@@ -75,7 +75,7 @@ fn is_canonical_uuid_text(text: &str) -> bool {
 
 /// Declares one id newtype over `u128`, minted as UUIDv7.
 ///
-/// Fifteen types share this shape; writing it fifteen times is fifteen chances to write it
+/// Seventeen types share this shape; writing it seventeen times is seventeen chances to write it
 /// differently. `$doc` is the type's own rustdoc and names the ESS declaration it carries.
 macro_rules! id_newtype {
     ($(#[doc = $doc:expr])+ $name:ident) => {
@@ -268,6 +268,18 @@ id_newtype! {
 id_newtype! {
     /// An observation: `ekr.graph.ObservationId` of `systems/ekr/domains/graph.yaml`.
     ObservationId
+}
+
+id_newtype! {
+    /// A merge in the node lineage: `ekr.integrate.MergeId` of
+    /// `systems/ekr/domains/integrate.yaml`.
+    MergeId
+}
+
+id_newtype! {
+    /// A split in the node lineage: `ekr.integrate.SplitId` of
+    /// `systems/ekr/domains/integrate.yaml`.
+    SplitId
 }
 
 /// The position of a revision in the lineage: `ekr.kernel.RevisionNumber` of

@@ -127,5 +127,7 @@ fn no_id_type_mints_a_constant() {
         EvidenceId,
         ObservationId,
         EventId,
+        MergeId,
+        SplitId,
     );
 }
