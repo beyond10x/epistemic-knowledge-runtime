@@ -100,6 +100,8 @@ entities:
   # Design § 46 Split: a previously merged node found to be several entities. Declared as an
   # identity only; every relation is undecided.
   #
+  # UNMAPPED: Split -> source Node it splits, exactly one. Blocked by
+  # decision-blocker:split-reverting-merge-identity.
   # UNMAPPED: Split -> produced Node, one-to-many (at least two); whether a split that reverts a
   # merge restores the absorbed node's id or mints new nodes is open. Blocked by
   # decision-blocker:split-reverting-merge-identity.
