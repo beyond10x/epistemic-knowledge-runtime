@@ -2078,3 +2078,25 @@ fn guide_names_store_not_found_for_every_verb_but_seed() {
     assert_eq!(output.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&output.stderr).starts_with("ekr: store-not-found: "));
 }
+
+/// Correction round 1: an agent holding only the example host (profile v1) learns from the guide
+/// how to seed a store under profile v2, in one sentence this case reads; and doing what it says
+/// seeds and admits a schema change (`World::schema_evolving` follows it).
+#[test]
+fn guide_says_how_to_seed_a_v2_store_from_the_example_host() {
+    let prose = guide_prose();
+    let sentence = "To seed a store under v2, write `ekr example ekr.cli-host/1` to a file, \
+                    replace those two values, and run `ekr seed` with that host into a new --store.";
+    assert!(
+        prose.contains(sentence),
+        "guide lacks {sentence:?}: {prose}"
+    );
+    for backend in BACKENDS {
+        let world = World::schema_evolving(backend);
+        world.seed_from_example();
+        let (id, validated) =
+            proposed_and_validated(&world, "schema.yaml", &text(&["example", "schema-change"]));
+        assert_eq!(validated["kind"], "Validated", "{backend}: {validated}");
+        assert_eq!(world.ok(&["commit", &id])["kind"], "Committed");
+    }
+}

@@ -25,10 +25,15 @@ Repository utility: `xtask`.
 
 | works in 0.0.2 | not yet |
 |---|---|
-| a schema of node types, edge types, typed properties, lifecycles and named operations, declared in the seed | changing the schema after seeding: `DefineNodeType`, `DefineEdgeType`, `ModifyProperty` and `MergeEntity` are refused as `unsupported-operation` |
+| a schema of node types, edge types, typed properties, lifecycles and named operations, declared in the seed | merging two entities: `MergeEntity` is refused as `unsupported-operation`; removing a type or a property |
 | propose → validate → commit of nodes, edges, property updates, assertions, retractions, supersessions and named operations | adding evidence after seeding: in P1 evidence enters only through the seed |
 | reads: snapshots at any revision, what is believed at a valid time, and the full explanation of an assertion | property constraints, operation preconditions and emitted events: declared, but writes touching them are refused |
-| file and SQLite storage, with the kernel's executable specification passing on both | ingestion, the incubation forest, schema evolution and maintenance: later phases of [`docs/roadmap.md`](docs/roadmap.md) |
+| file and SQLite storage, with the kernel's executable specification passing on both | ingestion, the incubation forest, schema discovery from evidence and maintenance: later phases of [`docs/roadmap.md`](docs/roadmap.md) |
+
+On `main`, not yet released: in a store seeded under validation profile v2 the schema grows after
+seeding. A committed transaction adds a node or edge type, or adds or redeclares a property, and each
+change is a new schema version; see [Evolve the schema](docs/cli.md#evolve-the-schema). A store
+seeded under profile v1, the example host's, keeps the seed's schema.
 
 On the file provider every read re-hashes the whole event log, so commands slow down as revisions
 accumulate; SQLite grows about linearly. [`CHANGELOG.md`](CHANGELOG.md) has the details.

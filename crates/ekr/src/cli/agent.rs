@@ -87,7 +87,9 @@ SCHEMA CHANGES: DefineNodeType, DefineEdgeType, ModifyProperty
      the host's authority.validation_profile: v2 is the example host's profile with
      \"ruleset\": \"ekr.p2-deterministic/1\" and \"application\": \"ekr.p2-apply/1\". Under
      profile v1 validation rejects DefineNodeType, DefineEdgeType and ModifyProperty with the
-     issue code unsupported-operation, and no mechanism moves a store from v1 to v2.
+     issue code unsupported-operation, and no mechanism moves a store from v1 to v2. To seed a
+     store under v2, write `ekr example ekr.cli-host/1` to a file, replace those two values,
+     and run `ekr seed` with that host into a new --store.
   2. The transaction holds only schema changes (mixed-schema-transaction otherwise).
   3. It names the version it produces in transaction.schema_version, a fresh id from
      `ekr mint schema-version` (schema-version-missing without one;

@@ -1749,3 +1749,201 @@ fn every_code_a_schema_change_is_refused_with_is_listed_or_unreachable() {
         "{empty:?}"
     );
 }
+
+// Correction round 1 (p5-01-cli) ---------------------------------------------------------------
+
+/// Phrases that tell a reader only the P1 validation profile is accepted. The binary accepts two
+/// profiles (v1 and v2), so no text an agent or a person reads may say either of these.
+const P1_ONLY: [&str; 4] = [
+    "the P1 profile",
+    "P1 validation profile",
+    "is not the P1 one",
+    "the deterministic P1 validation profile",
+];
+
+/// Every text a reader meets that states which validation profile a host carries or a store
+/// accepts — `README.md`, `docs/cli.md`, `ekr guide`, every verb's `--help`, and the three
+/// JSON Schemas `ekr schema` prints — names both profiles rather than the P1 one alone. The
+/// `seed-authority-profile` row names both accepted pairs in its fix.
+#[test]
+fn no_text_a_reader_meets_says_only_the_p1_profile_is_accepted() {
+    let mut texts: Vec<(String, String)> = vec![
+        ("README.md".to_owned(), read("README.md")),
+        ("docs/cli.md".to_owned(), page()),
+        ("ekr guide".to_owned(), stdout(&["guide"])),
+    ];
+    for format in [SEED, TRANSACTION, HOST] {
+        texts.push((format!("ekr schema {format}"), stdout(&["schema", format])));
+    }
+    let help = stdout(&["--help"]);
+    texts.push(("ekr --help".to_owned(), help.clone()));
+    for verb in help
+        .lines()
+        .skip_while(|line| !line.starts_with("Commands:"))
+        .skip(1)
+        .take_while(|line| line.starts_with("  "))
+        .filter_map(|line| line.split_whitespace().next())
+        .filter(|verb| *verb != "help")
+    {
+        texts.push((format!("ekr {verb} --help"), stdout(&[verb, "--help"])));
+    }
+    let mut found = Vec::new();
+    for (name, text) in &texts {
+        let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
+        for phrase in P1_ONLY {
+            if flat.contains(phrase) {
+                found.push(format!("{name}: {phrase:?}"));
+            }
+        }
+    }
+    assert!(
+        found.is_empty(),
+        "texts that accept only the P1 profile: {found:?}"
+    );
+
+    let host = stdout(&["schema", HOST]);
+    let schema: Value = serde_json::from_str(&host).unwrap();
+    let authority = schema["properties"]["authority"]["description"]
+        .as_str()
+        .unwrap();
+    for needle in [
+        "ekr.p1-deterministic/1",
+        "ekr.p2-deterministic/1",
+        "schema change",
+    ] {
+        assert!(
+            authority.contains(needle),
+            "`ekr schema ekr.cli-host/1` authority description lacks {needle:?}: {authority}"
+        );
+    }
+
+    let page = page();
+    let row = refusal_table(&page)
+        .into_iter()
+        .map(|row| row.name)
+        .find(|name| name == "seed-authority-profile")
+        .expect("a seed-authority-profile row");
+    let line = page
+        .lines()
+        .find(|line| line.starts_with(&format!("| `{row}` |")))
+        .unwrap();
+    for needle in [
+        "`ekr.p1-deterministic/1` with `ekr.p1-apply/1`",
+        "`ekr.p2-deterministic/1` with `ekr.p2-apply/1`",
+    ] {
+        assert!(
+            line.contains(needle),
+            "the {row} row lacks {needle:?}: {line}"
+        );
+    }
+    // The row's example cause, measured: a v2 ruleset with the v1 application is refused.
+    let lab = Lab::new(&page);
+    lab.edit(
+        "host.json",
+        "mixed.json",
+        "\"ruleset\": \"ekr.p1-deterministic/1\"",
+        "\"ruleset\": \"ekr.p2-deterministic/1\"",
+    );
+    let output = lab.run("mixed.json", &["seed", "seed.yaml"]);
+    assert_eq!(output.status.code(), Some(1), "{output:?}");
+    assert!(
+        reads_as(
+            &String::from_utf8_lossy(&output.stderr),
+            "ekr: opening the provider: invalid seed: seed-authority-profile"
+        ),
+        "{output:?}"
+    );
+}
+
+/// `README.md` is true of the binary: it does not list the schema kinds as refused or schema
+/// evolution as a later phase, it says `MergeEntity` is not applied, and it links the page's
+/// § Evolve the schema.
+#[test]
+fn readme_says_the_schema_evolves_under_profile_v2() {
+    let readme = read("README.md");
+    let flat = readme.split_whitespace().collect::<Vec<_>>().join(" ");
+    for stale in [
+        "`DefineNodeType`, `DefineEdgeType`, `ModifyProperty` and `MergeEntity` are refused",
+        "the incubation forest, schema evolution and maintenance",
+    ] {
+        assert!(!flat.contains(stale), "README.md still says {stale:?}");
+    }
+    for needle in [
+        "docs/cli.md#evolve-the-schema",
+        "validation profile v2",
+        "`MergeEntity`",
+    ] {
+        assert!(flat.contains(needle), "README.md lacks {needle:?}");
+    }
+    // The link lands: the page has that heading.
+    section(&page(), "## Evolve the schema");
+}
+
+/// The `unsupported-constraint` row's fix is true under both profiles: under v2 a
+/// `ModifyProperty` can change a property's `constraints`, so "must be `[]` in the seed" is not
+/// the only way out.
+#[test]
+fn the_unsupported_constraint_fix_names_modify_property_under_profile_v2() {
+    let page = page();
+    let line = page
+        .lines()
+        .find(|line| line.starts_with("| `unsupported-constraint` |"))
+        .expect("an unsupported-constraint row");
+    assert!(
+        !line.contains("none in P1: those must be `[]` in the seed"),
+        "{line}"
+    );
+    for needle in ["`ModifyProperty`", "profile v2", "constraint-changed"] {
+        assert!(line.contains(needle), "the row lacks {needle:?}: {line}");
+    }
+    // What the fix says, measured under v2: a type declared with a constrained property and no
+    // instances has its constraints cleared by a ModifyProperty, and a node of it then commits.
+    let evolution = Evolution::seeded(&page, "file");
+    let issn = |constraints: &str| {
+        modify(
+            "105",
+            "214",
+            "issn",
+            "        value_kind: String\n",
+            &format!(
+                "\n      cardinality: One\n      required: false\n      constraints: {constraints}"
+            ),
+        )
+    };
+    let commit = |name: &str, body: &str| {
+        std::fs::write(evolution.directory.path().join(name), body).unwrap();
+        let proposed = evolution.ok(&["propose", name]);
+        let id = proposed["transaction_id"].as_str().unwrap().to_owned();
+        let validated = evolution.ok(&["validate", &id]);
+        assert_eq!(validated["kind"], "Validated", "{name}: {validated}");
+        assert_eq!(
+            evolution.ok(&["commit", &id])["kind"],
+            "Committed",
+            "{name}"
+        );
+    };
+    commit(
+        "constrained.yaml",
+        &schema_tx(
+            21,
+            Some("00000000-0000-4000-a000-000000000021"),
+            &format!("{JOURNAL}{}", issn("[reviewed]")),
+        ),
+    );
+    commit(
+        "cleared.yaml",
+        &schema_tx(
+            22,
+            Some("00000000-0000-4000-a000-000000000022"),
+            &issn("[]"),
+        ),
+    );
+    let node = "\n  - !CreateNode\n    id: 00000000-0000-4000-a000-000000000304\n    \
+                root_id: 00000000-0000-4000-a000-000000000002\n    \
+                type_id: 00000000-0000-4000-a000-000000000105\n    canonical_name: Q\n    \
+                properties:\n      00000000-0000-4000-a000-000000000201:\n      \
+                - value_kind: String\n        value: Q\n      \
+                00000000-0000-4000-a000-000000000214:\n      \
+                - value_kind: String\n        value: x";
+    commit("journal-node.yaml", &schema_tx(23, None, node));
+}
