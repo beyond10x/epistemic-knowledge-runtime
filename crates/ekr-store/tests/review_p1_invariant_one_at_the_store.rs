@@ -223,7 +223,9 @@ fn declared_entry_points() -> BTreeSet<String> {
 /// `published_events` (wave p1-14) reads the provider's own feed through the open handle and
 /// nothing else. `tests/published_events.rs` and ekr-kernel's `tests/runtime_published_events.rs`
 /// hold that a reread and a reopen return the identical log, so the read itself adds nothing.
-const NOT_WRITERS: [&str; 12] = [
+/// `sqlite_existing` and `file_existing` (`story:store-open-semantics`) open the same provider as
+/// `sqlite` and `file` and create nothing where no store is.
+const NOT_WRITERS: [&str; 14] = [
     "preparation",
     "published_events",
     "history",
@@ -234,7 +236,9 @@ const NOT_WRITERS: [&str; 12] = [
     "replay",
     "get",
     "sqlite",
+    "sqlite_existing",
     "file",
+    "file_existing",
     "under",
 ];
 

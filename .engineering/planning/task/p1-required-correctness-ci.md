@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: task:p1-required-correctness-ci
 kind: task
 status: implemented

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: review-result:adversary-identity-pass-2
 kind: review-result
 status: active
@@ -11,7 +11,7 @@ relations:
 revision: 1
 ---
 ```
-unit: story:kernel-identity-and-hashing (story revision 11) — uncommitted working tree $HOME/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-impl-kernel-identity, base 2f2acec
+unit: story:kernel-identity-and-hashing (story revision 11) — uncommitted working tree home-path:sha256:ebcb5c7535cf87d3081780c3bb65de3318669ebe2e287bd0c05ee853ec531466, base 2f2acec
 verdict: NEEDS-CHANGE
 cases: executed 79→89, red 3
 origin: introduced 4 / pre-existing 0 / undecided 0
@@ -91,7 +91,7 @@ test result: FAILED. 0 passed; 1 failed
 ## 3. The suite run — after the cases in part 2 existed
 
 ```
-$ cd <worktree> && CARGO_TARGET_DIR=$HOME/.cache/b10x-target/epistemic-knowledge-runtime task check
+$ cd <worktree> && CARGO_TARGET_DIR=home-path:sha256:b75f9a061b971f23993e7f85d8bf63ed6eff15c82c05ab13d3f33e64656bc3fe task check
 ...
 failures:
     a_map_with_a_repeated_key_encodes_the_same_whatever_order_it_is_handed
@@ -146,7 +146,7 @@ Covering the uncommitted working tree above. `git show 2f2acec:<path>` reports e
 
 ## 6. Paths written outside the worktree
 
-All under my assigned scratch `$HOME/.cache/ekr-wave-p1-02/unit-scratch/`:
+All under my assigned scratch `home-path:sha256:56b6888c170eec36decef94ef3c81ba9f30641c94e0de9a0afcf3cccd02d7e9b`:
 
 ```
 adv2-mutant/                 mutable copy of crates/ekr-core + Cargo.toml + systems/ekr
@@ -156,7 +156,7 @@ adv2-gate.log  adv2-fulltest.log  adv2-before.log  adv2-case-c.log
 adv2-fmt-check.log  adv2-clippy.log  adv2-doc-check.log  adv2-spec-check.log  adv2-plan-check.log
 ```
 
-`adv2-mutant/crates/ekr-core/src` is byte-identical to the worktree (all five mutations reverted, verified with `diff -r`). `$HOME/.cache/b10x-target/ekr-adv2-mutant` (scratch build dir) was created and **deleted by me**; `/` is at 61G free. The shared `$HOME/.cache/b10x-target/epistemic-knowledge-runtime` was used as the brief directs and left in place. No planning-store write, no `aep plan artifact` write verb, no commit, no branch or worktree command. Lease `ekr-adversary-identity-2` acquired at start and released.
+`adv2-mutant/crates/ekr-core/src` is byte-identical to the worktree (all five mutations reverted, verified with `diff -r`). `home-path:sha256:1c595caf81ea2047fb7bccc54c5a0e02d8e12f5f9745a81d6a63f51975f15d10` (scratch build dir) was created and **deleted by me**; `/` is at 61G free. The shared `home-path:sha256:b75f9a061b971f23993e7f85d8bf63ed6eff15c82c05ab13d3f33e64656bc3fe` was used as the brief directs and left in place. No planning-store write, no `aep plan artifact` write verb, no commit, no branch or worktree command. Lease `ekr-adversary-identity-2` acquired at start and released.
 
 ```findings
 - file: crates/ekr-core/tests/public_surface.rs

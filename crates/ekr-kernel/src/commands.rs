@@ -310,7 +310,13 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 .get(&against)
                 .ok_or(CommitError::RevisionNotFound { against })?;
             let basis = replay::basis(prior, state.seed.seed_hash, &self.authority.anchor);
-            let verdict = replay::validate(&tx.proposal, prior, self.authority.context.validator);
+            let verdict = replay::validate(
+                &tx.proposal,
+                &state.revisions,
+                prior,
+                &self.authority.anchor,
+                self.authority.context.validator,
+            );
             let at = now();
             replay::require(
                 at >= tx.proposal.submitted_at && at >= prior.committed_at,
@@ -484,8 +490,14 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 record.to_bytes()?,
             )
         } else {
-            let validated = replay::validate(&tx.proposal, head, self.authority.context.validator)
-                .map_err(|_| replay::refuse("retained-validation-refused"))?;
+            let validated = replay::validate(
+                &tx.proposal,
+                &state.revisions,
+                head,
+                &self.authority.anchor,
+                self.authority.context.validator,
+            )
+            .map_err(|_| replay::refuse("retained-validation-refused"))?;
             let (_, root) = crate::apply::apply(head, &validated, &validation.validators, at)?;
             let record = CommitReceiptV1 {
                 format: CommitReceiptV1::FORMAT.into(),

@@ -128,6 +128,7 @@ pub fn transaction(seed: &SeedDocument, admissible: bool) -> GraphTransaction {
             }),
         ],
         evidence: BTreeSet::from([evidence]),
+        schema_version: None,
     }
 }
 pub fn encode(tx: &GraphTransaction) -> Vec<u8> {

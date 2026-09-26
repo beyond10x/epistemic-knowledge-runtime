@@ -1,13 +1,13 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: task:sqlite-provider-open-contention
 kind: task
-status: draft
+status: implemented
 title: Concurrent processes cannot open one SQLite store
 relations:
 - serves: vision:o2
 - derived_from: epic:p4-operator-surface
-revision: 1
+revision: 4
 ---
 ## What is wrong
 

@@ -4,6 +4,38 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- Schema evolution. A store seeded under validation profile v2 (`ekr.p2-deterministic/1` +
+  `ekr.p2-apply/1`) admits `DefineNodeType`, `DefineEdgeType` and `ModifyProperty` in committed,
+  schema-only transactions. Each change produces a new schema version (number + 1, parent = the
+  prior version), carried in the transaction's optional `schema_version`. The change is checked
+  against canonical state: a property made required while an instance lacks it, a cardinality
+  narrowed below held values, a value type or constraint changed under held values or assertion
+  objects, and a no-op change are refused with named issues.
+- `ModifyProperty` names its owner type: `{owner, property}`.
+- `ekr ontology --at <revision>` shows the schema as of a revision, with its version number and
+  parent. `ekr example schema-change`; `docs/cli.md` § Evolve the schema; `ekr guide` says how to
+  seed a v2 store from the example host.
+- `store-not-found` (exit 1): every verb but `seed` opens only an existing store and creates
+  nothing at a path that holds none.
+
+### Changed
+
+- A refused `seed` creates nothing at its path: admission, the tenant and the host authority are
+  checked before any provider store is created.
+- `ekr seed` on an existing store under a host with a different authority is
+  `bootstrap-authority-mismatch` (exit 1), as for every other store verb.
+- Opening a SQLite store waits out another process's open lock (at most about 10 s), so concurrent
+  identical `seed` and `commit` invocations each succeed.
+
+### Unchanged
+
+- A v1 store (every store seeded before this release) keeps replaying byte for byte, including
+  retained proposals of the P1 `ModifyProperty` shape, and still refuses the three schema kinds as
+  `unsupported-operation`. Moving an existing store to v2 is not yet possible.
+- `MergeEntity` is still refused.
+
 ## [0.0.3] — 2026-09-26
 
 A platform refresh and the first user documentation.

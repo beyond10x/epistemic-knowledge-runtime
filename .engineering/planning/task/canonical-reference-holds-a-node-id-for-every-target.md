@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: task:canonical-reference-holds-a-node-id-for-every-target
 kind: task
 status: implemented

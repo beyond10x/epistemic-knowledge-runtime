@@ -104,8 +104,11 @@ impl CliHostConfigurationV1 {
             ),
             (
                 "authority",
-                "The authority anchor: the registered agents and the P1 validation profile, \
-                 as `ekr example ekr.cli-host/1` prints them.",
+                "The authority anchor: the registered agents and one of the two validation \
+                 profiles — v1 (ruleset `ekr.p1-deterministic/1`, application `ekr.p1-apply/1`), \
+                 which `ekr example ekr.cli-host/1` prints and under which the schema is fixed at \
+                 seeding, or v2 (`ekr.p2-deterministic/1`, `ekr.p2-apply/1`), which admits \
+                 committed schema changes. A store keeps the profile it was seeded under.",
             ),
         ] {
             schema

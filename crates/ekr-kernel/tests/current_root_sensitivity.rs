@@ -81,6 +81,7 @@ fn transaction(id_bits: u64, name: &str) -> GraphTransaction {
             })),
         ],
         evidence: BTreeSet::from([id(0x13)]),
+        schema_version: None,
     }
 }
 
@@ -145,6 +146,7 @@ fn canonical(tx: &GraphTransaction) -> GraphTransaction<CanonicalValue> {
         proposer: tx.proposer,
         operations,
         evidence: tx.evidence.clone(),
+        schema_version: None,
     }
 }
 

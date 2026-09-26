@@ -30,7 +30,9 @@ use std::collections::BTreeMap;
 use ekr_core::canonical::Canonical;
 use ekr_core::{EdgeId, GraphRootId, NodeId, PropertyId, TypeId};
 use ekr_graph::CanonicalValue;
-use ekr_kernel::{EdgeDraft, EntityMerge, GraphOperation, NodeDraft, PropertyMutation};
+use ekr_kernel::{
+    EdgeDraft, EntityMerge, GraphOperation, NodeDraft, PropertyModification, PropertyMutation,
+};
 use ekr_ontology::{Cardinality, EdgeType, NodeType, PropertyDefinition, ValueType};
 
 /// The offset of the first byte at which two encodings differ.
@@ -274,6 +276,7 @@ fn every_field_of_the_kernels_encodings_is_written_in_declaration_order() {
     );
 
     // `PropertyDefinition`: five of its six fields carry no id, so the id probe sees one of them.
+    // It reaches the encoding inside a `PropertyModification`, whose owner is written first.
     let definition = || {
         let mut declared = PropertyDefinition::new(property, "one", ValueType::String);
         declared.cardinality = Cardinality::One;
@@ -281,16 +284,43 @@ fn every_field_of_the_kernels_encodings_is_written_in_declaration_order() {
         declared.constraints = vec!["one".to_owned()];
         declared
     };
+    let modification = move |property| PropertyModification {
+        owner: Some(type_id),
+        property,
+    };
+    fields_ascend(
+        "PropertyModification: owner, property",
+        &GraphOperation::<CanonicalValue>::ModifyProperty(modification(definition())),
+        vec![
+            (
+                "owner",
+                Box::new(move || {
+                    GraphOperation::<CanonicalValue>::ModifyProperty(PropertyModification {
+                        owner: Some(other_type),
+                        property: definition(),
+                    })
+                }) as Box<dyn Fn() -> GraphOperation<CanonicalValue>>,
+            ),
+            (
+                "property",
+                Box::new(move || {
+                    let mut it = definition();
+                    it.id = other_property;
+                    GraphOperation::<CanonicalValue>::ModifyProperty(modification(it))
+                }),
+            ),
+        ],
+    );
     fields_ascend(
         "PropertyDefinition: id, name, value_type, cardinality, required, constraints",
-        &GraphOperation::<CanonicalValue>::ModifyProperty(definition()),
+        &GraphOperation::<CanonicalValue>::ModifyProperty(modification(definition())),
         vec![
             (
                 "id",
                 Box::new(move || {
                     let mut it = definition();
                     it.id = other_property;
-                    GraphOperation::<CanonicalValue>::ModifyProperty(it)
+                    GraphOperation::<CanonicalValue>::ModifyProperty(modification(it))
                 }) as Box<dyn Fn() -> GraphOperation<CanonicalValue>>,
             ),
             (
@@ -298,7 +328,7 @@ fn every_field_of_the_kernels_encodings_is_written_in_declaration_order() {
                 Box::new(move || {
                     let mut it = definition();
                     it.name = "two".to_owned();
-                    GraphOperation::<CanonicalValue>::ModifyProperty(it)
+                    GraphOperation::<CanonicalValue>::ModifyProperty(modification(it))
                 }),
             ),
             (
@@ -306,7 +336,7 @@ fn every_field_of_the_kernels_encodings_is_written_in_declaration_order() {
                 Box::new(move || {
                     let mut it = definition();
                     it.value_type = ValueType::Integer;
-                    GraphOperation::<CanonicalValue>::ModifyProperty(it)
+                    GraphOperation::<CanonicalValue>::ModifyProperty(modification(it))
                 }),
             ),
             (
@@ -314,7 +344,7 @@ fn every_field_of_the_kernels_encodings_is_written_in_declaration_order() {
                 Box::new(move || {
                     let mut it = definition();
                     it.cardinality = Cardinality::Many;
-                    GraphOperation::<CanonicalValue>::ModifyProperty(it)
+                    GraphOperation::<CanonicalValue>::ModifyProperty(modification(it))
                 }),
             ),
             (
@@ -322,7 +352,7 @@ fn every_field_of_the_kernels_encodings_is_written_in_declaration_order() {
                 Box::new(move || {
                     let mut it = definition();
                     it.required = true;
-                    GraphOperation::<CanonicalValue>::ModifyProperty(it)
+                    GraphOperation::<CanonicalValue>::ModifyProperty(modification(it))
                 }),
             ),
             (
@@ -330,7 +360,7 @@ fn every_field_of_the_kernels_encodings_is_written_in_declaration_order() {
                 Box::new(move || {
                     let mut it = definition();
                     it.constraints = vec!["two".to_owned()];
-                    GraphOperation::<CanonicalValue>::ModifyProperty(it)
+                    GraphOperation::<CanonicalValue>::ModifyProperty(modification(it))
                 }),
             ),
         ],

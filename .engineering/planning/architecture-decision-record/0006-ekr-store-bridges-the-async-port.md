@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: architecture-decision-record:0006-ekr-store-bridges-the-async-port
 kind: architecture-decision-record
 status: accepted

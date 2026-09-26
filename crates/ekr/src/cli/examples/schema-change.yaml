@@ -1,0 +1,37 @@
+format: ekr.transaction-document/1
+transaction:
+  id: 00000000-0000-4000-8000-000000000602
+  proposer: 00000000-0000-4000-8000-000000000101
+  operations:
+  - !DefineNodeType
+    id: 00000000-0000-4000-8000-000000000204
+    name: Project
+    parents: []
+    properties: {}
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - !DefineEdgeType
+    id: 00000000-0000-4000-8000-000000000205
+    name: WORKS_FOR
+    source_types:
+    - 00000000-0000-4000-8000-000000000201
+    target_types:
+    - 00000000-0000-4000-8000-000000000202
+    cardinality: Many
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+  - !ModifyProperty
+    owner: 00000000-0000-4000-8000-000000000201
+    property:
+      id: 00000000-0000-4000-8000-000000000801
+      name: legal_name
+      value_type:
+        value_kind: String
+      cardinality: One
+      required: false
+      constraints: []
+  evidence: []
+  schema_version: 00000000-0000-4000-8000-000000000003

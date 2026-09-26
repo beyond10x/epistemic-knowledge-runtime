@@ -1,8 +1,8 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: story:planning-store-on-project-3
 kind: story
-status: draft
+status: implemented
 title: Move the EKR planning store to aep.project/3
 relations:
 - serves: vision:o2
@@ -25,7 +25,7 @@ scope:
   path: README.md
 - confidence: cited
   path: Taskfile.yml
-revision: 11
+revision: 14
 ---
 ## Context
 

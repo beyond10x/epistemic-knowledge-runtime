@@ -91,6 +91,7 @@ fn proposal(w: &World) -> GraphTransaction {
             properties: BTreeMap::new(),
         })],
         evidence: BTreeSet::new(),
+        schema_version: None,
     }
 }
 fn validated(

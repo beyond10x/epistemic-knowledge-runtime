@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: review-result:adversary-skeleton-pass-1
 kind: review-result
 status: active
@@ -45,7 +45,7 @@ No non-test path is mine. `rustfmt --edition 2021` was run on my two files only.
 
 ## 2. Cases added, and their red output captured alone, before the suite
 
-`$HOME/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-impl-workspace-crate-skeleton/crates/ekr/tests/msrv_contract.rs`
+`home-path:sha256:90d68f8473dd758c8a5bc2c933b3c4beb261c77a8ef34330f7ba5ab17b7cac07`
 
 `cargo test -p ekr --locked --test msrv_contract` → **RED**, exit 101:
 
@@ -93,7 +93,7 @@ Second probe, same copy: deleting the `//!` block from `crates/ekr/src/main.rs` 
 
 ## 3. The suite, after the cases existed
 
-`export CARGO_TARGET_DIR=$HOME/.cache/b10x-target/epistemic-knowledge-runtime && task check`
+`export CARGO_TARGET_DIR=home-path:sha256:b75f9a061b971f23993e7f85d8bf63ed6eff15c82c05ab13d3f33e64656bc3fe && task check`
 
 ```
 task: [fmt-check] cargo fmt --all -- --check
@@ -141,11 +141,11 @@ Named fixes (not applied, per charter): #1 — raise `[workspace.package] rust-v
 
 | path | what |
 |---|---|
-| `$HOME/.cache/ekr-wave-p1-01/unit-scratch/adv-probe/` | 1.1M mutable copy of the tree for the two probes; **still present** (the probes reproduce from it) |
-| `$HOME/.cache/ekr-wave-p1-01/unit-scratch/adv-gate-red.log` | the part-3 gate run |
-| `$HOME/.cache/ekr-wave-p1-01/unit-scratch/adv-count.log` | the `--no-fail-fast` case count |
+| `home-path:sha256:49505b01ff339da643749523e35fa6cd1f14f0aeac6faef8b9e87776d7a25520` | 1.1M mutable copy of the tree for the two probes; **still present** (the probes reproduce from it) |
+| `home-path:sha256:8628b27229725551c68e140cc40727afeb0bd25106c7873a4f28797012330bf9` | the part-3 gate run |
+| `home-path:sha256:f10fd4d36ec7912e31388a35b1d1d1795835fb420015d5e509de860af7decd9d` | the `--no-fail-fast` case count |
 
-Also created and **already removed by me**: `$HOME/.cache/ekr-wave-p1-01/unit-scratch/adv-probe-target/` (571M probe build dir). The shared `$HOME/.cache/b10x-target/epistemic-knowledge-runtime` was used as the brief directs and left in place. Lease `ekr-adversary-skeleton-1` taken and released; no other session's lease touched.
+Also created and **already removed by me**: `home-path:sha256:5b52c6016eefc62fa97638188d12fb86448a0625d592ddee2ad8ddf23a079867` (571M probe build dir). The shared `home-path:sha256:b75f9a061b971f23993e7f85d8bf63ed6eff15c82c05ab13d3f33e64656bc3fe` was used as the brief directs and left in place. Lease `ekr-adversary-skeleton-1` taken and released; no other session's lease touched.
 
 ```findings
 - file: Cargo.toml

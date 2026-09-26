@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: story:ontology-types-and-values
 kind: story
 status: implemented

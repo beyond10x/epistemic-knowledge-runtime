@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: epic:p5-frontier-schema-scheduler
 kind: epic
 status: draft

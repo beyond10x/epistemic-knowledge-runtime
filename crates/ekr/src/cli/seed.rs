@@ -9,11 +9,12 @@ use ekr_kernel::{Runtime, SeedDocument, SeedError, SeedResultV1};
 use crate::exit::Failure;
 
 /// Reads the document, parses it with the kernel's own seed parser, then seeds. A retained
-/// exact retry returns the original result; the kernel samples `now` only for a new seed.
+/// exact retry returns the original result; the kernel samples `now` only for a new seed. `open`
+/// sees the parsed document, so a store is created only for a seed the kernel admits.
 pub(super) fn run(
     document: &Path,
     stdin: &mut dyn Read,
-    open: impl FnOnce() -> Result<Runtime, Failure>,
+    open: impl FnOnce(&SeedDocument) -> Result<Runtime, Failure>,
     now: &dyn Fn() -> Timestamp,
 ) -> Result<SeedResultV1, Failure> {
     let mut bytes = Vec::new();
@@ -23,5 +24,5 @@ pub(super) fn run(
     let text = String::from_utf8(bytes)
         .map_err(|_| SeedError::Invalid("seed-decode: the document is not UTF-8".to_owned()))?;
     let seed = SeedDocument::from_yaml(&text)?;
-    Ok(open()?.seed(seed, now)?)
+    Ok(open(&seed)?.seed(seed, now)?)
 }

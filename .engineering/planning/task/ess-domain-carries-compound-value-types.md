@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: task:ess-domain-carries-compound-value-types
 kind: task
 status: implemented

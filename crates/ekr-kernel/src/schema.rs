@@ -52,6 +52,13 @@ bytes, nested deeper than 32 containers, with more than 32768 values and keys, o
 byte limit (the limits count bytes, maxLength counts characters: text outside ASCII); the schema \
 carries the per-list, per-map and per-string limits.";
 
+/// The one operation shape the transaction reader accepts and this schema refuses: the P1
+/// `ModifyProperty`, whose `PropertyModification` the schema requires as `{owner, property}`.
+const MODIFY_PROPERTY_P1_SHAPE: &str = "The transaction reader also accepts a `ModifyProperty` \
+written as a bare property declaration, without `owner` and `property` (the P1 shape), and this \
+schema refuses it; validation then rejects it, as `unsupported-operation` under validation profile \
+v1 and as `modify-property-without-owner` under v2. Write `{owner, property}`.";
+
 /// The draft 2020-12 generator of the two YAML formats; `limits` adds [`v1_limits`].
 fn generator(limits: bool) -> SchemaGenerator {
     let mut settings = SchemaSettings::draft2020_12()
@@ -277,7 +284,7 @@ pub fn transaction_document() -> Schema {
         &format!(
             "A transaction document for `ekr propose`: one transaction, its operations and the \
              evidence they cite (`ekr example ekr.transaction-document/1`, `ekr operations`). \
-             {YAML_TAGS} {V1_LIMITS_UNSEEN}"
+             {YAML_TAGS} {V1_LIMITS_UNSEEN} {MODIFY_PROPERTY_P1_SHAPE}"
         ),
         &[
             ("format", "Exactly `ekr.transaction-document/1`."),

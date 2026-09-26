@@ -58,8 +58,9 @@ the binary and runs its worked example on both providers.
   not dropped without an ADR saying so.
 - `systems/ekr/` — the ESS domains, one per crate, added as the crates arrive. `ess specify validate`
   is part of `task check` once the first exists.
-- `.engineering/planning/` — governed through `aep plan artifact`. Never hand-edit its records or
-  journal. Before an agent writes, set `AEP_ACTOR` to the agent's execution identity.
+- `.engineering/` — the planning store, an `aep.project/3` tree store: `state/` is the authority and
+  `planning/` its rendered Markdown, both governed through `aep plan artifact`. Never hand-edit either.
+  Before an agent writes, set `AEP_ACTOR` to the agent's execution identity.
 - `.engineering/waves/COORDINATOR.md` — **read before opening a wave and again before its closing
   commit.** Eight checks, each with a command, each written because it was skipped and cost
   something named. The wave pages and review records carry the individual findings; counts must

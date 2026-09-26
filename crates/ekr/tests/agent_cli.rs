@@ -92,6 +92,30 @@ impl World {
         }
     }
 
+    /// A world whose host is `ekr example ekr.cli-host/1` with validation profile v2, as the
+    /// guide's SCHEMA CHANGES section says to write it: the ruleset and application replaced.
+    fn schema_evolving(backend: &'static str) -> Self {
+        let world = Self::new(backend);
+        let host = text(&["example", "ekr.cli-host/1"]);
+        let v2 = fill(
+            &host,
+            &[
+                (
+                    "\"ekr.p1-deterministic/1\"".to_owned(),
+                    "\"ekr.p2-deterministic/1\"".to_owned(),
+                ),
+                (
+                    "\"ekr.p1-apply/1\"".to_owned(),
+                    "\"ekr.p2-apply/1\"".to_owned(),
+                ),
+            ],
+        );
+        let parsed = CliHostConfigurationV1::from_json(v2.as_bytes()).unwrap();
+        assert!(parsed.authority.validation_profile.admits_schema_changes());
+        std::fs::write(&world.host, v2).unwrap();
+        world
+    }
+
     fn store(&self) -> PathBuf {
         match self.backend {
             "file" => self.directory.path().join("store"),
@@ -215,10 +239,20 @@ fn guide_prints_the_workflow_roles_exit_codes_and_where_ids_come_from() {
         "EKR_HOST",
         // Correction round 1: what the kernel does not apply, how bytes print, relations,
         // acceptance, and how to read what is valid now.
-        "not applied in P1",
         "unsupported-operation",
         "DefineNodeType",
         "MergeEntity",
+        // p5-01: schema evolution, and the store-open rule of unit E.
+        "SCHEMA CHANGES",
+        "ekr.p2-deterministic/1",
+        "ekr.p2-apply/1",
+        "schema_version",
+        "ekr mint schema-version",
+        "ekr example schema-change",
+        "ekr ontology --at",
+        "schema-version-missing",
+        "mixed-schema-transaction",
+        "store-not-found",
         "base64",
         "document_bytes",
         "CreateEdge",
@@ -232,6 +266,11 @@ fn guide_prints_the_workflow_roles_exit_codes_and_where_ids_come_from() {
     assert!(
         serde_json::from_str::<Value>(&guide).is_err(),
         "guide is text"
+    );
+    // The P1 marking is gone: the three schema kinds are applied under profile v2.
+    assert!(
+        !guide.contains("NOT APPLIED IN P1"),
+        "guide still marks the schema kinds as not applied:\n{guide}"
     );
 }
 
@@ -269,6 +308,19 @@ fn every_example_document_is_accepted_by_its_real_reader() {
     SeedDocument::from_yaml(&text(&["example", "ekr-seed/2"])).unwrap();
     assert_eq!(names::<ekr::cli::ExampleFormat>(), FORMATS);
     CliHostConfigurationV1::from_json(text(&["example", "ekr.cli-host/1"]).as_bytes()).unwrap();
+    // `ekr example` prints one document per format and, besides, a schema change.
+    let mut examples = FORMATS.to_vec();
+    examples.insert(1, "schema-change");
+    let command = <ekr::cli::Cli as clap::CommandFactory>::command();
+    let accepted: Vec<String> = command
+        .find_subcommand("example")
+        .unwrap()
+        .get_arguments()
+        .flat_map(|arg| arg.get_possible_values())
+        .map(|value| value.get_name().to_owned())
+        .collect();
+    assert_eq!(accepted, examples);
+    assert_eq!(names::<ekr::cli::ExampleDocument>(), examples);
     let unknown = run(&["example", "ekr-seed/9"]);
     assert_eq!(unknown.status.code(), Some(2));
 }
@@ -630,12 +682,20 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         ("operations", &["ekr.transaction-document/1", "CreateNode"]),
         (
             "example",
-            &["ekr.transaction-document/1", "ekr-seed/2", "ekr.cli-host/1"],
+            &[
+                "ekr.transaction-document/1",
+                "schema-change",
+                "ekr-seed/2",
+                "ekr.cli-host/1",
+            ],
         ),
         ("mint", &["node", "assertion", "transaction"]),
         ("head", &["revision", store]),
         ("transactions", &["Proposed", "Committed", store]),
-        ("ontology", &["ekr ontology", store]),
+        (
+            "ontology",
+            &["ekr ontology", "schema version", "ekr head", store],
+        ),
         (
             "hash",
             &["content_hash", "evidence_payloads", "ekr-seed/2", "stdin"],
@@ -983,13 +1043,25 @@ fn the_retraction_example_runs_from_printed_strings_only_on_both_providers() {
 
 // Correction round 1 -------------------------------------------------------------------------
 
-/// The four kinds the P1 kernel refuses to apply, by `ekr.kernel` issue code.
-const NOT_APPLIED: [&str; 4] = [
-    "DefineNodeType",
-    "DefineEdgeType",
-    "ModifyProperty",
-    "MergeEntity",
-];
+/// The one kind the kernel applies under no profile, refused as `unsupported-operation`.
+const NOT_APPLIED: [&str; 1] = ["MergeEntity"];
+
+/// The three schema kinds: applied under validation profile v2 in a schema-only transaction that
+/// names its `schema_version`, and refused as `unsupported-operation` under v1 (design § 95).
+const SCHEMA_KINDS: [&str; 3] = ["DefineNodeType", "DefineEdgeType", "ModifyProperty"];
+
+/// What an `ekr operations` line says of its kind: applied, a schema change, or not applied.
+fn marking(line: &str) -> &'static str {
+    match (
+        line.contains("[schema change:"),
+        line.contains("[not applied:"),
+    ) {
+        (false, false) => "applied",
+        (true, false) => "schema change",
+        (false, true) => "not applied",
+        (true, true) => panic!("a line marked both ways: {line:?}"),
+    }
+}
 
 /// The evidence a single printed operation cites, which its transaction must list.
 fn cited(example: &str) -> Vec<String> {
@@ -1020,10 +1092,11 @@ fn issue_codes(value: &Value) -> BTreeSet<String> {
     found
 }
 
-/// Every example the kernel applies commits, in the order `ekr operations` lists them, one
-/// transaction each, against a store seeded from `ekr example ekr-seed/2`. The four kinds it does
-/// not apply are marked so on their list line and page, and validation refuses exactly them with
-/// the code those marks name.
+/// Every example the kernel applies under the example host (profile v1) commits, in the order
+/// `ekr operations` lists them, one transaction each, against a store seeded from
+/// `ekr example ekr-seed/2`. `MergeEntity` is marked not applied, the three schema kinds are
+/// marked as schema changes, each on its list line and page, and under v1 validation refuses
+/// exactly those four with the code the marks name.
 #[test]
 fn every_applicable_example_commits_in_listed_order_against_the_example_seed() {
     let host: Value = serde_json::from_str(&text(&["example", "ekr.cli-host/1"])).unwrap();
@@ -1039,21 +1112,33 @@ fn every_applicable_example_commits_in_listed_order_against_the_example_seed() {
                 .find(|l| l.split_whitespace().next() == Some(kind.as_str()))
                 .unwrap();
             let page = text(&["operations", &kind]);
-            let marked =
-                line.contains("not applied in P1") && line.contains("unsupported-operation");
+            let expected = if NOT_APPLIED.contains(&kind.as_str()) {
+                "not applied"
+            } else if SCHEMA_KINDS.contains(&kind.as_str()) {
+                "schema change"
+            } else {
+                "applied"
+            };
+            assert_eq!(marking(line), expected, "{kind}: list line {line:?}");
+            let marked = expected != "applied";
             assert_eq!(
+                line.contains("unsupported-operation"),
                 marked,
-                NOT_APPLIED.contains(&kind.as_str()),
                 "{kind}: list line {line:?}"
             );
             assert_eq!(
-                page.contains("not applied in P1") && page.contains("unsupported-operation"),
+                page.contains("unsupported-operation"),
                 marked,
                 "{kind}: page\n{page}"
             );
             assert_eq!(
+                page.contains("validation profile v2"),
+                expected == "schema change",
+                "{kind}: page\n{page}"
+            );
+            assert_eq!(
                 page.contains("validates against a store seeded from it"),
-                !marked,
+                expected != "not applied",
                 "{kind}: {page}"
             );
             let example = example_operation(&kind);
@@ -1087,7 +1172,11 @@ fn every_applicable_example_commits_in_listed_order_against_the_example_seed() {
             assert_eq!(receipt["kind"], "Committed", "{backend} {kind}: {receipt}");
             committed += 1;
         }
-        assert_eq!(committed, KIND_COUNT - NOT_APPLIED.len(), "{backend}");
+        assert_eq!(
+            committed,
+            KIND_COUNT - NOT_APPLIED.len() - SCHEMA_KINDS.len(),
+            "{backend}"
+        );
         assert_eq!(
             world.ok(&["head"])["revision"],
             u64::try_from(committed).unwrap()
@@ -1707,4 +1796,307 @@ fn seed_creates_the_store_as_the_guide_says() {
     assert_eq!(output.status.code(), Some(1), "{output:?}");
     assert!(output.stdout.is_empty());
     assert!(!orphan.parent().unwrap().exists());
+}
+
+// Schema evolution (story:schema-evolution-transactions, part D) -------------------------------
+
+/// The seed version of `ekr example ekr-seed/2`.
+const SEED_VERSION: &str = "00000000-0000-4000-8000-000000000001";
+
+/// A schema-changing `ekr.transaction-document/1`: `document` with `schema_version` added.
+fn schema_document(id: &str, proposer: &str, operations: &[String], version: &str) -> String {
+    let mut text = document(id, proposer, operations, &[]);
+    text.push_str(&format!("  schema_version: {version}\n"));
+    text
+}
+
+/// Proposes and validates one document in `world`, returning the validation record.
+fn proposed_and_validated(world: &World, name: &str, body: &str) -> (String, Value) {
+    let path = world.file(name, body);
+    let id = world.ok(&["propose", &path])["transaction_id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let validated = world.ok(&["validate", &id]);
+    (id, validated)
+}
+
+/// Under validation profile v2 every schema kind's `ekr operations` example, alone in a
+/// transaction that names a minted `schema_version`, validates and commits; each one produces the
+/// next schema version, whose parent is the one before. Without `schema_version` it is
+/// `schema-version-missing`; beside the `CreateNode` example it is `mixed-schema-transaction`;
+/// `MergeEntity` stays `unsupported-operation` under v2 too.
+#[test]
+fn every_schema_example_commits_alone_under_validation_profile_v2() {
+    let host: Value = serde_json::from_str(&text(&["example", "ekr.cli-host/1"])).unwrap();
+    let operator = host["context"]["operator"].as_str().unwrap().to_owned();
+    for backend in BACKENDS {
+        let world = World::schema_evolving(backend);
+        world.seed_from_example();
+        let mut parent = SEED_VERSION.to_owned();
+        let mut number = 0;
+        for kind in listed_kinds()
+            .into_iter()
+            .filter(|kind| SCHEMA_KINDS.contains(&kind.as_str()))
+        {
+            let example = example_operation(&kind);
+            let (_, missing) = proposed_and_validated(
+                &world,
+                &format!("{kind}-unversioned.yaml"),
+                &document(
+                    &minted("transaction"),
+                    &operator,
+                    std::slice::from_ref(&example),
+                    &[],
+                ),
+            );
+            assert_eq!(missing["kind"], "Rejected", "{backend} {kind}: {missing}");
+            assert!(
+                issue_codes(&missing).contains("schema-version-missing"),
+                "{backend} {kind}: {missing}"
+            );
+            let (_, mixed) = proposed_and_validated(
+                &world,
+                &format!("{kind}-mixed.yaml"),
+                &schema_document(
+                    &minted("transaction"),
+                    &operator,
+                    &[example.clone(), example_operation("CreateNode")],
+                    &minted("schema-version"),
+                ),
+            );
+            assert!(
+                issue_codes(&mixed).contains("mixed-schema-transaction"),
+                "{backend} {kind}: {mixed}"
+            );
+
+            let version = minted("schema-version");
+            let (id, validated) = proposed_and_validated(
+                &world,
+                &format!("{kind}.yaml"),
+                &schema_document(&minted("transaction"), &operator, &[example], &version),
+            );
+            assert_eq!(
+                validated["kind"], "Validated",
+                "{backend} {kind}: {validated}"
+            );
+            let receipt = world.ok(&["commit", &id]);
+            assert_eq!(receipt["kind"], "Committed", "{backend} {kind}: {receipt}");
+            number += 1;
+            let ontology = world.ok(&["ontology"]);
+            assert_eq!(ontology["schema_version"], version.as_str(), "{ontology}");
+            assert_eq!(ontology["schema_version_number"], number, "{ontology}");
+            assert_eq!(
+                ontology["schema_version_parent"],
+                parent.as_str(),
+                "{ontology}"
+            );
+            parent = version;
+        }
+        assert_eq!(number, SCHEMA_KINDS.len(), "{backend}");
+
+        let (_, merge) = proposed_and_validated(
+            &world,
+            "merge.yaml",
+            &document(
+                &minted("transaction"),
+                &operator,
+                &[example_operation("MergeEntity")],
+                &[],
+            ),
+        );
+        assert!(
+            issue_codes(&merge).contains("unsupported-operation"),
+            "{backend}: MergeEntity under v2: {merge}"
+        );
+    }
+}
+
+/// `ekr example schema-change` is one schema-only `ekr.transaction-document/1` naming its
+/// `schema_version`, holding the three schema kinds' `ekr operations` examples in listed order
+/// (so `ModifyProperty` carries its `owner`). It commits against a store seeded from the example
+/// seed under profile v2, and under the example host (v1) it is rejected as
+/// `unsupported-operation`.
+#[test]
+fn the_schema_change_example_commits_under_profile_v2_and_is_refused_under_v1() {
+    let example = text(&["example", "schema-change"]);
+    let parsed = TransactionDocument::parse(example.as_bytes())
+        .unwrap_or_else(|e| panic!("the real reader refused the schema-change example: {e}"));
+    let transaction = parsed.transaction();
+    let version = transaction
+        .schema_version
+        .expect("the schema-change example names its schema_version");
+    let kinds: Vec<String> = transaction.operations.iter().map(kind_of).collect();
+    assert_eq!(kinds, SCHEMA_KINDS, "{example}");
+    let pages: Vec<GraphOperation> = SCHEMA_KINDS
+        .iter()
+        .map(|kind| parse_one(&example_operation(kind)))
+        .collect();
+    assert_eq!(
+        transaction.operations, pages,
+        "the schema-change example is not the three `ekr operations` examples"
+    );
+    assert!(example.contains("owner:"), "{example}");
+    assert!(transaction.evidence.is_empty(), "{example}");
+
+    for backend in BACKENDS {
+        let world = World::new(backend);
+        world.seed_from_example();
+        let (id, refused) = proposed_and_validated(&world, "v1.yaml", &example);
+        assert_eq!(refused["kind"], "Rejected", "{backend}: {refused}");
+        assert_eq!(
+            issue_codes(&refused),
+            BTreeSet::from(["unsupported-operation".to_owned()]),
+            "{backend}: {refused}"
+        );
+        assert_eq!(world.run(&["commit", &id]).status.code(), Some(2));
+
+        let world = World::schema_evolving(backend);
+        world.seed_from_example();
+        let (id, validated) = proposed_and_validated(&world, "v2.yaml", &example);
+        assert_eq!(validated["kind"], "Validated", "{backend}: {validated}");
+        let receipt = world.ok(&["commit", &id]);
+        assert_eq!(receipt["result"]["revision"], 1, "{backend}: {receipt}");
+        let ontology = world.ok(&["ontology"]);
+        assert_eq!(ontology["schema_version"], version.to_string(), "{backend}");
+        assert!(type_named(&ontology, "node_types", "Project")
+            .parse::<ekr_core::TypeId>()
+            .is_ok());
+        assert!(type_named(&ontology, "edge_types", "WORKS_FOR")
+            .parse::<ekr_core::TypeId>()
+            .is_ok());
+    }
+}
+
+/// `ekr ontology` prints the schema at the head with its version number and parent, and
+/// `ekr ontology --at <revision>` the schema as of that committed revision; a revision that does
+/// not exist is the kernel's `ekr.kernel.RevisionNotFound` (exit 2), as for `ekr snapshot --at`.
+/// A data commit after the change keeps the version; a v1 store stays at version 0.
+#[test]
+fn ontology_prints_the_schema_at_the_head_and_at_a_past_revision() {
+    let example = text(&["example", "schema-change"]);
+    let transaction = text(&["example", "ekr.transaction-document/1"]);
+    for backend in BACKENDS {
+        let v1 = World::new(backend);
+        v1.seed_from_example();
+        let head = v1.ok(&["ontology"]);
+        assert_eq!(head["revision"], 0, "{head}");
+        assert_eq!(head["schema_version"], SEED_VERSION, "{head}");
+        assert_eq!(head["schema_version_number"], 0, "{head}");
+        assert_eq!(head["schema_version_parent"], Value::Null, "{head}");
+        assert_eq!(v1.ok(&["ontology", "--at", "0"]), head, "{backend}");
+
+        let world = World::schema_evolving(backend);
+        world.seed_from_example();
+        let (id, _) = proposed_and_validated(&world, "schema.yaml", &example);
+        assert_eq!(world.ok(&["commit", &id])["kind"], "Committed");
+        let (id, _) = proposed_and_validated(&world, "data.yaml", &transaction);
+        assert_eq!(world.ok(&["commit", &id])["kind"], "Committed");
+
+        let names = |ontology: &Value| -> BTreeSet<String> {
+            ontology["node_types"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|t| t["name"].as_str().unwrap().to_owned())
+                .collect()
+        };
+        let at0 = world.ok(&["ontology", "--at", "0"]);
+        assert_eq!(at0["revision"], 0, "{at0}");
+        assert_eq!(at0["schema_version"], SEED_VERSION, "{at0}");
+        assert_eq!(at0["schema_version_number"], 0, "{at0}");
+        assert_eq!(at0["schema_version_parent"], Value::Null, "{at0}");
+        assert!(!names(&at0).contains("Project"), "{at0}");
+
+        let at1 = world.ok(&["ontology", "--at", "1"]);
+        assert_eq!(at1["revision"], 1, "{at1}");
+        assert_eq!(at1["schema_version_number"], 1, "{at1}");
+        assert_eq!(at1["schema_version_parent"], SEED_VERSION, "{at1}");
+        assert!(names(&at1).contains("Project"), "{at1}");
+
+        let head = world.ok(&["ontology"]);
+        assert_eq!(head["revision"], 2, "{head}");
+        assert_eq!(head["schema_version"], at1["schema_version"], "{head}");
+        assert_eq!(head["schema_version_number"], 1, "{head}");
+        assert_eq!(head["node_types"], at1["node_types"], "{backend}");
+        assert_eq!(world.ok(&["ontology", "--at", "2"]), head, "{backend}");
+
+        let absent = world.run(&["ontology", "--at", "3"]);
+        assert_eq!(absent.status.code(), Some(2), "{absent:?}");
+        assert!(
+            String::from_utf8_lossy(&absent.stderr).starts_with("ekr: ekr.kernel.RevisionNotFound"),
+            "{absent:?}"
+        );
+        assert!(absent.stdout.is_empty());
+    }
+}
+
+/// The guide's SCHEMA CHANGES section says what an agent needs, in words this case reads: the
+/// profile, the version field, the schema-only rule, where the version id comes from, what a v1
+/// store does, and how to read a past schema back.
+#[test]
+fn guide_says_how_to_change_the_schema() {
+    let prose = guide_prose();
+    for sentence in [
+        "validation profile v2",
+        "\"ruleset\": \"ekr.p2-deterministic/1\"",
+        "\"application\": \"ekr.p2-apply/1\"",
+        "A store keeps the profile it was seeded under",
+        "transaction.schema_version",
+        "ekr mint schema-version",
+        "holds only schema changes",
+        "ekr example schema-change",
+        "ekr ontology --at <revision>",
+        "Under profile v1 validation rejects DefineNodeType, DefineEdgeType and ModifyProperty \
+         with the issue code unsupported-operation",
+        "MergeEntity is not applied under either profile",
+        "No operation removes a type or a property",
+    ] {
+        assert!(
+            prose.contains(sentence),
+            "guide lacks {sentence:?}: {prose}"
+        );
+    }
+}
+
+/// Unit E's `store-not-found` (exit 1) is named in the guide, beside the sentence that only
+/// `ekr seed` creates a store.
+#[test]
+fn guide_names_store_not_found_for_every_verb_but_seed() {
+    let prose = guide_prose();
+    for sentence in [
+        "Every other store verb opens an existing store only",
+        "store-not-found (exit 1)",
+    ] {
+        assert!(
+            prose.contains(sentence),
+            "guide lacks {sentence:?}: {prose}"
+        );
+    }
+    let world = World::new("file");
+    let output = world.run(&["head"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr).starts_with("ekr: store-not-found: "));
+}
+
+/// Correction round 1: an agent holding only the example host (profile v1) learns from the guide
+/// how to seed a store under profile v2, in one sentence this case reads; and doing what it says
+/// seeds and admits a schema change (`World::schema_evolving` follows it).
+#[test]
+fn guide_says_how_to_seed_a_v2_store_from_the_example_host() {
+    let prose = guide_prose();
+    let sentence = "To seed a store under v2, write `ekr example ekr.cli-host/1` to a file, \
+                    replace those two values, and run `ekr seed` with that host into a new --store.";
+    assert!(
+        prose.contains(sentence),
+        "guide lacks {sentence:?}: {prose}"
+    );
+    for backend in BACKENDS {
+        let world = World::schema_evolving(backend);
+        world.seed_from_example();
+        let (id, validated) =
+            proposed_and_validated(&world, "schema.yaml", &text(&["example", "schema-change"]));
+        assert_eq!(validated["kind"], "Validated", "{backend}: {validated}");
+        assert_eq!(world.ok(&["commit", &id])["kind"], "Committed");
+    }
 }

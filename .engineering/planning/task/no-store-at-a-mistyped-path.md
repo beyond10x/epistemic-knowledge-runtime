@@ -1,13 +1,13 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: task:no-store-at-a-mistyped-path
 kind: task
-status: draft
+status: implemented
 title: A read verb or a refused seed leaves a new store at the path it was given
 relations:
 - serves: vision:o5
 - derived_from: story:agent-discoverable-cli
-revision: 1
+revision: 4
 ---
 ## What is wrong
 

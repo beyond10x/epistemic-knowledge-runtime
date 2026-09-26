@@ -1,7 +1,7 @@
 # An ekr-seed/2 document: the ontology, the graph at revision 0, and the evidence it rests on.
-# Every `ekr operations <Kind>` example the P1 kernel applies validates against a store seeded
-# from this document. Assertions are written Proposed; seeding accepts them. The reader ignores
-# comments.
+# Every `ekr operations <Kind>` example the kernel applies validates against a store seeded
+# from this document; the three schema kinds' under validation profile v2. Assertions are
+# written Proposed; seeding accepts them. The reader ignores comments.
 format: ekr-seed/2
 ontology:
   version:

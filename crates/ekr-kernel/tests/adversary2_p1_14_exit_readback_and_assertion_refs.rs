@@ -146,6 +146,7 @@ fn create(
             properties: BTreeMap::new(),
         })],
         evidence: BTreeSet::new(),
+        schema_version: None,
     }
 }
 

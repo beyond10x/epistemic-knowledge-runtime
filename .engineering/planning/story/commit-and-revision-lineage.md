@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: story:commit-and-revision-lineage
 kind: story
 status: implemented

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: review-result:p4-01-agent-cli-adversary-r1
 kind: review-result
 status: active

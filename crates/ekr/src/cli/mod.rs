@@ -1,8 +1,11 @@
 //! The clap surface of the `ekr` binary and its thin dispatch to the kernel's `Runtime`.
 //!
 //! Verbs carry the `ekr.kernel` ESS wire names. Each store verb opens the configured provider
-//! through `Runtime::file` or `Runtime::sqlite` under the trusted host document and calls exactly
-//! one kernel handler or read; nothing here applies, validates or persists anything itself. The
+//! under the trusted host document and calls exactly one kernel handler or read; nothing here
+//! applies, validates or persists anything itself. Only `seed` may create a store, through
+//! `Runtime::file` or `Runtime::sqlite` and only for a seed `Runtime::admit_seed` admits; every
+//! other store verb opens an existing one through `Runtime::file_existing` or
+//! `Runtime::sqlite_existing` and refuses a path holding none as `store-not-found`. The
 //! agent verbs — `guide`, `operations`, `example`, `schema`, `mint`, `hash` — print static, tested
 //! text, a generated JSON Schema, a fresh id or a payload's content hash, and open no provider.
 
@@ -26,10 +29,10 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use ekr_core::Timestamp;
-use ekr_kernel::Runtime;
+use ekr_kernel::{PersistenceError, Runtime, SeedDocument};
 use serde::Serialize;
 
-pub use agent::{ExampleFormat, IdKind, OperationKind};
+pub use agent::{ExampleDocument, ExampleFormat, IdKind, OperationKind};
 pub use transactions::StateFilter;
 
 use crate::exit::Failure;
@@ -146,11 +149,12 @@ pub enum Command {
         /// The operation kind, as its YAML tag without `!`.
         kind: Option<OperationKind>,
     },
-    /// Print a complete example document of one input format.
+    /// Print a complete example document of one input format, or a schema change.
     #[command(after_help = SEE)]
     Example {
-        /// The format.
-        format: ExampleFormat,
+        /// The format, or `schema-change`: an `ekr.transaction-document/1` that changes the
+        /// schema, for a store under validation profile v2.
+        format: ExampleDocument,
     },
     /// Print the JSON Schema (draft 2020-12) of one input format, generated from the types its
     /// reader decodes.
@@ -195,12 +199,17 @@ pub enum Command {
         #[arg(long, value_enum, ignore_case = true)]
         state: Option<StateFilter>,
     },
-    /// Print node types, edge types and properties, by name and id, at the head.
+    /// Print node types, edge types and properties, by name and id, and the schema version in
+    /// force (id, number, parent), at the head or at a past revision.
     ///
     /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST). The ids `ekr ontology`
     /// prints are the `type_id`, `predicate: !Relation` and property ids a document uses.
     #[command(after_help = SEE)]
-    Ontology,
+    Ontology {
+        /// The committed revision whose schema to print; the newest (`ekr head`) when absent.
+        #[arg(long)]
+        at: Option<u64>,
+    },
 }
 
 /// The system clock in milliseconds since the Unix epoch, for a new decision only.
@@ -280,7 +289,12 @@ pub fn execute(
         Command::Hash { payload } => render(&hash::run(&payload, stdin)?),
         Command::Seed { document } => {
             let store = configured.resolve("seed")?;
-            render(&seed::run(&document, stdin, || store.open(), now)?)
+            render(&seed::run(
+                &document,
+                stdin,
+                |seed| store.open_to_seed(seed),
+                now,
+            )?)
         }
         Command::Propose { document } => {
             let store = configured.resolve("propose")?;
@@ -322,7 +336,10 @@ pub fn execute(
             let runtime = configured.resolve("transactions")?.open()?;
             render(&transactions::run(&runtime, state)?)
         }
-        Command::Ontology => render(&ontology::run(&configured.resolve("ontology")?.open()?)?),
+        Command::Ontology { at } => render(&ontology::run(
+            &configured.resolve("ontology")?.open()?,
+            at,
+        )?),
     }
 }
 
@@ -402,7 +419,8 @@ impl Configured {
 }
 
 impl Store {
-    fn open(&self) -> Result<Runtime, Failure> {
+    /// Opens an existing store only, through the constructor that creates nothing.
+    fn open_existing(&self) -> Result<Runtime, PersistenceError> {
         let CliHostConfigurationV1 {
             tenant,
             context,
@@ -410,11 +428,68 @@ impl Store {
             ..
         } = self.host.clone();
         match self.backend {
-            Backend::File => Runtime::file(&self.store, &tenant, context, authority),
-            Backend::Sqlite => Runtime::sqlite(&self.store, &tenant, context, authority),
+            Backend::File => Runtime::file_existing(&self.store, &tenant, context, authority),
+            Backend::Sqlite => Runtime::sqlite_existing(&self.store, &tenant, context, authority),
         }
-        .map_err(|error| Failure::fault(format!("opening the provider: {error}")))
     }
+
+    /// Opens the store every verb but `seed` reads or writes: an existing one only. After the
+    /// host anchor check every open runs first, a path that holds no store — nothing, an empty
+    /// directory, an empty file, a symlink to nothing, a SQLite database without the owner
+    /// tables, a file-store directory the provider has not written a manifest to — is the named
+    /// configuration fault `store-not-found` (exit 1), and nothing is created there.
+    fn open(&self) -> Result<Runtime, Failure> {
+        self.open_existing().map_err(|error| match error {
+            PersistenceError::NoStore(_) => Failure::fault(format!(
+                "store-not-found: no {} store at {}; `ekr seed` creates one",
+                match self.backend {
+                    Backend::File => "file",
+                    Backend::Sqlite => "sqlite",
+                },
+                self.store.display()
+            )),
+            error => opening(error),
+        })
+    }
+
+    /// Opens the store `seed` publishes into. The host anchor is checked first, as every open
+    /// does. Where a store exists, the host's authority is checked against the retained one
+    /// next, so a different authority is `bootstrap-authority-mismatch` (exit 1) as for every
+    /// store verb (`docs/cli.md`, the host document); then the kernel's full seed admission.
+    /// Where none exists, admission runs before anything is created, and the constructor refuses
+    /// an invalid tenant before it creates anything: a refused seed leaves no store behind.
+    fn open_to_seed(&self, seed: &SeedDocument) -> Result<Runtime, Failure> {
+        let CliHostConfigurationV1 {
+            tenant,
+            context,
+            authority,
+            ..
+        } = self.host.clone();
+        Runtime::check_anchor(context, &authority).map_err(opening)?;
+        match self.open_existing() {
+            Ok(runtime) => {
+                if let Err(mismatch @ PersistenceError::AuthorityMismatch) = runtime.head() {
+                    return Err(Failure::fault(mismatch));
+                }
+                Runtime::admit_seed(seed, context)?;
+                Ok(runtime)
+            }
+            Err(PersistenceError::NoStore(_)) => {
+                Runtime::admit_seed(seed, context)?;
+                match self.backend {
+                    Backend::File => Runtime::file(&self.store, &tenant, context, authority),
+                    Backend::Sqlite => Runtime::sqlite(&self.store, &tenant, context, authority),
+                }
+                .map_err(opening)
+            }
+            Err(error) => Err(opening(error)),
+        }
+    }
+}
+
+/// A provider that did not open: an operational or configuration fault.
+fn opening(error: impl std::fmt::Display) -> Failure {
+    Failure::fault(format!("opening the provider: {error}"))
 }
 
 /// One JSON document. The kernel's byte strings serialise as number arrays; the CLI prints each

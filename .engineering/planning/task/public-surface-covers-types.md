@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: task:public-surface-covers-types
 kind: task
 status: implemented

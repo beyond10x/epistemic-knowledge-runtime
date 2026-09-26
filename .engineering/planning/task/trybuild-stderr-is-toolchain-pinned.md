@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: task:trybuild-stderr-is-toolchain-pinned
 kind: task
 status: implemented

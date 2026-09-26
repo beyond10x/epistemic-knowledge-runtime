@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: architecture-decision-record:0004-timestamp-in-ekr-core
 kind: architecture-decision-record
 status: accepted

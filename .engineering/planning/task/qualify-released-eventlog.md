@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/1
+format: aep.planning-md/2
 id: task:qualify-released-eventlog
 kind: task
 status: implemented

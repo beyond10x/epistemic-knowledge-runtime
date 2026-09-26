@@ -143,16 +143,30 @@ pub(crate) fn apply(
                     effective_from: change.effective_from,
                 };
             }
+            GraphOperation::MergeEntity(_) => {
+                return Err(StoreError::Document("unsupported-operation".into()));
+            }
+            // Applied together below: a schema change is one new version, not three.
             GraphOperation::DefineNodeType(_)
             | GraphOperation::DefineEdgeType(_)
             | GraphOperation::ModifyProperty(_)
-            | GraphOperation::MergeEntity(_) => {
-                return Err(StoreError::Document("unsupported-operation".into()));
-            }
-            GraphOperation::CreateNode(_)
+            | GraphOperation::CreateNode(_)
             | GraphOperation::CreateEdge(_)
             | GraphOperation::AddAssertion(_) => {}
         }
+    }
+    // `ekr.p2-apply/1`: a schema change replaces the ontology with the version it names, derived
+    // from the prior one with `number + 1`, `parent` = the prior version, and the commit time as
+    // its `created_at`. `GraphRoot.schema_version_id` stays the seed's: it is the root's identity,
+    // and the ontology root is what carries the version (wave p5-01, decision 4). Validation has
+    // already evolved the same changes over the same ontology, so a refusal here is unreachable.
+    if let Some(version) = tx.schema_version {
+        let changes = crate::validate::schema::changes(tx)
+            .ok_or_else(|| StoreError::Document("admitted-mixed-schema-transaction".into()))?;
+        graph.ontology = graph
+            .ontology
+            .evolve(version, at, &changes)
+            .map_err(|error| StoreError::Document(error.code().into()))?;
     }
     let root = Root {
         revision: graph.revision,
