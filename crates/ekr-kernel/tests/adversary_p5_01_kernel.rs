@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use ekr_core::{NodeId, PropertyId, SchemaVersionId, Timestamp, TransactionId, TypeId};
 use ekr_kernel::{
     Agent, AuthorityStateV1, BootstrapContext, CommitCommandResult, EntityMerge, GraphOperation,
-    GraphTransaction, NodeDraft, Runtime, SeedDocument, TransactionState, ValidationCommandResult,
+    GraphTransaction, NodeDraft, Runtime, SeedDocument, ValidationCommandResult,
     ValidationProfileV1,
 };
 use ekr_ontology::{NodeType, PropertyDefinition, Value, ValueType};
