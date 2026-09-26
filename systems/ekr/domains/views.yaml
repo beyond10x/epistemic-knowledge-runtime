@@ -34,9 +34,12 @@ summary: >-
   path or anything else that differs between two renders of one revision.
 
   UNMAPPED under decision-blocker:evidence-entry-after-seed: evidence without retained bytes. Every
-  evidence record the kernel admits today arrives with the seed, and the seed retains its bytes, so
-  `retained` is true for every evidence record a store can hold; no scenario can build the false
-  case until that decision says how evidence enters canonical state after the seed.
+  evidence record the kernel admits today arrives with the seed, and the seed retains its bytes.
+  The kernel's verified read also refuses a store whose evidence bytes are missing, rather than
+  reading it (crates/ekr-kernel/tests/explain.rs, "A payload deleted from the provider refuses the
+  read itself"). So `retained` is true for every evidence record a projection can be rendered
+  from, and `retained: false` may stay unreachable whichever way that decision goes. The flag is
+  kept so the format does not change if a later decision admits evidence without bytes.
 
 naming:
   wire: views
@@ -360,6 +363,13 @@ errors:
       - name: head
         type: ekr.kernel.RevisionNumber
 
+  # The kernel's read answers CommitError::NotSeeded for such a store (crates/ekr-kernel/src/read.rs).
+  - name: ekr.views.NotSeeded
+    summary: The store was never seeded, so it has no revision and no head; nothing was rendered.
+    fields:
+      - name: requested
+        type: Optional<ekr.kernel.RevisionNumber>
+
 commands:
   # Design § 82. A read of one immutable revision; the default is the newest. Writes no canonical
   # state and moves no subject.
@@ -405,6 +415,13 @@ commands:
         external: the store holds no committed revision with the requested number
         error: ekr.views.RevisionNotFound
         summary: Nothing was rendered.
+      # External for the same reason: whether the store holds a seed is store state, not command
+      # input, and no guard can read it. A seeded store answers not-found, never this, whatever
+      # `at` names.
+      - name: not-seeded
+        external: the store has never been seeded
+        error: ekr.views.NotSeeded
+        summary: Nothing was rendered; the request is echoed and no head is reported, because there is none.
 
 events:
   # What one render returned, counted over the document it returned, so a suite can hold a

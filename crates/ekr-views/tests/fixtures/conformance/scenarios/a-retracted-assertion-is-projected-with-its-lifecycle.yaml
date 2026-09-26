@@ -1,13 +1,20 @@
 # story:graph-projection-specification, scenario "a retracted assertion".
 #
-# The store `retracted-assertion` holds exactly one assertion, about a node, retracted by a later
-# committed revision. A projection is canonical state as of its revision (design § 47), and
-# retraction is a lifecycle, not a deletion (invariant 5): the newest projection still carries the
-# assertion, with its lifecycle Retracted. A projection that dropped it would report zero.
+# The store `retracted-assertion` has three revisions: revision 0 is the seed, which holds one node
+# and no assertion; revision 1 is a committed transaction that adds exactly one assertion, about
+# that node; revision 2 is a committed transaction that retracts it. A projection is canonical
+# state as of its revision (design § 47), and retraction is a lifecycle, not a deletion (invariant
+# 5):
+#   - at the head, revision 2, the projection still carries the assertion, with lifecycle Retracted;
+#     a projection that dropped it would report zero assertions;
+#   - at revision 1 it carries the assertion as Active; a renderer that reads the lifecycle from
+#     the head reports it retracted;
+#   - at revision 0 it carries no assertion; a renderer that reads graph state from the head
+#     reports one.
 type: ess-scenario/1
 domain: ekr.views
 scenario: a-retracted-assertion-is-projected-with-its-lifecycle
-summary: A retracted assertion stays in the projection, counted once and once as retracted.
+summary: An assertion added at revision 1 and retracted at revision 2 is absent at 0, Active at 1, and Retracted but still projected at 2.
 
 timeline:
   - at: 2027-01-15T08:00:00Z
@@ -20,5 +27,36 @@ timeline:
     events:
       - event: ekr.views.GraphProjected
         payload:
+          revision: 2
           assertions: 1
           retracted_assertions: 1
+
+  - at: 2027-01-15T08:01:00Z
+    command: ekr.views.ProjectGraph
+    actor: ekr.views.Reader
+    input:
+      store: retracted-assertion
+      at: 1
+    outcome: projected
+    events:
+      - event: ekr.views.GraphProjected
+        payload:
+          revision: 1
+          head: 2
+          assertions: 1
+          retracted_assertions: 0
+
+  - at: 2027-01-15T08:02:00Z
+    command: ekr.views.ProjectGraph
+    actor: ekr.views.Reader
+    input:
+      store: retracted-assertion
+      at: 0
+    outcome: projected
+    events:
+      - event: ekr.views.GraphProjected
+        payload:
+          revision: 0
+          head: 2
+          assertions: 0
+          retracted_assertions: 0

@@ -1,14 +1,29 @@
 # story:graph-projection-specification: a projection is of one committed revision (design § 82).
 #
-# The store `seed-only` has head 0. Asking for revision 1 names a revision that does not exist, so
-# nothing is rendered and the refusal says what was asked for and what the head is. A renderer
-# that clamps the request to the head answers `projected` for revision 0 and fails.
+# The store `seed-only` has head 0. Asking for revision 0 by number names the head itself, which
+# exists, so it is projected; a renderer that refuses `at >= head` instead of `at > head` fails
+# here. Asking for revision 1 names a revision that does not exist, so nothing is rendered and the
+# refusal says what was asked for and what the head is. A renderer that clamps the request to the
+# head answers `projected` for revision 0 and fails.
 type: ess-scenario/1
 domain: ekr.views
 scenario: a-revision-beyond-the-head-is-refused
-summary: Asking a store at head 0 for revision 1 is refused as not found, naming the request and the head.
+summary: A store at head 0 projects revision 0 when asked for it by number, and refuses revision 1 as not found, naming the request and the head.
 
 timeline:
+  - at: 2027-01-15T07:59:00Z
+    command: ekr.views.ProjectGraph
+    actor: ekr.views.Reader
+    input:
+      store: seed-only
+      at: 0
+    outcome: projected
+    events:
+      - event: ekr.views.GraphProjected
+        payload:
+          revision: 0
+          head: 0
+
   - at: 2027-01-15T08:00:00Z
     command: ekr.views.ProjectGraph
     actor: ekr.views.Reader
