@@ -2,7 +2,7 @@
 format: aep.planning-md/2
 id: story:observe-domain-model
 kind: story
-status: draft
+status: active
 title: Model the ekr.observe domain before any observation-layer code
 relations:
 - serves: vision:o5
@@ -18,7 +18,7 @@ scope:
   path: systems/ekr/domains/observe.yaml
 - confidence: inferred
   path: systems/ekr/system.yaml
-revision: 8
+revision: 10
 ---
 ## Context
 

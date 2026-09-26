@@ -2,7 +2,7 @@
 format: aep.planning-md/2
 id: story:integrate-domain-typed-reference
 kind: story
-status: draft
+status: active
 title: 'Declare the ekr.integrate domain: typed references and resolution outcomes'
 relations:
 - decomposes: epic:p3-incubation-integration
@@ -24,7 +24,7 @@ scope:
   path: systems/ekr/domains/integrate.yaml
 - confidence: cited
   path: systems/ekr/system.yaml
-revision: 10
+revision: 12
 ---
 ## Context
 
