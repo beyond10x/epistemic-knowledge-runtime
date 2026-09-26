@@ -1,14 +1,17 @@
 # story:graph-projection-specification, scenario "a store with a schema evolution (two versions)".
 #
-# The store `schema-evolution` holds the seed (revision 0, schema version 0) and one committed
-# schema change (revision 1, schema version 1 whose parent is version 0). The newest projection
-# lists both versions and both revisions. A projection at revision 0 is scoped to revision 0: it
-# lists only the version valid at revision 0 and only revision 0's entry, while its head is still
-# the store's newest revision, 1.
+# The store `schema-evolution` holds the seed (revision 0, schema version 0: one node type, no
+# edge type, one property) and one committed schema change (revision 1, schema version 1 whose
+# parent is version 0, adding one node type, one edge type and one property: two node types, one
+# edge type, two properties). The newest projection lists both versions, both revisions — one of
+# them carrying a transaction id — and version 1's ontology. A projection at revision 0 is scoped
+# to revision 0: it lists only version 0 and revision 0's entry, and version 0's ontology, while
+# its head is still the store's newest revision, 1. A renderer that projects the head's ontology
+# at a past revision reports two node types at revision 0 and fails.
 type: ess-scenario/1
 domain: ekr.views
 scenario: a-schema-evolution-projects-each-version-from-its-revision
-summary: After one schema change the newest projection lists two versions and two revisions, and a projection at revision 0 lists one of each at head 1.
+summary: After one schema change the newest projection lists two versions and version 1's ontology, and a projection at revision 0 lists one version and version 0's ontology at head 1.
 
 timeline:
   - at: 2027-01-15T08:00:00Z
@@ -25,6 +28,10 @@ timeline:
           head: 1
           schema_versions: 2
           revisions: 2
+          transactions: 1
+          node_types: 2
+          edge_types: 1
+          properties: 2
 
   - at: 2027-01-15T08:01:00Z
     command: ekr.views.ProjectGraph
@@ -40,3 +47,7 @@ timeline:
           head: 1
           schema_versions: 1
           revisions: 1
+          transactions: 0
+          node_types: 1
+          edge_types: 0
+          properties: 1

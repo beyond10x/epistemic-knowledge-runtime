@@ -1,14 +1,15 @@
 # story:graph-projection-specification, scenario "a seed-only store".
 #
 # The store `seed-only` holds the seed and nothing else: revision 0, one schema version, no
-# committed transaction. Its projection is revision 0 at head 0, one schema version whose first
-# valid revision is 0, and one revision entry, the seed's, which carries no transaction id. The
-# node, edge, assertion and evidence counts are the seed's own and are the runner's fixture to
-# state; this scenario decides only what a seed-only store has exactly one of.
+# committed transaction. Its projection is revision 0 at head 0, one schema version, and one
+# revision entry, the seed's, which carries no transaction id — so
+# `transactions`, the count of revision entries that carry one, is 0. The node, edge, assertion
+# and evidence counts are the seed's own and are the runner's fixture to state; this scenario
+# decides only what a seed-only store has exactly one or none of.
 type: ess-scenario/1
 domain: ekr.views
 scenario: a-seed-only-store-projects-revision-zero
-summary: A store holding only its seed projects revision 0 at head 0, with one schema version and one revision entry.
+summary: A store holding only its seed projects revision 0 at head 0, with one schema version, one revision entry and no transaction id.
 
 timeline:
   - at: 2027-01-15T08:00:00Z
@@ -25,3 +26,4 @@ timeline:
           head: 0
           schema_versions: 1
           revisions: 1
+          transactions: 0

@@ -12,18 +12,31 @@ summary: >-
   This domain writes nothing; its one command reads.
 
   Determinism, which every renderer of ekr.graph-projection/1 holds to so that two renders of one
-  revision are byte-identical. (1) Order: every array is ordered by its members' id, ascending in
-  the lowercase hyphenated text of the UUID; schema.versions and schema.revisions are ordered by
-  number, ascending; every list of ids (aliases excepted, which keep the store's order) is ordered
-  the same way; map keys are ordered by their text. (2) Key order: every object's keys appear in
-  the order its type below declares its fields, and a union's tag key `kind` comes first. (3)
-  Encoding: UTF-8 JSON with no insignificant whitespace; an Integer or a RevisionNumber is a JSON
-  integer with no sign on zero, no leading zero, no fraction and no exponent; a Timestamp is a
-  JSON integer of milliseconds since the Unix epoch in UTC, as the runtime stores it; a Uuid is its
-  lowercase hyphenated text; a Decimal is its exact text as the store holds it. (4) Presence:
-  every declared field is always emitted; an Optional with no value is emitted as null, never
-  omitted, and an empty list or map is emitted empty, never null. (5) No field carries a wall-clock
-  time, a host, a path or anything else that differs between two renders of one revision.
+  revision are byte-identical. (1) Order. By id: every array whose members carry an `id`, and
+  every array of ids, ascending in the lowercase hyphenated text of the UUID — ontology.node_types,
+  ontology.edge_types, ontology.properties, each type's properties, source_types, target_types and
+  assertions, nodes, edges, evidence, each node's and edge's assertions, each assertion's evidence,
+  assessment.validators (a set) and each schema version's added. By number, ascending:
+  schema.versions and schema.revisions. In the store's own order, because the order is part of the
+  value: each node's aliases, each property's value list in props (an ordered list in which
+  duplicates count), each ListValue's items, and assessment.issues and
+  assessment.competing_assertions (ordered vectors, amendment 88). Map keys (props, a RecordValue's
+  fields) ascend by their text. No other array appears in the format. (2) Key order: every
+  object's keys appear in the order its type below declares its fields, and a union's tag key
+  `kind` comes first. (3) Encoding: UTF-8 JSON with no insignificant whitespace; an Integer or a
+  RevisionNumber is a JSON integer with no sign on zero, no leading zero, no fraction and no
+  exponent; every time is an ekr.views.EpochMillis, a JSON integer of milliseconds since the Unix
+  epoch in UTC, which is how the runtime stores a Timestamp; a Uuid is its lowercase hyphenated
+  text; a Decimal is its exact text as the store holds it. (4) Presence: every required field is
+  always emitted; an Optional field with no value is omitted, never emitted as null, and one with a
+  value is always emitted; an empty list or map is emitted empty, never omitted. No field of this
+  format is an Optional inside a list or a map. (5) No field carries a wall-clock time, a host, a
+  path or anything else that differs between two renders of one revision.
+
+  UNMAPPED under decision-blocker:evidence-entry-after-seed: evidence without retained bytes. Every
+  evidence record the kernel admits today arrives with the seed, and the seed retains its bytes, so
+  `retained` is true for every evidence record a store can hold; no scenario can build the false
+  case until that decision says how evidence enters canonical state after the seed.
 
 naming:
   wire: views
@@ -40,6 +53,13 @@ types:
   - name: ekr.views.GraphProjectionFormatV1
     kind: enum
     variants: [ekr.graph-projection/1]
+
+  # Every time in the format: milliseconds since the Unix epoch in UTC, the runtime's own
+  # Timestamp encoding (crates/ekr-core/src/time.rs). Declared rather than ESS's Timestamp, which
+  # ESS spells as a date-time string.
+  - name: ekr.views.EpochMillis
+    kind: newtype
+    of: Integer
 
   # `revision` is the projected revision, `head` the store's newest committed revision when the
   # projection was rendered. The four counts are over the document itself: nodes[], edges[], every
@@ -63,67 +83,65 @@ types:
         type: Integer
 
   # A canonical value, readable. Design § 11.3 without Float, which canonical state does not
-  # admit (ADR 0005). Duration is an Integer as the store holds it.
-  - name: ekr.views.StringValue
-    kind: struct
-    fields:
-      - name: value
-        type: String
+  # admit (ADR 0005). Duration is an Integer as the store holds it. On the wire a ProjectedValue is
+  # {"kind": <variant>, "value": <payload>}: the payload of String, Decimal and Enum is JSON text,
+  # of Boolean a JSON boolean, of Integer and Duration a JSON integer, of Timestamp an
+  # EpochMillis, of NodeRef a node id, of List an array of ProjectedValue and of Record an object
+  # of ProjectedValue by field name.
+  - name: ekr.views.TextValue
+    kind: newtype
+    of: String
 
   - name: ekr.views.BooleanValue
-    kind: struct
-    fields:
-      - name: value
-        type: Boolean
+    kind: newtype
+    of: Boolean
 
   - name: ekr.views.IntegerValue
-    kind: struct
-    fields:
-      - name: value
-        type: Integer
-
-  - name: ekr.views.TimestampValue
-    kind: struct
-    fields:
-      - name: value
-        type: Timestamp
-
-  - name: ekr.views.NodeRefValue
-    kind: struct
-    fields:
-      - name: value
-        type: ekr.graph.NodeId
+    kind: newtype
+    of: Integer
 
   - name: ekr.views.ListValue
-    kind: struct
-    fields:
-      - name: items
-        type: List<ekr.views.ProjectedValue>
+    kind: newtype
+    of: List<ekr.views.ProjectedValue>
 
   - name: ekr.views.RecordValue
-    kind: struct
-    fields:
-      - name: fields
-        type: Map<String, ekr.views.ProjectedValue>
+    kind: newtype
+    of: Map<String, ekr.views.ProjectedValue>
 
   - name: ekr.views.ProjectedValue
     kind: union
     tag: kind
     variants:
-      String: ekr.views.StringValue
+      String: ekr.views.TextValue
       Boolean: ekr.views.BooleanValue
       Integer: ekr.views.IntegerValue
-      Decimal: ekr.views.StringValue
-      Timestamp: ekr.views.TimestampValue
+      Decimal: ekr.views.TextValue
+      Timestamp: ekr.views.EpochMillis
       Duration: ekr.views.IntegerValue
-      NodeRef: ekr.views.NodeRefValue
-      Enum: ekr.views.StringValue
+      NodeRef: ekr.graph.NodeId
+      Enum: ekr.views.TextValue
       List: ekr.views.ListValue
       Record: ekr.views.RecordValue
 
+  # ekr.graph.AssertionLifecycleProjection with its time as EpochMillis. Exactly the payload its
+  # kind carries is present (amendment 88).
+  - name: ekr.views.ProjectedLifecycle
+    kind: struct
+    fields:
+      - name: kind
+        type: ekr.graph.AssertionLifecycleKind
+      - name: at_revision
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: reason
+        type: Optional<String>
+      - name: by
+        type: Optional<ekr.graph.AssertionId>
+      - name: effective_from
+        type: Optional<ekr.views.EpochMillis>
+
   # One assertion as the store holds it at the projected revision. It is listed under the node,
   # edge or type that is its subject, so the subject is not repeated. Exactly the object payload
-  # its object_kind names is non-null: object_value for Value, object_ref for Node and Type.
+  # its object_kind names is present: object_value for Value, object_ref for Node and Type.
   # `evidence` is the ids of the evidence its supports reference.
   - name: ekr.views.ProjectedAssertion
     kind: struct
@@ -143,15 +161,15 @@ types:
       - name: assessment
         type: ekr.graph.AssessmentProjection
       - name: lifecycle
-        type: ekr.graph.AssertionLifecycleProjection
+        type: ekr.views.ProjectedLifecycle
       - name: valid_from
-        type: Optional<Timestamp>
+        type: Optional<ekr.views.EpochMillis>
       - name: valid_to
-        type: Optional<Timestamp>
+        type: Optional<ekr.views.EpochMillis>
       - name: recorded_from
-        type: Timestamp
+        type: ekr.views.EpochMillis
       - name: recorded_to
-        type: Optional<Timestamp>
+        type: Optional<ekr.views.EpochMillis>
       - name: evidence
         type: List<ekr.graph.EvidenceId>
 
@@ -262,7 +280,7 @@ types:
       - name: content_hash
         type: ekr.kernel.ContentHash
       - name: observed_at
-        type: Timestamp
+        type: ekr.views.EpochMillis
       - name: confidence_bp
         type: Integer
       - name: retained
@@ -286,15 +304,15 @@ types:
       - name: added
         type: List<Uuid>
 
-  # One committed revision up to and including the projected one. `transaction_id` is null for the
-  # seed; `schema_version` is the id of the version its canonical state is valid against.
+  # One committed revision up to and including the projected one. `transaction_id` is omitted for
+  # the seed; `schema_version` is the id of the version its canonical state is valid against.
   - name: ekr.views.ProjectedRevision
     kind: struct
     fields:
       - name: number
         type: ekr.kernel.RevisionNumber
       - name: committed_at
-        type: Timestamp
+        type: ekr.views.EpochMillis
       - name: transaction_id
         type: Optional<ekr.kernel.TransactionId>
       - name: schema_version
@@ -371,11 +389,18 @@ commands:
             evidence: {generated: true}
             schema_versions: {generated: true}
             revisions: {generated: true}
+            transactions: {generated: true}
+            node_types: {generated: true}
+            edge_types: {generated: true}
+            properties: {generated: true}
             edge_assertions: {generated: true}
             retracted_assertions: {generated: true}
             retained_evidence: {generated: true}
             projection_hash: {generated: true}
         summary: One ekr.graph-projection/1 document of the requested revision, byte-identical to every other render of that revision.
+      # External because what decides it is the store's head, which is not command input, and the
+      # projection is no entity whose field a guard could read; ESS's `when:` sees input only. The
+      # authored scenario a-revision-beyond-the-head-is-refused constructs the case instead.
       - name: not-found
         external: the store holds no committed revision with the requested number
         error: ekr.views.RevisionNotFound
@@ -385,7 +410,9 @@ events:
   # What one render returned, counted over the document it returned, so a suite can hold a
   # renderer to it without parsing the response. `projection_hash` is the hex SHA-256 of the
   # document's exact bytes. Every field is a function of the document, so this event is as
-  # deterministic as the document is.
+  # deterministic as the document is. `transactions` counts the schema.revisions entries that carry
+  # a transaction_id, so the seed's entry, which carries none, is not one of them; `node_types`,
+  # `edge_types` and `properties` count the projected ontology's three lists.
   - name: ekr.views.GraphProjected
     fields:
       - name: revision
@@ -403,6 +430,14 @@ events:
       - name: schema_versions
         type: Integer
       - name: revisions
+        type: Integer
+      - name: transactions
+        type: Integer
+      - name: node_types
+        type: Integer
+      - name: edge_types
+        type: Integer
+      - name: properties
         type: Integer
       - name: edge_assertions
         type: Integer
