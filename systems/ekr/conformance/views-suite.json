@@ -1,0 +1,2794 @@
+{
+  "coverage": {
+    "authored": [
+      "ekr.views/authored/a-retracted-assertion-is-projected-with-its-lifecycle",
+      "ekr.views/authored/a-revision-beyond-the-head-is-refused",
+      "ekr.views/authored/a-schema-evolution-projects-each-version-from-its-revision",
+      "ekr.views/authored/a-seed-only-store-projects-revision-zero",
+      "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge",
+      "ekr.views/authored/seeded-evidence-is-projected-as-retained"
+    ],
+    "authored_sources": {
+      "a-retracted-assertion-is-projected-with-its-lifecycle.yaml": {
+        "digest": "sha256:1dd0cad3136d0bc8d2f00fad3986f0a6a51c6192e454174e7c0300fa3722e01d",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-retracted-assertion-is-projected-with-its-lifecycle"
+      },
+      "a-revision-beyond-the-head-is-refused.yaml": {
+        "digest": "sha256:1fdbc7e6abd2e0a4464743348e669f381517fdc855e8ec77791678aee1b815a4",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-revision-beyond-the-head-is-refused"
+      },
+      "a-schema-evolution-projects-each-version-from-its-revision.yaml": {
+        "digest": "sha256:da23133c88281059ad8b1a17bcdc4d14c5830d9678541c52f7e265cee464bdce",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-schema-evolution-projects-each-version-from-its-revision"
+      },
+      "a-seed-only-store-projects-revision-zero.yaml": {
+        "digest": "sha256:b11743b6f327a0237a79b6a6594fcef3067b6b58ba81a33527705c699990c639",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-seed-only-store-projects-revision-zero"
+      },
+      "an-assertion-about-an-edge-is-carried-by-that-edge.yaml": {
+        "digest": "sha256:6af4281ad03aa69d90d2f551aa26c2c2cf0d9d3e7d8090262f4a6e2106197aa0",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge"
+      },
+      "seeded-evidence-is-projected-as-retained.yaml": {
+        "digest": "sha256:3f1ef387e658de1a6a00f02285300327b26238f6369ec2c1eba39200d7eb8a36",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/seeded-evidence-is-projected-as-retained"
+      }
+    },
+    "counts": {
+      "authored": 6,
+      "generated": 3,
+      "outside": 36,
+      "refused": 0
+    },
+    "generated": [
+      "ekr.views.ProjectGraph/outcome/not-found",
+      "ekr.views.ProjectGraph/outcome/not-seeded",
+      "ekr.views.ProjectGraph/outcome/projected"
+    ],
+    "knowledge": "complete_inventory",
+    "outside": [
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.RevisionCommitted"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.CheckpointWritten"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Commit/outcome/committed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.RevisionCommitted"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.CheckpointWritten"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Commit/outcome/retained-commit"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionStale"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.CheckpointWritten"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Commit/outcome/stale"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Commit/outcome/transaction-not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Commit/outcome/wrong-state"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Explain"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.Explained"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Explain/outcome/explained"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Explain"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Explain/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/committed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/stale"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Propose/proposed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/rejected"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/validated"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/state/Committed/refuses/ekr.kernel.Validate"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/state/Proposed/refuses/ekr.kernel.Commit"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Commit"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Validate"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Commit"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Validate"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/state/Validated/refuses/ekr.kernel.Validate"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.RevisionCommitted"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.CheckpointWritten"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/transition/commit/by/ekr.kernel.Commit/committed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionRejected"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.CheckpointWritten"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/transition/reject/by/ekr.kernel.Validate/rejected"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionStale"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.CheckpointWritten"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/transition/stale/by/ekr.kernel.Commit/stale"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionValidated"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.CheckpointWritten"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/transition/validate/by/ekr.kernel.Validate/validated"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Propose/outcome/malformed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Propose/outcome/misattributed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.CheckpointWritten"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Propose/outcome/proposed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Seed"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Seed/outcome/already-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Seed"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Seed/outcome/invalid-seed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Seed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.Seeded"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.CheckpointWritten"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.CurrentRevision"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Revisions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Seed/outcome/retained-seed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Seed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.Seeded"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.CheckpointWritten"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.CurrentRevision"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Revisions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Seed/outcome/seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Snapshot"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Snapshot/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Snapshot"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.SnapshotTaken"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Snapshot/outcome/taken"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionRejected"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.CheckpointWritten"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Validate/outcome/rejected"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Validate/outcome/revision-not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Validate/outcome/transaction-not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionValidated"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.CheckpointWritten"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Validate/outcome/validated"
+      }
+    ],
+    "refused": [],
+    "selection": {
+      "filter": {
+        "kind": "all"
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "component": "ekr-views",
+        "kind": "component"
+      }
+    }
+  },
+  "provenance": {
+    "component": "ekr-views",
+    "contract_digest": "765c1c24b3033254f4e60e2ec557cd6d55e8999251feb5e9bb2973278cefbf25",
+    "spec_digest": "0a99f996a545472a14a808b7f879994af43c83fadc55cf94f225237f8a4f9e54",
+    "specification_version": "v1",
+    "suite_version": "ess-conformance/5",
+    "system": "ekr"
+  },
+  "scenarios": {
+    "ekr.views.ProjectGraph/outcome/not-found": {
+      "purpose": "`ekr.views.ProjectGraph` answers `not-found` for the cause it declares as external, injected",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectGraph"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "not-found"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.RevisionNotFound"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "force": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "not-found"
+          },
+          "step": "configure_external_outcome"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectGraph",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "not-found"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.RevisionNotFound",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.ProjectGraph/outcome/not-seeded": {
+      "purpose": "`ekr.views.ProjectGraph` answers `not-seeded` for the cause it declares as external, injected",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectGraph"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "not-seeded"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.NotSeeded"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "force": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "not-seeded"
+          },
+          "step": "configure_external_outcome"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectGraph",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "not-seeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.NotSeeded",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.ProjectGraph/outcome/projected": {
+      "purpose": "`ekr.views.ProjectGraph` answers `projected` for an input no other branch's guard claims",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectGraph"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "projected"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectGraph",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "projected"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "shape": {
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "projection_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retained_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retracted_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "transactions": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-retracted-assertion-is-projected-with-its-lifecycle": {
+      "purpose": "An assertion added at revision 1 and retracted at revision 2 is absent at 0, Active at 1, and Retracted but still projected at 2.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectGraph"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "projected"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectGraph",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "retracted-assertion"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "projected"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "payload": {
+            "assertions": 1.0,
+            "retracted_assertions": 1.0,
+            "revision": 2.0
+          },
+          "shape": {
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "projection_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retained_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retracted_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "transactions": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectGraph",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "retracted-assertion"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "projected"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "payload": {
+            "assertions": 1.0,
+            "head": 2.0,
+            "retracted_assertions": 0.0,
+            "revision": 1.0
+          },
+          "shape": {
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "projection_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retained_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retracted_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "transactions": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectGraph",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "retracted-assertion"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "projected"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "payload": {
+            "assertions": 0.0,
+            "head": 2.0,
+            "retracted_assertions": 0.0,
+            "revision": 0.0
+          },
+          "shape": {
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "projection_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retained_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retracted_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "transactions": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-revision-beyond-the-head-is-refused": {
+      "purpose": "A store at head 0 projects revision 0 when asked for it by number, and refuses revision 1 as not found, naming the request and the head.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectGraph"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "not-found"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "projected"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.RevisionNotFound"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectGraph",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "seed-only"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "projected"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "payload": {
+            "head": 0.0,
+            "revision": 0.0
+          },
+          "shape": {
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "projection_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retained_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retracted_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "transactions": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectGraph",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "seed-only"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "not-found"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.RevisionNotFound",
+          "fields": {
+            "head": 0.0,
+            "requested": 1.0
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-schema-evolution-projects-each-version-from-its-revision": {
+      "purpose": "After one schema change the newest projection lists two versions and version 1's ontology, and a projection at revision 0 lists one version and version 0's ontology at head 1.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectGraph"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "projected"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectGraph",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "schema-evolution"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "projected"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "payload": {
+            "edge_types": 1.0,
+            "head": 1.0,
+            "node_types": 2.0,
+            "properties": 2.0,
+            "revision": 1.0,
+            "revisions": 2.0,
+            "schema_versions": 2.0,
+            "transactions": 1.0
+          },
+          "shape": {
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "projection_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retained_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retracted_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "transactions": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectGraph",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "schema-evolution"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "projected"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "payload": {
+            "edge_types": 0.0,
+            "head": 1.0,
+            "node_types": 1.0,
+            "properties": 1.0,
+            "revision": 0.0,
+            "revisions": 1.0,
+            "schema_versions": 1.0,
+            "transactions": 0.0
+          },
+          "shape": {
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "projection_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retained_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retracted_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "transactions": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-seed-only-store-projects-revision-zero": {
+      "purpose": "A store holding only its seed projects revision 0 at head 0, with one schema version, one revision entry and no transaction id.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectGraph"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "projected"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectGraph",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "seed-only"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "projected"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "payload": {
+            "head": 0.0,
+            "revision": 0.0,
+            "revisions": 1.0,
+            "schema_versions": 1.0,
+            "transactions": 0.0
+          },
+          "shape": {
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "projection_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retained_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retracted_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "transactions": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge": {
+      "purpose": "The one assertion whose subject is an edge is projected under that edge.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectGraph"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "projected"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectGraph",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "edge-assertion"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "projected"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "payload": {
+            "assertions": 1.0,
+            "edge_assertions": 1.0,
+            "edges": 1.0,
+            "nodes": 2.0
+          },
+          "shape": {
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "projection_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retained_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retracted_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "transactions": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/seeded-evidence-is-projected-as-retained": {
+      "purpose": "All three evidence records a seed admits are projected, and all three as retained.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectGraph"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "projected"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectGraph",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "seeded-evidence"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectGraph",
+            "outcome": "projected"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "payload": {
+            "evidence": 3.0,
+            "retained_evidence": 3.0
+          },
+          "shape": {
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "projection_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retained_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "retracted_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "transactions": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    }
+  }
+}

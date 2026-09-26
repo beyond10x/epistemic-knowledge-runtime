@@ -31,7 +31,7 @@
     "counts": {
       "authored": 4,
       "generated": 36,
-      "outside": 0,
+      "outside": 3,
       "refused": 0
     },
     "generated": [
@@ -73,7 +73,45 @@
       "ekr.kernel.Validate/outcome/validated"
     ],
     "knowledge": "complete_inventory",
-    "outside": [],
+    "outside": [
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectGraph"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectGraph/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectGraph"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectGraph/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectGraph"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.GraphProjected"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectGraph/outcome/projected"
+      }
+    ],
     "refused": [],
     "selection": {
       "filter": {
@@ -88,8 +126,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "fad95cdd2faa79850518379834eaa3f94925385d8baa863b9964a5e647518117",
-    "spec_digest": "1e7283efb34abe7e4a1347104571fac45c8b478ec317229f9f5f84954e827631",
+    "contract_digest": "765c1c24b3033254f4e60e2ec557cd6d55e8999251feb5e9bb2973278cefbf25",
+    "spec_digest": "0a99f996a545472a14a808b7f879994af43c83fadc55cf94f225237f8a4f9e54",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"
@@ -206,6 +244,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "view",
@@ -456,6 +498,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
           "step": "query_view",
           "view": "ekr.kernel.PendingTransactions"
         },
@@ -593,6 +639,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "view",
@@ -1818,6 +1868,10 @@
         {
           "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -1928,6 +1982,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "view",
@@ -2160,6 +2218,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
           "step": "query_view",
           "view": "ekr.kernel.PendingTransactions"
         },
@@ -2266,6 +2328,10 @@
           "name": "ekr.store.PublicationPrepared"
         },
         {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
           "kind": "error",
           "name": "ekr.kernel.TransactionNotFound"
         },
@@ -2351,6 +2417,10 @@
         {
           "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -2434,6 +2504,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "error",
@@ -2829,6 +2903,10 @@
         {
           "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -2897,6 +2975,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "actor",
@@ -2982,6 +3064,10 @@
         {
           "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -3050,6 +3136,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "error",
@@ -3136,6 +3226,10 @@
         },
         {
           "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
           "step": "expect_no_event"
         }
       ]
@@ -4194,6 +4288,10 @@
           "name": "ekr.store.PublicationPrepared"
         },
         {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
           "kind": "error",
           "name": "ekr.kernel.TransactionStateConflict"
         },
@@ -4545,6 +4643,10 @@
         },
         {
           "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
           "step": "expect_no_event"
         },
         {
@@ -5371,6 +5473,10 @@
           "name": "ekr.store.PublicationPrepared"
         },
         {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
           "kind": "error",
           "name": "ekr.kernel.TransactionStateConflict"
         },
@@ -5711,6 +5817,10 @@
         },
         {
           "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
           "step": "expect_no_event"
         },
         {
@@ -6211,6 +6321,10 @@
           "name": "ekr.store.PublicationPrepared"
         },
         {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
           "kind": "error",
           "name": "ekr.kernel.TransactionStateConflict"
         },
@@ -6572,6 +6686,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
           "step": "expect_no_events"
         },
         {
@@ -6674,6 +6792,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "error",
@@ -7012,6 +7134,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
           "step": "expect_no_events"
         },
         {
@@ -7135,6 +7261,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "view",
@@ -7385,6 +7515,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
           "step": "query_view",
           "view": "ekr.kernel.PendingTransactions"
         },
@@ -7520,6 +7654,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "view",
@@ -7709,6 +7847,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
           "step": "query_view",
           "view": "ekr.kernel.PendingTransactions"
         },
@@ -7851,6 +7993,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "view",
@@ -8083,6 +8229,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
           "step": "query_view",
           "view": "ekr.kernel.PendingTransactions"
         },
@@ -8218,6 +8368,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "view",
@@ -8407,6 +8561,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
           "step": "query_view",
           "view": "ekr.kernel.PendingTransactions"
         },
@@ -8513,6 +8671,10 @@
           "name": "ekr.store.PublicationPrepared"
         },
         {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
           "kind": "error",
           "name": "ekr.kernel.StructurallyInvalid"
         },
@@ -8598,6 +8760,10 @@
         {
           "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -8670,6 +8836,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "error",
@@ -8756,6 +8926,10 @@
         },
         {
           "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
           "step": "expect_no_event"
         }
       ]
@@ -8849,6 +9023,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "view",
@@ -9007,6 +9185,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
           "step": "query_view",
           "view": "ekr.kernel.PendingTransactions"
         },
@@ -9115,6 +9297,10 @@
           "name": "ekr.store.PublicationPrepared"
         },
         {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
           "kind": "error",
           "name": "ekr.kernel.AlreadySeeded"
         },
@@ -9200,6 +9386,10 @@
         {
           "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -9268,6 +9458,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "error",
@@ -9355,6 +9549,10 @@
         {
           "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -9434,6 +9632,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "view",
@@ -10009,6 +10211,10 @@
         {
           "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -10097,6 +10303,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "view",
@@ -10250,6 +10460,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
           "step": "query_view",
           "view": "ekr.kernel.CurrentRevision"
         },
@@ -10354,6 +10568,10 @@
           "name": "ekr.store.PublicationPrepared"
         },
         {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
           "kind": "error",
           "name": "ekr.kernel.RevisionNotFound"
         },
@@ -10443,6 +10661,10 @@
         {
           "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -10515,6 +10737,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "actor",
@@ -10600,6 +10826,10 @@
         },
         {
           "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
           "step": "expect_no_event"
         }
       ]
@@ -10700,6 +10930,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "view",
@@ -10889,6 +11123,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
           "step": "query_view",
           "view": "ekr.kernel.PendingTransactions"
         },
@@ -10995,6 +11233,10 @@
           "name": "ekr.store.PublicationPrepared"
         },
         {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
           "kind": "error",
           "name": "ekr.kernel.RevisionNotFound"
         },
@@ -11084,6 +11326,10 @@
         {
           "event": "ekr.store.PublicationPrepared",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -11156,6 +11402,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "error",
@@ -11246,6 +11496,10 @@
         },
         {
           "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
           "step": "expect_no_event"
         }
       ]
@@ -11346,6 +11600,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
         },
         {
           "kind": "view",
@@ -11532,6 +11790,10 @@
         },
         {
           "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
           "step": "expect_no_event"
         },
         {
