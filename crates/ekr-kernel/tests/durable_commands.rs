@@ -130,6 +130,7 @@ fn proposal(seed: &SeedDocument) -> (GraphTransaction, NodeId) {
                 }),
             ],
             evidence: BTreeSet::from([evidence]),
+            schema_version: None,
         },
         id,
     )
@@ -591,6 +592,7 @@ fn supersession_and_retraction_preserve_attribution_and_both_time_axes() {
                     reason: RetractionReason::new("corrected evidence"),
                 })],
                 evidence: BTreeSet::new(),
+                schema_version: None,
             };
             kernel
                 .propose(&encode(&withdraw), context().operator, || {

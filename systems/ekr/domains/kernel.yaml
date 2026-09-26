@@ -92,7 +92,9 @@ types:
     kind: newtype
     of: String
 
-  # Required literal: "ekr.p1-deterministic/1". Runtime version dispatch enforces it.
+  # Required literal: "ekr.p1-deterministic/1" (validation profile v1) or "ekr.p2-deterministic/1"
+  # (profile v2, which admits schema changes), paired with the matching application. Runtime version
+  # dispatch enforces it; a store keeps the profile its authority anchor named at seed.
   - name: ekr.kernel.RulesetV1
     kind: newtype
     of: String
@@ -107,7 +109,9 @@ types:
     kind: newtype
     of: String
 
-  # Required literal: "ekr.p1-apply/1". Runtime version dispatch enforces it.
+  # Required literal: "ekr.p1-apply/1" (profile v1) or "ekr.p2-apply/1" (profile v2, under which a
+  # committed schema change replaces the ontology with the version it names). Runtime version
+  # dispatch enforces it.
   - name: ekr.kernel.ApplicationProfileV1
     kind: newtype
     of: String
@@ -494,6 +498,17 @@ types:
       - name: into
         type: ekr.graph.NodeId
 
+  # `ModifyProperty` in the canonical operation. `owner` is absent only in the P1 shape, the bare
+  # declaration P1 refused and v1 stores retain; it then encodes as P1 encoded it, and profile v2
+  # refuses it (design § 95).
+  - name: ekr.kernel.PropertyModificationProjection
+    kind: struct
+    fields:
+      - name: owner
+        type: Optional<ekr.ontology.TypeId>
+      - name: property
+        type: ekr.ontology.PropertyDeclaration
+
   - name: ekr.kernel.InvocationProjection
     kind: struct
     fields:
@@ -516,7 +531,7 @@ types:
       RetractAssertion: ekr.kernel.Retraction
       DefineNodeType: ekr.ontology.NodeTypeDeclaration
       DefineEdgeType: ekr.ontology.EdgeTypeDeclaration
-      ModifyProperty: ekr.ontology.PropertyDeclaration
+      ModifyProperty: ekr.kernel.PropertyModificationProjection
       MergeEntity: ekr.kernel.EntityMerge
       Invoke: ekr.kernel.InvocationProjection
       SupersedeAssertion: ekr.kernel.Supersession
@@ -532,6 +547,10 @@ types:
         type: List<ekr.kernel.CanonicalOperationProjection>
       - name: evidence
         type: List<ekr.graph.EvidenceId>
+      # Present exactly when the operations change the schema (profile v2); absent, it is absent
+      # from the canonical encoding, so a transaction without it hashes as it did before.
+      - name: schema_version
+        type: Optional<ekr.ontology.SchemaVersionId>
 
   - name: ekr.kernel.ValidationMaterialV1Projection
     kind: struct

@@ -4155,3 +4155,113 @@ and zero committed bindings from losing preparations. Exercise both native
 providers, all decision kinds and real kernel authority. Fault wrappers must be
 labelled separately from actual provider interruption evidence. Preserve the
 original red and require its unfiltered passing result before writer closure.
+
+---
+
+# 95. Schema Evolution Transactions
+
+*Added 2026-09-26 by wave p5-01 (`story:schema-evolution-transactions`, parts B and C). Extends §§19,
+20, 26 and 91.5. It adds validation profile v2 beside the P1 profile; it changes no retained v1
+record and moves no retained transaction encoding: `ModifyProperty` gains an owner, and its P1
+shape still reads and encodes as it did.*
+
+A committed transaction can add a node type (`DefineNodeType`), add an edge type
+(`DefineEdgeType`), and add or redeclare a property on a type the ontology declares
+(`ModifyProperty`). The commit produces the next schema version. Case names below are in
+`crates/ekr-kernel/tests/schema_evolution.rs` unless marked `replay:` (in
+`schema_evolution_replay.rs`, which runs both providers).
+
+1. **Schema-only transactions.** A transaction that mixes a schema operation with an operation of
+   any other kind is refused by the structural validator with `mixed-schema-transaction`. Mixed
+   transactions are a later milestone. Executed by
+   `a_schema_change_mixed_with_another_kind_is_refused`.
+2. **Two profiles, fixed at seed.** Validation profile v2 is ruleset `ekr.p2-deterministic/1` with
+   application `ekr.p2-apply/1`, beside v1's `ekr.p1-deterministic/1` with `ekr.p1-apply/1`. Each
+   is one exact value; a pair mixing the two is refused (`seed-authority-profile`). A store keeps
+   the profile its authority anchor names at seed, because the anchor is part of the seed envelope
+   and is compared again on every reopening. No mechanism moves a store from v1 to v2; that is a
+   later milestone. Executed by replay: `a_profile_mixing_the_two_rulesets_is_refused` and
+   `a_store_keeps_the_profile_it_was_seeded_under_on_both_providers`.
+3. **The version field.** `GraphTransaction` gains one optional field, `schema_version`, carrying
+   the new `SchemaVersionId` (from `ekr mint schema-version`). It is required exactly when a schema
+   operation is present: its absence is refused with `schema-version-missing`, and its presence
+   without one with `schema-version-without-schema-change` (under either profile). When absent it
+   is absent from the canonical encoding, so every transaction without it encodes byte-identically
+   to before; when present it is written last, as a tagged `Some`. In `ekr.transaction-document/1`
+   it is one optional key, and a document without it reads as before. Executed by
+   `the_version_id_is_required_exactly_when_a_schema_change_is_present`,
+   `a_transaction_without_a_version_id_encodes_byte_identically_to_before` and
+   `the_transaction_document_takes_one_optional_version_key`; that no retained vector moves is held
+   by the existing `current_vectors`, `current_validation_hash` and `current_root_sensitivity`
+   cases.
+4. **Lineage.** `GraphRoot.schema_version_id` stays the seed's: it is the root's identity. The
+   ontology root carries each new version, with `number` one more than the prior version's,
+   `parent` the prior version, and the commit time as `created_at`. A new version id must appear
+   nowhere on the lineage: `Ontology::evolve` sees the prior version and its parent, and the kernel
+   holds it against every version its retained revisions name, refusing with
+   `schema-version-reused`. Executed by `a_version_id_already_on_the_lineage_is_refused` and replay:
+   `replay_reproduces_every_root_across_schema_versions_on_both_providers`, which reuses the seed's
+   id two versions later.
+5. **`ModifyProperty` carries its owner.** Its payload is `{ owner, property: PropertyDefinition }`
+   (`ekr.kernel.PropertyModificationProjection`), in the payload, the canonical encoding (a tagged
+   `Some(owner)`, then the declaration), the transaction document and `ekr.kernel`'s operation
+   projection. The P1 shape — the bare declaration, which P1 refused and v1 stores retain — is
+   frozen in the same variant as `owner: None`, the way `crate::legacy` freezes the original
+   format: it reads from and writes to the bare declaration and encodes as the declaration alone,
+   exactly as at the wave's base. A mapping mixing the two shapes is refused. Profile v2 refuses
+   the P1 shape with `modify-property-without-owner`. The encodings of the other eleven kinds do
+   not move. Executed by `the_modify_property_owner_reaches_the_encoding`,
+   `an_ownerless_modify_property_is_refused_under_profile_two`,
+   `crates/ekr-kernel/tests/encoding_field_order.rs`, `crates/ekr-kernel/tests/validation.rs`'s
+   `the_twelve_current_operation_numbers_are_the_domains_and_the_declarations`, and — against
+   bytes the base kernel wrote — `crates/ekr-kernel/tests/base_era_v1_replay.rs`'s
+   `the_p1_shape_encodes_exactly_as_the_base_kernel_encoded_it`,
+   `every_operation_kind_in_its_base_era_shape_re_derives_its_retained_hashes` and
+   `a_modify_property_mixing_the_two_shapes_is_refused`.
+6. **No removal.** No operation removes a type or a property.
+
+**Admission under v2.** The structural validator admits the three kinds as above; entity merge
+stays `unsupported-operation`. The ontology-constraint validator builds the candidate with
+`Ontology::evolve`, reporting each `EvolveError` under its own code (`unknown-property-owner`,
+`incoherent-schema`, `schema-change-without-effect`, `schema-version-reused`), then asks
+`ekr_ontology::incompatibilities` whether the candidate can replace the prior version over the
+canonical graph, reporting each `Incompatibility` under its own code. It reads canonical state per
+`InstanceState`: an instance of an owner is a node or edge whose own type it is; `min_values` and
+`max_values` count held values only; `value_kinds` also includes the objects of active property
+assertions. It stays silent where the structural validator has spoken (a type id declared twice,
+or over one the ontology holds). Executed by `each_schema_change_kind_validates_under_profile_two`,
+`evolve_refusals_arrive_as_ontology_issues_with_the_ontologys_codes`,
+`a_change_canonical_state_would_violate_is_refused_with_a_named_issue`,
+`a_value_type_change_is_refused_when_an_active_assertion_object_would_break` and
+`requiring_a_property_held_only_through_assertions_is_refused`.
+
+**Refusal under v1.** A v1 store refuses the three kinds with the issue P1 retained,
+`unsupported-operation` with the message `<Kind> is not supported in P1`, unchanged byte for byte.
+This is the named issue saying the store's profile does not admit schema changes. It is not
+reworded, because replay compares every retained rejection's code and message with what the
+ruleset says now: a new message would make every v1 store that retained such a rejection fail
+to reopen. Executed by `profile_one_still_refuses_the_three_schema_kinds` and replay:
+`a_v1_store_with_a_retained_schema_rejection_still_replays_on_both_providers`, which build the
+rejection with this wave's kernel. That a store written *before* this wave keeps replaying is held on
+SQLite, against a store the base kernel (`cee0cae`) wrote under v1 retaining a P1-shape
+`ModifyProperty` proposal and its `unsupported-operation` rejection, by `base_era_v1_replay.rs`'s
+`a_base_era_v1_sqlite_store_holding_an_ownerless_modify_property_rejection_still_reopens`; that
+store also retains one proposal and rejection carrying all twelve operation kinds in their base-era
+shapes. On the file provider the claim is unexecuted in the tree: adversary pass 1 wrote a case
+over a base-era file store and it passed at `468162c`, but it is kept out of the tree because the
+secret scan refuses its embedded fixture (the store's idempotency keys read as generic API keys).
+
+In one transaction under v2, two `ModifyProperty` of one property of one owner are refused as
+`conflicting-write`, whether or not the declarations differ, as two writes of one field are; two
+`DefineNodeType` or `DefineEdgeType` of one type id were already refused as `duplicate-identity`.
+Executed by `adversary2_p5_01_kernel.rs`'s
+`a_property_redeclared_twice_in_one_transaction_is_refused_as_a_conflicting_write` and
+`schema_evolution.rs`'s `a_type_defined_twice_in_one_transaction_is_refused_under_profile_two`.
+
+**Application and replay.** Under `ekr.p2-apply/1` a committed schema change replaces the graph's
+ontology with the evolved version; nodes, edges and assertions are unchanged. Replay revalidates
+each retained decision under the store's profile, against the ontology as of the revision it was
+validated against, and with the lineage of the revisions up to that one. Seed, schema change, data
+using the new types, a refused incompatible change, a second schema change and a refused lineage
+reuse reopen with identical roots, graphs and records on the file and SQLite providers. Executed by
+replay: `replay_reproduces_every_root_across_schema_versions_on_both_providers`.

@@ -303,6 +303,7 @@ pub(crate) fn admitted_graph(
             .values()
             .flat_map(|a| a.evidence.iter().copied())
             .collect(),
+        schema_version: None,
     };
     Pipeline::deterministic(context.validator)
         .validate_bootstrap(&GraphSnapshot::of(&initial), &proposal)
