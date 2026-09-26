@@ -826,8 +826,17 @@ fn historical_capture_stops_loading_at_the_selected_revision_and_keeps_its_conte
         drop(provider);
         drop(executor);
         let before = physical(directory.path(), file);
+        // `head` answers from the checkpoint pointer, which names every occurrence and reads only
+        // the head revision's record (design § 96.3); replayed in full, it needs every record.
+        assert_eq!(
+            open(directory.path(), file).head().unwrap(),
+            Some(captured.root)
+        );
+        let mut full = open(directory.path(), file);
+        full.set_full_replay(true);
+        assert!(full.head().is_err());
+        drop(full);
         let kernel = open(directory.path(), file);
-        assert!(kernel.head().is_err());
         assert!(kernel.snapshot().is_err());
         assert!(kernel.transactions().is_err());
         assert!(kernel.read(None).is_err());

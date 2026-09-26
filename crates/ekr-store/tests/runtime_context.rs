@@ -361,6 +361,14 @@ fn all_io_refuses<S: AtomicBlobEventStore>(store: EventlogStore<S>) {
         exercised.refuses("get", store.get(&object.content_hash));
         exercised.refuses("published_events", store.published_events());
         exercised.refuses(
+            "write_checkpoint",
+            store.write_checkpoint(
+                1,
+                ContentHash::of_bytes(b"a binding"),
+                Some(b"a replay checkpoint"),
+            ),
+        );
+        exercised.refuses(
             "put",
             store.put(StorageClass::Canonical, retained, Timestamp::EPOCH),
         );
@@ -398,7 +406,8 @@ fn all_io_refuses<S: AtomicBlobEventStore>(store: EventlogStore<S>) {
         Some(pending.to_vec())
     );
     // The constructors are refused by `constructors_refuse_before_creating_paths`; `under` only
-    // installs the authority and performs no I/O. Everything else must have been refused above.
+    // installs the authority and `set_full_replay` only sets a flag, and neither performs I/O.
+    // Everything else must have been refused above.
     let mut reached: BTreeSet<String> = exercised
         .0
         .into_inner()
@@ -412,6 +421,7 @@ fn all_io_refuses<S: AtomicBlobEventStore>(store: EventlogStore<S>) {
             "file",
             "file_existing",
             "under",
+            "set_full_replay",
         ]
         .map(str::to_owned),
     );

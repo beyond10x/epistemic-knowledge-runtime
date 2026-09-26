@@ -25,11 +25,15 @@ pub struct RecordedValidationIssue {
     pub message: String,
 }
 
-/// Complete retained ekr.proposal-record/1 fields, in normative declaration order.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+/// Complete retained `ekr.proposal-record/1` or `/2` fields, in normative declaration order.
+///
+/// The two formats hold the same fields and differ only in how `document_bytes` is written:
+/// `/1` as serde's default number array, `/2` as one standard padded base64 string
+/// ([`ekr_core::bytes`]). A record keeps the format it was retained in, so re-encoding a `/1`
+/// record reproduces its original bytes and its payload address; new records are `/2`.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProposalRecordV1 {
-    /// Exactly `ekr.proposal-record/1`.
+    /// `ekr.proposal-record/2`, or `ekr.proposal-record/1` for a record retained before it.
     pub format: String,
     /// Retained `event_id`.
     pub event_id: EventId,
@@ -53,8 +57,10 @@ pub struct ProposalRecordV1 {
     pub canonical_operations_hash: Option<ContentHash>,
 }
 impl ProposalRecordV1 {
-    /// Exact supported record format.
-    pub const FORMAT: &'static str = "ekr.proposal-record/1";
+    /// The record format new proposals are retained in.
+    pub const FORMAT: &'static str = "ekr.proposal-record/2";
+    /// The original format, still read and re-encoded exactly.
+    pub const FORMAT_V1: &'static str = "ekr.proposal-record/1";
     /// Encodes current record bytes. This is a codec, not admission authority.
     /// # Errors
     /// Refuses a substituted format or an encoding failure.
@@ -72,10 +78,87 @@ impl ProposalRecordV1 {
         Ok(record)
     }
     pub(crate) fn check_format(&self) -> Result<(), StoreError> {
-        if self.format != Self::FORMAT {
+        if self.format != Self::FORMAT && self.format != Self::FORMAT_V1 {
             return Err(StoreError::Document("unsupported-record-format".into()));
         }
         Ok(())
+    }
+}
+
+#[derive(Serialize)]
+struct ProposalWrite<'a> {
+    format: &'a str,
+    event_id: EventId,
+    submitted_at: Timestamp,
+    submitter: AgentId,
+    document_hash: ContentHash,
+    document_bytes: ekr_core::bytes::Spell<'a>,
+    transaction_id: TransactionId,
+    operation_count: u64,
+    evidence_hash: ContentHash,
+    canonical_transaction_hash: Option<ContentHash>,
+    canonical_operations_hash: Option<ContentHash>,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ProposalRead {
+    format: String,
+    event_id: EventId,
+    submitted_at: Timestamp,
+    submitter: AgentId,
+    document_hash: ContentHash,
+    document_bytes: ekr_core::bytes::Spelled,
+    transaction_id: TransactionId,
+    operation_count: u64,
+    evidence_hash: ContentHash,
+    canonical_transaction_hash: Option<ContentHash>,
+    canonical_operations_hash: Option<ContentHash>,
+}
+impl Serialize for ProposalRecordV1 {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        ProposalWrite {
+            format: &self.format,
+            event_id: self.event_id,
+            submitted_at: self.submitted_at,
+            submitter: self.submitter,
+            document_hash: self.document_hash,
+            document_bytes: ekr_core::bytes::Spell {
+                bytes: &self.document_bytes,
+                numbers: self.format == Self::FORMAT_V1,
+            },
+            transaction_id: self.transaction_id,
+            operation_count: self.operation_count,
+            evidence_hash: self.evidence_hash,
+            canonical_transaction_hash: self.canonical_transaction_hash,
+            canonical_operations_hash: self.canonical_operations_hash,
+        }
+        .serialize(serializer)
+    }
+}
+impl<'de> Deserialize<'de> for ProposalRecordV1 {
+    /// Each format admits only its own spelling of `document_bytes`: a number array in `/1`, a
+    /// base64 string in `/2`. A record of any other format is read and refused by its codec.
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let read = ProposalRead::deserialize(deserializer)?;
+        let numbers = read.format == Self::FORMAT_V1;
+        if read.document_bytes.numbers != numbers {
+            return Err(serde::de::Error::custom(
+                "document_bytes is not spelled as its record format writes it",
+            ));
+        }
+        Ok(Self {
+            format: read.format,
+            event_id: read.event_id,
+            submitted_at: read.submitted_at,
+            submitter: read.submitter,
+            document_hash: read.document_hash,
+            document_bytes: read.document_bytes.bytes,
+            transaction_id: read.transaction_id,
+            operation_count: read.operation_count,
+            evidence_hash: read.evidence_hash,
+            canonical_transaction_hash: read.canonical_transaction_hash,
+            canonical_operations_hash: read.canonical_operations_hash,
+        })
     }
 }
 
@@ -206,11 +289,15 @@ impl ValidationReceiptV1 {
     }
 }
 
-/// Complete retained ekr.commit-receipt/1 fields, in normative declaration order.
+/// Complete retained `ekr.commit-receipt/1` or `/2` fields, in normative declaration order.
+///
+/// The fields are the same in both. A `/1` receipt embeds an `ekr.proposal-record/1`; a `/2`
+/// receipt embeds the transaction's retained proposal in whichever of the two formats it was
+/// retained in, which is what lets it carry the compact `/2` proposal.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CommitReceiptV1 {
-    /// Exactly `ekr.commit-receipt/1`.
+    /// `ekr.commit-receipt/2`, or `ekr.commit-receipt/1` for a receipt retained before it.
     pub format: String,
     /// Retained `event_id`.
     pub event_id: EventId,
@@ -232,8 +319,10 @@ pub struct CommitReceiptV1 {
     pub result_hash: ContentHash,
 }
 impl CommitReceiptV1 {
-    /// Exact supported record format.
-    pub const FORMAT: &'static str = "ekr.commit-receipt/1";
+    /// The record format new commit receipts are retained in.
+    pub const FORMAT: &'static str = "ekr.commit-receipt/2";
+    /// The original format, still read; it embeds only an `ekr.proposal-record/1`.
+    pub const FORMAT_V1: &'static str = "ekr.commit-receipt/1";
     /// Encodes current record bytes. This is a codec, not admission authority.
     /// # Errors
     /// Refuses a substituted format or an encoding failure.
@@ -251,7 +340,12 @@ impl CommitReceiptV1 {
         Ok(record)
     }
     pub(crate) fn check_format(&self) -> Result<(), StoreError> {
-        if self.format != Self::FORMAT {
+        let embeds = match self.format.as_str() {
+            Self::FORMAT => true,
+            Self::FORMAT_V1 => self.proposal.format == ProposalRecordV1::FORMAT_V1,
+            _ => false,
+        };
+        if !embeds {
             return Err(StoreError::Document("unsupported-record-format".into()));
         }
         self.proposal.check_format()?;

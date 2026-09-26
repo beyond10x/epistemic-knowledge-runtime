@@ -14,6 +14,8 @@ use std::collections::BTreeSet;
 pub struct KernelAuthority {
     pub(crate) context: BootstrapContext,
     pub(crate) anchor: AuthorityStateV1,
+    /// Verified replay states this authority reached, shared by every clone of it.
+    pub(crate) cache: std::sync::Arc<std::sync::Mutex<crate::replay::ReplayCache>>,
 }
 impl CommitAuthority for KernelAuthority {
     fn required_objects(
@@ -26,10 +28,21 @@ impl CommitAuthority for KernelAuthority {
         let RevisionPayload::Seeded { seed_hash, .. } = first.event.payload else {
             return Err(StoreError::NotSeeded);
         };
+        // The seed envelope is content-addressed, so its admission and the payloads it names are
+        // a function of `seed_hash`: admitted once, they are not admitted again by this authority.
+        if let Some(required) = self.seed_requirements(seed_hash)? {
+            return Ok(required);
+        }
         let envelope = seed::envelope(history.content(seed_hash, StorageClass::Canonical)?)?;
         seed::admitted_graph(&envelope.input, envelope.context, envelope.committed_at)
             .map_err(|error| StoreError::InvalidSeed(error.to_string()))?;
-        Ok(envelope.input.evidence_payloads.keys().copied().collect())
+        let required: BTreeSet<ContentHash> =
+            envelope.input.evidence_payloads.keys().copied().collect();
+        self.cache
+            .lock()
+            .map_err(|_| StoreError::Document("replay-cache-poisoned".into()))?
+            .seed = Some((seed_hash, required.clone()));
+        Ok(required)
     }
     fn replay(
         &self,
@@ -37,17 +50,40 @@ impl CommitAuthority for KernelAuthority {
         ontology: Option<&ekr_ontology::Ontology>,
         revision: Option<RevisionNumber>,
     ) -> Result<Option<AdmittedRevision>, StoreError> {
-        Ok(self
-            .reconstruct(history, ontology, revision)?
-            .map(|state| state.head().clone()))
+        self.reconstruct(history, ontology, revision)?
+            .map(|state| state.head().admitted())
+            .transpose()
+    }
+    fn restore(&self, history: &RetainedHistory, checkpoint: &[u8]) -> Result<(), StoreError> {
+        self.restore_checkpoint(history, checkpoint)
+    }
+    fn checkpointed_head(
+        &self,
+        history: &RetainedHistory,
+        binding: ContentHash,
+    ) -> Result<Option<Root>, StoreError> {
+        self.head_by_binding(history, binding)
     }
 }
 impl KernelAuthority {
+    fn seed_requirements(
+        &self,
+        seed_hash: ContentHash,
+    ) -> Result<Option<BTreeSet<ContentHash>>, StoreError> {
+        Ok(self
+            .cache
+            .lock()
+            .map_err(|_| StoreError::Document("replay-cache-poisoned".into()))?
+            .seed
+            .as_ref()
+            .filter(|(admitted, _)| *admitted == seed_hash)
+            .map(|(_, required)| required.clone()))
+    }
     pub(crate) fn seed_state(
         &self,
         history: &RetainedHistory,
         ontology: Option<&ekr_ontology::Ontology>,
-    ) -> Result<Option<AdmittedRevision>, StoreError> {
+    ) -> Result<Option<(AdmittedRevision, BTreeSet<ContentHash>)>, StoreError> {
         self.anchor.check(self.context)?;
         let Some(first) = history.occurrences.first() else {
             return Ok(None);
@@ -94,7 +130,8 @@ impl KernelAuthority {
             record_hash: first.event.record_hash,
             committed_at: record.committed_at,
         };
-        Ok(Some(result))
+        let payloads = envelope.input.evidence_payloads.keys().copied().collect();
+        Ok(Some((result, payloads)))
     }
 }
 /// The Bootstrap slot's input hash binds the host context and anchor, so a preparation that the
@@ -173,7 +210,11 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         open: impl FnOnce(KernelAuthority) -> Result<S, StoreError>,
     ) -> Result<Self, StoreError> {
         anchor.check(context)?;
-        let authority = KernelAuthority { context, anchor };
+        let authority = KernelAuthority {
+            context,
+            anchor,
+            cache: std::sync::Arc::default(),
+        };
         let store = open(authority.clone())?;
         Ok(Self { store, authority })
     }
@@ -338,7 +379,9 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
                         .ok_or_else(|| {
                             StoreError::Document("elected-seed-record-missing".into())
                         })?;
-                    return Ok(SeedResultV1::from_bytes(&bytes.bytes)?);
+                    let result = SeedResultV1::from_bytes(&bytes.bytes)?;
+                    self.retain_checkpoint();
+                    return Ok(result);
                 }
                 Err(StoreError::Conflict) => {
                     if let Some(result) = self.retained_seed(document)? {

@@ -16,7 +16,7 @@ fn node(name: &str) -> String {
 
 fn require_limit(input: &str, expected: DocumentLimit) {
     match TransactionDocument::parse(input.as_bytes()) {
-        Err(DocumentError::Limit(actual)) => assert_eq!(actual, expected),
+        Err(DocumentError::Limit(actual, _)) => assert_eq!(actual, expected),
         Err(error) => panic!("expected {expected}, got {error}"),
         Ok(parsed) => panic!(
             "expected {expected}, accepted {} raw bytes and {} operations",

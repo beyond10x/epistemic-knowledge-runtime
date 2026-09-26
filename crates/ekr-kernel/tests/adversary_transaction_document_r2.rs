@@ -19,7 +19,7 @@ fn update(value: &str) -> String {
 
 fn require_limit(input: &str, expected: DocumentLimit) {
     match TransactionDocument::parse(input.as_bytes()) {
-        Err(DocumentError::Limit(actual)) => assert_eq!(actual, expected),
+        Err(DocumentError::Limit(actual, _)) => assert_eq!(actual, expected),
         Err(other) => panic!("expected {expected}, received {other}"),
         Ok(_) => panic!("expected {expected}, accepted {} raw bytes", input.len()),
     }

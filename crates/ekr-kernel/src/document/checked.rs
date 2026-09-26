@@ -6,7 +6,7 @@ use serde::de::{self, DeserializeSeed, EnumAccess, MapAccess, SeqAccess, Variant
 use serde::Deserializer;
 use std::{cell::RefCell, fmt};
 
-use super::{shape::Shape, Budget, DocumentLimit, DOCUMENT_V1_LIMITS};
+use super::{shape::Shape, Budget, DocumentLimit};
 
 pub(super) struct Checked<'a, D> {
     inner: D,
@@ -117,7 +117,7 @@ impl<V> CheckVisitor<'_, V> {
     fn container<E: de::Error>(&self) -> Result<usize, E> {
         self.depth
             .checked_add(1)
-            .filter(|depth| *depth <= DOCUMENT_V1_LIMITS.depth)
+            .filter(|depth| *depth <= self.budget.borrow().limits.depth)
             .ok_or_else(|| self.budget.borrow_mut().refuse(DocumentLimit::Depth))
     }
 }

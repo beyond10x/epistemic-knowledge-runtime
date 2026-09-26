@@ -10,6 +10,11 @@ binary, and the `--evidence` seed in step 3 with `ekr 0.0.6`. Every file shown i
 that matter (`…` marks a cut), and hashes and timestamps will differ in your run. The
 [schema evolution](schema-evolution.md) page continues with the same store.
 
+The transaction documents on this page are `ekr.transaction-document/1`, the format those runs
+used. 0.0.7 still reads them, under their own limits of 256 operations and 262144 bytes. Write new
+documents as `ekr.transaction-document/2` (`ekr example transaction`): the same fields, up to 10,000
+operations in 8 MiB ([document limits](cli.md#document-limits)).
+
 ```mermaid
 flowchart LR
   A["1 host"] --> B["2 evidence"] --> C["3 seed"] --> D["4 find ids"] --> E["5 record a claim"] --> F["6 change it over time"] --> G["7 ask why"]
