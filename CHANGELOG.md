@@ -4,6 +4,40 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.3] — 2026-09-26
+
+A platform refresh and the first user documentation.
+
+### Added
+
+- `docs/cli.md`: the `ekr` CLI for users and agents — configuration, every verb, the workflow, the
+  `ekr-seed/2` format field by field with the schema (`ontology:`) section, the transaction document,
+  the P1 limits, a worked example and the common refusals. A test holds every document block, table
+  and refusal on the page to the binary.
+- `ekr hash <file|->`: the content hash and the pasteable byte list a seed evidence entry needs; the
+  two seed evidence refusals name the expected and the found hash.
+- `ekr schema <format>`: the JSON Schema (draft 2020-12) of `ekr-seed/2`,
+  `ekr.transaction-document/1` and `ekr.cli-host/1`, generated from the types the readers decode.
+  The schemas carry the frozen document limits, integer ranges and the host's fixed texts; each
+  description, and `docs/cli.md`, names every case where the schema and the reader still differ.
+  The schema is a first check; the reader decides.
+- README rewritten for users, with a first run.
+
+### Changed
+
+- ESS 0.32.0 (from 0.29.0) for the specification and the conformance target; `spec-check` and
+  `conform-check` refuse any other `ess`.
+- Eventlog 0.4.0 (from rev `28e57856`). A command history now loads in a constant number of provider
+  calls, so file-provider commands grow linearly: propose at revision 40 went from 2,487 ms to
+  463 ms (release build; 221 ms at revision 1).
+
+### Known
+
+- A schema is declared only in the seed: `DefineNodeType`, `DefineEdgeType`, `ModifyProperty` and
+  `MergeEntity` are refused as `unsupported-operation`. Schema evolution is the next wave.
+- Each command still verifies the whole file-provider log once when it opens the store; reads of a
+  past revision cost one provider call per event (`task:selected-revision-loads-read-one-event-per-call`).
+
 ## [0.0.2] — 2026-09-25
 
 The P1 exit: the kernel, ontology, graph and store are complete, conforming and reachable through
