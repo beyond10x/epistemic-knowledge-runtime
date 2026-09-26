@@ -567,6 +567,28 @@ fn requiring_a_property_held_only_through_assertions_is_refused() {
     );
 }
 
+/// Two definitions of one type id in one transaction are refused under v2 as they are under v1,
+/// as `duplicate-identity`: the type-level half of correction 2's conflicting-write rule.
+#[test]
+fn a_type_defined_twice_in_one_transaction_is_refused_under_profile_two() {
+    let world = World::new();
+    let declared = observation();
+    let mut edge = EdgeType::new(declared.id, "observes");
+    edge.source_types = [world.decision].into_iter().collect();
+    edge.target_types = [world.decision].into_iter().collect();
+    for second in [
+        GraphOperation::DefineNodeType(Box::new(declared.clone())),
+        GraphOperation::DefineEdgeType(Box::new(edge)),
+    ] {
+        let issues = world.refuse(vec![
+            GraphOperation::DefineNodeType(Box::new(declared.clone())),
+            second,
+        ]);
+        assert_eq!(codes(&issues), vec!["duplicate-identity"]);
+        assert_eq!(validators(&issues), vec![ValidatorName::Structural]);
+    }
+}
+
 /// Under v2 a `ModifyProperty` names its owner: the ownerless P1 shape still parses, for v1 stores
 /// that retain it, and v2 refuses it by name.
 #[test]

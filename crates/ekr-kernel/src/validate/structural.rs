@@ -161,6 +161,29 @@ fn schema_shape(tx: &GraphTransaction, admits_schema: bool, issues: &mut Vec<Val
         _ => {}
     }
     if admits_schema {
+        // Two declarations of one property of one owner compete in an unordered transaction as
+        // two writes of one field do, and are refused the same way — identical ones too, since the
+        // second has no effect. Two definitions of one type id are already `duplicate-identity`.
+        // v2 only: a v1 store's retained rejections replay against the P1 rules unchanged.
+        let mut declared = BTreeSet::new();
+        for operation in &tx.operations {
+            if let GraphOperation::ModifyProperty(modification) = operation {
+                if let Some(owner) = modification.owner {
+                    if !declared.insert((owner, modification.property.id)) {
+                        issues.push(issue(
+                            tx,
+                            ValidatorName::Structural,
+                            CONFLICTING_WRITE,
+                            format!(
+                                "property {} of type {owner} is declared by more than one \
+                                 ModifyProperty in an unordered transaction",
+                                modification.property.id
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
         for operation in &tx.operations {
             if let GraphOperation::ModifyProperty(modification) = operation {
                 if modification.owner.is_none() {

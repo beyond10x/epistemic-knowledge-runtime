@@ -4242,15 +4242,21 @@ reworded, because replay compares every retained rejection's code and message wi
 ruleset says now: a new message would make every v1 store that retained such a rejection fail
 to reopen. Executed by `profile_one_still_refuses_the_three_schema_kinds` and replay:
 `a_v1_store_with_a_retained_schema_rejection_still_replays_on_both_providers`, which build the
-rejection with this wave's kernel. That a store written *before* this wave keeps replaying is held
-against stores the base kernel (`cee0cae`) wrote under v1, each retaining a P1-shape `ModifyProperty`
-proposal and its `unsupported-operation` rejection: on the file provider by
-`crates/ekr-kernel/tests/adversary_p5_01_kernel.rs`'s
-`a_base_era_v1_store_holding_an_ownerless_modify_property_rejection_still_reopens`, and on SQLite
-by `base_era_v1_replay.rs`'s
-`a_base_era_v1_sqlite_store_holding_an_ownerless_modify_property_rejection_still_reopens`, whose
-store also retains one proposal and rejection carrying all twelve operation kinds in their
-base-era shapes.
+rejection with this wave's kernel. That a store written *before* this wave keeps replaying is held on
+SQLite, against a store the base kernel (`cee0cae`) wrote under v1 retaining a P1-shape
+`ModifyProperty` proposal and its `unsupported-operation` rejection, by `base_era_v1_replay.rs`'s
+`a_base_era_v1_sqlite_store_holding_an_ownerless_modify_property_rejection_still_reopens`; that
+store also retains one proposal and rejection carrying all twelve operation kinds in their base-era
+shapes. On the file provider the claim is unexecuted in the tree: adversary pass 1 wrote a case
+over a base-era file store and it passed at `468162c`, but it is kept out of the tree because the
+secret scan refuses its embedded fixture (the store's idempotency keys read as generic API keys).
+
+In one transaction under v2, two `ModifyProperty` of one property of one owner are refused as
+`conflicting-write`, whether or not the declarations differ, as two writes of one field are; two
+`DefineNodeType` or `DefineEdgeType` of one type id were already refused as `duplicate-identity`.
+Executed by `adversary2_p5_01_kernel.rs`'s
+`a_property_redeclared_twice_in_one_transaction_is_refused_as_a_conflicting_write` and
+`schema_evolution.rs`'s `a_type_defined_twice_in_one_transaction_is_refused_under_profile_two`.
 
 **Application and replay.** Under `ekr.p2-apply/1` a committed schema change replaces the graph's
 ontology with the evolved version; nodes, edges and assertions are unchanged. Replay revalidates
