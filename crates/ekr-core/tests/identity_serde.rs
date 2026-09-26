@@ -106,6 +106,8 @@ id_cases! {
     evidence_id => EvidenceId,
     observation_id => ObservationId,
     event_id => EventId,
+    merge_id => MergeId,
+    split_id => SplitId,
 }
 
 fn workspace_root() -> PathBuf {
@@ -159,10 +161,16 @@ fn ess_uuid_newtypes(domain_file: &str) -> Vec<String> {
 fn every_ess_id_type_exists_in_the_crate() {
     // Every domain of the runtime. `store.yaml` declares no id newtype since `ekr.store.SnapshotId`
     // was removed in wave p1-14; it is scanned so that an id declared there must be carried here too.
-    let mut declared: Vec<String> = ["kernel.yaml", "ontology.yaml", "graph.yaml", "store.yaml"]
-        .into_iter()
-        .flat_map(ess_uuid_newtypes)
-        .collect();
+    let mut declared: Vec<String> = [
+        "kernel.yaml",
+        "ontology.yaml",
+        "graph.yaml",
+        "store.yaml",
+        "integrate.yaml",
+    ]
+    .into_iter()
+    .flat_map(ess_uuid_newtypes)
+    .collect();
     declared.sort();
 
     let mut enumerated: Vec<String> = ENUMERATED.iter().map(|n| (*n).to_owned()).collect();

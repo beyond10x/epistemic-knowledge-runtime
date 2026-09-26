@@ -270,6 +270,18 @@ id_newtype! {
     ObservationId
 }
 
+id_newtype! {
+    /// A merge in the node lineage: `ekr.integrate.MergeId` of
+    /// `systems/ekr/domains/integrate.yaml`.
+    MergeId
+}
+
+id_newtype! {
+    /// A split in the node lineage: `ekr.integrate.SplitId` of
+    /// `systems/ekr/domains/integrate.yaml`.
+    SplitId
+}
+
 /// The position of a revision in the lineage: `ekr.kernel.RevisionNumber` of
 /// `systems/ekr/domains/kernel.yaml`, declared there as `newtype of: Integer`.
 ///
