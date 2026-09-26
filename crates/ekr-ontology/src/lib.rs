@@ -4,7 +4,7 @@
 //! node and edge types with their properties, per-type lifecycles and named operations. The
 //! ontology evolves only through schema transactions the kernel commits.
 //!
-//! Five modules, in dependency order:
+//! Six modules, in dependency order:
 //!
 //! * [`value`] — [`ValueType`] and the [`Value`] that mirrors it (design § 11.3), [`ValuePath`]
 //!   — where a value canonical state does not admit sits inside the one that carries it — and
@@ -13,6 +13,9 @@
 //! * [`lifecycle`] — [`Lifecycle`], [`Transition`], [`OperationDefinition`] (amendment 87).
 //! * [`schema`] — [`SchemaVersion`] and [`Ontology`], the registry of one version's types.
 //! * [`check`] — the type checker, which is what validators 3 to 5 of design § 20 call.
+//! * [`evolve`] — [`Ontology::evolve`], which derives the next version from [`SchemaChange`]s,
+//!   and [`incompatibilities`], which says why it cannot replace the prior one over the canonical
+//!   state an [`InstanceState`] describes (design § 26).
 //!
 //! An ontology is only ever held through [`Ontology::load`], so a declaration that would leave the
 //! checker unable to answer — a `NodeRef` allowed to point at nothing, a parent cycle, a lifecycle
@@ -58,12 +61,14 @@
 
 mod canonical;
 pub mod check;
+pub mod evolve;
 pub mod lifecycle;
 pub mod schema;
 pub mod types;
 pub mod value;
 
 pub use check::{CheckError, CheckReason, NodeTypes};
+pub use evolve::{incompatibilities, EvolveError, Incompatibility, InstanceState, SchemaChange};
 pub use lifecycle::{Lifecycle, LifecycleError, OperationDefinition, Transition};
 pub use schema::{DeclarationSite, Ontology, OntologyDocument, OntologyError, SchemaVersion};
 pub use types::{EdgeType, NodeType, PropertyDefinition};

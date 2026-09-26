@@ -3,8 +3,9 @@ domain: ekr.ontology
 summary: >-
   The type system of a graph, held as data: schema versions, node and edge types, property
   definitions with typed values, and the per-type lifecycles and named operations of amendment 87.
-  Design § 11–12, § 26, § 50–52. In P1 the seed schema is the only version; schema transactions
-  arrive in P5 together with the commands that move a version.
+  Design § 11–12, § 26, § 50–52. Versions form a lineage: the seed is number 0 with no parent,
+  and each later version has number + 1 and the version it was derived from as its parent. A
+  schema transaction derives the next version by applying SchemaChanges in order.
 
 naming:
   wire: ontology
@@ -184,8 +185,53 @@ types:
       - name: edge_types
         type: List<ekr.ontology.EdgeTypeDeclaration>
 
+  # Design § 26. `Ontology::evolve` in crates/ekr-ontology/src/evolve.rs. The kernel's operations
+  # carry these; their canonical encoding is the kernel's, not this domain's. No change removes a
+  # type or a property.
+  - name: ekr.ontology.PropertyModification
+    kind: struct
+    fields:
+      - name: owner
+        type: ekr.ontology.TypeId
+      - name: property
+        type: ekr.ontology.PropertyDeclaration
+
+  - name: ekr.ontology.SchemaChange
+    kind: union
+    tag: kind
+    variants:
+      DefineNodeType: ekr.ontology.NodeTypeDeclaration
+      DefineEdgeType: ekr.ontology.EdgeTypeDeclaration
+      ModifyProperty: ekr.ontology.PropertyModification
+
+  # Why a next version is not derived. Held equal to `EvolveError::code` by
+  # crates/ekr-ontology/tests/schema_evolution.rs.
+  - name: ekr.ontology.EvolveRefusalCode
+    kind: enum
+    variants:
+      - empty-schema-change
+      - schema-version-reused
+      - schema-version-exhausted
+      - type-already-declared
+      - unknown-property-owner
+      - incoherent-schema
+
+  # Why a derived version cannot replace the prior one over current canonical state. Held equal
+  # to `Incompatibility::code` by crates/ekr-ontology/tests/schema_evolution.rs.
+  - name: ekr.ontology.IncompatibilityCode
+    kind: enum
+    variants:
+      - required-property-missing
+      - cardinality-narrowed
+      - value-kind-not-admitted
+      - value-type-narrowed
+      - type-removed
+      - type-declaration-changed
+      - property-removed
+
 entities:
-  # Design § 69 `SchemaRegistry`. One version is canonical at a time; P1 has exactly the seed.
+  # Design § 69 `SchemaRegistry`. One version is canonical at a time. Lineage: the seed has
+  # number 0 and no parent; every other version has number = parent.number + 1.
   - name: ekr.ontology.SchemaVersion
     identity:
       name: schema_version_id

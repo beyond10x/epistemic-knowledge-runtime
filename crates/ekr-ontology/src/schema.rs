@@ -1,7 +1,9 @@
 //! A schema version and the registry of the types it declares: design § 69 `SchemaRegistry`.
 //!
-//! One version is canonical at a time, and in P1 the seed is the only one — schema versions are
-//! data here, and the transactions that move a version arrive in P5 (design § 26). What this
+//! One version is canonical at a time. The seed is number zero with no parent; every later version
+//! is derived from the canonical one by [`Ontology::evolve`], with `number + 1` and
+//! the prior version as its parent, and the kernel's schema transactions are what make one
+//! canonical (design § 26). Schema versions are data here. What this
 //! module owns is the step from a *document* someone wrote to an [`Ontology`] the checker may be
 //! run against, and that step refuses: an ontology whose declarations do not cohere cannot decide
 //! anything about a value, so it is not loaded at all rather than loaded and consulted.
