@@ -2,7 +2,7 @@
 format: aep.planning-md/2
 id: story:graph-projection-specification
 kind: story
-status: active
+status: implemented
 title: Specify the graph projection ekr.graph-projection/1 as an ESS domain
 relations:
 - decomposes: epic:p4-operator-surface
@@ -21,10 +21,14 @@ scope:
 - confidence: inferred
   path: systems/ekr/conformance/suite.json
 - confidence: cited
+  path: systems/ekr/conformance/views-provenance.json
+- confidence: cited
+  path: systems/ekr/conformance/views-suite.json
+- confidence: cited
   path: systems/ekr/domains/views.yaml
 - confidence: cited
   path: systems/ekr/system.yaml
-revision: 13
+revision: 16
 ---
 ## Context
 
