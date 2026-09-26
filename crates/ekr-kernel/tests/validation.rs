@@ -223,6 +223,7 @@ impl World {
             proposer: self.proposer,
             operations,
             evidence,
+            schema_version: None,
         }
     }
 
@@ -608,6 +609,7 @@ fn two_transactions_that_differ_validate_to_different_hashes() {
         proposer: one.proposer,
         operations: one.operations.clone(),
         evidence: one.evidence.clone(),
+        schema_version: None,
     };
     let GraphOperation::CreateNode(draft) = &mut other.operations[0] else {
         panic!("the operation this case varies is the one it built");
@@ -1030,6 +1032,7 @@ fn the_declared_evidence_set_is_the_evidence_the_assertions_cite() {
         proposer: world.proposer,
         operations: vec![supported.clone()],
         evidence: BTreeSet::new(),
+        schema_version: None,
     };
     let issues = world
         .pipeline()
@@ -1048,6 +1051,7 @@ fn the_declared_evidence_set_is_the_evidence_the_assertions_cite() {
         evidence: [world.retained_evidence, EvidenceId::mint()]
             .into_iter()
             .collect(),
+        schema_version: None,
     };
     assert_eq!(
         codes(
@@ -1704,11 +1708,10 @@ fn one_of_each_operation(world: &World) -> Vec<GraphOperation<CanonicalValue>> {
         }),
         GraphOperation::DefineNodeType(Box::new(NodeType::new(TypeId::mint(), "Decision"))),
         GraphOperation::DefineEdgeType(Box::new(EdgeType::new(TypeId::mint(), "depends_on"))),
-        GraphOperation::ModifyProperty(PropertyDefinition::new(
-            world.title,
-            "title",
-            ValueType::String,
-        )),
+        GraphOperation::ModifyProperty(ekr_kernel::PropertyModification {
+            owner: world.decision,
+            property: PropertyDefinition::new(world.title, "title", ValueType::String),
+        }),
         GraphOperation::MergeEntity(EntityMerge {
             absorbed: node,
             into: world.open,
@@ -1938,8 +1941,9 @@ fn every_field_of_every_encoded_type_reaches_its_encoding() {
 /// Every struct whose fields the kernel's `validation_hash` is computed over, and the file each is
 /// declared in. The upstream ones are here because the kernel encodes them by hand: they are
 /// `ekr_ontology`'s, and a foreign trait cannot be implemented for a foreign type.
-const ENCODED: [(&str, &str); 11] = [
+const ENCODED: [(&str, &str); 12] = [
     ("GraphTransaction", "transaction"),
+    ("PropertyModification", "transaction"),
     ("NodeDraft", "transaction"),
     ("EdgeDraft", "transaction"),
     ("PropertyMutation", "transaction"),
@@ -2307,11 +2311,10 @@ fn unsupported_schema_changes_and_merges_refuse_explicitly() {
     for operation in [
         GraphOperation::DefineNodeType(Box::new(invalid_type)),
         GraphOperation::DefineEdgeType(Box::new(EdgeType::new(TypeId::mint(), "invalid"))),
-        GraphOperation::ModifyProperty(PropertyDefinition::new(
-            PropertyId::mint(),
-            "missing",
-            ValueType::String,
-        )),
+        GraphOperation::ModifyProperty(ekr_kernel::PropertyModification {
+            owner: world.decision,
+            property: PropertyDefinition::new(PropertyId::mint(), "missing", ValueType::String),
+        }),
         GraphOperation::MergeEntity(EntityMerge {
             absorbed: world.open,
             into: world.decided,

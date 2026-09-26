@@ -146,6 +146,7 @@ fn transaction(operations: Vec<GraphOperation>, extra: &[EvidenceId]) -> GraphTr
         proposer: context().operator,
         operations,
         evidence,
+        schema_version: None,
     }
 }
 fn encode(tx: &GraphTransaction) -> Vec<u8> {

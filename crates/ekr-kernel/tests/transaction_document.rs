@@ -412,11 +412,12 @@ fn nested_ontology_carriers_remain_strict_even_for_unsupported_operations() {
         format!("!Invoke {{node: {ID}, operation: action, arguments: {{}}, unknown: true}}"),
         format!("!DefineNodeType {{id: {ID}, name: kind, unknown: true}}"),
         format!("!DefineEdgeType {{id: {ID}, name: relation, unknown: true}}"),
-        format!("!ModifyProperty {{id: {PROPERTY}, name: field, value_type: {{value_kind: String}}, unknown: true}}"),
+        format!("!ModifyProperty {{owner: {ID}, property: {{id: {PROPERTY}, name: field, value_type: {{value_kind: String}}}}, unknown: true}}"),
+        format!("!ModifyProperty {{owner: {ID}, property: {{id: {PROPERTY}, name: field, value_type: {{value_kind: String}}, unknown: true}}}}"),
         format!("!DefineNodeType {{id: {ID}, name: kind, lifecycle: {{initial: open, states: [open], unknown: true}}}}"),
         format!("!DefineNodeType {{id: {ID}, name: kind, lifecycle: {{initial: open, states: [open], transitions: [{{from: open, to: open, unknown: true}}]}}}}"),
         format!("!DefineNodeType {{id: {ID}, name: kind, operations: {{action: {{name: action, unknown: true}}}}}}"),
-        format!("!ModifyProperty {{id: {PROPERTY}, name: field, value_type: {{value_kind: List, parameters: {{value_kind: String, unknown: true}}}}}}"),
+        format!("!ModifyProperty {{owner: {ID}, property: {{id: {PROPERTY}, name: field, value_type: {{value_kind: List, parameters: {{value_kind: String, unknown: true}}}}}}}}"),
     ];
     for operation in cases {
         let error = TransactionDocument::parse(document(&operation).as_bytes())
@@ -559,7 +560,7 @@ fn current_operation_payloads_use_the_shared_decoder_without_shape_loss() {
         format!("!RetractAssertion {{assertion: {ID}, reason: corrected}}"),
         format!("!DefineNodeType {{id: {ID}, name: item, lifecycle: {{initial: open, states: [open], transitions: [{{from: open, to: open}}]}}, operations: {{action: {{name: action, arguments: {{reason: {{value_kind: String}}}}, transition: {{from: open, to: open}}}}}}}}"),
         format!("!DefineEdgeType {{id: {ID}, name: relation, source_types: [{ID}], target_types: [{ID}]}}"),
-        format!("!ModifyProperty {{id: {PROPERTY}, name: field, value_type: {{value_kind: Record, parameters: {{entry: {{value_kind: String}}}}}}}}"),
+        format!("!ModifyProperty {{owner: {ID}, property: {{id: {PROPERTY}, name: field, value_type: {{value_kind: Record, parameters: {{entry: {{value_kind: String}}}}}}}}}}"),
         format!("!MergeEntity {{absorbed: {ID}, into: {ID}}}"),
         format!("!Invoke {{node: {ID}, operation: action, arguments: {{reason: {{value_kind: String, value: ok}}}}}}"),
         format!("!SupersedeAssertion {{assertion: {ID}, by: {PROPERTY}, effective_from: 42}}"),

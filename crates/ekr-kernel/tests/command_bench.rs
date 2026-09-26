@@ -130,6 +130,7 @@ fn document(seed: &SeedDocument, n: u64) -> (TransactionId, Vec<u8>) {
             })),
         ],
         evidence: BTreeSet::from([evidence]),
+        schema_version: None,
     };
     let bytes = serde_yaml_ng::to_string(&Wire {
         format: "ekr.transaction-document/1",

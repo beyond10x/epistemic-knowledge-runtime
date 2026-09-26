@@ -41,7 +41,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use ekr_core::canonical::{Canonical, Encoder};
 use ekr_core::{
     AgentId, AssertionId, ContentHash, EdgeId, EvidenceId, GraphRootId, NodeId, PropertyId,
-    RevisionNumber, TransactionId, TypeId,
+    RevisionNumber, SchemaVersionId, TransactionId, TypeId,
 };
 use ekr_graph::{
     Assertion, CanonicalRef, CanonicalValue, InadmissibleValue, Object, RetractionReason, Subject,
@@ -126,6 +126,31 @@ pub struct EntityMerge {
     pub into: NodeId,
 }
 
+/// A property added to, or redeclared on, a type the ontology declares: the payload of
+/// [`GraphOperation::ModifyProperty`], and `ekr.ontology.PropertyModification`.
+///
+/// The owner is part of the operation because a property is filed under the type that declares
+/// it: without one, the redeclaration names no place in the ontology to land. P1 carried the bare
+/// declaration and refused every instance of it, so no committed history holds the older shape
+/// (wave p5-01, decision 5).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct PropertyModification {
+    /// The node type or edge type that declares the property.
+    pub owner: TypeId,
+    /// The whole new declaration, filed under its own id.
+    pub property: PropertyDefinition,
+}
+
+impl Canonical for PropertyModification {
+    /// The two fields in declaration order.
+    fn encode(&self, out: &mut Encoder) {
+        self.owner.encode(out);
+        self.property.encode(out);
+    }
+}
+
 /// Reasoned withdrawal, encoded at the original operation index five.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -204,9 +229,9 @@ pub enum GraphOperation<V: ValueSpace = Value> {
     /// Declare an edge type. Boxed for the same reason.
     #[cfg_attr(feature = "schema", schemars(rename = "!DefineEdgeType"))]
     DefineEdgeType(Box<EdgeType>),
-    /// Redeclare a property of a type.
+    /// Add a property to a type, or redeclare one it declares.
     #[cfg_attr(feature = "schema", schemars(rename = "!ModifyProperty"))]
-    ModifyProperty(PropertyDefinition),
+    ModifyProperty(PropertyModification),
     /// Hold two nodes to be one.
     #[cfg_attr(feature = "schema", schemars(rename = "!MergeEntity"))]
     MergeEntity(EntityMerge),
@@ -273,6 +298,15 @@ pub struct GraphTransaction<V: ValueSpace = Value> {
     /// the operations, equally declared, and equally checked.
     #[cfg_attr(feature = "schema", schemars(with = "Vec<EvidenceId>"))]
     pub evidence: BTreeSet<EvidenceId>,
+    /// The schema version a schema-changing transaction produces, minted by
+    /// `ekr mint schema-version`.
+    ///
+    /// Required exactly when an operation is `DefineNodeType`, `DefineEdgeType` or
+    /// `ModifyProperty`, and refused otherwise (wave p5-01, decision 3). Absent, it is absent from
+    /// the canonical encoding and from `ekr.transaction-document/1`, so every transaction without it
+    /// encodes and reads exactly as before the field existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub schema_version: Option<SchemaVersionId>,
 }
 
 /// A transaction that passed every deterministic validator: design § 19.
@@ -353,13 +387,21 @@ impl Canonical for SealedBasis<'_> {
 }
 
 impl<V: ValueSpace + Canonical> Canonical for GraphTransaction<V> {
-    /// The four fields in declaration order: structural, with no discriminant, which is rule 5 of
+    /// The fields in declaration order: structural, with no discriminant, which is rule 5 of
     /// `ekr_core::canonical` for a composite that is not a sum type.
+    ///
+    /// `schema_version` is written only when present, as a tagged `Some`: a transaction without
+    /// one encodes to exactly the four-field bytes it had before the field existed, so no retained
+    /// address moves, and the `Some` tag cannot be mistaken for whatever an enclosing encoding
+    /// writes next (a revision number, a basis), each of which opens with a different tag.
     fn encode(&self, out: &mut Encoder) {
         self.id.encode(out);
         self.proposer.encode(out);
         out.list(self.operations.iter());
         out.set(self.evidence.iter());
+        if let Some(version) = &self.schema_version {
+            out.option(Some(version));
+        }
     }
 }
 
@@ -499,6 +541,7 @@ impl TryFrom<GraphTransaction<Value>> for GraphTransaction<CanonicalValue> {
                 .map(canonical_operation)
                 .collect::<Result<Vec<_>, _>>()?,
             evidence: proposal.evidence,
+            schema_version: proposal.schema_version,
         })
     }
 }

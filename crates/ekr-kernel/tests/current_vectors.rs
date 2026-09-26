@@ -276,6 +276,7 @@ fn canonical_transaction() -> GraphTransaction<CanonicalValue> {
                 .collect(),
         })],
         evidence: BTreeSet::from([id(0x13)]),
+        schema_version: None,
     }
 }
 

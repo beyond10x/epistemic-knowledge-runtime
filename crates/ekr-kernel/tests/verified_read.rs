@@ -121,6 +121,7 @@ fn proposal(seed: &SeedDocument) -> GraphTransaction {
             }),
         ],
         evidence: BTreeSet::from([evidence]),
+        schema_version: None,
     }
 }
 /// The same proposal with a value canonical state refuses, so the type validator rejects it.

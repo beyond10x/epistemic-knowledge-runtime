@@ -755,6 +755,7 @@ fn empty_bootstrap_does_not_make_empty_transactions_valid() {
             proposer: f.operator,
             operations: Vec::new(),
             evidence: BTreeSet::new(),
+            schema_version: None,
         };
         assert!(ekr_kernel::Pipeline::deterministic(f.validator)
             .validate(&ekr_graph::GraphSnapshot::of(&graph), &tx)

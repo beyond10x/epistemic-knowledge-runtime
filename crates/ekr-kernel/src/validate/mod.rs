@@ -36,12 +36,13 @@ mod lifecycle;
 pub mod ontology;
 pub mod provenance;
 pub mod reference;
+pub(crate) mod schema;
 pub mod structural;
 pub mod types;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
-use ekr_core::{AgentId, NodeId, TypeId};
+use ekr_core::{AgentId, NodeId, SchemaVersionId, TypeId};
 use ekr_graph::GraphSnapshot;
 
 use crate::issue::{ValidationIssue, ValidatorName};
@@ -117,6 +118,32 @@ impl Pipeline {
                 Box::new(Types),
                 Box::new(Cardinality),
                 Box::new(OntologyConstraint),
+                Box::new(Provenance),
+                Box::new(Authorization { actor }),
+            ],
+        }
+    }
+
+    /// The seven validators of validation profile v2 (`ekr.p2-deterministic/1`), run by `actor`.
+    ///
+    /// The same seven names, in the same order, as [`Pipeline::deterministic`]. Two of them read
+    /// more: the structural validator admits `DefineNodeType`, `DefineEdgeType` and
+    /// `ModifyProperty` as schema-only transactions naming the version they produce, and the
+    /// ontology-constraint validator builds that version with `Ontology::evolve` and holds it to
+    /// canonical state with `ekr_ontology::incompatibilities`.
+    ///
+    /// `lineage` is every schema version id already on the lineage of the snapshot this pipeline
+    /// will validate against. The snapshot holds one ontology, which knows its own id and its
+    /// parent's and no older one, so a new id is held new against the rest here.
+    #[must_use]
+    pub fn schema_evolving(actor: AgentId, lineage: BTreeSet<SchemaVersionId>) -> Self {
+        Self {
+            validators: vec![
+                Box::new(structural::SchemaStructural),
+                Box::new(Reference),
+                Box::new(Types),
+                Box::new(Cardinality),
+                Box::new(schema::SchemaOntology { lineage }),
                 Box::new(Provenance),
                 Box::new(Authorization { actor }),
             ],
