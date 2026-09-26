@@ -17,13 +17,13 @@ What they proved necessary and how their data enters this runtime is written dow
 
 ## Status
 
-0.0.4 is the latest release: the kernel, the typed graph and ontology, the store and the `ekr`
+0.0.5 is the latest release: the kernel, the typed graph and ontology, the store and the `ekr`
 binary, with the user documentation and schema evolution. Product crates: `ekr-core`,
 `ekr-kernel`, `ekr-ontology`, `ekr-graph`, `ekr-store`, and the `ekr` binary.
 
 Repository utility: `xtask`.
 
-| works in 0.0.4 | not in 0.0.4 |
+| works in 0.0.5 | not in 0.0.5 |
 |---|---|
 | a schema of node types, edge types, typed properties, lifecycles and named operations, declared in the seed | `MergeEntity`, refused as `unsupported-operation` |
 | in a store seeded under validation profile v2, the schema grows after seeding: a committed transaction adds a node or edge type, or adds or redeclares a property, and each change is a new schema version; see [Evolve the schema](docs/cli.md#evolve-the-schema) | moving a store seeded under profile v1, the example host's, to v2: it keeps the seed's schema |
@@ -76,7 +76,7 @@ ekr explain 00000000-0000-4000-8000-000000000501            # the assertion, its
 
 For contributors.
 Rust 1.91 is the workspace's declared minimum; builds use the toolchain pinned in
-`rust-toolchain.toml`. The gate also needs [`task`](https://taskfile.dev), ESS 0.32.0 and AEP 0.59.3.
+`rust-toolchain.toml`. The gate also needs [`task`](https://taskfile.dev), ESS 0.33.0 and AEP 0.59.3.
 
 ```console
 task check

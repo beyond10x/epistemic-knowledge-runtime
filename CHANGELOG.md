@@ -4,6 +4,17 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.5] — 2026-09-26
+
+The latest beyond10x dependencies.
+
+### Changed
+
+- ESS 0.33.0 (from 0.32.0) for the specification and the conformance target; the synthesized
+  suite is byte-identical. `spec-check` and `conform-check` refuse any other `ess`.
+- Eventlog 0.5.0 (from 0.4.0).
+- `jsonschema` 0.58 (from 0.57), and the lockfile's compatible updates.
+
 ## [0.0.4] — 2026-09-26
 
 Schema evolution, store open semantics, and the planning store on `aep.project/3`.
