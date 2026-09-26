@@ -39,11 +39,14 @@ pub enum EvidenceKind {
 /// [`locator`](EvidenceSource::locator), [`section`](EvidenceSource::section) and
 /// [`observation`](EvidenceSource::observation).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub enum EvidenceSource {
     /// A URL.
+    #[cfg_attr(feature = "schema", schemars(rename = "!Url"))]
     Url(String),
     /// A document, optionally a section of one.
+    #[cfg_attr(feature = "schema", schemars(rename = "!Document"))]
     Document {
         /// The document's identifier in its own system.
         document_id: String,
@@ -51,6 +54,7 @@ pub enum EvidenceSource {
         section: Option<String>,
     },
     /// A record in an external database.
+    #[cfg_attr(feature = "schema", schemars(rename = "!DatabaseRecord"))]
     DatabaseRecord {
         /// The database.
         database: String,
@@ -63,10 +67,13 @@ pub enum EvidenceSource {
     /// state and P1 has no transient evidence.
     /// `tests/adversary_p1_14_exit_compile_fail/retained_evidence_names_its_source_assertion_by_canonical_reference.rs`
     /// holds it.
+    #[cfg_attr(feature = "schema", schemars(rename = "!GraphAssertion"))]
     GraphAssertion(CanonicalRef<Assertion>),
     /// An observation the runtime captured.
+    #[cfg_attr(feature = "schema", schemars(rename = "!Observation"))]
     Observation(ObservationId),
     /// A statement by a person, identified where policy allows it.
+    #[cfg_attr(feature = "schema", schemars(rename = "!HumanStatement"))]
     HumanStatement {
         /// Who said it, where the source's authorisation permits recording that.
         identity: Option<String>,
@@ -242,6 +249,7 @@ pub struct ConfidenceOutOfRange(u16);
 
 /// A piece of evidence: design § 16, `ekr.graph.Evidence`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Evidence {
     /// Its stable id, so that a claim can cite it and a retention policy can find it.

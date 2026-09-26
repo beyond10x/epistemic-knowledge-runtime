@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 /// The type-level version of the same distinction is [`CanonicalGraph`](crate::CanonicalGraph)
 /// against [`TransientGraph`](crate::TransientGraph); this field is what a stored record carries.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum Space {
     /// Integrated knowledge that has crossed the highest integrity boundary.
     Canonical,
@@ -23,6 +24,7 @@ pub enum Space {
 /// field here: it arrives in P3 with the commands that move a root, and a state nothing can move
 /// is a state that lies.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct GraphRoot {
     /// Its stable id — `root_id` in the domain, which names an identity per entity.

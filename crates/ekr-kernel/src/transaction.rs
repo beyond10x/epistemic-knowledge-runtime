@@ -57,6 +57,7 @@ use serde::{Deserialize, Serialize};
 /// exactly what the cardinality validator exists to refuse. A draft that cannot express the
 /// violation cannot be refused for it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct NodeDraft<V = Value> {
     /// The id the node will have. Minted by the proposer; identity is not derived from content.
@@ -77,6 +78,7 @@ pub struct NodeDraft<V = Value> {
 
 /// A change to one property of one node: the `PropertyMutation` of design § 19.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct PropertyMutation<V = Value> {
     /// The node whose property moves.
@@ -89,6 +91,7 @@ pub struct PropertyMutation<V = Value> {
 
 /// An edge an operation proposes to create: the `EdgeDraft` of design § 19.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct EdgeDraft<V = Value> {
     /// The id the edge will have.
@@ -114,6 +117,7 @@ pub struct EdgeDraft<V = Value> {
 /// Which record survives is not a detail: design § 6.4 makes an id permanent, so a merge names
 /// the id that remains and the id that becomes an alias of it.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct EntityMerge {
     /// The node that stops being its own entity.
@@ -124,6 +128,7 @@ pub struct EntityMerge {
 
 /// Reasoned withdrawal, encoded at the original operation index five.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Retraction {
     /// Assertion to withdraw.
@@ -133,6 +138,7 @@ pub struct Retraction {
 }
 /// Supported replacement at a half-open valid-time boundary.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct Supersession {
     /// Earlier assertion.
@@ -163,31 +169,49 @@ impl Canonical for Supersession {
 /// variant number is what separates two operations carrying the same payload shape, and moving a
 /// number moves every `validation_hash` that contains the variant.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[cfg_attr(
+    feature = "schema",
+    schemars(bound = "V: schemars::JsonSchema, V::NodeRef: schemars::JsonSchema, \
+        V::EdgeRef: schemars::JsonSchema, V::EvidenceRef: schemars::JsonSchema, \
+        V::AssertionRef: schemars::JsonSchema")
+)]
 #[serde(deny_unknown_fields)]
 pub enum GraphOperation<V: ValueSpace = Value> {
     /// Create a node.
+    #[cfg_attr(feature = "schema", schemars(rename = "!CreateNode"))]
     CreateNode(NodeDraft<V>),
     /// Set the values of one property of one node.
+    #[cfg_attr(feature = "schema", schemars(rename = "!UpdateProperty"))]
     UpdateProperty(PropertyMutation<V>),
     /// Create an edge.
+    #[cfg_attr(feature = "schema", schemars(rename = "!CreateEdge"))]
     CreateEdge(EdgeDraft<V>),
     /// Remove an edge. The claim that the relation held is an assertion and is retracted, not
     /// deleted; the edge itself is a structural record.
+    #[cfg_attr(feature = "schema", schemars(rename = "!DeleteEdge"))]
     DeleteEdge(EdgeId),
     /// Add an assertion. Boxed because an assertion is by far the largest payload here and an
     /// enum is as large as its largest variant.
+    #[cfg_attr(feature = "schema", schemars(rename = "!AddAssertion"))]
     AddAssertion(Box<Assertion<V>>),
     /// Retract an assertion, which does not erase it (design § 36).
+    #[cfg_attr(feature = "schema", schemars(rename = "!RetractAssertion"))]
     RetractAssertion(Retraction),
     /// Declare a node type. Boxed for the reason [`GraphOperation::AddAssertion`] is.
+    #[cfg_attr(feature = "schema", schemars(rename = "!DefineNodeType"))]
     DefineNodeType(Box<NodeType>),
     /// Declare an edge type. Boxed for the same reason.
+    #[cfg_attr(feature = "schema", schemars(rename = "!DefineEdgeType"))]
     DefineEdgeType(Box<EdgeType>),
     /// Redeclare a property of a type.
+    #[cfg_attr(feature = "schema", schemars(rename = "!ModifyProperty"))]
     ModifyProperty(PropertyDefinition),
     /// Hold two nodes to be one.
+    #[cfg_attr(feature = "schema", schemars(rename = "!MergeEntity"))]
     MergeEntity(EntityMerge),
     /// Invoke a named operation of the node's type: amendment 87.
+    #[cfg_attr(feature = "schema", schemars(rename = "!Invoke"))]
     Invoke {
         /// The node it acts on.
         node: NodeId,
@@ -201,6 +225,7 @@ pub enum GraphOperation<V: ValueSpace = Value> {
         arguments: BTreeMap<String, V>,
     },
     /// Replace an accepted assertion without erasing its assessment or former valid interval.
+    #[cfg_attr(feature = "schema", schemars(rename = "!SupersedeAssertion"))]
     SupersedeAssertion(Supersession),
 }
 
@@ -211,6 +236,13 @@ pub enum GraphOperation<V: ValueSpace = Value> {
 /// their hash and count". This is the in-process form the validators read; the hash the domain
 /// names is what a store keeps of it.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[cfg_attr(
+    feature = "schema",
+    schemars(bound = "V: schemars::JsonSchema, V::NodeRef: schemars::JsonSchema, \
+        V::EdgeRef: schemars::JsonSchema, V::EvidenceRef: schemars::JsonSchema, \
+        V::AssertionRef: schemars::JsonSchema")
+)]
 #[serde(deny_unknown_fields)]
 pub struct GraphTransaction<V: ValueSpace = Value> {
     /// Its stable id.
@@ -239,6 +271,7 @@ pub struct GraphTransaction<V: ValueSpace = Value> {
     /// [`Structural`](crate::Structural) holds it equal to the evidence the transaction's
     /// assertions cite. The domain's `operation_count` is the same shape: equally derivable from
     /// the operations, equally declared, and equally checked.
+    #[cfg_attr(feature = "schema", schemars(with = "Vec<EvidenceId>"))]
     pub evidence: BTreeSet<EvidenceId>,
 }
 

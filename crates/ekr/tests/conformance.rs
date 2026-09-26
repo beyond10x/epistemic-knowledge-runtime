@@ -238,6 +238,178 @@ fn the_fixture_manifest_names_only_admitted_scenarios() {
     }
 }
 
+// ---- the ESS pin ---------------------------------------------------------------------------
+
+/// The ESS release every pin site names (`story:pin-ess-0-32`): tag `0.32.0` and its commit.
+const ESS_VERSION: &str = "0.32.0";
+const ESS_REV: &str = "f4c1bb84298e75650674c028f9995b2324f79c06";
+
+/// Every `rev` a line pinning the ESS repository names, read off `text`.
+fn ess_revs(text: &str, marker: &str) -> Vec<String> {
+    text.lines()
+        .filter(|line| line.contains("github.com/beyond10x/ess"))
+        .flat_map(|line| {
+            line.match_indices(marker)
+                .map(|(at, _)| {
+                    line[at + marker.len()..]
+                        .chars()
+                        .take_while(char::is_ascii_hexdigit)
+                        .collect::<String>()
+                })
+                .collect::<Vec<_>>()
+        })
+        .collect()
+}
+
+/// Every version a text names as `ESS <x.y.z>` or `ess-<x.y.z>`.
+fn ess_versions(text: &str, marker: &str) -> Vec<String> {
+    text.match_indices(marker)
+        .map(|(at, _)| {
+            text[at + marker.len()..]
+                .chars()
+                .take_while(|c| c.is_ascii_digit() || *c == '.')
+                .collect::<String>()
+                .trim_end_matches('.')
+                .to_owned()
+        })
+        .filter(|version| version.chars().next().is_some_and(|c| c.is_ascii_digit()))
+        .collect()
+}
+
+/// The conformance crates, CI's `ess` install, its cache key, the README, the lockfile and the
+/// suite's provenance record all name one ESS release, `ESS_VERSION` at `ESS_REV`.
+#[test]
+fn every_ess_pin_site_names_one_release() {
+    let manifest = ess_revs(&read("Cargo.toml"), "rev = \"");
+    assert_eq!(
+        manifest,
+        vec![ESS_REV.to_owned(); 2],
+        "Cargo.toml: ess-conformance and ess-primitives"
+    );
+
+    let lock = read("Cargo.lock");
+    let locked = ess_revs(&lock, "?rev=");
+    let resolved = ess_revs(&lock, "#");
+    assert!(
+        locked.len() >= 2,
+        "Cargo.lock locks the ESS crates: {locked:?}"
+    );
+    assert!(
+        locked.iter().chain(&resolved).all(|rev| rev == ESS_REV),
+        "Cargo.lock: {locked:?} resolved {resolved:?}"
+    );
+
+    let workflow = read(".github/workflows/correctness.yml");
+    assert_eq!(
+        ess_revs(&workflow, "--rev "),
+        vec![ESS_REV.to_owned()],
+        "correctness.yml installs ess"
+    );
+    assert_eq!(
+        ess_versions(&workflow, "-ess-"),
+        vec![ESS_VERSION.to_owned()],
+        "correctness.yml cache key"
+    );
+
+    let readme = ess_versions(&read("README.md"), "ESS ");
+    assert!(!readme.is_empty(), "README.md names the ESS release");
+    assert!(
+        readme.iter().all(|version| version == ESS_VERSION),
+        "README.md: {readme:?}"
+    );
+
+    let provenance: serde_json::Value =
+        serde_json::from_str(&read("systems/ekr/conformance/provenance.json")).expect("provenance");
+    assert_eq!(provenance["producer"]["tool"], "ess");
+    assert_eq!(provenance["producer"]["version"], ESS_VERSION);
+    assert_eq!(provenance["producer"]["rev"], ESS_REV);
+}
+
+/// The shell guard a Taskfile task declares as a precondition naming `ess --version`.
+///
+/// Only a `sh:` that go-task reads as a precondition counts: the first key of a list item sitting
+/// directly under the task's own `preconditions:` key, inside the top-level `tasks:` map. A `- sh:`
+/// filed under any other key (a misspelled `precondition:`, `cmds:`, `deps:`) is not a guard, and
+/// task runs the commands without it (adversary pass 1 on p1-15-ess, finding 1).
+fn taskfile_guard(task: &str) -> String {
+    let taskfile = read("Taskfile.yml");
+    let header = format!("  {task}:");
+    let body: Vec<&str> = taskfile
+        .lines()
+        .skip_while(|line| *line != "tasks:")
+        .skip(1)
+        .take_while(|line| line.is_empty() || line.starts_with(' '))
+        .skip_while(|line| *line != header)
+        .skip(1)
+        .take_while(|line| line.is_empty() || line.starts_with("   "))
+        .collect();
+    assert!(
+        !body.is_empty(),
+        "Taskfile.yml has no task {task} under tasks:"
+    );
+    let preconditions: Vec<&str> = body
+        .iter()
+        .skip_while(|line| **line != "    preconditions:")
+        .skip(1)
+        .take_while(|line| line.is_empty() || line.starts_with("     "))
+        .copied()
+        .collect();
+    let guards: Vec<String> = preconditions
+        .iter()
+        .filter_map(|line| line.strip_prefix("      - sh: "))
+        .filter(|sh| sh.contains("ess --version"))
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(
+        guards.len(),
+        1,
+        "{task} declares one `ess --version` guard under its `preconditions:` key: {body:#?}"
+    );
+    guards.into_iter().next().expect("one guard")
+}
+
+/// Runs `guard` with an `ess` on PATH that answers `--version` with `reported`.
+#[cfg(unix)]
+fn guard_admits(guard: &str, reported: &str) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    let bin = tempfile::TempDir::new().expect("a directory for the stand-in ess");
+    let ess = bin.path().join("ess");
+    std::fs::write(&ess, format!("#!/bin/sh\necho '{reported}'\n")).expect("stand-in ess");
+    std::fs::set_permissions(&ess, std::fs::Permissions::from_mode(0o755)).expect("executable");
+    let path = format!(
+        "{}:{}",
+        bin.path().display(),
+        std::env::var("PATH").unwrap_or_default()
+    );
+    std::process::Command::new("sh")
+        .arg("-c")
+        .arg(guard)
+        .env("PATH", path)
+        .status()
+        .expect("sh runs the guard")
+        .success()
+}
+
+/// `spec-check` and `conform-check` refuse an `ess` whose `--version` is not `ess ESS_VERSION`, and
+/// admit one whose `--version` is. The guard reads the version string only, not the build's commit.
+#[cfg(unix)]
+#[test]
+fn spec_and_conform_checks_refuse_an_ess_that_is_not_the_pinned_release() {
+    for task in ["spec-check", "conform-check"] {
+        let guard = taskfile_guard(task);
+        assert!(
+            guard_admits(&guard, &format!("ess {ESS_VERSION}")),
+            "{task} refuses ess {ESS_VERSION}: {guard}"
+        );
+        for other in ["ess 0.29.0", "ess 0.32.1", "ess 0.32.0-rc.1", "ess 10.32.0"] {
+            assert!(
+                !guard_admits(&guard, other),
+                "{task} admits `{other}`: {guard}"
+            );
+        }
+    }
+}
+
 // ---- mutation controls ---------------------------------------------------------------------
 
 /// One boundary defect a broken kernel would show, injected around the real target.

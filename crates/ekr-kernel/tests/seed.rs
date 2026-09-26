@@ -544,6 +544,70 @@ fn seed_support_checks_missing_uncited_and_unsupported_evidence() {
     refuses(&f, &dangling, "unresolved-evidence");
 }
 
+/// `story:seed-evidence-content-hash`: `seed-evidence-payload-mismatch` names the content hash
+/// the payload actually has (expected) and the one the seed wrote for it (found), at both sites
+/// that raise it — a cited evidence entry's payload and an uncited `evidence_payloads` entry.
+///
+/// After the fix: on both providers the refusal carries the code, `expected <payload's hash>`
+/// and `found <declared hash>`, and nothing is written.
+#[test]
+fn a_payload_mismatch_names_the_expected_and_the_found_content_hash() {
+    let f = Fixture::new();
+    let mut cited = f.document();
+    let (&found, payload) = cited.evidence_payloads.iter_mut().next().unwrap();
+    payload.push(0);
+    let expected = ContentHash::of_bytes(payload);
+    assert_ne!(expected, found);
+    for needle in [
+        "seed-evidence-payload-mismatch".to_owned(),
+        format!("expected {expected}"),
+        format!("found {found}"),
+    ] {
+        refuses(&f, &cited, &needle);
+    }
+
+    let mut uncited = f.document();
+    let found = ContentHash::of_bytes(b"declared bytes");
+    let expected = ContentHash::of_bytes(b"retained bytes");
+    uncited
+        .evidence_payloads
+        .insert(found, b"retained bytes".to_vec());
+    for needle in [
+        "seed-evidence-payload-mismatch".to_owned(),
+        format!("expected {expected}"),
+        format!("found {found}"),
+    ] {
+        refuses(&f, &uncited, &needle);
+    }
+}
+
+/// Correction round 1 (p1-15): `seed-evidence-payload-missing` names the evidence entry's
+/// `content_hash`, the `evidence_payloads` keys no entry names, and that the entry's hash and its
+/// key must be the same value. The code string is unchanged.
+///
+/// After the fix: on both providers, a payload filed under another key than its entry's hash is
+/// refused with the code, `has content_hash <entry's>`, `keys no evidence entry names: <key>`
+/// and "must be the same value"; with no payloads at all the key list reads `none`.
+#[test]
+fn a_missing_payload_names_the_entry_hash_and_the_keys_no_entry_names() {
+    let f = Fixture::new();
+    let mut misfiled = f.document();
+    let (entry, payload) = misfiled.evidence_payloads.pop_first().unwrap();
+    let key = ContentHash::of_bytes(b"another payload");
+    misfiled.evidence_payloads.insert(key, payload);
+    for needle in [
+        "seed-evidence-payload-missing: ".to_owned(),
+        format!("has content_hash {entry}"),
+        format!("keys no evidence entry names: {key}"),
+        "must be the same value".to_owned(),
+    ] {
+        refuses(&f, &misfiled, &needle);
+    }
+    let mut none = f.document();
+    none.evidence_payloads.clear();
+    refuses(&f, &none, "keys no evidence entry names: none");
+}
+
 #[test]
 fn actual_bootstrap_identities_refuse_self_validation_and_false_attribution() {
     let mut f = Fixture::new();

@@ -10,12 +10,16 @@ rust-version.workspace = true
 [dependencies]
 ekr-core.workspace = true
 ekr-ontology.workspace = true
+schemars = { version = "1.2", optional = true }
 serde.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
 trybuild.workspace = true
 serde_yaml_ng.workspace = true
+
+[features]
+schema = ["dep:schemars", "ekr-core/schema", "ekr-ontology/schema"]
 
 [lints]
 workspace = true

@@ -214,8 +214,11 @@ fn require(condition: bool, code: &str) -> Result<(), StoreError> {
 fn private_key(hash: ContentHash) -> String {
     format!("ekr.private.preparation.{hash}")
 }
-fn native_expected(value: Expected) -> NativeExpected {
-    match value {
+/// The preparation's record of an expectation. Eventlog 0.4.0 adds a merge expectation for forked
+/// streams, which no store this crate opens can hold and no preparation can record, so it and any
+/// later kind are refused rather than recorded as a kind they are not.
+pub(super) fn native_expected(value: Expected) -> Result<NativeExpected, StoreError> {
+    Ok(match value {
         Expected::Any => NativeExpected {
             kind: NativeExpectedKind::Any,
             version: None,
@@ -228,7 +231,15 @@ fn native_expected(value: Expected) -> NativeExpected {
             kind: NativeExpectedKind::Exact,
             version: Some(n),
         },
-    }
+        Expected::Merge(_) => {
+            return Err(StoreError::Document("preparation-merge-expectation".into()))
+        }
+        _ => {
+            return Err(StoreError::Document(
+                "preparation-unknown-expectation".into(),
+            ))
+        }
+    })
 }
 impl NativeCommandMeta {
     fn capture(meta: &CommandMeta) -> Result<Self, StoreError> {
@@ -303,7 +314,7 @@ impl NativePublicationRequest {
                             stream_type: append.stream.stream_type().into(),
                             stream_id: append.stream.stream_id().into(),
                         },
-                        expected: native_expected(append.expected),
+                        expected: native_expected(append.expected)?,
                         events: append
                             .events
                             .iter()
@@ -531,7 +542,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         };
         require(
             first.stream == self.revision_stream()?
-                && native_expected(first.expected) == native_expected(expected_revision)
+                && native_expected(first.expected)? == native_expected(expected_revision)?
                 && first.events.len() == 1,
             "preparation-revision-append",
         )?;
@@ -668,13 +679,10 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
                 required.insert(seed_hash);
             }
         }
-        for hash in required {
-            self.load_object(&mut history, hash)?;
-        }
+        self.load_objects(&mut history, required)?;
         if !history.occurrences.is_empty() {
-            for hash in self.authority()?.required_objects(&history)? {
-                self.load_object(&mut history, hash)?;
-            }
+            let required = self.authority()?.required_objects(&history)?;
+            self.load_objects(&mut history, required)?;
         }
         self.authority()?
             .replay(&history, self.ontology.as_ref(), None)?;
@@ -698,9 +706,8 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             event: decision.event.clone(),
         });
         self.load_object(&mut history, decision.event.record_hash)?;
-        for hash in self.authority()?.required_objects(&history)? {
-            self.load_object(&mut history, hash)?;
-        }
+        let required = self.authority()?.required_objects(&history)?;
+        self.load_objects(&mut history, required)?;
         self.authority()?
             .replay(&history, self.ontology.as_ref(), None)?;
         Ok(request)

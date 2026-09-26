@@ -111,12 +111,26 @@ const EDGES: [(&str, &[&str]); 6] = [
 const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
     (
         "ekr-core",
-        &["uuid", "sha2", "hex", "serde", "serde_json", "thiserror"],
+        &[
+            "uuid",
+            "sha2",
+            "hex",
+            "schemars",
+            "serde",
+            "serde_json",
+            "thiserror",
+        ],
         &["proptest", "serde_yaml_ng"],
     ),
     (
         "ekr-kernel",
-        &["serde", "serde_json", "serde_yaml_ng", "thiserror"],
+        &[
+            "schemars",
+            "serde",
+            "serde_json",
+            "serde_yaml_ng",
+            "thiserror",
+        ],
         &[
             "eventlog-core",
             "eventlog-file",
@@ -130,12 +144,18 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
     ),
     (
         "ekr-ontology",
-        &["serde", "serde_json", "serde_yaml_ng", "thiserror"],
+        &[
+            "schemars",
+            "serde",
+            "serde_json",
+            "serde_yaml_ng",
+            "thiserror",
+        ],
         &["proptest"],
     ),
     (
         "ekr-graph",
-        &["serde", "thiserror"],
+        &["schemars", "serde", "thiserror"],
         &["serde_yaml_ng", "trybuild"],
     ),
     (
@@ -158,11 +178,12 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
             "clap",
             "ess-conformance",
             "ess-primitives",
+            "schemars",
             "serde",
             "serde_json",
             "time",
         ],
-        &["assert_cmd", "tempfile"],
+        &["assert_cmd", "jsonschema", "serde_yaml_ng", "tempfile"],
     ),
 ];
 
@@ -663,21 +684,21 @@ const QUALIFIED: [(&str, &[&str]); 4] = [
         "eventlog-core",
         &[
             "git = \"https://github.com/beyond10x/eventlog\"",
-            "rev = \"28e578568846fc860e44a5f7c76b7e807abddc12\"",
+            "rev = \"70096af8c231fedf6d2206c97ce2940b99aecdb8\"",
         ],
     ),
     (
         "eventlog-file",
         &[
             "git = \"https://github.com/beyond10x/eventlog\"",
-            "rev = \"28e578568846fc860e44a5f7c76b7e807abddc12\"",
+            "rev = \"70096af8c231fedf6d2206c97ce2940b99aecdb8\"",
         ],
     ),
     (
         "eventlog-sqlite",
         &[
             "git = \"https://github.com/beyond10x/eventlog\"",
-            "rev = \"28e578568846fc860e44a5f7c76b7e807abddc12\"",
+            "rev = \"70096af8c231fedf6d2206c97ce2940b99aecdb8\"",
         ],
     ),
 ];

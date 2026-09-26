@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 /// says so where it declares this enumeration, and a name here with nothing behind it would be a
 /// claim the runtime checks something it does not.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 pub enum ValidatorName {
     /// The proposal is a well-formed transaction, whatever the graph holds.
     Structural,

@@ -14,6 +14,7 @@ use crate::{AuthorityStateV1, EdgeDraft, GraphOperation, GraphTransaction, NodeD
 
 /// Independently authenticated execution identities, supplied by the host, never the seed input.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct BootstrapContext {
     /// The operator submitting the seed.
@@ -24,13 +25,19 @@ pub struct BootstrapContext {
 
 /// Version two seed input. A graph format change must also change this version.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
 pub struct SeedDocument {
     /// Must be `ekr-seed/2`.
+    #[cfg_attr(feature = "schema", schemars(extend("const" = "ekr-seed/2")))]
     pub format: String,
     /// Complete ontology, retained rather than reconstructed from a schema identity.
     pub ontology: OntologyDocument,
     /// Proposed graph records, before the kernel attributes acceptance.
+    #[cfg_attr(
+        feature = "schema",
+        schemars(schema_with = "crate::schema::graph_document")
+    )]
     pub graph: GraphDocument,
     /// Exact retained HumanStatement bytes, keyed by their content address.
     #[serde(deserialize_with = "ekr_core::decode::unique_map")]
@@ -80,6 +87,42 @@ pub(crate) struct SeedEnvelope {
 
 fn invalid<T>(code: &str) -> Result<T, SeedError> {
     Err(SeedError::Invalid(code.to_owned()))
+}
+
+/// `seed-evidence-payload-missing`, naming the entry's `content_hash`, every `evidence_payloads`
+/// key no evidence entry names — where a half-applied correction left the payload — and the rule
+/// that the two are one value.
+fn payload_missing<T>(
+    evidence: &ekr_graph::Evidence,
+    entries: &BTreeMap<ekr_core::EvidenceId, ekr_graph::Evidence>,
+    payloads: &BTreeMap<ContentHash, Vec<u8>>,
+) -> Result<T, SeedError> {
+    let named: BTreeSet<ContentHash> = entries.values().map(|e| e.content_hash).collect();
+    let unnamed: Vec<String> = payloads
+        .keys()
+        .filter(|key| !named.contains(key))
+        .map(ToString::to_string)
+        .collect();
+    let unnamed = if unnamed.is_empty() {
+        "none".to_owned()
+    } else {
+        unnamed.join(", ")
+    };
+    Err(SeedError::Invalid(format!(
+        "seed-evidence-payload-missing: evidence {} has content_hash {}, which is not a key of \
+         evidence_payloads; an evidence entry's content_hash and its evidence_payloads key must \
+         be the same value (`ekr hash` of the payload); keys no evidence entry names: {unnamed}",
+        evidence.id, evidence.content_hash
+    )))
+}
+
+/// `seed-evidence-payload-mismatch`, naming the content hash the payload's bytes have (expected)
+/// and the one the seed wrote for them (found), so the author can correct the entry.
+fn payload_mismatch<T>(expected: ContentHash, found: ContentHash) -> Result<T, SeedError> {
+    Err(SeedError::Invalid(format!(
+        "seed-evidence-payload-mismatch: expected {expected} \
+         (sha256(\"ekr.payload.v1\" || the payload's bytes)), found {found}"
+    )))
 }
 
 pub(crate) fn envelope(bytes: &[u8]) -> Result<SeedEnvelope, StoreError> {
@@ -192,16 +235,18 @@ pub(crate) fn admitted_graph(
             return invalid("seed-attribution-mismatch");
         }
         let Some(payload) = input.evidence_payloads.get(&evidence.content_hash) else {
-            return invalid("seed-evidence-payload-missing");
+            return payload_missing(evidence, &document.evidence, &input.evidence_payloads);
         };
-        if ContentHash::of_bytes(payload) != evidence.content_hash {
-            return invalid("seed-evidence-payload-mismatch");
+        let expected = ContentHash::of_bytes(payload);
+        if expected != evidence.content_hash {
+            return payload_mismatch(expected, evidence.content_hash);
         }
     }
     // An extra map entry is still retained input: verify every content address, cited or not.
     for (hash, payload) in &input.evidence_payloads {
-        if ContentHash::of_bytes(payload) != *hash {
-            return invalid("seed-evidence-payload-mismatch");
+        let expected = ContentHash::of_bytes(payload);
+        if expected != *hash {
+            return payload_mismatch(expected, *hash);
         }
     }
 

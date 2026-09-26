@@ -37,7 +37,8 @@ impl<'de> Deserialize<'de> for CliHostFormatV1 {
 ///
 /// Successful decoding does not establish that the authority profile is supported or that its
 /// registered agents and retained anchor agree. Those semantic checks belong to the kernel.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, schemars::JsonSchema)]
+#[schemars(deny_unknown_fields)]
 pub struct CliHostConfigurationV1 {
     /// Exactly `ekr.cli-host/1`.
     pub format: CliHostFormatV1,
@@ -70,7 +71,73 @@ impl<'de> Deserialize<'de> for CliHostConfigurationV1 {
     }
 }
 
+impl schemars::JsonSchema for CliHostFormatV1 {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        "CliHostFormatV1".into()
+    }
+
+    fn json_schema(_: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        schemars::json_schema!({ "const": "ekr.cli-host/1" })
+    }
+}
+
 impl CliHostConfigurationV1 {
+    /// The JSON Schema (draft 2020-12) of an `ekr.cli-host/1` document, generated from this
+    /// type: what `ekr schema ekr.cli-host/1` prints.
+    #[must_use]
+    pub fn json_schema_document() -> schemars::Schema {
+        // The derive copies maintainers' rustdoc into descriptions; an agent reads this one.
+        let mut schema = schemars::generate::SchemaSettings::draft2020_12()
+            .with_transform(schemars::transform::RecursiveTransform(
+                |schema: &mut schemars::Schema| {
+                    schema.remove("description");
+                },
+            ))
+            .into_generator()
+            .into_root_schema_for::<Self>();
+        for (field, description) in [
+            ("format", "Exactly `ekr.cli-host/1`."),
+            ("tenant", "The provider namespace the store verbs open."),
+            (
+                "context",
+                "The host's operator (proposes and commits) and its distinct validator.",
+            ),
+            (
+                "authority",
+                "The authority anchor: the registered agents and the P1 validation profile, \
+                 as `ekr example ekr.cli-host/1` prints them.",
+            ),
+        ] {
+            schema
+                .get_mut("properties")
+                .and_then(|properties| properties.get_mut(field))
+                .and_then(serde_json::Value::as_object_mut)
+                .map(|property| property.insert("description".to_owned(), description.into()));
+        }
+        schema
+            .get_mut("$defs")
+            .and_then(|definitions| definitions.get_mut("AgentId"))
+            .and_then(serde_json::Value::as_object_mut)
+            .map(|agent| {
+                agent.insert(
+                    "description".to_owned(),
+                    "An agent id: a UUID in lowercase hyphenated form.".into(),
+                )
+            });
+        schema.insert("title".to_owned(), "ekr.cli-host/1".into());
+        schema.insert(
+            "description".to_owned(),
+            "The trusted host document for --host or EKR_HOST: the provider namespace, the \
+             operator and validator, and the authority anchor (`ekr example ekr.cli-host/1`). \
+             Its fixed texts (the authority and validation-profile formats, ruleset, proposer \
+             separation, provenance and application) are the ones every store verb requires; the \
+             decoder alone takes any text there. Beyond the schema, the reader also refuses a key \
+             written twice."
+                .into(),
+        );
+        schema
+    }
+
     /// Decode one complete UTF-8 JSON host document, allowing surrounding JSON whitespace.
     ///
     /// Decodes the original input directly into typed carriers, preserving duplicate detection.

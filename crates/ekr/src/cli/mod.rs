@@ -3,16 +3,18 @@
 //! Verbs carry the `ekr.kernel` ESS wire names. Each store verb opens the configured provider
 //! through `Runtime::file` or `Runtime::sqlite` under the trusted host document and calls exactly
 //! one kernel handler or read; nothing here applies, validates or persists anything itself. The
-//! agent verbs — `guide`, `operations`, `example`, `mint` — print static, tested text or a fresh id
-//! and open no provider.
+//! agent verbs — `guide`, `operations`, `example`, `schema`, `mint`, `hash` — print static, tested
+//! text, a generated JSON Schema, a fresh id or a payload's content hash, and open no provider.
 
 mod agent;
 mod commit;
 mod explain;
+mod hash;
 mod head;
 mod input;
 mod ontology;
 mod propose;
+mod schema;
 mod seed;
 mod snapshot;
 mod transactions;
@@ -35,7 +37,8 @@ use crate::host::CliHostConfigurationV1;
 
 /// Every verb's help ends here, so an agent that reads any one of them finds the rest.
 const SEE: &str = "Start with `ekr guide`. Documents: `ekr example ekr.transaction-document/1`, \
-`ekr example ekr-seed/2`, `ekr example ekr.cli-host/1`; operation kinds: `ekr operations`.";
+`ekr example ekr-seed/2`, `ekr example ekr.cli-host/1`; their JSON Schemas: `ekr schema <format>`; \
+operation kinds: `ekr operations`.";
 
 /// The command-line surface of the Epistemic Knowledge Runtime.
 #[derive(Debug, Parser)]
@@ -149,11 +152,34 @@ pub enum Command {
         /// The format.
         format: ExampleFormat,
     },
+    /// Print the JSON Schema (draft 2020-12) of one input format, generated from the types its
+    /// reader decodes.
+    ///
+    /// Validates a document before `ekr seed` or `ekr propose` reads it. A YAML format's schema
+    /// applies to the document read as plain YAML and written as JSON, where a tag `!Kind value`
+    /// is the one-key object {"!Kind": value}; its description says so. Needs no store
+    /// configuration.
+    #[command(after_help = SEE)]
+    Schema {
+        /// The format: `ekr.transaction-document/1`, `ekr-seed/2` or `ekr.cli-host/1`.
+        format: ExampleFormat,
+    },
     /// Print a fresh id of one kind as JSON.
     #[command(after_help = SEE)]
     Mint {
         /// The id kind.
         kind: IdKind,
+    },
+    /// Print a payload's content hash as JSON: the `content_hash` of an `ekr-seed/2` evidence
+    /// entry and the key of its `evidence_payloads` entry.
+    ///
+    /// The hash is sha256("ekr.payload.v1" || bytes), over the bytes exactly as given (a trailing
+    /// newline counts); `payload_yaml` is the `evidence_payloads` value to paste. Needs no store
+    /// configuration.
+    #[command(after_help = SEE)]
+    Hash {
+        /// The payload file, or `-` for stdin.
+        payload: PathBuf,
     },
     /// Print the head revision number and root as JSON.
     ///
@@ -249,7 +275,9 @@ pub fn execute(
         Command::Operations { kind: None } => Ok(agent::operation_list()),
         Command::Operations { kind: Some(kind) } => Ok(agent::operation(kind)),
         Command::Example { format } => Ok(agent::example(format).to_owned()),
+        Command::Schema { format } => schema::run(format),
         Command::Mint { kind } => render(&agent::mint(kind)),
+        Command::Hash { payload } => render(&hash::run(&payload, stdin)?),
         Command::Seed { document } => {
             let store = configured.resolve("seed")?;
             render(&seed::run(&document, stdin, || store.open(), now)?)
