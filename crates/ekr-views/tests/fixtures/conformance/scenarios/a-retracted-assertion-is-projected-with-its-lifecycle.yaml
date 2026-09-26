@@ -1,0 +1,24 @@
+# story:graph-projection-specification, scenario "a retracted assertion".
+#
+# The store `retracted-assertion` holds exactly one assertion, about a node, retracted by a later
+# committed revision. A projection is canonical state as of its revision (design § 47), and
+# retraction is a lifecycle, not a deletion (invariant 5): the newest projection still carries the
+# assertion, with its lifecycle Retracted. A projection that dropped it would report zero.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-retracted-assertion-is-projected-with-its-lifecycle
+summary: A retracted assertion stays in the projection, counted once and once as retracted.
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.views.ProjectGraph
+    actor: ekr.views.Reader
+    input:
+      store: retracted-assertion
+      at: null
+    outcome: projected
+    events:
+      - event: ekr.views.GraphProjected
+        payload:
+          assertions: 1
+          retracted_assertions: 1

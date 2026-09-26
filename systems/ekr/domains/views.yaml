@@ -1,0 +1,414 @@
+domain: ekr.views
+
+summary: >-
+  Read-only projections of one committed revision. A view is a deterministic function of a
+  snapshot at a revision, a template version and a query scope; every rendered fact carries the id
+  of the assertion it came from, and what a view renders is StorageClass Cache (design § 82). The
+  one format declared here is the graph projection ekr.graph-projection/1: one JSON document per
+  committed revision, scoped to canonical state as of that revision (§ 47), carrying assertion and
+  evidence ids for the explain chain (§ 62), the schema version lineage (§ 95) and evidence
+  identities without their bytes (§ 86). The format names no domain concept: it is generic over any
+  ontology, and every name a viewer shows is taken from the projection's ontology or graph state.
+  This domain writes nothing; its one command reads.
+
+  Determinism, which every renderer of ekr.graph-projection/1 holds to so that two renders of one
+  revision are byte-identical. (1) Order: every array is ordered by its members' id, ascending in
+  the lowercase hyphenated text of the UUID; schema.versions and schema.revisions are ordered by
+  number, ascending; every list of ids (aliases excepted, which keep the store's order) is ordered
+  the same way; map keys are ordered by their text. (2) Key order: every object's keys appear in
+  the order its type below declares its fields, and a union's tag key `kind` comes first. (3)
+  Encoding: UTF-8 JSON with no insignificant whitespace; an Integer or a RevisionNumber is a JSON
+  integer with no sign on zero, no leading zero, no fraction and no exponent; a Timestamp is a
+  JSON integer of milliseconds since the Unix epoch in UTC, as the runtime stores it; a Uuid is its
+  lowercase hyphenated text; a Decimal is its exact text as the store holds it. (4) Presence:
+  every declared field is always emitted; an Optional with no value is emitted as null, never
+  omitted, and an empty list or map is emitted empty, never null. (5) No field carries a wall-clock
+  time, a host, a path or anything else that differs between two renders of one revision.
+
+naming:
+  wire: views
+  display: Views
+
+types:
+  # Where the store the projection reads lives, as the host that renders names it. Never emitted in
+  # the projection: a location is a fact about the host, not about the revision.
+  - name: ekr.views.StoreLocation
+    kind: newtype
+    of: String
+
+  # The format name and version in one literal, as every other document of this runtime carries it.
+  - name: ekr.views.GraphProjectionFormatV1
+    kind: enum
+    variants: [ekr.graph-projection/1]
+
+  # `revision` is the projected revision, `head` the store's newest committed revision when the
+  # projection was rendered. The four counts are over the document itself: nodes[], edges[], every
+  # assertion entry under nodes[], edges[] and the ontology's types, and evidence[].
+  - name: ekr.views.ProjectionMeta
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.GraphProjectionFormatV1
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: head
+        type: ekr.kernel.RevisionNumber
+      - name: node_count
+        type: Integer
+      - name: edge_count
+        type: Integer
+      - name: assertion_count
+        type: Integer
+      - name: evidence_count
+        type: Integer
+
+  # A canonical value, readable. Design § 11.3 without Float, which canonical state does not
+  # admit (ADR 0005). Duration is an Integer as the store holds it.
+  - name: ekr.views.StringValue
+    kind: struct
+    fields:
+      - name: value
+        type: String
+
+  - name: ekr.views.BooleanValue
+    kind: struct
+    fields:
+      - name: value
+        type: Boolean
+
+  - name: ekr.views.IntegerValue
+    kind: struct
+    fields:
+      - name: value
+        type: Integer
+
+  - name: ekr.views.TimestampValue
+    kind: struct
+    fields:
+      - name: value
+        type: Timestamp
+
+  - name: ekr.views.NodeRefValue
+    kind: struct
+    fields:
+      - name: value
+        type: ekr.graph.NodeId
+
+  - name: ekr.views.ListValue
+    kind: struct
+    fields:
+      - name: items
+        type: List<ekr.views.ProjectedValue>
+
+  - name: ekr.views.RecordValue
+    kind: struct
+    fields:
+      - name: fields
+        type: Map<String, ekr.views.ProjectedValue>
+
+  - name: ekr.views.ProjectedValue
+    kind: union
+    tag: kind
+    variants:
+      String: ekr.views.StringValue
+      Boolean: ekr.views.BooleanValue
+      Integer: ekr.views.IntegerValue
+      Decimal: ekr.views.StringValue
+      Timestamp: ekr.views.TimestampValue
+      Duration: ekr.views.IntegerValue
+      NodeRef: ekr.views.NodeRefValue
+      Enum: ekr.views.StringValue
+      List: ekr.views.ListValue
+      Record: ekr.views.RecordValue
+
+  # One assertion as the store holds it at the projected revision. It is listed under the node,
+  # edge or type that is its subject, so the subject is not repeated. Exactly the object payload
+  # its object_kind names is non-null: object_value for Value, object_ref for Node and Type.
+  # `evidence` is the ids of the evidence its supports reference.
+  - name: ekr.views.ProjectedAssertion
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.AssertionId
+      - name: predicate_kind
+        type: ekr.graph.PredicateKind
+      - name: predicate
+        type: Uuid
+      - name: object_kind
+        type: ekr.graph.ObjectKind
+      - name: object_value
+        type: Optional<ekr.views.ProjectedValue>
+      - name: object_ref
+        type: Optional<Uuid>
+      - name: assessment
+        type: ekr.graph.AssessmentProjection
+      - name: lifecycle
+        type: ekr.graph.AssertionLifecycleProjection
+      - name: valid_from
+        type: Optional<Timestamp>
+      - name: valid_to
+        type: Optional<Timestamp>
+      - name: recorded_from
+        type: Timestamp
+      - name: recorded_to
+        type: Optional<Timestamp>
+      - name: evidence
+        type: List<ekr.graph.EvidenceId>
+
+  # The ontology at the projected revision: the schema version that revision's canonical state is
+  # valid against. `properties` on a type is the ids of the property definitions it declares;
+  # `assertions` are those whose subject is that type.
+  - name: ekr.views.ProjectedProperty
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.ontology.PropertyId
+      - name: name
+        type: String
+      - name: value_kind
+        type: ekr.ontology.ValueKind
+
+  - name: ekr.views.ProjectedNodeType
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.ontology.TypeId
+      - name: name
+        type: String
+      - name: properties
+        type: List<ekr.ontology.PropertyId>
+      - name: assertions
+        type: List<ekr.views.ProjectedAssertion>
+
+  - name: ekr.views.ProjectedEdgeType
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.ontology.TypeId
+      - name: name
+        type: String
+      - name: source_types
+        type: List<ekr.ontology.TypeId>
+      - name: target_types
+        type: List<ekr.ontology.TypeId>
+      - name: properties
+        type: List<ekr.ontology.PropertyId>
+      - name: assertions
+        type: List<ekr.views.ProjectedAssertion>
+
+  - name: ekr.views.ProjectedOntology
+    kind: struct
+    fields:
+      - name: node_types
+        type: List<ekr.views.ProjectedNodeType>
+      - name: edge_types
+        type: List<ekr.views.ProjectedEdgeType>
+      - name: properties
+        type: List<ekr.views.ProjectedProperty>
+
+  # `name` is the node's canonical_name, `type` its type id, `state` its per-type lifecycle state
+  # and `props` its property values keyed by property id.
+  - name: ekr.views.ProjectedNode
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: name
+        type: String
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: aliases
+        type: List<String>
+      - name: state
+        type: Optional<String>
+      - name: props
+        type: Map<String, List<ekr.views.ProjectedValue>>
+      - name: assertions
+        type: List<ekr.views.ProjectedAssertion>
+
+  # The store's ekr.graph.Edge entities, exactly as it holds them. Whether a relation assertion and
+  # an Edge with the same source, type and target are one projected edge is undecided
+  # (decision-blocker:relation-assertion-edge-correspondence); this format joins neither to the
+  # other, and carries no edge-level lifecycle, valid time or evidence of its own.
+  - name: ekr.views.ProjectedEdge
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.EdgeId
+      - name: source
+        type: ekr.graph.NodeId
+      - name: target
+        type: ekr.graph.NodeId
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: props
+        type: Map<String, List<ekr.views.ProjectedValue>>
+      - name: assertions
+        type: List<ekr.views.ProjectedAssertion>
+
+  # An evidence identity. `locator` and `section` are ekr.graph.Evidence's. `retained` says whether
+  # the store holds the bytes `content_hash` names; the bytes themselves are never projected.
+  - name: ekr.views.ProjectedEvidence
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.EvidenceId
+      - name: kind
+        type: ekr.graph.EvidenceKind
+      - name: locator
+        type: String
+      - name: section
+        type: Optional<String>
+      - name: content_hash
+        type: ekr.kernel.ContentHash
+      - name: observed_at
+        type: Timestamp
+      - name: confidence_bp
+        type: Integer
+      - name: retained
+        type: Boolean
+
+  # `revision` is the first revision whose canonical state is valid against this version; `added`
+  # the type and property ids this version declares and its parent does not (for the seed's
+  # version, every id it declares). Only versions whose `revision` is at most the projected
+  # revision are listed.
+  - name: ekr.views.ProjectedSchemaVersion
+    kind: struct
+    fields:
+      - name: number
+        type: Integer
+      - name: id
+        type: ekr.ontology.SchemaVersionId
+      - name: parent
+        type: Optional<ekr.ontology.SchemaVersionId>
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: added
+        type: List<Uuid>
+
+  # One committed revision up to and including the projected one. `transaction_id` is null for the
+  # seed; `schema_version` is the id of the version its canonical state is valid against.
+  - name: ekr.views.ProjectedRevision
+    kind: struct
+    fields:
+      - name: number
+        type: ekr.kernel.RevisionNumber
+      - name: committed_at
+        type: Timestamp
+      - name: transaction_id
+        type: Optional<ekr.kernel.TransactionId>
+      - name: schema_version
+        type: ekr.ontology.SchemaVersionId
+
+  - name: ekr.views.ProjectedSchema
+    kind: struct
+    fields:
+      - name: versions
+        type: List<ekr.views.ProjectedSchemaVersion>
+      - name: revisions
+        type: List<ekr.views.ProjectedRevision>
+
+  # The document. Rendered, never stored as canonical state; nothing owns it. Its tie to one
+  # revision is design § 82, stated here rather than as a relation.
+  - name: ekr.views.GraphProjectionV1
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.ProjectionMeta
+      - name: ontology
+        type: ekr.views.ProjectedOntology
+      - name: nodes
+        type: List<ekr.views.ProjectedNode>
+      - name: edges
+        type: List<ekr.views.ProjectedEdge>
+      - name: evidence
+        type: List<ekr.views.ProjectedEvidence>
+      - name: schema
+        type: ekr.views.ProjectedSchema
+
+actors:
+  - name: ekr.views.Reader
+    may:
+      - ekr.views.ProjectGraph
+    naming:
+      display: Reader
+
+errors:
+  - name: ekr.views.RevisionNotFound
+    summary: The store holds no committed revision with the requested number; nothing was rendered.
+    fields:
+      - name: requested
+        type: ekr.kernel.RevisionNumber
+      - name: head
+        type: ekr.kernel.RevisionNumber
+
+commands:
+  # Design § 82. A read of one immutable revision; the default is the newest. Writes no canonical
+  # state and moves no subject.
+  - name: ekr.views.ProjectGraph
+    naming:
+      wire: project-graph
+      display: Project the graph
+    input:
+      - name: store
+        type: ekr.views.StoreLocation
+      - name: at
+        type: Optional<ekr.kernel.RevisionNumber>
+    response:
+      - name: projection
+        type: ekr.views.GraphProjectionV1
+    outcomes:
+      - name: projected
+        emits:
+          - ekr.views.GraphProjected
+        payload:
+          ekr.views.GraphProjected:
+            revision: {generated: true}
+            head: {generated: true}
+            nodes: {generated: true}
+            edges: {generated: true}
+            assertions: {generated: true}
+            evidence: {generated: true}
+            schema_versions: {generated: true}
+            revisions: {generated: true}
+            edge_assertions: {generated: true}
+            retracted_assertions: {generated: true}
+            retained_evidence: {generated: true}
+            projection_hash: {generated: true}
+        summary: One ekr.graph-projection/1 document of the requested revision, byte-identical to every other render of that revision.
+      - name: not-found
+        external: the store holds no committed revision with the requested number
+        error: ekr.views.RevisionNotFound
+        summary: Nothing was rendered.
+
+events:
+  # What one render returned, counted over the document it returned, so a suite can hold a
+  # renderer to it without parsing the response. `projection_hash` is the hex SHA-256 of the
+  # document's exact bytes. Every field is a function of the document, so this event is as
+  # deterministic as the document is.
+  - name: ekr.views.GraphProjected
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: head
+        type: ekr.kernel.RevisionNumber
+      - name: nodes
+        type: Integer
+      - name: edges
+        type: Integer
+      - name: assertions
+        type: Integer
+      - name: evidence
+        type: Integer
+      - name: schema_versions
+        type: Integer
+      - name: revisions
+        type: Integer
+      - name: edge_assertions
+        type: Integer
+      - name: retracted_assertions
+        type: Integer
+      - name: retained_evidence
+        type: Integer
+      - name: projection_hash
+        type: ekr.kernel.ContentHash

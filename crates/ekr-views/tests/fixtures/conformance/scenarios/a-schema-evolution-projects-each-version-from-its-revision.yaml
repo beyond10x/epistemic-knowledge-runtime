@@ -1,0 +1,42 @@
+# story:graph-projection-specification, scenario "a store with a schema evolution (two versions)".
+#
+# The store `schema-evolution` holds the seed (revision 0, schema version 0) and one committed
+# schema change (revision 1, schema version 1 whose parent is version 0). The newest projection
+# lists both versions and both revisions. A projection at revision 0 is scoped to revision 0: it
+# lists only the version valid at revision 0 and only revision 0's entry, while its head is still
+# the store's newest revision, 1.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-schema-evolution-projects-each-version-from-its-revision
+summary: After one schema change the newest projection lists two versions and two revisions, and a projection at revision 0 lists one of each at head 1.
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.views.ProjectGraph
+    actor: ekr.views.Reader
+    input:
+      store: schema-evolution
+      at: null
+    outcome: projected
+    events:
+      - event: ekr.views.GraphProjected
+        payload:
+          revision: 1
+          head: 1
+          schema_versions: 2
+          revisions: 2
+
+  - at: 2027-01-15T08:01:00Z
+    command: ekr.views.ProjectGraph
+    actor: ekr.views.Reader
+    input:
+      store: schema-evolution
+      at: 0
+    outcome: projected
+    events:
+      - event: ekr.views.GraphProjected
+        payload:
+          revision: 0
+          head: 1
+          schema_versions: 1
+          revisions: 1
