@@ -1,0 +1,28 @@
+# story:graph-projection-specification, scenario "evidence whose bytes are retained".
+#
+# The store `seeded-evidence` holds exactly three evidence records, all admitted with the seed,
+# whose bytes the seed retains. All three are projected by identity and all three are marked
+# retained; the projection never carries the bytes themselves (design § 86). A renderer that
+# inverts the flag reports zero retained.
+#
+# The other half — evidence whose bytes the store does not hold — cannot be built today: the seed
+# refuses it and no evidence enters after the seed. views.yaml names it UNMAPPED under
+# decision-blocker:evidence-entry-after-seed.
+type: ess-scenario/1
+domain: ekr.views
+scenario: seeded-evidence-is-projected-as-retained
+summary: All three evidence records a seed admits are projected, and all three as retained.
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.views.ProjectGraph
+    actor: ekr.views.Reader
+    input:
+      store: seeded-evidence
+      at: null
+    outcome: projected
+    events:
+      - event: ekr.views.GraphProjected
+        payload:
+          evidence: 3
+          retained_evidence: 3
