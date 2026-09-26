@@ -8,10 +8,10 @@
 //! seed nests, whose envelope `ekr-store` decodes.
 //!
 //! The generated schema is then brought to what the YAML readers accept, by transforms each
-//! named for the reader behaviour it describes: [`yaml_unit_forms`], [`text_from_any_scalar`],
-//! [`integer_ranges`] and, for the transaction document's frozen profile, [`v1_limits`]. The
-//! printed schema is for agents, so [`agent_facing`] drops the maintainers' rustdoc the derive
-//! copies in, and [`describe`] writes the few descriptions an agent reads.
+//! named for the reader behaviour it describes: `yaml_unit_forms`, `text_from_any_scalar`,
+//! `integer_ranges` and, for the transaction document's frozen profile, `v1_limits`. The
+//! printed schema is for agents, so `agent_facing` drops the maintainers' rustdoc the derive
+//! copies in, and `describe` writes the few descriptions an agent reads.
 
 use std::collections::BTreeMap;
 
