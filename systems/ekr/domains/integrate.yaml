@@ -25,9 +25,10 @@ types:
   # same reference `ekr.graph.Node.type` makes via its own `type_id`. A struct carries no relation
   # in ESS, so the reference is the field's type.
   #
-  # UNMAPPED: the identifying keys of a reference — which properties of its type identify a node,
-  # and whether a key value is unique within the type. Blocked by
-  # decision-blocker:typed-reference-identifying-keys; no field stands in for them.
+  # UNMAPPED: the identifying keys of a reference. The relation is NodeType -> PropertyDefinition
+  # (identifying), one-to-many, the far side may be zero, owned by the type; which properties it
+  # holds and whether a key value is unique within the type are open. Blocked by
+  # decision-blocker:typed-reference-identifying-keys; no field stands in for the keys.
   - name: ekr.integrate.TypedReference
     kind: struct
     fields:
@@ -81,11 +82,11 @@ entities:
   # Design § 46 Merge: two or more nodes found to be one canonical entity. Declared as an identity
   # only; every relation is undecided.
   #
-  # UNMAPPED: the relation from a merge to the node it absorbs, and whether that node stays in
-  # canonical state or the merge rewrites references to it. Blocked by
-  # decision-blocker:merge-absorbed-node-fate.
-  # UNMAPPED: the relation from a merge to the node that survives it, and whether the nodes it joins
-  # may be of different types and which type survives. Blocked by
+  # UNMAPPED: absorbed Node -> surviving Node, many-to-one (one node may absorb several), recorded
+  # by this merge; whether the absorbed node stays in canonical state and whether the merge
+  # rewrites the references to it are open. Blocked by decision-blocker:merge-absorbed-node-fate.
+  # UNMAPPED: Merge -> NodeType of each side, two many-to-one references; whether the two types
+  # must be equal or conform, and which survives, is open. Blocked by
   # decision-blocker:merge-across-node-types.
   - name: ekr.integrate.Merge
     identity:
@@ -99,9 +100,11 @@ entities:
   # Design § 46 Split: a previously merged node found to be several entities. Declared as an
   # identity only; every relation is undecided.
   #
-  # UNMAPPED: the relation from a split to the node it splits and to the nodes it produces, and
-  # whether a split that reverts a merge restores the absorbed node's id or mints new nodes.
-  # Blocked by decision-blocker:split-reverting-merge-identity.
+  # UNMAPPED: Split -> produced Node, one-to-many (at least two); whether a split that reverts a
+  # merge restores the absorbed node's id or mints new nodes is open. Blocked by
+  # decision-blocker:split-reverting-merge-identity.
+  # UNMAPPED: Split -> the Merge it reverts, zero-or-one; its lifecycle coupling with the merge
+  # record is open. Blocked by decision-blocker:split-reverting-merge-identity.
   - name: ekr.integrate.Split
     identity:
       name: split_id

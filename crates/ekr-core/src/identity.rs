@@ -75,7 +75,7 @@ fn is_canonical_uuid_text(text: &str) -> bool {
 
 /// Declares one id newtype over `u128`, minted as UUIDv7.
 ///
-/// Fifteen types share this shape; writing it fifteen times is fifteen chances to write it
+/// Seventeen types share this shape; writing it seventeen times is seventeen chances to write it
 /// differently. `$doc` is the type's own rustdoc and names the ESS declaration it carries.
 macro_rules! id_newtype {
     ($(#[doc = $doc:expr])+ $name:ident) => {
