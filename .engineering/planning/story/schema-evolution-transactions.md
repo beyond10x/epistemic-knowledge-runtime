@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:schema-evolution-transactions
 kind: story
-status: active
+status: implemented
 title: Evolve the schema through committed transactions
 relations:
 - serves: vision:o6
@@ -84,7 +84,7 @@ scope:
   path: systems/ekr/domains/kernel.yaml
 - confidence: cited
   path: systems/ekr/domains/ontology.yaml
-revision: 41
+revision: 43
 ---
 ## Context
 
@@ -96,3 +96,14 @@ Operator (2026-09-25): an evolving schema is the main feature of the runtime. De
 - Existing nodes, edges and assertions stay valid across the change; replay from the seed reproduces every root across schema versions, on both providers.
 - `ekr ontology` shows the schema at the head and at a past revision; `ekr operations` stops marking the three kinds as not applied; `docs/cli.md` and `ekr guide` describe evolution.
 - Out of scope here: schema discovery from evidence, risk classes and approval gates (P5), `MergeEntity`.
+
+## Scope as landed (wave p5-01)
+
+Four units, confirmed by their implementors and the merges `cee0cae`, `4670c04`, `a932ef7`:
+
+- A `crates/ekr-ontology/src/evolve.rs` (new): `SchemaChange`, `Ontology::evolve`, `InstanceState`, `incompatibilities`; `systems/ekr/domains/ontology.yaml` declares the refusal and incompatibility codes — cited
+- K `crates/ekr-kernel/src/{transaction,apply,authority,replay,schema}.rs`, `validate/{structural,schema}.rs` (new `validate/schema.rs`), `systems/ekr/domains/kernel.yaml`, design amendment 95 — cited
+- K correction: `crates/ekr-store/tests/` could not hold the replay cases (no dev-dependency on the kernel); they are in `crates/ekr-kernel/tests/{schema_evolution,schema_evolution_replay,base_era_v1_replay}.rs` — the scoped `crates/ekr-store/tests/providers.rs` line was wrong
+- D `crates/ekr/src/cli/{mod,ontology,agent}.rs`, `crates/ekr/src/host.rs` (description), `docs/cli.md`, `docs/roadmap.md`, `README.md`, `crates/ekr/tests/{agent_cli,docs_cli}.rs` — cited
+- conformance: `systems/ekr/conformance/{suite,baseline}.json` digests only; the suite is synthesized, so no scenario was hand-written — the scoped "conformance scenario" line was wrong
+- not touched: `crates/ekr-graph/src/root.rs` (`GraphRoot.schema_version_id` stays the seed's), `crates/ekr-ontology/src/canonical.rs` — both inferred lines were wrong

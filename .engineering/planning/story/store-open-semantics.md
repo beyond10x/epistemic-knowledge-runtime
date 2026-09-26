@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:store-open-semantics
 kind: story
-status: active
+status: implemented
 title: Read verbs open only an existing store, and SQLite open waits for its lock
 relations:
 - serves: vision:o5
@@ -29,7 +29,7 @@ scope:
   path: crates/ekr/tests/adversary_p1_13_cli_exit_contract.rs
 - confidence: inferred
   path: crates/ekr/tests/agent_cli.rs
-revision: 14
+revision: 16
 ---
 ## Context
 
@@ -52,3 +52,12 @@ Derived 2026-09-25 by `story-scoper` (wave p1-15). Confidence: high for the file
 - eventlog pinned rev `28e5785`: both providers already have `open_existing`; the SQLite provider sets no busy timeout, rusqlite defaults to 5000 ms — cited
 - `crates/ekr-kernel/src/commit.rs:170`, `crates/ekr/src/conformance.rs:222-232`, new cases in `crates/ekr/tests/agent_cli.rs` or `crates/ekr-store/tests/providers.rs` — inferred
 - not established: which statement returns "database is locked" despite the 5 s default (candidates: `PRAGMA journal_mode=WAL` on a new database, or a lock taken later in open/replay), so the fix may land in the eventlog provider
+
+## Scope as landed (wave p5-01)
+
+Confirmed by the implementor and the merge `51d4497`:
+
+- the lock is `PRAGMA journal_mode=WAL` on open (eventlog-sqlite `70096af` `lib.rs:283`); rusqlite's busy timeout does not cover it. The fix stayed in EKR (`crates/ekr-store/src/eventlog.rs`, a bounded retry) — the "may land in the eventlog provider" line resolved to no
+- `crates/ekr-kernel/src/commit.rs` and `seed.rs` were not changed; admission-before-create went into `crates/ekr-kernel/src/runtime.rs` (`admit_seed`, `check_anchor`) — two inferred lines were wrong
+- `crates/ekr/tests/agent_cli.rs` was not needed; the CLI cases are in `crates/ekr/tests/store_open.rs` (new) — inferred line wrong
+- `crates/ekr/src/conformance.rs` admits a seed as the CLI does and still opens unseeded stores, documented — cited
