@@ -4,6 +4,10 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.4] — 2026-09-26
+
+Schema evolution, store open semantics, and the planning store on `aep.project/3`.
+
 ### Added
 
 - Schema evolution. A store seeded under validation profile v2 (`ekr.p2-deterministic/1` +
