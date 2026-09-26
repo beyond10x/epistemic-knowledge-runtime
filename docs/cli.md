@@ -110,7 +110,7 @@ tag `!Node <id>`. A proposal record's `document_bytes` prints as one standard ba
 
 | verb | store | input | prints |
 |---|---|---|---|
-| `ekr seed` | writes | an `ekr-seed/2` file, or `-` for stdin | the seed result: `result.revision` is `0` |
+| `ekr seed` | writes | an `ekr-seed/2` file, or `-` for stdin; `--evidence <file>`, repeatable | the seed result: `result.revision` is `0` |
 | `ekr propose` | writes | an `ekr.transaction-document/1` file, or `-` | the proposal record: `transaction_id` |
 | `ekr validate` | writes | a transaction id; `--against <revision>` | the validation outcome: `kind` is `Validated` or `Rejected` (with `issues`) |
 | `ekr commit` | writes | a transaction id | the commit outcome: `kind` is `Committed` (with `result.revision`) or `Stale` |
@@ -134,6 +134,19 @@ Writes revision 0 from an `ekr-seed/2` document: the schema, the initial graph a
 payloads. The seed is validated like a transaction first; a seed that does not validate is refused as
 `ekr.kernel.InvalidSeed` with the reason. Seeding the same document again returns the original result
 (exit 0); a different document on a seeded store is refused as `ekr.kernel.AlreadySeeded`.
+
+Evidence payloads can come from files instead of the document. `--evidence <file>`, repeatable, adds
+the file's exact bytes to `evidence_payloads` under their content hash — the `content_hash` that
+`ekr hash <file>` prints for the evidence entry — so the document can say `evidence_payloads: {}`
+and need not carry the bytes as a list. A payload both in the document and in a file lands once. The
+kernel checks the completed document as it would a pasted one: an entry whose payload no file or key
+supplies is refused as `seed-evidence-payload-missing`, and a file no entry cites is retained like
+an uncited pasted payload. A file that cannot be read exits 1 before any store is opened.
+
+```console
+ekr hash corpus/a.md                              # -> content_hash for the evidence entry
+ekr seed seed.yaml --evidence corpus/a.md --evidence corpus/b.md
+```
 
 ### `ekr propose`
 
@@ -493,7 +506,8 @@ records where a statement came from; its payload is the statement's exact bytes.
 `payload_yaml` that `ekr hash` prints. Every evidence entry's hash must be a key
 (`seed-evidence-payload-missing` otherwise) and every key must be the hash of its bytes
 (`seed-evidence-payload-mismatch`). To add evidence: write the statement to a file, run
-`ekr hash file`, and paste `content_hash` and `payload_yaml` into the seed. The hash is over the
+`ekr hash file`, put `content_hash` into the evidence entry, and either pass the file to
+`ekr seed --evidence file` or paste `payload_yaml` into `evidence_payloads`. The hash is over the
 file's exact bytes, so a trailing newline changes it.
 
 ## Transaction documents (`ekr.transaction-document/1`)
@@ -1378,6 +1392,7 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `seed-decode` | seed | 2 | the YAML does not have the expected shape: an unknown or missing field, a wrong type, a duplicate key, an empty property value list | the field and line it names |
 | `seed-ontology` | seed | 2 | the ontology does not cohere | the rule it names ([the ontology section](#the-ontology-section)) |
 | `seed-ontology-lineage` | seed | 2 | the ontology's `version` is not a first version: `number` is not `0` or `parent` is not `null` | `number: 0`, `parent: null` |
+| `seed-space` | seed | 2 | the graph root's `space` is not `Canonical`: a seed is canonical state, and a `Transient` root is refused | `space: Canonical` |
 | `seed-root-lineage` | seed | 2 | the graph is not revision 0: `revision` is not `0` or `root.parent` is not `null` | `revision: 0`, `parent: null` |
 | `seed-schema-version` | seed | 2 | the graph root's `schema_version_id` is not the ontology's `version.id` | make them equal |
 | `seed-initial-lifecycle` | seed | 2 | a node's `type_state` is not its type's `initial` state, or is set for a type without a lifecycle | write `initial`, or `null` |
@@ -1385,7 +1400,7 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `seed-misfiled-entity` | seed | 2 | a node, edge or assertion is filed under a key that is not its own `id` | make the key equal the id |
 | `seed-misrooted-entity` | seed | 2 | an entity's `root_id` is not the graph root's `id` | use the root id |
 | `seed-unsupported-source` | seed | 2 | an evidence entry's `source` is not `!HumanStatement` | P1 seeds accept only `!HumanStatement` |
-| `seed-evidence-payload-missing` | seed | 2 | an evidence entry's `content_hash` is not a key of `evidence_payloads` | paste the hash `ekr hash` prints as the key |
+| `seed-evidence-payload-missing` | seed | 2 | an evidence entry's `content_hash` is not a key of `evidence_payloads` | pass the payload file with `--evidence`, or paste the hash `ekr hash` prints as the key |
 | `seed-evidence-payload-mismatch` | seed | 2 | a payload's bytes do not hash to its key | re-run `ekr hash` on the exact bytes |
 | `ekr.kernel.AlreadySeeded` | seed | 2 | the store already holds a different seed | use a new store or tenant |
 | `seed-authority-profile` | any store verb | 1 | the host's `validation_profile` is neither accepted profile exactly — an unknown `ruleset`, or a `ruleset` of one profile with the `application` of the other — or its agent registry does not fit it for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example and keep `ruleset` and `application` a pair: `ekr.p1-deterministic/1` with `ekr.p1-apply/1` (v1) or `ekr.p2-deterministic/1` with `ekr.p2-apply/1` (v2); set `validator` to `context.validator` |

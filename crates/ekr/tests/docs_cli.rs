@@ -916,6 +916,7 @@ fn trigger(page: &str, name: &str) -> Option<Vec<Ran>> {
         ),
         "seed-ontology" => seed_edit("        to: out_of_print", "        to: pulped"),
         "seed-ontology-lineage" => seed_edit("    number: 0\n", "    number: 1\n"),
+        "seed-space" => seed_edit("      space: Canonical\n", "      space: Transient\n"),
         "seed-root-lineage" => seed_edit("    revision: 0\n", "    revision: 1\n"),
         "seed-schema-version" => seed_edit(
             "schema_version_id: 00000000-0000-4000-a000-000000000001",
@@ -1863,7 +1864,7 @@ fn no_text_a_reader_meets_says_only_the_p1_profile_is_accepted() {
     );
 }
 
-/// `README.md` is true of the latest release, 0.0.5: its status table is headed by it, lists schema
+/// `README.md` is true of the latest release, 0.0.6: its status table is headed by it, lists schema
 /// evolution under validation profile v2 as working and links the page's § Evolve the schema, and
 /// keeps `MergeEntity` and a v1 store's fixed schema as not in it. Schema evolution is no longer
 /// called a later phase or unreleased.
@@ -1875,6 +1876,7 @@ fn readme_says_the_schema_evolves_under_profile_v2() {
         "works in 0.0.2",
         "works in 0.0.3",
         "works in 0.0.4",
+        "works in 0.0.5",
         "not yet released",
         "the incubation forest, schema evolution and maintenance",
     ] {
@@ -1884,7 +1886,7 @@ fn readme_says_the_schema_evolves_under_profile_v2() {
         .lines()
         .find(|line| line.starts_with("| works in "))
         .expect("README.md has a status table");
-    assert!(header.starts_with("| works in 0.0.5 |"), "{header}");
+    assert!(header.starts_with("| works in 0.0.6 |"), "{header}");
     let prefixed = format!("\n{readme}");
     let released = section(&prefixed, "## Status");
     let table: String = released
@@ -1900,7 +1902,7 @@ fn readme_says_the_schema_evolves_under_profile_v2() {
     ] {
         assert!(
             table.contains(needle),
-            "the 0.0.5 table lacks {needle:?}: {table}"
+            "the 0.0.6 table lacks {needle:?}: {table}"
         );
     }
     // The link lands: the page has that heading.

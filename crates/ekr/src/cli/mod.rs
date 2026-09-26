@@ -89,6 +89,10 @@ pub enum Command {
     Seed {
         /// An `ekr-seed/2` YAML document, or `-` for stdin (`ekr example ekr-seed/2`).
         document: PathBuf,
+        /// A payload file to retain as evidence, repeatable: its exact bytes join
+        /// `evidence_payloads` under their content hash, so the document need not carry them.
+        #[arg(long = "evidence", value_name = "FILE")]
+        evidence: Vec<PathBuf>,
     },
     /// Propose a transaction (`ekr.kernel.Propose`) as the host operator.
     ///
@@ -287,10 +291,11 @@ pub fn execute(
         Command::Schema { format } => schema::run(format),
         Command::Mint { kind } => render(&agent::mint(kind)),
         Command::Hash { payload } => render(&hash::run(&payload, stdin)?),
-        Command::Seed { document } => {
+        Command::Seed { document, evidence } => {
             let store = configured.resolve("seed")?;
             render(&seed::run(
                 &document,
+                &evidence,
                 stdin,
                 |seed| store.open_to_seed(seed),
                 now,

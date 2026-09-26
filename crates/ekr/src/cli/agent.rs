@@ -122,8 +122,10 @@ ADDING EVIDENCE TO A SEED
   3. Under graph.graph.evidence add an entry keyed by a new id (ekr mint evidence), with that
      id, `source: !HumanStatement`, `extracted_by` the host operator and `content_hash` the
      printed hash. `ekr example ekr-seed/2` shows complete entries.
-  4. Put the same hash as the key of its `evidence_payloads` entry, and paste the printed
-     `payload_yaml` as its value: the payload's bytes as a list of byte values,
+  4. Pass the file to the seed: ekr seed seed.yaml --evidence payload.txt (repeatable). Its
+     bytes join `evidence_payloads` under their hash, so the document can say
+     `evidence_payloads: {}`. Or put the same hash as the key of its `evidence_payloads` entry
+     and paste the printed `payload_yaml` as its value: the payload's bytes as a list of byte values,
      [65, 108, 105] for \"Ali\".
   An entry whose `content_hash` is not a key of `evidence_payloads` is refused as
   seed-evidence-payload-missing, naming that hash and the keys no entry names. A payload whose

@@ -56,6 +56,10 @@ surfaces:
     documents:
       include:
       - README.md
+      - docs/overview.md
+      - docs/guide.md
+      - docs/schema-evolution.md
+      - docs/cli.md
     navigation:
       group: Services
       label: Epistemic Knowledge Runtime
