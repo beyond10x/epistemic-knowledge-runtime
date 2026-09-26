@@ -2,7 +2,7 @@
 format: aep.planning-md/1
 id: story:store-open-semantics
 kind: story
-status: draft
+status: active
 title: Read verbs open only an existing store, and SQLite open waits for its lock
 relations:
 - serves: vision:o5
@@ -29,7 +29,7 @@ scope:
   path: crates/ekr/tests/adversary_p1_13_cli_exit_contract.rs
 - confidence: inferred
   path: crates/ekr/tests/agent_cli.rs
-revision: 12
+revision: 14
 ---
 ## Context
 
