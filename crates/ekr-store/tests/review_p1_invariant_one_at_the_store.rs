@@ -224,8 +224,9 @@ fn declared_entry_points() -> BTreeSet<String> {
 /// nothing else. `tests/published_events.rs` and ekr-kernel's `tests/runtime_published_events.rs`
 /// hold that a reread and a reopen return the identical log, so the read itself adds nothing.
 /// `sqlite_existing` and `file_existing` (`story:store-open-semantics`) open the same provider as
-/// `sqlite` and `file` and create nothing where no store is.
-const NOT_WRITERS: [&str; 14] = [
+/// `sqlite` and `file` and create nothing where no store is. `set_full_replay` sets a flag.
+const NOT_WRITERS: [&str; 15] = [
+    "set_full_replay",
     "preparation",
     "published_events",
     "history",
@@ -363,6 +364,17 @@ fn a_commit_lands_with_no_validated_transaction_anywhere_in_the_process() {
         .store_graph(&graph, Timestamp::EPOCH)
         .expect("an archived document is not a commit");
     driven.insert("store_graph");
+    // The checkpoint writer holds cache bytes in its own stream, never a revision occurrence:
+    // the kernel admits a checkpoint only as the replay of a lineage it already verified, and
+    // this one — bytes, not a checkpoint — is ignored by every later read.
+    store
+        .write_checkpoint(
+            4,
+            ContentHash::of_bytes(b"a binding this test wrote"),
+            Some(b"a replay checkpoint this test wrote"),
+        )
+        .expect("a checkpoint write is not a commit");
+    driven.insert("write_checkpoint");
 
     let mut placed: BTreeSet<String> = driven.into_iter().map(str::to_owned).collect();
     placed.extend(NOT_WRITERS.map(str::to_owned));

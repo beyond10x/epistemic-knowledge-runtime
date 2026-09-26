@@ -1340,6 +1340,14 @@ fn provider_events(
                     ),
                 ],
             )?,
+            ("ekr.store.CheckpointWritten", 1) => occurrence(
+                "ekr.store.CheckpointWritten",
+                vec![
+                    ("checkpoint_hash", string("checkpoint_hash")?),
+                    ("covered", unsigned("covered")?),
+                    ("binding", string("binding")?),
+                ],
+            )?,
             (name, schema) => {
                 return Err(refuse(format!(
                     "`{name}` schema {schema} is not an event the specification declares"

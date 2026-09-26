@@ -3,7 +3,7 @@
 //! The page is written for a reader who has only the documentation and a built `ekr`. Every
 //! statement that can drift from the binary is read back here:
 //!
-//! * every fenced block whose body is an `ekr-seed/2`, `ekr.transaction-document/1` or
+//! * every fenced block whose body is an `ekr-seed/2`, `ekr.transaction-document/2` or
 //!   `ekr.cli-host/1` document is tagged with that format and parses with the real reader;
 //! * the worked example's blocks (those carrying `file=`) seed a fresh store and reach the outcome
 //!   each block declares (`outcome=`) on both providers, and the page's read-back commands print
@@ -33,7 +33,7 @@ use ekr_ontology::ValueKind;
 use serde_json::Value;
 
 const SEED: &str = "ekr-seed/2";
-const TRANSACTION: &str = "ekr.transaction-document/1";
+const TRANSACTION: &str = "ekr.transaction-document/2";
 const HOST: &str = "ekr.cli-host/1";
 const BACKENDS: [&str; 2] = ["file", "sqlite"];
 
@@ -110,7 +110,7 @@ fn blocks(text: &str) -> Vec<Block> {
 fn declared_format(body: &str) -> Option<&'static str> {
     body.lines().find_map(|line| match line.trim_end() {
         "format: ekr-seed/2" => Some(SEED),
-        "format: ekr.transaction-document/1" => Some(TRANSACTION),
+        "format: ekr.transaction-document/2" => Some(TRANSACTION),
         "  \"format\": \"ekr.cli-host/1\"," | "  \"format\": \"ekr.cli-host/1\"" => Some(HOST),
         _ => None,
     })
@@ -523,7 +523,9 @@ fn the_configuration_table_equals_the_global_options_and_names_their_variables()
     let flags = help_flags(&stdout(&["--help"]));
     assert_eq!(
         flags,
-        ["backend", "host", "store"].map(str::to_owned).into(),
+        ["backend", "full-replay", "host", "store"]
+            .map(str::to_owned)
+            .into(),
         "ekr --help"
     );
     let table = rows(section(&page, "## Configuration"));
@@ -536,7 +538,7 @@ fn the_configuration_table_equals_the_global_options_and_names_their_variables()
         "the configuration table and `ekr --help` disagree"
     );
     for flag in &flags {
-        let variable = format!("`EKR_{}`", flag.to_uppercase());
+        let variable = format!("`EKR_{}`", flag.to_uppercase().replace('-', "_"));
         let row = table
             .iter()
             .find(|cells| cells[0] == format!("`--{flag}`"))
@@ -1529,7 +1531,7 @@ fn the_schema_evolution_example_commits_and_reads_each_version_back_on_both_prov
     }
 }
 
-/// Codes of the schema class that no `ekr.transaction-document/1` can reach, each with the reason.
+/// Codes of the schema class that no `ekr.transaction-document/2` can reach, each with the reason.
 /// The page lists every other code of the class; a new code fails
 /// `every_code_a_schema_change_is_refused_with_is_listed_or_unreachable` until it is one or the
 /// other.
@@ -1563,7 +1565,7 @@ const UNREACHABLE_SCHEMA_CODES: [(&str, &str); 7] = [
 /// A schema-changing transaction against the worked seed, proposed by the worked operator.
 fn schema_tx(id: u32, version: Option<&str>, operations: &str) -> String {
     let mut text = format!(
-        "format: ekr.transaction-document/1\ntransaction:\n  id: 00000000-0000-4000-a000-00000000{id:04}\n  \
+        "format: ekr.transaction-document/2\ntransaction:\n  id: 00000000-0000-4000-a000-00000000{id:04}\n  \
          proposer: 00000000-0000-4000-a000-000000000011\n  operations:{operations}\n  evidence: []\n"
     );
     if let Some(version) = version {
@@ -1864,7 +1866,7 @@ fn no_text_a_reader_meets_says_only_the_p1_profile_is_accepted() {
     );
 }
 
-/// `README.md` is true of the latest release, 0.0.6: its status table is headed by it, lists schema
+/// `README.md` is true of the latest release, 0.0.7: its status table is headed by it, lists schema
 /// evolution under validation profile v2 as working and links the page's § Evolve the schema, and
 /// keeps `MergeEntity` and a v1 store's fixed schema as not in it. Schema evolution is no longer
 /// called a later phase or unreleased.
@@ -1877,6 +1879,7 @@ fn readme_says_the_schema_evolves_under_profile_v2() {
         "works in 0.0.3",
         "works in 0.0.4",
         "works in 0.0.5",
+        "works in 0.0.6",
         "not yet released",
         "the incubation forest, schema evolution and maintenance",
     ] {
@@ -1886,7 +1889,7 @@ fn readme_says_the_schema_evolves_under_profile_v2() {
         .lines()
         .find(|line| line.starts_with("| works in "))
         .expect("README.md has a status table");
-    assert!(header.starts_with("| works in 0.0.6 |"), "{header}");
+    assert!(header.starts_with("| works in 0.0.7 |"), "{header}");
     let prefixed = format!("\n{readme}");
     let released = section(&prefixed, "## Status");
     let table: String = released
@@ -1899,10 +1902,11 @@ fn readme_says_the_schema_evolves_under_profile_v2() {
         "docs/cli.md#evolve-the-schema",
         "`MergeEntity`, refused as `unsupported-operation`",
         "profile v1",
+        "10,000 operations in one `ekr.transaction-document/2`",
     ] {
         assert!(
             table.contains(needle),
-            "the 0.0.6 table lacks {needle:?}: {table}"
+            "the 0.0.7 table lacks {needle:?}: {table}"
         );
     }
     // The link lands: the page has that heading.

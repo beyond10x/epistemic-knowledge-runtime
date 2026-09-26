@@ -8,7 +8,8 @@
 #   - the one object it stored is Canonical, and the proposal record's exact length;
 #   - the one publication it prepared is the first attempt of its key, which the store numbers 0;
 #   - the stored object's address is the record the Transactions view names as the proposal's.
-# The length (1846 bytes for the `propose-node.yaml` fixture's record) and the attempt number were
+# The length (1121 bytes for the `propose-node.yaml` fixture's `ekr.proposal-record/2`; its `/1`
+# record held the document as a number array, 1846 bytes) and the attempt number were
 # measured from the real kernel; the suite runs this scenario on both providers.
 type: ess-scenario/1
 domain: ekr.kernel
@@ -31,7 +32,7 @@ timeline:
       - event: ekr.store.ObjectStored
         payload:
           storage_class: Canonical
-          byte_len: 1846
+          byte_len: 1121
       - event: ekr.store.PublicationPrepared
         payload:
           attempt_number: 0

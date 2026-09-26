@@ -1,4 +1,4 @@
-format: ekr.transaction-document/2
+format: ekr.transaction-document/3
 transaction:
   id: 00000000-0000-4000-8000-000000000604
   proposer: 00000000-0000-4000-8000-000000000101

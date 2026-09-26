@@ -5,12 +5,14 @@ use crate::{
     ValidatedTransaction, ValidationBasisV1, ValidationMaterialV1, ValidationReceiptV1,
 };
 use ekr_core::{
-    AgentId, ContentHash, EventId, IssueId, RevisionId, RevisionNumber, Timestamp, TransactionId,
+    AgentId, Canonical, ContentHash, Encoder, EventId, IssueId, RevisionId, RevisionNumber,
+    Timestamp, TransactionId,
 };
 use ekr_graph::{CanonicalValue, GraphSnapshot, RevisionPayload};
-use ekr_store::{AdmittedRevision, RetainedHistory, StorageClass, StoreError};
+use ekr_store::{AdmittedRevision, RecordedOccurrence, RetainedHistory, StorageClass, StoreError};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 /// Actual retained transaction lifecycle, independent of provider stream position.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -61,18 +63,167 @@ impl TransactionRecord {
         }
     }
 }
+/// The state a complete verified replay reaches after some prefix of the revision stream.
+///
+/// Cloning is cheap where it matters: every admitted revision, parsed document and sealed
+/// validation is shared, and only the retained records themselves are copied.
+#[derive(Clone)]
 pub(crate) struct ReplayState {
     pub(crate) seed: SeedResultV1,
-    pub(crate) revisions: BTreeMap<RevisionNumber, AdmittedRevision>,
+    pub(crate) revisions: BTreeMap<RevisionNumber, Revision>,
     pub(crate) transactions: BTreeMap<TransactionId, TransactionRecord>,
     pub(crate) version: u64,
+    /// The prefix digest of the occurrences this state covers, when replay computed it.
+    pub(crate) digest: Option<ContentHash>,
+    /// The evidence payloads the admitted seed envelope requires.
+    pub(crate) seed_payloads: BTreeSet<ContentHash>,
+    /// Each retained proposal's document, parsed once from its verified bytes.
+    pub(crate) documents: BTreeMap<TransactionId, Arc<TransactionDocument>>,
+    /// Each accepted validation's sealed result, keyed by transaction. Validation is a pure
+    /// function of the proposal, the basis revision and the lineage before it, all immutable, so
+    /// a commit whose basis is still that revision reuses the result instead of recomputing it.
+    pub(crate) validated: BTreeMap<TransactionId, Arc<ValidatedTransaction>>,
+    pub(crate) revision_ids: BTreeSet<RevisionId>,
+    pub(crate) event_ids: BTreeSet<EventId>,
+    pub(crate) issue_ids: BTreeSet<IssueId>,
 }
+/// The refusal a state restored from a checkpoint gives for a graph it does not hold. It is never
+/// a verdict about the history: whoever meets it replays that history in full instead.
+pub(crate) const GRAPH_NOT_HELD: &str = "replay-graph-not-held";
+
+/// One committed revision as replay holds it: its verified coordinates always, its graph when the
+/// state reached it by replay. A state restored from a checkpoint holds only the head's graph.
+#[derive(Clone, Debug)]
+pub(crate) struct Revision {
+    pub(crate) root: ekr_graph::Root,
+    pub(crate) revision_id: RevisionId,
+    pub(crate) event_id: EventId,
+    pub(crate) record_hash: ContentHash,
+    pub(crate) committed_at: Timestamp,
+    /// The graph root every revision of the lineage hangs off.
+    pub(crate) graph_root: ekr_core::GraphRootId,
+    /// The schema in force at this revision.
+    pub(crate) ontology: Arc<ekr_ontology::Ontology>,
+    pub(crate) graph: Option<Arc<ekr_graph::CanonicalGraph>>,
+}
+impl Revision {
+    pub(crate) fn replayed(admitted: AdmittedRevision) -> Self {
+        Self {
+            root: admitted.root,
+            revision_id: admitted.revision_id,
+            event_id: admitted.event_id,
+            record_hash: admitted.record_hash,
+            committed_at: admitted.committed_at,
+            graph_root: admitted.graph.root.id,
+            ontology: Arc::new(admitted.graph.ontology.clone()),
+            graph: Some(Arc::new(admitted.graph)),
+        }
+    }
+    /// The graph at this revision, or [`GRAPH_NOT_HELD`].
+    pub(crate) fn graph(&self) -> Result<&ekr_graph::CanonicalGraph, StoreError> {
+        self.graph.as_deref().ok_or_else(|| refuse(GRAPH_NOT_HELD))
+    }
+    pub(crate) fn admitted(&self) -> Result<AdmittedRevision, StoreError> {
+        Ok(AdmittedRevision {
+            graph: self.graph()?.clone(),
+            root: self.root,
+            revision_id: self.revision_id,
+            event_id: self.event_id,
+            record_hash: self.record_hash,
+            committed_at: self.committed_at,
+        })
+    }
+}
+/// Whether `error` is [`GRAPH_NOT_HELD`].
+pub(crate) fn graph_not_held(error: &StoreError) -> bool {
+    matches!(error, StoreError::Document(code) if code == GRAPH_NOT_HELD)
+}
+
 impl ReplayState {
-    pub(crate) fn head(&self) -> &AdmittedRevision {
+    pub(crate) fn head(&self) -> &Revision {
         self.revisions
             .last_key_value()
             .expect("state is constructed with verified seed")
             .1
+    }
+    /// The retained proposal's parsed document, or a fresh parse of its verified bytes.
+    pub(crate) fn document(
+        &self,
+        proposal: &ProposalRecordV1,
+    ) -> Result<Arc<TransactionDocument>, StoreError> {
+        if let Some(parsed) = self.documents.get(&proposal.transaction_id) {
+            return Ok(Arc::clone(parsed));
+        }
+        TransactionDocument::parse(&proposal.document_bytes)
+            .map(Arc::new)
+            .map_err(|e| refuse(&format!("proposal-document: {e}")))
+    }
+}
+
+/// The digest of a revision-stream prefix: a chain over each occurrence's stream position and
+/// complete domain event, which carries the payload address of every record replay reads.
+///
+/// Two histories with one digest hold the same occurrences in the same order and, because
+/// retained objects are content-addressed and verified on load, the same record bytes. Replay is
+/// deterministic in exactly those inputs under one authority, so a state reached over one of them
+/// is the state reached over the other. The provider's own event identity is not an input of
+/// replay and is not bound, so a candidate replayed before publication and the same occurrence
+/// read back after it share a digest.
+pub(crate) fn prefix_digests(occurrences: &[RecordedOccurrence]) -> Vec<ContentHash> {
+    struct Step<'a>(ContentHash, &'a RecordedOccurrence);
+    impl Canonical for Step<'_> {
+        fn encode(&self, out: &mut Encoder) {
+            "ekr.replay-prefix/1".encode(out);
+            self.0.encode(out);
+            self.1.version.encode(out);
+            self.1.event.encode(out);
+        }
+    }
+    let mut digests = Vec::with_capacity(occurrences.len() + 1);
+    let mut digest = ContentHash::of("ekr.replay-prefix/1");
+    digests.push(digest);
+    for occurrence in occurrences {
+        digest = ContentHash::of(&Step(digest, occurrence));
+        digests.push(digest);
+    }
+    digests
+}
+
+/// Verified replay states this authority has already reached, by the prefix they cover.
+///
+/// Process-local and never persisted: an entry is only ever a state this authority computed
+/// itself from verified history, so reusing it is reusing its own result. A handful of entries
+/// covers one command, which replays the head, then the head plus its candidate, several times.
+#[derive(Default)]
+pub(crate) struct ReplayCache {
+    entries: Vec<(usize, ContentHash, Arc<ReplayState>)>,
+    /// The seed envelope this authority admitted, and the evidence payloads it requires.
+    pub(crate) seed: Option<(ContentHash, BTreeSet<ContentHash>)>,
+}
+impl ReplayCache {
+    const CAPACITY: usize = 4;
+    /// The longest cached prefix of the history whose digests are `digests`.
+    pub(crate) fn longest(&self, digests: &[ContentHash]) -> Option<(usize, Arc<ReplayState>)> {
+        self.entries
+            .iter()
+            .filter(|(covered, digest, _)| digests.get(*covered) == Some(digest))
+            .max_by_key(|(covered, _, _)| *covered)
+            .map(|(covered, _, state)| (*covered, Arc::clone(state)))
+    }
+    /// The state covering the most occurrences.
+    pub(crate) fn newest(&self) -> Option<Arc<ReplayState>> {
+        self.entries
+            .iter()
+            .max_by_key(|(covered, _, _)| *covered)
+            .map(|(_, _, state)| Arc::clone(state))
+    }
+    pub(crate) fn insert(&mut self, covered: usize, digest: ContentHash, state: Arc<ReplayState>) {
+        self.entries
+            .retain(|(held, found, _)| (*held, *found) != (covered, digest));
+        if self.entries.len() == Self::CAPACITY {
+            self.entries.remove(0);
+        }
+        self.entries.push((covered, digest, state));
     }
 }
 pub(crate) fn refuse(code: &str) -> StoreError {
@@ -95,6 +246,19 @@ pub(crate) fn proposal(
     at: Timestamp,
     anchor: &AuthorityStateV1,
 ) -> Result<ProposalRecordV1, StoreError> {
+    parsed_proposal(bytes, actor, event_id, at, anchor, ProposalRecordV1::FORMAT)
+        .map(|(record, _)| record)
+}
+/// [`proposal`] in the record format a retained proposal was written in, returning the parsed
+/// document with it so that one replay parses each retained document once.
+pub(crate) fn parsed_proposal(
+    bytes: &[u8],
+    actor: AgentId,
+    event_id: EventId,
+    at: Timestamp,
+    anchor: &AuthorityStateV1,
+    format: &str,
+) -> Result<(ProposalRecordV1, TransactionDocument), StoreError> {
     registered(anchor, actor)?;
     let document = TransactionDocument::parse(bytes)
         .map_err(|e| refuse(&format!("proposal-document: {e}")))?;
@@ -108,8 +272,8 @@ pub(crate) fn proposal(
         "proposal-attribution-mismatch",
     )?;
     let canonical = GraphTransaction::<CanonicalValue>::try_from(tx.clone()).ok();
-    Ok(ProposalRecordV1 {
-        format: ProposalRecordV1::FORMAT.into(),
+    let record = ProposalRecordV1 {
+        format: format.into(),
         event_id,
         submitted_at: at,
         submitter: actor,
@@ -120,16 +284,17 @@ pub(crate) fn proposal(
         evidence_hash: ContentHash::of(&tx.evidence),
         canonical_transaction_hash: canonical.as_ref().map(ContentHash::of),
         canonical_operations_hash: canonical.as_ref().map(|tx| ContentHash::of(&tx.operations)),
-    })
+    };
+    Ok((record, document))
 }
 pub(crate) fn basis(
-    prior: &AdmittedRevision,
+    prior: &Revision,
     seed_hash: ContentHash,
     anchor: &AuthorityStateV1,
 ) -> ValidationBasisV1 {
     ValidationBasisV1 {
         format: ValidationBasisV1::FORMAT.into(),
-        graph_root_id: prior.graph.root.id,
+        graph_root_id: prior.graph_root,
         previous_revision_id: prior.revision_id,
         previous_event_id: prior.event_id,
         previous_record_hash: prior.record_hash,
@@ -141,34 +306,38 @@ pub(crate) fn basis(
         validation_profile_hash: ContentHash::of(&anchor.validation_profile),
     }
 }
-/// Validates a retained proposal against `prior` under the store's own profile.
+/// Validates a retained proposal's parsed document against `prior` under the store's own profile.
 ///
 /// `revisions` are the committed revisions retained so far; those up to `prior` are the lineage a
 /// profile-v2 schema change is held new against. Profile v1 reads none of them, and seals and
 /// refuses exactly as P1 did.
+///
+/// # Errors
+///
+/// The outer error is [`GRAPH_NOT_HELD`] for a restored state without `prior`'s graph; the inner
+/// one is the validation verdict.
+#[allow(clippy::type_complexity)]
 pub(crate) fn validate(
-    proposal: &ProposalRecordV1,
-    revisions: &BTreeMap<RevisionNumber, AdmittedRevision>,
-    prior: &AdmittedRevision,
+    document: &TransactionDocument,
+    revisions: &BTreeMap<RevisionNumber, Revision>,
+    prior: &Revision,
     anchor: &AuthorityStateV1,
     validator: AgentId,
-) -> Result<ValidatedTransaction, Vec<crate::ValidationIssue>> {
-    // Proposal verification has already parsed these exact retained bytes under their frozen profile.
-    let parsed =
-        TransactionDocument::parse(&proposal.document_bytes).expect("verified proposal document");
+) -> Result<Result<ValidatedTransaction, Vec<crate::ValidationIssue>>, StoreError> {
+    let graph = prior.graph()?;
     let pipeline = if anchor.validation_profile.admits_schema_changes() {
         Pipeline::schema_evolving(
             validator,
             crate::validate::schema::lineage(
                 revisions
                     .range(..=prior.root.revision)
-                    .map(|(_, revision)| &revision.graph.ontology),
+                    .map(|(_, revision)| &*revision.ontology),
             ),
         )
     } else {
         Pipeline::deterministic(validator)
     };
-    pipeline.validate(&GraphSnapshot::of(&prior.graph), parsed.transaction())
+    Ok(pipeline.validate(&GraphSnapshot::of(graph), document.transaction()))
 }
 pub(crate) fn validation_record(
     proposal: &ProposalRecordV1,
@@ -217,34 +386,87 @@ fn read_proposed(
     Ok(tx)
 }
 impl KernelAuthority {
+    /// Replays `history`, continuing from the longest prefix this authority already reached.
+    ///
+    /// A reached state restored from a checkpoint holds only its head's graph. Should the rest of
+    /// the history need an earlier graph, the whole history is replayed from the seed instead.
     pub(crate) fn reconstruct(
         &self,
         history: &RetainedHistory,
         ontology: Option<&ekr_ontology::Ontology>,
         selected: Option<RevisionNumber>,
     ) -> Result<Option<ReplayState>, StoreError> {
-        let Some(seed) = self.seed_state(history, ontology)? else {
-            return Ok(None);
-        };
-        let first = &history.occurrences[0];
-        let seed_result = SeedResultV1::from_bytes(
-            history.content(first.event.record_hash, StorageClass::Canonical)?,
-        )?;
-        let mut state = ReplayState {
-            seed: seed_result,
-            revisions: BTreeMap::from([(RevisionNumber::SEED, seed)]),
-            transactions: BTreeMap::new(),
-            version: first.version,
-        };
-        if selected == Some(RevisionNumber::SEED) {
-            return Ok(Some(state));
+        match self.replay_from(history, ontology, selected, true) {
+            Err(error) if graph_not_held(&error) => {
+                self.replay_from(history, ontology, selected, false)
+            }
+            result => result,
         }
-        let mut revisions = BTreeSet::<RevisionId>::from([state.seed.revision_id]);
-        let mut events = BTreeSet::from([first.event.event_id]);
-        let mut issue_ids = BTreeSet::<IssueId>::new();
-        for occurrence in history.occurrences.iter().skip(1) {
+    }
+    /// [`Self::reconstruct`] from the seed, reusing nothing this authority reached before.
+    pub(crate) fn reconstruct_in_full(
+        &self,
+        history: &RetainedHistory,
+    ) -> Result<Option<ReplayState>, StoreError> {
+        self.replay_from(history, None, None, false)
+    }
+    fn replay_from(
+        &self,
+        history: &RetainedHistory,
+        ontology: Option<&ekr_ontology::Ontology>,
+        selected: Option<RevisionNumber>,
+        reuse: bool,
+    ) -> Result<Option<ReplayState>, StoreError> {
+        // Only the ordinary head replay is shared: a replay under a caller's ontology or to a
+        // selected revision is computed in full, as before.
+        let shared = ontology.is_none() && selected.is_none();
+        let digests = if shared && !history.occurrences.is_empty() {
+            prefix_digests(&history.occurrences)
+        } else {
+            Vec::new()
+        };
+        let reached = if shared && reuse {
+            self.cache
+                .lock()
+                .map_err(|_| refuse("replay-cache-poisoned"))?
+                .longest(&digests)
+        } else {
+            None
+        };
+        let reused = reached.is_some();
+        let (mut state, start) = if let Some((covered, reached)) = reached {
+            // The seed checks bind the host context and anchor; this authority's are immutable.
+            ((*reached).clone(), covered)
+        } else {
+            let Some((seed, seed_payloads)) = self.seed_state(history, ontology)? else {
+                return Ok(None);
+            };
+            let first = &history.occurrences[0];
+            let seed_result = SeedResultV1::from_bytes(
+                history.content(first.event.record_hash, StorageClass::Canonical)?,
+            )?;
+            let state = ReplayState {
+                revision_ids: BTreeSet::from([seed_result.revision_id]),
+                event_ids: BTreeSet::from([first.event.event_id]),
+                issue_ids: BTreeSet::new(),
+                seed: seed_result,
+                revisions: BTreeMap::from([(RevisionNumber::SEED, Revision::replayed(seed))]),
+                transactions: BTreeMap::new(),
+                documents: BTreeMap::new(),
+                validated: BTreeMap::new(),
+                version: first.version,
+                digest: None,
+                seed_payloads,
+            };
+            if selected == Some(RevisionNumber::SEED) {
+                return Ok(Some(state));
+            }
+            (state, 1)
+        };
+        for occurrence in history.occurrences.iter().skip(start) {
             require(
-                occurrence.version == state.version + 1 && events.insert(occurrence.event.event_id),
+                occurrence.version == state.version + 1
+                    && state.event_ids.insert(occurrence.event.event_id),
                 "occurrence-order-or-identity",
             )?;
             let event = &occurrence.event;
@@ -257,12 +479,13 @@ impl KernelAuthority {
                     operations_hash,
                 } => {
                     let record = ProposalRecordV1::from_bytes(bytes)?;
-                    let expected = proposal(
+                    let (expected, document) = parsed_proposal(
                         &record.document_bytes,
                         record.submitter,
                         event.event_id,
                         record.submitted_at,
                         &self.anchor,
+                        &record.format,
                     )?;
                     require(
                         record == expected
@@ -275,6 +498,7 @@ impl KernelAuthority {
                         !state.transactions.contains_key(&transaction_id),
                         "transaction-identity-reused",
                     )?;
+                    state.documents.insert(transaction_id, Arc::new(document));
                     state.transactions.insert(
                         transaction_id,
                         TransactionRecord {
@@ -305,12 +529,12 @@ impl KernelAuthority {
                         "validation-time-order",
                     )?;
                     let validated = validate(
-                        &tx.proposal,
+                        &*state.document(&tx.proposal)?,
                         &state.revisions,
                         prior,
                         &self.anchor,
                         self.context.validator,
-                    )
+                    )?
                     .map_err(|_| refuse("retained-validation-refused"))?;
                     let expected = validation_record(
                         &tx.proposal,
@@ -325,6 +549,7 @@ impl KernelAuthority {
                         record == expected && record.validation_hash == validation_hash,
                         "validation-record-disagrees",
                     )?;
+                    state.validated.insert(transaction_id, Arc::new(validated));
                     let tx = state
                         .transactions
                         .get_mut(&transaction_id)
@@ -354,12 +579,12 @@ impl KernelAuthority {
                         "rejection-record-disagrees",
                     )?;
                     let actual = validate(
-                        &tx.proposal,
+                        &*state.document(&tx.proposal)?,
                         &state.revisions,
                         prior,
                         &self.anchor,
                         self.context.validator,
-                    )
+                    )?
                     .err()
                     .ok_or_else(|| refuse("rejection-of-valid-transaction"))?;
                     require(
@@ -370,7 +595,7 @@ impl KernelAuthority {
                     )?;
                     for (held, actual) in record.issues.iter().zip(&actual) {
                         require(
-                            issue_ids.insert(held.id)
+                            state.issue_ids.insert(held.id)
                                 && held.transaction_id == actual.transaction_id
                                 && held.validator == actual.validator
                                 && held.code == actual.code
@@ -383,6 +608,7 @@ impl KernelAuthority {
                         .get_mut(&transaction_id)
                         .expect("verified transaction")
                         .rejection = Some(record);
+                    state.documents.remove(&transaction_id);
                 }
                 RevisionPayload::RevisionCommitted {
                     transaction_id,
@@ -410,7 +636,7 @@ impl KernelAuthority {
                             && Some(record.validation_record_hash) == tx.validation_record_hash
                             && record.event_id == event.event_id
                             && record.revision_id == revision_id
-                            && revisions.insert(revision_id),
+                            && !state.revision_ids.contains(&revision_id),
                         "commit-record-linkage",
                     )?;
                     registered(&self.anchor, record.committer)?;
@@ -422,14 +648,21 @@ impl KernelAuthority {
                         record.committed_at >= validation.validated_at,
                         "commit-time-order",
                     )?;
-                    let validated = validate(
-                        &tx.proposal,
-                        &state.revisions,
-                        prior,
-                        &self.anchor,
-                        self.context.validator,
-                    )
-                    .map_err(|_| refuse("retained-commit-validation-refused"))?;
+                    // The basis is the revision the retained validation was computed against, so
+                    // its sealed result is this validation's result.
+                    let validated = match state.validated.get(&transaction_id) {
+                        Some(validated) => Arc::clone(validated),
+                        None => Arc::new(
+                            validate(
+                                &*state.document(&tx.proposal)?,
+                                &state.revisions,
+                                prior,
+                                &self.anchor,
+                                self.context.validator,
+                            )?
+                            .map_err(|_| refuse("retained-commit-validation-refused"))?,
+                        ),
+                    };
                     let (graph, root) = crate::apply::apply(
                         prior,
                         &validated,
@@ -460,17 +693,28 @@ impl KernelAuthority {
                         record.result == root && record.result_hash == ContentHash::of(&root),
                         "commit-result-disagrees",
                     )?;
+                    let ontology = if root.ontology_root == prior.root.ontology_root {
+                        Arc::clone(&prior.ontology)
+                    } else {
+                        Arc::new(graph.ontology.clone())
+                    };
+                    let graph_root = prior.graph_root;
+                    state.revision_ids.insert(revision_id);
                     state.revisions.insert(
                         number,
-                        AdmittedRevision {
-                            graph,
+                        Revision {
                             root,
                             revision_id,
                             event_id: event.event_id,
                             record_hash: event.record_hash,
                             committed_at: record.committed_at,
+                            graph_root,
+                            ontology,
+                            graph: Some(Arc::new(graph)),
                         },
                     );
+                    state.validated.remove(&transaction_id);
+                    state.documents.remove(&transaction_id);
                     state
                         .transactions
                         .get_mut(&transaction_id)
@@ -512,6 +756,8 @@ impl KernelAuthority {
                         .get_mut(&transaction_id)
                         .expect("verified transaction")
                         .stale = Some(record);
+                    state.validated.remove(&transaction_id);
+                    state.documents.remove(&transaction_id);
                 }
             }
             state.version = occurrence.version;
@@ -521,6 +767,16 @@ impl KernelAuthority {
         }
         if let Some(requested) = selected {
             return Err(StoreError::NoMaterialisedState { requested });
+        }
+        if shared {
+            let covered = history.occurrences.len();
+            state.digest = Some(digests[covered]);
+            if !reused || start < covered {
+                self.cache
+                    .lock()
+                    .map_err(|_| refuse("replay-cache-poisoned"))?
+                    .insert(covered, digests[covered], Arc::new(state.clone()));
+            }
         }
         Ok(Some(state))
     }

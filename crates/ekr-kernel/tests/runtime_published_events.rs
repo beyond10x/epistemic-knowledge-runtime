@@ -177,10 +177,24 @@ fn a_seeded_runtime_publishes_its_whole_log_in_order_on_both_providers() {
             names,
             BTreeSet::from([
                 "ekr.kernel.Seeded",
+                "ekr.store.CheckpointWritten",
                 "ekr.store.ObjectStored",
                 "ekr.store.PublicationPrepared"
             ]),
             "file={file}: a seed publishes these and nothing else"
+        );
+        let checkpoints = events
+            .iter()
+            .filter(|e| e.name == "ekr.store.CheckpointWritten")
+            .collect::<Vec<_>>();
+        assert_eq!(checkpoints.len(), 1, "file={file}: one replay checkpoint");
+        assert_eq!(
+            (
+                checkpoints[0].stream_type.as_str(),
+                checkpoints[0].data["covered"].as_u64()
+            ),
+            ("ekr.checkpoint", Some(1)),
+            "file={file}: the seed's checkpoint covers the seed occurrence"
         );
         if file {
             assert_eq!(

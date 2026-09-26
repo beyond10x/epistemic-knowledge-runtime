@@ -75,7 +75,9 @@ Each is a claim that can be checked. Breaking one is a design change, not a refa
    crate-private seed admission (`seed::admitted_graph`) builds a Seeded publication, and the store
    publishes one only after replaying the staged candidate through the injected kernel authority.
    Every replay revalidates the full seed input, retained evidence and actual attribution through
-   that same kernel authority.
+   that same kernel authority. A replay checkpoint (design § 96.3,
+   `architecture-decision-record:0010-replay-checkpoints-record-verified-history`) records such a
+   replay, and a later open continues from it; `--full-replay` repeats it from the seed.
    `crates/ekr-kernel/tests/seed.rs` holds this on both providers in
    `an_evidence_seed_reopens_with_identical_roots_fields_and_retained_bytes`,
    `reopen_checks_full_ontology_and_execution_context` and
