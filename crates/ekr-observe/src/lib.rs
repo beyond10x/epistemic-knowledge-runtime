@@ -28,6 +28,10 @@ use uuid::Builder;
 /// Design § 56: source identity, source-native id, content hash. Two observations of one source
 /// record carry equal keys, and so equal ids. `source` and `source_native_id` mean what the fields
 /// of that name on [`Observation`] mean.
+///
+/// The key identifies the record's bytes: `content_hash` is taken over the whole line,
+/// `captured_at` included, so the same text under a different timestamp is a different record
+/// with a different id.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ObservationIdempotencyKey {
     /// The source, by the name the runtime knows it as.

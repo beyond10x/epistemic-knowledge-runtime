@@ -83,6 +83,20 @@ fn mapping_the_fixture_twice_yields_byte_identical_observations() {
     assert_eq!(first_ids, second_ids);
 }
 
+/// Golden values for fixture line 1: any change to the key's encoding, its field order, the id
+/// derivation or the payload hash turns this red. The hash is SHA-256 over `ekr.payload.v1`
+/// followed by the line's bytes, computed outside the crate with `sha256sum`.
+#[test]
+fn fixture_line_one_has_a_pinned_content_hash_and_id() {
+    let observations = observe_jsonl(&fixture()).expect("the fixture maps");
+    let first = &observations[0];
+    assert_eq!(
+        first.content_hash().to_hex(),
+        "2563db919edbb3a4167421df8446fe9e50bf0fea8c674d1904c4b366c6484f5a"
+    );
+    assert_eq!(first.id.to_string(), "12dd68cb-04d6-8be9-adbc-ef74ef268c38");
+}
+
 #[test]
 fn the_same_record_gives_the_same_id_and_a_changed_record_a_different_one() {
     let key = ObservationIdempotencyKey {
