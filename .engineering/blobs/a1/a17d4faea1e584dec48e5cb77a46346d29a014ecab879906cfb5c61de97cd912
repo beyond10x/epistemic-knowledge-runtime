@@ -1,0 +1,28 @@
+## Context
+
+First story of the P3 resolver slice. The resolver introduces nouns no `ess/1` document declares: a typed reference, a resolution outcome, and the merge and split lineage the epic exit needs. The domain is drafted and validated before code is written around it. Each crate declares one ESS domain under `systems/ekr/` (`docs/roadmap.md` § 3 and § 6); `ekr-integrate` owns the resolver and merge/split transactions (roadmap § 3), so this domain is `systems/ekr/domains/integrate.yaml`.
+
+Declare:
+
+- `ekr.integrate.TypedReference` (struct): `type_id: ekr.ontology.TypeId`, `aliases: List<String>`. Identifying keys are an `UNMAPPED:` marker naming `decision-blocker:typed-reference-identifying-keys`.
+- `ekr.integrate.ResolutionOutcome` (enum): `Resolved` (one `ekr.graph.NodeId`), `ProposeNew` (the reference type and aliases; nothing written), `Ambiguous` (every candidate `NodeId`, in id order), and the named refusals `reference-without-identity` and `reference-type-has-subtypes`.
+- The merge and split lineage entities as identities only, with every relation an `UNMAPPED:` marker naming `decision-blocker:merge-absorbed-node-fate`, `decision-blocker:merge-across-node-types` or `decision-blocker:split-reverting-merge-identity`.
+
+## Design sections
+
+§ 10, § 45, § 46; amendment A10 (`docs/predecessors.md` § 2).
+
+## Domain relations
+
+- `TypedReference.type_id → NodeType`, many-to-one, a reference, no ownership. It mirrors the node side: inferable (`systems/ekr/domains/graph.yaml`, `ekr.graph.Node` relation `type`, `references ekr.ontology.NodeType`, cardinality one, via `type_id`).
+- `ResolutionOutcome.Resolved → Node`, many-to-one, a reference. Inferable (`systems/ekr/domains/graph.yaml`, `ekr.graph.Node` identity `node_id: ekr.graph.NodeId`).
+- Merge and split lineage relations: not declared here. They are `requires-stakeholder-input` and stay `UNMAPPED:`.
+
+## Scope
+
+- `systems/ekr/domains/integrate.yaml` (new)
+- `systems/ekr/system.yaml` / `systems/ekr/components.yaml`: only the lines that register the new domain
+
+## Acceptance
+
+`ess specify validate` over `systems/ekr` exits 0 with an `ekr.integrate` domain declaring `TypedReference` and `ResolutionOutcome`, and every merge and split relation left as an `UNMAPPED:` marker naming its decision-blocker id.

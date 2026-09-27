@@ -1,0 +1,25 @@
+---
+format: aep.planning-md/1
+id: vision:o2
+kind: vision
+status: draft
+title: O2 — Decisions as data, with evidence
+revision: 1
+---
+## Objective
+
+From `atlas/ROADMAP.md` O2: rules, state and engineering method are declared as data and executed by
+the component that owns them; a claim carries the evidence behind it.
+
+## This repository's contribution
+
+Every canonical assertion carries evidence (`design § 16`, invariant 6.5); every change to canonical
+state is a validated transaction (§ 19–20) committed as an immutable revision (§ 34); the ontology
+itself evolves only through schema transactions with stronger gates (§ 26, § 50). "An agent said so"
+is not provenance.
+
+## Evidence that closes this contribution
+
+A canonical assertion whose `ekr explain` chain reaches an external observation (§ 62); a replay
+from the seed that reproduces the current root hash; a schema change that exists only as a
+`SchemaProposal` with its supporting evidence and migration plan.

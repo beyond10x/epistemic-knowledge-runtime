@@ -1,0 +1,36 @@
+## Context
+
+Operator request (2026-09-26): the graph viewer is **data-free**. No node type, edge type, property or entity name is written into it. The roles a reader needs to lay the graph out (which types act as events, which as subjects, which as observation types) are derived from the store's shape, so the same viewer reads a store with any ontology. The prototype this replaces had such names written into its page.
+
+Design sections served: § 82 (every fact shown carries the assertion id it came from, so a reader can reach § 62), § 11–12 and § 95 (the ontology is data and grows by transaction, so a viewer that knows type names breaks on the next schema version), invariant 8 in spirit (domain concepts are graph state, never code).
+
+## What to build
+
+- The full viewer page embedded by `ekr view` (replacing the minimal page of `story:ekr-view-server`): nodes and edges of `ekr.graph-projection/1`, each node and edge with its properties and assertions (id, assessment, lifecycle, valid and recorded time, evidence ids), relation assertions drawn as links distinct from Edges, the schema history (versions with what each added, revisions), and an evidence panel that fetches source bytes from the source endpoint and shows them as text (`textContent`, never `innerHTML`: record text is untrusted evidence, A14).
+- **Role derivation in Rust**, in the `ekr` crate's view module, served to the page at its own endpoint and **not** part of `ekr.graph-projection/1`. Its rule is written down in `docs/cli.md` and in the module's docs, and uses only structure: the ontology's edge-type source and target types, which types carry valid-time assertions, degree and direction. It never compares a name or an id to a constant. A type the rule cannot place gets no role and is still shown.
+- Every label the page shows comes from the projection (`canonical_name`, type, edge-type and property names in `ontology`). The page carries only generic words (for example "node", "edge", "assertion", "evidence", "revision").
+
+## Tests
+
+Two fixture stores in the runtime's own vocabulary (no customer or personal data, per `AGENTS.md`) with **different ontologies**: different type, edge-type and property names and a different shape. Then:
+
+1. The embedded page asset contains no name from either store's ontology or graph state.
+2. Role derivation gives each store the role assignment its fixture documents, by type id.
+3. A copy of one store with every type, edge-type, property and entity name replaced gets the same role assignment, id for id.
+4. `ekr view` serves both stores and each page load returns that store's projection and roles.
+
+## Domain relations
+
+- `EdgeType → NodeType` (allowed source and target types), which the role rule reads — `systems/ekr/domains/ontology.yaml` declares these as fields `source_types` and `target_types` of `ekr.ontology.EdgeType`, not as a `relations:` entry; inferable (**inferred** from the edge-type declaration read by `crates/ekr-kernel/src/validate/types.rs:234`, which checks a relation's endpoints against `declared.source_types` and `declared.target_types`).
+- `Assertion → subject` and `Assertion → object Node` — inferable (**inferred** from `crates/ekr-graph/src/assertion.rs:39` and `:126`; no ess/1 relation declares them).
+- The rest: `story:graph-projection-specification` § Domain relations.
+
+Not assumed: `decision-blocker:relation-assertion-edge-correspondence`. The page does not merge a relation assertion into an Edge.
+
+## Out of scope
+
+Editing, answering attention items, any write, layouts beyond what the roles need.
+
+## Acceptance
+
+A test holds that the embedded viewer asset contains none of the names of two fixture stores with different ontologies, that role derivation assigns each store its documented roles by type id, and that renaming every name in one store leaves its role assignment unchanged.

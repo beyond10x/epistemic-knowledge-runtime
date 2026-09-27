@@ -1,0 +1,21 @@
+## Question
+
+In a graph projection, is a relation assertion (`Subject::Node` + `Predicate::Relation(edge type)` + `Object::Node`) the same edge as an `ekr.graph.Edge` whose `source`, `type_id` and `target` match it, or are the two always separate things?
+
+## Why nobody can read the answer
+
+- `systems/ekr/domains/graph.yaml` declares `ekr.graph.Edge` with relations `type`, `from` and `to`, and `ekr.graph.Assertion` with `subject_kind`/`subject`, `predicate_kind`/`predicate` and `object_kind`/`object_ref` as plain fields. No `relations:` entry links a relation assertion to an Edge.
+- In code, the type validator checks a relation assertion only against the edge type declaration (source and target types), never against an existing Edge: `crates/ekr-kernel/src/validate/types.rs:234`. Nothing in `crates/ekr-graph/src/assertion.rs` or `edge.rs` joins the two.
+- So an Edge may exist with no relation assertion, a relation assertion may exist with no Edge, and several of either may share one (source, edge type, target). The cardinality of the correspondence, and whether it exists at all, is undecided.
+
+The operator's prototype viewer merges them (its edges carry `lifecycle`, `valid_from`, `valid_to`, `evidence` and a `has_edge` flag), which is one implementation's answer, not a decision.
+
+## Options
+
+1. **Separate.** Edges are Edges; relation assertions are assertions on their subject node that name an object node. A projection never merges them.
+2. **Join by key.** A projection edge is keyed by (source, edge type, target) and carries every Edge and every relation assertion with that key; `has_edge` says whether an Edge exists. The one-to-many sides must then be stated (several Edges per key, several assertions per key).
+3. **Model change.** A relation assertion names its Edge (for example `Subject::Edge`, or an edge id on the assertion), decided in `ekr.graph` and not in a projection.
+
+## What it stops
+
+Any projection or viewer behaviour that merges a relation assertion into an Edge, or draws one as the other. The first P4 slice (`story:graph-projection-specification`, `story:graph-projection-renderer`, `story:ekr-view-server`, `story:data-free-graph-viewer`) is drafted around option 1's behaviour without claiming it as the answer: it carries both, unjoined, and a later story adds the join once this is decided. Clearing this may require a new minor version of the projection format.

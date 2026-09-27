@@ -1,0 +1,39 @@
+## Context
+
+First story of the P3 resolver slice. The resolver introduces nouns no `ess/1` document declares: a typed reference, a resolution outcome, and the merge and split lineage the epic exit needs. The domain is drafted and validated before code is written around it. Each crate declares one ESS domain under `systems/ekr/` (`docs/roadmap.md` § 3 and § 6); `ekr-integrate` owns the resolver and merge/split transactions (roadmap § 3), so this domain is `systems/ekr/domains/integrate.yaml`.
+
+Declare:
+
+- `ekr.integrate.TypedReference` (struct): `type_id: ekr.ontology.TypeId`, `aliases: List<String>`. Identifying keys are an `UNMAPPED:` marker naming `decision-blocker:typed-reference-identifying-keys`.
+- `ekr.integrate.ResolutionOutcome` (enum): `Resolved` (one `ekr.graph.NodeId`), `ProposeNew` (the reference type and aliases; nothing written), `Ambiguous` (every candidate `NodeId`, in id order), and the named refusals `reference-without-identity` and `reference-type-has-subtypes`.
+- The merge and split lineage entities as identities only, with every relation an `UNMAPPED:` marker naming `decision-blocker:merge-absorbed-node-fate`, `decision-blocker:merge-across-node-types` or `decision-blocker:split-reverting-merge-identity`.
+
+## Design sections
+
+§ 10, § 45, § 46; amendment A10 (`docs/predecessors.md` § 2).
+
+## Domain relations
+
+- `TypedReference.type_id → NodeType`, many-to-one, a reference, no ownership. It mirrors the node side: inferable (`systems/ekr/domains/graph.yaml`, `ekr.graph.Node` relation `type`, `references ekr.ontology.NodeType`, cardinality one, via `type_id`).
+- `ResolutionOutcome.Resolved → Node`, many-to-one, a reference. Inferable (`systems/ekr/domains/graph.yaml`, `ekr.graph.Node` identity `node_id: ekr.graph.NodeId`).
+- Merge and split lineage relations: not declared here. They are `requires-stakeholder-input` and stay `UNMAPPED:`.
+
+## Scope
+
+Derived 2026-09-26 by `story-scoper`. Every line is **cited** (read from the story or the tree) or
+**inferred** (a reading that could be wrong).
+
+- **Primary surface:** `systems/ekr/domains/integrate.yaml` (new) — cited, story § Scope and § Context
+- **Files:** `systems/ekr/system.yaml`, `ekr.integrate` added to `domains:` — cited
+- **Files:** `systems/ekr/components.yaml`, new `ekr-integrate` component owning `ekr.integrate` (no commands or events yet) — cited
+- **Symbols:** `ekr.integrate.TypedReference`, `ekr.integrate.ResolutionOutcome`, merge/split lineage identities, `UNMAPPED:` markers for the four P3 decision-blockers — cited
+- **Read, not modified:** `systems/ekr/domains/graph.yaml`, `systems/ekr/domains/ontology.yaml` — cited
+- **Also likely:** `crates/ekr-core/tests/identity_serde.rs:162` (hard-coded domain list) and `crates/ekr-core/src/identity.rs` (id newtypes), if lineage identities are `Uuid` newtypes — inferred
+- **Also likely:** `CHANGELOG.md` `[Unreleased]` — inferred
+- **Also likely (coordinator, 2026-09-26):** `systems/ekr/conformance/suite.json` and `baseline.json` — `spec_digest` covers the whole compiled system (per the `observe-domain-model` scope); this scoper read them as probably untouched — inferred
+- **Confidence:** high for the three `systems/ekr/` files; medium for the `ekr-core` identity lines
+- **Would collide with:** any unit adding or renaming an ESS domain or component, and any unit touching `ekr-core` id enumeration
+
+## Acceptance
+
+`ess specify validate` over `systems/ekr` exits 0 with an `ekr.integrate` domain declaring `TypedReference` and `ResolutionOutcome`, and every merge and split relation left as an `UNMAPPED:` marker naming its decision-blocker id.
