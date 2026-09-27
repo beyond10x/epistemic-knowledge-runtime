@@ -17,6 +17,7 @@ mod head;
 mod input;
 mod ontology;
 mod propose;
+mod resolve;
 mod schema;
 mod seed;
 mod snapshot;
@@ -147,6 +148,20 @@ pub enum Command {
     Explain {
         /// The assertion's id, as `ekr snapshot` prints it.
         assertion_id: ekr_core::AssertionId,
+    },
+    /// Resolve a typed reference (`ekr.integrate`) against the canonical graph: the one node it
+    /// names, a new node to propose, or every candidate. Run it before a `CreateNode`.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST). Reads only: a
+    /// `ProposeNew` creates nothing; mint an id (`ekr mint node`) and propose a `CreateNode`.
+    #[command(after_help = SEE)]
+    Resolve {
+        /// A `typed-reference` YAML document, or `-` for stdin (`ekr example typed-reference`):
+        /// the node type's id from `ekr ontology` and the aliases the node is known by.
+        reference: PathBuf,
+        /// The committed revision to resolve against; the newest (`ekr head`) when absent.
+        #[arg(long)]
+        at: Option<u64>,
     },
     /// Print the workflow: roles, propose → validate → commit, exit codes, where ids come from.
     #[command(after_help = SEE)]
@@ -342,6 +357,11 @@ pub fn execute(
         Command::Explain { assertion_id } => {
             let runtime = configured.resolve("explain")?.open()?;
             render(&explain::run(&runtime, assertion_id)?)
+        }
+        Command::Resolve { reference, at } => {
+            let store = configured.resolve("resolve")?;
+            let reference = resolve::read(&reference, stdin)?;
+            render(&resolve::run(&store.open()?, &reference, at)?)
         }
         Command::Head => render(&head::run(&configured.resolve("head")?.open()?)?),
         Command::Transactions { state } => {
