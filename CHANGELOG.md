@@ -20,6 +20,16 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   names and never picks between candidates. It refuses a reference with no alias, a type with
   subtypes, and a type the ontology does not declare (`reference-type-undeclared`, new in
   `ekr.integrate`).
+- `ekr view [--port N]`: serves a read-only viewer for a store on 127.0.0.1 only. `/` is the
+  embedded page, `/projection[?revision=N]` the bytes `ekr-views` renders, `/evidence/<id>` the
+  retained bytes as `text/plain` or `application/octet-stream`, always with `nosniff`. It answers
+  421 unless the `Host` names the server, 413 for any request body, 503 over 64 connections, and a
+  400 for a request head not complete 5 s after the connection opens. It never reads a body.
+- `ekr resolve <reference.yaml> [--at N]`: resolves a typed-reference document against the
+  canonical snapshot and prints the outcome as one JSON document; `ekr schema` and `ekr example`
+  gain the `typed-reference` format, and the guide says to resolve before `CreateNode`. The
+  reader refuses YAML aliases, tags, non-string scalars and nesting past 64 levels before it
+  loads the document.
 
 ## [0.0.10] — 2026-09-27
 

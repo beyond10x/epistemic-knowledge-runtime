@@ -122,15 +122,16 @@ tag `!Node <id>`. A proposal record's `document_bytes` prints as one standard ba
 | `ekr commit` | writes | a transaction id | the commit outcome: `kind` is `Committed` (with `result.revision`) or `Stale` |
 | `ekr snapshot` | reads | `--at <revision>`, `--valid-at <ms or YYYY-MM-DD>` | the whole graph at one revision |
 | `ekr explain` | reads | an assertion id | the assertion, where it came from, what later changed it, and its evidence |
+| `ekr resolve` | reads | a `typed-reference` file, or `-`; `--at <revision>` | the resolution: `kind` is `Resolved` (with `node_id`), `ProposeNew` (with `type_id` and `aliases`) or `Ambiguous` (with `candidates`) |
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
 | `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent` |
 | `ekr guide` | none | none | the workflow, as text |
 | `ekr operations` | none | an operation kind, optionally | the kinds, or one kind's fields and example |
-| `ekr example` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `schema-change`, `ekr-seed/2` or `ekr.cli-host/1` (aliases `transaction` for `/2`, `seed`, `host`) | a complete example document |
+| `ekr example` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `schema-change`, `ekr-seed/2`, `ekr.cli-host/1` or `typed-reference` (aliases `transaction` for `/2`, `seed`, `host`) | a complete example document |
 | `ekr mint` | none | an id kind | `{"id", "kind"}`: a fresh id |
 | `ekr hash` | none | a payload file, or `-` | the payload's `content_hash` and its `payload_yaml` |
-| `ekr schema` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2` or `ekr.cli-host/1` (aliases `transaction` for `/2`, `seed`, `host`) | the format's JSON Schema (draft 2020-12) |
+| `ekr schema` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2`, `ekr.cli-host/1` or `typed-reference` (aliases `transaction` for `/2`, `seed`, `host`) | the format's JSON Schema (draft 2020-12) |
 | `ekr view` | reads | `--port <port>` (`0`, the default, picks a free one) | `{"url": "http://127.0.0.1:<port>/"}` as one line, then serves a read-only viewer until interrupted |
 
 Every verb has `--help`.
@@ -206,6 +207,51 @@ Read links by their `kind` and, for `Assertion` and `Lifecycle`, by the assertio
 `id` on an `Assertion` link, `assertion_id` on a `Lifecycle` link. Do not read them by position, because the number and order of links depend on the assertion's
 history. An unknown id is refused as `ekr.kernel.AssertionNotFound`.
 
+### `ekr resolve`
+
+Finds the node a typed reference names, at the head or at `--at N`, and writes nothing. Run it
+before a `!CreateNode`: an agent that creates a node it could have found makes a duplicate. A
+typed reference is a YAML document with two keys (`ekr example typed-reference`, `ekr schema
+typed-reference`):
+
+- `type_id` — the node type the node is an instance of, from `ekr ontology`: a concrete type, never
+  an abstract one or one with a subtype;
+- `aliases` — the names the node is known by. Each is compared byte for byte with a node's
+  `aliases`; order and repeats do not matter, and an empty alias identifies nothing.
+
+A node is a candidate when its `type_id` is exactly the reference's and one of its aliases is one
+of the reference's. Its `canonical_name` is never compared: a name is not an identity. The
+result is one JSON document; read `kind`:
+
+| `kind` | when | what to do |
+|---|---|---|
+| `Resolved` | exactly one candidate, `node_id` | use that id; create nothing |
+| `ProposeNew` | no candidate; `type_id` and the identifying `aliases`, sorted and deduplicated | mint an id (`ekr mint node`) and propose a `!CreateNode` of that type. It does not mean "retry with a looser reference" |
+| `Ambiguous` | more than one candidate, every one in `candidates`, in id order | none is chosen: read them (`ekr snapshot`) and decide |
+
+A reference that cannot be resolved at all is refused, exit 2, with `ekr: <code>: <reason>` on
+stderr and nothing on stdout. The checks run in this order and the first that applies is the
+answer:
+
+| code | means | fix |
+|---|---|---|
+| `reference-without-identity` | the reference holds no alias but the empty string | give at least one alias |
+| `reference-type-undeclared` | `type_id` is not a node type the ontology at that revision declares | take the id from `ekr ontology` |
+| `reference-type-has-subtypes` | `type_id` is an abstract type or has a declared subtype | name the concrete type the node is an instance of |
+
+Aliases enter a store only through the seed: a `!CreateNode` carries none, so a node created by a
+transaction is never a candidate, and a later reference to it resolves `ProposeNew` again.
+
+A document that is not a typed reference exits 1, `ekr: typed reference <file>: <reason>`, before
+the store is opened. That includes a document over 1048576 bytes, a YAML alias (`*name`), a tag,
+and a `type_id` or an alias that YAML reads as a number, a boolean or null (quote it: `"123"`), or
+an `aliases` that is not a list: the reader refuses what `ekr schema typed-reference` refuses. It
+also refuses, as `nested deeper than 64 levels`, a document holding more than 64 `[` or `{` in
+all (counted everywhere, inside quoted aliases too) or more than 64 block indentation levels on a
+line (the more-indented lines of a `|` or `>` block scalar are text and do not count); this is
+checked before the YAML is loaded. A revision that does not exist is refused as `ekr.kernel.RevisionNotFound`,
+exit 2, as for `ekr snapshot --at`.
+
 ### `ekr head`
 
 Prints the newest revision number and its root hashes. Use it for `validate --against` and to see
@@ -243,7 +289,8 @@ kind (`ekr operations AddAssertion`), prints its fields and an example operation
 Prints a complete document of one format. The three examples fit together: seed a store from the
 example seed under the example host, and the example transaction commits. `ekr example
 schema-change` prints a schema change against the same seed, which commits in a store seeded under
-[validation profile v2](#evolve-the-schema).
+[validation profile v2](#evolve-the-schema). `ekr example typed-reference` prints a reference that,
+against the example seed, resolves to `ProposeNew`: the node `ekr operations CreateNode` creates.
 
 ### `ekr mint`
 
@@ -977,7 +1024,8 @@ graph:
         root_id: 00000000-0000-4000-a000-000000000002
         type_id: 00000000-0000-4000-a000-000000000103
         canonical_name: The Field Naturalist
-        aliases: []
+        aliases:
+        - field-naturalist
         type_state: null
         properties: {}
       00000000-0000-4000-a000-000000000302:
@@ -1057,7 +1105,8 @@ evidence_payloads:
 Points to notice: the `Publication` parent's `title` is `required`, so the book must carry it;
 the book is in its lifecycle's `initial` state; `weight_grams` is declared and carries no value;
 `subjects` has two values because its cardinality is `Many`, while `chapter_titles` is one `List`
-value.
+value. The author carries the alias `field-naturalist`, which [step 8](#8-resolve-before-you-create)
+resolves.
 
 ```console
 ekr seed seed.yaml       # -> "result": {"revision": 0, ...}
@@ -1220,6 +1269,36 @@ changed: the head is still revision 2. To store a weight, the schema would need 
 `Decimal` property. This store runs validation profile v1, whose schema is fixed at seeding, so here
 that means a new seed in a new store; a store seeded under profile v2 can add the property with
 `!ModifyProperty` ([Evolve the schema](#evolve-the-schema)).
+
+### 8. Resolve before you create
+
+Before cataloguing another book by the same author, find the author instead of creating a second
+one. A typed reference names the `Author` type and an alias:
+
+```yaml typed-reference file=author.yaml outcome=Resolved:00000000-0000-4000-a000-000000000301
+type_id: 00000000-0000-4000-a000-000000000103
+aliases:
+- field-naturalist
+```
+
+An author nobody has catalogued yet:
+
+```yaml typed-reference file=new-author.yaml outcome=ProposeNew
+type_id: 00000000-0000-4000-a000-000000000103
+aliases:
+- moss-collector
+```
+
+```console
+ekr resolve author.yaml        # "kind": "Resolved", "node_id": "…0301"
+ekr resolve new-author.yaml    # "kind": "ProposeNew", "type_id": "…0103", "aliases": ["moss-collector"]
+```
+
+The first names the author the seed holds: use `…0301` as the edge's `source`. The second matches
+nothing, so `ProposeNew` hands back the type and the alias: mint a node id (`ekr mint node`) and
+propose a `!CreateNode` of type `…0103`. Neither run changes the store. A reference to
+`Publication` (`…0101`) is refused with `reference-type-has-subtypes`: it is abstract, so name
+`Book`.
 
 ## Evolve the schema
 
@@ -1510,7 +1589,7 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `seed-evidence-payload-mismatch` | seed | 2 | a payload's bytes do not hash to its key | re-run `ekr hash` on the exact bytes |
 | `ekr.kernel.AlreadySeeded` | seed | 2 | the store already holds a different seed | use a new store or tenant |
 | `seed-authority-profile` | any store verb | 1 | the host's `validation_profile` is neither accepted profile exactly — an unknown `ruleset`, or a `ruleset` of one profile with the `application` of the other — or its agent registry does not fit it for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example and keep `ruleset` and `application` a pair: `ekr.p1-deterministic/1` with `ekr.p1-apply/1` (v1) or `ekr.p2-deterministic/1` with `ekr.p2-apply/1` (v2); set `validator` to `context.validator` |
-| `store-not-found` | propose, validate, commit, snapshot, explain, head, transactions, ontology | 1 | `--store` names a path that holds no store: nothing, an empty directory, an empty file, a symlink to nothing, a SQLite database without the runtime's tables, or a file-store directory holding only what `ekr seed` writes before its manifest; nothing is created there. Only `ekr seed` creates a store, and a seed that is refused creates none | check `--store` or `EKR_STORE`; run `ekr seed` first |
+| `store-not-found` | propose, validate, commit, snapshot, explain, head, transactions, ontology, resolve | 1 | `--store` names a path that holds no store: nothing, an empty directory, an empty file, a symlink to nothing, a SQLite database without the runtime's tables, or a file-store directory holding only what `ekr seed` writes before its manifest; nothing is created there. Only `ekr seed` creates a store, and a seed that is refused creates none | check `--store` or `EKR_STORE`; run `ekr seed` first |
 | `bootstrap-authority-mismatch` | any store verb | 1 | the store was seeded under a host document whose authority differs from this one | use the host document the store was seeded with |
 | `ekr.kernel.ProposalAttribution` | propose | 2 | the document's `proposer` is not the host operator | use `context.operator` |
 | `ekr.kernel.StructurallyInvalid` | propose | 2 | the transaction document does not parse, for example a bare `assessment: Accepted` | the field it names; compare with `ekr operations <Kind>` |
