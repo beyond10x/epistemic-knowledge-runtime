@@ -2,7 +2,7 @@
 format: aep.planning-md/2
 id: story:typed-reference-resolver
 kind: story
-status: draft
+status: active
 title: Resolve a typed reference by alias to one node, a new-node proposal, or an ambiguity
 relations:
 - decomposes: epic:p3-incubation-integration
@@ -19,7 +19,7 @@ scope:
   path: crates/ekr-integrate
 - confidence: inferred
   path: crates/ekr/tests/adversary_docs_contract.rs
-revision: 7
+revision: 9
 ---
 ## Context
 

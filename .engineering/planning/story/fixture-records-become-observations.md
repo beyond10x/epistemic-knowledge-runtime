@@ -2,7 +2,7 @@
 format: aep.planning-md/2
 id: story:fixture-records-become-observations
 kind: story
-status: draft
+status: active
 title: A synthetic JSONL fixture maps each record to one deterministic observation
 relations:
 - depends_on: story:observe-domain-model
@@ -19,7 +19,7 @@ scope:
   path: crates/ekr-observe
 - confidence: inferred
   path: crates/ekr/tests/adversary_docs_contract.rs
-revision: 8
+revision: 10
 ---
 ## Context
 

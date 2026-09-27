@@ -379,6 +379,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "ekr-integrate"
+version = "0.0.10"
+
+[[package]]
 name = "ekr-kernel"
 version = "0.0.10"
 dependencies = [
@@ -400,6 +404,10 @@ dependencies = [
  "tokio",
  "trybuild",
 ]
+
+[[package]]
+name = "ekr-observe"
+version = "0.0.10"
 
 [[package]]
 name = "ekr-ontology"
@@ -432,6 +440,10 @@ dependencies = [
  "time",
  "tokio",
 ]
+
+[[package]]
+name = "ekr-views"
+version = "0.0.10"
 
 [[package]]
 name = "email_address"

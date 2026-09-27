@@ -2,7 +2,7 @@
 format: aep.planning-md/2
 id: story:graph-projection-renderer
 kind: story
-status: draft
+status: active
 title: Render ekr.graph-projection/1 deterministically from a committed revision
 relations:
 - decomposes: epic:p4-operator-surface
@@ -15,7 +15,7 @@ scope:
   path: Cargo.toml
 - confidence: inferred
   path: crates/ekr-views
-revision: 4
+revision: 6
 ---
 ## Context
 
