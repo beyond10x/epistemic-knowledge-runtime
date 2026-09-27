@@ -354,8 +354,8 @@ Each node type then takes the first role whose condition holds:
 
 An observation points at events and nothing points at it; an event is timed and points on; a
 subject is pointed at and is not an event. A timed type with no targets is therefore a subject, a
-type only on self-loops or on no edge type has no role, and a revision that adds a timed assertion
-can move a type from `subject` to `event`.
+type with no arc to or from another type after widening has no role, and a revision that adds a
+timed assertion can move a type from `subject` to `event`.
 
 ## The workflow
 
