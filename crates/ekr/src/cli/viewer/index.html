@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'">
+<title>ekr view</title>
+<style>
+body { font-family: system-ui, sans-serif; margin: 2rem; }
+table { border-collapse: collapse; }
+th, td { border: 1px solid #ccc; padding: 0.25rem 0.75rem; text-align: left; }
+#status { color: #555; }
+</style>
+</head>
+<body>
+<h1>ekr view</h1>
+<p id="status">Loading the projection&hellip;</p>
+<table id="meta" hidden><tbody></tbody></table>
+<script>
+"use strict";
+(function () {
+  const status = document.getElementById("status");
+  const table = document.getElementById("meta");
+  const revision = new URLSearchParams(window.location.search).get("revision");
+  const url = revision === null ? "projection" : "projection?revision=" + encodeURIComponent(revision);
+  fetch(url, { credentials: "omit" })
+    .then(function (response) {
+      if (!response.ok) {
+        return response.text().then(function (text) { throw new Error(response.status + " " + text); });
+      }
+      return response.json();
+    })
+    .then(function (projection) {
+      const body = table.tBodies[0];
+      Object.keys(projection.meta).forEach(function (key) {
+        const row = body.insertRow();
+        row.insertCell().textContent = key;
+        row.insertCell().textContent = JSON.stringify(projection.meta[key]);
+      });
+      table.hidden = false;
+      status.textContent = "Projection meta, as of the revision below.";
+    })
+    .catch(function (error) {
+      status.textContent = "The projection did not load: " + error.message;
+    });
+})();
+</script>
+</body>
+</html>
