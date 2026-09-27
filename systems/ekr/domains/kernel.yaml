@@ -787,7 +787,7 @@ entities:
       - name: canonical_operations_hash
         type: Optional<ekr.kernel.ContentHash>
       - name: operation_count
-        type: Integer
+        type: Optional<Integer>
       - name: evidence_hash
         type: ekr.kernel.ContentHash
       - name: validation_basis
@@ -1399,7 +1399,7 @@ views:
       - name: canonical_operations_hash
         type: Optional<ekr.kernel.ContentHash>
       - name: operation_count
-        type: Integer
+        type: Optional<Integer>
       - name: evidence_hash
         type: ekr.kernel.ContentHash
       - name: validation_basis
@@ -1466,7 +1466,7 @@ views:
       - name: proposer
         type: ekr.kernel.AgentId
       - name: operation_count
-        type: Integer
+        type: Optional<Integer>
     naming:
       wire: pending
       display: Pending transactions

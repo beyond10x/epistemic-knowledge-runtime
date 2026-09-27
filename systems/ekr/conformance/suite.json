@@ -126,8 +126,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "765c1c24b3033254f4e60e2ec557cd6d55e8999251feb5e9bb2973278cefbf25",
-    "spec_digest": "0a99f996a545472a14a808b7f879994af43c83fadc55cf94f225237f8a4f9e54",
+    "contract_digest": "299ffb3fc5437ecc80a78f7f73dc4e11d6b1c2d8e90bb6773ba94554185b8e81",
+    "spec_digest": "98c551d8f6a8e77bc95831a92c43fa018ad112713ee43b7dafba6d92a3b93622",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"
@@ -526,6 +526,10 @@
           "expectation": {
             "expect": "contains",
             "fields": {
+              "state": {
+                "kind": "literal",
+                "value": "Committed"
+              },
               "transaction_id": {
                 "instance": "graph-transaction",
                 "kind": "instance"
@@ -1396,7 +1400,7 @@
               },
               {
                 "name": "operation_count",
-                "type": "Integer"
+                "type": "Optional<Integer>"
               },
               {
                 "name": "evidence_hash",
@@ -2246,6 +2250,10 @@
           "expectation": {
             "expect": "contains",
             "fields": {
+              "state": {
+                "kind": "literal",
+                "value": "Stale"
+              },
               "transaction_id": {
                 "instance": "graph-transaction",
                 "kind": "instance"
@@ -2262,11 +2270,11 @@
       ]
     },
     "ekr.kernel.Commit/outcome/transaction-not-found": {
-      "purpose": "`ekr.kernel.Commit` answers `transaction-not-found` for the cause it declares as external, injected",
+      "purpose": "`ekr.kernel.Commit` for an identity no record carries takes `transaction-not-found` and reports `ekr.kernel.TransactionNotFound`",
       "source": [
         {
-          "kind": "type",
-          "name": "ekr.kernel.TransactionId"
+          "kind": "entity",
+          "name": "ekr.kernel.GraphTransaction"
         },
         {
           "kind": "command",
@@ -2342,19 +2350,12 @@
       ],
       "steps": [
         {
-          "force": {
-            "command": "ekr.kernel.Commit",
-            "outcome": "transaction-not-found"
-          },
-          "step": "configure_external_outcome"
-        },
-        {
           "actor": "ekr.kernel.Committer",
           "command": "ekr.kernel.Commit",
           "input": {
             "transaction_id": {
               "kind": "literal",
-              "value": "00000000-0000-4000-8000-523a4c729a79"
+              "value": "00000000-0000-4000-8000-97082393297b"
             }
           },
           "step": "execute_command"
@@ -2600,7 +2601,7 @@
               },
               {
                 "name": "operation_count",
-                "type": "Integer"
+                "type": "Optional<Integer>"
               }
             ],
             "identity_field": "transaction_id"
@@ -2773,7 +2774,7 @@
               },
               {
                 "name": "operation_count",
-                "type": "Integer"
+                "type": "Optional<Integer>"
               },
               {
                 "name": "evidence_hash",
@@ -4529,7 +4530,7 @@
               },
               {
                 "name": "operation_count",
-                "type": "Integer"
+                "type": "Optional<Integer>"
               },
               {
                 "name": "evidence_hash",
@@ -4770,7 +4771,7 @@
               },
               {
                 "name": "operation_count",
-                "type": "Integer"
+                "type": "Optional<Integer>"
               }
             ],
             "identity_field": "transaction_id"
@@ -4943,7 +4944,7 @@
               },
               {
                 "name": "operation_count",
-                "type": "Integer"
+                "type": "Optional<Integer>"
               },
               {
                 "name": "evidence_hash",
@@ -5304,7 +5305,7 @@
               },
               {
                 "name": "operation_count",
-                "type": "Integer"
+                "type": "Optional<Integer>"
               },
               {
                 "name": "evidence_hash",
@@ -5703,7 +5704,7 @@
               },
               {
                 "name": "operation_count",
-                "type": "Integer"
+                "type": "Optional<Integer>"
               },
               {
                 "name": "evidence_hash",
@@ -6141,7 +6142,7 @@
               },
               {
                 "name": "operation_count",
-                "type": "Integer"
+                "type": "Optional<Integer>"
               },
               {
                 "name": "evidence_hash",
@@ -6569,7 +6570,7 @@
               },
               {
                 "name": "operation_count",
-                "type": "Integer"
+                "type": "Optional<Integer>"
               },
               {
                 "name": "evidence_hash",
@@ -7017,7 +7018,7 @@
               },
               {
                 "name": "operation_count",
-                "type": "Integer"
+                "type": "Optional<Integer>"
               },
               {
                 "name": "evidence_hash",
@@ -7543,6 +7544,10 @@
           "expectation": {
             "expect": "contains",
             "fields": {
+              "state": {
+                "kind": "literal",
+                "value": "Committed"
+              },
               "transaction_id": {
                 "instance": "graph-transaction",
                 "kind": "instance"
@@ -7875,6 +7880,10 @@
           "expectation": {
             "expect": "contains",
             "fields": {
+              "state": {
+                "kind": "literal",
+                "value": "Rejected"
+              },
               "transaction_id": {
                 "instance": "graph-transaction",
                 "kind": "instance"
@@ -8257,6 +8266,10 @@
           "expectation": {
             "expect": "contains",
             "fields": {
+              "state": {
+                "kind": "literal",
+                "value": "Stale"
+              },
               "transaction_id": {
                 "instance": "graph-transaction",
                 "kind": "instance"
@@ -8589,6 +8602,10 @@
           "expectation": {
             "expect": "contains",
             "fields": {
+              "state": {
+                "kind": "literal",
+                "value": "Validated"
+              },
               "transaction_id": {
                 "instance": "graph-transaction",
                 "kind": "instance"
@@ -9214,6 +9231,10 @@
           "expectation": {
             "expect": "contains",
             "fields": {
+              "state": {
+                "kind": "literal",
+                "value": "Proposed"
+              },
               "transaction_id": {
                 "event": "ekr.kernel.TransactionProposed",
                 "field": "transaction_id",
@@ -10493,6 +10514,10 @@
                 "event": "ekr.kernel.Seeded",
                 "field": "revision_id",
                 "kind": "observed"
+              },
+              "state": {
+                "kind": "literal",
+                "value": "Committed"
               }
             }
           },
@@ -11151,6 +11176,10 @@
           "expectation": {
             "expect": "contains",
             "fields": {
+              "state": {
+                "kind": "literal",
+                "value": "Rejected"
+              },
               "transaction_id": {
                 "instance": "graph-transaction",
                 "kind": "instance"
@@ -11334,15 +11363,11 @@
       ]
     },
     "ekr.kernel.Validate/outcome/transaction-not-found": {
-      "purpose": "`ekr.kernel.Validate` answers `transaction-not-found` for the cause it declares as external, injected",
+      "purpose": "`ekr.kernel.Validate` for an identity no record carries takes `transaction-not-found` and reports `ekr.kernel.TransactionNotFound`",
       "source": [
         {
-          "kind": "type",
-          "name": "ekr.kernel.RevisionNumber"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.kernel.TransactionId"
+          "kind": "entity",
+          "name": "ekr.kernel.GraphTransaction"
         },
         {
           "kind": "command",
@@ -11418,13 +11443,6 @@
       ],
       "steps": [
         {
-          "force": {
-            "command": "ekr.kernel.Validate",
-            "outcome": "transaction-not-found"
-          },
-          "step": "configure_external_outcome"
-        },
-        {
           "actor": "ekr.kernel.Validator",
           "command": "ekr.kernel.Validate",
           "input": {
@@ -11434,7 +11452,7 @@
             },
             "transaction_id": {
               "kind": "literal",
-              "value": "00000000-0000-4000-8000-523a4c729a79"
+              "value": "00000000-0000-4000-8000-97082393297b"
             }
           },
           "step": "execute_command"
@@ -11821,6 +11839,10 @@
           "expectation": {
             "expect": "contains",
             "fields": {
+              "state": {
+                "kind": "literal",
+                "value": "Validated"
+              },
               "transaction_id": {
                 "instance": "graph-transaction",
                 "kind": "instance"

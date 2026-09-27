@@ -48,12 +48,12 @@ jobs:
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          shared-key: correctness-rust-1.98.1-ess-0.33.0-aep-0.60.0
+          shared-key: correctness-rust-1.98.1-ess-0.35.1-aep-0.60.1
 
       - name: Install pinned specification and planning tools
         run: |
-          cargo install --locked --git https://github.com/beyond10x/ess --rev 3ec2deb977bb19c292a611dcf92a3e676352864a --bin ess ess-cli
-          cargo install --locked --git https://github.com/beyond10x/aep --rev 99ad0b51b748629ddf3708c366f18d69fe86cf5e --bin aep aep-cli
+          cargo install --locked --git https://github.com/beyond10x/ess --rev c9056717b2a8ae65f2b46adfbab9652de84b50fa --bin ess ess-cli
+          cargo install --locked --git https://github.com/beyond10x/aep --rev a0ad90cc58c10f787343bab0dcd8c292605b64ad --bin aep aep-cli
 
       - name: Fetch the complete locked dependency graph
         run: cargo fetch --locked
