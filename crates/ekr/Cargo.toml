@@ -15,14 +15,17 @@ path = "src/main.rs"
 clap.workspace = true
 ekr-core.workspace = true
 ekr-graph.workspace = true
+ekr-integrate.workspace = true
 ekr-kernel = { workspace = true, features = ["schema"] }
 ekr-ontology.workspace = true
+ekr-views.workspace = true
 ess-conformance.workspace = true
 ess-primitives.workspace = true
 schemars = "1.2"
 serde.workspace = true
 serde_json.workspace = true
 time.workspace = true
+tiny_http.workspace = true
 
 [dev-dependencies]
 assert_cmd.workspace = true
