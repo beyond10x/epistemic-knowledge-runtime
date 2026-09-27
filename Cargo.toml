@@ -12,7 +12,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.0.9"
+version = "0.0.10"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/beyond10x/epistemic-knowledge-runtime"
@@ -26,8 +26,8 @@ ekr-graph = { path = "crates/ekr-graph" }
 ekr-kernel = { path = "crates/ekr-kernel" }
 ekr-ontology = { path = "crates/ekr-ontology" }
 ekr-store = { path = "crates/ekr-store" }
-ess-conformance = { git = "https://github.com/beyond10x/ess", rev = "c9056717b2a8ae65f2b46adfbab9652de84b50fa" }
-ess-primitives = { git = "https://github.com/beyond10x/ess", rev = "c9056717b2a8ae65f2b46adfbab9652de84b50fa" }
+ess-conformance = { git = "https://github.com/beyond10x/ess", rev = "be44a3365eb273cb3d447b74cd5b0e75181d284e" }
+ess-primitives = { git = "https://github.com/beyond10x/ess", rev = "be44a3365eb273cb3d447b74cd5b0e75181d284e" }
 eventlog-core = { git = "https://github.com/beyond10x/eventlog", rev = "fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8" }
 eventlog-file = { git = "https://github.com/beyond10x/eventlog", rev = "fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8" }
 eventlog-sqlite = { git = "https://github.com/beyond10x/eventlog", rev = "fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8" }

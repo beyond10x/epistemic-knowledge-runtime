@@ -240,9 +240,9 @@ fn the_fixture_manifest_names_only_admitted_scenarios() {
 
 // ---- the ESS pin ---------------------------------------------------------------------------
 
-/// The ESS release every pin site names (`story:pin-ess-0-32`): tag `0.35.1` and its commit.
-const ESS_VERSION: &str = "0.35.1";
-const ESS_REV: &str = "c9056717b2a8ae65f2b46adfbab9652de84b50fa";
+/// The ESS release every pin site names (`story:pin-ess-0-32`): tag `0.36.0` and its commit.
+const ESS_VERSION: &str = "0.36.0";
+const ESS_REV: &str = "be44a3365eb273cb3d447b74cd5b0e75181d284e";
 
 /// Every `rev` a line pinning the ESS repository names, read off `text`.
 fn ess_revs(text: &str, marker: &str) -> Vec<String> {
@@ -401,7 +401,7 @@ fn spec_and_conform_checks_refuse_an_ess_that_is_not_the_pinned_release() {
             guard_admits(&guard, &format!("ess {ESS_VERSION}")),
             "{task} refuses ess {ESS_VERSION}: {guard}"
         );
-        for other in ["ess 0.35.0", "ess 0.35.2", "ess 0.35.1-rc.1", "ess 10.35.1"] {
+        for other in ["ess 0.35.0", "ess 0.36.1", "ess 0.36.0-rc.1", "ess 10.36.0"] {
             assert!(
                 !guard_admits(&guard, other),
                 "{task} admits `{other}`: {guard}"

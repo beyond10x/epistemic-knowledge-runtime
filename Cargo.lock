@@ -331,7 +331,7 @@ checksum = "d0881ea181b1df73ff77ffaaf9c7544ecc11e82fba9b5f27b262a3c73a332555"
 
 [[package]]
 name = "ekr"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -352,7 +352,7 @@ dependencies = [
 
 [[package]]
 name = "ekr-core"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "hex",
  "proptest",
@@ -367,7 +367,7 @@ dependencies = [
 
 [[package]]
 name = "ekr-graph"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "ekr-core",
  "ekr-ontology",
@@ -380,7 +380,7 @@ dependencies = [
 
 [[package]]
 name = "ekr-kernel"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "ekr-core",
  "ekr-graph",
@@ -403,7 +403,7 @@ dependencies = [
 
 [[package]]
 name = "ekr-ontology"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "ekr-core",
  "proptest",
@@ -416,7 +416,7 @@ dependencies = [
 
 [[package]]
 name = "ekr-store"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "ekr-core",
  "ekr-graph",
@@ -460,8 +460,8 @@ dependencies = [
 
 [[package]]
 name = "ess-compiler"
-version = "0.35.1"
-source = "git+https://github.com/beyond10x/ess?rev=c9056717b2a8ae65f2b46adfbab9652de84b50fa#c9056717b2a8ae65f2b46adfbab9652de84b50fa"
+version = "0.36.0"
+source = "git+https://github.com/beyond10x/ess?rev=be44a3365eb273cb3d447b74cd5b0e75181d284e#be44a3365eb273cb3d447b74cd5b0e75181d284e"
 dependencies = [
  "ess-domain",
  "ess-primitives",
@@ -472,8 +472,8 @@ dependencies = [
 
 [[package]]
 name = "ess-conformance"
-version = "0.35.1"
-source = "git+https://github.com/beyond10x/ess?rev=c9056717b2a8ae65f2b46adfbab9652de84b50fa#c9056717b2a8ae65f2b46adfbab9652de84b50fa"
+version = "0.36.0"
+source = "git+https://github.com/beyond10x/ess?rev=be44a3365eb273cb3d447b74cd5b0e75181d284e#be44a3365eb273cb3d447b74cd5b0e75181d284e"
 dependencies = [
  "ess-compiler",
  "ess-domain",
@@ -487,8 +487,8 @@ dependencies = [
 
 [[package]]
 name = "ess-domain"
-version = "0.35.1"
-source = "git+https://github.com/beyond10x/ess?rev=c9056717b2a8ae65f2b46adfbab9652de84b50fa#c9056717b2a8ae65f2b46adfbab9652de84b50fa"
+version = "0.36.0"
+source = "git+https://github.com/beyond10x/ess?rev=be44a3365eb273cb3d447b74cd5b0e75181d284e#be44a3365eb273cb3d447b74cd5b0e75181d284e"
 dependencies = [
  "ess-primitives",
  "schemars 0.8.22",
@@ -500,8 +500,8 @@ dependencies = [
 
 [[package]]
 name = "ess-gen"
-version = "0.35.1"
-source = "git+https://github.com/beyond10x/ess?rev=c9056717b2a8ae65f2b46adfbab9652de84b50fa#c9056717b2a8ae65f2b46adfbab9652de84b50fa"
+version = "0.36.0"
+source = "git+https://github.com/beyond10x/ess?rev=be44a3365eb273cb3d447b74cd5b0e75181d284e#be44a3365eb273cb3d447b74cd5b0e75181d284e"
 dependencies = [
  "ess-compiler",
  "ess-domain",
@@ -515,8 +515,8 @@ dependencies = [
 
 [[package]]
 name = "ess-primitives"
-version = "0.35.1"
-source = "git+https://github.com/beyond10x/ess?rev=c9056717b2a8ae65f2b46adfbab9652de84b50fa#c9056717b2a8ae65f2b46adfbab9652de84b50fa"
+version = "0.36.0"
+source = "git+https://github.com/beyond10x/ess?rev=be44a3365eb273cb3d447b74cd5b0e75181d284e#be44a3365eb273cb3d447b74cd5b0e75181d284e"
 dependencies = [
  "schemars 0.8.22",
  "serde",
@@ -1905,7 +1905,7 @@ checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
 name = "xtask"
-version = "0.0.9"
+version = "0.0.10"
 dependencies = [
  "clap",
 ]
