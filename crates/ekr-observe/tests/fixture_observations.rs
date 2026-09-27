@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use ekr_core::{Canonical, ContentHash, Timestamp};
 use ekr_graph::Observation;
-use ekr_observe::{observe_jsonl, observe_line, ObservationIdempotencyKey, ObserveError};
+use ekr_observe::{ObservationIdempotencyKey, ObserveError};
 
 fn fixture() -> Vec<u8> {
     let root = std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR");
@@ -33,7 +33,7 @@ fn each_fixture_line_becomes_exactly_one_observation_carrying_that_line() {
     let expected = lines(&bytes);
     assert_eq!(expected.len(), 5, "the fixture has five records");
 
-    let observations = observe_jsonl(&bytes).expect("the fixture maps");
+    let observations = ekr_observe::observe_jsonl(&bytes).expect("the fixture maps");
     assert_eq!(
         observations.len(),
         expected.len(),
@@ -73,8 +73,8 @@ fn each_fixture_line_becomes_exactly_one_observation_carrying_that_line() {
 #[test]
 fn mapping_the_fixture_twice_yields_byte_identical_observations() {
     let bytes = fixture();
-    let first = observe_jsonl(&bytes).expect("the fixture maps");
-    let second = observe_jsonl(&bytes).expect("the fixture maps again");
+    let first = ekr_observe::observe_jsonl(&bytes).expect("the fixture maps");
+    let second = ekr_observe::observe_jsonl(&bytes).expect("the fixture maps again");
 
     assert_eq!(first, second);
     assert_eq!(canonical(&first), canonical(&second));
@@ -88,7 +88,7 @@ fn mapping_the_fixture_twice_yields_byte_identical_observations() {
 /// followed by the line's bytes, computed outside the crate with `sha256sum`.
 #[test]
 fn fixture_line_one_has_a_pinned_content_hash_and_id() {
-    let observations = observe_jsonl(&fixture()).expect("the fixture maps");
+    let observations = ekr_observe::observe_jsonl(&fixture()).expect("the fixture maps");
     let first = &observations[0];
     assert_eq!(
         first.content_hash().to_hex(),
@@ -133,7 +133,7 @@ fn observe_line_refuses_a_line_holding_a_newline_and_names_the_line() {
         br#"{"source":"fixture-source-a","source_native_id":null,"captured_at":0,"text":""}"#;
     let mut trailing = record.to_vec();
     trailing.push(b'\n');
-    let error = observe_line(&trailing, 7).expect_err("a trailing newline is refused");
+    let error = ekr_observe::observe_line(&trailing, 7).expect_err("a trailing newline is refused");
     assert!(
         matches!(error, ObserveError::HoldsNewline { line: 7 }),
         "{error:?}"
@@ -141,26 +141,26 @@ fn observe_line_refuses_a_line_holding_a_newline_and_names_the_line() {
 
     let inside = br#"{"source":"fixture-source-a","source_native_id":null,
 "captured_at":0,"text":""}"#;
-    let error = observe_line(inside, 3).expect_err("an inner newline is refused");
+    let error = ekr_observe::observe_line(inside, 3).expect_err("an inner newline is refused");
     assert!(
         matches!(error, ObserveError::HoldsNewline { line: 3 }),
         "{error:?}"
     );
     assert_eq!(error.line(), 3);
 
-    let mapped = observe_line(record, 1).expect("the unterminated line maps");
+    let mapped = ekr_observe::observe_line(record, 1).expect("the unterminated line maps");
     assert_eq!(
         mapped,
-        observe_jsonl(&trailing).expect("the terminated input maps")[0]
+        ekr_observe::observe_jsonl(&trailing).expect("the terminated input maps")[0]
     );
 }
 
 #[test]
 fn a_line_that_is_not_a_record_is_refused_with_its_line_number() {
-    let error = observe_jsonl(b"{\"source\":\"fixture-source-a\",\"source_native_id\":null,\"captured_at\":0,\"text\":\"\"}\nnot json\n")
+    let error = ekr_observe::observe_jsonl(b"{\"source\":\"fixture-source-a\",\"source_native_id\":null,\"captured_at\":0,\"text\":\"\"}\nnot json\n")
         .expect_err("the second line is not a record");
     assert_eq!(error.line(), 2);
 
-    let blank = observe_jsonl(b"\n").expect_err("a blank line is not a record");
+    let blank = ekr_observe::observe_jsonl(b"\n").expect_err("a blank line is not a record");
     assert_eq!(blank.line(), 1);
 }
