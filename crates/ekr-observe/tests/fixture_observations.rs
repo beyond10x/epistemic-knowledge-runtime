@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use ekr_core::{Canonical, ContentHash, Timestamp};
 use ekr_graph::Observation;
-use ekr_observe::{observe_jsonl, ObservationIdempotencyKey};
+use ekr_observe::{observe_jsonl, observe_line, ObservationIdempotencyKey, ObserveError};
 
 fn fixture() -> Vec<u8> {
     let root = std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR");
@@ -123,6 +123,36 @@ fn the_same_record_gives_the_same_id_and_a_changed_record_a_different_one() {
         .map(ObservationIdempotencyKey::observation_id)
         .collect();
     assert_eq!(ids.len(), 4, "each field of the key reaches the id");
+}
+
+/// `observe_jsonl` splits on `\n`, so a line it hands on never holds one. `observe_line` refuses
+/// any `\n` — trailing or inside — so the two entry points cannot give one record two ids.
+#[test]
+fn observe_line_refuses_a_line_holding_a_newline_and_names_the_line() {
+    let record =
+        br#"{"source":"fixture-source-a","source_native_id":null,"captured_at":0,"text":""}"#;
+    let mut trailing = record.to_vec();
+    trailing.push(b'\n');
+    let error = observe_line(&trailing, 7).expect_err("a trailing newline is refused");
+    assert!(
+        matches!(error, ObserveError::HoldsNewline { line: 7 }),
+        "{error:?}"
+    );
+
+    let inside = br#"{"source":"fixture-source-a","source_native_id":null,
+"captured_at":0,"text":""}"#;
+    let error = observe_line(inside, 3).expect_err("an inner newline is refused");
+    assert!(
+        matches!(error, ObserveError::HoldsNewline { line: 3 }),
+        "{error:?}"
+    );
+    assert_eq!(error.line(), 3);
+
+    let mapped = observe_line(record, 1).expect("the unterminated line maps");
+    assert_eq!(
+        mapped,
+        observe_jsonl(&trailing).expect("the terminated input maps")[0]
+    );
 }
 
 #[test]

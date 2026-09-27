@@ -56,8 +56,9 @@ impl ObservationIdempotencyKey {
     ///
     /// The first sixteen bytes of the key's value address, [`ContentHash::of`], marked as a
     /// custom (version 8) UUID: not a minted UUIDv7, because it is derived and must not claim to
-    /// carry a creation time. Equal keys give equal ids; a key that differs in any field gives a
-    /// different one unless SHA-256 collides in its leading 128 bits.
+    /// carry a creation time. The builder overwrites 6 of those 128 bits with the version and
+    /// variant, so the id carries 122 bits of the hash. Equal keys give equal ids; a key that
+    /// differs in any field gives a different one unless SHA-256 collides in those 122 bits.
     #[must_use]
     pub fn observation_id(&self) -> ObservationId {
         let address = ContentHash::of(self);
@@ -88,6 +89,12 @@ pub enum ObserveError {
         /// The 1-based line number.
         line: usize,
     },
+    /// A line held a `\n`, so it is not one line: a record's bytes end before its terminator.
+    #[error("line {line}: holds a newline, so it is not one source record line")]
+    HoldsNewline {
+        /// The 1-based line number.
+        line: usize,
+    },
     /// A line was not a source record.
     #[error("line {line}: not a source record: {source}")]
     NotARecord {
@@ -103,17 +110,26 @@ impl ObserveError {
     #[must_use]
     pub const fn line(&self) -> usize {
         match self {
-            Self::Blank { line } | Self::NotARecord { line, .. } => *line,
+            Self::Blank { line } | Self::HoldsNewline { line } | Self::NotARecord { line, .. } => {
+                *line
+            }
         }
     }
 }
 
-/// Maps one source record line to its observation.
+/// Maps one source record line, without its terminating `\n`, to its observation.
+///
+/// A line holding a `\n` anywhere is refused rather than mapped: the content hash covers every
+/// byte, so accepting a terminated line would give the record a second id beside the one
+/// [`observe_jsonl`] gives it.
 ///
 /// # Errors
 ///
-/// [`ObserveError`] when the line is blank or is not a source record.
+/// [`ObserveError`] when the line holds a `\n`, is blank or is not a source record.
 pub fn observe_line(line: &[u8], number: usize) -> Result<Observation, ObserveError> {
+    if line.contains(&b'\n') {
+        return Err(ObserveError::HoldsNewline { line: number });
+    }
     if line.iter().all(u8::is_ascii_whitespace) {
         return Err(ObserveError::Blank { line: number });
     }
