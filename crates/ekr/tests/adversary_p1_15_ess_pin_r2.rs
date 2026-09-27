@@ -64,7 +64,7 @@ fn task_force_skips_the_ess_guard_which_is_accepted_only_while_no_caller_forces(
 }
 
 /// No task runner invocation in the repository passes `--force` or `-f`, so the precondition guard
-/// is evaluated on every path that runs `spec-check` or `conform-check`.
+/// is evaluated on every path that runs `spec-check`, `conform-check` or `conform-fresh`.
 #[test]
 fn no_caller_runs_task_with_force() {
     let root = workspace_root();
