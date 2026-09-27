@@ -2,7 +2,7 @@
 format: aep.planning-md/2
 id: story:data-free-graph-viewer
 kind: story
-status: draft
+status: active
 title: The embedded graph viewer names no type, edge type, property or entity
 relations:
 - serves: vision:o5
@@ -15,7 +15,7 @@ scope:
   path: crates/ekr/tests
 - confidence: inferred
   path: docs/cli.md
-revision: 4
+revision: 6
 ---
 ## Context
 
