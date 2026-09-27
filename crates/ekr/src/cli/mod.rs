@@ -23,6 +23,7 @@ mod snapshot;
 mod transactions;
 mod validate;
 mod view;
+mod view_roles;
 
 use std::ffi::OsString;
 use std::io::Read;
@@ -227,7 +228,8 @@ pub enum Command {
     /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST); it opens an existing
     /// store only and writes nothing. Binds 127.0.0.1 and no other address, prints
     /// `{"url": "http://127.0.0.1:<port>/"}` as one JSON line, then serves `GET /`,
-    /// `GET /projection[?revision=N]` and `GET /evidence/<evidence id>`.
+    /// `GET /projection[?revision=N]`, `GET /roles[?revision=N]` and
+    /// `GET /evidence/<evidence id>`.
     #[command(after_help = SEE)]
     View {
         /// The port on 127.0.0.1 to listen on; 0 picks a free one.

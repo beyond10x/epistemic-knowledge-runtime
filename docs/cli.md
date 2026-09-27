@@ -309,6 +309,49 @@ origin. Evidence text is
 never served as HTML. Like every read verb, `ekr view` opens an existing store only (a path holding
 none is `store-not-found`, exit 1) and writes nothing to it.
 
+#### Roles
+
+`GET /roles` (the head) and `GET /roles?revision=N` answer, as `application/json`, which node types
+the viewer lays out as events, subjects and observations:
+
+```json
+{"format":"ekr.view-roles/1","revision":0,"node_types":[{"type_id":"<type id>","role":"event"}]}
+```
+
+`role` is `event`, `subject` or `observation`; entries are ordered by `type_id`, and a type the rule
+below does not place has no entry (the viewer still shows it). The body is computed from the same
+loaded revision `/projection` renders and is not part of `ekr.graph-projection/1`. It is refused
+exactly as `/projection` is: 404 `ekr.views.RevisionNotFound` for a revision the store does not
+hold, 400 `invalid-query` for any query but `revision=N`.
+
+The rule reads the store's shape and nothing else — never a type, edge-type, property or entity
+name, and never an id compared to a constant — so a store whose every name is changed gets the same
+roles, id for id. To apply it by hand to the revision's ontology and assertions:
+
+1. **Arcs.** Each edge type gives an arc from every type in its `source_types` to every type in its
+   `target_types`; a `symmetric` edge type gives the reverse arcs too. An arc from a type to itself
+   is dropped. Type ids are taken as written: `parents` are not consulted.
+2. **Degree.** A type's *targets* are the other types it has an arc to; its *sources* are the other
+   types with an arc to it.
+3. **Timed.** A type is *timed* when some assertion the revision holds — property or relation,
+   whatever its assessment or lifecycle — has a node of that type as its subject and a valid time
+   with `from` or `to` set. Assertions about an edge or a type do not count.
+4. **Advancing.** A type is *advancing* when it is timed and has at least one target.
+
+Each node type then takes the first role whose condition holds:
+
+| role | condition |
+|---|---|
+| `observation` | no sources, and at least one target is advancing |
+| `event` | advancing |
+| `subject` | at least one source |
+| none | anything else: no entry |
+
+An observation points at events and nothing points at it; an event is timed and points on; a
+subject is pointed at and is not an event. A timed type with no targets is therefore a subject, a
+type only on self-loops or on no edge type has no role, and a revision that adds a timed assertion
+can move a type from `subject` to `event`.
+
 ## The workflow
 
 ```console

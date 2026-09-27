@@ -1,0 +1,26 @@
+format: ekr.transaction-document/1
+transaction:
+  id: 00000000-0000-4000-8000-000000001801
+  proposer: 00000000-0000-4000-8000-000000000101
+  operations:
+  - !AddAssertion
+    id: 00000000-0000-4000-8000-000000001505
+    root_id: 00000000-0000-4000-8000-000000001002
+    subject: !Node 00000000-0000-4000-8000-000000001403
+    predicate: !Property 00000000-0000-4000-8000-000000001303
+    object: !Value
+      value_kind: String
+      value: K2-0008
+    evidence:
+    - 00000000-0000-4000-8000-000000001601
+    proposed_by: 00000000-0000-4000-8000-000000000101
+    assessment: Proposed
+    lifecycle: Active
+    valid_time:
+      from: 1767240000000
+      to: null
+    transaction_time:
+      recorded_from: 0
+      recorded_to: null
+  evidence:
+  - 00000000-0000-4000-8000-000000001601
