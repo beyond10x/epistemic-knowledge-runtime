@@ -242,7 +242,9 @@ Aliases enter a store only through the seed: a `!CreateNode` carries none, so a 
 transaction is never a candidate, and a later reference to it resolves `ProposeNew` again.
 
 A document that is not a typed reference exits 1, `ekr: typed reference <file>: <reason>`, before
-the store is opened. A revision that does not exist is refused as `ekr.kernel.RevisionNotFound`,
+the store is opened. That includes a document over 1048576 bytes, a YAML alias (`*name`), a tag,
+and a `type_id` or an alias that YAML reads as a number, a boolean or null (quote it: `"123"`), or
+an `aliases` that is not a list: the reader refuses what `ekr schema typed-reference` refuses. A revision that does not exist is refused as `ekr.kernel.RevisionNotFound`,
 exit 2, as for `ekr snapshot --at`.
 
 ### `ekr head`

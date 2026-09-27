@@ -461,6 +461,95 @@ fn the_typed_reference_example_decodes_and_proposes_the_create_node_example() {
     }
 }
 
+/// Correction round 1 (F1, F2): `ekr resolve` accepts a document exactly when `ekr schema
+/// typed-reference` accepts its JSON projection, over the forms the typed decoder would expand or
+/// coerce — an alias repeating an anchor, a tag, a number, boolean or null where a string
+/// belongs, a null `aliases` — and each refused one is a fault naming the document, exit 1, on a
+/// seeded store whose bytes it leaves alone. A quoted number, and a plain `007`, are strings to
+/// both.
+#[test]
+fn the_reader_refuses_what_the_schema_refuses_and_expands_no_yaml_alias() {
+    let schema: Value = serde_json::from_str(&text(&["schema", "typed-reference"])).unwrap();
+    let validator = jsonschema::draft202012::new(&schema).unwrap();
+    let head = format!("type_id: {PERSON}\n");
+    let long = "x".repeat(100_000);
+    let cases: Vec<(&str, String, bool)> = vec![
+        (
+            "an anchor repeated by aliases",
+            format!("{head}aliases:\n- &a {long}\n{}", "- *a\n".repeat(20)),
+            true,
+        ),
+        (
+            "a whole list repeated by an alias",
+            format!("{head}aliases: &list [alice]\nother: *list\n"),
+            false,
+        ),
+        ("a numeric alias", format!("{head}aliases:\n- 123\n"), false),
+        (
+            "a boolean alias",
+            format!("{head}aliases:\n- true\n"),
+            false,
+        ),
+        ("a null alias", format!("{head}aliases:\n- ~\n"), false),
+        (
+            "a tagged alias",
+            format!("{head}aliases:\n- !Name acme\n"),
+            false,
+        ),
+        (
+            "aliases written as null",
+            format!("{head}aliases:\n"),
+            false,
+        ),
+        (
+            "a tagged list",
+            format!("{head}aliases: !List [alice]\n"),
+            false,
+        ),
+        (
+            "a tagged type_id",
+            format!("type_id: !TypeId {PERSON}\naliases: [alice]\n"),
+            false,
+        ),
+    ];
+    for backend in BACKENDS {
+        let world = World::seeded(backend, &aliased_seed());
+        // YAML reads a plain `007` as a string, so the reader and the schema both accept it.
+        let accepted = format!("{head}aliases: ['123', 007]\n");
+        let projection: serde_yaml_ng::Value = serde_yaml_ng::from_str(&accepted).unwrap();
+        assert!(validator.is_valid(&serde_json::to_value(projection).unwrap()));
+        let quoted = world.file("quoted.yaml", &accepted);
+        let files: Vec<String> = (0..cases.len())
+            .map(|at| world.file(&format!("strict-{at}.yaml"), &cases[at].1))
+            .collect();
+        let before = world.bytes();
+        for ((what, document, skip_schema), file) in cases.iter().zip(&files) {
+            let output = world.run(&["resolve", file]);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            assert_eq!(output.status.code(), Some(1), "{backend}: {what}: {stderr}");
+            assert!(output.stdout.is_empty(), "{backend}: {what}");
+            assert!(
+                stderr.starts_with(&format!("ekr: typed reference {file}: ")),
+                "{backend}: {what}: {stderr}"
+            );
+            if !skip_schema {
+                let projection: serde_yaml_ng::Value = serde_yaml_ng::from_str(document).unwrap();
+                let instance = serde_json::to_value(projection).unwrap();
+                assert!(
+                    !validator.is_valid(&instance),
+                    "{what}: the reader refuses and the schema accepts {instance}"
+                );
+            }
+        }
+        assert!(world.bytes() == before, "{backend}: bytes changed");
+        assert_eq!(
+            world.ok(&["resolve", &quoted]),
+            json!({"kind": "ProposeNew", "type_id": PERSON, "aliases": ["007", "123"]}),
+            "{backend}"
+        );
+    }
+}
+
 /// A document the resolver's type does not decode — an unknown field, a missing one — is a fault
 /// naming the document, exit 1, before any store is opened.
 #[test]

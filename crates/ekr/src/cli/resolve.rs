@@ -29,7 +29,97 @@ pub(super) fn read(document: &Path, stdin: &mut dyn Read) -> Result<TypedReferen
     if u64::try_from(text.len()).unwrap_or(u64::MAX) > LIMIT {
         return Err(fault(&format_args!("over {LIMIT} bytes")));
     }
+    strict(&text).map_err(|error| fault(&error))?;
     serde_yaml_ng::from_str(&text).map_err(|error| fault(&error))
+}
+
+/// Refuses, before anything decodes, what the typed decoder would expand or coerce and the
+/// printed schema refuses: an alias (`*name`, which repeats its anchor's value on every use), a
+/// tag anywhere, a `type_id` or an alias that is not a string scalar (a number, a boolean, a
+/// null), and an `aliases` that is not a list. It walks the loader's event tape through the
+/// vendored `serde_yaml_ng::observation` facade, which expands no alias. Everything else the
+/// decoder refuses by itself, with its own message.
+fn strict(text: &str) -> Result<(), String> {
+    use serde_yaml_ng::observation::{Documents, Event, ScalarKind};
+
+    let error = |e: serde_yaml_ng::Error| e.to_string();
+    let mut documents = Documents::from_str(text).map_err(error)?;
+    let Some(document) = documents.next_document() else {
+        return Ok(());
+    };
+    document.check().map_err(error)?;
+    let event = |at: usize| document.event(at).map_err(error);
+    for at in 0..document.event_count() {
+        match event(at)? {
+            Some(Event::Alias { .. }) => {
+                return Err("a YAML alias (`*name`) is not accepted: write each alias out".into())
+            }
+            Some(Event::Scalar(scalar)) if scalar.tag().map_err(error)?.is_some() => {
+                return Err("a YAML tag is not accepted in a typed reference".into())
+            }
+            Some(Event::MappingStart(Some(_)) | Event::SequenceStart(Some(_))) => {
+                return Err("a YAML tag is not accepted in a typed reference".into())
+            }
+            _ => {}
+        }
+    }
+    let string = |at: usize, what: &str| match event(at)? {
+        Some(Event::Scalar(scalar)) if scalar.kind(false).map_err(error)? == ScalarKind::String => {
+            Ok(())
+        }
+        _ => Err(format!(
+            "{what} is not a string; quote it (`\"123\"`) if it is one"
+        )),
+    };
+    // The top-level mapping, key by key. A document of another shape is left to the decoder.
+    if !matches!(event(0)?, Some(Event::MappingStart(None))) {
+        return Ok(());
+    }
+    let mut at = 1;
+    loop {
+        let key = match event(at)? {
+            Some(Event::Scalar(key)) => key.text().map_err(error)?.to_owned(),
+            _ => return Ok(()),
+        };
+        at += 1;
+        match key.as_str() {
+            "type_id" => string(at, "type_id")?,
+            "aliases" => {
+                if !matches!(event(at)?, Some(Event::SequenceStart(None))) {
+                    return Err("aliases is not a list; write `aliases: [<alias>, ...]`".into());
+                }
+                let mut item = at + 1;
+                while !matches!(event(item)?, Some(Event::SequenceEnd) | None) {
+                    string(item, "an alias")?;
+                    item += 1;
+                }
+            }
+            _ => {}
+        }
+        at = skip(&document, at).map_err(error)?;
+    }
+}
+
+/// The position after the value at `at`: one scalar, or a whole container.
+fn skip(
+    document: &serde_yaml_ng::observation::Document<'_>,
+    mut at: usize,
+) -> Result<usize, serde_yaml_ng::Error> {
+    use serde_yaml_ng::observation::Event;
+
+    let mut depth = 0usize;
+    loop {
+        match document.event(at)? {
+            Some(Event::MappingStart(_) | Event::SequenceStart(_)) => depth += 1,
+            Some(Event::MappingEnd | Event::SequenceEnd) => depth = depth.saturating_sub(1),
+            Some(_) => {}
+            None => return Ok(at),
+        }
+        at += 1;
+        if depth == 0 {
+            return Ok(at);
+        }
+    }
 }
 
 /// Captures the requested (or newest) revision once and resolves `reference` against it. A
@@ -116,7 +206,8 @@ pub(super) fn schema() -> schemars::Schema {
         "A typed reference for `ekr resolve`: a node named by its type and the aliases it is \
          known by, never by its canonical name (`ekr example typed-reference`). The document is \
          YAML; this schema validates it read as YAML and written as JSON. Beyond the schema, the \
-         reader also refuses a key written twice."
+         reader also refuses a key written twice and a YAML alias (`*name`), which the JSON \
+         projection has already expanded."
             .into(),
     );
     schema
