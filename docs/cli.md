@@ -600,7 +600,7 @@ parses but is **refused** under either profile, with the same code.
 
 | kind | applied | what it does |
 |---|---|---|
-| `CreateNode` | applied | creates a node: `id`, `root_id`, `type_id`, `canonical_name`, `properties`, and optionally `aliases` (a list of strings, the names a typed reference is matched against; absent means none) |
+| `CreateNode` | applied | creates a node: `id`, `root_id`, `type_id`, `canonical_name`, `properties`, and optionally `aliases` (a list of strings, the names a typed reference is matched against; absent means none; a non-empty alias another node of the same type holds, or that another `CreateNode` of the transaction gives, is refused) |
 | `UpdateProperty` | applied | sets all values of one property of one node: `node`, `property`, `values` (`[]` clears it) |
 | `CreateEdge` | applied | creates an edge: `id`, `root_id`, `type_id`, `source`, `target`, `properties` |
 | `DeleteEdge` | applied | removes an edge: `!DeleteEdge <edge id>` |
@@ -1507,6 +1507,8 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `assertion-states-its-own-verdict` | validation issue | 0 | an assertion written with a complete assessment other than `Proposed`, such as `!Accepted {validators: [...]}` (a bare `Accepted` is refused earlier, as `ekr.kernel.StructurallyInvalid`) | write `assessment: Proposed` |
 | `identity-already-exists` | validation issue | 0 | a create reuses an id that already exists | `ekr mint` a fresh id |
 | `duplicate-identity` | validation issue | 0 | one transaction creates the same id twice | `ekr mint` one id per created thing |
+| `alias-already-exists` | validation issue | 0 | a `CreateNode` gives a non-empty alias that a node of the same type already holds | resolve the reference and use that node instead of creating one |
+| `duplicate-alias` | validation issue | 0 | two `CreateNode` operations of one transaction give the same non-empty alias to nodes of one type | give each alias to one node |
 | `conflicting-write` | validation issue | 0 | one transaction writes the same property of a node twice with different values, or moves one node's lifecycle twice | one write per property and one state move per node per transaction |
 | `operation-not-declared` | validation issue | 0 | `!Invoke` names no operation **key** of the node's type (an operation's `name` field is not consulted) | use the key under `operations` |
 | `transition-refused` | validation issue | 0 | the node is not in the operation's `from` state | check the node's `type_state` |

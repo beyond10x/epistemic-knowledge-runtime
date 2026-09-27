@@ -67,6 +67,12 @@ const DUPLICATE_IDENTITY: &str = "duplicate-identity";
 /// An identity created over one canonical state already holds.
 const IDENTITY_ALREADY_EXISTS: &str = "identity-already-exists";
 
+/// One `(type, alias)` taken by two `CreateNode` operations of one transaction.
+const DUPLICATE_ALIAS: &str = "duplicate-alias";
+
+/// A `CreateNode` alias a node of the same type already holds in canonical state.
+const ALIAS_ALREADY_EXISTS: &str = "alias-already-exists";
+
 /// A transaction whose declared evidence is not the evidence its assertions cite.
 const EVIDENCE_SET_MISMATCH: &str = "evidence-set-mismatch";
 
@@ -125,6 +131,63 @@ impl Validator for SchemaStructural {
         tx: &GraphTransaction,
     ) -> Result<(), Vec<ValidationIssue>> {
         check(graph, tx, true)
+    }
+}
+
+/// A created node's aliases identify it within its exact type: `ekr_integrate::resolve` matches a
+/// typed reference to the nodes of the root whose `type_id` equals the reference's and that hold
+/// one of its non-empty aliases, byte for byte. A `CreateNode` that took a `(type, alias)` another
+/// node already identifies by would make every reference to either `Ambiguous`, and no operation
+/// changes an alias to repair that, so it is refused: against canonical state as
+/// `alias-already-exists`, and against another `CreateNode` of the same transaction as
+/// `duplicate-alias`. The empty alias identifies nothing and is not checked, and a repeat inside one
+/// draft is one alias.
+///
+/// Transactions only: the seed routes its nodes through this validator with no aliases, because a
+/// seed may give two nodes one alias.
+fn aliases(graph: &GraphSnapshot<'_>, tx: &GraphTransaction, issues: &mut Vec<ValidationIssue>) {
+    let state = graph.graph();
+    let mut taken = BTreeSet::new();
+    for operation in &tx.operations {
+        let GraphOperation::CreateNode(draft) = operation else {
+            continue;
+        };
+        let own: BTreeSet<&str> = draft
+            .aliases
+            .iter()
+            .map(String::as_str)
+            .filter(|alias| !alias.is_empty())
+            .collect();
+        for alias in own {
+            if let Some(holder) = state.nodes.values().find(|node| {
+                node.root_id == state.root.id
+                    && node.type_id == draft.type_id
+                    && node.aliases.iter().any(|held| held == alias)
+            }) {
+                issues.push(issue(
+                    tx,
+                    ValidatorName::Structural,
+                    ALIAS_ALREADY_EXISTS,
+                    format!(
+                        "node {} is created with alias {alias:?}, which node {} of the same type \
+                         {} already holds; resolve the reference and use that node",
+                        draft.id, holder.id, draft.type_id
+                    ),
+                ));
+            }
+            if !taken.insert((draft.type_id, alias)) {
+                issues.push(issue(
+                    tx,
+                    ValidatorName::Structural,
+                    DUPLICATE_ALIAS,
+                    format!(
+                        "alias {alias:?} of type {} is given to more than one node this \
+                         transaction creates; one alias identifies one node of a type",
+                        draft.type_id
+                    ),
+                ));
+            }
+        }
     }
 }
 
@@ -331,6 +394,7 @@ fn check(
         }
     }
 
+    aliases(graph, tx, &mut issues);
     schema_shape(tx, admits_schema, &mut issues);
 
     if cited != tx.evidence {

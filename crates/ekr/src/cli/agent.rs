@@ -268,7 +268,8 @@ impl OperationKind {
   canonical_name  String       the name a reader sees (a property, not an identity)
   properties      map PropertyId -> [Value]   {} when none
   aliases         [String]     optional: the names it is also known by, which a typed
-                               reference's aliases are matched against; absent means []",
+                               reference's aliases are matched against; absent means [].
+                               No other node of the type may hold one (alias-already-exists)",
                 "- !CreateNode
   id: 00000000-0000-4000-8000-000000000304
   root_id: 00000000-0000-4000-8000-000000000002

@@ -727,6 +727,63 @@ fn an_identity_canonical_state_already_holds_is_not_created_again() {
         .is_ok());
 }
 
+/// `task:proposed-node-carries-reference-aliases`, correction 1 (F1): a created node's non-empty
+/// alias identifies it to `ekr_integrate::resolve` within its exact type, so a `CreateNode` may
+/// not take a `(type_id, alias)` a node of the root already holds (`alias-already-exists`), nor
+/// one another `CreateNode` of the same transaction takes (`duplicate-alias`). Either would leave
+/// the reference `Ambiguous`, and no operation changes an alias to repair it. The empty alias
+/// identifies nothing, a repeat inside one draft is one alias, and a node of another type may
+/// share it: each of those still validates.
+#[test]
+fn a_created_node_does_not_take_an_alias_its_type_already_identifies() {
+    let mut world = World::new();
+    world.graph.nodes.get_mut(&world.open).unwrap().aliases = vec!["eventlog".to_owned()];
+    let aliased = |id: NodeId, aliases: &[&str]| {
+        let mut draft = world.draft(id, "A decision named twice");
+        draft.aliases = aliases.iter().map(|a| (*a).to_owned()).collect();
+        GraphOperation::CreateNode(draft)
+    };
+
+    let held = refuse(
+        &world,
+        vec![aliased(NodeId::mint(), &["fresh", "eventlog"])],
+    );
+    assert_eq!(refusing_validators(&held), vec![ValidatorName::Structural]);
+    assert_eq!(codes(&held), vec!["alias-already-exists"]);
+
+    let twice = refuse(
+        &world,
+        vec![
+            aliased(NodeId::mint(), &["membrane"]),
+            aliased(NodeId::mint(), &["membrane"]),
+        ],
+    );
+    assert_eq!(refusing_validators(&twice), vec![ValidatorName::Structural]);
+    assert_eq!(codes(&twice), vec!["duplicate-alias"]);
+
+    let admitted = world.proposal(vec![
+        aliased(NodeId::mint(), &["", "membrane", "membrane"]),
+        aliased(NodeId::mint(), &[""]),
+    ]);
+    assert!(world
+        .pipeline()
+        .validate(&world.snapshot(), &admitted)
+        .is_ok());
+
+    let mut other_type = world.graph.clone();
+    other_type.nodes.get_mut(&world.open).unwrap().type_id = world.depends_on;
+    let proposal = world.proposal(vec![aliased(NodeId::mint(), &["eventlog"])]);
+    let issues = world
+        .pipeline()
+        .validate(&GraphSnapshot::of(&other_type), &proposal)
+        .err()
+        .unwrap_or_default();
+    assert!(
+        !codes(&issues).contains(&"alias-already-exists"),
+        "a node of another type holding the alias does not identify this one: {issues:?}"
+    );
+}
+
 /// A type the ontology already declares is not declared a second time.
 ///
 /// The fourth and fifth members of the identity class, and the last two: `ekr.kernel.OperationKind`
