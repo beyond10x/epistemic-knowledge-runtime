@@ -39,7 +39,8 @@
 //! | a connection while 64 are in flight | 503 `busy`, unread |
 //!
 //! Every response carries `X-Content-Type-Options: nosniff`, `Cache-Control: no-store` and
-//! `Connection: close`, and no cookie or CORS header. Record text is untrusted evidence (A14) and
+//! `Connection: close`, and no cookie or CORS header. The page also carries its
+//! Content-Security-Policy as a header, with `frame-ancestors 'none'` added. Record text is untrusted evidence (A14) and
 //! is never served as HTML: the only HTML is the page, which is embedded in the binary at build
 //! time and writes what it fetches through `textContent`.
 
@@ -58,6 +59,11 @@ use crate::exit::Failure;
 
 /// The viewer page, embedded at build time; nothing is read from disk at run time.
 const PAGE: &str = include_str!("viewer/index.html");
+/// The page's Content-Security-Policy as its `<meta>` carries it; the header adds
+/// [`FRAME_POLICY`], which a `<meta>` policy cannot express.
+const PAGE_POLICY: &str = "default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js https://cdn.jsdelivr.net/npm/graphology-library@0.8.0/dist/graphology-library.min.js https://cdn.jsdelivr.net/npm/sigma@3.0.3/dist/sigma.min.js https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.0/dist/3d-force-graph.min.js; worker-src blob:; style-src 'unsafe-inline'; connect-src 'self'";
+/// Refuses framing, so another page cannot overlay the viewer.
+const FRAME_POLICY: &str = "; frame-ancestors 'none'";
 
 const HTML: &str = "text/html; charset=utf-8";
 const JSON: &str = "application/json";
@@ -334,9 +340,14 @@ impl Reply {
         } else {
             ""
         };
+        let policy = if self.content_type == HTML {
+            format!("Content-Security-Policy: {PAGE_POLICY}{FRAME_POLICY}\r\n")
+        } else {
+            String::new()
+        };
         let mut bytes = format!(
             "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\nContent-Length: {}\r\n\
-             X-Content-Type-Options: nosniff\r\nCache-Control: no-store\r\n{allow}\
+             X-Content-Type-Options: nosniff\r\nCache-Control: no-store\r\n{allow}{policy}\
              Connection: close\r\n\r\n",
             self.status,
             self.content_type,
@@ -529,6 +540,24 @@ mod tests {
     #[allow(clippy::unnecessary_wraps)]
     fn no_deadline() -> Result<(), String> {
         Ok(())
+    }
+
+    /// The header policy is the page's own `<meta>` policy plus `frame-ancestors 'none'`, so the
+    /// two cannot drift apart.
+    #[test]
+    fn the_page_header_policy_is_the_meta_policy_and_refuses_framing() {
+        assert!(
+            PAGE.contains(&format!("content=\"{PAGE_POLICY}\"")),
+            "the page's <meta> policy is not PAGE_POLICY"
+        );
+        let head = String::from_utf8(Reply::ok(HTML, Vec::new()).into_bytes())
+            .expect("a reply head is text");
+        assert!(
+            head.contains(&format!(
+                "Content-Security-Policy: {PAGE_POLICY}; frame-ancestors 'none'\r\n"
+            )),
+            "{head}"
+        );
     }
 
     #[test]

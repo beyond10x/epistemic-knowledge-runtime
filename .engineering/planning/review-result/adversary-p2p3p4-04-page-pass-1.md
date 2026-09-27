@@ -1,0 +1,132 @@
+---
+format: aep.planning-md/2
+id: review-result:adversary-p2p3p4-04-page-pass-1
+kind: review-result
+status: active
+title: Adversary pass 1 on wave C unit P (viewer page)
+relations:
+- reviews: story:data-free-graph-viewer
+revision: 1
+---
+unit: story:data-free-graph-viewer (unit P, page half), worktree ekr-wave-c-p at head 04550f9a plus one untracked test file
+verdict: red
+cases: executed 9→12, red 2
+origin: introduced 2, pre-existing 0, undecided 0
+wrote-outside-worktree: <scratch>/adv1/ (red.log, suite.log, console.log, dom*.html, url.txt, view.err, seed.json, store/, prof/), <scratch>/cdn/ (the four pinned library files), <scratch>/adversary-pass-1.md
+needs-coordinator: the page's CSP reaches the browser only as a meta tag (no frame-ancestors possible); a header needs a change to crates/ekr/src/cli/view.rs, which is not this unit's page file (the implementor's unapplied <scratch>/view-csp-header.patch)
+
+## 1. git diff --stat
+
+`git --no-pager diff --stat` is empty (nothing tracked changed). `git status --short`:
+
+```
+?? crates/ekr/tests/adversary_p_page.rs
+```
+
+That is the only path touched, and it is a test file. No implementation file was changed, not even briefly.
+
+## 2. Cases added (crates/ekr/tests/adversary_p_page.rs)
+
+Each case seeds a store derived from the unit's own `tests/fixtures/view-page/sounding` fixture through the real binary, serves it with `ekr view --port 0` and reads the DOM that headless Chromium builds (taskset to 2 cores, nice 19).
+
+| case | asserts | now |
+|---|---|---|
+| `markup_in_store_text_is_shown_as_text_and_never_becomes_an_element` | markup in a node name, a type name, an edge-type name, a property name and a text value is shown escaped, and never becomes an element, in the index, three node details, the schema view and the 3D view | green |
+| `an_integer_above_two_to_the_fifty_three_is_shown_as_the_store_holds_it` | a node whose Integer property is 9007199254740993 shows that value (the projection bytes carry it exactly) | **red** |
+| `an_evidence_parameter_of_dot_dot_reads_no_address_but_the_three` | `?evidence=..` does not make the page read `/` | **red** |
+
+The red run, this file alone, written before any other run (`cargo test -p ekr --locked --test adversary_p_page`, EXIT=101):
+
+```
+running 3 tests
+test an_evidence_parameter_of_dot_dot_reads_no_address_but_the_three ... FAILED
+test an_integer_above_two_to_the_fifty_three_is_shown_as_the_store_holds_it ... FAILED
+test markup_in_store_text_is_shown_as_text_and_never_becomes_an_element ... ok
+
+---- an_evidence_parameter_of_dot_dot_reads_no_address_but_the_three stdout ----
+thread 'an_evidence_parameter_of_dot_dot_reads_no_address_but_the_three' (1895681) panicked at crates/ekr/tests/adversary_p_page.rs:272:5:
+?evidence=.. made the page read `/` (the page itself, 62216 bytes) as evidence
+
+---- an_integer_above_two_to_the_fifty_three_is_shown_as_the_store_holds_it stdout ----
+thread 'an_integer_above_two_to_the_fifty_three_is_shown_as_the_store_holds_it' (1895682) panicked at crates/ekr/tests/adversary_p_page.rs:244:5:
+the page shows 9007199254740992 instead of the stored 9007199254740993
+
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 35.68s
+```
+
+After this run I applied `rustfmt` to the file. Only formatting changed, so the assertions now sit at :250 and :278.
+
+## 3. Suite run (after the cases existed)
+
+`cargo test -p ekr --locked --no-fail-fast --test view_page --test adversary_p_page`, EXIT=101:
+
+```
+Running tests/adversary_p_page.rs
+test an_evidence_parameter_of_dot_dot_reads_no_address_but_the_three ... FAILED
+test an_integer_above_two_to_the_fifty_three_is_shown_as_the_store_holds_it ... FAILED
+test markup_in_store_text_is_shown_as_text_and_never_becomes_an_element ... ok
+test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.62s
+Running tests/view_page.rs
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 87.56s
+error: 1 target failed:
+```
+
+The before count of 9 is the implementor's own green run of `view_page` (`<scratch>/green3.log`: `test result: ok. 9 passed`).
+
+## 4. Findings (tree: 04550f9a plus crates/ekr/tests/adversary_p_page.rs)
+
+| id | file:line | verdict | origin | what was measured | what reaches it |
+|---|---|---|---|---|---|
+| F1 | crates/ekr/src/cli/viewer/index.html:163 (shown at :788) | confirmed | introduced | `response.json()` parses the projection into doubles. An Integer of 9007199254740993 is shown as 9007199254740992 (case red, :250). | Any store holding an Integer (or a List/Record containing one) above 2^53 in absolute value. `ekr seed` accepted one, and the node detail shows it. The base page showed no property values. |
+| F2 | crates/ekr/src/cli/viewer/index.html:1020 (param read at :1249) | confirmed | introduced | `?evidence=..` fetches `/evidence/..`, which the browser resolves to `/`. The panel shows "62216 bytes that are not text", which is the page itself (case red, :278). | Only a hand-made or edited URL. The page never writes `..` itself. The only thing exposed is a same-origin read, so severity is low. |
+| J1 | crates/ekr/src/cli/viewer/index.html:185 | plausible | introduced | `load()` does not number its requests. If two revision clicks land before the first projection returns, whichever response resolves last is applied, while `state.revision` and the URL name the other revision. I wrote no case: `--dump-dom` cannot click. | The footer revision strip or the select, on a store large enough that `/projection` is slow (the 5000-node store). |
+| J2 | crates/ekr/src/cli/viewer/index.html:1236 | plausible | introduced | `numbers()` checks only `isFinite`, so `camera=0,0,0` sets a sigma camera ratio of 0. I did not measure this in a browser. | Only a hand-made URL, which `writeUrl` then keeps. |
+| J3 | crates/ekr/src/cli/viewer/index.html:1172 | plausible | introduced | Every valid-time slider `input` event calls `showDetail()`, which rebuilds the evidence panel and fetches `/evidence/<id>` again. | Dragging the valid-time slider while evidence is open. |
+
+Fixes (named only, not applied):
+- F1: read the projection with `response.text()`, then either keep integers outside the safe range as their source text (a `JSON.parse` reviver that uses `context.source`) or render Integer values from that text.
+- F2: fetch only ids that are in `state.evidenceById`, or only ids of UUID form.
+- J1: number the loads and drop any response that is not from the latest one.
+- J2: refuse a ratio of 0 or below.
+- J3: fetch evidence once for each id that is shown.
+
+Notes that are not findings:
+- No test in this worktree runs the page with roles present: this server answers `/roles` with 404, and unit R serves it. So banding and the "roles of revision" line have never run under the suite.
+- The suite does not check valid-time filtering (`validNow`, the `outside` class) or colour order, so mutating those lines would stay green.
+
+## 5. Attacked and not broken
+
+- XSS: markup in 5 kinds of store text across the index, node detail, schema and 3D views; none became an element. The page's own code writes only through `textContent` and `title`. Sigma draws labels on a canvas. The 3d-force-graph `nodeLabel`/`linkLabel` return "", so the library's tooltip `innerHTML` receives nothing.
+- Evidence bytes: they go to `textContent`, and the server sends `text/plain` with `nosniff`.
+- Data-free: the page contains no type, edge, property or entity name. Colours are assigned by type-id order. The role words `event`/`subject`/`observation` match unit R's `docs/cli.md` contract.
+- SRI: I recomputed sha384 for all four pinned CDN files and each matches its `integrity`.
+- CSP: no violation when the 2D and 3D views load. `'unsafe-inline'` opens nothing because I found no HTML sink. The only `new Function` in the libraries is ngraph's, and it is used only when the ngraph engine is chosen.
+- URL parameters: `revision` and `valid` are regex-gated, `node`/`edge`/`assertion` are looked up in maps, and other `evidence` values are URI-encoded.
+- `/roles` with an odd shape (not an array, null, 404, 500): each falls back to "no roles" and the nodes are still shown.
+
+## 6. Paths written outside the worktree
+
+- `<scratch>/adv1/` — red.log, suite.log, console.log, dom.html, dom?view=3d.html, url.txt, view.err, seed.json, store/, prof/
+- `<scratch>/cdn/` — the four pinned library files, fetched to check SRI
+- `<scratch>/adversary-pass-1.md` — this report
+- Temporary directories that tempfile created under TMPDIR during test runs are removed on drop.
+
+## 7. Findings block
+
+
+## Coordinator routing (2026-09-27)
+
+- F1 → back to the implementor: integers outside the safe range keep their source text from the projection bytes.
+- F2 → back to the implementor: the page fetches evidence only for ids the projection holds, path-encoded.
+- J1, J2, J3 → back to the implementor: loads are sequenced and stale answers dropped, a camera ratio at or below 0 is refused, and evidence is fetched once per id.
+- CSP as a response header (with `frame-ancestors 'none'`) → the coordinator's, applied in `view.rs` at the wave close after both units merge, because unit R edits the same file.
+
+```findings
+[
+{"file":"crates/ekr/src/cli/viewer/index.html","line":163,"category":"correctness","severity":"warning","verdict":"NEEDS-CHANGE","origin":"introduced","message":"the page parses the projection into doubles and shows a stored Integer 9007199254740993 as 9007199254740992"},
+{"file":"crates/ekr/src/cli/viewer/index.html","line":1020,"category":"security","severity":"note","verdict":"NEEDS-CHANGE","origin":"introduced","message":"?evidence=.. makes the page fetch /evidence/.. which resolves to / and reads an address outside the three"},
+{"file":"crates/ekr/src/cli/viewer/index.html","line":185,"category":"correctness","severity":"note","verdict":"NEEDS-CHANGE","origin":"introduced","message":"load() does not sequence its requests, so an older revision's projection can be applied after a newer one was asked for"},
+{"file":"crates/ekr/src/cli/viewer/index.html","line":1236,"category":"correctness","severity":"note","verdict":"NEEDS-CHANGE","origin":"introduced","message":"camera=0,0,0 passes numbers() and sets a sigma camera ratio of 0, which writeUrl then keeps"},
+{"file":"crates/ekr/src/cli/viewer/index.html","line":1172,"category":"performance","severity":"note","verdict":"NEEDS-CHANGE","origin":"introduced","message":"each valid-time slider input event fetches the open evidence again"}
+]
+```
