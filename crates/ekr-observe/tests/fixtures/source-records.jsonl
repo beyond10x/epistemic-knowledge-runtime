@@ -1,0 +1,5 @@
+{"source":"fixture-source-a","source_native_id":"record-0001","captured_at":1767225600000,"text":"An assertion was proposed against the canonical root."}
+{"source":"fixture-source-a","source_native_id":"record-0002","captured_at":1767225660000,"text":"The proposal passed validation and awaits commit."}
+{"source":"fixture-source-b","source_native_id":"record-0001","captured_at":1767225720000,"text":"A revision was committed; the snapshot now reads it."}
+{"source":"fixture-source-b","source_native_id":null,"captured_at":1767225780000,"text":"An observation arrived without a source-native id."}
+{"source":"fixture-source-a","source_native_id":"record-0003","captured_at":1767225600000,"text":"An assertion was proposed against the canonical root."}

@@ -408,6 +408,14 @@ dependencies = [
 [[package]]
 name = "ekr-observe"
 version = "0.0.10"
+dependencies = [
+ "ekr-core",
+ "ekr-graph",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "uuid",
+]
 
 [[package]]
 name = "ekr-ontology"
