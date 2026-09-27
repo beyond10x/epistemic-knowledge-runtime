@@ -7,7 +7,8 @@
 //!   `ekr.cli-host/1` document is tagged with that format and parses with the real reader;
 //! * the worked example's blocks (those carrying `file=`) seed a fresh store and reach the outcome
 //!   each block declares (`outcome=`) on both providers, and the page's read-back commands print
-//!   what the page says they print;
+//!   what the page says they print, and its typed references resolve as each declares
+//!   (`outcome=`) and leave every byte of the store as it was;
 //! * the verb table equals the verbs `ekr --help` lists, and the configuration table equals its
 //!   global options;
 //! * the schema evolution example's blocks (those carrying `evolve=`) seed a store under
@@ -35,6 +36,8 @@ use serde_json::Value;
 const SEED: &str = "ekr-seed/2";
 const TRANSACTION: &str = "ekr.transaction-document/2";
 const HOST: &str = "ekr.cli-host/1";
+/// The document `ekr resolve` reads; it carries no `format` key.
+const TYPED_REFERENCE: &str = "typed-reference";
 const BACKENDS: [&str; 2] = ["file", "sqlite"];
 
 /// The repository root, from the per-process `CARGO_MANIFEST_DIR` (`AGENTS.md` § The gate).
@@ -332,7 +335,17 @@ fn the_worked_example_seeds_commits_and_reads_back_on_both_providers() {
         "the worked example commits, extends and is refused: {} transaction files",
         transactions.len()
     );
-    for needle in [VALID_AT, EXPLAIN] {
+    let references = of(TYPED_REFERENCE);
+    let declared: BTreeSet<&str> = references
+        .iter()
+        .filter_map(|block| block.attribute("outcome")?.split(':').next())
+        .collect();
+    assert_eq!(
+        declared,
+        BTreeSet::from(["ProposeNew", "Resolved"]),
+        "the worked example resolves a reference and proposes one"
+    );
+    for needle in [VALID_AT, EXPLAIN, "ekr resolve author.yaml"] {
         assert!(
             page.contains(needle),
             "docs/cli.md does not show `{needle}`"
@@ -360,7 +373,11 @@ fn the_worked_example_seeds_commits_and_reads_back_on_both_providers() {
             .collect();
         let hashed: BTreeSet<String> = example
             .iter()
-            .filter(|block| ![SEED, TRANSACTION, HOST].iter().any(|f| block.tagged(f)))
+            .filter(|block| {
+                ![SEED, TRANSACTION, HOST, TYPED_REFERENCE]
+                    .iter()
+                    .any(|f| block.tagged(f))
+            })
             .map(|block| {
                 let hash = world.ok(&["hash", block.attribute("file").unwrap()]);
                 hash["content_hash"].as_str().unwrap().to_owned()
@@ -452,7 +469,63 @@ fn the_worked_example_seeds_commits_and_reads_back_on_both_providers() {
             page.contains(text),
             "{backend}: the explained evidence text {text:?} is not the page's payload"
         );
+
+        // Step 8: each typed reference resolves as its block declares, and resolving leaves every
+        // byte under the example's directory — the store included — as it was.
+        let before = tree_bytes(world.directory.path());
+        for block in &references {
+            let file = block.attribute("file").unwrap();
+            let outcome = block.attribute("outcome").unwrap_or_else(|| {
+                panic!(
+                    "docs/cli.md:{}: a worked typed reference declares outcome=",
+                    block.line
+                )
+            });
+            let resolved = world.ok(&["resolve", file]);
+            match outcome.split_once(':') {
+                Some(("Resolved", node)) => {
+                    assert_eq!(resolved["kind"], "Resolved", "{backend} {file}: {resolved}");
+                    assert_eq!(resolved["node_id"], node, "{backend} {file}");
+                }
+                None if outcome == "ProposeNew" => {
+                    let reference: serde_yaml_ng::Value =
+                        serde_yaml_ng::from_str(&block.body).unwrap();
+                    assert_eq!(
+                        resolved["kind"], "ProposeNew",
+                        "{backend} {file}: {resolved}"
+                    );
+                    assert_eq!(
+                        resolved["type_id"].as_str(),
+                        reference["type_id"].as_str(),
+                        "{backend} {file}"
+                    );
+                }
+                _ => panic!("{file}: outcome {outcome} is not understood"),
+            }
+        }
+        assert!(
+            tree_bytes(world.directory.path()) == before,
+            "{backend}: ekr resolve changed bytes under the worked example's directory"
+        );
     }
+}
+
+/// Every file at or below `at`, by path, with its bytes.
+fn tree_bytes(at: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
+    fn walk(at: &Path, into: &mut BTreeMap<PathBuf, Vec<u8>>) {
+        for entry in std::fs::read_dir(at).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                walk(&path, into);
+            } else {
+                let bytes = std::fs::read(&path).unwrap();
+                into.insert(path, bytes);
+            }
+        }
+    }
+    let mut found = BTreeMap::new();
+    walk(at, &mut found);
+    found
 }
 
 // 3 --------------------------------------------------------------------------------------------
@@ -1025,7 +1098,7 @@ fn trigger(page: &str, name: &str) -> Option<Vec<Ran>> {
         "store-not-found" => {
             // Never seeded: `store` holds nothing, and each verb must leave it that way.
             let lab = Lab::new(page);
-            let verbs: [&[&str]; 8] = [
+            let verbs: [&[&str]; 9] = [
                 &["propose", "wrote.yaml"],
                 &["validate", TX_WROTE],
                 &["commit", TX_WROTE],
@@ -1034,6 +1107,7 @@ fn trigger(page: &str, name: &str) -> Option<Vec<Ran>> {
                 &["head"],
                 &["transactions"],
                 &["ontology"],
+                &["resolve", "author.yaml"],
             ];
             let ran: Vec<Ran> = verbs
                 .into_iter()
@@ -1054,7 +1128,7 @@ fn trigger(page: &str, name: &str) -> Option<Vec<Ran>> {
 const ANY_STORE_VERB: &str = "any store verb";
 
 /// Verbs that open the store.
-const STORE_VERBS: [&str; 9] = [
+const STORE_VERBS: [&str; 10] = [
     "seed",
     "propose",
     "validate",
@@ -1064,6 +1138,7 @@ const STORE_VERBS: [&str; 9] = [
     "head",
     "transactions",
     "ontology",
+    "resolve",
 ];
 
 /// Whether `stderr` is `form` followed by `": "` or the end of the line: the refusal's whole name,

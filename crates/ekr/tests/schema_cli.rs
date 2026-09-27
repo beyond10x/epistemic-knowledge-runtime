@@ -25,8 +25,15 @@ const TRANSACTION: &str = "ekr.transaction-document/2";
 const TRANSACTION_V1: &str = "ekr.transaction-document/1";
 const SEED: &str = "ekr-seed/2";
 const HOST: &str = "ekr.cli-host/1";
+/// The document `ekr resolve` reads: it has no alias, so its entry names it twice.
+const TYPED_REFERENCE: &str = "typed-reference";
 /// `(format, the alias `ekr example` also accepts)`.
-const FORMATS: [(&str, &str); 3] = [(TRANSACTION, "transaction"), (SEED, "seed"), (HOST, "host")];
+const FORMATS: [(&str, &str); 4] = [
+    (TRANSACTION, "transaction"),
+    (SEED, "seed"),
+    (HOST, "host"),
+    (TYPED_REFERENCE, TYPED_REFERENCE),
+];
 const DRAFT_2020_12: &str = "https://json-schema.org/draft/2020-12/schema";
 
 /// A fresh `ekr` process with no inherited `EKR_*` configuration.
@@ -89,6 +96,9 @@ fn read(format: &str, document: &str) -> Result<(), String> {
             .map(drop)
             .map_err(|e| e.to_string()),
         HOST => CliHostConfigurationV1::from_json(document.as_bytes())
+            .map(drop)
+            .map_err(|e| e.to_string()),
+        TYPED_REFERENCE => serde_yaml_ng::from_str::<ekr_integrate::TypedReference>(document)
             .map(drop)
             .map_err(|e| e.to_string()),
         other => panic!("no reader for {other}"),
@@ -431,6 +441,36 @@ fn refused_documents(format: &str) -> Vec<(&'static str, String)> {
             });
             documents
         }
+        TYPED_REFERENCE => vec![
+            (
+                "missing aliases",
+                edit(&example, "aliases:\n- Globex\n", ""),
+            ),
+            (
+                "unknown field",
+                edit(&example, "aliases:\n", "canonical_name: Globex\naliases:\n"),
+            ),
+            (
+                "type_id is not an id",
+                edit(
+                    &example,
+                    "type_id: 00000000-0000-4000-8000-000000000202",
+                    "type_id: Organization",
+                ),
+            ),
+            (
+                "type_id is uppercase",
+                edit(
+                    &example,
+                    "type_id: 00000000-0000-4000-8000-000000000202",
+                    "type_id: 00000000-0000-4000-8000-00000000020A",
+                ),
+            ),
+            (
+                "aliases is one text, not a list",
+                edit(&example, "aliases:\n- Globex\n", "aliases: Globex\n"),
+            ),
+        ],
         other => panic!("no refusals for {other}"),
     }
 }
@@ -546,6 +586,17 @@ fn accepted_documents(format: &str) -> Vec<(&'static str, String)> {
             "the host document on one line",
             serde_json::to_string(&serde_json::from_str::<Value>(&example).unwrap()).unwrap(),
         )],
+        TYPED_REFERENCE => vec![
+            (
+                "no aliases (decoded; the resolver refuses it as reference-without-identity)",
+                edit(&example, "aliases:\n- Globex\n", "aliases: []\n"),
+            ),
+            (
+                "the reference on one line, one alias repeated",
+                "{type_id: 00000000-0000-4000-8000-000000000202, aliases: [Globex, Globex]}\n"
+                    .to_owned(),
+            ),
+        ],
         other => panic!("no acceptances for {other}"),
     }
 }
