@@ -22,6 +22,14 @@ use serde_json::Value;
 /// The three addresses the page may read, and no other.
 const ADDRESSES: [&str; 3] = ["/projection", "/roles", "/evidence/"];
 
+/// The only scripts the page loads from elsewhere, each pinned to one version.
+const LIBRARIES: [&str; 4] = [
+    "https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js",
+    "https://cdn.jsdelivr.net/npm/graphology-library@0.8.0/dist/graphology-library.min.js",
+    "https://cdn.jsdelivr.net/npm/sigma@3.0.3/dist/sigma.min.js",
+    "https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.0/dist/3d-force-graph.min.js",
+];
+
 fn manifest_dir() -> PathBuf {
     PathBuf::from(
         std::env::var("CARGO_MANIFEST_DIR")
@@ -388,9 +396,106 @@ fn absolute_literals(page: &str) -> Vec<String> {
     found
 }
 
+/// The page with its pinned library tags and its policy line taken out, after checking that each
+/// tag is there exactly once, pinned, with a sha384 integrity and no credentials, and that the
+/// policy allows exactly those scripts, blob workers and reads from this server.
+fn without_pinned_libraries(page: &str) -> String {
+    let mut rest = page.to_owned();
+    for url in LIBRARIES {
+        let start = format!("<script src=\"{url}\" integrity=\"sha384-");
+        assert_eq!(
+            rest.matches(&start).count(),
+            1,
+            "the page loads {url} once, with a sha384 integrity"
+        );
+        let at = rest.find(&start).unwrap();
+        let end = at + rest[at..].find("</script>").unwrap() + "</script>".len();
+        let tag = rest[at..end].to_owned();
+        let digest = tag[start.len()..].split('"').next().unwrap();
+        assert_eq!(
+            digest.len(),
+            64,
+            "{url}: a sha384 digest is 64 base64 characters"
+        );
+        assert!(
+            digest
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '+' || c == '/'),
+            "{url}: {digest}"
+        );
+        assert!(
+            tag.ends_with("\" crossorigin=\"anonymous\" referrerpolicy=\"no-referrer\"></script>"),
+            "{tag}"
+        );
+        rest.replace_range(at..end, "");
+    }
+    let line = rest
+        .lines()
+        .find(|line| line.contains("Content-Security-Policy"))
+        .expect("the page carries a Content-Security-Policy")
+        .to_owned();
+    let policy = line
+        .split("content=\"")
+        .nth(1)
+        .and_then(|content| content.split('"').next())
+        .unwrap();
+    let directives: Vec<(String, Vec<String>)> = policy
+        .split(';')
+        .map(str::trim)
+        .filter(|directive| !directive.is_empty())
+        .map(|directive| {
+            let mut words = directive.split_whitespace().map(str::to_owned);
+            (words.next().unwrap(), words.collect())
+        })
+        .collect();
+    let sources = |name: &str| -> Vec<String> {
+        directives
+            .iter()
+            .find(|(directive, _)| directive == name)
+            .map(|(_, sources)| sources.clone())
+            .unwrap_or_else(|| panic!("the policy has no {name}: {policy}"))
+    };
+    let mut scripts = sources("script-src");
+    scripts.sort();
+    let mut expected: Vec<String> = LIBRARIES.iter().map(|url| (*url).to_owned()).collect();
+    expected.push("'unsafe-inline'".to_owned());
+    expected.sort();
+    assert_eq!(
+        scripts, expected,
+        "script-src is exactly the pinned libraries"
+    );
+    assert_eq!(sources("default-src"), ["'none'"], "{policy}");
+    assert_eq!(sources("connect-src"), ["'self'"], "{policy}");
+    assert_eq!(sources("worker-src"), ["blob:"], "{policy}");
+    let names: Vec<&str> = directives.iter().map(|(name, _)| name.as_str()).collect();
+    assert_eq!(
+        names,
+        [
+            "default-src",
+            "script-src",
+            "worker-src",
+            "style-src",
+            "connect-src"
+        ],
+        "{policy}"
+    );
+    assert!(!policy.contains("unsafe-eval"), "{policy}");
+    rest.replace(&line, "")
+}
+
+#[test]
+fn the_embedded_page_loads_only_the_pinned_libraries_by_integrity() {
+    let rest = without_pinned_libraries(&page());
+    assert!(!rest.contains("<script src"), "no other script is loaded");
+    assert!(
+        !rest.contains("cdn.jsdelivr.net"),
+        "no other library address"
+    );
+}
+
 #[test]
 fn the_embedded_page_reads_only_the_projection_the_roles_and_evidence() {
-    let page = page();
+    let page = without_pinned_libraries(&page());
     let literals = absolute_literals(&page);
     let others: Vec<&String> = literals
         .iter()
@@ -427,12 +532,6 @@ fn the_embedded_page_reads_only_the_projection_the_roles_and_evidence() {
     ] {
         assert!(!page.contains(forbidden), "the page carries {forbidden:?}");
     }
-    let policy = page
-        .lines()
-        .find(|line| line.contains("Content-Security-Policy"))
-        .expect("the page carries a Content-Security-Policy");
-    assert!(policy.contains("default-src 'none'"), "{policy}");
-    assert!(policy.contains("connect-src 'self'"), "{policy}");
 }
 
 #[test]
@@ -494,7 +593,8 @@ fn rendered(browser: &Path, url: &str) -> String {
     let output = Command::new(browser)
         .args([
             "--headless",
-            "--disable-gpu",
+            "--use-angle=swiftshader",
+            "--enable-unsafe-swiftshader",
             "--no-sandbox",
             "--no-first-run",
             "--disable-extensions",
@@ -595,4 +695,161 @@ fn the_page_renders_each_store_from_its_own_projection_in_a_headless_browser() {
             fixture.display()
         );
     }
+}
+
+/// How many node types, edge types, nodes, edges and relation assertions the generated store holds.
+const GENERATED: (usize, usize, usize, usize, usize) = (6, 3, 5000, 10000, 400);
+
+/// An id of the generated store: `space` tells kinds of object apart, `n` numbers them.
+fn generated_id(space: u16, n: usize) -> String {
+    format!("00000000-0000-4000-{:04x}-{n:012x}", 0x8100 + space)
+}
+
+/// Writes a store fixture of `GENERATED`'s size into `directory`, from structure only: types are
+/// `type-<n>`, nodes `entity-<n>`, edge types `link-<n>`, every edge type joins every node type,
+/// and the edges are a fixed pseudo-random draw.
+fn generated_fixture(directory: &Path) {
+    use std::fmt::Write as _;
+    let (types, edge_types, nodes, edges, relations) = GENERATED;
+    let evidence = directory.join("payload");
+    std::fs::write(&evidence, b"generated evidence").unwrap();
+    let hashed = Command::new(env!("CARGO_BIN_EXE_ekr"))
+        .args(["hash", &evidence.display().to_string()])
+        .output()
+        .unwrap();
+    let hashed: Value = serde_json::from_slice(&hashed.stdout).unwrap();
+    let hash = hashed["content_hash"].as_str().unwrap();
+    let payload = hashed["payload_yaml"].as_str().unwrap();
+    let version = generated_id(0, 1);
+    let root = generated_id(0, 2);
+    let operator = "00000000-0000-4000-8000-000000000101";
+    let evidence_id = generated_id(5, 1);
+    let type_ids: Vec<String> = (1..=types).map(|n| generated_id(1, n)).collect();
+    let listed = |ids: &[String]| -> String {
+        ids.iter().fold(String::new(), |mut out, id| {
+            let _ = write!(out, "\n    - {id}");
+            out
+        })
+    };
+    let mut yaml = format!(
+        "format: ekr-seed/2\nontology:\n  version:\n    id: {version}\n    number: 0\n    parent: null\n    created_at: 0\n  node_types:\n"
+    );
+    for (n, id) in type_ids.iter().enumerate() {
+        let _ = write!(
+            yaml,
+            "  - id: {id}\n    name: type-{}\n    parents: []\n    properties: {{}}\n    abstract_type: false\n    lifecycle: null\n    operations: {{}}\n",
+            n + 1
+        );
+    }
+    yaml.push_str("  edge_types:\n");
+    for n in 1..=edge_types {
+        let _ = write!(
+            yaml,
+            "  - id: {}\n    name: link-{n}\n    source_types:{}\n    target_types:{}\n    cardinality: Many\n    properties: {{}}\n    inverse: null\n    symmetric: false\n    transitive: false\n",
+            generated_id(2, n),
+            listed(&type_ids),
+            listed(&type_ids)
+        );
+    }
+    let _ = write!(
+        yaml,
+        "graph:\n  format: ekr.graph-document/2\n  graph:\n    root:\n      id: {root}\n      space: Canonical\n      schema_version_id: {version}\n      parent: null\n      created_at: 0\n    revision: 0\n    nodes:\n"
+    );
+    for n in 1..=nodes {
+        let id = generated_id(3, n);
+        let _ = write!(
+            yaml,
+            "      {id}:\n        id: {id}\n        root_id: {root}\n        type_id: {}\n        canonical_name: entity-{n}\n        aliases: []\n        type_state: null\n        properties: {{}}\n",
+            type_ids[n % types]
+        );
+    }
+    // A fixed linear congruential draw, so every run holds the same graph.
+    let mut draw = 0x2545_f491_u64;
+    let mut next = |bound: usize| -> usize {
+        draw = draw
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        usize::try_from(draw >> 33).unwrap() % bound
+    };
+    yaml.push_str("    edges:\n");
+    for n in 1..=edges {
+        let id = generated_id(4, n);
+        let source = 1 + next(nodes);
+        let target = 1 + (source + next(nodes - 1)) % nodes;
+        let _ = write!(
+            yaml,
+            "      {id}:\n        id: {id}\n        root_id: {root}\n        type_id: {}\n        source: {}\n        target: {}\n        properties: {{}}\n",
+            generated_id(2, 1 + n % edge_types),
+            generated_id(3, source),
+            generated_id(3, target)
+        );
+    }
+    yaml.push_str("    assertions:\n");
+    for n in 1..=relations {
+        let id = generated_id(6, n);
+        let subject = 1 + next(nodes);
+        let object = 1 + (subject + next(nodes - 1)) % nodes;
+        let from = 1_700_000_000_000_i64 + i64::try_from(n).unwrap() * 86_400_000;
+        let _ = write!(
+            yaml,
+            "      {id}:\n        id: {id}\n        root_id: {root}\n        subject: !Node {}\n        predicate: !Relation {}\n        object: !Node {}\n        evidence:\n        - {evidence_id}\n        proposed_by: {operator}\n        assessment: Proposed\n        lifecycle: Active\n        valid_time:\n          from: {from}\n          to: null\n        transaction_time:\n          recorded_from: 0\n          recorded_to: null\n",
+            generated_id(3, subject),
+            generated_id(2, 1 + n % edge_types),
+            generated_id(3, object)
+        );
+    }
+    let _ = write!(
+        yaml,
+        "    evidence:\n      {evidence_id}:\n        id: {evidence_id}\n        source: !HumanStatement\n          identity: generated\n        content_hash: {hash}\n        extracted_by: {operator}\n        observed_at: 1700000000000\n        confidence: 10000\nevidence_payloads:\n  {hash}: {payload}\n"
+    );
+    std::fs::write(directory.join("seed.yaml"), yaml).unwrap();
+    std::fs::copy(
+        manifest_dir().join("tests/fixtures/view-page/sounding/host.json"),
+        directory.join("host.json"),
+    )
+    .unwrap();
+}
+
+#[test]
+fn a_generated_store_of_five_thousand_nodes_and_ten_thousand_edges_is_served_by_name_free_page() {
+    let (_, _, nodes, edges, relations) = GENERATED;
+    let fixture = tempfile::tempdir().unwrap();
+    generated_fixture(fixture.path());
+    // A copy for a manual measurement in a real browser, when one is asked for.
+    if let Ok(keep) = std::env::var("EKR_VIEW_GENERATED_DIR") {
+        std::fs::create_dir_all(&keep).unwrap();
+        for file in ["seed.yaml", "host.json"] {
+            std::fs::copy(fixture.path().join(file), Path::new(&keep).join(file)).unwrap();
+        }
+    }
+    let seeded = Seeded::new(fixture.path());
+    let projection = seeded.projection();
+    assert_eq!(projection["meta"]["node_count"], nodes);
+    assert_eq!(projection["meta"]["edge_count"], edges);
+    let server = seeded.serve();
+    let (status, body) = server.get("/projection");
+    assert_eq!(status, 200);
+    assert_eq!(body, seeded.projection_bytes());
+    let names = names(&projection);
+    let page = page();
+    assert!(
+        names.iter().all(|name| !occurs_as_word(&page, name)),
+        "the page names a generated name"
+    );
+    let relation_count: usize = projection["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|node| {
+            node["assertions"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|claim| claim["predicate_kind"] == "Relation")
+                .count()
+        })
+        .sum();
+    assert_eq!(relation_count, relations);
+    // The drawing half is measured in a real-time browser, not here: a headless browser under
+    // virtual time draws the 3D view as fast as the machine allows for the whole budget.
 }
