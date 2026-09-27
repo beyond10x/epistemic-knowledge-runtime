@@ -300,11 +300,21 @@ dialog li.active { background: var(--accent); color: var(--ground); }
     return !node || state.hiddenTypes.has(node.type);
   }
 
+  // A time bound as the store holds it — a number, or the exact text of one a double cannot hold —
+  // read as a BigInt, so ordering never rounds. A missing bound is an open end and reads as null.
+  function bound(held) {
+    if (held === null || held === undefined) { return null; }
+    if (typeof held === "bigint") { return held; }
+    if (typeof held === "number" && Number.isInteger(held)) { return BigInt(held); }
+    if (typeof held === "string" && /^-?[0-9]+$/.test(held)) { return BigInt(held); }
+    throw new Error("a time bound that is not a whole number of milliseconds: " + held);
+  }
+
   function validNow(claim) {
     if (state.validAt === null) { return true; }
-    const from = typeof claim.valid_from === "number" ? claim.valid_from : -Infinity;
-    const to = typeof claim.valid_to === "number" ? claim.valid_to : Infinity;
-    return from <= state.validAt && state.validAt < to;
+    const from = bound(claim.valid_from);
+    const to = bound(claim.valid_to);
+    return (from === null || from <= state.validAt) && (to === null || state.validAt < to);
   }
 
   // The node or edge under the pointer, and everything one step from it, stay lit.
@@ -557,7 +567,8 @@ dialog li.active { background: var(--accent); color: var(--ground); }
     function camera() {
       if (!renderer) { return null; }
       const at = renderer.getCamera().getState();
-      return [at.x, at.y, at.ratio].map(function (n) { return Number(n.toFixed(4)); }).join(",");
+      // The zoom ratio keeps significant digits, so a deep zoom never writes a ratio of 0.
+      return [Number(at.x.toFixed(4)), Number(at.y.toFixed(4)), Number(at.ratio.toPrecision(6))].join(",");
     }
 
     function resize() { if (renderer) { renderer.resize(true); renderer.refresh(); } }
@@ -777,17 +788,18 @@ dialog li.active { background: var(--accent); color: var(--ground); }
     return span;
   }
 
+  // A time as a date where a date can hold it, else its exact milliseconds; a missing one is "…".
   function when(millis) {
-    if (typeof millis === "string") { return millis; }
-    if (typeof millis !== "number") { return "…"; }
-    const date = new Date(millis);
-    return isNaN(date.getTime()) ? String(millis) : date.toISOString().replace(".000Z", "Z");
+    const at = bound(millis);
+    if (at === null) { return "…"; }
+    const date = new Date(Number(at));
+    return isNaN(date.getTime()) ? at.toString() : date.toISOString().replace(".000Z", "Z");
   }
 
   // Ids share long prefixes; their tail tells them apart.
   function shortId(id) { return "…" + String(id).slice(-8); }
 
-  function span(from, to) { return when(from) + " → " + (typeof to === "number" ? when(to) : "…"); }
+  function span(from, to) { return when(from) + " → " + (bound(to) === null ? "…" : when(to)); }
 
   function nameOfId(id) {
     const node = state.nodeById.get(id);
@@ -820,7 +832,7 @@ dialog li.active { background: var(--accent); color: var(--ground); }
     const parts = [projected.kind];
     if (typeof projected.at_revision === "number") { parts.push("at revision " + projected.at_revision); }
     if (projected.by) { parts.push("by " + projected.by); }
-    if (typeof projected.effective_from === "number") { parts.push("from " + when(projected.effective_from)); }
+    if (bound(projected.effective_from) !== null) { parts.push("from " + when(projected.effective_from)); }
     if (projected.reason) { parts.push(projected.reason); }
     return parts.join(" ");
   }
@@ -1166,8 +1178,7 @@ dialog li.active { background: var(--accent); color: var(--ground); }
   function fillValidTime(projection) {
     const bounds = [];
     const collect = function (claim) {
-      if (typeof claim.valid_from === "number") { bounds.push(claim.valid_from); }
-      if (typeof claim.valid_to === "number") { bounds.push(claim.valid_to); }
+      [bound(claim.valid_from), bound(claim.valid_to)].forEach(function (at) { if (at !== null) { bounds.push(at); } });
     };
     projection.nodes.forEach(function (node) { node.assertions.forEach(collect); });
     projection.edges.forEach(function (edge) { edge.assertions.forEach(collect); });
@@ -1182,13 +1193,15 @@ dialog li.active { background: var(--accent); color: var(--ground); }
       $("valid-at").textContent = "no assertion carries a valid time";
       return;
     }
-    const low = Math.min.apply(null, bounds);
-    const high = Math.max.apply(null, bounds);
-    validSpan = [low, high === low ? low + 1 : high];
+    let low = bounds[0];
+    let high = bounds[0];
+    bounds.forEach(function (at) { if (at < low) { low = at; } if (at > high) { high = at; } });
+    validSpan = [low, high === low ? low + 1n : high];
     all.disabled = false;
     if (state.validAt !== null) {
-      state.validAt = Math.max(validSpan[0], Math.min(validSpan[1], state.validAt));
-      slider.value = String(Math.round(((state.validAt - validSpan[0]) / (validSpan[1] - validSpan[0])) * 1000));
+      if (state.validAt < validSpan[0]) { state.validAt = validSpan[0]; }
+      if (state.validAt > validSpan[1]) { state.validAt = validSpan[1]; }
+      slider.value = String(((state.validAt - validSpan[0]) * 1000n) / (validSpan[1] - validSpan[0]));
     }
     all.checked = state.validAt === null;
     slider.disabled = state.validAt === null;
@@ -1199,7 +1212,7 @@ dialog li.active { background: var(--accent); color: var(--ground); }
     if (!validSpan || $("valid-all").checked) {
       state.validAt = null;
     } else {
-      state.validAt = Math.round(validSpan[0] + (Number($("valid").value) / 1000) * (validSpan[1] - validSpan[0]));
+      state.validAt = validSpan[0] + ((validSpan[1] - validSpan[0]) * BigInt($("valid").value)) / 1000n;
     }
     $("valid").disabled = state.validAt === null;
     $("valid-at").textContent = state.validAt === null ? "all valid time" : when(state.validAt);
@@ -1282,7 +1295,7 @@ dialog li.active { background: var(--accent); color: var(--ground); }
     });
     state.evidenceShown = params.get("evidence") || null;
     const valid = params.get("valid");
-    state.validAt = valid !== null && /^-?[0-9]+$/.test(valid) ? Number(valid) : null;
+    state.validAt = valid !== null && /^-?[0-9]+$/.test(valid) ? BigInt(valid) : null;
     // A camera from the URL is used only when it can be a camera: a 2D zoom ratio above zero, and
     // a 3D position off the point it looks at. Anything else falls back to the default view.
     const camera = numbers(params.get("camera"), 3);
