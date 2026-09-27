@@ -36,9 +36,10 @@
 //!
 //! The outcome depends on the set of the reference's aliases, not their order or repetition: the
 //! aliases a [`ResolutionOutcome::ProposeNew`] or a [`ResolutionRefusal`] carries are sorted
-//! byte-wise and deduplicated. A refusal echoes the reference as given, empty alias included; a
-//! proposal carries only the aliases that identify. Candidates are read from the snapshot's
-//! id-ordered node map. Two permutations of one input give byte-identical outcomes.
+//! byte-wise and deduplicated. A refusal echoes the reference with its aliases sorted and
+//! deduplicated, an empty alias included; a proposal carries only the aliases that identify, which
+//! is every alias but the empty string. Candidates are read from the snapshot's id-ordered node
+//! map. Two permutations of one input give byte-identical outcomes.
 //!
 //! # No writer
 //!

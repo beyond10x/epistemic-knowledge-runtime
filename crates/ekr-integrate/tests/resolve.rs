@@ -302,6 +302,23 @@ fn a_reference_to_a_type_the_ontology_does_not_declare_is_refused_as_undeclared(
 }
 
 #[test]
+fn a_whitespace_only_alias_is_an_identity_matched_byte_for_byte() {
+    let t = types();
+    let state = graph([
+        node(1, t.person, "Space", &[" "]),
+        node(2, t.person, "Two spaces", &["  "]),
+        node(3, t.person, "Tab", &["\t"]),
+    ]);
+    assert_eq!(
+        resolve(GraphSnapshot::of(&state), &reference(t.person, &[" "])),
+        ResolutionOutcome::Resolved(ResolvedReference {
+            node_id: node_id(1)
+        }),
+        "only the empty string identifies nothing; \" \" is not refused and is not trimmed"
+    );
+}
+
+#[test]
 fn an_empty_alias_identifies_nothing_and_is_not_carried_into_a_proposal() {
     let t = types();
     let state = graph([node(1, t.person, "Blank", &[""])]);
