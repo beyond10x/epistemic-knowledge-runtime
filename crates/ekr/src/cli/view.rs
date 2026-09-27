@@ -3,17 +3,21 @@
 //!
 //! The server is a [`TcpListener`] bound to 127.0.0.1, with `httparse` reading request heads; it
 //! is blocking, and no async runtime exists anywhere in the process. An accept thread hands each
-//! connection to a short-lived thread of its own, which sets 5 s read and write timeouts, reads at
-//! most 16 KiB of request head and parses it. It never reads a body. It sends what it parsed
-//! over a channel to the one thread that opened the [`Runtime`], gets the response bytes back,
-//! writes them with `Connection: close`, and closes. So every store call runs on that one thread,
-//! outside any Tokio context, as `architecture-decision-record:0006-ekr-store-bridges-the-async-port`
-//! requires, and a client that stalls holds only its own thread, for at most its timeout.
+//! connection to a short-lived thread of its own, at most 64 in flight; one more is answered 503
+//! `busy` at once and closed, unread. The connection's deadline is fixed at accept: its whole head
+//! must arrive within 5 s of it, every read waits only for what is left, and a head not complete
+//! by then is 400. The thread reads at most 16 KiB of request head and parses it; it never reads a
+//! body. It sends what it parsed over a channel to the one thread that opened the [`Runtime`],
+//! gets the response bytes back, writes them with `Connection: close` (each write waiting at most
+//! 5 s), and closes. So every store call runs on that one thread, outside any Tokio context, as
+//! `architecture-decision-record:0006-ekr-store-bridges-the-async-port` requires, and a client
+//! that stalls holds one of the 64 places for at most 10 s.
 //!
 //! Before any store call a request is refused unless it carries exactly one `Host` header naming
-//! this server, `127.0.0.1:<port>` or `localhost:<port>` (421 otherwise, so a page reached through
-//! DNS rebinding is served nothing), and unless it announces no body: any `Content-Length` above
-//! zero or any `Transfer-Encoding` is 413, answered without reading the body.
+//! this server, `127.0.0.1:<port>` or `localhost:<port>` — on port 80 also `127.0.0.1` or
+//! `localhost` alone, as a browser sends it — (421 otherwise, so a page reached through DNS
+//! rebinding is served nothing), and unless it announces no body: any `Content-Length` above zero
+//! or any `Transfer-Encoding` is 413, answered without reading the body.
 //!
 //! Nothing here proposes, validates, commits or seeds: the only store calls are
 //! [`ekr_views::project`], [`Runtime::snapshot`] and [`Runtime::content`]. A local read-only page
@@ -29,7 +33,8 @@
 //! | any other path | 404 |
 //! | a `GET` of those paths that announces a body | 413 |
 //! | any request whose `Host` is not this server's | 421 |
-//! | a head that does not parse, or is not complete within 16 KiB or 5 s | 400 |
+//! | a head that does not parse, or is not complete within 16 KiB or 5 s of accept | 400 |
+//! | a connection while 64 are in flight | 503 `busy`, unread |
 //!
 //! Every response carries `X-Content-Type-Options: nosniff`, `Cache-Control: no-store` and
 //! `Connection: close`, and no cookie or CORS header. Record text is untrusted evidence (A14) and
@@ -38,8 +43,10 @@
 
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpListener, TcpStream};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{channel, Sender};
-use std::time::Duration;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use ekr_core::{EvidenceId, RevisionNumber};
 use ekr_kernel::Runtime;
@@ -59,8 +66,10 @@ const BYTES: &str = "application/octet-stream";
 const HEAD_LIMIT: usize = 16 * 1024;
 /// The most header lines a request head may carry.
 const HEADER_LIMIT: usize = 64;
-/// How long a connection waits for its client to send or to take the answer.
+/// How long after accept a connection has to send its whole head, and how long a write waits.
 const TIMEOUT: Duration = Duration::from_secs(5);
+/// The most connections in flight at once; one more is answered 503 without being read.
+const IN_FLIGHT_LIMIT: usize = 64;
 
 /// One parsed request and where its answer goes: from a connection thread to the store thread.
 type Job = (Asked, Sender<Vec<u8>>);
@@ -97,16 +106,56 @@ pub(super) fn run(runtime: &Runtime, port: u16) -> Result<String, Failure> {
     Err(Failure::fault("the accept loop stopped"))
 }
 
-/// Hands every accepted connection to a short-lived thread of its own.
+/// One connection in flight: counted while it lives, released when its thread ends, however it
+/// ends.
+struct InFlight(Arc<AtomicUsize>);
+
+impl InFlight {
+    /// Counts one more connection, or `None` when [`IN_FLIGHT_LIMIT`] are already in flight.
+    fn admit(count: &Arc<AtomicUsize>) -> Option<Self> {
+        let admitted = count
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |now| {
+                (now < IN_FLIGHT_LIMIT).then_some(now + 1)
+            })
+            .is_ok();
+        admitted.then(|| Self(Arc::clone(count)))
+    }
+}
+
+impl Drop for InFlight {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::AcqRel);
+    }
+}
+
+/// Hands every accepted connection to a short-lived thread of its own, at most
+/// [`IN_FLIGHT_LIMIT`] at a time; one over the cap is answered 503 at once and closed, unread.
 fn accept(listener: &TcpListener, jobs: &Sender<Job>) {
+    let in_flight = Arc::new(AtomicUsize::new(0));
     for stream in listener.incoming() {
         match stream {
-            Ok(stream) => {
+            Ok(mut stream) => {
+                let deadline = Instant::now() + TIMEOUT;
+                let Some(counted) = InFlight::admit(&in_flight) else {
+                    let busy = Reply::text(
+                        503,
+                        format!("busy: {IN_FLIGHT_LIMIT} connections are in flight"),
+                    );
+                    // A client that does not take 200 bytes within the second is its own business.
+                    let _ = stream
+                        .set_write_timeout(Some(Duration::from_secs(1)))
+                        .and_then(|()| stream.write_all(&busy.into_bytes()))
+                        .and_then(|()| stream.shutdown(Shutdown::Write));
+                    continue;
+                };
                 let jobs = jobs.clone();
-                // A thread that cannot start drops the connection, which closes it.
+                // A thread that cannot start drops the connection and the count with it.
                 let _ = std::thread::Builder::new()
                     .name("ekr-view-connection".to_owned())
-                    .spawn(move || connection(stream, &jobs));
+                    .spawn(move || {
+                        let _counted = counted;
+                        connection(stream, deadline, &jobs);
+                    });
             }
             // Out of descriptors or a connection reset before accept: take the next one.
             Err(_) => std::thread::sleep(Duration::from_millis(10)),
@@ -114,15 +163,26 @@ fn accept(listener: &TcpListener, jobs: &Sender<Job>) {
     }
 }
 
-/// One connection: read and parse the head, get the answer from the store thread, write it,
-/// close. The body, if any, is never read.
-fn connection(mut stream: TcpStream, jobs: &Sender<Job>) {
-    if stream.set_read_timeout(Some(TIMEOUT)).is_err()
-        || stream.set_write_timeout(Some(TIMEOUT)).is_err()
-    {
+/// One connection: read and parse the head by `deadline`, get the answer from the store thread,
+/// write it, close. The body, if any, is never read.
+fn connection(stream: TcpStream, deadline: Instant, jobs: &Sender<Job>) {
+    if stream.set_write_timeout(Some(TIMEOUT)).is_err() {
         return;
     }
-    let bytes = match read_head(&mut stream) {
+    let mut stream = stream;
+    let head = {
+        let mut reader = &stream;
+        read_head(&mut reader, || {
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return Err(late());
+            }
+            stream
+                .set_read_timeout(Some(left))
+                .map_err(|error| format!("setting the read timeout: {error}"))
+        })
+    };
+    let bytes = match head {
         Ok(asked) => {
             let (reply_to, reply) = channel();
             if jobs.send((asked, reply_to)).is_err() {
@@ -140,15 +200,37 @@ fn connection(mut stream: TcpStream, jobs: &Sender<Job>) {
     let _ = stream.shutdown(Shutdown::Write);
 }
 
+/// Why a head that did not arrive in time is refused.
+fn late() -> String {
+    format!(
+        "the request head was not complete within {} s of the connection",
+        TIMEOUT.as_secs()
+    )
+}
+
 /// Reads one request head, at most [`HEAD_LIMIT`] bytes of it, and what [`answer`] needs of it.
-fn read_head(stream: &mut impl Read) -> Result<Asked, String> {
+/// `before_read` runs before every read: it gives the read what is left of the connection's
+/// deadline as its timeout, or refuses once the deadline has passed.
+fn read_head(
+    stream: &mut impl Read,
+    mut before_read: impl FnMut() -> Result<(), String>,
+) -> Result<Asked, String> {
     let mut head = Vec::with_capacity(1024);
     let mut chunk = [0_u8; 4096];
     loop {
+        before_read()?;
         let room = (HEAD_LIMIT - head.len()).min(chunk.len());
         let read = match stream.read(&mut chunk[..room]) {
             Ok(0) => return Err("the connection closed before the request head ended".to_owned()),
             Ok(read) => read,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                return Err(late())
+            }
             Err(error) => return Err(format!("reading the request head: {error}")),
         };
         head.extend_from_slice(&chunk[..read]);
@@ -241,6 +323,7 @@ impl Reply {
             404 => "Not Found",
             405 => "Method Not Allowed",
             413 => "Content Too Large",
+            503 => "Service Unavailable",
             421 => "Misdirected Request",
             _ => "Internal Server Error",
         };
@@ -294,12 +377,21 @@ struct Asked {
 }
 
 /// Whether `hosts` is exactly one `Host`, naming this server's own loopback authority. A page
-/// reached through DNS rebinding sends its own name, and is served nothing.
+/// reached through DNS rebinding sends its own name, and is served nothing. On port 80 a browser
+/// leaves the port out, so there `127.0.0.1` and `localhost` alone are the server's own too.
 fn own_host(hosts: &[String], port: u16) -> bool {
-    match hosts {
-        [host] => *host == format!("127.0.0.1:{port}") || *host == format!("localhost:{port}"),
-        _ => false,
-    }
+    let [host] = hosts else {
+        return false;
+    };
+    let (name, given) = match host.rsplit_once(':') {
+        Some((name, given)) => (name, Some(given)),
+        None => (host.as_str(), None),
+    };
+    let names_port = match given {
+        Some(given) => given == port.to_string(),
+        None => port == 80,
+    };
+    matches!(name, "127.0.0.1" | "localhost") && names_port
 }
 
 /// Answers one request, and touches the store only for a `GET` of a known path that names this
@@ -405,6 +497,107 @@ fn content_type(bytes: &[u8]) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A reader with no deadline, for heads read from memory.
+    #[allow(clippy::unnecessary_wraps)]
+    fn no_deadline() -> Result<(), String> {
+        Ok(())
+    }
+
+    #[test]
+    fn a_head_is_refused_once_its_deadline_has_passed_whatever_the_bytes_so_far() {
+        let text = b"GET / HTTP/1.1\r\nHost: 127.0.0.1:9\r\n\r\n";
+        let mut reads = 0;
+        let refused = read_head(&mut &text[..], || {
+            reads += 1;
+            Err(late())
+        });
+        assert_eq!(refused, Err(late()));
+        assert_eq!(reads, 1, "the deadline is checked before the first read");
+        // A dribbled head is read one byte per call; the deadline passes after the fifth.
+        let mut left = 5;
+        let refused = read_head(&mut Dribble(&text[..]), || {
+            if left == 0 {
+                return Err(late());
+            }
+            left -= 1;
+            Ok(())
+        });
+        assert_eq!(refused, Err(late()));
+    }
+
+    /// Hands out one byte per read.
+    struct Dribble<'a>(&'a [u8]);
+
+    impl Read for Dribble<'_> {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            let Some((first, rest)) = self.0.split_first() else {
+                return Ok(0);
+            };
+            buf[0] = *first;
+            self.0 = rest;
+            Ok(1)
+        }
+    }
+
+    #[test]
+    fn a_timed_out_read_is_the_late_refusal() {
+        struct Stalled;
+        impl Read for Stalled {
+            fn read(&mut self, _: &mut [u8]) -> std::io::Result<usize> {
+                Err(std::io::ErrorKind::WouldBlock.into())
+            }
+        }
+        assert_eq!(read_head(&mut Stalled, no_deadline), Err(late()));
+    }
+
+    #[test]
+    fn in_flight_is_capped_and_released_on_drop() {
+        let count = Arc::new(AtomicUsize::new(0));
+        let held: Vec<InFlight> = (0..IN_FLIGHT_LIMIT)
+            .map(|_| InFlight::admit(&count).unwrap())
+            .collect();
+        assert!(InFlight::admit(&count).is_none());
+        assert_eq!(count.load(Ordering::Acquire), IN_FLIGHT_LIMIT);
+        drop(held);
+        assert_eq!(count.load(Ordering::Acquire), 0);
+        assert!(InFlight::admit(&count).is_some());
+    }
+
+    #[test]
+    fn a_busy_reply_is_a_503_like_every_other() {
+        let bytes = Reply::text(503, "busy").into_bytes();
+        let head = String::from_utf8_lossy(&bytes).to_ascii_lowercase();
+        assert!(
+            head.starts_with("http/1.1 503 service unavailable\r\n"),
+            "{head}"
+        );
+        assert!(
+            head.contains("\r\nx-content-type-options: nosniff\r\n"),
+            "{head}"
+        );
+        assert!(head.contains("\r\ncache-control: no-store\r\n"), "{head}");
+        assert!(head.contains("\r\nconnection: close\r\n"), "{head}");
+    }
+
+    #[test]
+    fn on_port_80_a_host_without_a_port_is_its_own() {
+        let one = |host: &str| vec![host.to_owned()];
+        for host in ["127.0.0.1", "localhost", "127.0.0.1:80", "localhost:80"] {
+            assert!(own_host(&one(host), 80), "{host}");
+        }
+        for host in ["127.0.0.1", "localhost"] {
+            assert!(!own_host(&one(host), 8080), "{host} on 8080");
+        }
+        for host in [
+            "127.0.0.1:8080",
+            "rebound.example",
+            "LOCALHOST",
+            "127.0.0.1:",
+        ] {
+            assert!(!own_host(&one(host), 80), "{host}");
+        }
+    }
 
     #[test]
     fn utf8_bytes_are_text_and_any_other_bytes_are_an_octet_stream() {
@@ -516,7 +709,7 @@ mod tests {
     #[test]
     fn a_head_is_read_to_its_end_and_never_past_it() {
         let text = b"GET /projection?revision=0 HTTP/1.1\r\nHost: 127.0.0.1:9\r\n\r\nBODY";
-        let asked = read_head(&mut &text[..]).unwrap();
+        let asked = read_head(&mut &text[..], no_deadline).unwrap();
         assert_eq!(
             asked,
             Asked {
@@ -535,12 +728,18 @@ mod tests {
         for header in announcing {
             let text = format!("GET / HTTP/1.1\r\nHost: h\r\n{header}\r\n\r\n");
             assert!(
-                read_head(&mut text.as_bytes()).unwrap().announces_body,
+                read_head(&mut text.as_bytes(), no_deadline)
+                    .unwrap()
+                    .announces_body,
                 "{header}"
             );
         }
         let zero = "GET / HTTP/1.1\r\nHost: h\r\nContent-Length: 0\r\n\r\n";
-        assert!(!read_head(&mut zero.as_bytes()).unwrap().announces_body);
+        assert!(
+            !read_head(&mut zero.as_bytes(), no_deadline)
+                .unwrap()
+                .announces_body
+        );
     }
 
     #[test]
@@ -561,7 +760,10 @@ mod tests {
             &oversized,
             &many,
         ] {
-            assert!(read_head(&mut text.as_bytes()).is_err(), "{text:?}");
+            assert!(
+                read_head(&mut text.as_bytes(), no_deadline).is_err(),
+                "{text:?}"
+            );
         }
     }
 }

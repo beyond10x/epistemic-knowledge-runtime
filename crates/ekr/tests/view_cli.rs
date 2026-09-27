@@ -560,6 +560,40 @@ fn ekr_view_answers_a_malformed_or_oversized_head_with_its_own_400() {
     server.stop();
 }
 
+/// With 64 connections in flight, the 65th is answered 503 `busy` at once, unread; once those 64
+/// reach their 5 s deadline and are refused, the viewer serves again.
+#[test]
+fn ekr_view_answers_busy_over_64_connections_and_serves_again_after_their_deadline() {
+    let world = World::seeded_with_two_revisions("file");
+    let server = world.serve();
+    let address = server.address();
+    let held: Vec<TcpStream> = (0..64)
+        .map(|_| {
+            let mut stream = TcpStream::connect(&address).unwrap();
+            write!(stream, "GET / HTTP/1.1\r\n").unwrap();
+            stream
+        })
+        .collect();
+    // Let the accept thread count all 64 before the next one arrives.
+    std::thread::sleep(Duration::from_millis(500));
+    let asked = std::time::Instant::now();
+    let busy = server.get("/projection");
+    assert_eq!(busy.status, 503, "the 65th connection");
+    assert!(
+        asked.elapsed() < Duration::from_secs(2),
+        "answered at once: {:?}",
+        asked.elapsed()
+    );
+    assert!(String::from_utf8_lossy(&busy.body).starts_with("busy"));
+    busy.assert_plain("503 busy");
+    assert_eq!(busy.header("connection"), Some("close"));
+    assert_eq!(busy.header("cache-control"), Some("no-store"));
+    std::thread::sleep(Duration::from_secs(6));
+    assert_eq!(server.get("/projection").status, 200, "after the deadline");
+    drop(held);
+    server.stop();
+}
+
 #[test]
 fn ekr_view_opens_an_existing_store_only() {
     for backend in BACKENDS {

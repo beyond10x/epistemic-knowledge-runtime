@@ -298,9 +298,11 @@ prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`, then answers:
 
 Any other method is 405 and any other path 404. A request that announces a body (a
 `Content-Length` above zero or any `Transfer-Encoding`) is 413; the body is never read. A request
-head that does not parse, or is not complete within 16 KiB or 5 seconds, is 400. A request
-whose `Host` header is not exactly `127.0.0.1:<port>` or `localhost:<port>`, or that has none, is
-421 and is served nothing, so a web page that reaches the port under another name through DNS
+head that does not parse, or is not complete within 16 KiB or 5 seconds of the connection being
+accepted, is 400. At most 64 connections are served at once; one more is answered 503 (`busy`) at
+once and closed. A request whose `Host` header is not exactly `127.0.0.1:<port>` or
+`localhost:<port>` (on port 80 also `127.0.0.1` or `localhost` alone), or that has none, is 421
+and is served nothing, so a web page that reaches the port under another name through DNS
 rebinding reads nothing. Every response carries `X-Content-Type-Options: nosniff`,
 `Cache-Control: no-store` and `Connection: close`, and none sets a cookie or allows another
 origin. Evidence text is
