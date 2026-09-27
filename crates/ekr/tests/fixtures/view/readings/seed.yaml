@@ -1,0 +1,276 @@
+format: ekr-seed/2
+ontology:
+  version:
+    id: 00000000-0000-4000-8000-000000001001
+    number: 0
+    parent: null
+    created_at: 0
+  node_types:
+  - id: 00000000-0000-4000-8000-000000001101
+    name: Telemetry
+    parents: []
+    properties:
+      00000000-0000-4000-8000-000000001301:
+        id: 00000000-0000-4000-8000-000000001301
+        name: telemetry_level
+        value_type:
+          value_kind: Integer
+        cardinality: One
+        required: false
+        constraints: []
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-000000001102
+    name: Outage
+    parents: []
+    properties:
+      00000000-0000-4000-8000-000000001302:
+        id: 00000000-0000-4000-8000-000000001302
+        name: outage_severity
+        value_type:
+          value_kind: String
+        cardinality: One
+        required: false
+        constraints: []
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-000000001103
+    name: Sensor
+    parents: []
+    properties:
+      00000000-0000-4000-8000-000000001303:
+        id: 00000000-0000-4000-8000-000000001303
+        name: sensor_serial
+        value_type:
+          value_kind: String
+        cardinality: One
+        required: false
+        constraints: []
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-000000001104
+    name: Facility
+    parents: []
+    properties: {}
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-000000001105
+    name: Marker
+    parents: []
+    properties: {}
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  edge_types:
+  - id: 00000000-0000-4000-8000-000000001201
+    name: TELEMETRY_OF
+    source_types:
+    - 00000000-0000-4000-8000-000000001101
+    target_types:
+    - 00000000-0000-4000-8000-000000001102
+    cardinality: Many
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+  - id: 00000000-0000-4000-8000-000000001202
+    name: AFFECTS_UNIT
+    source_types:
+    - 00000000-0000-4000-8000-000000001102
+    target_types:
+    - 00000000-0000-4000-8000-000000001103
+    cardinality: Many
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+  - id: 00000000-0000-4000-8000-000000001203
+    name: OCCURRED_AT_FACILITY
+    source_types:
+    - 00000000-0000-4000-8000-000000001102
+    target_types:
+    - 00000000-0000-4000-8000-000000001104
+    cardinality: One
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+  - id: 00000000-0000-4000-8000-000000001204
+    name: INSTALLED_AT
+    source_types:
+    - 00000000-0000-4000-8000-000000001103
+    target_types:
+    - 00000000-0000-4000-8000-000000001104
+    cardinality: One
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+  - id: 00000000-0000-4000-8000-000000001205
+    name: REFINES_MARKER
+    source_types:
+    - 00000000-0000-4000-8000-000000001105
+    target_types:
+    - 00000000-0000-4000-8000-000000001105
+    cardinality: Many
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+graph:
+  format: ekr.graph-document/2
+  graph:
+    root:
+      id: 00000000-0000-4000-8000-000000001002
+      space: Canonical
+      schema_version_id: 00000000-0000-4000-8000-000000001001
+      parent: null
+      created_at: 0
+    revision: 0
+    nodes:
+      00000000-0000-4000-8000-000000001401:
+        id: 00000000-0000-4000-8000-000000001401
+        root_id: 00000000-0000-4000-8000-000000001002
+        type_id: 00000000-0000-4000-8000-000000001101
+        canonical_name: Telemetry burst 17
+        aliases: []
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-000000001402:
+        id: 00000000-0000-4000-8000-000000001402
+        root_id: 00000000-0000-4000-8000-000000001002
+        type_id: 00000000-0000-4000-8000-000000001102
+        canonical_name: Outage window 3
+        aliases:
+        - Outage 3
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-000000001403:
+        id: 00000000-0000-4000-8000-000000001403
+        root_id: 00000000-0000-4000-8000-000000001002
+        type_id: 00000000-0000-4000-8000-000000001103
+        canonical_name: Sensor unit K2
+        aliases: []
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-000000001404:
+        id: 00000000-0000-4000-8000-000000001404
+        root_id: 00000000-0000-4000-8000-000000001002
+        type_id: 00000000-0000-4000-8000-000000001104
+        canonical_name: Facility west annex
+        aliases: []
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-000000001405:
+        id: 00000000-0000-4000-8000-000000001405
+        root_id: 00000000-0000-4000-8000-000000001002
+        type_id: 00000000-0000-4000-8000-000000001105
+        canonical_name: Marker draft amber
+        aliases: []
+        type_state: null
+        properties: {}
+    edges:
+      00000000-0000-4000-8000-000000001701:
+        id: 00000000-0000-4000-8000-000000001701
+        root_id: 00000000-0000-4000-8000-000000001002
+        type_id: 00000000-0000-4000-8000-000000001202
+        source: 00000000-0000-4000-8000-000000001402
+        target: 00000000-0000-4000-8000-000000001403
+        properties: {}
+      00000000-0000-4000-8000-000000001702:
+        id: 00000000-0000-4000-8000-000000001702
+        root_id: 00000000-0000-4000-8000-000000001002
+        type_id: 00000000-0000-4000-8000-000000001204
+        source: 00000000-0000-4000-8000-000000001403
+        target: 00000000-0000-4000-8000-000000001404
+        properties: {}
+    assertions:
+      00000000-0000-4000-8000-000000001501:
+        id: 00000000-0000-4000-8000-000000001501
+        root_id: 00000000-0000-4000-8000-000000001002
+        subject: !Node 00000000-0000-4000-8000-000000001401
+        predicate: !Property 00000000-0000-4000-8000-000000001301
+        object: !Value
+          value_kind: Integer
+          value: 42
+        evidence:
+        - 00000000-0000-4000-8000-000000001601
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: 1767225600000
+          to: 1767229200000
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+      00000000-0000-4000-8000-000000001502:
+        id: 00000000-0000-4000-8000-000000001502
+        root_id: 00000000-0000-4000-8000-000000001002
+        subject: !Node 00000000-0000-4000-8000-000000001401
+        predicate: !Relation 00000000-0000-4000-8000-000000001201
+        object: !Node 00000000-0000-4000-8000-000000001402
+        evidence:
+        - 00000000-0000-4000-8000-000000001601
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: null
+          to: null
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+      00000000-0000-4000-8000-000000001503:
+        id: 00000000-0000-4000-8000-000000001503
+        root_id: 00000000-0000-4000-8000-000000001002
+        subject: !Node 00000000-0000-4000-8000-000000001402
+        predicate: !Property 00000000-0000-4000-8000-000000001302
+        object: !Value
+          value_kind: String
+          value: partial
+        evidence:
+        - 00000000-0000-4000-8000-000000001601
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: 1767225600000
+          to: 1767240000000
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+      00000000-0000-4000-8000-000000001504:
+        id: 00000000-0000-4000-8000-000000001504
+        root_id: 00000000-0000-4000-8000-000000001002
+        subject: !Node 00000000-0000-4000-8000-000000001403
+        predicate: !Property 00000000-0000-4000-8000-000000001303
+        object: !Value
+          value_kind: String
+          value: K2-0007
+        evidence:
+        - 00000000-0000-4000-8000-000000001601
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: null
+          to: null
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+    evidence:
+      00000000-0000-4000-8000-000000001601:
+        id: 00000000-0000-4000-8000-000000001601
+        source: !HumanStatement
+          identity: Runtime operator
+        content_hash: d6c9cf308b67fe95a4aca69c9be385c2df3728d2d37edcf0082028677c7b0dda
+        extracted_by: 00000000-0000-4000-8000-000000000101
+        observed_at: 1767243600000
+        confidence: 10000
+evidence_payloads:
+  d6c9cf308b67fe95a4aca69c9be385c2df3728d2d37edcf0082028677c7b0dda: [65, 32, 115, 121, 110, 116, 104, 101, 116, 105, 99, 32, 115, 116, 97, 116, 101, 109, 101, 110, 116, 32, 114, 101, 99, 111, 114, 100, 101, 100, 32, 102, 111, 114, 32, 97, 32, 118, 105, 101, 119, 32, 102, 105, 120, 116, 117, 114, 101, 46]

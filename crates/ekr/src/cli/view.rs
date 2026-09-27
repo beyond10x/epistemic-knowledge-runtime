@@ -20,7 +20,8 @@
 //! or any `Transfer-Encoding` is 413, answered without reading the body.
 //!
 //! Nothing here proposes, validates, commits or seeds: the only store calls are
-//! [`ekr_views::project`], [`Runtime::snapshot`] and [`Runtime::content`]. A local read-only page
+//! [`ekr_views::project`], [`ekr_views::load`], [`Runtime::snapshot`] and [`Runtime::content`].
+//! A local read-only page
 //! is not an outward write (design § 82, § 83).
 //!
 //! | request | answer |
@@ -28,6 +29,7 @@
 //! | `GET /` | the embedded viewer page, `text/html; charset=utf-8` |
 //! | `GET /projection` | the `ekr.graph-projection/1` bytes `ekr-views` renders at the head, `application/json` |
 //! | `GET /projection?revision=N` | the same at revision `N`; an absent revision is 404 `ekr.views.RevisionNotFound` |
+//! | `GET /roles[?revision=N]` | the `ekr.view-roles/1` node-type roles of that revision (the head when absent), derived by [`super::view_roles`] from the same loaded revision the projection renders, `application/json`; refused as `/projection` refuses |
 //! | `GET /evidence/<evidence id>` | that evidence's retained bytes, `text/plain; charset=utf-8` when they are UTF-8, else `application/octet-stream`; 404 for an unknown id or bytes not retained |
 //! | any other method on those paths | 405, with `Allow: GET` |
 //! | any other path | 404 |
@@ -350,6 +352,7 @@ impl Reply {
 enum Route<'a> {
     Page,
     Projection,
+    Roles,
     Evidence(&'a str),
 }
 
@@ -357,6 +360,7 @@ fn route(path: &str) -> Option<Route<'_>> {
     match path {
         "/" => Some(Route::Page),
         "/projection" => Some(Route::Projection),
+        "/roles" => Some(Route::Roles),
         _ => path
             .strip_prefix("/evidence/")
             .filter(|id| !id.is_empty() && !id.contains('/'))
@@ -421,25 +425,30 @@ fn answer(runtime: &Runtime, port: u16, asked: &Asked) -> Reply {
     match route {
         Route::Page => Reply::ok(HTML, PAGE.as_bytes().to_vec()),
         Route::Projection => projection(runtime, query),
+        Route::Roles => roles(runtime, query),
         Route::Evidence(id) => evidence(runtime, id),
     }
 }
 
-/// The revision a projection query names: none, or exactly `revision=N`.
+/// The revision a `/projection` or `/roles` query names: none for an empty query, else the query
+/// is exactly `revision=N` with `N` one or more ASCII digits that fit a `u64`. Anything else —
+/// an empty pair, a second pair, a sign, a space, another digit script — is refused.
 fn revision(query: &str) -> Result<Option<RevisionNumber>, String> {
-    let mut revision = None;
-    for pair in query.split('&').filter(|pair| !pair.is_empty()) {
-        match pair.split_once('=') {
-            Some(("revision", value)) if revision.is_none() => {
-                let number = value
-                    .parse::<u64>()
-                    .map_err(|_| format!("revision {value:?} is not a revision number"))?;
-                revision = Some(RevisionNumber::new(number));
-            }
-            _ => return Err(format!("the query {query:?} is not `revision=N`")),
-        }
+    if query.is_empty() {
+        return Ok(None);
     }
-    Ok(revision)
+    let Some(value) = query.strip_prefix("revision=") else {
+        return Err(format!("the query {query:?} is not `revision=N`"));
+    };
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(format!(
+            "the query {query:?} is not `revision=N` with N a decimal revision number"
+        ));
+    }
+    let number = value
+        .parse::<u64>()
+        .map_err(|_| format!("revision {value:?} is not a revision number"))?;
+    Ok(Some(RevisionNumber::new(number)))
 }
 
 fn projection(runtime: &Runtime, query: &str) -> Reply {
@@ -449,13 +458,31 @@ fn projection(runtime: &Runtime, query: &str) -> Reply {
     };
     match ekr_views::project(runtime, at) {
         Ok(rendered) => Reply::ok(JSON, rendered.bytes),
-        Err(error @ ProjectError::RevisionNotFound { .. }) => {
+        Err(error) => refused("projection", error),
+    }
+}
+
+/// The `ekr.view-roles/1` body of the revision the query names, from the same loaded revision
+/// [`ekr_views::project`] renders, refused exactly as [`projection`] refuses.
+fn roles(runtime: &Runtime, query: &str) -> Reply {
+    let at = match revision(query) {
+        Ok(at) => at,
+        Err(message) => return Reply::refusal(400, "invalid-query", message),
+    };
+    match ekr_views::load(runtime, at) {
+        Ok(loaded) => Reply::ok(JSON, super::view_roles::document(&loaded.graph)),
+        Err(error) => refused("roles", error),
+    }
+}
+
+/// A revision that could not be loaded or rendered: the named 404s, or a 500 for `what`.
+fn refused(what: &str, error: ProjectError) -> Reply {
+    match error {
+        error @ ProjectError::RevisionNotFound { .. } => {
             Reply::refusal(404, "ekr.views.RevisionNotFound", error)
         }
-        Err(error @ ProjectError::NotSeeded { .. }) => {
-            Reply::refusal(404, "ekr.views.NotSeeded", error)
-        }
-        Err(error) => Reply::text(500, format!("projection: {error}")),
+        error @ ProjectError::NotSeeded { .. } => Reply::refusal(404, "ekr.views.NotSeeded", error),
+        error => Reply::text(500, format!("{what}: {error}")),
     }
 }
 
@@ -619,6 +646,13 @@ mod tests {
             "at=1",
             "revision=1&revision=2",
             "revision",
+            "&",
+            "revision=1&",
+            "&revision=1",
+            "revision=+0",
+            "revision= 1",
+            "revision=1 ",
+            "revision=٣",
         ] {
             assert!(revision(bad).is_err(), "{bad}");
         }
@@ -651,9 +685,10 @@ mod tests {
     }
 
     #[test]
-    fn only_the_three_routes_exist() {
+    fn only_the_four_routes_exist() {
         assert!(matches!(route("/"), Some(Route::Page)));
         assert!(matches!(route("/projection"), Some(Route::Projection)));
+        assert!(matches!(route("/roles"), Some(Route::Roles)));
         assert!(matches!(
             route("/evidence/abc"),
             Some(Route::Evidence("abc"))
@@ -662,6 +697,7 @@ mod tests {
             "",
             "/index.html",
             "/projection/",
+            "/roles/",
             "/evidence/",
             "/evidence/a/b",
             "/evidence",
