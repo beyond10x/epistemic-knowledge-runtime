@@ -8,6 +8,10 @@
 //! [`uuid::Uuid::now_v7`], whose leading 48 bits are a millisecond timestamp, so ids sort roughly
 //! in creation order without carrying meaning.
 //!
+//! One id is derived rather than minted: an [`ObservationId`] made by `ekr-observe` from an
+//! observation's idempotency key (design § 56: source, source-native id, content hash), marked as
+//! a version 8 UUID. It is derived from the record's bytes, which nobody edits, never from a name.
+//!
 //! The types are distinct on purpose: an `EdgeId` where a `NodeId` belongs is a compile error, not
 //! a runtime one. Each names the ESS declaration it comes from.
 
@@ -93,8 +97,8 @@ macro_rules! id_newtype {
                 Self(Uuid::now_v7().as_u128())
             }
 
-            /// Rebuilds the id from a UUID that was minted before — a stored one, or one an
-            /// import carries.
+            /// Rebuilds the id from a UUID that was minted or derived before — a stored one, one
+            /// an import carries, or a derived observation id.
             #[must_use]
             pub const fn from_uuid(uuid: Uuid) -> Self {
                 Self(uuid.as_u128())

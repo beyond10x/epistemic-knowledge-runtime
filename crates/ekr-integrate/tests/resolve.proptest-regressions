@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc d69c7ed3a864e9ee8fe9f4943e65b46b7f1c9a78c0c3572d1c43b072270a4a16 # shrinks to shape = [(false, []), (false, []), (false, []), (false, []), (false, []), (false, [])], order = [0, 1, 2, 3, 4, 5], alias_orders = [[0, 1, 2, 3], [0, 1, 2, 3], [0, 1, 2, 3], [0, 1, 2, 3], [0, 1, 2, 3], [0, 1, 2, 3]], person = false, wanted = ["r", "s"], wanted_order = [1, 0, 2, 3]

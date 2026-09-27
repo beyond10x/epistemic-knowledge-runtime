@@ -379,6 +379,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "ekr-integrate"
+version = "0.0.10"
+dependencies = [
+ "ekr-core",
+ "ekr-graph",
+ "ekr-ontology",
+ "proptest",
+ "serde",
+ "serde_json",
+ "serde_yaml_ng",
+ "tempfile",
+]
+
+[[package]]
 name = "ekr-kernel"
 version = "0.0.10"
 dependencies = [
@@ -399,6 +413,18 @@ dependencies = [
  "time",
  "tokio",
  "trybuild",
+]
+
+[[package]]
+name = "ekr-observe"
+version = "0.0.10"
+dependencies = [
+ "ekr-core",
+ "ekr-graph",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -431,6 +457,25 @@ dependencies = [
  "thiserror",
  "time",
  "tokio",
+]
+
+[[package]]
+name = "ekr-views"
+version = "0.0.10"
+dependencies = [
+ "ekr-core",
+ "ekr-graph",
+ "ekr-kernel",
+ "ekr-ontology",
+ "ess-conformance",
+ "ess-primitives",
+ "hex",
+ "serde",
+ "serde_json",
+ "serde_yaml_ng",
+ "sha2 0.11.0",
+ "tempfile",
+ "thiserror",
 ]
 
 [[package]]

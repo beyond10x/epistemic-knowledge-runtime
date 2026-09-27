@@ -2,7 +2,7 @@
 format: aep.planning-md/2
 id: story:typed-reference-resolver
 kind: story
-status: draft
+status: implemented
 title: Resolve a typed reference by alias to one node, a new-node proposal, or an ambiguity
 relations:
 - decomposes: epic:p3-incubation-integration
@@ -19,7 +19,7 @@ scope:
   path: crates/ekr-integrate
 - confidence: inferred
   path: crates/ekr/tests/adversary_docs_contract.rs
-revision: 7
+revision: 11
 ---
 ## Context
 
@@ -29,7 +29,7 @@ The rule, as far as it is decided:
 
 - A candidate is a node of the canonical root whose `type_id` equals the reference `type_id` exactly and whose `aliases` contain one of the reference aliases, compared byte for byte. `canonical_name` is never compared.
 - One candidate: `Resolved`. None: `ProposeNew`, carrying the type and aliases; nothing is written, and the caller mints the id (`ekr mint node`). More than one: `Ambiguous`, listing every candidate in id order. The resolver never picks one.
-- Refused, not guessed: a reference with no alias (`reference-without-identity`); a reference carrying identifying keys (behind `decision-blocker:typed-reference-identifying-keys`); a reference whose type is abstract or has declared descendants (`reference-type-has-subtypes`, behind `decision-blocker:typed-reference-subtype-matching`).
+- Refused, not guessed: a reference with no alias (`reference-without-identity`); a reference carrying identifying keys (behind `decision-blocker:typed-reference-identifying-keys`); a reference whose type is abstract or has declared descendants (`reference-type-has-subtypes`, behind `decision-blocker:typed-reference-subtype-matching`). Added in wave p2p3p4-02 (adversary pass 1, F2): a reference whose type the ontology does not declare (`reference-type-undeclared`, `systems/ekr/domains/integrate.yaml:61`); an empty-string alias is no identity (F1).
 
 The resolver is a pure function over `ekr-graph` canonical state and the `ekr-ontology` schema. It reads; it holds no writer (invariant 1).
 
@@ -66,3 +66,13 @@ Derived 2026-09-27 by `story-scoper`. Every line is **cited** (read from the sto
 ## Acceptance
 
 Over one canonical snapshot, a typed reference resolves to the single node of exactly its type that holds one of its aliases, to `ProposeNew` when no node does, and to `Ambiguous` listing every candidate when more than one does, and two nodes sharing a name but differing in type never resolve to each other.
+
+
+## Scope learned (wave p2p3p4-02, implementor confirmation)
+
+- `crates/ekr-integrate` — confirmed (src/lib.rs, Cargo.toml, tests/{resolve,domain_projection,manifest,adversary_resolve}.rs)
+- `Cargo.toml` (root) — **wrong** for the unit: the coordinator's opening commit added the member and the workspace dependency
+- `Cargo.lock` — confirmed (dependency lines)
+- `README.md` — **wrong** for the unit: Status already named the crate after the opening commit
+- `crates/ekr/tests/adversary_docs_contract.rs` — **wrong**: untouched; it checks README Status against the members
+- **missed by the scoper:** `systems/ekr/domains/integrate.yaml` (one refusal code), which moves `systems/ekr/conformance/{suite,views-suite,baseline}.json` at the close

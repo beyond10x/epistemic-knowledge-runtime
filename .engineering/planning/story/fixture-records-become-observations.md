@@ -2,7 +2,7 @@
 format: aep.planning-md/2
 id: story:fixture-records-become-observations
 kind: story
-status: draft
+status: implemented
 title: A synthetic JSONL fixture maps each record to one deterministic observation
 relations:
 - depends_on: story:observe-domain-model
@@ -19,7 +19,7 @@ scope:
   path: crates/ekr-observe
 - confidence: inferred
   path: crates/ekr/tests/adversary_docs_contract.rs
-revision: 8
+revision: 12
 ---
 ## Context
 
@@ -63,3 +63,11 @@ Derived 2026-09-27 by `story-scoper`. Every line is **cited** (read from the sto
 - `crates/ekr/tests/adversary_docs_contract.rs` — inferred
 - **Would collide with:** any unit adding or removing a workspace member (`Cargo.toml`, `Cargo.lock`, `README.md` § Status)
 - **Confidence:** high for the paths the story names; medium for the inferred lines
+
+
+## Scope learned (wave p2p3p4-02, implementor confirmation)
+
+- `crates/ekr-observe` — confirmed (src/lib.rs, Cargo.toml, tests/{fixture_observations,adversary_observe,adversary_pass2}.rs, tests/fixtures/source-records.jsonl)
+- `Cargo.toml` (root), `README.md`, `crates/ekr/tests/adversary_docs_contract.rs` — **wrong** for the unit: the opening commit covered them, or nothing needed changing
+- `Cargo.lock` — confirmed
+- **missed by the scoper:** `crates/ekr-core/src/identity.rs` module doc (derived observation ids), changed by the coordinator at the close

@@ -20,7 +20,8 @@ What they proved necessary and how their data enters this runtime is written dow
 0.0.10 is the latest release: the kernel, the typed graph and ontology, the store and the `ekr`
 binary, with the user documentation and schema evolution, and the executable specifications of the
 graph projection, observation and integration domains. Product crates: `ekr-core`,
-`ekr-kernel`, `ekr-ontology`, `ekr-graph`, `ekr-store`, and the `ekr` binary.
+`ekr-kernel`, `ekr-ontology`, `ekr-graph`, `ekr-store`, `ekr-views`, `ekr-observe`,
+`ekr-integrate`, and the `ekr` binary.
 
 Repository utility: `xtask`.
 

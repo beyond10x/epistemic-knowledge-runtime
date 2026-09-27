@@ -1,0 +1,23 @@
+[package]
+name = "ekr-integrate"
+description = "Integration: typed references resolved against one canonical snapshot"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+ekr-core.workspace = true
+ekr-graph.workspace = true
+ekr-ontology.workspace = true
+serde.workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+serde_json.workspace = true
+serde_yaml_ng.workspace = true
+tempfile.workspace = true
+
+[lints]
+workspace = true

@@ -8,6 +8,9 @@ members = [
     "crates/ekr-kernel",
     "crates/ekr-ontology",
     "crates/ekr-store",
+    "crates/ekr-views",
+    "crates/ekr-observe",
+    "crates/ekr-integrate",
     "xtask",
 ]
 
@@ -26,6 +29,9 @@ ekr-graph = { path = "crates/ekr-graph" }
 ekr-kernel = { path = "crates/ekr-kernel" }
 ekr-ontology = { path = "crates/ekr-ontology" }
 ekr-store = { path = "crates/ekr-store" }
+ekr-views = { path = "crates/ekr-views" }
+ekr-observe = { path = "crates/ekr-observe" }
+ekr-integrate = { path = "crates/ekr-integrate" }
 ess-conformance = { git = "https://github.com/beyond10x/ess", rev = "be44a3365eb273cb3d447b74cd5b0e75181d284e" }
 ess-primitives = { git = "https://github.com/beyond10x/ess", rev = "be44a3365eb273cb3d447b74cd5b0e75181d284e" }
 eventlog-core = { git = "https://github.com/beyond10x/eventlog", rev = "fe8a0a7e6e97afde87b349f0840d6e2ed28df3f8" }
