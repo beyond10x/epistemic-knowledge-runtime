@@ -160,7 +160,18 @@ dialog li.active { background: var(--accent); color: var(--ground); }
     if (!response.ok) {
       return response.text().then(function (message) { throw new Error(response.status + " " + message.trim()); });
     }
-    return response.json();
+    return response.text().then(exact);
+  }
+
+  // JSON text to values, with every integer a double cannot hold exactly kept as its source text:
+  // the page shows what the store holds, never a rounded neighbour. Strings are passed over whole,
+  // so digits inside one are never touched.
+  const TOKEN = /"(?:[^"\\]|\\.)*"|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?/g;
+  function exact(source) {
+    return JSON.parse(source.replace(TOKEN, function (token) {
+      if (token.charAt(0) === "\"" || !/^-?\d+$/.test(token) || Number.isSafeInteger(Number(token))) { return token; }
+      return "\"" + token + "\"";
+    }));
   }
 
   function query() {
@@ -177,16 +188,22 @@ dialog li.active { background: var(--accent); color: var(--ground); }
     };
     const at = query();
     const first = at === "" ? plain() : get(ROLES + at).then(function (response) {
-      return response.ok ? response.json() : plain();
+      return response.ok ? json(response) : plain();
     });
     return first.catch(function (error) { return { failed: error.message }; });
   }
 
+  // Each load is numbered; an answer that is not the latest load's is dropped, so the page never
+  // shows one revision while its URL and selector name another.
+  let loads = 0;
   function load() {
+    loads += 1;
+    const mine = loads;
     status("loading revision " + (state.revision === null ? "head" : state.revision));
     Promise.all([get(PROJECTION + query()).then(json), readRoles()])
-      .then(function (both) { accept(both[0], both[1]); })
+      .then(function (both) { if (mine === loads) { accept(both[0], both[1]); } })
       .catch(function (error) {
+        if (mine !== loads) { return; }
         status("the projection did not load: " + error.message);
         clear($("detail")).appendChild(text("p", "the projection did not load: " + error.message));
       });
@@ -761,6 +778,7 @@ dialog li.active { background: var(--accent); color: var(--ground); }
   }
 
   function when(millis) {
+    if (typeof millis === "string") { return millis; }
     if (typeof millis !== "number") { return "…"; }
     const date = new Date(millis);
     return isNaN(date.getTime()) ? String(millis) : date.toISOString().replace(".000Z", "Z");
@@ -1009,26 +1027,42 @@ dialog li.active { background: var(--accent); color: var(--ground); }
         ["retained", item.retained ? "yes" : "no"]
       ]));
     } else {
+      // Only evidence the loaded projection holds is ever read: an id from anywhere else is shown
+      // as text and never becomes part of an address.
       panel.appendChild(text("p", id + " is not in this revision's evidence", "muted"));
+      return panel;
     }
-    const body = text("pre", "reading " + id);
+    const body = text("pre", "reading " + item.id);
     panel.appendChild(body);
-    if (item && !item.retained) {
+    if (!item.retained) {
       body.textContent = "the bytes of this evidence are not retained";
       return panel;
     }
-    get(EVIDENCE + encodeURIComponent(id))
-      .then(function (response) {
-        if (!response.ok) {
-          return response.text().then(function (message) { throw new Error(response.status + " " + message.trim()); });
-        }
-        const type = response.headers.get("content-type") || "";
-        return response.arrayBuffer().then(function (bytes) {
-          body.textContent = type.indexOf("text/plain") === 0 ? new TextDecoder("utf-8").decode(bytes) : bytes.byteLength + " bytes that are not text";
-        });
-      })
-      .catch(function (error) { body.textContent = "the evidence did not load: " + error.message; });
+    evidenceText(item.id).then(function (shown) { body.textContent = shown; });
     return panel;
+  }
+
+  // One read per evidence id for the life of the page: retained evidence bytes never change under
+  // an id, and redrawing the panel (a slider, a selection) must not read them again.
+  const evidenceRead = new Map();
+  function evidenceText(id) {
+    if (!evidenceRead.has(id)) {
+      evidenceRead.set(id, get(EVIDENCE + encodeURIComponent(id))
+        .then(function (response) {
+          if (!response.ok) {
+            return response.text().then(function (message) { throw new Error(response.status + " " + message.trim()); });
+          }
+          const type = response.headers.get("content-type") || "";
+          return response.arrayBuffer().then(function (bytes) {
+            return type.indexOf("text/plain") === 0 ? new TextDecoder("utf-8").decode(bytes) : bytes.byteLength + " bytes that are not text";
+          });
+        })
+        .catch(function (error) {
+          evidenceRead.delete(id);
+          return "the evidence did not load: " + error.message;
+        }));
+    }
+    return evidenceRead.get(id);
   }
 
   // ---------- legend, schema, timeline ----------
@@ -1249,9 +1283,12 @@ dialog li.active { background: var(--accent); color: var(--ground); }
     state.evidenceShown = params.get("evidence") || null;
     const valid = params.get("valid");
     state.validAt = valid !== null && /^-?[0-9]+$/.test(valid) ? Number(valid) : null;
+    // A camera from the URL is used only when it can be a camera: a 2D zoom ratio above zero, and
+    // a 3D position off the point it looks at. Anything else falls back to the default view.
     const camera = numbers(params.get("camera"), 3);
-    state.camera = camera ? { x: camera[0], y: camera[1], ratio: camera[2], angle: 0 } : null;
-    state.camera3 = numbers(params.get("camera3"), 3);
+    state.camera = camera && camera[2] > 0 ? { x: camera[0], y: camera[1], ratio: camera[2], angle: 0 } : null;
+    const camera3 = numbers(params.get("camera3"), 3);
+    state.camera3 = camera3 && camera3.some(function (n) { return n !== 0; }) ? camera3 : null;
     const view = params.get("view");
     state.view = view === "3d" || view === "schema" ? view : "2d";
   }

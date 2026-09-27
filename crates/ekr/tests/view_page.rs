@@ -590,7 +590,10 @@ fn browser() -> Option<PathBuf> {
 /// The DOM the page has built after `url` loads and its reads settle.
 fn rendered(browser: &Path, url: &str) -> String {
     let profile = tempfile::tempdir().unwrap();
-    let output = Command::new(browser)
+    // Two cores at the lowest priority: the machine is shared.
+    let output = Command::new("taskset")
+        .args(["-c", "0-1", "nice", "-n", "19"])
+        .arg(browser)
         .args([
             "--headless",
             "--use-angle=swiftshader",
