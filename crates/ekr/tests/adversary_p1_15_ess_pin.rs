@@ -75,7 +75,7 @@ fn run_task(name: &str, reported: &str) -> (bool, String, String) {
 #[test]
 fn task_refuses_an_ess_that_is_not_the_pinned_release() {
     for task in ["spec-check", "conform-check"] {
-        for other in ["ess 0.35.0", "ess 0.35.2", "ess 0.35.1-rc.1", "ess 0.35.1 "] {
+        for other in ["ess 0.35.0", "ess 0.36.1", "ess 0.36.0-rc.1", "ess 0.36.0 "] {
             let (ok, ran, stderr) = run_task(task, other);
             assert!(!ok, "`task {task}` admitted `{other}`; it ran: {ran:?}");
             assert!(
@@ -93,7 +93,7 @@ fn task_refuses_an_ess_that_is_not_the_pinned_release() {
 /// `task spec-check` admits the pinned release and runs it.
 #[test]
 fn task_spec_check_admits_the_pinned_release() {
-    let (ok, ran, stderr) = run_task("spec-check", "ess 0.35.1");
-    assert!(ok, "`task spec-check` refused ess 0.35.1: {stderr}");
+    let (ok, ran, stderr) = run_task("spec-check", "ess 0.36.0");
+    assert!(ok, "`task spec-check` refused ess 0.36.0: {stderr}");
     assert_eq!(ran, "specify validate --path systems/ekr\n");
 }

@@ -1,0 +1,1 @@
+{"events":[],"fields":{"relation":{"created_at":1790459183574,"created_by":"agent:claude-decomposer-p4-operator-surface","id":"rel-052f835511cadf17cb10ddf64759ad48","kind":"decomposes","source":"ent-ad248e2c3fc14506297fd1e2aae7c10f","target":"ent-a591a421e436c69b1615b449a45cb888"},"removed":false},"lifecycle_state":"recorded"}

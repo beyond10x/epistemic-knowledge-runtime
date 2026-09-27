@@ -4,6 +4,32 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.10] — 2026-09-27
+
+The planning store on `aep.project/4`, AEP 0.61.1, ESS 0.36.0 and the `ess/14` source format.
+
+### Changed
+
+- The planning store moves from `aep.project/3` to `aep.project/4`
+  (`aep plan store migrate content`, AEP 0.61.1): large values are content blobs under
+  `.engineering/blobs`, stored once. The committed store shrinks from 13,818 files and 67.5 MiB
+  to 17,407 files and 26.6 MiB. The migration proved 4,296 subjects and 1,278 records equal, and
+  `aep plan artifact list`, `validate`, `history` and `explain` give byte-identical output before
+  and after for all 197 artifacts.
+- AEP 0.61.1 (from 0.60.1) for the planning store; `plan-check` refuses any other `aep`.
+  `.engineering/project.yaml` names the 0.61.1 tag commit (`b6213e1f`) as its protocols; the
+  governing documents are the same as at 0.60.1 (`a0ad90cc`), so no artifact needs a catch-up.
+- ESS 0.36.0 (from 0.35.1) for the specification and the conformance target; `spec-check` and
+  `conform-check` refuse any other `ess`. `systems/ekr/system.yaml` moves from `format: ess/13` to
+  `ess/14`, the newest source format 0.36.0 reads. The model uses none of the value expressions
+  `ess/14` adds and trips none of the rules 0.36.0 tightens, so no declaration changes; both
+  suites resynthesize byte-identical and the baseline digest is unchanged.
+
+### Known limits
+
+- `aep plan store inspect` in AEP 0.61.1 still refuses this store's selector as
+  `source_unreadable`; `migrate content` is the migration verb that reads a tree store.
+
 ## [0.0.9] — 2026-09-27
 
 ESS 0.35.1 and the `ess/13` source format, AEP 0.60.1, and the planning store on its protocols.
