@@ -6,43 +6,1077 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'">
 <title>ekr view</title>
 <style>
-body { font-family: system-ui, sans-serif; margin: 2rem; }
-table { border-collapse: collapse; }
-th, td { border: 1px solid #ccc; padding: 0.25rem 0.75rem; text-align: left; }
-#status { color: #555; }
+:root { color-scheme: light dark; --line: #8884; --muted: #888; --accent: #3b82f6; }
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { font: 13px/1.4 system-ui, sans-serif; display: grid; grid-template-rows: auto 1fr auto; }
+header, footer { display: flex; gap: 0.75rem; align-items: center; padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+footer { border-top: 1px solid var(--line); border-bottom: 0; overflow-x: auto; flex-wrap: nowrap; }
+header strong { font-size: 14px; }
+header input[type=search] { min-width: 16rem; }
+#status { color: var(--muted); margin-left: auto; }
+main { display: grid; grid-template-columns: 1fr minmax(22rem, 34%); min-height: 0; }
+#graph-view, #schema-view { position: relative; min-height: 0; overflow: hidden; }
+#schema-view { overflow: auto; padding: 0.75rem; }
+canvas { width: 100%; height: 100%; display: block; cursor: grab; }
+#legend { position: absolute; left: 0.5rem; top: 0.5rem; background: Canvas; border: 1px solid var(--line); padding: 0.4rem 0.6rem; max-height: 60%; overflow: auto; opacity: 0.94; }
+#legend ul { list-style: none; margin: 0.2rem 0; padding: 0; }
+#legend li { cursor: pointer; white-space: nowrap; }
+#legend li.off { opacity: 0.4; }
+.swatch { display: inline-block; width: 0.8em; height: 0.8em; border-radius: 50%; margin-right: 0.35em; vertical-align: -0.05em; }
+.line-key { display: inline-block; width: 1.6em; border-top: 2px solid var(--muted); margin-right: 0.35em; vertical-align: 0.25em; }
+.line-key.dashed { border-top-style: dashed; border-color: var(--accent); }
+aside { border-left: 1px solid var(--line); overflow: auto; padding: 0.75rem; min-height: 0; }
+aside h2 { margin: 0 0 0.2rem; font-size: 16px; overflow-wrap: anywhere; }
+h3 { margin: 1rem 0 0.3rem; font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+table { border-collapse: collapse; width: 100%; }
+th, td { border-bottom: 1px solid var(--line); padding: 0.2rem 0.4rem; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+th { font-weight: 600; }
+code, pre, .id { font-family: ui-monospace, monospace; font-size: 12px; }
+.muted { color: var(--muted); }
+button.link { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-align: left; }
+button.link:hover { text-decoration: underline; }
+footer button.current { font-weight: 700; outline: 2px solid var(--accent); }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; border: 1px solid var(--line); padding: 0.5rem; max-height: 24rem; overflow: auto; }
+dialog { width: min(40rem, 90vw); padding: 0.5rem; border: 1px solid var(--line); }
+dialog input { width: 100%; font: inherit; padding: 0.3rem; }
+dialog ul { list-style: none; margin: 0.4rem 0 0; padding: 0; max-height: 50vh; overflow: auto; }
+dialog li { padding: 0.2rem 0.3rem; cursor: pointer; }
+dialog li.active { background: var(--accent); color: white; }
+[hidden] { display: none !important; }
 </style>
 </head>
 <body>
-<h1>ekr view</h1>
-<p id="status">Loading the projection&hellip;</p>
-<table id="meta" hidden><tbody></tbody></table>
+<header>
+  <strong>ekr view</strong>
+  <label>revision <select id="revision"></select></label>
+  <button id="show-graph" type="button">graph</button>
+  <button id="show-schema" type="button">schema</button>
+  <input id="find" type="search" placeholder="find a node (Ctrl+K)" autocomplete="off">
+  <span id="status" role="status">loading</span>
+</header>
+<main>
+  <section id="graph-view">
+    <canvas id="canvas" aria-label="graph"></canvas>
+    <div id="legend"></div>
+  </section>
+  <section id="schema-view" hidden></section>
+  <aside id="detail"></aside>
+</main>
+<footer id="timeline" aria-label="revisions"></footer>
+<dialog id="palette">
+  <input id="palette-input" type="text" placeholder="node, edge type or view" autocomplete="off">
+  <ul id="palette-list"></ul>
+</dialog>
 <script>
 "use strict";
 (function () {
-  const status = document.getElementById("status");
-  const table = document.getElementById("meta");
-  const revision = new URLSearchParams(window.location.search).get("revision");
-  const url = revision === null ? "projection" : "projection?revision=" + encodeURIComponent(revision);
-  fetch(url, { credentials: "omit" })
-    .then(function (response) {
-      if (!response.ok) {
-        return response.text().then(function (text) { throw new Error(response.status + " " + text); });
-      }
-      return response.json();
-    })
-    .then(function (projection) {
-      const body = table.tBodies[0];
-      Object.keys(projection.meta).forEach(function (key) {
-        const row = body.insertRow();
-        row.insertCell().textContent = key;
-        row.insertCell().textContent = JSON.stringify(projection.meta[key]);
+  // The only three addresses this page reads. Every label it shows comes from what they return.
+  const PROJECTION = "/projection";
+  const ROLES = "/roles";
+  const EVIDENCE = "/evidence/";
+
+  const $ = function (id) { return document.getElementById(id); };
+  const canvas = $("canvas");
+  const context = canvas.getContext("2d");
+
+  const state = {
+    projection: null,
+    roles: new Map(),
+    rolesNote: "",
+    revision: null,
+    view: "graph",
+    selected: null,
+    hiddenTypes: new Set(),
+    nodes: [],
+    nodeById: new Map(),
+    edges: [],
+    relations: [],
+    typeName: new Map(),
+    typeColor: new Map(),
+    edgeTypeName: new Map(),
+    propertyName: new Map(),
+    evidenceById: new Map(),
+    camera: { x: 0, y: 0, scale: 1 },
+    heat: 0,
+    evidenceShown: null
+  };
+
+  // ---------- reading ----------
+
+  function get(path) {
+    return fetch(path, { credentials: "omit", cache: "no-store" });
+  }
+
+  function json(response) {
+    if (!response.ok) {
+      return response.text().then(function (text) {
+        const error = new Error(response.status + " " + text.trim());
+        error.status = response.status;
+        throw error;
       });
-      table.hidden = false;
-      status.textContent = "Projection meta, as of the revision below.";
-    })
-    .catch(function (error) {
-      status.textContent = "The projection did not load: " + error.message;
+    }
+    return response.json();
+  }
+
+  function query() {
+    return state.revision === null ? "" : "?revision=" + encodeURIComponent(state.revision);
+  }
+
+  // Roles are optional: a server without them, or one that cannot place a revision, leaves every
+  // node without a role, and every node is still shown.
+  function readRoles() {
+    const at = query();
+    const plain = function () {
+      return get(ROLES).then(function (response) {
+        if (response.status === 404) { return { absent: true }; }
+        return json(response);
+      });
+    };
+    const first = at === "" ? plain() : get(ROLES + at).then(function (response) {
+      return response.ok ? response.json() : plain();
     });
+    return first.catch(function (error) { return { failed: error.message }; });
+  }
+
+  function load() {
+    status("loading revision " + (state.revision === null ? "head" : state.revision));
+    Promise.all([get(PROJECTION + query()).then(json), readRoles()])
+      .then(function (both) {
+        accept(both[0], both[1]);
+      })
+      .catch(function (error) {
+        status("the projection did not load: " + error.message);
+        clear($("detail")).appendChild(text("p", "the projection did not load: " + error.message));
+      });
+  }
+
+  // ---------- indexing ----------
+
+  function accept(projection, roles) {
+    state.projection = projection;
+    state.typeName = new Map();
+    state.typeColor = new Map();
+    state.edgeTypeName = new Map();
+    state.propertyName = new Map();
+    state.evidenceById = new Map();
+    const ontology = projection.ontology;
+    ontology.node_types.forEach(function (type, index) {
+      state.typeName.set(type.id, type.name);
+      state.typeColor.set(type.id, "hsl(" + Math.round((index * 137.508) % 360) + " 62% 52%)");
+    });
+    ontology.edge_types.forEach(function (type) { state.edgeTypeName.set(type.id, type.name); });
+    ontology.properties.forEach(function (property) { state.propertyName.set(property.id, property.name); });
+    projection.evidence.forEach(function (item) { state.evidenceById.set(item.id, item); });
+
+    state.roles = new Map();
+    if (roles && Array.isArray(roles.node_types)) {
+      roles.node_types.forEach(function (entry) {
+        if (entry && typeof entry.type_id === "string" && typeof entry.role === "string") {
+          state.roles.set(entry.type_id, entry.role);
+        }
+      });
+      state.rolesNote = "roles of revision " + roles.revision;
+    } else if (roles && roles.absent) {
+      state.rolesNote = "no roles served";
+    } else {
+      state.rolesNote = "roles did not load" + (roles && roles.failed ? ": " + roles.failed : "");
+    }
+
+    const previous = new Map(state.nodes.map(function (node) { return [node.id, node]; }));
+    state.nodes = projection.nodes.map(function (node) {
+      const was = previous.get(node.id);
+      return {
+        id: node.id,
+        data: node,
+        role: state.roles.get(node.type) || null,
+        x: was ? was.x : (Math.random() - 0.5) * 400,
+        y: was ? was.y : (Math.random() - 0.5) * 400,
+        vx: 0,
+        vy: 0,
+        time: earliest(node),
+        degree: 0
+      };
+    });
+    state.nodeById = new Map(state.nodes.map(function (node) { return [node.id, node]; }));
+    state.edges = projection.edges
+      .filter(function (edge) { return state.nodeById.has(edge.source) && state.nodeById.has(edge.target); })
+      .map(function (edge) {
+        return { id: edge.id, data: edge, source: state.nodeById.get(edge.source), target: state.nodeById.get(edge.target) };
+      });
+    // A relation assertion is drawn as a link of its own, never merged into an edge.
+    state.relations = [];
+    projection.nodes.forEach(function (node) {
+      node.assertions.forEach(function (claim) {
+        if (claim.predicate_kind === "Relation" && claim.object_kind === "Node" && state.nodeById.has(claim.object_ref)) {
+          state.relations.push({ id: claim.id, data: claim, source: state.nodeById.get(node.id), target: state.nodeById.get(claim.object_ref) });
+        }
+      });
+    });
+    state.edges.concat(state.relations).forEach(function (link) {
+      link.source.degree += 1;
+      link.target.degree += 1;
+    });
+    placeByRole();
+
+    fillRevisions(projection);
+    fillLegend();
+    fillSchema();
+    const selected = state.selected;
+    if (selected && !(findNode(selected.id) || findEdge(selected.id))) { state.selected = null; }
+    showDetail();
+    status(
+      "revision " + projection.meta.revision + " of " + projection.meta.head + " · " +
+      projection.meta.node_count + " node · " + projection.meta.edge_count + " edge · " +
+      projection.meta.assertion_count + " assertion · " + projection.meta.evidence_count + " evidence · " +
+      state.rolesNote
+    );
+    state.heat = 1;
+    resize();
+    fit();
+    writeUrl();
+  }
+
+  function earliest(node) {
+    let at = null;
+    node.assertions.forEach(function (claim) {
+      const when = typeof claim.valid_from === "number" ? claim.valid_from : claim.recorded_from;
+      if (typeof when === "number" && (at === null || when < at)) { at = when; }
+    });
+    return at;
+  }
+
+  function findNode(id) { return state.projection && state.projection.nodes.find(function (node) { return node.id === id; }); }
+  function findEdge(id) { return state.projection && state.projection.edges.find(function (edge) { return edge.id === id; }); }
+
+  // ---------- layout ----------
+
+  // With roles, subjects hold the middle band, events a band below ordered by time, and
+  // observations a band above; a node without a role moves freely. Without roles, all move freely.
+  const BAND = 260;
+
+  function bandOf(node) {
+    if (node.role === "subject") { return 0; }
+    if (node.role === "event") { return BAND; }
+    if (node.role === "observation") { return -BAND; }
+    return null;
+  }
+
+  function placeByRole() {
+    const times = state.nodes.filter(function (node) { return node.role === "event" && node.time !== null; })
+      .map(function (node) { return node.time; });
+    const low = times.length ? Math.min.apply(null, times) : 0;
+    const high = times.length ? Math.max.apply(null, times) : 1;
+    const width = Math.max(400, Math.sqrt(state.nodes.length) * 90);
+    state.nodes.forEach(function (node) {
+      node.band = bandOf(node);
+      node.lane = null;
+      if (node.role === "event" && node.time !== null) {
+        node.lane = high === low ? 0 : ((node.time - low) / (high - low) - 0.5) * width;
+      }
+      if (node.band !== null && Math.abs(node.y - node.band) > BAND / 2) {
+        node.y = node.band + (Math.random() - 0.5) * 40;
+      }
+      if (node.lane !== null) { node.x = node.lane; }
+    });
+  }
+
+  function tick() {
+    const nodes = state.nodes;
+    const count = nodes.length;
+    if (count === 0) { return; }
+    const alpha = state.heat;
+    const repulsion = 2400;
+    const stride = count > 1200 ? Math.ceil(count / 1200) : 1;
+    for (let i = 0; i < count; i += 1) {
+      const a = nodes[i];
+      for (let j = (i % stride) + i + 1; j < count; j += stride) {
+        const b = nodes[j];
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let distance = dx * dx + dy * dy;
+        if (distance < 0.01) { dx = Math.random(); dy = Math.random(); distance = 1; }
+        const force = (repulsion * stride) / distance;
+        const length = Math.sqrt(distance);
+        a.vx += (dx / length) * force * alpha;
+        a.vy += (dy / length) * force * alpha;
+        b.vx -= (dx / length) * force * alpha;
+        b.vy -= (dy / length) * force * alpha;
+      }
+    }
+    state.edges.concat(state.relations).forEach(function (link) {
+      const dx = link.target.x - link.source.x;
+      const dy = link.target.y - link.source.y;
+      const length = Math.sqrt(dx * dx + dy * dy) || 1;
+      const pull = (length - 90) * 0.02 * alpha;
+      link.source.vx += (dx / length) * pull;
+      link.source.vy += (dy / length) * pull;
+      link.target.vx -= (dx / length) * pull;
+      link.target.vy -= (dy / length) * pull;
+    });
+    nodes.forEach(function (node) {
+      if (node.band !== null) { node.vy += (node.band - node.y) * 0.06 * alpha; } else { node.vy -= node.y * 0.004 * alpha; }
+      if (node.lane !== null) { node.vx += (node.lane - node.x) * 0.06 * alpha; } else { node.vx -= node.x * 0.004 * alpha; }
+      if (node === state.dragging) { node.vx = 0; node.vy = 0; return; }
+      node.vx *= 0.6;
+      node.vy *= 0.6;
+      node.x += Math.max(-40, Math.min(40, node.vx));
+      node.y += Math.max(-40, Math.min(40, node.vy));
+    });
+    state.heat = Math.max(0, alpha * 0.985 - 0.0005);
+  }
+
+  // ---------- drawing ----------
+
+  function resize() {
+    const ratio = window.devicePixelRatio || 1;
+    const box = canvas.getBoundingClientRect();
+    canvas.width = Math.max(1, Math.round(box.width * ratio));
+    canvas.height = Math.max(1, Math.round(box.height * ratio));
+    state.ratio = ratio;
+  }
+
+  function fit() {
+    const shown = state.nodes.filter(visible);
+    if (shown.length === 0) { state.camera = { x: 0, y: 0, scale: 1 }; return; }
+    let minX = Infinity; let maxX = -Infinity; let minY = Infinity; let maxY = -Infinity;
+    shown.forEach(function (node) {
+      minX = Math.min(minX, node.x); maxX = Math.max(maxX, node.x);
+      minY = Math.min(minY, node.y); maxY = Math.max(maxY, node.y);
+    });
+    const box = canvas.getBoundingClientRect();
+    const scale = Math.min(box.width / (maxX - minX + 160), box.height / (maxY - minY + 160));
+    state.camera = { x: (minX + maxX) / 2, y: (minY + maxY) / 2, scale: Math.max(0.05, Math.min(2.5, scale || 1)) };
+  }
+
+  function visible(node) { return !state.hiddenTypes.has(node.data.type); }
+
+  function toScreen(x, y) {
+    const box = canvas.getBoundingClientRect();
+    return [(x - state.camera.x) * state.camera.scale + box.width / 2, (y - state.camera.y) * state.camera.scale + box.height / 2];
+  }
+
+  function toWorld(sx, sy) {
+    const box = canvas.getBoundingClientRect();
+    return [(sx - box.width / 2) / state.camera.scale + state.camera.x, (sy - box.height / 2) / state.camera.scale + state.camera.y];
+  }
+
+  function styleColor(name, fallback) {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    return value || fallback;
+  }
+
+  function draw() {
+    const ratio = state.ratio || 1;
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
+    const box = canvas.getBoundingClientRect();
+    context.clearRect(0, 0, box.width, box.height);
+    const selectedId = state.selected ? state.selected.id : null;
+    const near = new Set();
+    const muted = styleColor("--muted", "#888");
+    const accent = styleColor("--accent", "#3b82f6");
+    const foreground = getComputedStyle(document.body).color;
+
+    if (state.nodes.some(function (node) { return node.band !== null; })) {
+      context.fillStyle = muted;
+      context.globalAlpha = 0.08;
+      [-BAND, 0, BAND].forEach(function (band) {
+        const top = toScreen(0, band - BAND / 2.6)[1];
+        const bottom = toScreen(0, band + BAND / 2.6)[1];
+        context.fillRect(0, top, box.width, bottom - top);
+      });
+      context.globalAlpha = 1;
+    }
+
+    function line(link, dashed) {
+      if (!visible(link.source) || !visible(link.target)) { return; }
+      const a = toScreen(link.source.x, link.source.y);
+      const b = toScreen(link.target.x, link.target.y);
+      const chosen = link.id === selectedId || link.source.id === selectedId || link.target.id === selectedId;
+      if (chosen) { near.add(link.source.id); near.add(link.target.id); }
+      context.beginPath();
+      context.setLineDash(dashed ? [6, 4] : []);
+      const lifecycle = dashed ? link.data.lifecycle.kind : "Active";
+      context.globalAlpha = lifecycle === "Active" ? (chosen ? 1 : 0.55) : 0.2;
+      context.strokeStyle = dashed ? accent : muted;
+      context.lineWidth = chosen ? 2.2 : 1.1;
+      if (dashed) {
+        const mx = (a[0] + b[0]) / 2 - (b[1] - a[1]) * 0.15;
+        const my = (a[1] + b[1]) / 2 + (b[0] - a[0]) * 0.15;
+        context.moveTo(a[0], a[1]);
+        context.quadraticCurveTo(mx, my, b[0], b[1]);
+        arrow(mx, my, b[0], b[1]);
+      } else {
+        context.moveTo(a[0], a[1]);
+        context.lineTo(b[0], b[1]);
+        arrow(a[0], a[1], b[0], b[1]);
+      }
+      context.stroke();
+      context.globalAlpha = 1;
+    }
+
+    function arrow(fromX, fromY, x, y) {
+      const angle = Math.atan2(y - fromY, x - fromX);
+      const back = 9;
+      const tipX = x - Math.cos(angle) * back;
+      const tipY = y - Math.sin(angle) * back;
+      context.moveTo(tipX, tipY);
+      context.lineTo(tipX - Math.cos(angle - 0.4) * 7, tipY - Math.sin(angle - 0.4) * 7);
+      context.moveTo(tipX, tipY);
+      context.lineTo(tipX - Math.cos(angle + 0.4) * 7, tipY - Math.sin(angle + 0.4) * 7);
+    }
+
+    state.edges.forEach(function (edge) { line(edge, false); });
+    state.relations.forEach(function (relation) { line(relation, true); });
+    context.setLineDash([]);
+
+    const labelAll = state.camera.scale > 0.7 || state.nodes.length < 60;
+    context.font = "12px system-ui, sans-serif";
+    state.nodes.forEach(function (node) {
+      if (!visible(node)) { return; }
+      const at = toScreen(node.x, node.y);
+      const radius = 4 + Math.min(8, Math.sqrt(node.degree) * 1.6);
+      context.beginPath();
+      context.arc(at[0], at[1], radius, 0, Math.PI * 2);
+      context.fillStyle = state.typeColor.get(node.data.type) || muted;
+      context.fill();
+      if (node.id === selectedId) {
+        context.lineWidth = 3;
+        context.strokeStyle = accent;
+        context.stroke();
+      }
+      if (labelAll || node.id === selectedId || near.has(node.id)) {
+        context.fillStyle = foreground;
+        context.fillText(node.data.name, at[0] + radius + 3, at[1] + 4);
+      }
+    });
+  }
+
+  function frame() {
+    if (state.view === "graph" && state.projection) {
+      if (state.heat > 0.002) { tick(); }
+      draw();
+    }
+    window.requestAnimationFrame(frame);
+  }
+
+  // ---------- pointer ----------
+
+  function nodeAt(sx, sy) {
+    let best = null;
+    let bestDistance = 14 * 14;
+    state.nodes.forEach(function (node) {
+      if (!visible(node)) { return; }
+      const at = toScreen(node.x, node.y);
+      const distance = (at[0] - sx) * (at[0] - sx) + (at[1] - sy) * (at[1] - sy);
+      if (distance < bestDistance) { best = node; bestDistance = distance; }
+    });
+    return best;
+  }
+
+  function linkAt(sx, sy) {
+    let best = null;
+    let bestDistance = 6;
+    state.edges.concat(state.relations).forEach(function (link) {
+      if (!visible(link.source) || !visible(link.target)) { return; }
+      const a = toScreen(link.source.x, link.source.y);
+      const b = toScreen(link.target.x, link.target.y);
+      const dx = b[0] - a[0];
+      const dy = b[1] - a[1];
+      const length = dx * dx + dy * dy || 1;
+      const t = Math.max(0, Math.min(1, ((sx - a[0]) * dx + (sy - a[1]) * dy) / length));
+      const distance = Math.hypot(a[0] + t * dx - sx, a[1] + t * dy - sy);
+      if (distance < bestDistance) { best = link; bestDistance = distance; }
+    });
+    return best;
+  }
+
+  function pointer(event) {
+    const box = canvas.getBoundingClientRect();
+    return [event.clientX - box.left, event.clientY - box.top];
+  }
+
+  let press = null;
+  canvas.addEventListener("pointerdown", function (event) {
+    const at = pointer(event);
+    const node = nodeAt(at[0], at[1]);
+    press = { at: at, camera: { x: state.camera.x, y: state.camera.y }, node: node, moved: false };
+    state.dragging = node;
+    canvas.setPointerCapture(event.pointerId);
+  });
+  canvas.addEventListener("pointermove", function (event) {
+    if (!press) { return; }
+    const at = pointer(event);
+    if (Math.hypot(at[0] - press.at[0], at[1] - press.at[1]) > 3) { press.moved = true; }
+    if (press.node) {
+      const world = toWorld(at[0], at[1]);
+      press.node.x = world[0];
+      press.node.y = world[1];
+      state.heat = Math.max(state.heat, 0.2);
+    } else {
+      state.camera.x = press.camera.x - (at[0] - press.at[0]) / state.camera.scale;
+      state.camera.y = press.camera.y - (at[1] - press.at[1]) / state.camera.scale;
+    }
+  });
+  canvas.addEventListener("pointerup", function (event) {
+    if (press && !press.moved) {
+      const at = pointer(event);
+      const node = press.node || null;
+      const link = node ? null : linkAt(at[0], at[1]);
+      if (node) { select("node", node.id); } else if (link) { select(state.edges.indexOf(link) >= 0 ? "edge" : "assertion", link.id); } else { select(null, null); }
+    }
+    press = null;
+    state.dragging = null;
+  });
+  canvas.addEventListener("wheel", function (event) {
+    event.preventDefault();
+    const at = pointer(event);
+    const before = toWorld(at[0], at[1]);
+    state.camera.scale = Math.max(0.03, Math.min(6, state.camera.scale * Math.exp(-event.deltaY * 0.0015)));
+    const after = toWorld(at[0], at[1]);
+    state.camera.x += before[0] - after[0];
+    state.camera.y += before[1] - after[1];
+  }, { passive: false });
+  window.addEventListener("resize", resize);
+
+  // ---------- DOM helpers ----------
+
+  function text(tag, value, className) {
+    const element = document.createElement(tag);
+    if (value !== undefined && value !== null) { element.textContent = String(value); }
+    if (className) { element.className = className; }
+    return element;
+  }
+
+  function clear(element) {
+    while (element.firstChild) { element.removeChild(element.firstChild); }
+    return element;
+  }
+
+  function status(message) { $("status").textContent = message; }
+
+  function link(label, onClick, className) {
+    const button = text("button", label, "link" + (className ? " " + className : ""));
+    button.type = "button";
+    button.addEventListener("click", onClick);
+    return button;
+  }
+
+  function table(headings, rows) {
+    const element = document.createElement("table");
+    const head = element.createTHead().insertRow();
+    headings.forEach(function (heading) { head.appendChild(text("th", heading)); });
+    const body = element.createTBody();
+    rows.forEach(function (cells) {
+      const row = body.insertRow();
+      cells.forEach(function (cell) {
+        const td = row.insertCell();
+        if (cell instanceof Node) { td.appendChild(cell); } else { td.textContent = cell === null || cell === undefined ? "" : String(cell); }
+      });
+    });
+    return element;
+  }
+
+  function group(parts) {
+    const span = document.createElement("span");
+    parts.forEach(function (part, index) {
+      if (index > 0) { span.appendChild(document.createTextNode(" ")); }
+      span.appendChild(part instanceof Node ? part : document.createTextNode(String(part)));
+    });
+    return span;
+  }
+
+  function when(millis) {
+    if (typeof millis !== "number") { return "…"; }
+    const date = new Date(millis);
+    return isNaN(date.getTime()) ? String(millis) : date.toISOString().replace(".000Z", "Z");
+  }
+
+  // Ids share long prefixes; their tail tells them apart.
+  function shortId(id) { return "…" + String(id).slice(-8); }
+
+  function span(from, to) { return when(from) + " → " + (typeof to === "number" ? when(to) : "…"); }
+
+  function nameOfId(id) {
+    const node = state.nodeById.get(id);
+    if (node) { return node.data.name; }
+    return state.typeName.get(id) || state.edgeTypeName.get(id) || state.propertyName.get(id) || id;
+  }
+
+  function value(projected) {
+    if (!projected || typeof projected !== "object") { return String(projected); }
+    switch (projected.kind) {
+      case "Timestamp": return when(projected.value);
+      case "Duration": return projected.value + " ms";
+      case "NodeRef": return nameOfId(projected.value);
+      case "List": return "[" + projected.value.map(value).join(", ") + "]";
+      case "Record": return "{" + Object.keys(projected.value).map(function (key) { return key + ": " + value(projected.value[key]); }).join(", ") + "}";
+      default: return String(projected.value);
+    }
+  }
+
+  function assessment(projected) {
+    const parts = [projected.kind];
+    if (typeof projected.completed === "number") { parts.push(projected.completed + " of " + projected.required); }
+    if (projected.validators) { parts.push(projected.validators.length + " validator"); }
+    if (projected.issues && projected.issues.length) { parts.push(projected.issues.join("; ")); }
+    if (projected.competing_assertions && projected.competing_assertions.length) { parts.push("against " + projected.competing_assertions.join(", ")); }
+    return parts.join(" ");
+  }
+
+  function lifecycle(projected) {
+    const parts = [projected.kind];
+    if (typeof projected.at_revision === "number") { parts.push("at revision " + projected.at_revision); }
+    if (projected.by) { parts.push("by " + projected.by); }
+    if (typeof projected.effective_from === "number") { parts.push("from " + when(projected.effective_from)); }
+    if (projected.reason) { parts.push(projected.reason); }
+    return parts.join(" ");
+  }
+
+  function predicate(claim) {
+    if (claim.predicate_kind === "Property") { return state.propertyName.get(claim.predicate) || claim.predicate; }
+    return state.edgeTypeName.get(claim.predicate) || state.typeName.get(claim.predicate) || claim.predicate;
+  }
+
+  function object(claim) {
+    if (claim.object_kind === "Value") { return value(claim.object_value); }
+    if (claim.object_kind === "Node" && state.nodeById.has(claim.object_ref)) {
+      return link(nameOfId(claim.object_ref), function () { select("node", claim.object_ref); });
+    }
+    return nameOfId(claim.object_ref);
+  }
+
+  function evidenceLinks(ids) {
+    return group(ids.map(function (id) { return link(shortId(id), function () { showEvidence(id); }, "id"); }));
+  }
+
+  function assertionTable(claims) {
+    if (claims.length === 0) { return text("p", "no assertion", "muted"); }
+    return table(
+      ["assertion", "predicate", "object", "assessment", "lifecycle", "valid", "recorded", "evidence"],
+      claims.map(function (claim) {
+        return [
+          text("code", claim.id),
+          predicate(claim),
+          object(claim),
+          assessment(claim.assessment),
+          lifecycle(claim.lifecycle),
+          span(claim.valid_from, claim.valid_to),
+          span(claim.recorded_from, claim.recorded_to),
+          evidenceLinks(claim.evidence)
+        ];
+      })
+    );
+  }
+
+  function propsTable(props) {
+    const keys = Object.keys(props);
+    if (keys.length === 0) { return text("p", "no property value", "muted"); }
+    return table(["property", "value"], keys.map(function (key) {
+      return [state.propertyName.get(key) || key, props[key].map(value).join(", ")];
+    }));
+  }
+
+  // ---------- detail ----------
+
+  function select(kind, id) {
+    state.selected = kind ? { kind: kind, id: id } : null;
+    state.evidenceShown = null;
+    showDetail();
+    writeUrl();
+  }
+
+  function showDetail() {
+    const detail = clear($("detail"));
+    const selected = state.selected;
+    if (!state.projection) { return; }
+    if (selected && selected.kind === "node" && findNode(selected.id)) { showNode(detail, findNode(selected.id)); }
+    else if (selected && selected.kind === "edge" && findEdge(selected.id)) { showEdge(detail, findEdge(selected.id)); }
+    else if (selected && selected.kind === "assertion") { showRelation(detail, selected.id); }
+    else { showIndex(detail); }
+    if (state.evidenceShown) { detail.appendChild(evidencePanel(state.evidenceShown)); }
+  }
+
+  function showIndex(detail) {
+    detail.appendChild(text("h2", "nodes"));
+    state.projection.ontology.node_types.forEach(function (type) {
+      const members = state.projection.nodes.filter(function (node) { return node.type === type.id; });
+      if (members.length === 0) { return; }
+      detail.appendChild(text("h3", type.name + " (" + members.length + ")"));
+      const list = document.createElement("ul");
+      members.forEach(function (node) {
+        const item = document.createElement("li");
+        item.appendChild(link(node.name, function () { select("node", node.id); }));
+        list.appendChild(item);
+      });
+      detail.appendChild(list);
+    });
+    const untyped = state.projection.nodes.filter(function (node) { return !state.typeName.has(node.type); });
+    if (untyped.length) {
+      detail.appendChild(text("h3", "node of an undeclared type (" + untyped.length + ")"));
+      untyped.forEach(function (node) { detail.appendChild(group([link(node.name, function () { select("node", node.id); })])); });
+    }
+  }
+
+  function showNode(detail, node) {
+    detail.appendChild(text("h2", node.name));
+    detail.appendChild(group(["node ·", swatch(node.type), state.typeName.get(node.type) || node.type, role(node.type)]));
+    detail.appendChild(text("div", node.id, "id muted"));
+    if (node.aliases.length) { detail.appendChild(text("div", "also " + node.aliases.join(", "), "muted")); }
+    if (node.state) { detail.appendChild(text("div", "state " + node.state, "muted")); }
+    detail.appendChild(text("h3", "property"));
+    detail.appendChild(propsTable(node.props));
+    const touching = state.projection.edges.filter(function (edge) { return edge.source === node.id || edge.target === node.id; });
+    detail.appendChild(text("h3", "edge (" + touching.length + ")"));
+    if (touching.length === 0) { detail.appendChild(text("p", "no edge", "muted")); }
+    touching.forEach(function (edge) {
+      const out = edge.source === node.id;
+      const other = out ? edge.target : edge.source;
+      detail.appendChild(text("div")).appendChild(group([
+        out ? "→" : "←",
+        link(state.edgeTypeName.get(edge.type) || edge.type, function () { select("edge", edge.id); }),
+        link(nameOfId(other), function () { select("node", other); })
+      ]));
+    });
+    const inbound = [];
+    state.projection.nodes.forEach(function (other) {
+      other.assertions.forEach(function (claim) {
+        if (claim.object_kind === "Node" && claim.object_ref === node.id) { inbound.push([other, claim]); }
+      });
+    });
+    detail.appendChild(text("h3", "assertion (" + node.assertions.length + ")"));
+    detail.appendChild(assertionTable(node.assertions));
+    if (inbound.length) {
+      detail.appendChild(text("h3", "assertion naming this node (" + inbound.length + ")"));
+      inbound.forEach(function (pair) {
+        detail.appendChild(text("div")).appendChild(group([
+          link(pair[0].name, function () { select("node", pair[0].id); }),
+          predicate(pair[1]),
+          link(shortId(pair[1].id), function () { select("assertion", pair[1].id); }, "id")
+        ]));
+      });
+    }
+  }
+
+  function showEdge(detail, edge) {
+    detail.appendChild(text("h2", state.edgeTypeName.get(edge.type) || edge.type));
+    detail.appendChild(group(["edge", text("span", edge.id, "id muted")]));
+    detail.appendChild(text("div")).appendChild(group([
+      link(nameOfId(edge.source), function () { select("node", edge.source); }),
+      "→",
+      link(nameOfId(edge.target), function () { select("node", edge.target); })
+    ]));
+    detail.appendChild(text("h3", "property"));
+    detail.appendChild(propsTable(edge.props));
+    detail.appendChild(text("h3", "assertion (" + edge.assertions.length + ")"));
+    detail.appendChild(assertionTable(edge.assertions));
+  }
+
+  function showRelation(detail, id) {
+    const relation = state.relations.find(function (candidate) { return candidate.id === id; });
+    let claim = relation ? relation.data : null;
+    let subject = relation ? relation.source.data : null;
+    if (!claim) {
+      state.projection.nodes.forEach(function (node) {
+        node.assertions.forEach(function (candidate) { if (candidate.id === id) { claim = candidate; subject = node; } });
+      });
+    }
+    if (!claim) { showIndex(detail); return; }
+    detail.appendChild(text("h2", predicate(claim)));
+    detail.appendChild(group(["assertion", text("span", claim.id, "id muted")]));
+    detail.appendChild(text("div")).appendChild(group([
+      link(subject.name, function () { select("node", subject.id); }), "→", object(claim)
+    ]));
+    detail.appendChild(assertionTable([claim]));
+  }
+
+  function swatch(typeId) {
+    const element = text("span", null, "swatch");
+    element.style.background = state.typeColor.get(typeId) || "gray";
+    return element;
+  }
+
+  function role(typeId) {
+    const assigned = state.roles.get(typeId);
+    return assigned ? "· role " + assigned : "";
+  }
+
+  // ---------- evidence ----------
+
+  function showEvidence(id) {
+    state.evidenceShown = id;
+    showDetail();
+    writeUrl();
+  }
+
+  function evidencePanel(id) {
+    const panel = document.createElement("section");
+    panel.appendChild(text("h3", "evidence"));
+    const item = state.evidenceById.get(id);
+    if (item) {
+      panel.appendChild(table(["field", "value"], [
+        ["id", item.id],
+        ["kind", item.kind],
+        ["locator", item.locator],
+        ["section", item.section || ""],
+        ["content hash", item.content_hash],
+        ["observed", when(item.observed_at)],
+        ["confidence", (item.confidence_bp / 100).toFixed(2) + " %"],
+        ["retained", item.retained ? "yes" : "no"]
+      ]));
+    } else {
+      panel.appendChild(text("p", id + " is not in this revision's evidence", "muted"));
+    }
+    const body = text("pre", "reading " + id);
+    panel.appendChild(body);
+    if (item && !item.retained) {
+      body.textContent = "the bytes of this evidence are not retained";
+      return panel;
+    }
+    get(EVIDENCE + encodeURIComponent(id))
+      .then(function (response) {
+        if (!response.ok) {
+          return response.text().then(function (message) { throw new Error(response.status + " " + message.trim()); });
+        }
+        const type = response.headers.get("content-type") || "";
+        return response.arrayBuffer().then(function (bytes) {
+          if (type.indexOf("text/plain") === 0) {
+            body.textContent = new TextDecoder("utf-8").decode(bytes);
+          } else {
+            body.textContent = bytes.byteLength + " bytes that are not text";
+          }
+        });
+      })
+      .catch(function (error) { body.textContent = "the evidence did not load: " + error.message; });
+    return panel;
+  }
+
+  // ---------- legend, schema, revisions ----------
+
+  function fillLegend() {
+    const legend = clear($("legend"));
+    const list = document.createElement("ul");
+    state.projection.ontology.node_types.forEach(function (type) {
+      const count = state.projection.nodes.filter(function (node) { return node.type === type.id; }).length;
+      const item = document.createElement("li");
+      item.appendChild(swatch(type.id));
+      item.appendChild(document.createTextNode(type.name + " " + count + " " + role(type.id)));
+      if (state.hiddenTypes.has(type.id)) { item.className = "off"; }
+      item.title = type.id;
+      item.addEventListener("click", function () {
+        if (state.hiddenTypes.has(type.id)) { state.hiddenTypes.delete(type.id); } else { state.hiddenTypes.add(type.id); }
+        fillLegend();
+      });
+      list.appendChild(item);
+    });
+    legend.appendChild(list);
+    const keys = document.createElement("div");
+    keys.appendChild(group([text("span", null, "line-key"), "edge"]));
+    keys.appendChild(document.createElement("br"));
+    keys.appendChild(group([text("span", null, "line-key dashed"), "relation assertion"]));
+    legend.appendChild(keys);
+  }
+
+  function fillSchema() {
+    const view = clear($("schema-view"));
+    const projection = state.projection;
+    view.appendChild(text("h3", "schema version"));
+    view.appendChild(table(["number", "id", "parent", "revision", "added"], projection.schema.versions.map(function (version) {
+      return [
+        version.number,
+        text("code", version.id),
+        version.parent ? text("code", version.parent) : "",
+        version.revision,
+        version.added.map(nameOfId).join(", ")
+      ];
+    })));
+    view.appendChild(text("h3", "revision"));
+    const numberOf = new Map(projection.schema.versions.map(function (version) { return [version.id, version.number]; }));
+    view.appendChild(table(["revision", "committed", "transaction", "schema version"], projection.schema.revisions.map(function (revision) {
+      return [
+        link(String(revision.number), function () { goRevision(revision.number); }),
+        when(revision.committed_at),
+        revision.transaction_id ? text("code", revision.transaction_id) : "",
+        numberOf.has(revision.schema_version) ? numberOf.get(revision.schema_version) : revision.schema_version
+      ];
+    })));
+    view.appendChild(text("h3", "node type"));
+    view.appendChild(table(["type", "id", "role", "property", "node", "assertion"], projection.ontology.node_types.map(function (type) {
+      return [
+        group([swatch(type.id), type.name]),
+        text("code", type.id),
+        state.roles.get(type.id) || "",
+        type.properties.map(nameOfId).join(", "),
+        projection.nodes.filter(function (node) { return node.type === type.id; }).length,
+        type.assertions.length
+      ];
+    })));
+    view.appendChild(text("h3", "edge type"));
+    view.appendChild(table(["edge type", "id", "source", "target", "property", "edge", "assertion"], projection.ontology.edge_types.map(function (type) {
+      return [
+        type.name,
+        text("code", type.id),
+        type.source_types.map(nameOfId).join(", "),
+        type.target_types.map(nameOfId).join(", "),
+        type.properties.map(nameOfId).join(", "),
+        projection.edges.filter(function (edge) { return edge.type === type.id; }).length,
+        type.assertions.length
+      ];
+    })));
+    view.appendChild(text("h3", "property"));
+    view.appendChild(table(["property", "id", "value kind"], projection.ontology.properties.map(function (property) {
+      return [property.name, text("code", property.id), property.value_kind];
+    })));
+    const typeClaims = [];
+    projection.ontology.node_types.concat(projection.ontology.edge_types).forEach(function (type) {
+      type.assertions.forEach(function (claim) { typeClaims.push(claim); });
+    });
+    if (typeClaims.length) {
+      view.appendChild(text("h3", "assertion about a type"));
+      view.appendChild(assertionTable(typeClaims));
+    }
+  }
+
+  function fillRevisions(projection) {
+    const select = clear($("revision"));
+    const timeline = clear($("timeline"));
+    timeline.appendChild(text("span", "revision", "muted"));
+    const numbers = [];
+    for (let number = 0; number <= projection.meta.head; number += 1) { numbers.push(number); }
+    const committed = new Map(projection.schema.revisions.map(function (revision) { return [revision.number, revision]; }));
+    numbers.slice().reverse().forEach(function (number) {
+      const option = text("option", number === projection.meta.head ? number + " (head)" : number);
+      option.value = String(number);
+      option.selected = number === projection.meta.revision;
+      select.appendChild(option);
+    });
+    numbers.forEach(function (number) {
+      const button = text("button", number);
+      button.type = "button";
+      const known = committed.get(number);
+      button.title = known ? when(known.committed_at) : "revision " + number;
+      if (number === projection.meta.revision) { button.className = "current"; }
+      button.addEventListener("click", function () { goRevision(number); });
+      timeline.appendChild(button);
+    });
+  }
+
+  function goRevision(number) {
+    const head = state.projection ? state.projection.meta.head : null;
+    state.revision = number === head ? null : number;
+    load();
+  }
+
+  $("revision").addEventListener("change", function (event) { goRevision(Number(event.target.value)); });
+
+  // ---------- views, palette, URL ----------
+
+  function show(view) {
+    state.view = view === "schema" ? "schema" : "graph";
+    $("graph-view").hidden = state.view !== "graph";
+    $("schema-view").hidden = state.view !== "schema";
+    if (state.view === "graph") { resize(); }
+    writeUrl();
+  }
+
+  $("show-graph").addEventListener("click", function () { show("graph"); });
+  $("show-schema").addEventListener("click", function () { show("schema"); });
+
+  function writeUrl() {
+    const params = new URLSearchParams();
+    if (state.revision !== null) { params.set("revision", String(state.revision)); }
+    if (state.view !== "graph") { params.set("view", state.view); }
+    if (state.selected) { params.set(state.selected.kind, state.selected.id); }
+    if (state.evidenceShown) { params.set("evidence", state.evidenceShown); }
+    const search = params.toString();
+    window.history.replaceState(null, "", search ? "?" + search : window.location.pathname);
+  }
+
+  function readUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const revision = params.get("revision");
+    state.revision = revision !== null && /^[0-9]+$/.test(revision) ? Number(revision) : null;
+    ["node", "edge", "assertion"].forEach(function (kind) {
+      if (params.get(kind)) { state.selected = { kind: kind, id: params.get(kind) }; }
+    });
+    state.evidenceShown = params.get("evidence") || null;
+    show(params.get("view") === "schema" ? "schema" : "graph");
+  }
+
+  const palette = $("palette");
+  const paletteInput = $("palette-input");
+  const paletteList = $("palette-list");
+  let choices = [];
+  let chosen = 0;
+
+  function entries() {
+    const all = [
+      { label: "view graph", run: function () { show("graph"); } },
+      { label: "view schema", run: function () { show("schema"); } }
+    ];
+    if (!state.projection) { return all; }
+    state.projection.nodes.forEach(function (node) {
+      all.push({ label: node.name + " · " + (state.typeName.get(node.type) || node.type), run: function () { show("graph"); select("node", node.id); center(node.id); } });
+    });
+    state.projection.edges.forEach(function (edge) {
+      all.push({ label: (state.edgeTypeName.get(edge.type) || edge.type) + " · " + nameOfId(edge.source) + " → " + nameOfId(edge.target), run: function () { show("graph"); select("edge", edge.id); } });
+    });
+    state.projection.schema.revisions.forEach(function (revision) {
+      all.push({ label: "revision " + revision.number, run: function () { goRevision(revision.number); } });
+    });
+    return all;
+  }
+
+  function filterPalette() {
+    const words = paletteInput.value.toLowerCase().split(/\s+/).filter(Boolean);
+    choices = entries().filter(function (entry) {
+      const label = entry.label.toLowerCase();
+      return words.every(function (word) { return label.indexOf(word) >= 0; });
+    }).slice(0, 200);
+    chosen = Math.min(chosen, Math.max(0, choices.length - 1));
+    clear(paletteList);
+    choices.forEach(function (entry, index) {
+      const item = text("li", entry.label, index === chosen ? "active" : "");
+      item.addEventListener("click", function () { run(index); });
+      paletteList.appendChild(item);
+    });
+  }
+
+  function openPalette(initial) {
+    paletteInput.value = initial || "";
+    chosen = 0;
+    filterPalette();
+    if (typeof palette.showModal === "function") { palette.showModal(); } else { palette.setAttribute("open", ""); }
+    paletteInput.focus();
+  }
+
+  function run(index) {
+    const entry = choices[index];
+    palette.close();
+    if (entry) { entry.run(); }
+  }
+
+  function center(id) {
+    const node = state.nodeById.get(id);
+    if (node) { state.camera.x = node.x; state.camera.y = node.y; state.camera.scale = Math.max(state.camera.scale, 1); }
+  }
+
+  paletteInput.addEventListener("input", function () { chosen = 0; filterPalette(); });
+  paletteInput.addEventListener("keydown", function (event) {
+    if (event.key === "ArrowDown") { chosen = Math.min(choices.length - 1, chosen + 1); filterPalette(); event.preventDefault(); }
+    else if (event.key === "ArrowUp") { chosen = Math.max(0, chosen - 1); filterPalette(); event.preventDefault(); }
+    else if (event.key === "Enter") { run(chosen); event.preventDefault(); }
+  });
+  $("find").addEventListener("focus", function (event) { event.target.blur(); openPalette(""); });
+  document.addEventListener("keydown", function (event) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); openPalette(""); }
+    else if (event.key === "Escape" && state.evidenceShown) { state.evidenceShown = null; showDetail(); writeUrl(); }
+  });
+
+  readUrl();
+  resize();
+  load();
+  window.requestAnimationFrame(frame);
 })();
 </script>
 </body>
