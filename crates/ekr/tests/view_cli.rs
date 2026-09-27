@@ -184,18 +184,25 @@ impl Server {
 
     fn request(&self, method: &str, path: &str) -> Response {
         let address = self.address();
-        let mut stream = TcpStream::connect(&address).unwrap();
+        self.raw(&format!(
+            "{method} {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
+        ))
+    }
+
+    /// Sends `text` as the whole request on a fresh connection and reads the answer.
+    fn raw(&self, text: &str) -> Response {
+        let mut stream = TcpStream::connect(self.address()).unwrap();
         stream
             .set_read_timeout(Some(Duration::from_secs(60)))
             .unwrap();
-        write!(
-            stream,
-            "{method} {path} HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
-        )
-        .unwrap();
+        stream.write_all(text.as_bytes()).unwrap();
         let mut raw = Vec::new();
         stream.read_to_end(&mut raw).unwrap();
         Response::parse(&raw)
+    }
+
+    fn alive(&mut self) -> bool {
+        self.child.try_wait().unwrap().is_none()
     }
 
     fn get(&self, path: &str) -> Response {
@@ -393,6 +400,125 @@ fn ekr_view_serves_the_page_the_projection_and_evidence_and_writes_nothing_on_bo
             "{backend}: head revision and published event count"
         );
     }
+}
+
+/// A request whose `Host` is not this server's own loopback authority — another name, another
+/// port, none, or two — is 421 and served nothing; `localhost:<port>` is served like the address.
+#[test]
+fn ekr_view_serves_only_a_request_whose_host_names_it() {
+    let world = World::seeded_with_two_revisions("file");
+    let server = world.serve();
+    let address = server.address();
+    let port = address.rsplit_once(':').unwrap().1.to_owned();
+    let other_port = if port == "1" { "2" } else { "1" };
+    for (path, hosts) in [
+        ("/projection", vec!["rebound.example:80".to_owned()]),
+        ("/projection", vec![format!("rebound.example:{port}")]),
+        (
+            &format!("/evidence/{EVIDENCE}")[..],
+            vec![format!("127.0.0.1:{other_port}")],
+        ),
+        ("/", vec!["127.0.0.1".to_owned()]),
+        ("/projection", vec![]),
+        (
+            "/projection",
+            vec![address.clone(), "rebound.example".to_owned()],
+        ),
+    ] {
+        let lines: String = hosts
+            .iter()
+            .map(|host| format!("Host: {host}\r\n"))
+            .collect();
+        let refused = server.raw(&format!(
+            "GET {path} HTTP/1.1\r\n{lines}Connection: close\r\n\r\n"
+        ));
+        assert_eq!(refused.status, 421, "GET {path} with Host {hosts:?}");
+        assert!(
+            String::from_utf8_lossy(&refused.body).starts_with("misdirected-request"),
+            "GET {path} with Host {hosts:?}: served {:?}",
+            String::from_utf8_lossy(&refused.body)
+        );
+        refused.assert_plain(&format!("Host {hosts:?}"));
+    }
+    let local = server.raw(&format!(
+        "GET /projection HTTP/1.1\r\nHost: localhost:{port}\r\nConnection: close\r\n\r\n"
+    ));
+    assert_eq!(local.status, 200, "Host: localhost:{port}");
+    server.stop();
+}
+
+/// A `GET` that announces a body is 413, and no announced body — stalled, or of any claimed size up
+/// to `usize::MAX` — stops the server answering the next client or ends its process.
+#[test]
+fn ekr_view_refuses_a_body_and_survives_any_announced_length() {
+    let world = World::seeded_with_two_revisions("file");
+    let mut server = world.serve();
+    let address = server.address();
+
+    let mut stalled = TcpStream::connect(&address).unwrap();
+    write!(
+        stalled,
+        "GET / HTTP/1.1\r\nHost: {address}\r\nContent-Length: 4096\r\n\r\n"
+    )
+    .unwrap();
+    assert_eq!(
+        server.get("/").status,
+        200,
+        "a stalled body stalls nobody else"
+    );
+
+    // Up to 1024 bytes the library reads the body before the viewer sees the request and drops a
+    // connection that closes short of it; up to 1 MiB the viewer answers 413; above that the
+    // request is held unanswered rather than dropped, because dropping it allocates the whole
+    // announced length and a failed allocation aborts (1 << 50 did, before it was held).
+    const ANSWERED: u64 = 1 << 20;
+    for length in [
+        1_u64,
+        1025,
+        ANSWERED,
+        ANSWERED + 1,
+        1 << 40,
+        1 << 50,
+        u64::try_from(isize::MAX).unwrap(),
+        u64::MAX,
+    ] {
+        let mut stream = TcpStream::connect(&address).unwrap();
+        let wait = if length > ANSWERED { 2 } else { 60 };
+        stream
+            .set_read_timeout(Some(Duration::from_secs(wait)))
+            .unwrap();
+        write!(
+            stream,
+            "GET /projection HTTP/1.1\r\nHost: {address}\r\nConnection: close\r\nContent-Length: {length}\r\n\r\n"
+        )
+        .unwrap();
+        stream.shutdown(std::net::Shutdown::Write).unwrap();
+        let mut raw = Vec::new();
+        stream.read_to_end(&mut raw).ok();
+        assert!(
+            length <= 1024 || length > ANSWERED || !raw.is_empty(),
+            "Content-Length {length}: no answer"
+        );
+        assert!(
+            length <= ANSWERED || raw.is_empty(),
+            "Content-Length {length}: answered {:?}",
+            String::from_utf8_lossy(&raw)
+        );
+        if !raw.is_empty() {
+            let refused = Response::parse(&raw);
+            assert_eq!(refused.status, 413, "Content-Length {length}");
+            refused.assert_plain(&format!("Content-Length {length}"));
+        }
+        std::thread::sleep(Duration::from_millis(200));
+        assert!(server.alive(), "Content-Length {length} ended the server");
+        assert_eq!(
+            server.get("/").status,
+            200,
+            "the next client after Content-Length {length}"
+        );
+    }
+    drop(stalled);
+    server.stop();
 }
 
 #[test]
