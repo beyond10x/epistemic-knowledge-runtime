@@ -4,6 +4,23 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- `ekr-views`: renders `ekr.graph-projection/1` from a committed revision. Rendering is a pure
+  function of the loaded revision, so two renders of one revision are byte-identical, in one
+  process and after reopening the store. The `ekr-views` conformance suite passes 9 of 9 on the
+  file and SQLite providers. On a store of 302 revisions (release build) the head renders in
+  1.04 s (file) and 286 ms (SQLite) right after opening, and 239 ms / 177 ms after that.
+- `ekr-observe`: maps a JSONL file of source records to one observation per line. The content
+  hash covers the line's bytes, and the id is derived from the idempotency key (source,
+  source-native id, content hash), so the same record always gets the same id. Nothing is
+  persisted yet.
+- `ekr-integrate`: resolves a typed reference to one node of exactly its type holding one of its
+  aliases, to a new-node proposal, or to an ambiguity listing every candidate. It never compares
+  names and never picks between candidates. It refuses a reference with no alias, a type with
+  subtypes, and a type the ontology does not declare (`reference-type-undeclared`, new in
+  `ekr.integrate`).
+
 ## [0.0.10] — 2026-09-27
 
 The planning store on `aep.project/4`, AEP 0.61.1, ESS 0.36.0 and the `ess/14` source format.

@@ -2,7 +2,7 @@
 format: aep.planning-md/2
 id: story:graph-projection-renderer
 kind: story
-status: active
+status: implemented
 title: Render ekr.graph-projection/1 deterministically from a committed revision
 relations:
 - decomposes: epic:p4-operator-surface
@@ -15,7 +15,7 @@ scope:
   path: Cargo.toml
 - confidence: inferred
   path: crates/ekr-views
-revision: 6
+revision: 8
 ---
 ## Context
 
@@ -50,3 +50,14 @@ HTTP, the viewer, role derivation, templates, other query scopes.
 ## Acceptance
 
 On each of the file and SQLite providers, a test renders one revision of a seeded, schema-evolved fixture store twice in one process and once more in a fresh process after reopening, and the three renders are byte-identical and pass the committed `ekr-views` conformance suite with no skipped or unsupported scenario.
+
+
+## Scope learned (wave p2p3p4-02, implementor confirmation)
+
+- `crates/ekr-views` — confirmed (src/{lib,document}.rs, Cargo.toml, tests/{conformance,determinism,document,reads_only,render_time,adversary_property_redeclaration,adversary_pass2}.rs, tests/support/, tests/fixtures/seed-empty.yaml)
+- `Cargo.toml` (root) — **wrong** for the unit: the opening commit added the member
+- `Cargo.lock` — confirmed
+- Stale citations: `Runtime::replay` is at `crates/ekr-kernel/src/runtime.rs:242` and `Runtime::content` at `:262`, not :233 and :253.
+- Mechanism claim "schema history replays every revision" — measured false: `load` replays only schema-version boundaries.
+- Render time, 302 revisions, release: head after reopen 1.04 s (file), 286 ms (SQLite).
+- Filed: `task:projection-carries-per-type-property-definitions` (adversary passes 1 and 2).

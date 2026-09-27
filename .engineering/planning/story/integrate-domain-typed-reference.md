@@ -24,7 +24,7 @@ scope:
   path: systems/ekr/domains/integrate.yaml
 - confidence: cited
   path: systems/ekr/system.yaml
-revision: 13
+revision: 14
 ---
 ## Context
 
@@ -65,3 +65,8 @@ Derived 2026-09-26 by `story-scoper`. Every line is **cited** (read from the sto
 ## Acceptance
 
 `ess specify validate` over `systems/ekr` exits 0 with an `ekr.integrate` domain declaring `TypedReference` and `ResolutionOutcome`, and every merge and split relation left as an `UNMAPPED:` marker naming its decision-blocker id.
+
+
+## Later change
+
+Wave p2p3p4-02 added a third refusal, `reference-type-undeclared` (`systems/ekr/domains/integrate.yaml:61`), for a reference whose type the ontology does not declare (`review-result:adversary-p2p3p4-02-integrate-pass-1`, F2).
