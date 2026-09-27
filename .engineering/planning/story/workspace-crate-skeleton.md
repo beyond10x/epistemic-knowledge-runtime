@@ -44,7 +44,7 @@ scope:
   path: crates/ekr/tests/msrv_contract.rs
 - confidence: cited
   path: crates/ekr/tests/story_contract.rs
-revision: 19
+revision: 22
 ---
 ## Context
 
@@ -179,3 +179,12 @@ assert nothing. `tempfile` is already this workspace's temporary directory, in `
 This story is `implemented` and stays so. Amending a closed story's constraint table is right here
 for the reason wave p1-05 gave: `story_contract.rs` reads these tables as ground truth, so a stale
 table is a red gate for whoever touches a manifest next.
+
+
+## Amendment, wave p2p3p4-03
+
+`ekr` gains three dependencies: `ekr-views` (the graph projection `ekr view` serves), `ekr-integrate` (the resolver `ekr resolve` runs) and `httparse` 1.10 (request heads for the blocking `std::net` server `ekr view` runs, which never reads a body, so no store call runs inside a Tokio context, per `architecture-decision-record:0006-ekr-store-bridges-the-async-port`; `tiny_http` 0.12 was taken out after one request announcing 2^50 bytes aborted the process). `crates/ekr/tests/story_contract.rs` lists them in the same change.
+
+
+
+`serde_yaml_ng` moves from `ekr`'s dev-dependencies to its dependencies: `ekr resolve` reads a typed-reference YAML document (`story:ekr-resolve-verb`).
