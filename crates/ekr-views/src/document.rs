@@ -137,7 +137,7 @@ struct ProjectedAssertion {
     evidence: Vec<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, PartialEq, Eq)]
 struct ProjectedProperty {
     id: String,
     name: String,
@@ -229,6 +229,15 @@ struct ProjectedRevision {
 struct ProjectedSchema {
     versions: Vec<ProjectedSchemaVersion>,
     revisions: Vec<ProjectedRevision>,
+}
+
+/// The `ontology.properties` entry for one declaration: all of it the format carries.
+fn projected_property(property: &PropertyDefinition) -> ProjectedProperty {
+    ProjectedProperty {
+        id: property.id.to_string(),
+        name: property.name.clone(),
+        value_kind: property.value_type.kind().to_string(),
+    }
 }
 
 const fn evidence_kind(kind: EvidenceKind) -> &'static str {
@@ -442,12 +451,15 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
         })
         .collect();
     edge_types.sort_by(|a, b| a.id.cmp(&b.id));
-    // `ontology.properties` holds one definition per property id, so two types that declare one
-    // id with two different definitions cannot both be projected. Keeping either would tell a
-    // reader of the other type the wrong definition; the render refuses instead, until the
-    // format carries each type's own definition (task:projection-carries-per-type-property-definitions).
-    // Two types declaring one id with an identical definition project it once.
-    let mut definitions: BTreeMap<String, (&PropertyDefinition, TypeId)> = BTreeMap::new();
+    // `ontology.properties` holds one entry per property id, carrying its name and value kind and
+    // nothing else of the definition. Each declaring type's entry is built exactly as it is
+    // projected, and the entries are compared: two types whose declarations of one id agree on
+    // name and value kind project it once, whatever else of their definitions differs, because
+    // the format carries nothing else. Entries that differ in either cannot both be projected, and
+    // keeping one would tell a reader of the other type the wrong name or kind; the render refuses
+    // instead, until the format carries each type's own definition
+    // (task:projection-carries-per-type-property-definitions).
+    let mut definitions: BTreeMap<String, (ProjectedProperty, TypeId)> = BTreeMap::new();
     for (owner, property) in ontology
         .node_types
         .iter()
@@ -464,25 +476,22 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
                 .map(move |property| (declared.id, property))
         }))
     {
-        let (held, first) = *definitions
-            .entry(property.id.to_string())
-            .or_insert((property, owner));
-        if held != property {
+        let entry = projected_property(property);
+        let (held, first) = definitions
+            .entry(entry.id.clone())
+            .or_insert_with(|| (projected_property(property), owner));
+        if *held != entry {
             return Err(ProjectError::Inconsistent(format!(
-                "property {} is declared by type {first} and by type {owner} with different \
-                 definitions, and ekr.graph-projection/1 carries one definition per property id \
-                 (task:projection-carries-per-type-property-definitions)",
-                property.id
+                "property {} is declared by type {first} as {:?} of kind {} and by type {owner} \
+                 as {:?} of kind {}, and ekr.graph-projection/1 carries one name and value kind \
+                 per property id (task:projection-carries-per-type-property-definitions)",
+                entry.id, held.name, held.value_kind, entry.name, entry.value_kind
             )));
         }
     }
     let properties: Vec<ProjectedProperty> = definitions
-        .into_iter()
-        .map(|(id, (property, _))| ProjectedProperty {
-            id,
-            name: property.name.clone(),
-            value_kind: property.value_type.kind().to_string(),
-        })
+        .into_values()
+        .map(|(property, _)| property)
         .collect();
 
     let mut nodes: Vec<ProjectedNode> = graph
