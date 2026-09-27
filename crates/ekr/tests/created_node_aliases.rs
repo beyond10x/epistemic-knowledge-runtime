@@ -2,19 +2,14 @@
 //! carries the reference's aliases, and resolving the same reference against the next revision
 //! returns `Resolved` with that node.
 //!
-//! Seed, propose, validate, commit and snapshot are fresh `ekr` processes on both providers, under
-//! the example host and seed. The resolution is `ekr_integrate::resolve` over the verified
-//! snapshot a fresh [`Runtime`] reads from the same store under the same host: the call `ekr
-//! resolve` makes, which is not on this branch yet.
+//! Seed, resolve, propose, validate, commit and snapshot are each a fresh `ekr` process, on both
+//! providers, under the example host and seed.
 
 use std::path::PathBuf;
 use std::process::Output;
 
-use ekr::host::CliHostConfigurationV1;
 use ekr_core::NodeId;
-use ekr_graph::GraphSnapshot;
 use ekr_integrate::{ResolutionOutcome, ResolvedReference, TypedReference};
-use ekr_kernel::Runtime;
 use serde_json::Value;
 
 const BACKENDS: [&str; 2] = ["file", "sqlite"];
@@ -100,17 +95,11 @@ impl World {
 
     /// `reference` resolved against the head a fresh runtime verifies from the store.
     fn resolve(&self, reference: &TypedReference) -> ResolutionOutcome {
-        let host = CliHostConfigurationV1::from_json(
-            &std::fs::read(self.directory.path().join("host.json")).unwrap(),
-        )
-        .unwrap();
-        let runtime = match self.backend {
-            "file" => Runtime::file(&self.store(), &host.tenant, host.context, host.authority),
-            _ => Runtime::sqlite(&self.store(), &host.tenant, host.context, host.authority),
-        }
-        .unwrap();
-        let graph = runtime.snapshot().unwrap();
-        ekr_integrate::resolve(GraphSnapshot::of(&graph), reference)
+        let document = self.file(
+            "reference.yaml",
+            &serde_yaml_ng::to_string(reference).unwrap(),
+        );
+        serde_json::from_value(self.ok(&["resolve", &document])).unwrap()
     }
 }
 

@@ -239,8 +239,9 @@ answer:
 | `reference-type-undeclared` | `type_id` is not a node type the ontology at that revision declares | take the id from `ekr ontology` |
 | `reference-type-has-subtypes` | `type_id` is an abstract type or has a declared subtype | name the concrete type the node is an instance of |
 
-Aliases enter a store only through the seed: a `!CreateNode` carries none, so a node created by a
-transaction is never a candidate, and a later reference to it resolves `ProposeNew` again.
+Give the `!CreateNode` the reference's aliases: the created node is then a candidate at the next
+revision. A `!CreateNode` naming an alias a node of its type already holds is `Rejected`
+(`alias-already-exists`); resolve again and use the node it returns.
 
 A document that is not a typed reference exits 1, `ekr: typed reference <file>: <reason>`, before
 the store is opened. That includes a document over 1048576 bytes, a YAML alias (`*name`), a tag,

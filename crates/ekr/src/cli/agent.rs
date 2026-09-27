@@ -145,8 +145,9 @@ RESOLVE BEFORE YOU CREATE: ekr resolve
   A reference that cannot be resolved exits 2 with its code on stderr: reference-without-identity
   (no alias but the empty string), reference-type-undeclared (not a node type of the ontology),
   reference-type-has-subtypes (an abstract type or one with a subtype: name the concrete type).
-  Aliases enter a store only through the seed: a CreateNode carries none, so a node created by
-  a transaction is not found by ekr resolve later.
+  Give the CreateNode the reference's aliases: the created node is then found by ekr resolve
+  at the next revision. A CreateNode naming an alias a node of its type already holds is
+  Rejected (alias-already-exists): resolve again, and use the node it returns.
 
 ADDING EVIDENCE TO A SEED
   In P1 evidence enters only through the seed, before `ekr seed`; a transaction can cite only
