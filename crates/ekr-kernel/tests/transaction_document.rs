@@ -844,3 +844,32 @@ fn ignored_collection_tags_and_directives_preserve_direct_typed_behavior() {
     assert_eq!(created.canonical_name, "42");
     assert_eq!(parsed.bytes(), input.as_bytes());
 }
+
+/// `task:proposed-node-carries-reference-aliases`: a `CreateNode` names the aliases the node is
+/// known by, under either format, and a document that names none still reads, with none.
+#[test]
+fn a_create_node_carries_the_aliases_it_names_and_none_when_it_names_none() {
+    let with = format!("!CreateNode {{id: {ID}, root_id: {ID}, type_id: {ID}, canonical_name: item, properties: {{}}, aliases: [Globex, 'Globex Corporation']}}");
+    let without = format!("!CreateNode {{id: {ID}, root_id: {ID}, type_id: {ID}, canonical_name: item, properties: {{}}}}");
+    for format in ["ekr.transaction-document/1", "ekr.transaction-document/2"] {
+        for (operation, expected) in [
+            (&with, vec!["Globex", "Globex Corporation"]),
+            (&without, Vec::new()),
+        ] {
+            let input = document(operation).replacen("ekr.transaction-document/1", format, 1);
+            let parsed = TransactionDocument::parse(input.as_bytes())
+                .unwrap_or_else(|e| panic!("{format}: {e}: {input}"));
+            let GraphOperation::CreateNode(created) = &parsed.transaction().operations[0] else {
+                panic!("operation")
+            };
+            assert_eq!(created.aliases, expected, "{format}: {input}");
+        }
+    }
+    for aliases in ["Globex", "[[Globex]]", "[{a: b}]", "{a: b}", "null"] {
+        let input = document(&format!("!CreateNode {{id: {ID}, root_id: {ID}, type_id: {ID}, canonical_name: item, properties: {{}}, aliases: {aliases}}}"));
+        assert!(
+            TransactionDocument::parse(input.as_bytes()).is_err(),
+            "aliases: {aliases} is not a list of strings"
+        );
+    }
+}

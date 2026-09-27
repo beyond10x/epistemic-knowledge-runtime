@@ -550,6 +550,7 @@ mod tests {
                 type_id: seed.ontology.node_types[0].id,
                 canonical_name: format!("subject {n}"),
                 properties: BTreeMap::new(),
+                aliases: Vec::new(),
             })],
             evidence: BTreeSet::new(),
             schema_version: None,

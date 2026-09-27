@@ -118,6 +118,7 @@ fn proposal(seed: &SeedDocument) -> GraphTransaction {
                 type_id: ty.id,
                 canonical_name: "created".into(),
                 properties: BTreeMap::from([(many, vec![Value::String("label".into())])]),
+                aliases: Vec::new(),
             }),
         ],
         evidence: BTreeSet::from([evidence]),

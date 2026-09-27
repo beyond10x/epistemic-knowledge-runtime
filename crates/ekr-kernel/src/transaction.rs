@@ -74,6 +74,16 @@ pub struct NodeDraft<V = Value> {
         bound(deserialize = "V: Deserialize<'de>")
     )]
     pub properties: BTreeMap<PropertyId, Vec<V>>,
+    /// Names the node is also known by, which the committed node carries as its
+    /// [`aliases`](ekr_graph::Node::aliases): what `ekr_integrate::resolve` matches a typed
+    /// reference against, so a node created from its `ProposeNew` resolves on the next read.
+    ///
+    /// Held to the rules a seed node's `aliases` is held to, which are those of its type and no
+    /// more: a list of strings, kept in the order and with the repeats it was written with.
+    /// Empty when absent, and then absent from the canonical encoding and from both transaction
+    /// document formats, so every draft without it reads and encodes exactly as before it existed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub aliases: Vec<String>,
 }
 
 /// A change to one property of one node: the `PropertyMutation` of design § 19.
@@ -636,13 +646,22 @@ impl<V: ValueSpace + Canonical> Canonical for GraphOperation<V> {
 }
 
 impl<V: Canonical> Canonical for NodeDraft<V> {
-    /// The five fields in declaration order.
+    /// The fields in declaration order.
+    ///
+    /// `aliases` is written only when it holds one, as a tagged `Some`, the shape
+    /// [`GraphTransaction`]'s `schema_version` takes: a draft without aliases encodes to exactly
+    /// the five-field bytes it had before the field existed, so no retained address moves, and the
+    /// `Some` tag cannot be mistaken for what an enclosing encoding writes next — the next
+    /// operation's variant tag or the transaction's evidence set.
     fn encode(&self, out: &mut Encoder) {
         self.id.encode(out);
         self.root_id.encode(out);
         self.type_id.encode(out);
         self.canonical_name.encode(out);
         out.map(self.properties.iter());
+        if !self.aliases.is_empty() {
+            out.option(Some(&self.aliases));
+        }
     }
 }
 
@@ -718,6 +737,7 @@ fn canonical_operation(
             type_id: draft.type_id,
             canonical_name: draft.canonical_name,
             properties: canonical_properties(draft.properties)?,
+            aliases: draft.aliases,
         }),
         GraphOperation::UpdateProperty(mutation) => {
             GraphOperation::UpdateProperty(PropertyMutation {

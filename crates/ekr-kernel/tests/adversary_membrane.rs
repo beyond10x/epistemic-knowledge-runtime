@@ -216,6 +216,7 @@ impl World {
             properties: [(self.title, vec![Value::String(name.to_owned())])]
                 .into_iter()
                 .collect(),
+            aliases: Vec::new(),
         }
     }
 }

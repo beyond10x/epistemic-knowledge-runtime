@@ -442,6 +442,8 @@ types:
         type: String
       - name: properties
         type: Map<String, List<ekr.graph.TypedValue>>
+      - name: aliases
+        type: Optional<List<String>>
 
   - name: ekr.kernel.PropertyMutationProjection
     kind: struct

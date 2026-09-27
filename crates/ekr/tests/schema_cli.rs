@@ -318,6 +318,22 @@ fn refused_documents(format: &str) -> Vec<(&'static str, String)> {
                     "format: ekr.transaction-document/3",
                 ),
             ),
+            (
+                "a CreateNode's aliases is one string, not a list",
+                document_around(&edit(
+                    &example_operation("CreateNode"),
+                    "  aliases:\n  - Globex\n",
+                    "  aliases: Globex\n",
+                )),
+            ),
+            (
+                "a CreateNode's alias is a list, not a string",
+                document_around(&edit(
+                    &example_operation("CreateNode"),
+                    "  aliases:\n  - Globex\n",
+                    "  aliases:\n  - [Globex]\n",
+                )),
+            ),
         ],
         SEED => vec![
             (
@@ -513,6 +529,14 @@ fn accepted_documents(format: &str) -> Vec<(&'static str, String)> {
                     "lifecycle: Active",
                     "lifecycle: !Active null",
                 ),
+            ),
+            (
+                "a CreateNode omits its optional aliases",
+                document_around(&edit(
+                    &example_operation("CreateNode"),
+                    "  aliases:\n  - Globex\n",
+                    "",
+                )),
             ),
         ],
         SEED => vec![

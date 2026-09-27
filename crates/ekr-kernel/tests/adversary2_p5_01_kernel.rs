@@ -683,6 +683,7 @@ fn a_property_redeclared_across_versions_replays_on_both_providers() {
                         type_id: seed.subject_type,
                         canonical_name: "cited".into(),
                         properties: BTreeMap::from([(note, vec![Value::String("one".into())])]),
+                        aliases: Vec::new(),
                     }),
                     GraphOperation::CreateEdge(EdgeDraft {
                         id: EdgeId::mint(),

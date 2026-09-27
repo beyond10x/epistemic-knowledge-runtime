@@ -125,6 +125,7 @@ pub fn transaction(seed: &SeedDocument, admissible: bool) -> GraphTransaction {
                 type_id: if admissible { ty.id } else { TypeId::mint() },
                 canonical_name: "created".into(),
                 properties: BTreeMap::from([(many, vec![Value::String("same".into())])]),
+                aliases: Vec::new(),
             }),
         ],
         evidence: BTreeSet::from([evidence]),

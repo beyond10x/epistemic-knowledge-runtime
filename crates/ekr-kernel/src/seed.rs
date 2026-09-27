@@ -273,6 +273,10 @@ pub(crate) fn admitted_graph(
                 type_id: node.type_id,
                 canonical_name: node.canonical_name.clone(),
                 properties: node.properties.clone(),
+                // Not the node's aliases: a seed may give two nodes one alias, which a
+                // transaction may not (`alias-already-exists`, `duplicate-alias`). The admitted
+                // node keeps its aliases through `narrow_node`.
+                aliases: Vec::new(),
             })
         })
         .chain(document.edges.values().map(|edge| {

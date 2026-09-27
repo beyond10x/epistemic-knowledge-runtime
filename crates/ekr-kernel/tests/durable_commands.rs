@@ -127,6 +127,7 @@ fn proposal(seed: &SeedDocument) -> (GraphTransaction, NodeId) {
                         ),
                         (list, vec![Value::List(vec![])]),
                     ]),
+                    aliases: Vec::new(),
                 }),
             ],
             evidence: BTreeSet::from([evidence]),
