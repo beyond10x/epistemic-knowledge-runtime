@@ -58,6 +58,7 @@ types:
     variants:
       - reference-without-identity
       - reference-type-has-subtypes
+      - reference-type-undeclared
 
   - name: ekr.integrate.ResolutionRefusal
     kind: struct

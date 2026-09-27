@@ -381,6 +381,16 @@ dependencies = [
 [[package]]
 name = "ekr-integrate"
 version = "0.0.10"
+dependencies = [
+ "ekr-core",
+ "ekr-graph",
+ "ekr-ontology",
+ "proptest",
+ "serde",
+ "serde_json",
+ "serde_yaml_ng",
+ "tempfile",
+]
 
 [[package]]
 name = "ekr-kernel"
