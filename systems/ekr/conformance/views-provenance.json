@@ -1,0 +1,35 @@
+{
+  "format": "ekr.conformance-provenance/1",
+  "suite": "systems/ekr/conformance/views-suite.json",
+  "producer": {
+    "tool": "ess",
+    "version": "0.33.0",
+    "source": "https://github.com/beyond10x/ess",
+    "rev": "3ec2deb977bb19c292a611dcf92a3e676352864a"
+  },
+  "command": [
+    "ess",
+    "conform",
+    "synthesize",
+    "--path",
+    "systems/ekr",
+    "--component",
+    "ekr-views",
+    "--suite-format",
+    "5",
+    "--target",
+    "ir",
+    "--scenarios",
+    "crates/ekr-views/tests/fixtures/conformance/scenarios",
+    "--out",
+    "systems/ekr/conformance/views-suite.json"
+  ],
+  "authored_scenarios": [
+    "crates/ekr-views/tests/fixtures/conformance/scenarios/a-retracted-assertion-is-projected-with-its-lifecycle.yaml",
+    "crates/ekr-views/tests/fixtures/conformance/scenarios/a-revision-beyond-the-head-is-refused.yaml",
+    "crates/ekr-views/tests/fixtures/conformance/scenarios/a-schema-evolution-projects-each-version-from-its-revision.yaml",
+    "crates/ekr-views/tests/fixtures/conformance/scenarios/a-seed-only-store-projects-revision-zero.yaml",
+    "crates/ekr-views/tests/fixtures/conformance/scenarios/an-assertion-about-an-edge-is-carried-by-that-edge.yaml",
+    "crates/ekr-views/tests/fixtures/conformance/scenarios/seeded-evidence-is-projected-as-retained.yaml"
+  ]
+}

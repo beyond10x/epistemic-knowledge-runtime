@@ -1,0 +1,36 @@
+---
+format: aep.planning-md/2
+id: decision-blocker:observation-retention-path
+kind: decision-blocker
+status: open
+title: Nobody has decided where an observation is retained, or whether it depends on a committed revision
+relations:
+- blocks: epic:p2-observation-layer
+revision: 2
+---
+## Question
+
+Once the runtime has an `ekr.graph.Observation` for a source record, where is it kept so that evidence can cite it and a second ingest can see it is already there? Is it part of a committed revision (so it enters through a validated transaction and counts toward a revision root), or is it kept outside canonical state (an observation store with its own append-only history), and in that case does it exist independently of any revision?
+
+Relation: `Observation → Revision / store`. Nobody has said which one owns the other, or what the lifecycle coupling is.
+
+## Why nobody can read the answer
+
+- `systems/ekr/domains/graph.yaml:590` declares `ekr.graph.Observation` (lifecycle `Recorded`, terminal) and no `relations:` entry. No ess/1 document declares where it is retained. `systems/ekr/domains/store.yaml` has no observation entity.
+- In code, observations are explicitly **not** canonical state: `crates/ekr-graph/src/lib.rs:52` ("observations are not canonical state"), so the reference validator has nothing to check `EvidenceSource::Observation` against (inferred, a code comment rather than a decision).
+- Design § 69 sketches `RuntimeState { observations: ObservationStore, evidence: EvidenceStore, … }` and § 70 gives `ingest(observations)` separately from `propose` and `commit`. That is prose, not a typed model. § 86 puts blob bytes under `StorageClass::Provenance` while cited, else `Cache`. That covers bytes, not the observation record.
+- AGENTS.md invariant 2 requires canonical knowledge to rest on "retained admissible evidence". It does not say where an observation is retained.
+
+## Options
+
+1. **Inside a revision.** An ingest is a kernel transaction that records observations, and the observation set becomes part of revision state.
+2. **Beside canonical state.** `ekr-observe` (or `ekr-store`) keeps an append-only, content-addressed observation log with no revision. Evidence cites it by `ObservationId`, and the kernel resolves the citation against that log.
+3. **Hybrid.** Observations live outside revisions. An observation cited by committed evidence is pinned (Provenance class), and one nothing cites is `Cache`, following § 86.
+
+## What it stops
+
+- idempotent ingestion ("the same delta ingested twice produces zero new observations"), because "new" means "not already retained";
+- the reference check that `Evidence` of kind `Observation` names an observation that exists;
+- the `SourceAdapter` poll loop that persists what it returns.
+
+`story:observe-domain-model` carries this as an `UNMAPPED:` marker. `story:fixture-records-become-observations` does not depend on it.

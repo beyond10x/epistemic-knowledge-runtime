@@ -37,8 +37,8 @@ mod schema;
 pub use canonical::{Canonical, Encoder};
 pub use hash::{ContentHash, ContentHashParseError};
 pub use identity::{
-    AgentId, AssertionId, EdgeId, EventId, EvidenceId, GraphRootId, IdParseError, IssueId, NodeId,
-    ObservationId, PropertyId, RevisionId, RevisionNumber, RevisionNumberParseError,
-    SchemaVersionId, SupportId, TransactionId, TypeId,
+    AgentId, AssertionId, EdgeId, EventId, EvidenceId, GraphRootId, IdParseError, IssueId, MergeId,
+    NodeId, ObservationId, PropertyId, RevisionId, RevisionNumber, RevisionNumberParseError,
+    SchemaVersionId, SplitId, SupportId, TransactionId, TypeId,
 };
 pub use time::{Timestamp, TimestampParseError};

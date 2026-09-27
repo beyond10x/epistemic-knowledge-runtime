@@ -4,6 +4,21 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- Three new ESS domains in `systems/ekr/`, specification only (no runtime code yet):
+  - `ekr.views` (component `ekr-views`): the graph projection `ekr.graph-projection/1` a viewer
+    renders from one committed revision, with its determinism rules, and its own conformance suite
+    `systems/ekr/conformance/views-suite.json` (9 scenarios, 6 authored), checked by
+    `task conform-check`.
+  - `ekr.observe` (component `ekr-observe`): source units, checkpoints, poll health and the
+    observation idempotency key; every link still undecided is an `UNMAPPED:` marker naming its
+    decision-blocker.
+  - `ekr.integrate` (component `ekr-integrate`): typed references, resolution outcomes and the
+    merge and split lineage, with `MergeId` and `SplitId` in `ekr-core`.
+- The `ekr-kernel` conformance suite and baseline are regenerated for the larger system; the
+  kernel's 40 scenarios are unchanged.
+
 ## [0.0.7] — 2026-09-26
 
 Store performance at a few thousand observations (design § 96), and a transaction document format

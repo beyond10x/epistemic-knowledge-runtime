@@ -1,0 +1,117 @@
+domain: ekr.integrate
+
+summary: >-
+  Entity resolution and the merge and split lineage around it. Design § 10, § 45, § 46 and
+  amendment A10 (docs/predecessors.md § 2): a typed reference resolves against canonical nodes by
+  identity, never by string matching, and a merge or a split is an explicit transaction with
+  provenance. This domain has no commands yet; the resolver's verbs and the merge and split
+  transactions are declared once the decision-blockers named below are answered.
+
+naming:
+  wire: integrate
+  display: Integrate
+
+types:
+  - name: ekr.integrate.MergeId
+    kind: newtype
+    of: Uuid
+
+  - name: ekr.integrate.SplitId
+    kind: newtype
+    of: Uuid
+
+  # A reference to a node by its type and the names it is known by, before it is resolved.
+  # `type_id` names an `ekr.ontology.NodeType`, many references to one type, no ownership — the
+  # same reference `ekr.graph.Node.type` makes via its own `type_id`. A struct carries no relation
+  # in ESS, so the reference is the field's type.
+  #
+  # UNMAPPED: the identifying keys of a reference. The relation is NodeType -> PropertyDefinition
+  # (identifying), one-to-many, the far side may be zero, owned by the type; which properties it
+  # holds and whether a key value is unique within the type are open. Blocked by
+  # decision-blocker:typed-reference-identifying-keys; no field stands in for the keys.
+  - name: ekr.integrate.TypedReference
+    kind: struct
+    fields:
+      - name: type_id
+        type: ekr.ontology.TypeId
+      - name: aliases
+        type: List<String>
+
+  # The one canonical node a reference resolved to: many references to one node, a reference, no
+  # ownership (`ekr.graph.Node` identity `node_id`).
+  - name: ekr.integrate.ResolvedReference
+    kind: struct
+    fields:
+      - name: node_id
+        type: ekr.graph.NodeId
+
+  # Every candidate the reference matched, in id order. Nothing is chosen.
+  - name: ekr.integrate.AmbiguousReference
+    kind: struct
+    fields:
+      - name: candidates
+        type: List<ekr.graph.NodeId>
+
+  # Why a reference cannot be resolved at all.
+  - name: ekr.integrate.ResolutionRefusalCode
+    kind: enum
+    variants:
+      - reference-without-identity
+      - reference-type-has-subtypes
+
+  - name: ekr.integrate.ResolutionRefusal
+    kind: struct
+    fields:
+      - name: code
+        type: ekr.integrate.ResolutionRefusalCode
+      - name: reference
+        type: ekr.integrate.TypedReference
+
+  # What resolving one typed reference answers. `ProposeNew` carries the reference's type and
+  # aliases and writes nothing: a new node is a proposal, committed only through a transaction.
+  - name: ekr.integrate.ResolutionOutcome
+    kind: union
+    tag: kind
+    variants:
+      Resolved: ekr.integrate.ResolvedReference
+      ProposeNew: ekr.integrate.TypedReference
+      Ambiguous: ekr.integrate.AmbiguousReference
+      Refused: ekr.integrate.ResolutionRefusal
+
+entities:
+  # Design § 46 Merge: two or more nodes found to be one canonical entity. Declared as an identity
+  # only; every relation is undecided.
+  #
+  # UNMAPPED: absorbed Node -> surviving Node, many-to-one (one node may absorb several), recorded
+  # by this merge; whether the absorbed node stays in canonical state and whether the merge
+  # rewrites the references to it are open. Blocked by decision-blocker:merge-absorbed-node-fate.
+  # UNMAPPED: Merge -> NodeType of each side, two many-to-one references; whether the two types
+  # must be equal or conform, and which survives, is open. Blocked by
+  # decision-blocker:merge-across-node-types.
+  - name: ekr.integrate.Merge
+    identity:
+      name: merge_id
+      type: ekr.integrate.MergeId
+    lifecycle:
+      initial: Recorded
+      states: [Recorded]
+      terminal: [Recorded]
+
+  # Design § 46 Split: a previously merged node found to be several entities. Declared as an
+  # identity only; every relation is undecided.
+  #
+  # UNMAPPED: Split -> source Node it splits, exactly one. Blocked by
+  # decision-blocker:split-reverting-merge-identity.
+  # UNMAPPED: Split -> produced Node, one-to-many (at least two); whether a split that reverts a
+  # merge restores the absorbed node's id or mints new nodes is open. Blocked by
+  # decision-blocker:split-reverting-merge-identity.
+  # UNMAPPED: Split -> the Merge it reverts, zero-or-one; its lifecycle coupling with the merge
+  # record is open. Blocked by decision-blocker:split-reverting-merge-identity.
+  - name: ekr.integrate.Split
+    identity:
+      name: split_id
+      type: ekr.integrate.SplitId
+    lifecycle:
+      initial: Recorded
+      states: [Recorded]
+      terminal: [Recorded]

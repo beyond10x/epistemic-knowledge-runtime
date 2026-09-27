@@ -13,3 +13,6 @@ domains:
   - ekr.ontology
   - ekr.graph
   - ekr.store
+  - ekr.views
+  - ekr.observe
+  - ekr.integrate

@@ -106,6 +106,8 @@ id_cases! {
     evidence_id => EvidenceId,
     observation_id => ObservationId,
     event_id => EventId,
+    merge_id => MergeId,
+    split_id => SplitId,
 }
 
 fn workspace_root() -> PathBuf {
@@ -159,10 +161,16 @@ fn ess_uuid_newtypes(domain_file: &str) -> Vec<String> {
 fn every_ess_id_type_exists_in_the_crate() {
     // Every domain of the runtime. `store.yaml` declares no id newtype since `ekr.store.SnapshotId`
     // was removed in wave p1-14; it is scanned so that an id declared there must be carried here too.
-    let mut declared: Vec<String> = ["kernel.yaml", "ontology.yaml", "graph.yaml", "store.yaml"]
-        .into_iter()
-        .flat_map(ess_uuid_newtypes)
-        .collect();
+    let mut declared: Vec<String> = [
+        "kernel.yaml",
+        "ontology.yaml",
+        "graph.yaml",
+        "store.yaml",
+        "integrate.yaml",
+    ]
+    .into_iter()
+    .flat_map(ess_uuid_newtypes)
+    .collect();
     declared.sort();
 
     let mut enumerated: Vec<String> = ENUMERATED.iter().map(|n| (*n).to_owned()).collect();
@@ -175,6 +183,56 @@ fn every_ess_id_type_exists_in_the_crate() {
     assert_eq!(
         enumerated, declared,
         "the id types this suite enumerates and the ESS declarations must be the same set"
+    );
+}
+
+/// Adversary, wave p2p3p4-01 unit I: the `id_newtype!` rustdoc states how many types share the
+/// macro's shape. The count it states must be the count of invocations in `identity.rs`.
+#[test]
+fn adversary_i_macro_doc_counts_the_id_newtypes_it_declares() {
+    const WORDS: [&str; 21] = [
+        "Zero",
+        "One",
+        "Two",
+        "Three",
+        "Four",
+        "Five",
+        "Six",
+        "Seven",
+        "Eight",
+        "Nine",
+        "Ten",
+        "Eleven",
+        "Twelve",
+        "Thirteen",
+        "Fourteen",
+        "Fifteen",
+        "Sixteen",
+        "Seventeen",
+        "Eighteen",
+        "Nineteen",
+        "Twenty",
+    ];
+    let path = workspace_root().join("crates/ekr-core/src/identity.rs");
+    let source = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
+    let invocations = source
+        .lines()
+        .filter(|line| line.trim_end() == "id_newtype! {")
+        .count();
+    assert_eq!(
+        invocations,
+        ENUMERATED.len(),
+        "the scan is broken, not the doc"
+    );
+    let stated = WORDS
+        .iter()
+        .position(|word| source.contains(&format!("/// {word} types share this shape")))
+        .expect("the macro doc states a count");
+    assert_eq!(
+        stated, invocations,
+        "identity.rs says {} types share the id_newtype! shape; it declares {invocations}",
+        WORDS[stated]
     );
 }
 
@@ -216,8 +274,8 @@ mod revision_number {
     }
 }
 
-/// The class the adversary's `adversary_id_text_form.rs` states for the fourteen UUID ids, over
-/// the fifteenth member of the same class.
+/// The class the adversary's `adversary_id_text_form.rs` states for the UUID ids, over the one
+/// member of the same class that is not a UUID.
 ///
 /// `RevisionNumber` writes one text — `7` — and `u64::from_str` reads four more: `+7`, `007`,
 /// and either with more leading zeros. A type whose `Display` documents one form must refuse

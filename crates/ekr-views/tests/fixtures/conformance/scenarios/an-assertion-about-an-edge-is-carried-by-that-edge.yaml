@@ -1,0 +1,25 @@
+# story:graph-projection-specification, scenario "an assertion about an edge".
+#
+# The store `edge-assertion` holds two nodes, one edge between them and exactly one assertion,
+# whose subject is that edge. The projection carries that assertion in the edge's `assertions[]`
+# and in no node's: one edge, one assertion, and one edge-subject assertion.
+type: ess-scenario/1
+domain: ekr.views
+scenario: an-assertion-about-an-edge-is-carried-by-that-edge
+summary: The one assertion whose subject is an edge is projected under that edge.
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.views.ProjectGraph
+    actor: ekr.views.Reader
+    input:
+      store: edge-assertion
+      at: null
+    outcome: projected
+    events:
+      - event: ekr.views.GraphProjected
+        payload:
+          nodes: 2
+          edges: 1
+          assertions: 1
+          edge_assertions: 1

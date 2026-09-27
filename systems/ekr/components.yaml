@@ -54,3 +54,34 @@ components:
     owns:
       domains:
         - ekr.store
+
+  - component: ekr-views
+    summary: >-
+      Read-only projections of one committed revision: the graph projection ekr.graph-projection/1
+      a viewer renders from. Writes no canonical state; what it renders is Cache.
+    owns:
+      domains:
+        - ekr.views
+    accepts:
+      commands:
+        - ekr.views.ProjectGraph
+    publishes:
+      events:
+        - ekr.views.GraphProjected
+
+  - component: ekr-observe
+    summary: >-
+      The observation layer's vocabulary: source units, checkpoints, the health of one poll and the
+      idempotency key of an observation. Their links and placement are held open by decision-blockers.
+    owns:
+      domains:
+        - ekr.observe
+
+  - component: ekr-integrate
+    summary: >-
+      Entity resolution of typed references against canonical nodes, and the merge and split
+      lineage. Holds no writer of its own; a resolution proposes, and every change arrives as a
+      committed transaction.
+    owns:
+      domains:
+        - ekr.integrate

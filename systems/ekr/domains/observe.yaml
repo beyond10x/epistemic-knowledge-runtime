@@ -1,0 +1,121 @@
+domain: ekr.observe
+
+summary: >-
+  The observation layer's own vocabulary: source units, the units of source-side progress this
+  domain names, with their granularity held open; the checkpoint a poll resumes from; the health
+  of one poll; and the idempotency key that makes a second observation of the same source record
+  the same observation. Design § 15, § 54–57; predecessors A8. The
+  observation itself is `ekr.graph.Observation` and is referenced here, not redeclared. Checkpoint
+  state is durable but is not canonical knowledge (§ 55). How units, checkpoints, poll health and
+  observations link to one another is held open by four decision-blockers, each named below where
+  it applies. Redaction (A6), the coverage report and adapter declarations are not modelled yet.
+
+naming:
+  wire: observe
+  display: Observe
+
+types:
+  - name: ekr.observe.SourceUnitId
+    kind: newtype
+    of: Uuid
+
+  - name: ekr.observe.SourceCheckpointId
+    kind: newtype
+    of: Uuid
+
+  # Predecessors A8: the four outcomes of one poll.
+  - name: ekr.observe.PollStatus
+    kind: enum
+    variants:
+      - Attempt
+      - Complete
+      - Partial
+      - Failed
+
+  # Predecessors A8: the health of one poll. `checked_through` is the end of the window this one
+  # poll proves; a successful poll proves only its window.
+  - name: ekr.observe.PollHealth
+    kind: struct
+    fields:
+      - name: status
+        type: ekr.observe.PollStatus
+      - name: checked_through
+        type: Optional<Timestamp>
+
+  # Design § 56: source identity, source-native id, content hash. Two observations of one source
+  # record carry equal keys. `source` and `source_native_id` have the same meaning as the fields of
+  # that name on `ekr.graph.Observation`.
+  - name: ekr.observe.ObservationIdempotencyKey
+    kind: struct
+    fields:
+      - name: source
+        type: String
+      - name: source_native_id
+        type: Optional<String>
+      - name: content_hash
+        type: ekr.kernel.ContentHash
+
+  # The form an observation of one source record takes: the observation, by id, and the key that
+  # identifies the record it was observed from. A value, not a stored record.
+  #
+  # UNMAPPED: decision-blocker:observation-retention-path — where the observation this names is
+  # retained, whether it depends on a revision, and so whether a deduplication index from key to
+  # observation exists and where it lives. Until that is decided nothing here persists a key.
+  - name: ekr.observe.SourceRecordObservation
+    kind: struct
+    fields:
+      - name: key
+        type: ekr.observe.ObservationIdempotencyKey
+      - name: observation_id
+        type: ekr.graph.ObservationId
+
+entities:
+  # A source unit is the unit of source-side progress this domain names. Its granularity is held
+  # open by decision-blocker:source-unit-granularity, below. Predecessors § 8 carries "replies are
+  # their own units" as a requirement.
+  #
+  # UNMAPPED: decision-blocker:source-unit-granularity — what a unit is (one item or the stream a
+  # checkpoint advances over), and so both `SourceUnit → Observation` and the link from a
+  # SourceCheckpoint to the unit (or stream) it advances over. Neither is declared, as a relation
+  # or as a field, until that is decided.
+  #
+  # UNMAPPED: decision-blocker:adapter-unit-ownership — whether a source adapter owns its units,
+  # a declaration lists them, or both, and what becomes of a unit that disappears from its source.
+  # Adapter declarations are outside this domain for now, so no relation names one, and the
+  # lifecycle below says nothing about retirement.
+  - name: ekr.observe.SourceUnit
+    identity:
+      name: source_unit_id
+      type: ekr.observe.SourceUnitId
+    fields:
+      - name: source
+        type: String
+      - name: source_native_id
+        type: Optional<String>
+    lifecycle:
+      initial: Present
+      states: [Present]
+      terminal: [Present]
+
+  # Design § 54–55: the durable position a poll resumes from — a timestamp, a commit hash, a CDC
+  # offset — held as the source's own opaque cursor. It is operational state, not canonical
+  # knowledge.
+  #
+  # UNMAPPED: decision-blocker:checkpoint-unit-cardinality — whether a unit has one checkpoint
+  # replaced in place or an append-only history of them, and so where PollHealth and the window
+  # its `checked_through` proves are kept: on a checkpoint entry, or on a separate poll record.
+  # PollHealth is therefore declared as a type and placed on no entity, and the lifecycle below is
+  # the least that can be said.
+  - name: ekr.observe.SourceCheckpoint
+    identity:
+      name: source_checkpoint_id
+      type: ekr.observe.SourceCheckpointId
+    fields:
+      - name: cursor
+        type: String
+      - name: recorded_at
+        type: Timestamp
+    lifecycle:
+      initial: Recorded
+      states: [Recorded]
+      terminal: [Recorded]
