@@ -1,0 +1,31 @@
+---
+format: aep.planning-md/2
+id: decision-blocker:typed-reference-identifying-keys
+kind: decision-blocker
+status: open
+title: Nobody has decided where a node type declares its identifying keys, or whether a key value is unique within the type
+relations:
+- blocks: epic:p3-incubation-integration
+revision: 1
+---
+## Question
+
+A typed reference is a type plus identifying keys or aliases (operator brief for the P3 resolver slice, 2026-09-26; design § 45 lists "source identity, explicit IDs, email or account references" as signals). Which properties of a node type are identifying keys, where is that declared, and must a key value be held by at most one node of the type?
+
+## The relation
+
+`NodeType → PropertyDefinition` (identifying), one-to-many, the far side may be zero; the type owns the designation; it would change with the schema version. **requires-stakeholder-input**: `systems/ekr/domains/ontology.yaml` `ekr.ontology.PropertyDefinition` and `ekr.ontology.PropertyDeclaration` carry `id, name, value_type, cardinality, required, constraints` and nothing that marks a property identifying; no `ess/1` document declares an identifying key or a uniqueness constraint.
+
+## Options seen, none decided
+
+1. A per-type declaration in the ontology (a schema change, versioned; a validator then refuses a second node holding the same key value).
+2. Any property a reference names counts as a key, with no uniqueness: resolution reports an ambiguity when two nodes hold the value. Risk: a free-text property becomes name matching by another route.
+3. Keys are source identities from the observation layer (P2, `epic:p2-observation-layer`, draft), not ontology properties.
+
+## What it stops
+
+Resolution by identifying key. `story:typed-reference-resolver` resolves by alias only and refuses a reference that carries keys; the key-resolution story is not drafted.
+
+## Clears when
+
+The operator records the answer; the answer lands as an `ess/1` declaration before a key-resolution story is drafted.
