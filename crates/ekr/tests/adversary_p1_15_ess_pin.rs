@@ -70,11 +70,11 @@ fn run_task(name: &str, reported: &str) -> (bool, String, String) {
     )
 }
 
-/// `task spec-check` and `task conform-check` refuse an `ess` that reports another release, and
-/// never invoke it past `--version`.
+/// `task spec-check`, `task conform-check` and `task conform-fresh` refuse an `ess` that reports
+/// another release, and never invoke it past `--version`.
 #[test]
 fn task_refuses_an_ess_that_is_not_the_pinned_release() {
-    for task in ["spec-check", "conform-check"] {
+    for task in ["spec-check", "conform-check", "conform-fresh"] {
         for other in ["ess 0.35.0", "ess 0.36.1", "ess 0.36.0-rc.1", "ess 0.36.0 "] {
             let (ok, ran, stderr) = run_task(task, other);
             assert!(!ok, "`task {task}` admitted `{other}`; it ran: {ran:?}");

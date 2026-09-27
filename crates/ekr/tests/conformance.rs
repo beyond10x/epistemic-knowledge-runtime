@@ -195,7 +195,7 @@ fn the_sqlite_provider_passes_every_admitted_kernel_scenario() {
 }
 
 /// The committed suite is the complete generated inventory the baseline counts, byte for byte.
-/// Freshness against the checked-in model is `task conform-check`'s synthesis-and-`cmp` step.
+/// Freshness against the checked-in model is `task conform-fresh`'s synthesis-and-`cmp` step.
 #[test]
 fn the_committed_suite_is_the_complete_inventory_the_baseline_counts() {
     let baseline = baseline();
@@ -276,8 +276,9 @@ fn ess_versions(text: &str, marker: &str) -> Vec<String> {
         .collect()
 }
 
-/// The conformance crates, CI's `ess` install, its cache key, the README, the lockfile and the
-/// suite's provenance record all name one ESS release, `ESS_VERSION` at `ESS_REV`.
+/// The conformance crates, CI's `ess` release download, the README, the lockfile and the suite's
+/// provenance record all name one ESS release, `ESS_VERSION` at `ESS_REV`; CI's Rust cache key
+/// names no ESS release, so a pin bump does not discard the dependency cache.
 #[test]
 fn every_ess_pin_site_names_one_release() {
     let manifest = ess_revs(&read("Cargo.toml"), "rev = \"");
@@ -301,14 +302,24 @@ fn every_ess_pin_site_names_one_release() {
 
     let workflow = read(".github/workflows/correctness.yml");
     assert_eq!(
-        ess_revs(&workflow, "--rev "),
-        vec![ESS_REV.to_owned()],
-        "correctness.yml installs ess"
-    );
-    assert_eq!(
-        ess_versions(&workflow, "-ess-"),
+        ess_versions(&workflow, "ESS_VERSION: \""),
         vec![ESS_VERSION.to_owned()],
-        "correctness.yml cache key"
+        "correctness.yml installs the ess release archive"
+    );
+    assert!(
+        ess_revs(&workflow, "--rev ").is_empty(),
+        "correctness.yml builds ess from source instead of installing the release archive"
+    );
+    let cache_keys: Vec<&str> = workflow
+        .lines()
+        .filter(|line| line.contains("shared-key:") || line.trim_start().starts_with("key:"))
+        .collect();
+    assert!(
+        !cache_keys.is_empty()
+            && cache_keys
+                .iter()
+                .all(|line| !line.contains("-ess") && !line.contains(ESS_VERSION)),
+        "correctness.yml's Rust cache key moves with the ess pin: {cache_keys:?}"
     );
 
     let readme = ess_versions(&read("README.md"), "ESS ");
@@ -390,12 +401,13 @@ fn guard_admits(guard: &str, reported: &str) -> bool {
         .success()
 }
 
-/// `spec-check` and `conform-check` refuse an `ess` whose `--version` is not `ess ESS_VERSION`, and
-/// admit one whose `--version` is. The guard reads the version string only, not the build's commit.
+/// `spec-check`, `conform-check` and `conform-fresh` refuse an `ess` whose `--version` is not
+/// `ess ESS_VERSION`, and admit one whose `--version` is. The guard reads the version string only,
+/// not the build's commit.
 #[cfg(unix)]
 #[test]
 fn spec_and_conform_checks_refuse_an_ess_that_is_not_the_pinned_release() {
-    for task in ["spec-check", "conform-check"] {
+    for task in ["spec-check", "conform-check", "conform-fresh"] {
         let guard = taskfile_guard(task);
         assert!(
             guard_admits(&guard, &format!("ess {ESS_VERSION}")),
