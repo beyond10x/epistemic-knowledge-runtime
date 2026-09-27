@@ -274,6 +274,54 @@ fn a_reference_to_an_abstract_type_or_a_type_with_descendants_is_refused() {
     );
 }
 
+#[test]
+fn a_reference_to_a_type_the_ontology_does_not_declare_is_refused_as_undeclared() {
+    let undeclared = type_id(99);
+    let stray = node(1, undeclared, "Stray", &["stray"]);
+    let state = graph([stray]);
+    assert!(state.ontology.node_type(undeclared).is_none());
+    assert_eq!(
+        resolve(
+            GraphSnapshot::of(&state),
+            &reference(undeclared, &["stray"])
+        ),
+        ResolutionOutcome::Refused(ResolutionRefusal {
+            code: ResolutionRefusalCode::ReferenceTypeUndeclared,
+            reference: reference(undeclared, &["stray"]),
+        }),
+        "even a node carrying the undeclared type is not a candidate"
+    );
+    assert_eq!(
+        resolve(GraphSnapshot::of(&state), &reference(undeclared, &[])),
+        ResolutionOutcome::Refused(ResolutionRefusal {
+            code: ResolutionRefusalCode::ReferenceWithoutIdentity,
+            reference: reference(undeclared, &[]),
+        }),
+        "a reference with no identity is refused for that first"
+    );
+}
+
+#[test]
+fn an_empty_alias_identifies_nothing_and_is_not_carried_into_a_proposal() {
+    let t = types();
+    let state = graph([node(1, t.person, "Blank", &[""])]);
+    assert_eq!(
+        resolve(
+            GraphSnapshot::of(&state),
+            &reference(t.person, &["", "zed", ""])
+        ),
+        ResolutionOutcome::ProposeNew(reference(t.person, &["zed"]))
+    );
+    assert_eq!(
+        resolve(GraphSnapshot::of(&state), &reference(t.person, &["", ""])),
+        ResolutionOutcome::Refused(ResolutionRefusal {
+            code: ResolutionRefusalCode::ReferenceWithoutIdentity,
+            reference: reference(t.person, &[""]),
+        }),
+        "a refusal echoes the reference, sorted and deduplicated"
+    );
+}
+
 const POOL: [&str; 4] = ["p", "q", "r", "s"];
 
 /// Six nodes, each of one of two types, each holding a subset of a four-alias pool.

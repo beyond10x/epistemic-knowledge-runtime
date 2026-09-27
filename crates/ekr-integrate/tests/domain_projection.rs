@@ -69,11 +69,13 @@ fn every_code() -> Vec<ResolutionRefusalCode> {
     let all = [
         ResolutionRefusalCode::ReferenceWithoutIdentity,
         ResolutionRefusalCode::ReferenceTypeHasSubtypes,
+        ResolutionRefusalCode::ReferenceTypeUndeclared,
     ];
     for code in all {
         match code {
             ResolutionRefusalCode::ReferenceWithoutIdentity
-            | ResolutionRefusalCode::ReferenceTypeHasSubtypes => {}
+            | ResolutionRefusalCode::ReferenceTypeHasSubtypes
+            | ResolutionRefusalCode::ReferenceTypeUndeclared => {}
         }
     }
     all.to_vec()
@@ -157,6 +159,66 @@ fn every_outcome_kind_and_field_is_the_one_the_domain_declares() {
         written.insert(kind);
     }
     assert_eq!(written, declared);
+}
+
+/// Every `` `ekr.integrate.X` (`integrate.yaml`, lines A–B) `` the crate's source cites names the
+/// span the document actually gives `X`: A is its `- name:` line and B the last line before the
+/// next declaration. A line added to the document moves every citation below it, and this is what
+/// says so.
+#[test]
+fn every_line_citation_in_the_source_names_the_span_of_its_declaration() {
+    let root = std::path::PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    );
+    let source = std::fs::read_to_string(root.join("src/lib.rs")).expect("the crate's source");
+    let document = std::fs::read_to_string(root.join("../../systems/ekr/domains/integrate.yaml"))
+        .expect("the ESS domain is beside the crates");
+    let lines: Vec<&str> = document.lines().collect();
+    let text = source.replace("\n/// ", " ");
+
+    let marker = "(`integrate.yaml`, lines ";
+    let mut cited = BTreeSet::new();
+    for (at, _) in text.match_indices(marker) {
+        let before = &text[..at];
+        let name_end = before.rfind("` ").expect("a citation follows a type name");
+        let name_start = before[..name_end]
+            .rfind('`')
+            .expect("the type name is quoted")
+            + 1;
+        let name = &before[name_start..name_end];
+        let span = &text[at + marker.len()..];
+        let span = &span[..span.find(')').expect("a citation closes")];
+        let (first, last) = span.split_once('–').expect("a span is A–B");
+        let (first, last): (usize, usize) = (
+            first.parse().expect("A is a line"),
+            last.parse().expect("B is a line"),
+        );
+
+        let declared_at = lines
+            .iter()
+            .position(|line| line.trim() == format!("- name: {name}"))
+            .unwrap_or_else(|| panic!("the domain declares no {name}"))
+            + 1;
+        let next = lines[declared_at..]
+            .iter()
+            .position(|line| {
+                let trimmed = line.trim_start();
+                (line.starts_with("  - name: ") || !line.starts_with(' ')) && !trimmed.is_empty()
+                    || trimmed.starts_with('#')
+            })
+            .map_or(lines.len(), |offset| declared_at + offset);
+        let mut ends_at = next;
+        while lines[ends_at - 1].trim().is_empty() {
+            ends_at -= 1;
+        }
+        assert_eq!(
+            (first, last),
+            (declared_at, ends_at),
+            "{name} is cited at lines {first}–{last}"
+        );
+        cited.insert(name.to_owned());
+    }
+    assert_eq!(cited.len(), 6, "the citation scan found {cited:?}");
 }
 
 #[test]

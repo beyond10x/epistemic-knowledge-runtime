@@ -19,10 +19,15 @@
 //!
 //! Refused before any node is read ([`ResolutionRefusalCode`]):
 //!
-//! * `reference-without-identity` — the reference holds no alias;
+//! * `reference-without-identity` — the reference holds no alias other than the empty string,
+//!   which identifies nothing: an empty alias is never compared and never proposed;
+//! * `reference-type-undeclared` — the snapshot's ontology declares no node type with the
+//!   reference's `type_id`, so no node of it could be admitted;
 //! * `reference-type-has-subtypes` — the reference's type is abstract or has a declared descendant.
 //!   Whether such a reference should match its descendants' nodes is
 //!   `decision-blocker:typed-reference-subtype-matching`; until it is answered, it is refused.
+//!
+//! The checks run in that order; the first that applies is the answer.
 //!
 //! Identifying keys (`decision-blocker:typed-reference-identifying-keys`) are not a field of
 //! `ekr.integrate.TypedReference`, so a reference carrying them is not representable here.
@@ -31,8 +36,9 @@
 //!
 //! The outcome depends on the set of the reference's aliases, not their order or repetition: the
 //! aliases a [`ResolutionOutcome::ProposeNew`] or a [`ResolutionRefusal`] carries are sorted
-//! byte-wise and deduplicated. Candidates are read from the snapshot's id-ordered node map. Two
-//! permutations of one input give byte-identical outcomes.
+//! byte-wise and deduplicated. A refusal echoes the reference as given, empty alias included; a
+//! proposal carries only the aliases that identify. Candidates are read from the snapshot's
+//! id-ordered node map. Two permutations of one input give byte-identical outcomes.
 //!
 //! # No writer
 //!
@@ -121,15 +127,18 @@ pub struct AmbiguousReference {
 }
 
 /// Why a reference cannot be resolved at all: `ekr.integrate.ResolutionRefusalCode`
-/// (`integrate.yaml`, lines 56–60).
+/// (`integrate.yaml`, lines 56–61).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ResolutionRefusalCode {
-    /// The reference holds no alias, so nothing identifies the node it means.
+    /// The reference holds no alias but the empty string, so nothing identifies the node it means.
     #[serde(rename = "reference-without-identity")]
     ReferenceWithoutIdentity,
     /// The reference's type is abstract or has a declared descendant.
     #[serde(rename = "reference-type-has-subtypes")]
     ReferenceTypeHasSubtypes,
+    /// The reference's type is not a node type the snapshot's ontology declares.
+    #[serde(rename = "reference-type-undeclared")]
+    ReferenceTypeUndeclared,
 }
 
 impl ResolutionRefusalCode {
@@ -139,11 +148,12 @@ impl ResolutionRefusalCode {
         match self {
             Self::ReferenceWithoutIdentity => "reference-without-identity",
             Self::ReferenceTypeHasSubtypes => "reference-type-has-subtypes",
+            Self::ReferenceTypeUndeclared => "reference-type-undeclared",
         }
     }
 }
 
-/// A refused reference and why: `ekr.integrate.ResolutionRefusal` (`integrate.yaml`, lines 62–68).
+/// A refused reference and why: `ekr.integrate.ResolutionRefusal` (`integrate.yaml`, lines 63–69).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ResolutionRefusal {
@@ -154,7 +164,7 @@ pub struct ResolutionRefusal {
 }
 
 /// What resolving one typed reference answers: `ekr.integrate.ResolutionOutcome`
-/// (`integrate.yaml`, lines 72–79), tagged by `kind`.
+/// (`integrate.yaml`, lines 73–80), tagged by `kind`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum ResolutionOutcome {
@@ -186,13 +196,22 @@ pub fn resolve(snapshot: GraphSnapshot<'_>, reference: &TypedReference) -> Resol
             reference: reference.clone(),
         })
     };
-    if reference.aliases.is_empty() {
+    let identifying = TypedReference {
+        type_id: reference.type_id,
+        aliases: reference
+            .aliases
+            .iter()
+            .filter(|alias| !alias.is_empty())
+            .cloned()
+            .collect(),
+    };
+    if identifying.aliases.is_empty() {
         return refused(ResolutionRefusalCode::ReferenceWithoutIdentity);
     }
-    let is_abstract = graph
-        .ontology
-        .node_type(reference.type_id)
-        .is_some_and(|declared| declared.abstract_type);
+    let Some(declared) = graph.ontology.node_type(reference.type_id) else {
+        return refused(ResolutionRefusalCode::ReferenceTypeUndeclared);
+    };
+    let is_abstract = declared.abstract_type;
     let has_descendant = graph
         .ontology
         .to_document()
@@ -210,12 +229,12 @@ pub fn resolve(snapshot: GraphSnapshot<'_>, reference: &TypedReference) -> Resol
         .filter(|node| {
             node.aliases
                 .iter()
-                .any(|alias| reference.aliases.binary_search(alias).is_ok())
+                .any(|alias| identifying.aliases.binary_search(alias).is_ok())
         })
         .map(|node| node.id)
         .collect();
     match candidates.as_slice() {
-        [] => ResolutionOutcome::ProposeNew(reference),
+        [] => ResolutionOutcome::ProposeNew(identifying),
         [node_id] => ResolutionOutcome::Resolved(ResolvedReference { node_id: *node_id }),
         _ => ResolutionOutcome::Ambiguous(AmbiguousReference { candidates }),
     }
