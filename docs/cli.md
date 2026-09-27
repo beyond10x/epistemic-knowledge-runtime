@@ -244,7 +244,11 @@ transaction is never a candidate, and a later reference to it resolves `ProposeN
 A document that is not a typed reference exits 1, `ekr: typed reference <file>: <reason>`, before
 the store is opened. That includes a document over 1048576 bytes, a YAML alias (`*name`), a tag,
 and a `type_id` or an alias that YAML reads as a number, a boolean or null (quote it: `"123"`), or
-an `aliases` that is not a list: the reader refuses what `ekr schema typed-reference` refuses. A revision that does not exist is refused as `ekr.kernel.RevisionNotFound`,
+an `aliases` that is not a list: the reader refuses what `ekr schema typed-reference` refuses. It
+also refuses, as `nested deeper than 64 levels`, a document holding more than 64 `[` or `{` in
+all (counted everywhere, inside quoted aliases too) or more than 64 block indentation levels on a
+line (the more-indented lines of a `|` or `>` block scalar are text and do not count); this is
+checked before the YAML is loaded. A revision that does not exist is refused as `ekr.kernel.RevisionNotFound`,
 exit 2, as for `ekr snapshot --at`.
 
 ### `ekr head`

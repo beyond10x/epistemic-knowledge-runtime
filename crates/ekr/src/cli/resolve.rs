@@ -15,6 +15,11 @@ use crate::exit::Failure;
 /// The most bytes of a typed-reference document read.
 const LIMIT: u64 = 1 << 20;
 
+/// The most nesting a typed-reference document may have: flow collections (`[`, `{`) and block
+/// indentation levels, each counted by [`nesting`] before the YAML loader runs, whose scan is
+/// quadratic in flow depth. A typed reference needs two.
+const DEPTH: usize = 64;
+
 /// Reads and decodes the document at `document`, or stdin for `-`. A document that cannot be read
 /// or is not a typed reference is a fault naming it, before any store is opened.
 pub(super) fn read(document: &Path, stdin: &mut dyn Read) -> Result<TypedReference, Failure> {
@@ -29,24 +34,84 @@ pub(super) fn read(document: &Path, stdin: &mut dyn Read) -> Result<TypedReferen
     if u64::try_from(text.len()).unwrap_or(u64::MAX) > LIMIT {
         return Err(fault(&format_args!("over {LIMIT} bytes")));
     }
-    strict(&text).map_err(|error| fault(&error))?;
-    serde_yaml_ng::from_str(&text).map_err(|error| fault(&error))
+    nesting(&text).map_err(|error| fault(&error))?;
+    decode(&text).map_err(|error| fault(&error))
 }
 
-/// Refuses, before anything decodes, what the typed decoder would expand or coerce and the
-/// printed schema refuses: an alias (`*name`, which repeats its anchor's value on every use), a
-/// tag anywhere, a `type_id` or an alias that is not a string scalar (a number, a boolean, a
-/// null), and an `aliases` that is not a list. It walks the loader's event tape through the
-/// vendored `serde_yaml_ng::observation` facade, which expands no alias. Everything else the
-/// decoder refuses by itself, with its own message.
-fn strict(text: &str) -> Result<(), String> {
+/// One linear pass over the bytes, before any YAML is loaded, that refuses a document nested past
+/// [`DEPTH`]. It counts every `[` and `{` in the document, quoted or not, rather than tracking
+/// depth: telling a quoted `]` from a real one would need this pass to agree with the loader on
+/// where every quoted scalar and comment starts, and a disagreement would hide nesting. So the
+/// count bounds the flow depth from above and cannot be fooled. Block nesting is the number of
+/// indentation levels open on a line, plus the compact `- ` and `? ` entries that start it; the
+/// lines of a block scalar (`|`, `>`) are not counted.
+fn nesting(text: &str) -> Result<(), String> {
+    let too_deep = || format!("nested deeper than {DEPTH} levels");
+    let flow = text
+        .bytes()
+        .filter(|byte| matches!(byte, b'[' | b'{'))
+        .count();
+    if flow > DEPTH {
+        return Err(format!(
+            "{} (it opens {flow} flow collections `[`, `{{`; at most {DEPTH})",
+            too_deep()
+        ));
+    }
+    let mut indents: Vec<usize> = Vec::new();
+    let mut block_scalar: Option<usize> = None;
+    for line in text.lines() {
+        let content = line.trim_start_matches(' ');
+        let indent = line.len() - content.len();
+        if content.is_empty() || content.starts_with('#') {
+            continue;
+        }
+        if let Some(parent) = block_scalar {
+            if indent > parent {
+                continue;
+            }
+            block_scalar = None;
+        }
+        while indents.last().is_some_and(|open| *open > indent) {
+            indents.pop();
+        }
+        if indents.last() != Some(&indent) {
+            indents.push(indent);
+        }
+        let mut rest = content;
+        let mut compact = 0;
+        while let Some(after) = rest.strip_prefix("- ").or_else(|| rest.strip_prefix("? ")) {
+            compact += 1;
+            rest = after.trim_start_matches(' ');
+        }
+        if indents.len() + compact > DEPTH {
+            return Err(too_deep());
+        }
+        let header = content.split(" #").next().unwrap_or(content).trim_end();
+        if header
+            .rsplit(' ')
+            .next()
+            .is_some_and(|last| last.starts_with('|') || last.starts_with('>'))
+        {
+            block_scalar = Some(indent);
+        }
+    }
+    Ok(())
+}
+
+/// Decodes the typed reference from one load of the document, walking the loader's event tape
+/// through the vendored `serde_yaml_ng::observation` facade, which expands no alias. Refused: an
+/// alias (`*name`, which repeats its anchor's value on every use); a tag anywhere; anything but
+/// one mapping holding exactly `type_id` and `aliases`, each once; a `type_id` that is not a
+/// string scalar holding an id; an `aliases` that is not a list of string scalars (a number, a
+/// boolean or a null is not one); and a second document. These are what the printed schema
+/// refuses, and what the typed decoder of `TypedReference` refuses or would coerce.
+fn decode(text: &str) -> Result<TypedReference, String> {
     use serde_yaml_ng::observation::{Documents, Event, ScalarKind};
 
+    const SHAPE: &str = "a typed reference is one mapping with the keys `type_id` and `aliases`";
     let error = |e: serde_yaml_ng::Error| e.to_string();
     let mut documents = Documents::from_str(text).map_err(error)?;
-    let Some(document) = documents.next_document() else {
-        return Ok(());
-    };
+    let document = documents.next_document().ok_or(SHAPE)?;
     document.check().map_err(error)?;
     let event = |at: usize| document.event(at).map_err(error);
     for at in 0..document.event_count() {
@@ -65,60 +130,57 @@ fn strict(text: &str) -> Result<(), String> {
     }
     let string = |at: usize, what: &str| match event(at)? {
         Some(Event::Scalar(scalar)) if scalar.kind(false).map_err(error)? == ScalarKind::String => {
-            Ok(())
+            Ok(scalar.text().map_err(error)?.to_owned())
         }
         _ => Err(format!(
             "{what} is not a string; quote it (`\"123\"`) if it is one"
         )),
     };
-    // The top-level mapping, key by key. A document of another shape is left to the decoder.
     if !matches!(event(0)?, Some(Event::MappingStart(None))) {
-        return Ok(());
+        return Err(SHAPE.into());
     }
+    let (mut type_id, mut aliases): (Option<TypeId>, Option<Vec<String>>) = (None, None);
     let mut at = 1;
     loop {
-        let key = match event(at)? {
-            Some(Event::Scalar(key)) => key.text().map_err(error)?.to_owned(),
-            _ => return Ok(()),
-        };
+        if matches!(event(at)?, Some(Event::MappingEnd)) {
+            at += 1;
+            break;
+        }
+        let key = string(at, "a key")?;
         at += 1;
         match key.as_str() {
-            "type_id" => string(at, "type_id")?,
-            "aliases" => {
+            "type_id" if type_id.is_none() => {
+                let text = string(at, "type_id")?;
+                type_id = Some(
+                    text.parse()
+                        .map_err(|e| format!("type_id {text:?} is not an id: {e}"))?,
+                );
+                at += 1;
+            }
+            "aliases" if aliases.is_none() => {
                 if !matches!(event(at)?, Some(Event::SequenceStart(None))) {
                     return Err("aliases is not a list; write `aliases: [<alias>, ...]`".into());
                 }
-                let mut item = at + 1;
-                while !matches!(event(item)?, Some(Event::SequenceEnd) | None) {
-                    string(item, "an alias")?;
-                    item += 1;
+                at += 1;
+                let mut found = Vec::new();
+                while !matches!(event(at)?, Some(Event::SequenceEnd)) {
+                    found.push(string(at, "an alias")?);
+                    at += 1;
                 }
+                aliases = Some(found);
+                at += 1;
             }
-            _ => {}
+            "type_id" | "aliases" => return Err(format!("`{key}` is written twice")),
+            _ => return Err(format!("unknown key `{key}`; {SHAPE}")),
         }
-        at = skip(&document, at).map_err(error)?;
     }
-}
-
-/// The position after the value at `at`: one scalar, or a whole container.
-fn skip(
-    document: &serde_yaml_ng::observation::Document<'_>,
-    mut at: usize,
-) -> Result<usize, serde_yaml_ng::Error> {
-    use serde_yaml_ng::observation::Event;
-
-    let mut depth = 0usize;
-    loop {
-        match document.event(at)? {
-            Some(Event::MappingStart(_) | Event::SequenceStart(_)) => depth += 1,
-            Some(Event::MappingEnd | Event::SequenceEnd) => depth = depth.saturating_sub(1),
-            Some(_) => {}
-            None => return Ok(at),
-        }
-        at += 1;
-        if depth == 0 {
-            return Ok(at);
-        }
+    if at != document.event_count() || documents.next_document().is_some() {
+        return Err("more than one document; a typed reference is one".into());
+    }
+    match (type_id, aliases) {
+        (Some(type_id), Some(aliases)) => Ok(TypedReference { type_id, aliases }),
+        (None, _) => Err(format!("missing `type_id`; {SHAPE}")),
+        (_, None) => Err(format!("missing `aliases`; {SHAPE}")),
     }
 }
 

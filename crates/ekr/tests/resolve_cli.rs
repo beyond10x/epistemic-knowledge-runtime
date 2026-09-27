@@ -550,6 +550,88 @@ fn the_reader_refuses_what_the_schema_refuses_and_expands_no_yaml_alias() {
     }
 }
 
+/// Correction round 2 (F1): a document nested past 64 levels — more than 64 flow collections, or
+/// more than 64 block indentation levels — is a fault naming the document, exit 1, refused by a
+/// byte scan before the YAML loader (quadratic in flow depth) runs: 60 000 nested sequences under
+/// a key are refused in well under a second. 64 is accepted, and the more-indented lines of a
+/// block scalar are text, not nesting.
+#[test]
+fn a_document_nested_past_64_levels_is_refused_before_it_is_loaded() {
+    let head = format!("type_id: {PERSON}\n");
+    let block = (0..70).fold(String::new(), |mut out, depth| {
+        out.push_str(&" ".repeat(depth));
+        out.push_str("k:\n");
+        out
+    });
+    let refused: [(&str, String); 5] = [
+        (
+            "60 000 nested sequences under a key",
+            format!(
+                "{head}aliases: [alice]\nextra: {}{}\n",
+                "[".repeat(60_000),
+                "]".repeat(60_000)
+            ),
+        ),
+        (
+            "65 nested sequences under aliases",
+            format!("{head}aliases: {}{}\n", "[".repeat(65), "]".repeat(65)),
+        ),
+        (
+            "65 brackets inside one quoted alias: counted, not parsed",
+            format!("{head}aliases: ['{}']\n", "[".repeat(65)),
+        ),
+        ("70 block mappings", block),
+        (
+            "70 compact block sequences on one line",
+            format!("{head}aliases:\n{}alice\n", "- ".repeat(70)),
+        ),
+    ];
+    let world = World::seeded("file", &aliased_seed());
+    for (what, document) in &refused {
+        let file = world.file("deep.yaml", document);
+        let started = std::time::Instant::now();
+        let output = world.run(&["resolve", &file]);
+        let took = started.elapsed();
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert_eq!(output.status.code(), Some(1), "{what}: {stderr}");
+        assert!(
+            stderr.starts_with("ekr: typed reference deep.yaml: nested deeper than 64 levels"),
+            "{what}: {stderr}"
+        );
+        assert!(
+            took < std::time::Duration::from_millis(500),
+            "{what}: {took:?}"
+        );
+    }
+    let text: String = (0..80)
+        .map(|n| format!("  {}x{n}\n", " ".repeat(n)))
+        .collect();
+    for (what, document, aliases) in [
+        (
+            "64 brackets",
+            format!("{head}aliases: ['{}']\n", "[".repeat(63)),
+            json!(["[".repeat(63)]),
+        ),
+        (
+            "a block scalar indented 80 ways",
+            format!("{head}aliases:\n- |\n{text}"),
+            json!([text
+                .lines()
+                .map(|line| &line[2..])
+                .collect::<Vec<_>>()
+                .join("\n")
+                + "\n"]),
+        ),
+    ] {
+        let file = world.file("ok.yaml", &document);
+        assert_eq!(
+            world.ok(&["resolve", &file]),
+            json!({"kind": "ProposeNew", "type_id": PERSON, "aliases": aliases}),
+            "{what}"
+        );
+    }
+}
+
 /// A document the resolver's type does not decode — an unknown field, a missing one — is a fault
 /// naming the document, exit 1, before any store is opened.
 #[test]
