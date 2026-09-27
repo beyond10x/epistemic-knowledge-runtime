@@ -4,6 +4,10 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.8] — 2026-09-27
+
+The specifications of the graph projection, observation and integration domains, and AEP 0.60.0.
+
 ### Added
 
 - Three new ESS domains in `systems/ekr/`, specification only (no runtime code yet):
@@ -18,6 +22,19 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
     merge and split lineage, with `MergeId` and `SplitId` in `ekr-core`.
 - The `ekr-kernel` conformance suite and baseline are regenerated for the larger system; the
   kernel's 40 scenarios are unchanged.
+
+### Changed
+
+- AEP 0.60.0 (from 0.59.3) for the planning store; `plan-check` refuses any other `aep`. The store
+  is not migrated: `aep.project/3` is the newest format 0.60.0 knows, and its `plan store
+  inspect`, `migrate`, `verify` and `rebuild` read only `aep.project/1` and `/2` stores. On both
+  versions `aep plan artifact validate` reports the store valid and `aep plan artifact list` gives
+  the same 197 artifacts with the same statuses.
+- ESS stays at 0.33.0. ESS 0.35.0 refuses the kernel domain (`ESS-COMMAND-018`: `Propose` creates
+  a `GraphTransaction` without setting `operation_count`, which an invariant reads), and its
+  synthesized `Validate` scenario for an unknown transaction expects `wrong-state` where the domain
+  declares `transaction-not-found`.
+- The shared source gate runs on Gates 0.1.8 (from 0.1.5), whose scan limit is 512 MiB.
 
 ## [0.0.7] — 2026-09-26
 
