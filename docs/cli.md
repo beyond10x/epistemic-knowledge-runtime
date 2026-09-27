@@ -296,12 +296,14 @@ prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`, then answers:
 | `GET /projection?revision=N` | the same as of revision `N`; a revision the store does not hold is 404 with `{"refusal": "ekr.views.RevisionNotFound", …}` |
 | `GET /evidence/<evidence id>` | that evidence's retained bytes: `text/plain; charset=utf-8` when they are UTF-8, otherwise `application/octet-stream`; 404 for an id the head does not hold or bytes the store did not retain |
 
-Any other method is 405 and any other path 404; a `GET` that announces a body is 413. A request
+Any other method is 405 and any other path 404. A request that announces a body (a
+`Content-Length` above zero or any `Transfer-Encoding`) is 413; the body is never read. A request
+head that does not parse, or is not complete within 16 KiB or 5 seconds, is 400. A request
 whose `Host` header is not exactly `127.0.0.1:<port>` or `localhost:<port>`, or that has none, is
 421 and is served nothing, so a web page that reaches the port under another name through DNS
-rebinding reads nothing. Every response the viewer writes carries `X-Content-Type-Options: nosniff`,
-and none sets a cookie or allows another origin; the empty-bodied 400, 408, 417 and 505 the HTTP
-library writes itself for a request it cannot read are outside that promise. Evidence text is
+rebinding reads nothing. Every response carries `X-Content-Type-Options: nosniff`,
+`Cache-Control: no-store` and `Connection: close`, and none sets a cookie or allows another
+origin. Evidence text is
 never served as HTML. Like every read verb, `ekr view` opens an existing store only (a path holding
 none is `store-not-found`, exit 1) and writes nothing to it.
 

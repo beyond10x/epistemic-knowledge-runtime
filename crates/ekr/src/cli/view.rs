@@ -1,48 +1,49 @@
 //! `ekr view`: a read-only viewer for an existing store, served on 127.0.0.1 only
 //! (`story:ekr-view-server`).
 //!
-//! The server is `tiny_http`, which is blocking, and no async runtime exists anywhere in the
-//! process. The thread that opened the [`Runtime`] takes each request and builds its answer, so
-//! every store call runs there, outside any Tokio context, as
-//! `architecture-decision-record:0006-ekr-store-bridges-the-async-port` requires. Writing the
-//! answer and dropping the request happen on a short-lived thread of their own, because dropping
-//! a `tiny_http` request drains the body it announced: a client that announces one and never
-//! sends it stalls only its own thread, and does not stall the next client. That drain allocates
-//! the whole announced length in one piece, and a failed allocation aborts the process, so a
-//! request announcing more than `DRAINED` bytes is never dropped: it gets no answer and holds
-//! its connection and one of the library's threads until the process ends.
+//! The server is a [`TcpListener`] bound to 127.0.0.1, with `httparse` reading request heads; it
+//! is blocking, and no async runtime exists anywhere in the process. An accept thread hands each
+//! connection to a short-lived thread of its own, which sets 5 s read and write timeouts, reads at
+//! most 16 KiB of request head and parses it. It never reads a body. It sends what it parsed
+//! over a channel to the one thread that opened the [`Runtime`], gets the response bytes back,
+//! writes them with `Connection: close`, and closes. So every store call runs on that one thread,
+//! outside any Tokio context, as `architecture-decision-record:0006-ekr-store-bridges-the-async-port`
+//! requires, and a client that stalls holds only its own thread, for at most its timeout.
 //!
-//! Before any store call, a request is refused unless it carries exactly one `Host` header naming
+//! Before any store call a request is refused unless it carries exactly one `Host` header naming
 //! this server, `127.0.0.1:<port>` or `localhost:<port>` (421 otherwise, so a page reached through
-//! DNS rebinding is served nothing), and unless it announces no body (413).
+//! DNS rebinding is served nothing), and unless it announces no body: any `Content-Length` above
+//! zero or any `Transfer-Encoding` is 413, answered without reading the body.
 //!
 //! Nothing here proposes, validates, commits or seeds: the only store calls are
 //! [`ekr_views::project`], [`Runtime::snapshot`] and [`Runtime::content`]. A local read-only page
 //! is not an outward write (design § 82, § 83).
 //!
-//! | method and path | answer |
+//! | request | answer |
 //! |---|---|
 //! | `GET /` | the embedded viewer page, `text/html; charset=utf-8` |
 //! | `GET /projection` | the `ekr.graph-projection/1` bytes `ekr-views` renders at the head, `application/json` |
 //! | `GET /projection?revision=N` | the same at revision `N`; an absent revision is 404 `ekr.views.RevisionNotFound` |
 //! | `GET /evidence/<evidence id>` | that evidence's retained bytes, `text/plain; charset=utf-8` when they are UTF-8, else `application/octet-stream`; 404 for an unknown id or bytes not retained |
-//! | any other method on those paths | 405 |
+//! | any other method on those paths | 405, with `Allow: GET` |
 //! | any other path | 404 |
 //! | a `GET` of those paths that announces a body | 413 |
 //! | any request whose `Host` is not this server's | 421 |
+//! | a head that does not parse, or is not complete within 16 KiB or 5 s | 400 |
 //!
-//! Every response the viewer writes carries `X-Content-Type-Options: nosniff` and no cookie or
-//! CORS header. The empty-bodied responses `tiny_http` writes itself before a request reaches the
-//! viewer — 400, 408, 417 and 505 for a request it cannot read — are outside that promise. Record
-//! text is untrusted evidence (A14) and is never served as HTML: the only HTML is the page, which
-//! is embedded in the binary at build time and writes what it fetches through `textContent`.
+//! Every response carries `X-Content-Type-Options: nosniff`, `Cache-Control: no-store` and
+//! `Connection: close`, and no cookie or CORS header. Record text is untrusted evidence (A14) and
+//! is never served as HTML: the only HTML is the page, which is embedded in the binary at build
+//! time and writes what it fetches through `textContent`.
 
-use std::io::Write;
+use std::io::{Read, Write};
+use std::net::{Shutdown, TcpListener, TcpStream};
+use std::sync::mpsc::{channel, Sender};
+use std::time::Duration;
 
 use ekr_core::{EvidenceId, RevisionNumber};
 use ekr_kernel::Runtime;
 use ekr_views::ProjectError;
-use tiny_http::{Header, Method, Response, Server};
 
 use crate::exit::Failure;
 
@@ -54,49 +55,148 @@ const JSON: &str = "application/json";
 const TEXT: &str = "text/plain; charset=utf-8";
 const BYTES: &str = "application/octet-stream";
 
-/// The largest announced body a request may carry and still be answered. `tiny_http` drains an
-/// unread body when a request drops by allocating the whole remaining length at once, so a
-/// `Content-Length` near `isize::MAX` would abort the process; one above this is never dropped.
-const DRAINED: usize = 1 << 20;
+/// The most request-head bytes a connection reads.
+const HEAD_LIMIT: usize = 16 * 1024;
+/// The most header lines a request head may carry.
+const HEADER_LIMIT: usize = 64;
+/// How long a connection waits for its client to send or to take the answer.
+const TIMEOUT: Duration = Duration::from_secs(5);
+
+/// One parsed request and where its answer goes: from a connection thread to the store thread.
+type Job = (Asked, Sender<Vec<u8>>);
 
 /// Binds 127.0.0.1 on `port` (0 picks a free one), prints `{"url": …}` as one JSON line on
 /// stdout, and answers requests until the process is interrupted.
 ///
 /// # Errors
 ///
-/// The address does not bind, or stdout cannot be written.
+/// The address does not bind, stdout cannot be written, or the accept loop stops.
 pub(super) fn run(runtime: &Runtime, port: u16) -> Result<String, Failure> {
-    let server = Server::http(("127.0.0.1", port))
+    let listener = TcpListener::bind(("127.0.0.1", port))
         .map_err(|error| Failure::fault(format!("binding 127.0.0.1:{port}: {error}")))?;
-    let address = server
-        .server_addr()
-        .to_ip()
-        .ok_or_else(|| Failure::fault("the server is not listening on an IP address"))?;
+    let address = listener
+        .local_addr()
+        .map_err(|error| Failure::fault(format!("reading the bound address: {error}")))?;
     let line = serde_json::json!({ "url": format!("http://{address}/") });
     let mut stdout = std::io::stdout().lock();
     writeln!(stdout, "{line}")
         .and_then(|()| stdout.flush())
         .map_err(|error| Failure::fault(format!("writing the URL: {error}")))?;
     drop(stdout);
-    for request in server.incoming_requests() {
-        if request.body_length().is_some_and(|length| length > DRAINED) {
-            // Dropping it would allocate the announced length in one piece, and a failed
-            // allocation aborts the process; it is neither answered nor dropped.
-            std::mem::forget(request);
-            continue;
-        }
-        let response = answer(runtime, address.port(), &Asked::of(&request)).into_response();
-        // Written and dropped off this thread: dropping a request drains the body it announced,
-        // which blocks on a client that never sends it. A client that went away is its own
-        // business; the server takes the next request.
-        std::thread::spawn(move || {
-            let _ = request.respond(response);
-        });
+
+    let (jobs, store_thread) = channel::<Job>();
+    std::thread::Builder::new()
+        .name("ekr-view-accept".to_owned())
+        .spawn(move || accept(&listener, &jobs))
+        .map_err(|error| Failure::fault(format!("starting the accept thread: {error}")))?;
+    let port = address.port();
+    for (asked, reply_to) in store_thread {
+        // A connection that timed out meanwhile is its own business.
+        let _ = reply_to.send(answer(runtime, port, &asked).into_bytes());
     }
-    Ok(String::new())
+    Err(Failure::fault("the accept loop stopped"))
 }
 
-/// One answer, before it becomes a `tiny_http` response.
+/// Hands every accepted connection to a short-lived thread of its own.
+fn accept(listener: &TcpListener, jobs: &Sender<Job>) {
+    for stream in listener.incoming() {
+        match stream {
+            Ok(stream) => {
+                let jobs = jobs.clone();
+                // A thread that cannot start drops the connection, which closes it.
+                let _ = std::thread::Builder::new()
+                    .name("ekr-view-connection".to_owned())
+                    .spawn(move || connection(stream, &jobs));
+            }
+            // Out of descriptors or a connection reset before accept: take the next one.
+            Err(_) => std::thread::sleep(Duration::from_millis(10)),
+        }
+    }
+}
+
+/// One connection: read and parse the head, get the answer from the store thread, write it,
+/// close. The body, if any, is never read.
+fn connection(mut stream: TcpStream, jobs: &Sender<Job>) {
+    if stream.set_read_timeout(Some(TIMEOUT)).is_err()
+        || stream.set_write_timeout(Some(TIMEOUT)).is_err()
+    {
+        return;
+    }
+    let bytes = match read_head(&mut stream) {
+        Ok(asked) => {
+            let (reply_to, reply) = channel();
+            if jobs.send((asked, reply_to)).is_err() {
+                return;
+            }
+            match reply.recv() {
+                Ok(bytes) => bytes,
+                Err(_) => return,
+            }
+        }
+        Err(message) => Reply::text(400, format!("bad-request: {message}")).into_bytes(),
+    };
+    // A client that went away is its own business.
+    let _ = stream.write_all(&bytes).and_then(|()| stream.flush());
+    let _ = stream.shutdown(Shutdown::Write);
+}
+
+/// Reads one request head, at most [`HEAD_LIMIT`] bytes of it, and what [`answer`] needs of it.
+fn read_head(stream: &mut impl Read) -> Result<Asked, String> {
+    let mut head = Vec::with_capacity(1024);
+    let mut chunk = [0_u8; 4096];
+    loop {
+        let room = (HEAD_LIMIT - head.len()).min(chunk.len());
+        let read = match stream.read(&mut chunk[..room]) {
+            Ok(0) => return Err("the connection closed before the request head ended".to_owned()),
+            Ok(read) => read,
+            Err(error) => return Err(format!("reading the request head: {error}")),
+        };
+        head.extend_from_slice(&chunk[..read]);
+        if let Some(asked) = parse_head(&head)? {
+            return Ok(asked);
+        }
+        if head.len() >= HEAD_LIMIT {
+            return Err(format!("the request head is over {HEAD_LIMIT} bytes"));
+        }
+    }
+}
+
+/// Parses `head`: `None` while it is incomplete.
+fn parse_head(head: &[u8]) -> Result<Option<Asked>, String> {
+    let mut headers = [httparse::EMPTY_HEADER; HEADER_LIMIT];
+    let mut request = httparse::Request::new(&mut headers);
+    match request.parse(head) {
+        Ok(httparse::Status::Partial) => Ok(None),
+        Err(error) => Err(format!("the request head does not parse: {error}")),
+        Ok(httparse::Status::Complete(_)) => {
+            let named = |name: &str| {
+                request
+                    .headers
+                    .iter()
+                    .filter(|header| header.name.eq_ignore_ascii_case(name))
+                    .map(|header| header.value)
+                    .collect::<Vec<&[u8]>>()
+            };
+            let announces_body = named("Content-Length")
+                .iter()
+                .any(|value| value.trim_ascii() != b"0")
+                || !named("Transfer-Encoding").is_empty();
+            // A Host that is not UTF-8 names no server, and keeps its place so it still counts.
+            let hosts = named("Host")
+                .iter()
+                .map(|value| String::from_utf8_lossy(value).into_owned())
+                .collect();
+            Ok(Some(Asked {
+                method: request.method.unwrap_or_default().to_owned(),
+                target: request.path.unwrap_or_default().to_owned(),
+                hosts,
+                announces_body,
+            }))
+        }
+    }
+}
+
+/// One answer, before it becomes response bytes.
 #[derive(Debug, PartialEq, Eq)]
 struct Reply {
     status: u16,
@@ -133,22 +233,34 @@ impl Reply {
         }
     }
 
-    fn into_response(self) -> Response<std::io::Cursor<Vec<u8>>> {
-        let mut response = Response::from_data(self.body)
-            .with_status_code(self.status)
-            .with_header(header("Content-Type", self.content_type))
-            .with_header(header("X-Content-Type-Options", "nosniff"))
-            .with_header(header("Cache-Control", "no-store"));
-        if self.status == 405 {
-            response = response.with_header(header("Allow", "GET"));
-        }
-        response
+    /// The whole HTTP/1.1 response: status line, headers, body.
+    fn into_bytes(self) -> Vec<u8> {
+        let reason = match self.status {
+            200 => "OK",
+            400 => "Bad Request",
+            404 => "Not Found",
+            405 => "Method Not Allowed",
+            413 => "Content Too Large",
+            421 => "Misdirected Request",
+            _ => "Internal Server Error",
+        };
+        let allow = if self.status == 405 {
+            "Allow: GET\r\n"
+        } else {
+            ""
+        };
+        let mut bytes = format!(
+            "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\nContent-Length: {}\r\n\
+             X-Content-Type-Options: nosniff\r\nCache-Control: no-store\r\n{allow}\
+             Connection: close\r\n\r\n",
+            self.status,
+            self.content_type,
+            self.body.len()
+        )
+        .into_bytes();
+        bytes.extend_from_slice(&self.body);
+        bytes
     }
-}
-
-fn header(name: &str, value: &str) -> Header {
-    Header::from_bytes(name.as_bytes(), value.as_bytes())
-        .unwrap_or_else(|()| unreachable!("{name}: {value} is a valid header"))
 }
 
 /// The paths this server knows.
@@ -170,37 +282,20 @@ fn route(path: &str) -> Option<Route<'_>> {
 }
 
 /// What [`answer`] reads of one request: nothing of its body but whether it announces one.
-struct Asked<'a> {
-    method: &'a Method,
-    url: &'a str,
+#[derive(Debug, PartialEq, Eq)]
+struct Asked {
+    method: String,
+    /// The request target: path and query.
+    target: String,
     /// Every `Host` header value the request carries.
-    hosts: Vec<&'a str>,
-    /// A `Content-Length` above zero or any `Transfer-Encoding`.
+    hosts: Vec<String>,
+    /// A `Content-Length` other than zero or any `Transfer-Encoding`.
     announces_body: bool,
-}
-
-impl<'a> Asked<'a> {
-    fn of(request: &'a tiny_http::Request) -> Self {
-        let named = |name: &'static str| {
-            request
-                .headers()
-                .iter()
-                .filter(move |header| header.field.equiv(name))
-                .map(|header| header.value.as_str())
-        };
-        Self {
-            method: request.method(),
-            url: request.url(),
-            hosts: named("Host").collect(),
-            announces_body: request.body_length().is_some_and(|length| length > 0)
-                || named("Transfer-Encoding").next().is_some(),
-        }
-    }
 }
 
 /// Whether `hosts` is exactly one `Host`, naming this server's own loopback authority. A page
 /// reached through DNS rebinding sends its own name, and is served nothing.
-fn own_host(hosts: &[&str], port: u16) -> bool {
+fn own_host(hosts: &[String], port: u16) -> bool {
     match hosts {
         [host] => *host == format!("127.0.0.1:{port}") || *host == format!("localhost:{port}"),
         _ => false,
@@ -210,18 +305,19 @@ fn own_host(hosts: &[&str], port: u16) -> bool {
 /// Answers one request, and touches the store only for a `GET` of a known path that names this
 /// server as its `Host` and announces no body: another `Host` (or none) is 421, an unknown path
 /// 404 whatever the method, a known path 405 for any method but `GET`, and a body 413.
-fn answer(runtime: &Runtime, port: u16, asked: &Asked<'_>) -> Reply {
+fn answer(runtime: &Runtime, port: u16, asked: &Asked) -> Reply {
     if !own_host(&asked.hosts, port) {
         return Reply::text(
             421,
             format!("misdirected-request: Host must be 127.0.0.1:{port} or localhost:{port}"),
         );
     }
-    let (path, query) = asked.url.split_once('?').unwrap_or((asked.url, ""));
+    let target = asked.target.as_str();
+    let (path, query) = target.split_once('?').unwrap_or((target, ""));
     let Some(route) = route(path) else {
         return Reply::text(404, format!("not-found: {path}"));
     };
-    if *asked.method != Method::Get {
+    if asked.method != "GET" {
         return Reply::text(
             405,
             format!("method-not-allowed: {} {path}; only GET", asked.method),
@@ -337,8 +433,14 @@ mod tests {
 
     #[test]
     fn only_one_host_naming_this_server_is_its_own() {
-        assert!(own_host(&["127.0.0.1:8080"], 8080));
-        assert!(own_host(&["localhost:8080"], 8080));
+        let owned = |hosts: &[&str]| {
+            hosts
+                .iter()
+                .map(|&host| host.to_owned())
+                .collect::<Vec<_>>()
+        };
+        assert!(own_host(&owned(&["127.0.0.1:8080"]), 8080));
+        assert!(own_host(&owned(&["localhost:8080"]), 8080));
         for hosts in [
             &[][..],
             &["127.0.0.1:8081"],
@@ -351,7 +453,7 @@ mod tests {
             &["127.0.0.1:8080", "127.0.0.1:8080"],
             &["127.0.0.1:8080", "rebound.example"],
         ] {
-            assert!(!own_host(hosts, 8080), "{hosts:?}");
+            assert!(!own_host(&owned(hosts), 8080), "{hosts:?}");
         }
     }
 
@@ -376,28 +478,90 @@ mod tests {
     }
 
     #[test]
-    fn every_reply_is_nosniff_and_carries_no_cookie_or_cors_header() {
+    fn every_reply_is_nosniff_no_store_and_close_with_no_cookie_or_cors_header() {
         for reply in [
             Reply::ok(HTML, b"<p>".to_vec()),
+            Reply::text(400, "bad-request"),
             Reply::text(404, "not-found"),
             Reply::text(405, "method-not-allowed"),
+            Reply::text(413, "request-body-refused"),
+            Reply::text(421, "misdirected-request"),
             Reply::refusal(404, "ekr.views.RevisionNotFound", "absent"),
         ] {
-            let response = reply.into_response();
-            let headers: Vec<(String, String)> = response
-                .headers()
-                .iter()
-                .map(|h| {
-                    (
-                        h.field.as_str().as_str().to_ascii_lowercase(),
-                        h.value.as_str().to_owned(),
-                    )
-                })
-                .collect();
-            assert!(headers.contains(&("x-content-type-options".to_owned(), "nosniff".to_owned())));
-            assert!(headers
-                .iter()
-                .all(|(name, _)| name != "set-cookie" && !name.starts_with("access-control-")));
+            let status = reply.status;
+            let body = reply.body.clone();
+            let bytes = reply.into_bytes();
+            let end = bytes.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
+            let head = std::str::from_utf8(&bytes[..end])
+                .unwrap()
+                .to_ascii_lowercase();
+            assert!(head.starts_with(&format!("http/1.1 {status} ")), "{head}");
+            for line in [
+                "x-content-type-options: nosniff",
+                "cache-control: no-store",
+                "connection: close",
+                &format!("content-length: {}", body.len()),
+            ] {
+                assert!(
+                    head.lines().any(|l| l == line),
+                    "{status}: {line} in {head}"
+                );
+            }
+            assert_eq!(head.contains("\r\nallow: get"), status == 405, "{head}");
+            assert!(!head.contains("set-cookie") && !head.contains("access-control-"));
+            assert_eq!(&bytes[end + 4..], &body[..]);
+        }
+    }
+
+    #[test]
+    fn a_head_is_read_to_its_end_and_never_past_it() {
+        let text = b"GET /projection?revision=0 HTTP/1.1\r\nHost: 127.0.0.1:9\r\n\r\nBODY";
+        let asked = read_head(&mut &text[..]).unwrap();
+        assert_eq!(
+            asked,
+            Asked {
+                method: "GET".to_owned(),
+                target: "/projection?revision=0".to_owned(),
+                hosts: vec!["127.0.0.1:9".to_owned()],
+                announces_body: false,
+            }
+        );
+        let announcing = [
+            "Content-Length: 1",
+            "content-length: 18446744073709551615",
+            "Content-Length: x",
+            "Transfer-Encoding: chunked",
+        ];
+        for header in announcing {
+            let text = format!("GET / HTTP/1.1\r\nHost: h\r\n{header}\r\n\r\n");
+            assert!(
+                read_head(&mut text.as_bytes()).unwrap().announces_body,
+                "{header}"
+            );
+        }
+        let zero = "GET / HTTP/1.1\r\nHost: h\r\nContent-Length: 0\r\n\r\n";
+        assert!(!read_head(&mut zero.as_bytes()).unwrap().announces_body);
+    }
+
+    #[test]
+    fn a_malformed_short_or_oversized_head_is_refused() {
+        let oversized = format!(
+            "GET / HTTP/1.1\r\nHost: h\r\nX-Pad: {}\r\n\r\n",
+            "a".repeat(HEAD_LIMIT)
+        );
+        let many = format!(
+            "GET / HTTP/1.1\r\n{}\r\n",
+            "X-Many: 1\r\n".repeat(HEADER_LIMIT + 1)
+        );
+        for text in [
+            "GET / HTTP/1.1\r\nHost: h\r\na header line without a colon\r\n\r\n",
+            "GET / HTTP/1.1\r\nHost: h\r\n",
+            "",
+            "\u{0}\u{1}\u{2}",
+            &oversized,
+            &many,
+        ] {
+            assert!(read_head(&mut text.as_bytes()).is_err(), "{text:?}");
         }
     }
 }

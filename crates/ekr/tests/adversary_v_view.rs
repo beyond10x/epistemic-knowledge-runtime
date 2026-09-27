@@ -223,26 +223,21 @@ fn a_foreign_host_header_is_not_served_the_store() {
     );
 }
 
-/// The module doc and `docs/cli.md` promise `X-Content-Type-Options: nosniff` on every response
-/// the viewer writes, and name the responses `tiny_http` writes itself, before the handler sees
-/// the request (here the 400 for a header line without a colon), as outside that promise. Such a
-/// response carries no nosniff, so it must carry nothing a browser could sniff: an empty body.
+/// The module doc and `docs/cli.md` say every response carries `X-Content-Type-Options: nosniff`.
+/// That includes the 400 for a request head the server cannot parse (here a header line without a
+/// colon), which the viewer writes itself.
 #[test]
-fn a_response_tiny_http_writes_itself_is_empty_and_outside_the_nosniff_promise() {
+fn every_response_carries_nosniff_including_the_400_for_a_malformed_head() {
     let served = serve();
     let address = served.address.clone();
     let raw = served.exchange_partial(&format!(
         "GET / HTTP/1.1\r\nHost: {address}\r\na header line without a colon\r\n\r\n"
     ));
     assert_eq!(status(&raw), Some(400), "{}", head(&raw));
-    let end = raw
-        .windows(4)
-        .position(|w| w == b"\r\n\r\n")
-        .expect("a complete header block");
     assert!(
-        raw[end + 4..].is_empty() && head(&raw).contains("content-length: 0"),
-        "nosniff is promised only on viewer-written responses, so a response tiny_http writes \
-         itself must have an empty body; this one does not: {:?}",
-        String::from_utf8_lossy(&raw)
+        head(&raw).contains("x-content-type-options: nosniff"),
+        "status {:?}, headers without nosniff: {}",
+        status(&raw),
+        head(&raw)
     );
 }

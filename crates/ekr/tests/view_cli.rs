@@ -467,25 +467,29 @@ fn ekr_view_refuses_a_body_and_survives_any_announced_length() {
         "a stalled body stalls nobody else"
     );
 
-    // Up to 1024 bytes the library reads the body before the viewer sees the request and drops a
-    // connection that closes short of it; up to 1 MiB the viewer answers 413; above that the
-    // request is held unanswered rather than dropped, because dropping it allocates the whole
-    // announced length and a failed allocation aborts (1 << 50 did, before it was held).
-    const ANSWERED: u64 = 1 << 20;
+    // A client that sends half a head and stops holds only its own connection.
+    let mut half = TcpStream::connect(&address).unwrap();
+    write!(half, "GET / HTTP/1.1\r\nHost: {address}\r\n").unwrap();
+    assert_eq!(
+        server.get("/").status,
+        200,
+        "a stalled head stalls nobody else"
+    );
+
+    // Every announced length is answered 413 at once, and the body is never read or allocated.
     for length in [
         1_u64,
         1025,
-        ANSWERED,
-        ANSWERED + 1,
+        1 << 20,
+        (1 << 20) + 1,
         1 << 40,
         1 << 50,
         u64::try_from(isize::MAX).unwrap(),
         u64::MAX,
     ] {
         let mut stream = TcpStream::connect(&address).unwrap();
-        let wait = if length > ANSWERED { 2 } else { 60 };
         stream
-            .set_read_timeout(Some(Duration::from_secs(wait)))
+            .set_read_timeout(Some(Duration::from_secs(60)))
             .unwrap();
         write!(
             stream,
@@ -494,22 +498,11 @@ fn ekr_view_refuses_a_body_and_survives_any_announced_length() {
         .unwrap();
         stream.shutdown(std::net::Shutdown::Write).unwrap();
         let mut raw = Vec::new();
-        stream.read_to_end(&mut raw).ok();
-        assert!(
-            length <= 1024 || length > ANSWERED || !raw.is_empty(),
-            "Content-Length {length}: no answer"
-        );
-        assert!(
-            length <= ANSWERED || raw.is_empty(),
-            "Content-Length {length}: answered {:?}",
-            String::from_utf8_lossy(&raw)
-        );
-        if !raw.is_empty() {
-            let refused = Response::parse(&raw);
-            assert_eq!(refused.status, 413, "Content-Length {length}");
-            refused.assert_plain(&format!("Content-Length {length}"));
-        }
-        std::thread::sleep(Duration::from_millis(200));
+        stream.read_to_end(&mut raw).unwrap();
+        let refused = Response::parse(&raw);
+        assert_eq!(refused.status, 413, "Content-Length {length}");
+        refused.assert_plain(&format!("Content-Length {length}"));
+        std::thread::sleep(Duration::from_millis(50));
         assert!(server.alive(), "Content-Length {length} ended the server");
         assert_eq!(
             server.get("/").status,
@@ -517,7 +510,53 @@ fn ekr_view_refuses_a_body_and_survives_any_announced_length() {
             "the next client after Content-Length {length}"
         );
     }
+    // The half head times out into a 400 of the viewer's own.
+    half.set_read_timeout(Some(Duration::from_secs(30)))
+        .unwrap();
+    let mut raw = Vec::new();
+    half.read_to_end(&mut raw).unwrap();
+    let timed_out = Response::parse(&raw);
+    assert_eq!(timed_out.status, 400, "a head that never ends");
+    timed_out.assert_plain("a head that never ends");
     drop(stalled);
+    server.stop();
+}
+
+/// A head the server cannot parse, or one that fills 16 KiB without ending, is a 400 the viewer
+/// writes, with the same headers as every other response, and the server keeps serving.
+#[test]
+fn ekr_view_answers_a_malformed_or_oversized_head_with_its_own_400() {
+    let world = World::seeded_with_two_revisions("file");
+    let mut server = world.serve();
+    let address = server.address();
+    let oversized = format!(
+        "GET / HTTP/1.1\r\nHost: {address}\r\nX-Pad: {}",
+        "a".repeat(16 * 1024)
+    )[..16 * 1024]
+        .to_owned();
+    for (what, text) in [
+        (
+            "a header line without a colon",
+            format!("GET / HTTP/1.1\r\nHost: {address}\r\nno colon here\r\n\r\n"),
+        ),
+        (
+            "a request line that is not one",
+            "\u{1}\u{2}\u{3}\r\n\r\n".to_owned(),
+        ),
+        ("16 KiB of head without its end", oversized),
+    ] {
+        let refused = server.raw(&text);
+        assert_eq!(refused.status, 400, "{what}");
+        assert!(
+            String::from_utf8_lossy(&refused.body).starts_with("bad-request"),
+            "{what}"
+        );
+        refused.assert_plain(what);
+        assert_eq!(refused.header("connection"), Some("close"), "{what}");
+        assert_eq!(refused.header("cache-control"), Some("no-store"), "{what}");
+    }
+    assert!(server.alive());
+    assert_eq!(server.get("/").status, 200);
     server.stop();
 }
 
