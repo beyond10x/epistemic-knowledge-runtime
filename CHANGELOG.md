@@ -4,6 +4,44 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.9] — 2026-09-27
+
+ESS 0.35.1 and the `ess/13` source format, AEP 0.60.1, and the planning store on its protocols.
+
+### Changed
+
+- ESS 0.35.1 (from 0.33.0) for the specification and the conformance target; `spec-check` and
+  `conform-check` refuse any other `ess`. `systems/ekr/system.yaml` moves from `format: ess/7` to
+  `ess/13`, the newest source format 0.35.1 reads; the model uses none of the constructs `ess/8`
+  to `ess/13` add, so the format line alone changes no compiled byte.
+- `ekr.kernel.GraphTransaction.operation_count` and the `operation_count` column of the
+  `ekr.kernel.Transactions` and `ekr.kernel.PendingTransactions` views are `Optional<Integer>`.
+  ESS 0.35 refuses a required field that an invariant reads and a creating outcome does not set
+  (`ESS-COMMAND-018`); `Propose` derives the count from the retained document, which ESS has no
+  source to name in `sets:`. The invariant `operation_count >= 1` and every value the runtime
+  reports are unchanged.
+- The `ekr-kernel` and `ekr-views` suites are resynthesized with 0.35.1 and the baseline takes the
+  new digest. The kernel keeps its 40 scenarios; `Validate/outcome/transaction-not-found` and
+  `Commit/outcome/transaction-not-found` now send an identity no record carries, which 0.35.1
+  reads as the declared answer for a missing transaction. ESS 0.34 and 0.35.0 expected
+  `wrong-state` there instead, contrary to the domain, which is why 0.35.0 was not used.
+- AEP 0.60.1 (from 0.60.0) for the planning store; `plan-check` refuses any other `aep`.
+- The planning store's meta schema moves from the AEP 0.55.0 protocols (`28abe09b`) to the AEP
+  0.60.1 protocols (`a0ad90cc`): `.engineering/project.yaml` names the 0.60.1 tag commit. The
+  governing documents are the same in both (`aep govern validate`: 60 files, 5 protocols,
+  13 lifecycles, 10 profiles, valid), so no artifact needs a catch-up; `aep plan artifact list`
+  and `validate` give identical output before and after (197 artifacts, valid).
+- The shared source gate workflow is pinned at the Gates 0.1.10 tag commit (`eb5440b0`); its
+  `common.yml` is unchanged from the 0.1.8 pin and still runs the verified 0.1.8 binary.
+
+### Known limits
+
+- The planning store stays on `aep.project/3`, the newest format AEP 0.60.1 knows. Its
+  `plan store inspect`, `verify` and `migrate dry-run` refuse a `/3` selector as
+  `source_unreadable` (`crates/edge/aep-cli/src/store_command.rs:2168` in AEP 0.60.1: "a tree
+  authority, which these migration verbs do not read"), `plan store export` reads only an
+  `aep.project/2` store, and `init-tree` refuses a project that already has a selector.
+
 ## [0.0.8] — 2026-09-27
 
 The specifications of the graph projection, observation and integration domains, and AEP 0.60.0.

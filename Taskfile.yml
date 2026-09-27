@@ -62,16 +62,16 @@ tasks:
   spec-check:
     desc: the runtime's own ESS contract validates
     preconditions:
-      - sh: test "$(ess --version)" = "ess 0.33.0"
-        msg: spec-check needs an ess on PATH whose --version is ess 0.33.0
+      - sh: test "$(ess --version)" = "ess 0.35.1"
+        msg: spec-check needs an ess on PATH whose --version is ess 0.35.1
     cmds:
       - ess specify validate --path systems/ekr
 
   conform-check:
     desc: the committed ekr-kernel and ekr-views suites are fresh synthesis and both native providers pass the ekr-kernel one
     preconditions:
-      - sh: test "$(ess --version)" = "ess 0.33.0"
-        msg: conform-check needs an ess on PATH whose --version is ess 0.33.0
+      - sh: test "$(ess --version)" = "ess 0.35.1"
+        msg: conform-check needs an ess on PATH whose --version is ess 0.35.1
     cmds:
       - mkdir -p "${CARGO_TARGET_DIR:-target}/ekr-conformance"
       - ess conform synthesize --path systems/ekr --component ekr-kernel --suite-format 5 --target ir --scenarios crates/ekr/tests/fixtures/conformance/scenarios --out "$(realpath "${CARGO_TARGET_DIR:-target}")/ekr-conformance/fresh-suite.json"
@@ -83,8 +83,8 @@ tasks:
   plan-check:
     desc: the planning store validates
     preconditions:
-      - sh: test "$(aep --version)" = "aep 0.60.0"
-        msg: plan-check needs an aep on PATH whose --version is aep 0.60.0
+      - sh: test "$(aep --version)" = "aep 0.60.1"
+        msg: plan-check needs an aep on PATH whose --version is aep 0.60.1
     cmds:
       - aep plan artifact validate
 
