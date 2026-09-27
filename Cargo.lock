@@ -462,6 +462,21 @@ dependencies = [
 [[package]]
 name = "ekr-views"
 version = "0.0.10"
+dependencies = [
+ "ekr-core",
+ "ekr-graph",
+ "ekr-kernel",
+ "ekr-ontology",
+ "ess-conformance",
+ "ess-primitives",
+ "hex",
+ "serde",
+ "serde_json",
+ "serde_yaml_ng",
+ "sha2 0.11.0",
+ "tempfile",
+ "thiserror",
+]
 
 [[package]]
 name = "email_address"
