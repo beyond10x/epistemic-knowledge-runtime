@@ -38,6 +38,15 @@
 //! is therefore out of date and is amended in the planning store alongside this change; this file
 //! is the tree's copy of it, and the two move together.
 //!
+//! # `ekr`'s view and resolve edges, wave p2p3p4-03
+//!
+//! `story:ekr-view-server` serves the graph projection `ekr-views` renders, over `tiny_http`, a
+//! blocking HTTP server, so no store call runs inside a Tokio context
+//! (`architecture-decision-record:0006-ekr-store-bridges-the-async-port`).
+//! `story:ekr-resolve-verb` puts `ekr-integrate`'s resolver behind a read verb. `ekr-views` and
+//! `ekr-integrate` are workspace crates the skeleton story predates, so this file lists them with
+//! the external dependencies rather than in [`CRATES`].
+//!
 //! # `ekr`'s conformance edges, wave p1-14
 //!
 //! `story:ess-conformance-kernel` adds the ESS conformance target to `ekr`: `ess-conformance` and
@@ -176,12 +185,15 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
         "ekr",
         &[
             "clap",
+            "ekr-integrate",
+            "ekr-views",
             "ess-conformance",
             "ess-primitives",
             "schemars",
             "serde",
             "serde_json",
             "time",
+            "tiny_http",
         ],
         &["assert_cmd", "jsonschema", "serde_yaml_ng", "tempfile"],
     ),
