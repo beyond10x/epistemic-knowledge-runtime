@@ -56,3 +56,9 @@ missing_docs = "warn"
 
 [patch.crates-io]
 serde_yaml_ng = { path = "vendor/serde_yaml_ng" }
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 3

@@ -18,6 +18,9 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_TARGET_DIR: ${{ github.workspace }}/target
   CARGO_BUILD_JOBS: 2
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_PROFILE_TEST_DEBUG: "0"
+  CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: -C link-arg=-fuse-ld=lld
 
 jobs:
   check:
@@ -34,26 +37,48 @@ jobs:
           toolchain: 1.98.1
           components: rustfmt, clippy
 
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
-        with:
-          go-version: "1.25.10"
-          cache: false
-
       - name: Install task runner
         env:
-          GOTOOLCHAIN: local
+          TASK_VERSION: "3.53.1"
+          TASK_SHA256: a54a408f6861ff921f6e87774180db31bacd8c1e7c944ca696db9fea49a82fc7
         run: |
-          go install github.com/go-task/task/v3/cmd/task@v3.53.1
-          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          curl --fail --silent --show-error --location --output "$RUNNER_TEMP/task.tar.gz" \
+            "https://github.com/go-task/task/releases/download/v$TASK_VERSION/task_linux_amd64.tar.gz"
+          echo "$TASK_SHA256  $RUNNER_TEMP/task.tar.gz" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/task-bin"
+          tar -xzf "$RUNNER_TEMP/task.tar.gz" -C "$RUNNER_TEMP/task-bin" task
+          echo "$RUNNER_TEMP/task-bin" >> "$GITHUB_PATH"
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          shared-key: correctness-rust-1.98.1-ess-0.36.0-aep-0.61.1
+          shared-key: correctness-rust-1.98.1
 
       - name: Install pinned specification and planning tools
+        env:
+          ESS_VERSION: "0.36.0"
+          ESS_SHA256: 5e32e277196fe8162ab4baec0debe20c093744ff33969e5cc497c952a20dc717
+          AEP_VERSION: "0.61.1"
+          AEP_SHA256: 704a452098eb1ea3ebeaf6aa59bb3318ef22f17bacea6bbae687aa19909a3da4
         run: |
-          cargo install --locked --git https://github.com/beyond10x/ess --rev be44a3365eb273cb3d447b74cd5b0e75181d284e --bin ess ess-cli
-          cargo install --locked --git https://github.com/beyond10x/aep --rev b6213e1fc28df03c11ec99f5c015e8cf6302f3f7 --bin aep aep-cli
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/tools-bin"
+          for pair in "ess:$ESS_VERSION:$ESS_SHA256" "aep:$AEP_VERSION:$AEP_SHA256"; do
+            IFS=: read -r tool version digest <<< "$pair"
+            archive="$tool-$version-x86_64-unknown-linux-gnu.tar.gz"
+            dir="$RUNNER_TEMP/$tool-release"
+            mkdir -p "$dir"
+            curl --fail --silent --show-error --location --output "$dir/$archive" \
+              "https://github.com/beyond10x/$tool/releases/download/$version/$archive"
+            curl --fail --silent --show-error --location --output "$dir/SHA256SUMS" \
+              "https://github.com/beyond10x/$tool/releases/download/$version/SHA256SUMS"
+            grep -qxF "$digest  $archive" "$dir/SHA256SUMS"
+            (cd "$dir" && echo "$digest  $archive" | sha256sum --check --strict)
+            tar -xzf "$dir/$archive" -C "$dir"
+            find "$dir" -type f -name "$tool" -exec install -m 755 {} "$RUNNER_TEMP/tools-bin/" \;
+          done
+          echo "$RUNNER_TEMP/tools-bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/tools-bin/ess" --version
+          "$RUNNER_TEMP/tools-bin/aep" --version
 
       - name: Fetch the complete locked dependency graph
         run: cargo fetch --locked
