@@ -442,25 +442,43 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
         })
         .collect();
     edge_types.sort_by(|a, b| a.id.cmp(&b.id));
-    let mut definitions: BTreeMap<String, &PropertyDefinition> = BTreeMap::new();
-    for property in ontology
+    // `ontology.properties` holds one definition per property id, so two types that declare one
+    // id with two different definitions cannot both be projected. Keeping either would tell a
+    // reader of the other type the wrong definition; the render refuses instead, until the
+    // format carries each type's own definition (task:projection-carries-per-type-property-definitions).
+    // Two types declaring one id with an identical definition project it once.
+    let mut definitions: BTreeMap<String, (&PropertyDefinition, TypeId)> = BTreeMap::new();
+    for (owner, property) in ontology
         .node_types
         .iter()
-        .flat_map(|declared| declared.properties.values())
-        .chain(
-            ontology
-                .edge_types
-                .iter()
-                .flat_map(|declared| declared.properties.values()),
-        )
+        .flat_map(|declared| {
+            declared
+                .properties
+                .values()
+                .map(move |property| (declared.id, property))
+        })
+        .chain(ontology.edge_types.iter().flat_map(|declared| {
+            declared
+                .properties
+                .values()
+                .map(move |property| (declared.id, property))
+        }))
     {
-        definitions
+        let (held, first) = *definitions
             .entry(property.id.to_string())
-            .or_insert(property);
+            .or_insert((property, owner));
+        if held != property {
+            return Err(ProjectError::Inconsistent(format!(
+                "property {} is declared by type {first} and by type {owner} with different \
+                 definitions, and ekr.graph-projection/1 carries one definition per property id \
+                 (task:projection-carries-per-type-property-definitions)",
+                property.id
+            )));
+        }
     }
     let properties: Vec<ProjectedProperty> = definitions
         .into_iter()
-        .map(|(id, property)| ProjectedProperty {
+        .map(|(id, (property, _))| ProjectedProperty {
             id,
             name: property.name.clone(),
             value_kind: property.value_type.kind().to_string(),

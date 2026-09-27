@@ -100,9 +100,11 @@ pub enum ProjectError {
     /// The kernel's verified read refused the store's history.
     #[error("the verified read refused: {0}")]
     Read(String),
-    /// The verified read returned state the format cannot place, such as an assertion whose
-    /// subject the projected revision does not hold. A revision the kernel admitted is
-    /// referentially complete, so this names a kernel defect rather than a store state.
+    /// The revision holds state `ekr.graph-projection/1` cannot represent without losing part of
+    /// it. Two causes: an assertion whose subject the revision does not hold, which a revision
+    /// the kernel admitted never has; and one property id that two types declare with different
+    /// definitions, which the ontology admits and the format's single `ontology.properties`
+    /// entry per id cannot carry (task:projection-carries-per-type-property-definitions).
     #[error("the projected revision is inconsistent: {0}")]
     Inconsistent(String),
 }
