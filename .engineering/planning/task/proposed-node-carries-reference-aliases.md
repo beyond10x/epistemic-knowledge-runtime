@@ -2,11 +2,11 @@
 format: aep.planning-md/2
 id: task:proposed-node-carries-reference-aliases
 kind: task
-status: draft
+status: active
 title: A node committed from ProposeNew carries the reference's aliases
 relations:
 - serves: vision:o5
-revision: 1
+revision: 3
 ---
 ## Context
 

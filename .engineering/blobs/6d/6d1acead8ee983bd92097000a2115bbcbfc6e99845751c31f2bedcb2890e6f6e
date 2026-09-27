@@ -1,0 +1,111 @@
+unit: A, task:proposed-node-carries-reference-aliases, head 45d156f6 plus two untracked adversary test files
+verdict: CONFIRMED (1 red case; plus conformance suites that are no longer fresh)
+cases: executed 279→281 (cargo test -p ekr), red 1
+origin: introduced 3, pre-existing 1, undecided 0
+wrote-outside-worktree: 2 (<scratch>/adv1/, <scratch>/adversary-pass-1.md)
+needs-coordinator: regenerate systems/ekr/conformance/{suite,views-suite}.json (F2); `ekr resolve` is on neither the base nor this branch, so the binary-level acceptance cannot run here (F4)
+
+## 1. Diff
+
+`git --no-pager diff --stat` is empty: nothing tracked was changed. `git status --short`:
+
+```
+?? crates/ekr/tests/adversary_alias_race.rs
+?? crates/ekr/tests/adversary_alias_replay.rs
+```
+
+Both are test files. No implementation file was touched.
+
+## 2. Cases added
+
+| file | asserts | now |
+|---|---|---|
+| crates/ekr/tests/adversary_alias_race.rs | two consumers act on one `ProposeNew`; the second gets `Stale` and follows docs/cli.md § `ekr commit` ("propose the transaction again under a new id and validate it against the new head"); after that, the reference still resolves to one node | **red** |
+| crates/ekr/tests/adversary_alias_replay.rs | aliases `['', b, a, b, 42]` read back as `["", "b", "a", "b", "42"]`; checkpoint snapshot == full-replay snapshot and `head` == `head --full-replay`; /1 and /2; file and sqlite | green |
+
+Red run, that case alone (`cargo test --locked -p ekr --test adversary_alias_race`), verbatim apart from a shortened validation JSON:
+
+```
+test two_consumers_of_one_propose_new_following_the_stale_recovery_leave_the_reference_resolved ... FAILED
+thread '...' panicked at crates/ekr/tests/adversary_alias_race.rs:193:5:
+the documented Stale recovery committed a second Organization holding the alias the first already holds; the reference no longer resolves: Ambiguous(AmbiguousReference { candidates: [NodeId(2164631088353370890026813771144943486), NodeId(2164631089076288311595356984249335358)] }) (validation: {... "kind":"Validated","operation_count":1, ...})
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.63s
+EXIT=101
+```
+
+Replay case, run alone: `test result: ok. 1 passed; 0 failed` (EXIT=0).
+
+## 3. Suite, after the cases existed
+
+`nice -n 19 cargo test --locked -p ekr --no-fail-fast` (CARGO_TARGET_DIR=<build-dir>, 2 jobs, 2 test threads):
+
+```
+test two_consumers_of_one_propose_new_following_the_stale_recovery_leave_the_reference_resolved ... FAILED
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.49s
+error: 1 target failed:
+    `-p ekr --test adversary_alias_race`
+EXIT=101
+```
+
+Totals: 280 passed, 1 failed, across 45 result lines. Before: 279 passed, from the implementor's `<scratch>/green-ekr.log` (`cargo test -p ekr --locked`, EXIT=0). ekr-kernel was not rerun because no case was added there.
+
+Conformance freshness is the `task conform-fresh` commands, run into `<scratch>/adv1/` instead of `<build-dir>`:
+
+```
+ess specify validate --path systems/ekr          -> ekr v1 — 9 file(s), valid (exit 0)
+cmp systems/ekr/conformance/suite.json fresh      -> differ: byte 5253, line 129 (exit 1)
+cmp systems/ekr/conformance/views-suite.json fresh -> differ: byte 27665, line 1035 (exit 1)
+same two commands on `git archive 9daddd62`       -> exit 0, exit 0
+diff base-fresh head-fresh (suite.json): contract_digest f976e95c… -> 3c9d4848…, spec_digest c81d5324… -> b056c1f1…
+```
+
+## 4. Findings
+
+Tree: 45d156f6 plus the two untracked test files.
+
+| id | file:line | verdict | origin | what was measured | what reaches it |
+|---|---|---|---|---|---|
+| F1 | crates/ekr-kernel/src/apply.rs:36 | CONFIRMED | introduced | adversary_alias_race.rs:193: after the documented Stale recovery, resolve returns `Ambiguous` over two Organizations with alias `Globex`. No validator reads `draft.aliases` (0 hits in crates/ekr-kernel/src/validate/), so a CreateNode naming an alias that a node of the same type already holds is admitted. | The documented workflow: docs/cli.md:176-178 (Stale → propose again, validate against the new head). Also any single CreateNode that repeats a held alias, including two in one transaction. docs/cli.md:511 says no other operation changes aliases, so the ambiguity is permanent. At base the same document was refused at propose (unknown field). |
+| F2 | systems/ekr/domains/kernel.yaml:445 | NEEDS-CHANGE | introduced | Freshly synthesised suite.json and views-suite.json no longer match the committed files (contract_digest and spec_digest). At base both match. `task check` → `conform-fresh` exits 1. | `task check`, the repository's full gate (Taskfile.yml:13). The brief reserves `systems/ekr/conformance/*` for the coordinator. |
+| F3 | systems/ekr/domains/kernel.yaml:446 | CONFIRMED | introduced | The spec declares `aliases: List<String>`, which is required. The code is `serde(default, skip_serializing_if = "Vec::is_empty")` and encodes it as a `Some`-tagged optional (transaction.rs:85, 662-664). The sibling that uses the same trick, `schema_version`, is declared `Optional<…>` (kernel.yaml:551-552). | Nothing compares NodeDraftProjection with the Rust type (0 hits for it under crates/). It is a spec reader's contract only. |
+| F4 | crates/ekr/tests/created_node_aliases.rs:7 | INFEASIBLE | pre-existing | The acceptance calls for `ekr resolve` → `ProposeNew` → … → `ekr resolve` → `Resolved` "through the binary". crates/ekr/src/cli/resolve.rs is absent at 9daddd62 and at HEAD (`git show` exit 128 for both). The e2e test calls `ekr_integrate::resolve` in-process and says so. | Wave B's merge. The brief's premise "Wave B's `ekr resolve` is on this branch" does not hold. |
+
+The fix for F1 is not mine to apply. The natural fix is a validator that refuses a CreateNode whose `(type_id, non-empty alias)` is already held at the basis or appears twice in the transaction. Before that lands a decision is needed:
+- the seed allows shared aliases;
+- integrate.yaml leaves key uniqueness open (`decision-blocker:typed-reference-identifying-keys`);
+- seed.rs:276 now routes seed aliases through the same validators, so such a validator would also apply to seeding.
+
+## 5. Attacked and not broken
+
+- Byte stability without aliases: encoding is unchanged. The SOME tag differs from VARIANT and SET (canonical.rs:248-262), so no enclosing encoding becomes ambiguous. Checked the enclosing encodings in transaction.rs:568-576, records.rs:516-523, replay.rs:174-181 and commands.rs:91-101.
+- Replay: checkpoint and full replay agree on snapshot and head, on /1 and /2, on both providers (adversary_alias_replay.rs, green).
+- Validation of values: `''`, duplicates and order are kept, the same as seed aliases. A scalar `42` becomes `"42"`, the same leniency `canonical_name` already has (transaction_document.rs:844). `[[x]]`, `{a: b}` and `null` are refused (implementor's test).
+- /1 limits: aliases are ordinary sequence elements under the structural limits (document.rs:57-66). No new bypass.
+- Legacy v1: legacy.rs `NodeDraft` is untouched, and no legacy path reads the new field.
+- Mutants, reasoned and not run:
+  - seed.rs:276 → `Vec::new()`: no test would catch it, and it changes nothing, because no validator reads aliases.
+  - transaction.rs:740 dropping aliases: the created_node_aliases snapshot assert catches it.
+
+## 6. Written outside the worktree
+
+- <scratch>/adv1/: race-red.log, replay.log, suite-ekr.log, fresh-suite.json, fresh-views-suite.json, base-suite.json, base-views-suite.json, and base/ (a `git archive 9daddd62` export of systems/ekr and the conformance fixtures)
+- <scratch>/adversary-pass-1.md (this report)
+
+## 7. Findings block
+
+
+## Coordinator routing (2026-09-27)
+
+- F1 → back to the implementor, decision: a `CreateNode` whose `(type_id, non-empty alias)` is already held by a node of the canonical root, or appears twice in one transaction, is refused with a named refusal. Transactions only: the seed keeps its current rule, because a seed document may declare shared aliases and `decision-blocker:typed-reference-identifying-keys` stays open. Following the Stale recovery, the second agent is refused, resolves again and gets `Resolved`; the adversary case asserts that.
+- F2 → the coordinator's: both suites are regenerated at the wave close.
+- F3 → back to the implementor: `NodeDraftProjection.aliases` is declared `Optional<List<String>>`, like `schema_version`.
+- F4 → the coordinator's: the end-to-end test moves to the `ekr resolve` binary when wave B is on `main` (the implementor's patch in scratch).
+
+```findings
+[
+{"file":"crates/ekr-kernel/src/apply.rs","line":36,"category":"correctness","severity":"warning","verdict":"NEEDS-CHANGE","origin":"introduced","message":"nothing refuses a CreateNode naming an alias a same-type node already holds, so the documented Stale recovery leaves the reference permanently Ambiguous"},
+{"file":"systems/ekr/domains/kernel.yaml","line":445,"category":"correctness","severity":"warning","verdict":"NEEDS-CHANGE","origin":"introduced","message":"the spec change moves the ekr-kernel and ekr-views conformance suite digests, so task conform-fresh (and task check) fails until the coordinator regenerates them"},
+{"file":"systems/ekr/domains/kernel.yaml","line":446,"category":"contract-drift","severity":"note","verdict":"NEEDS-CHANGE","origin":"introduced","message":"NodeDraftProjection declares aliases as required List<String> while the code treats it as optional and absent-when-empty, unlike its Optional schema_version sibling"},
+{"file":"crates/ekr/tests/created_node_aliases.rs","line":7,"category":"test-gap","severity":"warning","verdict":"NEEDS-CHANGE","origin":"pre-existing","message":"the acceptance requires ekr resolve through the binary, but the verb is on neither the base nor this branch, so the e2e test resolves in-process"}
+]
+```
