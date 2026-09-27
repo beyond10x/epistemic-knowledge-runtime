@@ -266,13 +266,17 @@ impl OperationKind {
   root_id         GraphRootId  the graph root: ekr snapshot graph.graph.root.id
   type_id         TypeId       a node type: ekr ontology node_types[].id
   canonical_name  String       the name a reader sees (a property, not an identity)
-  properties      map PropertyId -> [Value]   {} when none",
+  properties      map PropertyId -> [Value]   {} when none
+  aliases         [String]     optional: the names it is also known by, which a typed
+                               reference's aliases are matched against; absent means []",
                 "- !CreateNode
   id: 00000000-0000-4000-8000-000000000304
   root_id: 00000000-0000-4000-8000-000000000002
   type_id: 00000000-0000-4000-8000-000000000202
   canonical_name: Globex
-  properties: {}",
+  properties: {}
+  aliases:
+  - Globex",
             ),
             Self::UpdateProperty => (
                 "set the values of one property of one node",

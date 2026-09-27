@@ -273,6 +273,7 @@ pub(crate) fn admitted_graph(
                 type_id: node.type_id,
                 canonical_name: node.canonical_name.clone(),
                 properties: node.properties.clone(),
+                aliases: node.aliases.clone(),
             })
         })
         .chain(document.edges.values().map(|edge| {

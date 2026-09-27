@@ -144,6 +144,7 @@ fn create(
             type_id: node_type,
             canonical_name: "created".into(),
             properties: BTreeMap::new(),
+            aliases: Vec::new(),
         })],
         evidence: BTreeSet::new(),
         schema_version: None,

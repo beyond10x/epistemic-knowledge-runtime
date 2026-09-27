@@ -366,6 +366,7 @@ fn dangling(world: &World, shape: Shape, bits: NodeId) -> (GraphOperation, bool)
             type_id: world.node_type,
             canonical_name: "created".into(),
             properties,
+            aliases: Vec::new(),
         })
     };
     let operation = match shape {
@@ -514,6 +515,7 @@ fn benign(world: &World, at: usize) -> GraphOperation {
             type_id: world.node_type,
             canonical_name: "benign".into(),
             properties: BTreeMap::new(),
+            aliases: Vec::new(),
         }),
         1 => GraphOperation::UpdateProperty(PropertyMutation {
             node: world.nodes[1],
@@ -808,6 +810,7 @@ impl Lineage {
                         type_id: world.node_type,
                         canonical_name: format!("node-{}", self.nodes.len()),
                         properties,
+                        aliases: Vec::new(),
                     }));
                     written.insert(id);
                     self.nodes.push(id);
@@ -883,6 +886,7 @@ impl Lineage {
                 type_id: world.node_type,
                 canonical_name: "filler".into(),
                 properties: BTreeMap::new(),
+                aliases: Vec::new(),
             }));
         }
         GraphTransaction {

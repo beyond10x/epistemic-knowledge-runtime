@@ -89,6 +89,7 @@ fn proposal(w: &World) -> GraphTransaction {
             type_id: w.ty,
             canonical_name: "a-thing".into(),
             properties: BTreeMap::new(),
+            aliases: Vec::new(),
         })],
         evidence: BTreeSet::new(),
         schema_version: None,

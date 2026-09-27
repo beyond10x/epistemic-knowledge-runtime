@@ -33,6 +33,7 @@ pub(crate) fn apply(
                     draft.type_id,
                     draft.canonical_name.clone(),
                 );
+                node.aliases.clone_from(&draft.aliases);
                 node.properties = draft
                     .properties
                     .iter()

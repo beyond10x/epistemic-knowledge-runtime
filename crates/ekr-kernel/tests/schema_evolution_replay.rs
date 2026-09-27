@@ -295,6 +295,7 @@ fn replay_reproduces_every_root_across_schema_versions_on_both_providers() {
                         summary,
                         vec![Value::String("observed after the schema change".into())],
                     )]),
+                    aliases: Vec::new(),
                 }),
                 GraphOperation::CreateEdge(EdgeDraft {
                     id: EdgeId::mint(),

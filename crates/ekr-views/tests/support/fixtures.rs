@@ -476,6 +476,7 @@ fn observed() -> Vec<GraphOperation> {
                 id(SUMMARY),
                 vec![Value::String("observed after the schema change".into())],
             )]),
+            aliases: Vec::new(),
         }),
         GraphOperation::CreateEdge(EdgeDraft {
             id: id(OBSERVED_EDGE),

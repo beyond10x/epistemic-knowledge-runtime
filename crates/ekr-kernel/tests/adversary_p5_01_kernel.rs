@@ -155,6 +155,7 @@ fn data_after_a_schema_change_is_held_to_it_on_both_providers() {
             type_id: observation,
             canonical_name: "an observation".into(),
             properties,
+            aliases: Vec::new(),
         };
         let good = node(BTreeMap::from([
             (summary, vec![Value::String("held".into())]),

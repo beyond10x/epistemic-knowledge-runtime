@@ -237,6 +237,7 @@ impl World {
             properties: [(self.title, vec![Value::String(name.to_owned())])]
                 .into_iter()
                 .collect(),
+            aliases: Vec::new(),
         }
     }
 
@@ -1214,6 +1215,7 @@ fn every_type_refusal_the_validator_can_make_is_reachable() {
             type_id: TypeId::mint(),
             canonical_name: "A decision of no declared type".to_owned(),
             properties: BTreeMap::new(),
+            aliases: Vec::new(),
         })],
     );
     assert_eq!(codes(&unknown_type), vec!["unknown-type"]);
@@ -1256,6 +1258,7 @@ fn a_node_of_an_abstract_type_is_refused() {
             type_id: record,
             canonical_name: "A record of nothing in particular".to_owned(),
             properties: BTreeMap::new(),
+            aliases: Vec::new(),
         })],
     );
     assert_eq!(refusing_validators(&issues), vec![ValidatorName::Type]);
@@ -1433,6 +1436,7 @@ fn property_cardinality_and_required_presence_are_refused() {
             type_id: world.decision,
             canonical_name: "A decision with no title".to_owned(),
             properties: BTreeMap::new(),
+            aliases: Vec::new(),
         })],
     );
     assert_eq!(codes(&missing), vec!["missing-required-property"]);
@@ -1674,6 +1678,7 @@ fn one_of_each_operation(world: &World) -> Vec<GraphOperation<CanonicalValue>> {
             type_id: world.decision,
             canonical_name: "one".to_owned(),
             properties: BTreeMap::new(),
+            aliases: Vec::new(),
         }),
         GraphOperation::UpdateProperty(PropertyMutation {
             node,
@@ -1788,6 +1793,7 @@ fn the_encoding_writes_id_bearing_fields_in_declaration_order() {
         type_id,
         canonical_name: "Adopt trybuild for the membrane".to_owned(),
         properties: BTreeMap::new(),
+        aliases: Vec::new(),
     });
 
     let edge_draft = GraphOperation::CreateEdge(EdgeDraft::<CanonicalValue> {

@@ -508,7 +508,7 @@ carry.
 |---|---|
 | `id`, `root_id`, `type_id` | its id, the root id, a concrete (not abstract) node type |
 | `canonical_name` | the name a reader sees; a property, not an identity |
-| `aliases` | other names, a list of strings. Seed only: transactions do not set aliases |
+| `aliases` | other names, a list of strings. A `CreateNode` sets them the same way; no other operation changes them |
 | `type_state` | the lifecycle's `initial` state, or `null` for a type without a lifecycle |
 | `properties` | map property id → non-empty list of values, satisfying the type's definitions (required properties present) |
 
@@ -600,7 +600,7 @@ parses but is **refused** under either profile, with the same code.
 
 | kind | applied | what it does |
 |---|---|---|
-| `CreateNode` | applied | creates a node: `id`, `root_id`, `type_id`, `canonical_name`, `properties` |
+| `CreateNode` | applied | creates a node: `id`, `root_id`, `type_id`, `canonical_name`, `properties`, and optionally `aliases` (a list of strings, the names a typed reference is matched against; absent means none) |
 | `UpdateProperty` | applied | sets all values of one property of one node: `node`, `property`, `values` (`[]` clears it) |
 | `CreateEdge` | applied | creates an edge: `id`, `root_id`, `type_id`, `source`, `target`, `properties` |
 | `DeleteEdge` | applied | removes an edge: `!DeleteEdge <edge id>` |
