@@ -25,12 +25,12 @@ httparse.workspace = true
 schemars = "1.2"
 serde.workspace = true
 serde_json.workspace = true
+serde_yaml_ng.workspace = true
 time.workspace = true
 
 [dev-dependencies]
 assert_cmd.workspace = true
 jsonschema = { version = "0.58", default-features = false }
-serde_yaml_ng.workspace = true
 tempfile.workspace = true
 
 [lints]

@@ -196,9 +196,10 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
             "schemars",
             "serde",
             "serde_json",
+            "serde_yaml_ng",
             "time",
         ],
-        &["assert_cmd", "jsonschema", "serde_yaml_ng", "tempfile"],
+        &["assert_cmd", "jsonschema", "tempfile"],
     ),
 ];
 
