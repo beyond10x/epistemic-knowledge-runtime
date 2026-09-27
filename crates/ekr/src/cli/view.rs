@@ -430,21 +430,25 @@ fn answer(runtime: &Runtime, port: u16, asked: &Asked) -> Reply {
     }
 }
 
-/// The revision a projection query names: none, or exactly `revision=N`.
+/// The revision a `/projection` or `/roles` query names: none for an empty query, else the query
+/// is exactly `revision=N` with `N` one or more ASCII digits that fit a `u64`. Anything else —
+/// an empty pair, a second pair, a sign, a space, another digit script — is refused.
 fn revision(query: &str) -> Result<Option<RevisionNumber>, String> {
-    let mut revision = None;
-    for pair in query.split('&').filter(|pair| !pair.is_empty()) {
-        match pair.split_once('=') {
-            Some(("revision", value)) if revision.is_none() => {
-                let number = value
-                    .parse::<u64>()
-                    .map_err(|_| format!("revision {value:?} is not a revision number"))?;
-                revision = Some(RevisionNumber::new(number));
-            }
-            _ => return Err(format!("the query {query:?} is not `revision=N`")),
-        }
+    if query.is_empty() {
+        return Ok(None);
     }
-    Ok(revision)
+    let Some(value) = query.strip_prefix("revision=") else {
+        return Err(format!("the query {query:?} is not `revision=N`"));
+    };
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(format!(
+            "the query {query:?} is not `revision=N` with N a decimal revision number"
+        ));
+    }
+    let number = value
+        .parse::<u64>()
+        .map_err(|_| format!("revision {value:?} is not a revision number"))?;
+    Ok(Some(RevisionNumber::new(number)))
 }
 
 fn projection(runtime: &Runtime, query: &str) -> Reply {
@@ -642,6 +646,13 @@ mod tests {
             "at=1",
             "revision=1&revision=2",
             "revision",
+            "&",
+            "revision=1&",
+            "&revision=1",
+            "revision=+0",
+            "revision= 1",
+            "revision=1 ",
+            "revision=٣",
         ] {
             assert!(revision(bad).is_err(), "{bad}");
         }

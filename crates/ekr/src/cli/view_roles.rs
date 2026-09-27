@@ -12,16 +12,18 @@
 //! valid-time assertions, degree and direction. No type, edge-type, property or entity name, and
 //! no id, is ever compared to a constant, so renaming everything in a store changes nothing here.
 //!
-//! 1. **Arcs.** For every edge type of the revision's ontology, every type in its `source_types`
-//!    has an arc to every type in its `target_types`; a `symmetric` edge type adds the reverse arc
-//!    too. An arc from a type to itself is dropped. Type ids are taken as written: a type's
-//!    `parents` are not consulted.
+//! 1. **Arcs.** For every edge type of the revision's ontology, first widen its `source_types`
+//!    and its `target_types` each to every node type that conforms to one of them — the listed
+//!    types and all their descendants through `parents`, transitively — since that is how the
+//!    kernel checks an edge's endpoints (`Ontology::conforms_to`). Then every widened source type
+//!    has an arc to every widened target type; a `symmetric` edge type adds the reverse arc too.
+//!    An arc from a type to itself is dropped. Abstract types are types like any other here.
 //! 2. **Degree.** A type's *targets* are the distinct other types it has an arc to; its *sources*
 //!    are the distinct other types that have an arc to it.
 //! 3. **Timed.** A type is *timed* when some assertion the revision holds — whatever its
 //!    assessment or lifecycle, property or relation — has a node of that type as its subject and a
-//!    valid time with at least one bound (`from` or `to` set). Assertions about an edge or a type
-//!    do not count.
+//!    valid time with at least one bound (`from` or `to` set). "Of that type" is the node's own
+//!    `type_id`, not its ancestors. Assertions about an edge or a type do not count.
 //! 4. **Advancing.** A type is *advancing* when it is timed and has at least one target.
 //!
 //! Then each node type of the ontology gets the first of these that holds:
@@ -78,11 +80,33 @@ impl Shape {
                 .collect(),
             ..Self::default()
         };
+        // Every declared type that conforms to one of `declared`: the declared types and all their
+        // descendants, which is how the kernel checks an edge's endpoints.
+        let widened = |declared: &BTreeSet<TypeId>| -> BTreeSet<TypeId> {
+            shape
+                .types
+                .iter()
+                .copied()
+                .filter(|&candidate| {
+                    declared
+                        .iter()
+                        .any(|&allowed| graph.ontology.conforms_to(candidate, allowed))
+                })
+                .collect()
+        };
+        let mut arcs = Vec::new();
         for edge_type in &ontology.edge_types {
-            for &source in &edge_type.source_types {
-                for &target in &edge_type.target_types {
+            let (sources, targets) = (
+                widened(&edge_type.source_types),
+                widened(&edge_type.target_types),
+            );
+            arcs.push((sources, targets, edge_type.symmetric));
+        }
+        for (sources, targets, symmetric) in arcs {
+            for &source in &sources {
+                for &target in &targets {
                     shape.arc(source, target);
-                    if edge_type.symmetric {
+                    if symmetric {
                         shape.arc(target, source);
                     }
                 }

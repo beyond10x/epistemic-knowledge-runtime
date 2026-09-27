@@ -322,20 +322,25 @@ the viewer lays out as events, subjects and observations:
 below does not place has no entry (the viewer still shows it). The body is computed from the same
 loaded revision `/projection` renders and is not part of `ekr.graph-projection/1`. It is refused
 exactly as `/projection` is: 404 `ekr.views.RevisionNotFound` for a revision the store does not
-hold, 400 `invalid-query` for any query but `revision=N`.
+hold, 400 `invalid-query` for any query but exactly `revision=N` with `N` in ASCII decimal
+digits (an empty pair, a second pair, a sign or a space is refused).
 
 The rule reads the store's shape and nothing else — never a type, edge-type, property or entity
 name, and never an id compared to a constant — so a store whose every name is changed gets the same
 roles, id for id. To apply it by hand to the revision's ontology and assertions:
 
-1. **Arcs.** Each edge type gives an arc from every type in its `source_types` to every type in its
-   `target_types`; a `symmetric` edge type gives the reverse arcs too. An arc from a type to itself
-   is dropped. Type ids are taken as written: `parents` are not consulted.
+1. **Arcs.** First widen each edge type's `source_types` and `target_types` to every node type that
+   conforms to one of them: the listed types and all their descendants through `parents`,
+   transitively, which is how the runtime checks an edge's endpoints. Each edge type then gives an
+   arc from every widened source type to every widened target type; a `symmetric` edge type gives
+   the reverse arcs too. An arc from a type to itself is dropped. Abstract types count like any
+   other.
 2. **Degree.** A type's *targets* are the other types it has an arc to; its *sources* are the other
    types with an arc to it.
 3. **Timed.** A type is *timed* when some assertion the revision holds — property or relation,
    whatever its assessment or lifecycle — has a node of that type as its subject and a valid time
-   with `from` or `to` set. Assertions about an edge or a type do not count.
+   with `from` or `to` set. The node's own type counts, not its ancestors. Assertions about an edge
+   or a type do not count.
 4. **Advancing.** A type is *advancing* when it is timed and has at least one target.
 
 Each node type then takes the first role whose condition holds:
