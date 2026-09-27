@@ -106,7 +106,47 @@ pub struct TypedReference {
     /// The node type the referenced node is an instance of, exactly.
     pub type_id: TypeId,
     /// The names the referenced node is known by, each compared byte for byte.
+    #[serde(deserialize_with = "strings")]
     pub aliases: Vec<String>,
+}
+
+/// A list of strings, decoded self-describingly: a number, a boolean, a null, a tagged value or
+/// a null list is refused, not read as its text or as an empty list. `List<String>` means strings.
+fn strings<'de, D: serde::Deserializer<'de>>(decoder: D) -> Result<Vec<String>, D::Error> {
+    struct Text(String);
+    impl<'de> Deserialize<'de> for Text {
+        fn deserialize<D: serde::Deserializer<'de>>(decoder: D) -> Result<Self, D::Error> {
+            struct Visit;
+            impl serde::de::Visitor<'_> for Visit {
+                type Value = Text;
+                fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                    formatter.write_str("a string")
+                }
+                fn visit_str<E: serde::de::Error>(self, text: &str) -> Result<Text, E> {
+                    Ok(Text(text.to_owned()))
+                }
+            }
+            decoder.deserialize_any(Visit)
+        }
+    }
+    struct Visit;
+    impl<'de> serde::de::Visitor<'de> for Visit {
+        type Value = Vec<String>;
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a list of strings")
+        }
+        fn visit_seq<A: serde::de::SeqAccess<'de>>(
+            self,
+            mut items: A,
+        ) -> Result<Vec<String>, A::Error> {
+            let mut aliases = Vec::new();
+            while let Some(Text(alias)) = items.next_element()? {
+                aliases.push(alias);
+            }
+            Ok(aliases)
+        }
+    }
+    decoder.deserialize_any(Visit)
 }
 
 /// The one canonical node a reference resolved to: `ekr.integrate.ResolvedReference`
