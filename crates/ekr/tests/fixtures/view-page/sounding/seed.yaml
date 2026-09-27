@@ -1,0 +1,242 @@
+format: ekr-seed/2
+ontology:
+  version:
+    id: 00000000-0000-4000-8000-00000000a001
+    number: 0
+    parent: null
+    created_at: 0
+  node_types:
+  - id: 00000000-0000-4000-8000-00000000a201
+    name: Probe
+    parents: []
+    properties: {}
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-00000000a202
+    name: Sample
+    parents: []
+    properties:
+      00000000-0000-4000-8000-00000000a801:
+        id: 00000000-0000-4000-8000-00000000a801
+        name: depth_meters
+        value_type:
+          value_kind: Integer
+        cardinality: One
+        required: false
+        constraints: []
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-00000000a203
+    name: Station
+    parents: []
+    properties:
+      00000000-0000-4000-8000-00000000a802:
+        id: 00000000-0000-4000-8000-00000000a802
+        name: station_code
+        value_type:
+          value_kind: String
+        cardinality: One
+        required: false
+        constraints: []
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  edge_types:
+  - id: 00000000-0000-4000-8000-00000000a211
+    name: SAMPLED_BY
+    source_types:
+    - 00000000-0000-4000-8000-00000000a202
+    target_types:
+    - 00000000-0000-4000-8000-00000000a201
+    cardinality: Many
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+  - id: 00000000-0000-4000-8000-00000000a212
+    name: LOCATED_AT
+    source_types:
+    - 00000000-0000-4000-8000-00000000a201
+    target_types:
+    - 00000000-0000-4000-8000-00000000a203
+    cardinality: Many
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+graph:
+  format: ekr.graph-document/2
+  graph:
+    root:
+      id: 00000000-0000-4000-8000-00000000a002
+      space: Canonical
+      schema_version_id: 00000000-0000-4000-8000-00000000a001
+      parent: null
+      created_at: 0
+    revision: 0
+    nodes:
+      00000000-0000-4000-8000-00000000a301:
+        id: 00000000-0000-4000-8000-00000000a301
+        root_id: 00000000-0000-4000-8000-00000000a002
+        type_id: 00000000-0000-4000-8000-00000000a201
+        canonical_name: Kestrel-7
+        aliases: []
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-00000000a302:
+        id: 00000000-0000-4000-8000-00000000a302
+        root_id: 00000000-0000-4000-8000-00000000a002
+        type_id: 00000000-0000-4000-8000-00000000a201
+        canonical_name: Heron-2
+        aliases: []
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-00000000a311:
+        id: 00000000-0000-4000-8000-00000000a311
+        root_id: 00000000-0000-4000-8000-00000000a002
+        type_id: 00000000-0000-4000-8000-00000000a202
+        canonical_name: Draw Seventeen
+        aliases: []
+        type_state: null
+        properties:
+          00000000-0000-4000-8000-00000000a801:
+          - value_kind: Integer
+            value: 40
+      00000000-0000-4000-8000-00000000a312:
+        id: 00000000-0000-4000-8000-00000000a312
+        root_id: 00000000-0000-4000-8000-00000000a002
+        type_id: 00000000-0000-4000-8000-00000000a202
+        canonical_name: Draw Eighteen
+        aliases: []
+        type_state: null
+        properties:
+          00000000-0000-4000-8000-00000000a801:
+          - value_kind: Integer
+            value: 55
+      00000000-0000-4000-8000-00000000a321:
+        id: 00000000-0000-4000-8000-00000000a321
+        root_id: 00000000-0000-4000-8000-00000000a002
+        type_id: 00000000-0000-4000-8000-00000000a203
+        canonical_name: North Basin
+        aliases: []
+        type_state: null
+        properties:
+          00000000-0000-4000-8000-00000000a802:
+          - value_kind: String
+            value: NB-1
+      00000000-0000-4000-8000-00000000a322:
+        id: 00000000-0000-4000-8000-00000000a322
+        root_id: 00000000-0000-4000-8000-00000000a002
+        type_id: 00000000-0000-4000-8000-00000000a203
+        canonical_name: Cold Spring
+        aliases: []
+        type_state: null
+        properties:
+          00000000-0000-4000-8000-00000000a802:
+          - value_kind: String
+            value: CS-4
+    edges:
+      00000000-0000-4000-8000-00000000a701:
+        id: 00000000-0000-4000-8000-00000000a701
+        root_id: 00000000-0000-4000-8000-00000000a002
+        type_id: 00000000-0000-4000-8000-00000000a211
+        source: 00000000-0000-4000-8000-00000000a311
+        target: 00000000-0000-4000-8000-00000000a301
+        properties: {}
+      00000000-0000-4000-8000-00000000a702:
+        id: 00000000-0000-4000-8000-00000000a702
+        root_id: 00000000-0000-4000-8000-00000000a002
+        type_id: 00000000-0000-4000-8000-00000000a211
+        source: 00000000-0000-4000-8000-00000000a312
+        target: 00000000-0000-4000-8000-00000000a302
+        properties: {}
+      00000000-0000-4000-8000-00000000a703:
+        id: 00000000-0000-4000-8000-00000000a703
+        root_id: 00000000-0000-4000-8000-00000000a002
+        type_id: 00000000-0000-4000-8000-00000000a212
+        source: 00000000-0000-4000-8000-00000000a301
+        target: 00000000-0000-4000-8000-00000000a321
+        properties: {}
+      00000000-0000-4000-8000-00000000a704:
+        id: 00000000-0000-4000-8000-00000000a704
+        root_id: 00000000-0000-4000-8000-00000000a002
+        type_id: 00000000-0000-4000-8000-00000000a212
+        source: 00000000-0000-4000-8000-00000000a302
+        target: 00000000-0000-4000-8000-00000000a322
+        properties: {}
+    assertions:
+      00000000-0000-4000-8000-00000000a510:
+        id: 00000000-0000-4000-8000-00000000a510
+        root_id: 00000000-0000-4000-8000-00000000a002
+        subject: !Node 00000000-0000-4000-8000-00000000a301
+        predicate: !Relation 00000000-0000-4000-8000-00000000a212
+        object: !Node 00000000-0000-4000-8000-00000000a321
+        evidence:
+        - 00000000-0000-4000-8000-00000000a401
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: 1735689600000
+          to: 1777593600000
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+      00000000-0000-4000-8000-00000000a511:
+        id: 00000000-0000-4000-8000-00000000a511
+        root_id: 00000000-0000-4000-8000-00000000a002
+        subject: !Node 00000000-0000-4000-8000-00000000a301
+        predicate: !Relation 00000000-0000-4000-8000-00000000a212
+        object: !Node 00000000-0000-4000-8000-00000000a322
+        evidence:
+        - 00000000-0000-4000-8000-00000000a402
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: 1777593600000
+          to: null
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+      00000000-0000-4000-8000-00000000a512:
+        id: 00000000-0000-4000-8000-00000000a512
+        root_id: 00000000-0000-4000-8000-00000000a002
+        subject: !Node 00000000-0000-4000-8000-00000000a311
+        predicate: !Property 00000000-0000-4000-8000-00000000a801
+        object: !Value
+          value_kind: Integer
+          value: 40
+        evidence:
+        - 00000000-0000-4000-8000-00000000a401
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: 1772323200000
+          to: null
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+    evidence:
+      00000000-0000-4000-8000-00000000a401:
+        id: 00000000-0000-4000-8000-00000000a401
+        source: !HumanStatement
+          identity: Runtime operator
+        content_hash: ba8d1778eebb7b2eca153e44a01167cb4aeb58c854d71cbcdf68ed78fb862b53
+        extracted_by: 00000000-0000-4000-8000-000000000101
+        observed_at: 1777593600000
+        confidence: 9000
+      00000000-0000-4000-8000-00000000a402:
+        id: 00000000-0000-4000-8000-00000000a402
+        source: !HumanStatement
+          identity: Runtime operator
+        content_hash: c7e7cf84569889daf9451705837594bb52a6130df85a3b416ad532a5bb04405f
+        extracted_by: 00000000-0000-4000-8000-000000000101
+        observed_at: 1777593600000
+        confidence: 10000
+evidence_payloads:
+  ba8d1778eebb7b2eca153e44a01167cb4aeb58c854d71cbcdf68ed78fb862b53: [80, 114, 111, 98, 101, 32, 75, 101, 115, 116, 114, 101, 108, 45, 55, 32, 114, 101, 112, 111, 114, 116, 101, 100, 32, 102, 114, 111, 109, 32, 78, 111, 114, 116, 104, 32, 66, 97, 115, 105, 110, 32, 116, 104, 114, 111, 117, 103, 104, 32, 50, 48, 50, 54, 45, 48, 52, 45, 51, 48, 46]
+  c7e7cf84569889daf9451705837594bb52a6130df85a3b416ad532a5bb04405f: [80, 114, 111, 98, 101, 32, 75, 101, 115, 116, 114, 101, 108, 45, 55, 32, 114, 101, 112, 111, 114, 116, 101, 100, 32, 102, 114, 111, 109, 32, 67, 111, 108, 100, 32, 83, 112, 114, 105, 110, 103, 32, 102, 114, 111, 109, 32, 50, 48, 50, 54, 45, 48, 53, 45, 48, 49, 46]
