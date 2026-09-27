@@ -38,6 +38,18 @@
 //! is therefore out of date and is amended in the planning store alongside this change; this file
 //! is the tree's copy of it, and the two move together.
 //!
+//! # `ekr`'s view and resolve edges, wave p2p3p4-03
+//!
+//! `story:ekr-view-server` serves the graph projection `ekr-views` renders from a blocking
+//! `std::net` server that parses request heads with `httparse` and never reads a body, so no store
+//! call runs inside a Tokio context
+//! (`architecture-decision-record:0006-ekr-store-bridges-the-async-port`). The first cut used
+//! `tiny_http` 0.12, which allocates a request's announced body length when it drops the request;
+//! one request announcing 2^50 bytes aborted the process (wave p2p3p4-03 adversary pass 1).
+//! `story:ekr-resolve-verb` puts `ekr-integrate`'s resolver behind a read verb. `ekr-views` and
+//! `ekr-integrate` are workspace crates the skeleton story predates, so this file lists them with
+//! the external dependencies rather than in [`CRATES`].
+//!
 //! # `ekr`'s conformance edges, wave p1-14
 //!
 //! `story:ess-conformance-kernel` adds the ESS conformance target to `ekr`: `ess-conformance` and
@@ -176,8 +188,11 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
         "ekr",
         &[
             "clap",
+            "ekr-integrate",
+            "ekr-views",
             "ess-conformance",
             "ess-primitives",
+            "httparse",
             "schemars",
             "serde",
             "serde_json",
