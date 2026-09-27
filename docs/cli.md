@@ -131,6 +131,7 @@ tag `!Node <id>`. A proposal record's `document_bytes` prints as one standard ba
 | `ekr mint` | none | an id kind | `{"id", "kind"}`: a fresh id |
 | `ekr hash` | none | a payload file, or `-` | the payload's `content_hash` and its `payload_yaml` |
 | `ekr schema` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2` or `ekr.cli-host/1` (aliases `transaction` for `/2`, `seed`, `host`) | the format's JSON Schema (draft 2020-12) |
+| `ekr view` | reads | `--port <port>` (`0`, the default, picks a free one) | `{"url": "http://127.0.0.1:<port>/"}` as one line, then serves a read-only viewer until interrupted |
 
 Every verb has `--help`.
 
@@ -281,6 +282,24 @@ The printed `description` names every place the schema and the reader differ:
 | a string or key within maxLength characters but over the byte limit (text outside ASCII) | refuses | cannot see it |
 | a transaction document over its format's byte cap (8388608 bytes for `/2`, 262144 for `/1`), nested deeper than 32, with more than its format's values and keys (1048576, `/1` 32768) or text in all (33554432 bytes, `/1` 1048576) | refuses | cannot see it |
 | a `ModifyProperty` written as a bare property declaration, without `owner` and `property` (the P1 shape) | accepts; validation then rejects it (`unsupported-operation` under profile v1, `modify-property-without-owner` under v2) | refuses |
+
+### `ekr view`
+
+Serves a read-only viewer of an existing store on 127.0.0.1 — never another address — until the
+process is interrupted: `ekr view --port 8080`, or `--port 0` (the default) for a free port. It
+prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`, then answers:
+
+| request | answer |
+|---|---|
+| `GET /` | the viewer page, built into the binary: it shows the projection's `meta` |
+| `GET /projection` | the `ekr.graph-projection/1` document at the head, `application/json`, byte for byte what the projection renders |
+| `GET /projection?revision=N` | the same as of revision `N`; a revision the store does not hold is 404 with `{"refusal": "ekr.views.RevisionNotFound", …}` |
+| `GET /evidence/<evidence id>` | that evidence's retained bytes: `text/plain; charset=utf-8` when they are UTF-8, otherwise `application/octet-stream`; 404 for an id the head does not hold or bytes the store did not retain |
+
+Any other method is 405 and any other path 404. Every response carries
+`X-Content-Type-Options: nosniff`, and none sets a cookie or allows another origin. Evidence text is
+never served as HTML. Like every read verb, `ekr view` opens an existing store only (a path holding
+none is `store-not-found`, exit 1) and writes nothing to it.
 
 ## The workflow
 

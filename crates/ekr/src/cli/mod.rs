@@ -22,6 +22,7 @@ mod seed;
 mod snapshot;
 mod transactions;
 mod validate;
+mod view;
 
 use std::ffi::OsString;
 use std::io::Read;
@@ -220,6 +221,19 @@ pub enum Command {
         #[arg(long)]
         at: Option<u64>,
     },
+    /// Serve a read-only viewer of the store on 127.0.0.1 until interrupted: the page, the
+    /// `ekr.graph-projection/1` at the head or at a revision, and retained evidence bytes.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST); it opens an existing
+    /// store only and writes nothing. Binds 127.0.0.1 and no other address, prints
+    /// `{"url": "http://127.0.0.1:<port>/"}` as one JSON line, then serves `GET /`,
+    /// `GET /projection[?revision=N]` and `GET /evidence/<evidence id>`.
+    #[command(after_help = SEE)]
+    View {
+        /// The port on 127.0.0.1 to listen on; 0 picks a free one.
+        #[arg(long, default_value_t = 0)]
+        port: u16,
+    },
 }
 
 /// The system clock in milliseconds since the Unix epoch, for a new decision only.
@@ -352,6 +366,7 @@ pub fn execute(
             &configured.resolve("ontology")?.open()?,
             at,
         )?),
+        Command::View { port } => view::run(&configured.resolve("view")?.open()?, port),
     }
 }
 

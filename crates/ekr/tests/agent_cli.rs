@@ -655,6 +655,7 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         "ontology",
         "hash",
         "schema",
+        "view",
     ] {
         assert!(
             verbs.iter().any(|v| v == verb),
@@ -724,6 +725,10 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
                 "ekr-seed/2",
                 "ekr.cli-host/1",
             ],
+        ),
+        (
+            "view",
+            &["127.0.0.1", "ekr.graph-projection/1", "free one", store],
         ),
     ];
     let listed: BTreeSet<&str> = verbs.iter().map(String::as_str).collect();
