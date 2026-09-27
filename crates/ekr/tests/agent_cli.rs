@@ -16,7 +16,12 @@ use ekr_kernel::{GraphOperation, SeedDocument, TransactionDocument};
 use serde_json::Value;
 
 const BACKENDS: [&str; 2] = ["file", "sqlite"];
-const FORMATS: [&str; 3] = ["ekr.transaction-document/2", "ekr-seed/2", "ekr.cli-host/1"];
+const FORMATS: [&str; 4] = [
+    "ekr.transaction-document/2",
+    "ekr-seed/2",
+    "ekr.cli-host/1",
+    "typed-reference",
+];
 /// 2026-03-12T00:00:00Z.
 const MARCH_12: i64 = 1_773_273_600_000;
 /// 2020-01-01T00:00:00Z.
@@ -260,6 +265,10 @@ fn guide_prints_the_workflow_roles_exit_codes_and_where_ids_come_from() {
         "Accepted",
         "--valid-at",
         "matching_assertions",
+        // story:ekr-resolve-verb: resolve before CreateNode.
+        "ekr resolve",
+        "ekr example typed-reference",
+        "ProposeNew",
     ] {
         assert!(guide.contains(needle), "guide lacks {needle:?}:\n{guide}");
     }
@@ -655,6 +664,7 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         "ontology",
         "hash",
         "schema",
+        "view",
     ] {
         assert!(
             verbs.iter().any(|v| v == verb),
@@ -723,6 +733,21 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
                 "ekr.transaction-document/2",
                 "ekr-seed/2",
                 "ekr.cli-host/1",
+            ],
+        ),
+        (
+            "view",
+            &["127.0.0.1", "ekr.graph-projection/1", "free one", store],
+        ),
+        (
+            "resolve",
+            &[
+                "typed-reference",
+                "ekr example typed-reference",
+                "ekr ontology",
+                "CreateNode",
+                "ekr head",
+                store,
             ],
         ),
     ];

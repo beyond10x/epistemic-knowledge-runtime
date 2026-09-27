@@ -2,7 +2,7 @@
 format: aep.planning-md/2
 id: story:ekr-resolve-verb
 kind: story
-status: draft
+status: implemented
 title: 'ekr resolve: an agent resolves a typed reference before it proposes a node'
 relations:
 - depends_on: story:typed-reference-resolver
@@ -33,7 +33,7 @@ scope:
   path: crates/ekr/tests/schema_cli.rs
 - confidence: cited
   path: docs/cli.md
-revision: 14
+revision: 17
 ---
 ## Context
 

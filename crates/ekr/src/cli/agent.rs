@@ -42,7 +42,8 @@ WORKFLOW
   3. ekr ontology [--at N]                         node types, edge types, properties: name and id;
                                                    the schema version (id, number, parent)
      ekr snapshot                                  nodes, edges, assertions, evidence at the head
-  4. ekr mint node | edge | assertion | transaction | ...
+  4. ekr resolve reference.yaml                    is the node there already? before a CreateNode
+     ekr mint node | edge | assertion | transaction | ...
                                                    fresh ids for everything you create
   5. ekr operations                                the operation kinds, one line each
      ekr operations <Kind>                         its fields and an example operation
@@ -57,6 +58,7 @@ WORKFLOW
      ekr transactions [--state <State>]            retained transactions, id, state, proposer
      ekr snapshot [--at N] [--valid-at YYYY-MM-DD]  read the result back
      ekr explain <assertion_id>                    why an assertion is what it is
+     ekr view [--port N]                           a read-only viewer on 127.0.0.1, until interrupted
 
 DOCUMENT LIMITS (fixed by the format version; write ekr.transaction-document/2)
   An ekr.transaction-document/2 holds 1 to 10000 operations and at most 10000 evidence entries
@@ -128,6 +130,23 @@ WHERE VALUES COME FROM
   evidence         a transaction's `evidence` list is exactly the evidence its assertions cite,
                    and each must already be retained (seeded; see ADDING EVIDENCE TO A SEED)
   content hashes   ekr hash <file | ->
+
+RESOLVE BEFORE YOU CREATE: ekr resolve
+  Before a CreateNode, resolve the node you mean: ekr resolve <reference.yaml> [--at N]. A
+  typed reference (`ekr example typed-reference`, `ekr schema typed-reference`) holds the node
+  type's id (`ekr ontology`) and the aliases the node is known by; a canonical_name is never
+  compared. It reads only, and prints one JSON document; read `kind`:
+    Resolved    node_id is the node: use that id and create nothing.
+    ProposeNew  ProposeNew means no node of that type is known by those aliases: mint an id
+                (ekr mint node) and create it with CreateNode. It does not mean retry with a
+                looser reference.
+    Ambiguous   Ambiguous lists every candidate and chooses none: read them (ekr snapshot) and
+                decide which you mean.
+  A reference that cannot be resolved exits 2 with its code on stderr: reference-without-identity
+  (no alias but the empty string), reference-type-undeclared (not a node type of the ontology),
+  reference-type-has-subtypes (an abstract type or one with a subtype: name the concrete type).
+  Aliases enter a store only through the seed: a CreateNode carries none, so a node created by
+  a transaction is not found by ekr resolve later.
 
 ADDING EVIDENCE TO A SEED
   In P1 evidence enters only through the seed, before `ekr seed`; a transaction can cite only
@@ -538,6 +557,9 @@ pub enum ExampleFormat {
     /// The trusted host document for `--host`.
     #[value(name = "ekr.cli-host/1", alias = "host")]
     Host,
+    /// A typed reference for `ekr resolve`.
+    #[value(name = "typed-reference")]
+    TypedReference,
 }
 
 /// The examples `ekr example` prints: one complete document of each format, and a schema change.
@@ -559,6 +581,10 @@ pub enum ExampleDocument {
     /// The trusted host document for `--host`.
     #[value(name = "ekr.cli-host/1", alias = "host")]
     Host,
+    /// A typed reference for `ekr resolve`: against the example seed it proposes the node the
+    /// `CreateNode` example creates.
+    #[value(name = "typed-reference")]
+    TypedReference,
 }
 
 /// `ekr example <name>`: a complete document of that format, or the schema change. The `/1`
@@ -577,6 +603,7 @@ pub(super) fn example(example: ExampleDocument) -> String {
         ExampleDocument::SchemaChange => include_str!("examples/schema-change.yaml").to_owned(),
         ExampleDocument::Seed => include_str!("examples/seed.yaml").to_owned(),
         ExampleDocument::Host => include_str!("examples/host.json").to_owned(),
+        ExampleDocument::TypedReference => include_str!("examples/typed-reference.yaml").to_owned(),
     }
 }
 

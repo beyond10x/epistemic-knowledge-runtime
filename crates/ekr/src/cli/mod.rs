@@ -17,11 +17,13 @@ mod head;
 mod input;
 mod ontology;
 mod propose;
+mod resolve;
 mod schema;
 mod seed;
 mod snapshot;
 mod transactions;
 mod validate;
+mod view;
 
 use std::ffi::OsString;
 use std::io::Read;
@@ -148,6 +150,20 @@ pub enum Command {
         /// The assertion's id, as `ekr snapshot` prints it.
         assertion_id: ekr_core::AssertionId,
     },
+    /// Resolve a typed reference (`ekr.integrate`) against the canonical graph: the one node it
+    /// names, a new node to propose, or every candidate. Run it before a `CreateNode`.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST). Reads only: a
+    /// `ProposeNew` creates nothing; mint an id (`ekr mint node`) and propose a `CreateNode`.
+    #[command(after_help = SEE)]
+    Resolve {
+        /// A `typed-reference` YAML document, or `-` for stdin (`ekr example typed-reference`):
+        /// the node type's id from `ekr ontology` and the aliases the node is known by.
+        reference: PathBuf,
+        /// The committed revision to resolve against; the newest (`ekr head`) when absent.
+        #[arg(long)]
+        at: Option<u64>,
+    },
     /// Print the workflow: roles, propose → validate → commit, exit codes, where ids come from.
     #[command(after_help = SEE)]
     Guide,
@@ -219,6 +235,19 @@ pub enum Command {
         /// The committed revision whose schema to print; the newest (`ekr head`) when absent.
         #[arg(long)]
         at: Option<u64>,
+    },
+    /// Serve a read-only viewer of the store on 127.0.0.1 until interrupted: the page, the
+    /// `ekr.graph-projection/1` at the head or at a revision, and retained evidence bytes.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST); it opens an existing
+    /// store only and writes nothing. Binds 127.0.0.1 and no other address, prints
+    /// `{"url": "http://127.0.0.1:<port>/"}` as one JSON line, then serves `GET /`,
+    /// `GET /projection[?revision=N]` and `GET /evidence/<evidence id>`.
+    #[command(after_help = SEE)]
+    View {
+        /// The port on 127.0.0.1 to listen on; 0 picks a free one.
+        #[arg(long, default_value_t = 0)]
+        port: u16,
     },
 }
 
@@ -343,6 +372,11 @@ pub fn execute(
             let runtime = configured.resolve("explain")?.open()?;
             render(&explain::run(&runtime, assertion_id)?)
         }
+        Command::Resolve { reference, at } => {
+            let store = configured.resolve("resolve")?;
+            let reference = resolve::read(&reference, stdin)?;
+            render(&resolve::run(&store.open()?, &reference, at)?)
+        }
         Command::Head => render(&head::run(&configured.resolve("head")?.open()?)?),
         Command::Transactions { state } => {
             let runtime = configured.resolve("transactions")?.open()?;
@@ -352,6 +386,7 @@ pub fn execute(
             &configured.resolve("ontology")?.open()?,
             at,
         )?),
+        Command::View { port } => view::run(&configured.resolve("view")?.open()?, port),
     }
 }
 

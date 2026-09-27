@@ -2,7 +2,7 @@
 format: aep.planning-md/2
 id: story:ekr-view-server
 kind: story
-status: draft
+status: implemented
 title: ekr view serves a read-only graph viewer for a store on 127.0.0.1
 relations:
 - decomposes: epic:p4-operator-surface
@@ -19,7 +19,7 @@ scope:
   path: crates/ekr/tests
 - confidence: inferred
   path: docs/cli.md
-revision: 3
+revision: 6
 ---
 ## Context
 
