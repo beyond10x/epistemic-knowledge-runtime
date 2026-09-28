@@ -676,3 +676,59 @@ fn the_cache_keeps_the_three_most_recently_used_revisions_by_revision_and_head()
         Err(ProjectError::RevisionNotFound { .. })
     ));
 }
+
+// ---- the public names a host builds on ----------------------------------------------------------
+
+/// Every public name of the four reads, used by path the way a host such as `ekr view` would:
+/// the bounds a request is held to, the page a host streams record by record, and the answer's
+/// bytes and format tag.
+#[test]
+fn a_host_pages_a_slice_record_by_record_and_reads_each_format_tag() {
+    assert_eq!(ekr_views::OverviewRequest::DEFAULT_LIMIT, 300);
+    assert_eq!(ekr_views::OverviewRequest::MAX_LIMIT, 500);
+    assert_eq!(ekr_views::ExpandRequest::MAX_DEPTH, 2);
+    assert_eq!(ekr_views::ExpandRequest::MAX_LIMIT, 2_000);
+    assert_eq!(ekr_views::ExpandRequest::MAX_EDGE_LIMIT, 5_000);
+
+    let hub = index(Fixture::Hub, None);
+    let overview: ekr_views::Answer<ekr_views::GraphOverviewed> = hub
+        .overview(&OverviewRequest::new(Some(2)).expect("within bounds"))
+        .expect("overviewed");
+    assert_eq!(
+        json(&overview.bytes).1["meta"]["format"],
+        ekr_views::OVERVIEW_FORMAT
+    );
+
+    let page: ekr_views::SlicePage = hub.page(&expand(&[HUB], 1, 3, None, None)).expect("paged");
+    let meta: &ekr_views::SliceMeta = page.meta();
+    assert_eq!(meta.format, ekr_views::SLICE_FORMAT);
+    let mut nodes: Vec<&ekr_views::SliceNode> = Vec::new();
+    let mut edges: Vec<&ekr_views::SliceEdge> = Vec::new();
+    for record in page.records() {
+        match record {
+            SliceRecord::Node(node) => nodes.push(node),
+            SliceRecord::Edge(edge) => edges.push(edge),
+        }
+    }
+    assert_eq!((nodes.len(), edges.len()), (3, 2));
+    let summary = ekr_views::NodeSummary {
+        id: nodes[0].id,
+        type_id: nodes[0].type_id,
+        name: nodes[0].name.clone(),
+        degree: nodes[0].degree,
+    };
+    assert_eq!((summary.name.as_str(), summary.degree), ("hub", 600));
+
+    let detail = hub.describe(id::<NodeId>(HUB)).expect("described");
+    assert_eq!(
+        json(&detail.bytes).1["meta"]["format"],
+        ekr_views::DETAIL_FORMAT
+    );
+    let matches = hub
+        .search(&SearchRequest::new("hub".to_owned(), 1).expect("within bounds"))
+        .expect("searched");
+    assert_eq!(
+        json(&matches.bytes).1["meta"]["format"],
+        ekr_views::MATCHES_FORMAT
+    );
+}
