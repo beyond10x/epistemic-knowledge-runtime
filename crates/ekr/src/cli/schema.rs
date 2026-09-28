@@ -7,8 +7,8 @@ use super::ExampleFormat;
 use crate::exit::Failure;
 use crate::host::CliHostConfigurationV1;
 
-/// The printed schema: one pretty JSON document and a newline.
-pub(super) fn run(format: ExampleFormat) -> Result<String, Failure> {
+/// The schema as one JSON document, which the verb prints as every JSON verb does.
+pub(super) fn run(format: ExampleFormat) -> Result<serde_json::Value, Failure> {
     let schema = match format {
         ExampleFormat::TransactionDocument => {
             ekr_kernel::schema::transaction_document(ekr_kernel::DocumentFormat::V2)
@@ -20,7 +20,5 @@ pub(super) fn run(format: ExampleFormat) -> Result<String, Failure> {
         ExampleFormat::Host => CliHostConfigurationV1::json_schema_document(),
         ExampleFormat::TypedReference => super::resolve::schema(),
     };
-    let mut text = serde_json::to_string_pretty(&schema).map_err(Failure::fault)?;
-    text.push('\n');
-    Ok(text)
+    serde_json::to_value(&schema).map_err(Failure::fault)
 }

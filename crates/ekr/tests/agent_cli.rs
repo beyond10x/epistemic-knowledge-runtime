@@ -740,6 +740,10 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
             &["127.0.0.1", "ekr.graph-projection/1", "free one", store],
         ),
         (
+            "session",
+            &["\"argv\"", "\"stdin\"", "session-verb-refused", store],
+        ),
+        (
             "resolve",
             &[
                 "typed-reference",

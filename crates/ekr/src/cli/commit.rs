@@ -8,7 +8,7 @@ use crate::exit::Failure;
 /// A recorded staleness is a declared outcome and returns `Ok` like a commit does. An exact
 /// retry returns the original retained receipt without sampling `now`.
 pub(super) fn run(
-    runtime: Runtime,
+    runtime: &Runtime,
     transaction: TransactionId,
     operator: AgentId,
     now: &dyn Fn() -> Timestamp,

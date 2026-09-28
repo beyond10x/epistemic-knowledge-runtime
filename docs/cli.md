@@ -108,9 +108,10 @@ exactly that.
 | 1 | a fault: provider, verification, unreadable input, host configuration, a store that is not seeded, no store at `--store` (`store-not-found`) | a message on stderr |
 | 2 | a named refusal or a usage error. Nothing was recorded | `ekr: ekr.kernel.<Name>: <reason>` on stderr, or clap's usage message |
 
-`guide`, `operations` and `example` print text; every other verb prints one JSON document. In JSON
-output a tagged value is an object with one key — `{"Node": "<id>"}` — where a YAML input writes the
-tag `!Node <id>`. A proposal record's `document_bytes` prints as one standard base64 string.
+`guide`, `operations` and `example` print text; `session` prints one JSON line per request; every
+other verb prints one JSON document. In JSON output a tagged value is an object with one key —
+`{"Node": "<id>"}` — where a YAML input writes the tag `!Node <id>`. A proposal record's
+`document_bytes` prints as one standard base64 string.
 
 ## Verbs
 
@@ -133,6 +134,7 @@ tag `!Node <id>`. A proposal record's `document_bytes` prints as one standard ba
 | `ekr hash` | none | a payload file, or `-` | the payload's `content_hash` and its `payload_yaml` |
 | `ekr schema` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2`, `ekr.cli-host/1` or `typed-reference` (aliases `transaction` for `/2`, `seed`, `host`) | the format's JSON Schema (draft 2020-12) |
 | `ekr view` | reads | `--port <port>` (`0`, the default, picks a free one) | `{"url": "http://127.0.0.1:<port>/"}` as one line, then serves a read-only viewer until interrupted |
+| `ekr session` | reads and writes | one JSON request per line on stdin, `{"argv": [...]}`, until it ends | one JSON answer per request, `{"exit", "stdout", "stderr"}`: what the verb exits with and prints |
 
 Every verb has `--help`.
 
@@ -454,6 +456,60 @@ An observation points at events and nothing points at it; an event is timed and 
 subject is pointed at and is not an event. A timed type with no targets is therefore a subject, a
 type with no arc to or from another type after widening has no role, and a revision that adds a
 timed assertion can move a type from `subject` to `event`.
+
+### `ekr session`
+
+Serves the verbs that print one JSON document through one process that opens the store once. A
+host that makes many calls — resolve, mint, propose, validate, commit, over and over — pays for
+opening and verifying the store once instead of once per call. The session reads the
+configuration (`--host`, `--store`, `--backend`, `--full-replay` or their variables) and opens the
+store when it starts, then reads standard input one line at a time until it ends. Each line is one
+request:
+
+```console
+{"argv": ["resolve", "reference.yaml"]}
+{"argv": ["propose", "-"], "stdin": "format: ekr.transaction-document/2\ntransaction: ..."}
+{"argv": ["commit", "00000000-0000-4000-8000-000000000902"]}
+```
+
+- `"argv"` — a verb and its arguments, exactly as `ekr` takes them after its name, parsed by the
+  same definitions: `["snapshot", "--at", "0"]` is `ekr snapshot --at 0`. Relative paths are read
+  from the session's working directory.
+- `"stdin"` — optional text that `-` reads, for `propose -`, `resolve -` and `hash -`; when absent,
+  `-` reads nothing.
+
+Each request is answered by one line on standard output, written and flushed before the next
+request is read, in request order:
+
+```console
+{"exit":0,"stdout":{"kind":"Resolved","node_id":"00000000-0000-4000-8000-000000000901"},"stderr":""}
+{"exit":2,"stdout":null,"stderr":"ekr: ekr.kernel.TransactionNotFound: transaction 00000000-0000-4000-8000-000000000999 does not exist\n"}
+```
+
+- `"exit"` — the exit status the one-shot verb would have returned (0, 1 or 2, [as above](#exit-codes-and-output)).
+- `"stdout"` — the JSON document the one-shot verb prints, as a JSON value: printed pretty with a
+  newline, it is byte for byte what the verb prints. `null` when the verb printed nothing.
+- `"stderr"` — the text the one-shot verb writes to stderr, newline included: a named refusal, a
+  fault or clap's usage message. Empty when it wrote nothing.
+
+Every verb runs against the store as it stands when the request is read, so a transaction a
+request commits is what the next `head`, `snapshot` or `resolve` reads, and so is one another
+process committed. A write goes through `propose`, `validate` and `commit` exactly as it does one
+verb at a time. The session exits 0 when its input ends. A request never ends it: a request the
+verb refuses, and a line that is not a request, are answered and the next line is read. If the
+configuration or the store does not open, the session answers nothing and exits as a store verb
+does (`store-not-found`, exit 1, for a path holding no store).
+
+A session serves `propose`, `validate`, `commit`, `snapshot`, `explain`, `resolve`, `head`,
+`transactions`, `ontology`, `mint`, `hash` and `schema`. It refuses these, each answered with
+`"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"stderr"`:
+
+| refusal | exit | what it means | what to fix |
+|---|---|---|---|
+| `session-request-malformed` | 2 | the line is not a JSON object with `argv`, a list of strings, and at most `stdin`, a string; an empty line included | send `{"argv": [...]}` on one line |
+| `session-verb-unknown` | 2 | `argv` is empty, or its first word is not a verb of `ekr` | a verb from the list above |
+| `session-verb-refused` | 2 | the verb is `seed`, `view`, `session`, `guide`, `operations` or `example`, or the request asks for `--help` or `--version`: these create a store, serve until interrupted, nest, or print text | run it as its own `ekr` process |
+| `session-option-refused` | 2 | the request sets `--host`, `--store`, `--backend` or `--full-replay` | the session's store is fixed when it starts; start another session for another store |
 
 ## The workflow
 
