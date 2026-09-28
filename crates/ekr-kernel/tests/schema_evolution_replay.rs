@@ -446,6 +446,112 @@ fn a_store_keeps_the_profile_it_was_seeded_under_on_both_providers() {
     }
 }
 
+/// `task:view-load-replays-once`: `Runtime::schema_history` answers every revision of a lineage
+/// through three schema versions with the graph `Runtime::replay` reconstructs there, each schema
+/// version's ontology from the revision it came into force at, and each revision's committing
+/// transaction, from at most one replay that begins at the seed, on both providers; and exactly
+/// one when the runtime replays in full.
+#[test]
+fn schema_history_answers_a_revision_and_its_schema_versions_from_one_replay_on_both_providers() {
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let seed = seeded();
+        let kernel = open(directory.path(), file, v2()).unwrap();
+        kernel
+            .seed(seed.document.clone(), || Timestamp::from_millis(10))
+            .unwrap();
+        let schema_change = |name: &str| {
+            transaction(
+                vec![GraphOperation::ModifyProperty(PropertyModification {
+                    owner: Some(seed.subject_type),
+                    property: PropertyDefinition::new(PropertyId::mint(), name, ValueType::String),
+                })],
+                BTreeSet::new(),
+                Some(SchemaVersionId::mint()),
+            )
+        };
+        let data = transaction(
+            vec![GraphOperation::UpdateProperty(PropertyMutation {
+                node: seed.subject,
+                property: seed.label,
+                values: vec![Value::String("updated".into())],
+            })],
+            BTreeSet::new(),
+            None,
+        );
+        for (tx, at) in [
+            (schema_change("first"), 20),
+            (data, 30),
+            (schema_change("second"), 40),
+        ] {
+            assert!(matches!(
+                submit(&kernel, &tx, at),
+                ValidationCommandResult::Validated(_)
+            ));
+        }
+        let head = kernel.head().unwrap().unwrap().revision;
+        assert_eq!(head, RevisionNumber::new(3));
+        let graphs: Vec<CanonicalGraph> = (0..=head.get())
+            .map(|number| kernel.replay(RevisionNumber::new(number)).unwrap())
+            .collect();
+        let committed: BTreeMap<RevisionNumber, TransactionId> = kernel
+            .transactions()
+            .unwrap()
+            .into_iter()
+            .filter_map(|(id, record)| {
+                record
+                    .committed
+                    .map(|receipt| (receipt.result.revision, id))
+            })
+            .collect();
+        drop(kernel);
+
+        for number in 0..=head.get() {
+            let revision = RevisionNumber::new(number);
+            let boundaries: Vec<RevisionNumber> = [0, 1, 3]
+                .into_iter()
+                .filter(|boundary| *boundary <= number)
+                .map(RevisionNumber::new)
+                .collect();
+            for full in [false, true] {
+                let mut reopened = open(directory.path(), file, v2()).unwrap();
+                reopened.set_full_replay(full);
+                let before = reopened.seed_replays();
+                let history = reopened.schema_history(revision).unwrap();
+                let replays = reopened.seed_replays() - before;
+                if full {
+                    assert_eq!(replays, 1, "revision {number}, full replay");
+                } else {
+                    assert!(replays <= 1, "revision {number}: {replays} replays");
+                }
+                assert_eq!(history.graph, graphs[number as usize], "revision {number}");
+                assert_eq!(
+                    history.schemas.keys().copied().collect::<Vec<_>>(),
+                    boundaries,
+                    "revision {number}"
+                );
+                for (from, ontology) in &history.schemas {
+                    assert_eq!(*ontology, graphs[from.get() as usize].ontology);
+                }
+                assert_eq!(
+                    history.revisions.keys().copied().collect::<Vec<_>>(),
+                    (0..=number).map(RevisionNumber::new).collect::<Vec<_>>()
+                );
+                let expected: BTreeMap<RevisionNumber, TransactionId> = committed
+                    .range(..=revision)
+                    .map(|(number, id)| (*number, *id))
+                    .collect();
+                assert_eq!(history.transactions, expected, "revision {number}");
+            }
+        }
+        let reopened = open(directory.path(), file, v2()).unwrap();
+        assert!(matches!(
+            reopened.schema_history(RevisionNumber::new(4)),
+            Err(ekr_kernel::CommitError::RevisionNotFound { against }) if against == RevisionNumber::new(4)
+        ));
+    }
+}
+
 /// Each profile is one exact pair: a v2 ruleset with the v1 application, or the reverse, is no
 /// profile at all.
 #[test]

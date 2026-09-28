@@ -8,8 +8,9 @@
 //! Two halves, so that determinism is a property of a pure function:
 //!
 //! * [`load`] reads one revision through the kernel's verified read surface — [`Runtime::head`],
-//!   [`Runtime::read`], [`Runtime::replay`] for each earlier schema version and
-//!   [`Runtime::content`] for evidence retention — into a [`LoadedRevision`].
+//!   [`Runtime::schema_history`] for the revision's graph and every schema version of its lineage
+//!   from one replay, and [`Runtime::content`] for evidence retention — into a
+//!   [`LoadedRevision`].
 //! * [`render`] turns a [`LoadedRevision`] into the document's bytes and nothing else: no clock,
 //!   no host, no path, no provider.
 //!
@@ -175,8 +176,8 @@ pub struct LoadedRevision {
 ///
 /// Reads the head first, so an unseeded store answers [`ProjectError::NotSeeded`] whatever `at`
 /// names, and a seeded one [`ProjectError::RevisionNotFound`] for any `at` beyond its head.
-/// The schema history replays only the revisions whose ontology root differs from the one before
-/// it — one per schema version — rather than every revision.
+/// The graph and the schema history come from one kernel read, [`Runtime::schema_history`], which
+/// replays the store's history at most once whatever the number of schema versions.
 ///
 /// # Errors
 ///
@@ -194,30 +195,22 @@ pub fn load(runtime: &Runtime, at: Option<RevisionNumber>) -> Result<LoadedRevis
             head,
         });
     }
-    let read = runtime.read(Some(revision)).map_err(|error| match error {
-        CommitError::RevisionNotFound { against } => ProjectError::RevisionNotFound {
-            requested: against,
-            head,
-        },
-        CommitError::NotSeeded => ProjectError::NotSeeded { requested: at },
-        other => other.into(),
-    })?;
+    let mut read = runtime
+        .schema_history(revision)
+        .map_err(|error| match error {
+            CommitError::RevisionNotFound { against } => ProjectError::RevisionNotFound {
+                requested: against,
+                head,
+            },
+            CommitError::NotSeeded => ProjectError::NotSeeded { requested: at },
+            other => other.into(),
+        })?;
     if read.graph.revision != revision {
         return Err(ProjectError::Inconsistent(format!(
             "asked for revision {revision}, the verified read holds {}",
             read.graph.revision
         )));
     }
-    let transactions: BTreeMap<RevisionNumber, TransactionId> = read
-        .transactions
-        .iter()
-        .filter_map(|(id, record)| {
-            record
-                .committed
-                .as_ref()
-                .map(|receipt| (receipt.result.revision, *id))
-        })
-        .collect();
 
     let mut revisions = Vec::new();
     let mut schemas: BTreeMap<SchemaVersionId, (RevisionNumber, Ontology)> = BTreeMap::new();
@@ -230,11 +223,11 @@ pub fn load(runtime: &Runtime, at: Option<RevisionNumber>) -> Result<LoadedRevis
         let version = match previous {
             Some((root, version)) if root == ontology_root => version,
             _ => {
-                let ontology = if number == revision {
-                    read.graph.ontology.clone()
-                } else {
-                    runtime.replay(number)?.ontology
-                };
+                let ontology = read.schemas.remove(&number).ok_or_else(|| {
+                    ProjectError::Inconsistent(format!(
+                        "the verified read holds no ontology for revision {number}"
+                    ))
+                })?;
                 let version = ontology.version().id;
                 schemas.entry(version).or_insert((number, ontology));
                 version
@@ -244,7 +237,7 @@ pub fn load(runtime: &Runtime, at: Option<RevisionNumber>) -> Result<LoadedRevis
         revisions.push(LoadedRevisionEntry {
             number,
             committed_at: coordinates.committed_at,
-            transaction_id: transactions.get(&number).copied(),
+            transaction_id: read.transactions.get(&number).copied(),
             schema_version: version,
         });
     }

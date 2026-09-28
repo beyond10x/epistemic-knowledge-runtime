@@ -199,6 +199,8 @@ pub(crate) struct ReplayCache {
     entries: Vec<(usize, ContentHash, Arc<ReplayState>)>,
     /// The seed envelope this authority admitted, and the evidence payloads it requires.
     pub(crate) seed: Option<(ContentHash, BTreeSet<ContentHash>)>,
+    /// How many replays this authority began at the seed rather than at a state it had reached.
+    pub(crate) seed_replays: u64,
 }
 impl ReplayCache {
     const CAPACITY: usize = 4;
@@ -441,6 +443,10 @@ impl KernelAuthority {
             let Some((seed, seed_payloads)) = self.seed_state(history, ontology)? else {
                 return Ok(None);
             };
+            self.cache
+                .lock()
+                .map_err(|_| refuse("replay-cache-poisoned"))?
+                .seed_replays += 1;
             let first = &history.occurrences[0];
             let seed_result = SeedResultV1::from_bytes(
                 history.content(first.event.record_hash, StorageClass::Canonical)?,
