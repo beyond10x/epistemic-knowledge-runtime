@@ -141,6 +141,15 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             .lock()
             .map_or(0, |cache| cache.seed_replays)
     }
+    /// How many times this handle's authority has decoded the retained seed envelope in full.
+    /// A diagnostic of read cost; it changes nothing.
+    #[must_use]
+    pub fn seed_envelope_decodes(&self) -> u64 {
+        self.authority
+            .cache
+            .lock()
+            .map_or(0, |cache| cache.envelope_decodes)
+    }
     /// Captures one verified current or historical graph together with its actual retained input.
     /// # Errors
     /// Missing seed/revision or any required history/object verification failure.
@@ -161,9 +170,9 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             .authority
             .reconstruct(&history, None, revision)?
             .ok_or(CommitError::NotSeeded)?;
-        let envelope = crate::seed::envelope(
-            history.content(state.seed.seed_hash, ekr_store::StorageClass::Canonical)?,
-        )?;
+        let envelope = self
+            .authority
+            .seed_envelope(&history, state.seed.seed_hash)?;
         let head = state.head();
         let graph = head.graph()?.clone();
         let root = head.root;
@@ -171,9 +180,9 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             graph,
             root,
             seed: state.seed,
-            seed_input: envelope.input,
+            seed_input: envelope.input.clone(),
             context: envelope.context,
-            authority: envelope.authority,
+            authority: envelope.authority.clone(),
             transactions: state.transactions,
             revisions: state
                 .revisions

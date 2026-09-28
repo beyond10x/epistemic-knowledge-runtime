@@ -267,6 +267,16 @@ impl Runtime {
             Backend::Sqlite(kernel) => kernel.seed_replays(),
         }
     }
+    /// How many times this runtime's kernel has decoded the retained seed envelope in full since
+    /// it was opened. The kernel keeps the envelope it decoded for the seed it names, so this is
+    /// at most one per seed. A diagnostic of read cost; it changes nothing.
+    #[must_use]
+    pub fn seed_envelope_decodes(&self) -> u64 {
+        match &self.backend {
+            Backend::File(kernel) => kernel.seed_envelope_decodes(),
+            Backend::Sqlite(kernel) => kernel.seed_envelope_decodes(),
+        }
+    }
     /// Every event the provider log has published, in log order, through the provider handle
     /// this runtime already holds. It reads and interprets nothing beyond the log: kernel
     /// occurrences, publication preparations and stored objects come back as logged.
