@@ -5,7 +5,8 @@
 //! outside ±2^53 now reaches the page as a string, and the valid-time code reads only numbers.
 //! Each case seeds the unit's `sounding` fixture with one relation assertion moved into deep time
 //! (a closed interval, both ends beyond 2^53 ms before the epoch), serves it with
-//! `ekr view --port 0`, and reads the DOM a headless Chromium builds.
+//! `ekr view --port 0`, and reads the DOM a headless Chromium builds. The cases hold the earlier page, which
+//! `ekr view` keeps at `/alt`: its valid-time strip is the one they read.
 
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -186,7 +187,7 @@ fn a_valid_time_end_beyond_two_to_the_fifty_three_is_shown_and_not_as_open() {
         return;
     };
     let server = store.serve();
-    let dom = rendered(&browser, &format!("{}?node={SUBJECT}", server.url));
+    let dom = rendered(&browser, &format!("{}alt?node={SUBJECT}", server.url));
     let shown = card(&dom, DEEP_CLAIM);
     assert!(
         shown.contains(&format!("{DEEP_FROM} → {DEEP_TO}")),
@@ -204,7 +205,7 @@ fn an_assertion_that_ended_beyond_two_to_the_fifty_three_before_the_epoch_is_out
     let server = store.serve();
     let dom = rendered(
         &browser,
-        &format!("{}?node={SUBJECT}&valid=1777593600000", server.url),
+        &format!("{}alt?node={SUBJECT}&valid=1777593600000", server.url),
     );
     assert!(
         dom.contains("id=\"valid-at\" class=\"muted\">2026-05-01T00:00:00Z<"),
@@ -227,7 +228,7 @@ fn the_valid_time_strip_spans_a_bound_beyond_two_to_the_fifty_three() {
     let server = store.serve();
     let dom = rendered(
         &browser,
-        &format!("{}?node={SUBJECT}&valid=-150000000000000000", server.url),
+        &format!("{}alt?node={SUBJECT}&valid=-150000000000000000", server.url),
     );
     assert!(
         dom.contains("id=\"valid-at\" class=\"muted\">-150000000000000000<"),

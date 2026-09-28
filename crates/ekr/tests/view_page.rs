@@ -41,6 +41,16 @@ fn page() -> String {
     std::fs::read_to_string(manifest_dir().join("src/cli/viewer/index.html")).unwrap()
 }
 
+/// The earlier page `ekr view` keeps at `/alt`.
+fn alt_page() -> String {
+    std::fs::read_to_string(manifest_dir().join("src/cli/viewer/alt.html")).unwrap()
+}
+
+/// Both embedded pages, each held to the same data-free and no-markup rules.
+fn pages() -> [(&'static str, String); 2] {
+    [("index.html", page()), ("alt.html", alt_page())]
+}
+
 /// Every store directory under `tests/fixtures/<collection>`, or `None` when the collection is
 /// absent.
 fn stores_in(collection: &str) -> Option<Vec<PathBuf>> {
@@ -112,6 +122,17 @@ impl Seeded {
         seeded
     }
 
+    /// The fixture's own `host.json`, else the host the role-derivation stores are seeded under
+    /// (`tests/fixtures/retraction/host.json`, as `view_roles.rs` seeds them).
+    fn host(&self) -> PathBuf {
+        let own = self.fixture.join("host.json");
+        if own.is_file() {
+            own
+        } else {
+            manifest_dir().join("tests/fixtures/retraction/host.json")
+        }
+    }
+
     fn store(&self) -> PathBuf {
         self.directory.path().join("store")
     }
@@ -119,7 +140,7 @@ impl Seeded {
     fn args(&self, verb: &[&str]) -> Vec<String> {
         let mut args = vec![
             "--host".to_owned(),
-            self.fixture.join("host.json").display().to_string(),
+            self.host().display().to_string(),
             "--store".to_owned(),
             self.store().display().to_string(),
             "--backend".to_owned(),
@@ -146,10 +167,7 @@ impl Seeded {
     }
 
     fn runtime(&self) -> Runtime {
-        let host = CliHostConfigurationV1::from_json(
-            &std::fs::read(self.fixture.join("host.json")).unwrap(),
-        )
-        .unwrap();
+        let host = CliHostConfigurationV1::from_json(&std::fs::read(self.host()).unwrap()).unwrap();
         Runtime::file_existing(&self.store(), &host.tenant, host.context, host.authority).unwrap()
     }
 
@@ -282,7 +300,7 @@ fn occurs_as_word(text: &str, name: &str) -> bool {
 
 #[test]
 fn the_embedded_page_names_nothing_any_fixture_store_holds() {
-    let page = page();
+    let pages = pages();
     let mut checked = 0;
     for fixture in fixture_stores() {
         let projection = Seeded::new(&fixture).projection();
@@ -296,15 +314,17 @@ fn the_embedded_page_names_nothing_any_fixture_store_holds() {
         }
         assert!(!projection["nodes"].as_array().unwrap().is_empty());
         let names = names(&projection);
-        let named: Vec<&String> = names
-            .iter()
-            .filter(|name| occurs_as_word(&page, name))
-            .collect();
-        assert!(
-            named.is_empty(),
-            "the embedded page names {named:?}, held by {}",
-            fixture.display()
-        );
+        for (file, page) in &pages {
+            let named: Vec<&String> = names
+                .iter()
+                .filter(|name| occurs_as_word(page, name))
+                .collect();
+            assert!(
+                named.is_empty(),
+                "the embedded {file} names {named:?}, held by {}",
+                fixture.display()
+            );
+        }
         checked += names.len();
     }
     assert!(checked > 0);
@@ -356,24 +376,25 @@ fn the_word_check_finds_a_name_in_any_case_and_only_as_a_word() {
 
 #[test]
 fn the_embedded_page_writes_no_markup_and_evaluates_nothing() {
-    let page = page();
-    for forbidden in [
-        "innerHTML",
-        "outerHTML",
-        "insertAdjacentHTML",
-        "document.write",
-        "new Function",
-        "Function(",
-        "setTimeout(\"",
-        "setInterval(\"",
-    ] {
-        assert!(!page.contains(forbidden), "the page uses {forbidden}");
+    for (file, page) in pages() {
+        for forbidden in [
+            "innerHTML",
+            "outerHTML",
+            "insertAdjacentHTML",
+            "document.write",
+            "new Function",
+            "Function(",
+            "setTimeout(\"",
+            "setInterval(\"",
+        ] {
+            assert!(!page.contains(forbidden), "{file} uses {forbidden}");
+        }
+        assert!(!occurs_as_word(&page, "eval"), "{file} uses eval");
+        assert!(
+            page.contains("textContent"),
+            "{file} writes what it fetches as text"
+        );
     }
-    assert!(!occurs_as_word(&page, "eval"), "the page uses eval");
-    assert!(
-        page.contains("textContent"),
-        "the page writes what it fetches as text"
-    );
 }
 
 /// The page's string literals that begin with `/`.
@@ -485,36 +506,46 @@ fn without_pinned_libraries(page: &str) -> String {
 
 #[test]
 fn the_embedded_page_loads_only_the_pinned_libraries_by_integrity() {
-    let rest = without_pinned_libraries(&page());
-    assert!(!rest.contains("<script src"), "no other script is loaded");
-    assert!(
-        !rest.contains("cdn.jsdelivr.net"),
-        "no other library address"
-    );
+    for (file, page) in pages() {
+        let rest = without_pinned_libraries(&page);
+        assert!(
+            !rest.contains("<script src"),
+            "{file}: no other script is loaded"
+        );
+        assert!(
+            !rest.contains("cdn.jsdelivr.net"),
+            "{file}: no other library address"
+        );
+    }
 }
 
 #[test]
 fn the_embedded_page_reads_only_the_projection_the_roles_and_evidence() {
-    let page = without_pinned_libraries(&page());
-    let literals = absolute_literals(&page);
+    for (file, page) in pages() {
+        reads_only(file, &without_pinned_libraries(&page));
+    }
+}
+
+fn reads_only(file: &str, page: &str) {
+    let literals = absolute_literals(page);
     let others: Vec<&String> = literals
         .iter()
         .filter(|literal| !ADDRESSES.contains(&literal.as_str()))
         .collect();
     assert!(
         others.is_empty(),
-        "the page names other addresses: {others:?}"
+        "{file} names other addresses: {others:?}"
     );
     for address in ADDRESSES {
         assert!(
             literals.iter().any(|literal| literal == address),
-            "the page does not read {address}: {literals:?}"
+            "{file} does not read {address}: {literals:?}"
         );
     }
     assert_eq!(
         page.matches("fetch(").count(),
         1,
-        "every read goes through one fetch"
+        "{file}: every read goes through one fetch"
     );
     for forbidden in [
         "http:",
@@ -530,13 +561,14 @@ fn the_embedded_page_reads_only_the_projection_the_roles_and_evidence() {
         "<iframe",
         "<img",
     ] {
-        assert!(!page.contains(forbidden), "the page carries {forbidden:?}");
+        assert!(!page.contains(forbidden), "{file} carries {forbidden:?}");
     }
 }
 
 #[test]
 fn ekr_view_serves_each_fixture_store_the_page_its_projection_and_roles_or_none() {
     let page = page();
+    let alt = alt_page();
     for fixture in fixture_stores() {
         let seeded = Seeded::new(&fixture);
         let expected = seeded.projection_bytes();
@@ -547,6 +579,14 @@ fn ekr_view_serves_each_fixture_store_the_page_its_projection_and_roles_or_none(
             body,
             page.as_bytes(),
             "{}: the embedded page",
+            fixture.display()
+        );
+        let (status, body) = server.get("/alt");
+        assert_eq!(status, 200, "{}: GET /alt", fixture.display());
+        assert_eq!(
+            body,
+            alt.as_bytes(),
+            "{}: the earlier page at /alt",
             fixture.display()
         );
         let (status, body) = server.get("/projection");
@@ -638,21 +678,20 @@ fn the_page_renders_each_store_from_its_own_projection_in_a_headless_browser() {
             "{}: the status names the revision: {dom}",
             fixture.display()
         );
-        for node in projection["nodes"].as_array().unwrap() {
-            let name = escaped(node["name"].as_str().unwrap());
-            assert!(
-                dom.contains(&name),
-                "{}: {name} is shown",
-                fixture.display()
-            );
-        }
+        // Every node type that has a node is a filter chip, named as `ontology` names it. Node
+        // names are drawn on the WebGL canvas, which the DOM does not hold; the chosen node below
+        // shows its own.
+        let nodes = projection["nodes"].as_array().unwrap();
         for node_type in projection["ontology"]["node_types"].as_array().unwrap() {
+            if !nodes.iter().any(|node| node["type"] == node_type["id"]) {
+                continue;
+            }
             let name = escaped(node_type["name"].as_str().unwrap());
             assert!(dom.contains(&name), "{}: type {name}", fixture.display());
         }
 
-        // A node chosen in the URL shows each of its assertions by id, and each property by the
-        // name `ontology` gives it.
+        // A node chosen in the URL shows its name, each of its assertions by id, and each property
+        // by the name `ontology` gives it.
         let chosen = projection["nodes"]
             .as_array()
             .unwrap()
@@ -662,7 +701,13 @@ fn the_page_renders_each_store_from_its_own_projection_in_a_headless_browser() {
         let claims = chosen["assertions"].as_array().unwrap();
         assert!(!claims.is_empty(), "{}", fixture.display());
         let id = chosen["id"].as_str().unwrap();
-        let dom = rendered(&browser, &format!("{}?node={id}", server.url));
+        let dom = rendered(&browser, &format!("{}#node={id}", server.url));
+        let name = escaped(chosen["name"].as_str().unwrap());
+        assert!(
+            dom.contains(&name),
+            "{}: {name} is shown",
+            fixture.display()
+        );
         for claim in claims {
             let claim_id = claim["id"].as_str().unwrap();
             assert!(
@@ -690,7 +735,7 @@ fn the_page_renders_each_store_from_its_own_projection_in_a_headless_browser() {
         let text = escaped(&String::from_utf8(bytes).unwrap());
         let dom = rendered(
             &browser,
-            &format!("{}?node={id}&evidence={evidence}", server.url),
+            &format!("{}#node={id}&evidence={evidence}", server.url),
         );
         assert!(
             dom.contains(&text),

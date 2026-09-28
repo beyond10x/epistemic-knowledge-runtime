@@ -339,7 +339,8 @@ prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`, then answers:
 
 | request | answer |
 |---|---|
-| `GET /` | the viewer page, built into the binary: it shows the projection's `meta` |
+| `GET /` | the viewer page, built into the binary: the graph in 2D and 3D, a timeline with a heatmap and swimlanes, property history, the schema history, a command palette (Ctrl+K), navigation between committed revisions, and the state in the URL after `#` |
+| `GET /alt` | the earlier viewer page, built into the binary, kept while the new one is accepted |
 | `GET /projection` | the `ekr.graph-projection/1` document at the head, `application/json`, byte for byte what the projection renders |
 | `GET /projection?revision=N` | the same as of revision `N`; a revision the store does not hold is 404 with `{"refusal": "ekr.views.RevisionNotFound", …}` |
 | `GET /evidence/<evidence id>` | that evidence's retained bytes: `text/plain; charset=utf-8` when they are UTF-8, otherwise `application/octet-stream`; 404 for an id the head does not hold or bytes the store did not retain |
@@ -356,6 +357,19 @@ rebinding reads nothing. Every response carries `X-Content-Type-Options: nosniff
 origin. Evidence text is
 never served as HTML. Like every read verb, `ekr view` opens an existing store only (a path holding
 none is `store-not-found`, exit 1) and writes nothing to it.
+
+A revision is loaded once. The first `/projection` or `/roles` of a revision loads it, renders both
+answers from that one load and keeps them in memory; a later request of the same revision reads
+only the store's head and is answered from memory, byte for byte what the first answer was. The
+projection names the head, so a new head empties the memory. At most 8 revisions are kept, and the
+one used longest ago goes first.
+
+The page reads `/projection`, `/roles` and `/evidence/<id>` and nothing else, and derives what it
+shows from them: the timeline's event, observation and subject types from where valid time
+clusters, the growth per revision from each assertion's recorded time, and one link for an edge and
+the relation assertions with its source, type and target. The roles `/roles` serves appear only as
+badges in its tooltips. It fetches evidence only by an id the loaded projection holds, and writes
+everything a store holds as text.
 
 #### Roles
 

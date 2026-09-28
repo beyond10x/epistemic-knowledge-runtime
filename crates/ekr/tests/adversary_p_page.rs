@@ -195,11 +195,11 @@ fn markup_in_store_text_is_shown_as_text_and_never_becomes_an_element() {
     let mut shown = Vec::new();
     for query in [
         "",
-        "?node=00000000-0000-4000-8000-00000000a301",
-        "?node=00000000-0000-4000-8000-00000000a311",
-        "?node=00000000-0000-4000-8000-00000000a321",
-        "?view=schema",
-        "?view=3d",
+        "#node=00000000-0000-4000-8000-00000000a301",
+        "#node=00000000-0000-4000-8000-00000000a311",
+        "#node=00000000-0000-4000-8000-00000000a321",
+        "#schema=1",
+        "#view=3d",
     ] {
         let dom = rendered(&browser, &format!("{}{query}", server.url));
         for (tag, marker) in MARKERS {
@@ -239,7 +239,7 @@ fn an_integer_above_two_to_the_fifty_three_is_shown_as_the_store_holds_it() {
     );
     let dom = rendered(
         &browser,
-        &format!("{}?node=00000000-0000-4000-8000-00000000a312", server.url),
+        &format!("{}#node=00000000-0000-4000-8000-00000000a312", server.url),
     );
     assert!(
         dom.contains("adv-prop"),
@@ -268,14 +268,14 @@ fn an_evidence_parameter_of_dot_dot_reads_no_address_but_the_three() {
     let store = Store::seeded(&seed);
     let server = store.serve();
     let page_bytes = page().len();
-    let dom = rendered(&browser, &format!("{}?evidence=..", server.url));
+    let dom = rendered(&browser, &format!("{}#evidence=..", server.url));
     assert!(
         dom.contains("evidence"),
         "the evidence panel is shown: {dom}"
     );
     assert!(
         !dom.contains(&format!("{page_bytes} bytes that are not text")),
-        "?evidence=.. made the page read `/` (the page itself, {page_bytes} bytes) as evidence"
+        "#evidence=.. made the page read `/` (the page itself, {page_bytes} bytes) as evidence"
     );
 }
 
