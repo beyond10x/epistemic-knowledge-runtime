@@ -6,6 +6,7 @@ status: open
 title: Nobody has decided whether an adapter or its declaration owns the set of source units it polls
 relations:
 - blocks: epic:p2-observation-layer
+- blocks: story:v1-chat-raw-becomes-observations
 revision: 2
 ---
 ## Question

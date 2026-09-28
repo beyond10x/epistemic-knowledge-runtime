@@ -6,6 +6,7 @@ status: open
 title: Nobody has decided where an observation is retained, or whether it depends on a committed revision
 relations:
 - blocks: epic:p2-observation-layer
+- blocks: story:observations-are-retained
 revision: 2
 ---
 ## Question
