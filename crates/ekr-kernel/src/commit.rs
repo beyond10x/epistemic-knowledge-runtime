@@ -8,6 +8,7 @@ use ekr_store::{
     Publication, PublicationObject, RetainedHistory, RevisionLog, StorageClass, StoreError,
 };
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 /// The immutable trusted anchor installed by the kernel; retained records never replace it.
 #[derive(Clone)]
@@ -33,7 +34,7 @@ impl CommitAuthority for KernelAuthority {
         if let Some(required) = self.seed_requirements(seed_hash)? {
             return Ok(required);
         }
-        let envelope = seed::envelope(history.content(seed_hash, StorageClass::Canonical)?)?;
+        let envelope = self.seed_envelope(history, seed_hash)?;
         seed::admitted_graph(&envelope.input, envelope.context, envelope.committed_at)
             .map_err(|error| StoreError::InvalidSeed(error.to_string()))?;
         let required: BTreeSet<ContentHash> =
@@ -66,6 +67,51 @@ impl CommitAuthority for KernelAuthority {
     }
 }
 impl KernelAuthority {
+    fn cache(&self) -> Result<std::sync::MutexGuard<'_, crate::replay::ReplayCache>, StoreError> {
+        self.cache
+            .lock()
+            .map_err(|_| StoreError::Document("replay-cache-poisoned".into()))
+    }
+    /// The complete envelope this authority holds for `seed_hash`, if it holds one.
+    pub(crate) fn held_envelope(
+        &self,
+        seed_hash: ContentHash,
+    ) -> Result<Option<Arc<SeedEnvelope>>, StoreError> {
+        Ok(self
+            .cache()?
+            .envelope
+            .as_ref()
+            .filter(|(held, _)| *held == seed_hash)
+            .map(|(_, envelope)| Arc::clone(envelope)))
+    }
+    /// Holds `envelope` as the one whose serialized bytes have the address `seed_hash`.
+    fn hold_envelope(
+        &self,
+        seed_hash: ContentHash,
+        envelope: Arc<SeedEnvelope>,
+    ) -> Result<(), StoreError> {
+        self.cache()?.envelope = Some((seed_hash, envelope));
+        Ok(())
+    }
+    /// The seed envelope `history` retains at `seed_hash`, decoded in full at most once by this
+    /// authority. The retained bytes are read and verified on every call, exactly as before, so a
+    /// history that does not hold them refuses as it did; only the decode of verified bytes at an
+    /// address this authority already decoded is not repeated, because it is a function of them.
+    pub(crate) fn seed_envelope(
+        &self,
+        history: &RetainedHistory,
+        seed_hash: ContentHash,
+    ) -> Result<Arc<SeedEnvelope>, StoreError> {
+        let bytes = history.content(seed_hash, StorageClass::Canonical)?;
+        if let Some(held) = self.held_envelope(seed_hash)? {
+            return Ok(held);
+        }
+        let decoded = seed::envelope(bytes);
+        self.cache()?.envelope_decodes += 1;
+        let envelope = Arc::new(decoded?);
+        self.hold_envelope(seed_hash, Arc::clone(&envelope))?;
+        Ok(envelope)
+    }
     fn seed_requirements(
         &self,
         seed_hash: ContentHash,
@@ -98,9 +144,10 @@ impl KernelAuthority {
         if first.version != 1 || first.event.format != RevisionEvent::FORMAT {
             return Err(StoreError::Document("seed-occurrence-envelope".into()));
         }
-        let bytes = history.content(seed_hash, StorageClass::Canonical)?;
-        let envelope = seed::envelope(bytes)?;
-        let graph = seed::replay(bytes, ontology, self.context, &self.anchor)?;
+        // Every replay from the seed admits the seed input in full and compares every retained
+        // payload with the envelope's; only the decode of the envelope's bytes is shared.
+        let envelope = self.seed_envelope(history, seed_hash)?;
+        let graph = seed::replay(&envelope, ontology, self.context, &self.anchor)?;
         for (hash, original) in &envelope.input.evidence_payloads {
             if history.content(*hash, StorageClass::Provenance)? != original {
                 return Err(StoreError::InvalidSeed(
@@ -254,7 +301,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         let RevisionPayload::Seeded { seed_hash, .. } = first.event.payload else {
             return Err(StoreError::NotSeeded.into());
         };
-        let envelope = seed::envelope(history.content(seed_hash, StorageClass::Canonical)?)?;
+        let envelope = self.authority.seed_envelope(&history, seed_hash)?;
         if envelope.input != *document
             || envelope.context != self.authority.context
             || envelope.authority != self.authority.anchor
@@ -303,7 +350,7 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
         let committed_at = now();
         let graph = seed::admitted_graph(&document, self.authority.context, committed_at)?;
         let envelope = SeedEnvelope {
-            format: "ekr-seed-envelope/2".into(),
+            format: seed::ENVELOPE_FORMAT.into(),
             input: document.clone(),
             context: self.authority.context,
             authority: self.authority.anchor.clone(),
@@ -311,6 +358,11 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
         };
         let bytes = serde_json::to_vec(&envelope).map_err(|e| SeedError::Invalid(e.to_string()))?;
         let seed_hash = ContentHash::of_bytes(&bytes);
+        // These bytes decode to exactly this envelope, so the replay that admits the publication
+        // takes it rather than decoding them; it still reads and verifies the retained bytes.
+        let envelope = Arc::new(envelope);
+        self.authority
+            .hold_envelope(seed_hash, Arc::clone(&envelope))?;
         let root = seed_root(&graph, seed_hash, &self.authority.anchor);
         let record = SeedResultV1 {
             format: SeedResultV1::FORMAT.into(),

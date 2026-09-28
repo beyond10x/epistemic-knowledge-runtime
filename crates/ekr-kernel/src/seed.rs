@@ -125,29 +125,105 @@ fn payload_mismatch<T>(expected: ContentHash, found: ContentHash) -> Result<T, S
     )))
 }
 
-pub(crate) fn envelope(bytes: &[u8]) -> Result<SeedEnvelope, StoreError> {
-    let shape: serde_json::Value = serde_json::from_slice(bytes)
-        .map_err(|error| StoreError::InvalidSeed(format!("seed-decode: {error}")))?;
-    if shape.get("format").is_none() && shape.get("root").is_some() {
-        return Err(StoreError::SeedMigrationRequired);
+/// What a replay checkpoint's restore reads of a retained seed envelope: the seed graph and the
+/// addresses of the evidence payloads, every other field decoded as in [`SeedEnvelope`] but each
+/// payload's bytes only skipped over.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct SeedEnvelopeView {
+    format: String,
+    input: SeedDocumentView,
+    #[serde(rename = "context")]
+    _context: BootstrapContext,
+    #[serde(rename = "authority")]
+    _authority: AuthorityStateV1,
+    #[serde(rename = "committed_at")]
+    _committed_at: Timestamp,
+}
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SeedDocumentView {
+    #[serde(rename = "format")]
+    _format: String,
+    #[serde(rename = "ontology")]
+    _ontology: OntologyDocument,
+    graph: GraphDocument,
+    #[serde(deserialize_with = "ekr_core::decode::unique_map")]
+    evidence_payloads: BTreeMap<ContentHash, serde::de::IgnoredAny>,
+}
+
+/// The parts of a retained seed envelope a checkpoint restore reads: the envelope this authority
+/// already decoded in full for the same seed, or else a [`SeedEnvelopeView`] of its bytes.
+pub(crate) enum SeedOutline {
+    /// The complete envelope, as the authority holds it.
+    Full(std::sync::Arc<SeedEnvelope>),
+    /// The envelope without its payload bytes.
+    View(Box<SeedEnvelopeView>),
+}
+impl SeedOutline {
+    /// The seed's graph document.
+    pub(crate) fn graph(&self) -> &GraphDocument {
+        match self {
+            Self::Full(envelope) => &envelope.input.graph,
+            Self::View(view) => &view.input.graph,
+        }
     }
-    let envelope: SeedEnvelope = serde_json::from_slice(bytes)
-        .map_err(|error| StoreError::InvalidSeed(format!("seed-decode: {error}")))?;
-    if envelope.format != "ekr-seed-envelope/2" {
+    /// Whether `keys` are exactly the addresses of the seed's evidence payloads.
+    pub(crate) fn payloads_are(&self, keys: &BTreeSet<ContentHash>) -> bool {
+        match self {
+            Self::Full(envelope) => keys.iter().eq(envelope.input.evidence_payloads.keys()),
+            Self::View(view) => keys.iter().eq(view.input.evidence_payloads.keys()),
+        }
+    }
+}
+
+/// The envelope format this kernel admits.
+pub(crate) const ENVELOPE_FORMAT: &str = "ekr-seed-envelope/2";
+
+/// Decodes a retained seed envelope, typed first. Only bytes the typed decode refuses are read
+/// again as a JSON value, to tell a legacy envelope (`SeedMigrationRequired`) and bytes that are
+/// not JSON at all apart from any other malformed envelope, as a value-first decode did.
+fn decoded<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, StoreError> {
+    serde_json::from_slice(bytes).or_else(|typed| {
+        let shape: serde_json::Value = serde_json::from_slice(bytes)
+            .map_err(|error| StoreError::InvalidSeed(format!("seed-decode: {error}")))?;
+        if shape.get("format").is_none() && shape.get("root").is_some() {
+            return Err(StoreError::SeedMigrationRequired);
+        }
+        Err(StoreError::InvalidSeed(format!("seed-decode: {typed}")))
+    })
+}
+
+fn supported(format: &str) -> Result<(), StoreError> {
+    if format != ENVELOPE_FORMAT {
         return Err(StoreError::InvalidSeed(
             "unsupported-seed-envelope".to_owned(),
         ));
     }
+    Ok(())
+}
+
+/// Decodes a complete retained seed envelope, payload bytes included.
+pub(crate) fn envelope(bytes: &[u8]) -> Result<SeedEnvelope, StoreError> {
+    let envelope: SeedEnvelope = decoded(bytes)?;
+    supported(&envelope.format)?;
     Ok(envelope)
 }
 
+/// Decodes a retained seed envelope without its payload bytes, refusing exactly what
+/// [`envelope`] refuses except payload values that are not bytes.
+pub(crate) fn envelope_view(bytes: &[u8]) -> Result<SeedEnvelopeView, StoreError> {
+    let view: SeedEnvelopeView = decoded(bytes)?;
+    supported(&view.format)?;
+    Ok(view)
+}
+
 pub(crate) fn replay(
-    bytes: &[u8],
+    envelope: &SeedEnvelope,
     ontology: Option<&Ontology>,
     context: BootstrapContext,
     authority: &AuthorityStateV1,
 ) -> Result<CanonicalGraph, StoreError> {
-    let envelope = envelope(bytes)?;
     authority.check(context)?;
     if envelope.context != context || envelope.authority != *authority {
         return Err(StoreError::AuthorityMismatch);
