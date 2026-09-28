@@ -827,12 +827,11 @@ fn historical_capture_stops_loading_at_the_selected_revision_and_keeps_its_conte
         drop(provider);
         drop(executor);
         let before = physical(directory.path(), file);
-        // `head` answers from the checkpoint pointer, which names every occurrence and reads only
-        // the head revision's record (design § 96.3); replayed in full, it needs every record.
-        assert_eq!(
-            open(directory.path(), file).head().unwrap(),
-            Some(captured.root)
-        );
+        // A proposal appends no checkpoint pointer (design § 99), so no pointer names every
+        // occurrence and `head` replays from the checkpoint, which needs the later proposal's
+        // record too; replayed in full, it needs every record.
+        // `replay_checkpoint.rs` holds the pointer's answer after a commit.
+        assert!(open(directory.path(), file).head().is_err());
         let mut full = open(directory.path(), file);
         full.set_full_replay(true);
         assert!(full.head().is_err());

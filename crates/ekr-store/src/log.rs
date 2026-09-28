@@ -120,6 +120,22 @@ pub trait CommitAuthority {
     ) -> Result<(), StoreError> {
         self.replay(history, ontology, revision).map(|_| ())
     }
+    /// [`Self::replay`] for a caller that needs only the admitted revision's root, such as a head
+    /// read no checkpoint pointer answers: the root exactly where `replay` admits a revision,
+    /// `None` where it finds the history empty, and `replay`'s refusal otherwise. An authority
+    /// may answer it without building the admitted head graph.
+    /// # Errors
+    /// Whatever [`Self::replay`] refuses.
+    fn replay_root(
+        &self,
+        history: &RetainedHistory,
+        ontology: Option<&ekr_ontology::Ontology>,
+        revision: Option<RevisionNumber>,
+    ) -> Result<Option<Root>, StoreError> {
+        Ok(self
+            .replay(history, ontology, revision)?
+            .map(|admitted| admitted.root))
+    }
     /// Offers the retained replay checkpoint for `history`, which the authority may admit as the
     /// state its next replay of that history continues from. An authority that keeps none
     /// ignores it.

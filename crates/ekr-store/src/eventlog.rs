@@ -1325,7 +1325,14 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         if let Some(root) = self.checkpointed_head()? {
             return Ok(Some(root));
         }
-        Ok(self.admitted(None, MAX_READ_LIMIT)?.map(|state| state.root))
+        // No pointer names every occurrence — after a proposal or a validation none does (design
+        // § 99) — so the head is replayed, and only its root is asked for.
+        let history = self.load_history(MAX_READ_LIMIT, None)?;
+        if history.occurrences.is_empty() {
+            return Ok(None);
+        }
+        self.authority()?
+            .replay_root(&history, self.ontology.as_ref(), None)
     }
     fn replay(&self, revision: RevisionNumber) -> Result<CanonicalGraph, StoreError> {
         ensure_sync_context()?;

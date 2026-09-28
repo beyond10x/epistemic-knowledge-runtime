@@ -68,6 +68,21 @@ impl CommitAuthority for KernelAuthority {
         }
         Ok(())
     }
+    /// [`CommitAuthority::replay`]'s root without copying the head graph into an admitted
+    /// revision: the same reconstruction, and the same refusal where the head graph is not held.
+    fn replay_root(
+        &self,
+        history: &RetainedHistory,
+        ontology: Option<&ekr_ontology::Ontology>,
+        revision: Option<RevisionNumber>,
+    ) -> Result<Option<Root>, StoreError> {
+        let Some(state) = self.reconstruct(history, ontology, revision)? else {
+            return Ok(None);
+        };
+        let head = state.head();
+        head.graph()?;
+        Ok(Some(head.root))
+    }
     fn restore(&self, history: &RetainedHistory, checkpoint: &[u8]) -> Result<(), StoreError> {
         self.restore_checkpoint(history, checkpoint)
     }

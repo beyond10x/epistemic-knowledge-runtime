@@ -209,6 +209,10 @@ pub(crate) struct ReplayCache {
     /// address. It is a function of that address, so every path that verified the retained bytes
     /// at the same address takes it instead of decoding them again.
     pub(crate) envelope: Option<(ContentHash, Arc<crate::seed::SeedEnvelope>)>,
+    /// The retained replay checkpoint this authority knows of — the one it admitted, or the last
+    /// it wrote — as the occurrences it covers and its head revision; `None` before either. What
+    /// decides whether a commit writes the next one (design § 99).
+    pub(crate) retained: Option<(u64, RevisionNumber)>,
     /// How many replays this authority began at the seed rather than at a state it had reached.
     pub(crate) seed_replays: u64,
     /// How many times this authority decoded a retained seed envelope's complete bytes.

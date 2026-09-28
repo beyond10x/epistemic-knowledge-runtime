@@ -281,9 +281,8 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             next.expected_version = state.version;
             Ok(next)
         })?;
-        let record = ProposalRecordV1::from_bytes(elected_bytes(&prepared)?)?;
-        self.retain_verification();
-        Ok(record)
+        // A proposal moves no head: no checkpoint and no pointer (design § 99).
+        Ok(ProposalRecordV1::from_bytes(elected_bytes(&prepared)?)?)
     }
     /// Validates the retained proposal against a complete existing revision basis.
     /// # Errors
@@ -405,9 +404,8 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             next.expected_version = state.version;
             Ok(next)
         })?;
-        let result = validation_result(&prepared)?;
-        self.retain_verification();
-        Ok(result)
+        // A validation or a rejection moves no head: no checkpoint and no pointer (design § 99).
+        validation_result(&prepared)
     }
     /// Applies an accepted transaction, or returns its retained success before sampling time.
     /// # Errors
@@ -474,10 +472,9 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             }
         })?;
         let result = commit_result(&prepared)?;
+        // A stale decision moves no head: no checkpoint and no pointer (design § 99).
         if matches!(result, CommitCommandResult::Committed(_)) {
-            self.retain_checkpoint();
-        } else {
-            self.retain_verification();
+            self.retain_head();
         }
         Ok(result)
     }
@@ -490,18 +487,31 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         let Some(state) = self.published_state() else {
             return;
         };
-        if let Ok(Some((covered, binding, bytes))) = self.authority.checkpoint(&state) {
-            let _ = self.store.write_checkpoint(covered, binding, Some(&bytes));
+        self.write_checkpoint_of(&state);
+    }
+    fn write_checkpoint_of(&self, state: &crate::replay::ReplayState) {
+        if let Ok(Some((covered, binding, bytes))) = self.authority.checkpoint(state) {
+            if self
+                .store
+                .write_checkpoint(covered, binding, Some(&bytes))
+                .is_ok()
+            {
+                self.authority
+                    .checkpoint_retained(covered, state.head().root.revision);
+            }
         }
     }
-    /// Records that the occurrence this handle just published, which moved no revision, was
-    /// verified with everything before it, keeping the retained checkpoint. Best effort, as
+    /// After a commit this handle published: the replay checkpoint of the new head when one is
+    /// due (design § 99), and otherwise only a pointer recording that the head, and everything
+    /// before it, was verified, which keeps the retained checkpoint. Best effort, as
     /// [`Self::retain_checkpoint`] is.
-    pub(crate) fn retain_verification(&self) {
+    fn retain_head(&self) {
         let Some(state) = self.published_state() else {
             return;
         };
-        if let Some((covered, binding)) = self.authority.verification(&state) {
+        if self.authority.checkpoint_due(&state) {
+            self.write_checkpoint_of(&state);
+        } else if let Some((covered, binding)) = self.authority.verification(&state) {
             let _ = self.store.write_checkpoint(covered, binding, None);
         }
     }

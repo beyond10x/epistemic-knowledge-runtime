@@ -65,10 +65,11 @@ parents, the SQLite provider creates the database file but not its directory. `g
 export EKR_HOST=host.json EKR_STORE=./store EKR_BACKEND=file
 ```
 
-Every commit also leaves a replay checkpoint in the store: the verified head state, from which
-the next verb continues instead of replaying every transaction since the seed. `--full-replay`
-ignores it and replays the whole history from the seed, re-deriving every retained decision; a
-verb answers the same either way.
+The store keeps a replay checkpoint: the verified head state, written by the seed, by every fourth
+commit and by a commit that brings the operations committed since the last one to 512. The next
+verb continues from it, replaying only the few commits after it, instead of every transaction since
+the seed. `--full-replay` ignores it and replays the whole history from the seed, re-deriving every
+retained decision; a verb answers the same either way.
 
 ### The host document (`ekr.cli-host/1`)
 
