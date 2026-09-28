@@ -1,10 +1,11 @@
 //! Replay checkpoints and compact records, design § 96, on both providers.
 //!
 //! A commit leaves one checkpoint of the head it published; a fresh open continues from it and
-//! answers exactly as a full replay from the seed does; a checkpoint that does not verify is
-//! ignored; a validation against an earlier revision, whose graph a checkpoint does not hold,
-//! replays in full; and every record and preparation a command retains spells its byte strings
-//! as base64 and holds each staged object once.
+//! answers exactly as a full replay from the seed does; a checkpoint that does not verify in any
+//! field it carries is ignored, and a commit made after one replays in full; a validation
+//! against an earlier revision, whose graph a checkpoint does not hold, replays in full; and
+//! every record and preparation a command retains spells its byte strings as base64 and holds
+//! each staged object once.
 use ekr_core::*;
 use ekr_graph::*;
 use ekr_kernel::*;
@@ -81,8 +82,13 @@ fn seed() -> SeedDocument {
     seed.evidence_payloads.insert(hash, bytes);
     seed
 }
-/// `nodes` new nodes, each with one evidenced assertion.
-fn document(seed: &SeedDocument, n: u64, nodes: u64) -> (TransactionId, Vec<u8>) {
+/// `nodes` new nodes filed under `root`, each with one evidenced assertion.
+fn document_under(
+    seed: &SeedDocument,
+    root: GraphRootId,
+    n: u64,
+    nodes: u64,
+) -> (TransactionId, Vec<u8>) {
     #[derive(Serialize)]
     struct Wire<'a> {
         format: &'static str,
@@ -96,7 +102,7 @@ fn document(seed: &SeedDocument, n: u64, nodes: u64) -> (TransactionId, Vec<u8>)
         let id = NodeId::mint();
         operations.push(GraphOperation::CreateNode(NodeDraft {
             id,
-            root_id: seed.graph.root.id,
+            root_id: root,
             type_id: ty.id,
             canonical_name: format!("subject {n}.{k}"),
             properties: BTreeMap::new(),
@@ -104,7 +110,7 @@ fn document(seed: &SeedDocument, n: u64, nodes: u64) -> (TransactionId, Vec<u8>)
         }));
         operations.push(GraphOperation::AddAssertion(Box::new(Assertion {
             id: AssertionId::mint(),
-            root_id: seed.graph.root.id,
+            root_id: root,
             subject: Subject::Node(id),
             predicate: Predicate::Property(label),
             object: Object::Value(Value::String(format!("label {n}.{k}"))),
@@ -150,8 +156,19 @@ fn commit(
     n: u64,
     against: u64,
 ) -> CommitCommandResult {
+    commit_under(path, file, seed, seed.graph.root.id, n, against)
+}
+/// [`commit`] of a document filed under `root`.
+fn commit_under(
+    path: &Path,
+    file: bool,
+    seed: &SeedDocument,
+    root: GraphRootId,
+    n: u64,
+    against: u64,
+) -> CommitCommandResult {
     let at = i64::try_from(n * 100).unwrap();
-    let (tx, bytes) = document(seed, n, 3);
+    let (tx, bytes) = document_under(seed, root, n, 3);
     open(path, file)
         .propose(&bytes, context().operator, || Timestamp::from_millis(at))
         .unwrap();
@@ -179,6 +196,14 @@ fn answers(runtime: &Runtime) -> Answers {
         runtime.snapshot().unwrap(),
         runtime.transactions().unwrap(),
     )
+}
+/// What a verified read of the head answers for each of the seed's evidence payloads.
+fn seed_evidence(runtime: &Runtime, seed: &SeedDocument) -> Vec<Option<Vec<u8>>> {
+    let read = runtime.read(None).unwrap();
+    seed.evidence_payloads
+        .keys()
+        .map(|hash| read.content(hash).map(<[u8]>::to_vec))
+        .collect()
 }
 /// Every `ekr.store.CheckpointWritten` pointer the log holds.
 fn pointers(runtime: &Runtime) -> Vec<serde_json::Value> {
@@ -292,41 +317,126 @@ fn a_fresh_open_continues_from_the_checkpoint_with_the_answers_of_a_full_replay(
     }
 }
 
+type Forge = fn(&mut serde_json::Value);
+/// Each forgery of a genuine checkpoint: the field it changes, what it changes it to, and how.
+fn forgeries() -> Vec<(&'static str, &'static str, Forge)> {
+    fn root(forged: &mut serde_json::Value) -> &mut serde_json::Value {
+        &mut forged["graph"]["graph"]["root"]
+    }
+    vec![
+        ("graph.graph.assertions", "a dropped assertion", |forged| {
+            let assertions = forged["graph"]["graph"]["assertions"]
+                .as_object_mut()
+                .unwrap();
+            let first = assertions.keys().next().unwrap().clone();
+            assertions.remove(&first);
+        }),
+        ("authority", "another host", |forged| {
+            forged["authority"] = serde_json::to_value(ContentHash::of_bytes(b"x")).unwrap();
+        }),
+        ("prefix", "another history", |forged| {
+            forged["prefix"] = serde_json::to_value(ContentHash::of_bytes(b"y")).unwrap();
+        }),
+        ("revision", "an earlier head", |forged| {
+            forged["revision"] = 1.into();
+        }),
+        ("format", "another format", |forged| {
+            forged["format"] = "ekr.replay-checkpoint/0".into();
+        }),
+        ("covered", "a shorter coverage", |forged| {
+            forged["covered"] = (forged["covered"].as_u64().unwrap() - 1).into();
+        }),
+        ("ontologies", "no schema versions", |forged| {
+            forged["ontologies"] = serde_json::json!([]);
+        }),
+        ("graph.graph.root.id", "another graph root id", |forged| {
+            root(forged)["id"] = serde_json::to_value(GraphRootId::mint()).unwrap();
+        }),
+        (
+            "graph.graph.root.space",
+            "a transient graph root",
+            |forged| {
+                root(forged)["space"] = serde_json::to_value(Space::Transient).unwrap();
+            },
+        ),
+        (
+            "graph.graph.root.schema_version_id",
+            "another graph root schema version",
+            |forged| {
+                root(forged)["schema_version_id"] =
+                    serde_json::to_value(SchemaVersionId::mint()).unwrap();
+            },
+        ),
+        ("graph.graph.root.parent", "a graph root parent", |forged| {
+            root(forged)["parent"] = serde_json::to_value(GraphRootId::mint()).unwrap();
+        }),
+        (
+            "graph.graph.root.created_at",
+            "another graph root creation time",
+            |forged| {
+                root(forged)["created_at"] =
+                    serde_json::to_value(Timestamp::from_millis(123_456)).unwrap();
+            },
+        ),
+        ("seed_payloads", "no seed payloads", |forged| {
+            forged["seed_payloads"] = serde_json::json!([]);
+        }),
+        ("seed_payloads", "an extra seed payload", |forged| {
+            forged["seed_payloads"]
+                .as_array_mut()
+                .unwrap()
+                .push(serde_json::to_value(ContentHash::of_bytes(b"z")).unwrap());
+        }),
+    ]
+}
+
 #[test]
 fn a_checkpoint_that_does_not_verify_is_ignored_and_the_history_replays_in_full() {
     for file in [false, true] {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path();
-        build(path, file, 2);
+        let seed = build(path, file, 2);
         let truth = answers(&open_in_full(path, file));
+        let evidence = seed_evidence(&open_in_full(path, file), &seed);
+        assert!(
+            !evidence.is_empty() && evidence.iter().all(Option::is_some),
+            "file={file}: a full replay reads every seed evidence payload"
+        );
         let newest = pointers(&open(path, file)).pop().unwrap();
         let genuine: serde_json::Value =
             serde_json::from_slice(&checkpoint_bytes(path, file, &newest)).unwrap();
         // The genuine pointer's coverage and binding, so that only the checkpoint is forged.
         let covered = newest["covered"].as_u64().unwrap();
         let binding: ContentHash = serde_json::from_value(newest["binding"].clone()).unwrap();
-        type Forge = fn(&mut serde_json::Value);
-        let forgeries: [(&str, Forge); 4] = [
-            ("a dropped assertion", |forged| {
-                let assertions = forged["graph"]["graph"]["assertions"]
-                    .as_object_mut()
-                    .unwrap();
-                let first = assertions.keys().next().unwrap().clone();
-                assertions.remove(&first);
-            }),
-            ("another host", |forged| {
-                forged["authority"] = serde_json::to_value(ContentHash::of_bytes(b"x")).unwrap();
-            }),
-            ("another history", |forged| {
-                forged["prefix"] = serde_json::to_value(ContentHash::of_bytes(b"y")).unwrap();
-            }),
-            ("an earlier head", |forged| {
-                forged["revision"] = 1.into();
-            }),
-        ];
-        for (name, forge) in forgeries {
+        let forgeries = forgeries();
+        // Every field a checkpoint carries, and every field of the graph root it carries, is
+        // forged by at least one case: a field no case changes is a field nothing shows is bound.
+        let forged_paths: BTreeSet<&str> = forgeries.iter().map(|(path, _, _)| *path).collect();
+        let mut fields: Vec<String> = genuine
+            .as_object()
+            .unwrap()
+            .keys()
+            .filter(|key| *key != "graph")
+            .cloned()
+            .collect();
+        fields.extend(
+            genuine["graph"]["graph"]["root"]
+                .as_object()
+                .unwrap()
+                .keys()
+                .map(|key| format!("graph.graph.root.{key}")),
+        );
+        fields.push("graph.graph.assertions".into());
+        for field in &fields {
+            assert!(
+                forged_paths.contains(field.as_str()),
+                "no forgery changes the checkpoint's {field}"
+            );
+        }
+        for (field, name, forge) in forgeries {
             let mut forged = genuine.clone();
             forge(&mut forged);
+            assert_ne!(forged, genuine, "the forgery with {name} changes {field}");
             let bytes = serde_json::to_vec(&forged).unwrap();
             install(path, file, covered, binding, &bytes);
             assert_eq!(
@@ -339,6 +449,12 @@ fn a_checkpoint_that_does_not_verify_is_ignored_and_the_history_replays_in_full(
                 truth,
                 "file={file}: a checkpoint with {name} is ignored"
             );
+            assert_eq!(
+                seed_evidence(&open(path, file), &seed),
+                evidence,
+                "file={file}: after a checkpoint with {name}, a verified read holds the seed's \
+                 evidence bytes"
+            );
         }
         // A pointer whose binding is not this host's own, and one that claims more than the
         // stream holds, are not taken as a verification of the head.
@@ -350,6 +466,61 @@ fn a_checkpoint_that_does_not_verify_is_ignored_and_the_history_replays_in_full(
             install(path, file, claimed, binding, &original);
             assert_eq!(answers(&open(path, file)), truth, "file={file}");
         }
+    }
+}
+
+/// A checkpoint whose graph root is not the one the seed admitted must not become the root the
+/// kernel's next decisions record: a transaction filed under the root a non-full open reports
+/// commits, and a full replay then answers exactly as the non-full open does.
+#[test]
+fn a_commit_after_a_checkpoint_with_another_graph_root_replays_in_full() {
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path();
+        let seed = build(path, file, 2);
+        let newest = pointers(&open(path, file)).pop().unwrap();
+        let mut forged: serde_json::Value =
+            serde_json::from_slice(&checkpoint_bytes(path, file, &newest)).unwrap();
+        forged["graph"]["graph"]["root"]["id"] = serde_json::to_value(GraphRootId::mint()).unwrap();
+        let covered = newest["covered"].as_u64().unwrap();
+        let binding: ContentHash = serde_json::from_value(newest["binding"].clone()).unwrap();
+        install(
+            path,
+            file,
+            covered,
+            binding,
+            &serde_json::to_vec(&forged).unwrap(),
+        );
+        let reported = open(path, file).snapshot().unwrap().root.id;
+        let result = commit_under(path, file, &seed, reported, 3, 2);
+        assert!(
+            matches!(result, CommitCommandResult::Committed(_)),
+            "file={file}: {result:?}"
+        );
+        let replayed = open_in_full(path, file);
+        let replayed = (
+            replayed.head(),
+            replayed.snapshot(),
+            replayed.transactions(),
+        );
+        assert!(
+            replayed.0.is_ok() && replayed.1.is_ok() && replayed.2.is_ok(),
+            "file={file}: a full replay admits the history the kernel wrote: {replayed:?}"
+        );
+        assert_eq!(
+            answers(&open(path, file)),
+            (
+                replayed.0.unwrap(),
+                replayed.1.unwrap(),
+                replayed.2.unwrap()
+            ),
+            "file={file}"
+        );
+        assert_eq!(
+            answers(&open(path, file)).0.unwrap().revision,
+            RevisionNumber::new(3),
+            "file={file}"
+        );
     }
 }
 
