@@ -11,11 +11,17 @@
 //! gets the answer back — a whole response, or the [`SlicePage`] of an `/expand` — writes it with
 //! `Connection: close` (each write waiting at most 5 s), and closes. So every store call runs on
 //! that one thread, outside any Tokio context, as
-//! `architecture-decision-record:0006-ekr-store-bridges-the-async-port` requires, and a client
-//! that stalls holds one of the 64 places for at most 10 s. A stream is written by its own
-//! connection's thread, never by the store thread, so a slow reader of one holds its own place
-//! and nobody else's; the whole stream is written within [`STREAM_TIMEOUT`] or abandoned, and a
-//! client that closes the connection ends it at the next write.
+//! `architecture-decision-record:0006-ekr-store-bridges-the-async-port` requires. A stream is
+//! written by its own connection's thread, never by the store thread, so a slow reader of one
+//! holds its own place and nobody else's; the whole stream is written within [`STREAM_TIMEOUT`]
+//! or abandoned, and a client that closes the connection ends it at the next write.
+//!
+//! How long one connection holds one of the 64 places: a head not complete 5 s after accept is
+//! refused; the wait for the store thread, which answers one request at a time, has no bound of
+//! its own; a whole answer's writes each wait at most 5 s, so a client that reads nothing frees
+//! the place 5 s after the first write it does not take; and a stream holds its place for up to
+//! 65 s — the 5 s head deadline plus the 60 s [`STREAM_TIMEOUT`] — beyond that wait for the store
+//! thread, since a client reading a byte every few seconds keeps every write inside its 5 s.
 //!
 //! Before any store call a request is refused unless it carries exactly one `Host` header naming
 //! this server, `127.0.0.1:<port>` or `localhost:<port>` — on port 80 also `127.0.0.1` or
@@ -45,16 +51,18 @@
 //! | `GET /roles[?revision=N]` | the `ekr.view-roles/1` node-type roles of that revision (the head when absent), derived by [`super::view_roles`] from the same loaded revision the projection renders, `application/json`; refused as `/projection` refuses |
 //! | `GET /evidence/<evidence id>` | that evidence's retained bytes, `text/plain; charset=utf-8` when they are UTF-8, else `application/octet-stream`; 404 for an unknown id or bytes not retained |
 //! | `GET /overview[?revision=N&limit=L]` | [`ekr_views::Index::overview`]'s `ekr.graph-overview/1` bytes, `application/json` |
-//! | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | [`ekr_views::Index::page`]'s records, streamed by [`write_stream`] as chunked `application/x-ndjson` |
+//! | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | [`ekr_views::Index::page`]'s records, streamed by [`write_stream`] as `application/x-ndjson`: chunked to an HTTP/1.1 request; to an HTTP/1.0 request, which may not be sent `Transfer-Encoding` (RFC 9112 § 6.1), unframed and ended by the close. `seeds=` is the empty set, answered with an empty page |
 //! | `GET /node/<node id>[?revision=N]` | [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes, `application/json` |
 //! | `GET /search?q=<text>[&limit=L][&revision=N]` | [`ekr_views::Index::search`]'s `ekr.node-matches/1` bytes (`L` is [`SEARCH_LIMIT`] when absent), `application/json` |
 //! | `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | [`ekr_views::Index::timeline`]'s `ekr.graph-timeline/1` bytes: one row per subject of the row type with its events within `H` hops (1 to 3; at most `L` rows, 1 to 500; `B` the finest bucket, `day` or `week`), or the named subject's row and events, `application/json` |
 //!
 //! Those five read their query with [`Query`]: `name=value` pairs, each name one the path takes
-//! and at most once, each value percent-decoded; anything else is 400 `invalid-query`. A bound out
-//! of range is 400 `ekr.views.LimitExceeded` before any store call, an unknown node or seed 404
-//! `ekr.views.NodeNotFound`, an absent revision 404 as `/projection` refuses it — each a whole JSON
-//! refusal, decided before the first byte of an answer.
+//! and at most once, each value percent-decoded; anything else is 400 `invalid-query`. Then, in
+//! the order views.yaml gives: a bound out of range is 400 `ekr.views.LimitExceeded` before any
+//! store call; an unseeded store 404 `ekr.views.NotSeeded`; an absent revision 404
+//! `ekr.views.RevisionNotFound`; an unknown node or seed — or a `/node/<id>` whose id is no node
+//! id — 404 `ekr.views.NodeNotFound`. Each is a whole JSON refusal, decided before the first byte
+//! of an answer.
 //! | any other method on those paths | 405, with `Allow: GET` |
 //! | any other path | 404 |
 //! | a `GET` of those paths that announces a body | 413 |
@@ -258,8 +266,10 @@ fn connection(stream: TcpStream, deadline: Instant, jobs: &Sender<Job>) {
                 .map_err(|error| format!("setting the read timeout: {error}"))
         })
     };
+    let mut framing = Framing::Chunked;
     let answered = match head {
         Ok(asked) => {
+            framing = asked.framing;
             let (reply_to, reply) = channel();
             if jobs.send((asked, reply_to)).is_err() {
                 return;
@@ -282,6 +292,7 @@ fn connection(stream: TcpStream, deadline: Instant, jobs: &Sender<Job>) {
                 deadline: Instant::now() + STREAM_TIMEOUT,
             },
             &page,
+            framing,
         ),
     };
     let _ = stream.shutdown(Shutdown::Write);
@@ -330,13 +341,26 @@ struct End {
     remaining: u64,
 }
 
-/// Writes `page` as the `/expand` answer: the response head, then HTTP/1.1 chunks of NDJSON,
-/// each flushed as it is written — the meta line alone, then the records with a `progress` line
-/// ending the chunk after every [`PROGRESS_EVERY`], then the rest and the `end` line — then the
-/// last, empty chunk. Stops at the first write that fails.
-fn write_stream(out: &mut impl Write, page: &SlicePage) -> std::io::Result<()> {
+/// How a stream's body is delimited, chosen by the version the request names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Framing {
+    /// HTTP/1.1 chunks, ended by the last, empty chunk: the answer to an HTTP/1.1 request.
+    Chunked,
+    /// The bare lines, ended by closing the connection: the answer to an HTTP/1.0 request, which
+    /// may not be sent `Transfer-Encoding` (RFC 9112 § 6.1).
+    Close,
+}
+
+/// Writes `page` as the `/expand` answer: the response head, then the NDJSON in pieces, each
+/// flushed as it is written — the meta line alone, then the records with a `progress` line
+/// ending the piece after every [`PROGRESS_EVERY`], then the rest and the `end` line. Under
+/// [`Framing::Chunked`] each piece is one HTTP/1.1 chunk and the last, empty chunk follows; under
+/// [`Framing::Close`] the pieces are bare and the caller's close ends the body. Stops at the
+/// first write that fails.
+fn write_stream(out: &mut impl Write, page: &SlicePage, framing: Framing) -> std::io::Result<()> {
     write_lines(
         out,
+        framing,
         page.meta(),
         page.records(),
         page.next(),
@@ -347,15 +371,16 @@ fn write_stream(out: &mut impl Write, page: &SlicePage) -> std::io::Result<()> {
 /// [`write_stream`] over a page's parts.
 fn write_lines(
     out: &mut impl Write,
+    framing: Framing,
     meta: &SliceMeta,
     records: &[SliceRecord],
     next: Option<u64>,
     remaining: u64,
 ) -> std::io::Result<()> {
-    out.write_all(stream_head().as_bytes())?;
+    out.write_all(stream_head(framing).as_bytes())?;
     let mut chunk = Vec::with_capacity(64 * 1024);
     line(&mut chunk, "meta", meta)?;
-    send_chunk(out, &mut chunk)?;
+    send_chunk(out, &mut chunk, framing)?;
     for (at, record) in records.iter().enumerate() {
         match record {
             SliceRecord::Node(node) => line::<SliceNode>(&mut chunk, "node", node)?,
@@ -364,19 +389,26 @@ fn write_lines(
         let sent = at + 1;
         if sent % PROGRESS_EVERY == 0 {
             line(&mut chunk, "progress", &Progress { sent })?;
-            send_chunk(out, &mut chunk)?;
+            send_chunk(out, &mut chunk, framing)?;
         }
     }
     line(&mut chunk, "end", &End { next, remaining })?;
-    send_chunk(out, &mut chunk)?;
-    out.write_all(b"0\r\n\r\n")?;
+    send_chunk(out, &mut chunk, framing)?;
+    if framing == Framing::Chunked {
+        out.write_all(b"0\r\n\r\n")?;
+    }
     out.flush()
 }
 
-/// The head of a streamed answer: the headers every answer carries, and no `Content-Length`.
-fn stream_head() -> String {
+/// The head of a streamed answer: the headers every answer carries, no `Content-Length`, and
+/// `Transfer-Encoding: chunked` only under [`Framing::Chunked`].
+fn stream_head(framing: Framing) -> String {
+    let encoding = match framing {
+        Framing::Chunked => "Transfer-Encoding: chunked\r\n",
+        Framing::Close => "",
+    };
     format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: {NDJSON}\r\nTransfer-Encoding: chunked\r\n\
+        "HTTP/1.1 200 OK\r\nContent-Type: {NDJSON}\r\n{encoding}\
          X-Content-Type-Options: nosniff\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n"
     )
 }
@@ -388,13 +420,16 @@ fn line<T: Serialize>(chunk: &mut Vec<u8>, kind: &'static str, body: &T) -> std:
     Ok(())
 }
 
-/// Writes `chunk` as one HTTP/1.1 chunk and flushes it, then empties it.
-fn send_chunk(out: &mut impl Write, chunk: &mut Vec<u8>) -> std::io::Result<()> {
+/// Writes `chunk` — as one HTTP/1.1 chunk under [`Framing::Chunked`], bare under
+/// [`Framing::Close`] — and flushes it, then empties it.
+fn send_chunk(out: &mut impl Write, chunk: &mut Vec<u8>, framing: Framing) -> std::io::Result<()> {
     if chunk.is_empty() {
         return Ok(());
     }
-    out.write_all(format!("{:x}\r\n", chunk.len()).as_bytes())?;
-    chunk.extend_from_slice(b"\r\n");
+    if framing == Framing::Chunked {
+        out.write_all(format!("{:x}\r\n", chunk.len()).as_bytes())?;
+        chunk.extend_from_slice(b"\r\n");
+    }
     out.write_all(chunk)?;
     chunk.clear();
     out.flush()
@@ -468,11 +503,18 @@ fn parse_head(head: &[u8]) -> Result<Option<Asked>, String> {
                 .iter()
                 .map(|value| String::from_utf8_lossy(value).into_owned())
                 .collect();
+            // httparse admits only HTTP/1.0 (version 0) and HTTP/1.1 (version 1).
+            let framing = if request.version == Some(1) {
+                Framing::Chunked
+            } else {
+                Framing::Close
+            };
             Ok(Some(Asked {
                 method: request.method.unwrap_or_default().to_owned(),
                 target: request.path.unwrap_or_default().to_owned(),
                 hosts,
                 announces_body,
+                framing,
             }))
         }
     }
@@ -595,6 +637,9 @@ struct Asked {
     hosts: Vec<String>,
     /// A `Content-Length` other than zero or any `Transfer-Encoding`.
     announces_body: bool,
+    /// How a stream answering this request is delimited: chunked for HTTP/1.1, ended by the close
+    /// for HTTP/1.0.
+    framing: Framing,
 }
 
 /// Whether `hosts` is exactly one `Host`, naming this server's own loopback authority. A page
@@ -796,7 +841,9 @@ fn overview(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<
     Ok(Reply::ok(JSON, answer.bytes))
 }
 
-/// `/node/<id>[?revision=N]`: an id that is not a node id names no node, so it is 404 too.
+/// `/node/<id>[?revision=N]`: an id that is not a node id names no node, so it is 404
+/// `ekr.views.NodeNotFound` too — refused where views.yaml orders that refusal, after the store
+/// is read and found seeded and holding the revision.
 fn node(
     runtime: &Runtime,
     indexes: &mut IndexCache,
@@ -805,6 +852,9 @@ fn node(
 ) -> Result<Reply, Reply> {
     let query = Query::parse(query, &["revision"]).map_err(invalid_query)?;
     let at = query.revision().map_err(invalid_query)?;
+    let index = indexes
+        .index(runtime, at)
+        .map_err(|error| refused("node", error))?;
     let Ok(node) = id.parse::<NodeId>() else {
         return Err(Reply::refusal(
             404,
@@ -812,9 +862,6 @@ fn node(
             format!("{id:?} is not a node id"),
         ));
     };
-    let index = indexes
-        .index(runtime, at)
-        .map_err(|error| refused("node", error))?;
     let answer = index
         .describe(node)
         .map_err(|error| query_refused("node", error))?;
@@ -892,22 +939,26 @@ fn timeline(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<
 }
 
 /// `/expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]`: the page the
-/// connection streams, or the refusal it answers instead.
+/// connection streams, or the refusal it answers instead. `seeds=` is the empty set, which
+/// views.yaml answers with an empty page (node_total 0); an empty id among others is refused.
 fn expand(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<SlicePage, Reply> {
     let query = Query::parse(
         query,
         &["seeds", "depth", "limit", "edges", "after", "revision"],
     )
     .map_err(invalid_query)?;
-    let seeds = query
-        .required("seeds")
-        .map_err(invalid_query)?
-        .split(',')
-        .map(|seed| {
-            seed.parse::<NodeId>()
-                .map_err(|_| invalid_query(format!("the seed {seed:?} is not a node id")))
-        })
-        .collect::<Result<Vec<NodeId>, Reply>>()?;
+    let listed = query.required("seeds").map_err(invalid_query)?;
+    let seeds = if listed.is_empty() {
+        Vec::new()
+    } else {
+        listed
+            .split(',')
+            .map(|seed| {
+                seed.parse::<NodeId>()
+                    .map_err(|_| invalid_query(format!("the seed {seed:?} is not a node id")))
+            })
+            .collect::<Result<Vec<NodeId>, Reply>>()?
+    };
     let required = |name: &str| {
         query
             .integer(name)
@@ -1410,14 +1461,22 @@ mod tests {
     fn a_stream_is_the_meta_chunk_then_a_chunk_per_256_records_then_the_end() {
         for (count, next) in [(0_u64, None), (256, Some(256)), (600, Some(600))] {
             let mut out = Vec::new();
-            write_lines(&mut out, &meta(), &records(count), next, 7).unwrap();
+            write_lines(
+                &mut out,
+                Framing::Chunked,
+                &meta(),
+                &records(count),
+                next,
+                7,
+            )
+            .unwrap();
             let end = out.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
             assert_eq!(
                 std::str::from_utf8(&out[..end + 4]).unwrap(),
-                stream_head(),
+                stream_head(Framing::Chunked),
                 "{count}"
             );
-            let head = stream_head().to_ascii_lowercase();
+            let head = stream_head(Framing::Chunked).to_ascii_lowercase();
             for line in [
                 "content-type: application/x-ndjson",
                 "transfer-encoding: chunked",
@@ -1472,6 +1531,44 @@ mod tests {
         }
     }
 
+    /// Under [`Framing::Close`] a stream is the same head without `Transfer-Encoding`, then the
+    /// same lines the chunked stream carries, bare, with no last chunk: the close ends them.
+    #[test]
+    fn an_unframed_stream_is_the_chunked_streams_lines_bare_and_unterminated() {
+        for count in [0_u64, 256, 600] {
+            let mut chunked = Vec::new();
+            write_lines(
+                &mut chunked,
+                Framing::Chunked,
+                &meta(),
+                &records(count),
+                None,
+                7,
+            )
+            .unwrap();
+            let mut bare = Vec::new();
+            write_lines(&mut bare, Framing::Close, &meta(), &records(count), None, 7).unwrap();
+            let end = bare.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
+            let head = std::str::from_utf8(&bare[..end + 4]).unwrap();
+            assert_eq!(head, stream_head(Framing::Close));
+            assert_eq!(
+                head.replace("\r\n", "\n"),
+                stream_head(Framing::Chunked)
+                    .replace("Transfer-Encoding: chunked\r\n", "")
+                    .replace("\r\n", "\n"),
+                "only Transfer-Encoding differs"
+            );
+            assert!(!head.to_ascii_lowercase().contains("transfer-encoding"));
+            assert!(!head.to_ascii_lowercase().contains("content-length"));
+            let chunked_end = chunked.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
+            assert_eq!(
+                &bare[end + 4..],
+                &chunks(&chunked[chunked_end + 4..]).concat()[..],
+                "{count}"
+            );
+        }
+    }
+
     /// Takes `room` bytes, then fails every write, and counts the writes it was asked for.
     struct Closing {
         room: usize,
@@ -1500,7 +1597,14 @@ mod tests {
             room: 300,
             refused: 0,
         };
-        let written = write_lines(&mut closing, &meta(), &records(2000), None, 0);
+        let written = write_lines(
+            &mut closing,
+            Framing::Chunked,
+            &meta(),
+            &records(2000),
+            None,
+            0,
+        );
         assert_eq!(
             written.map_err(|error| error.kind()),
             Err(std::io::ErrorKind::BrokenPipe)
@@ -1650,7 +1754,14 @@ mod tests {
                 target: "/projection?revision=0".to_owned(),
                 hosts: vec!["127.0.0.1:9".to_owned()],
                 announces_body: false,
+                framing: Framing::Chunked,
             }
+        );
+        let older = b"GET /expand HTTP/1.0\r\nHost: 127.0.0.1:9\r\n\r\n";
+        assert_eq!(
+            read_head(&mut &older[..], no_deadline).unwrap().framing,
+            Framing::Close,
+            "an HTTP/1.0 request is never answered chunked"
         );
         let announcing = [
             "Content-Length: 1",
@@ -1696,6 +1807,94 @@ mod tests {
             assert!(
                 read_head(&mut text.as_bytes(), no_deadline).is_err(),
                 "{text:?}"
+            );
+        }
+    }
+
+    /// The named refusal `answer` gives `target` on port 9, or `None` when it answers otherwise.
+    fn refusal_name(runtime: &Runtime, memory: &mut Memory, target: &str) -> Option<String> {
+        let head = format!("GET {target} HTTP/1.1\r\nHost: 127.0.0.1:9\r\n\r\n");
+        let asked = read_head(&mut head.as_bytes(), no_deadline).unwrap();
+        let Answered::Whole(reply) = answer(runtime, memory, 9, &asked) else {
+            return None;
+        };
+        let body: serde_json::Value = serde_json::from_slice(&reply.body).ok()?;
+        body["refusal"].as_str().map(str::to_owned)
+    }
+
+    /// views.yaml, "Bounds and the order of refusals": a broken bound answers LimitExceeded before
+    /// the store is read, then an unseeded store answers NotSeeded — before an absent revision and
+    /// before a node the revision does not hold, whether or not that node's text is a node id.
+    #[test]
+    fn every_bounded_read_on_an_unseeded_store_is_not_seeded_after_its_bounds() {
+        let host = crate::host::CliHostConfigurationV1::from_json(
+            &std::fs::read(
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("tests/fixtures/retraction/host.json"),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        let directory = tempfile::tempdir().unwrap();
+        let runtime = Runtime::file(
+            &directory.path().join("store"),
+            &host.tenant,
+            host.context,
+            host.authority,
+        )
+        .unwrap();
+        assert_eq!(runtime.head().unwrap(), None, "the store is unseeded");
+        let node = "00000000-0000-4000-8000-000000000399";
+        let mut memory = Memory::default();
+        for (target, name) in [
+            (
+                "/overview?limit=0&revision=9".to_owned(),
+                "ekr.views.LimitExceeded",
+            ),
+            ("/overview?revision=9".to_owned(), "ekr.views.NotSeeded"),
+            (
+                format!("/expand?seeds={node}&depth=3&limit=10&revision=9"),
+                "ekr.views.LimitExceeded",
+            ),
+            (
+                format!("/expand?seeds={node}&depth=1&limit=10&revision=9"),
+                "ekr.views.NotSeeded",
+            ),
+            (
+                format!("/expand?seeds={node}&depth=1&limit=10"),
+                "ekr.views.NotSeeded",
+            ),
+            (
+                "/expand?seeds=&depth=1&limit=10".to_owned(),
+                "ekr.views.NotSeeded",
+            ),
+            (format!("/node/{node}"), "ekr.views.NotSeeded"),
+            (format!("/node/{node}?revision=9"), "ekr.views.NotSeeded"),
+            ("/node/not-an-id".to_owned(), "ekr.views.NotSeeded"),
+            (
+                "/node/not-an-id?revision=9".to_owned(),
+                "ekr.views.NotSeeded",
+            ),
+            (
+                "/search?q=a&limit=0&revision=9".to_owned(),
+                "ekr.views.LimitExceeded",
+            ),
+            ("/search?q=a&revision=9".to_owned(), "ekr.views.NotSeeded"),
+            (
+                "/timeline?hops=0&limit=10&revision=9".to_owned(),
+                "ekr.views.LimitExceeded",
+            ),
+            (
+                format!("/timeline?subject={node}&hops=1&limit=10&revision=9"),
+                "ekr.views.NotSeeded",
+            ),
+            ("/projection?revision=9".to_owned(), "ekr.views.NotSeeded"),
+            ("/roles".to_owned(), "ekr.views.NotSeeded"),
+        ] {
+            assert_eq!(
+                refusal_name(&runtime, &mut memory, &target).as_deref(),
+                Some(name),
+                "GET {target}"
             );
         }
     }
