@@ -1,4 +1,4 @@
-//! The per-revision index the four bounded reads answer from, and the cache a host keeps it in.
+//! The per-revision index the five bounded reads answer from, and the cache a host keeps it in.
 //!
 //! [`Index::build`] reads one [`LoadedRevision`] — the value [`crate::load`] returns — once:
 //! adjacency and degree, the assertions by subject and by object, the lowercased names and
@@ -12,8 +12,8 @@
 //! read of a revision pays for its load.
 
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashMap, VecDeque};
-use std::sync::Arc;
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::sync::{Arc, OnceLock};
 
 use ekr_core::{AssertionId, EdgeId, NodeId, RevisionNumber, TypeId};
 use ekr_graph::{CanonicalValue, Object, Predicate, Subject};
@@ -50,6 +50,29 @@ pub struct Index {
     /// Each node's canonical name and aliases, lowercased, in node order.
     pub(crate) folded: Vec<(String, Vec<String>)>,
     pub(crate) overview: OverviewParts,
+    /// Each node's type, in node order.
+    pub(crate) node_type: Vec<TypeId>,
+    /// The nodes of each type, in node order.
+    pub(crate) by_type: HashMap<TypeId, Vec<u32>>,
+    /// Whether each node is of an event type of the overview's roles, in node order.
+    pub(crate) node_event: Vec<bool>,
+    /// Each node's time and end, the timeline's (`views.yaml`, ekr.graph-timeline/1), in node
+    /// order; `None` for a node with no time.
+    pub(crate) node_time: Vec<Option<(i64, i64)>>,
+    /// Each edge's source node and type, in edge order.
+    pub(crate) edge_source: Vec<u32>,
+    pub(crate) edge_type: Vec<TypeId>,
+    /// The timeline's row types, ranked on first use.
+    pub(crate) row_types: OnceLock<Vec<RowTypeRank>>,
+}
+
+/// One candidate row type of the timeline, with what ranks it (`ekr.views.TimelineRowType`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct RowTypeRank {
+    pub(crate) type_id: TypeId,
+    pub(crate) nodes: u64,
+    pub(crate) reached: u64,
+    pub(crate) weight: u64,
 }
 
 impl std::fmt::Debug for Index {
@@ -104,6 +127,7 @@ impl Index {
         };
 
         let mut edge_ids = Vec::with_capacity(graph.edges.len());
+        let mut edge_type = Vec::with_capacity(graph.edges.len());
         let mut ends = Vec::with_capacity(graph.edges.len());
         let mut degree = vec![0_u64; node_ids.len()];
         let mut counts = vec![0_usize; node_ids.len() + 1];
@@ -114,6 +138,7 @@ impl Index {
                 held(edge.target.id(), &what)?,
             );
             edge_ids.push(edge.id);
+            edge_type.push(edge.type_id);
             ends.push((source, target));
             counts[source as usize] += 1;
             if source != target {
@@ -190,6 +215,12 @@ impl Index {
                 )
             })
             .collect();
+        let node_type: Vec<TypeId> = graph.nodes.values().map(|node| node.type_id).collect();
+        let mut by_type: HashMap<TypeId, Vec<u32>> = HashMap::new();
+        for (at, type_id) in node_type.iter().enumerate() {
+            by_type.entry(*type_id).or_default().push(index_of(at)?);
+        }
+        let edge_source = ends.iter().map(|(source, _)| *source).collect();
 
         let mut index = Self {
             node_ids,
@@ -203,6 +234,13 @@ impl Index {
             referencing,
             by_degree,
             folded,
+            node_type,
+            by_type,
+            node_event: Vec::new(),
+            node_time: Vec::new(),
+            edge_source,
+            edge_type,
+            row_types: OnceLock::new(),
             overview: OverviewParts {
                 ontology: Err(String::new()),
                 schema: Err(String::new()),
@@ -222,7 +260,21 @@ impl Index {
             },
             loaded,
         };
-        index.overview = index.overview_parts();
+        let (overview, node_time) = index.overview_parts();
+        let events: HashSet<TypeId> = overview
+            .roles
+            .types
+            .iter()
+            .filter(|timing| timing.event)
+            .map(|timing| timing.type_id)
+            .collect();
+        index.node_event = index
+            .node_type
+            .iter()
+            .map(|type_id| events.contains(type_id))
+            .collect();
+        index.node_time = node_time;
+        index.overview = overview;
         Ok(index)
     }
 
@@ -250,7 +302,8 @@ impl Index {
         &self.adjacency[self.offsets[node]..self.offsets[node + 1]]
     }
 
-    fn overview_parts(&self) -> OverviewParts {
+    /// The overview's request-free sections, and each node's timeline time and end.
+    fn overview_parts(&self) -> (OverviewParts, Vec<Option<(i64, i64)>>) {
         let graph = &self.loaded.graph;
         let by_type: BTreeMap<TypeId, Vec<&ekr_graph::Assertion>> =
             graph
@@ -288,14 +341,18 @@ impl Index {
                 .collect()
         };
 
-        OverviewParts {
-            ontology,
-            schema: self.schema(),
-            node_types: count(&node_types, &node_counts),
-            edge_types: count(&edge_types, &edge_counts),
-            roles: self.roles(&node_types),
-            timeline: self.timeline(),
-        }
+        let (roles, times) = self.roles(&node_types);
+        (
+            OverviewParts {
+                ontology,
+                schema: self.schema(),
+                node_types: count(&node_types, &node_counts),
+                edge_types: count(&edge_types, &edge_counts),
+                roles,
+                timeline: self.overview_timeline(),
+            },
+            times,
+        )
     }
 
     /// `ekr.views.OverviewSchema`: the lineage with what each version added and removed, and the
@@ -426,8 +483,10 @@ impl Index {
     }
 
     /// `ekr.views.OverviewRoles`, by the reference viewer's valid-time rule (`views.yaml`,
-    /// `ekr.views.TypeTiming`).
-    fn roles(&self, node_types: &[TypeId]) -> OverviewRoles {
+    /// `ekr.views.TypeTiming`), and each node's time and end as the timeline places it: its least
+    /// timestamp-like property value, else its earliest dated fact; its end the greatest of that
+    /// and its dated facts.
+    fn roles(&self, node_types: &[TypeId]) -> (OverviewRoles, Vec<Option<(i64, i64)>>) {
         let graph = &self.loaded.graph;
         let count = self.node_ids.len();
         // Each node's dated facts: how many, the earliest and the latest.
@@ -488,17 +547,30 @@ impl Index {
             kinds.push(position.get(&node.type_id).copied());
         }
         let mut seen = vec![u32::MAX; node_types.len()];
+        let mut times: Vec<Option<(i64, i64)>> = Vec::with_capacity(count);
         for (at, node) in graph.nodes.values().enumerate() {
+            let stamp = node
+                .properties
+                .values()
+                .flatten()
+                .filter_map(|value| match value {
+                    CanonicalValue::Integer(v)
+                        if (1_000_000_000_000..10_000_000_000_000).contains(v) =>
+                    {
+                        Some(*v)
+                    }
+                    CanonicalValue::Timestamp(instant) => Some(instant.millis()),
+                    _ => None,
+                })
+                .min();
+            let (facts, earliest, latest) = dated[at];
+            let time = stamp.or((facts > 0).then_some(earliest));
+            times.push(time.map(|time| (time, if facts > 0 { time.max(latest) } else { time })));
             let Some(kind) = kinds[at] else { continue };
             let here = u32::try_from(at).unwrap_or(u32::MAX);
             let timing = &mut timings[kind];
             timing.nodes += 1;
-            let timestamped = node.properties.values().flatten().any(|value| match value {
-                CanonicalValue::Integer(v) => (1_000_000_000_000..10_000_000_000_000).contains(v),
-                CanonicalValue::Timestamp(_) => true,
-                _ => false,
-            });
-            let (facts, earliest, latest) = dated[at];
+            let timestamped = stamp.is_some();
             if timestamped {
                 timing.timestamped += 1;
                 timing.judged += 1;
@@ -553,14 +625,17 @@ impl Index {
                 observation = Some(timing);
             }
         }
-        OverviewRoles {
-            observation_type: observation.map(|timing| timing.type_id),
-            types: timings,
-        }
+        (
+            OverviewRoles {
+                observation_type: observation.map(|timing| timing.type_id),
+                types: timings,
+            },
+            times,
+        )
     }
 
     /// `ekr.views.OverviewTimeline`: node-subject assertions per valid-time bucket per type.
-    fn timeline(&self) -> OverviewTimeline {
+    fn overview_timeline(&self) -> OverviewTimeline {
         let graph = &self.loaded.graph;
         let mut dated: Vec<(i64, TypeId)> = Vec::new();
         let mut undated = 0_u64;
@@ -580,19 +655,12 @@ impl Index {
         let last = dated.iter().map(|(at, _)| *at).max();
         let weekly = matches!((first, last), (Some(first), Some(last))
             if i128::from(last) - i128::from(first) > i128::from(WEEKLY_SPAN_MS));
-        let width = if weekly { WEEK_MS } else { DAY_MS };
+        let width = bucket_width(first.zip(last), weekly);
         let mut buckets: BTreeMap<(i64, TypeId), u64> = BTreeMap::new();
         for (at, type_id) in dated {
-            let at = i128::from(at);
-            let start = if weekly {
-                (at + i128::from(MONDAY_SHIFT_MS)).div_euclid(i128::from(WEEK_MS))
-                    * i128::from(WEEK_MS)
-                    - i128::from(MONDAY_SHIFT_MS)
-            } else {
-                at.div_euclid(i128::from(DAY_MS)) * i128::from(DAY_MS)
-            };
-            let start = i64::try_from(start).unwrap_or(i64::MIN);
-            *buckets.entry((start, type_id)).or_default() += 1;
+            *buckets
+                .entry((bucket_start(at, width), type_id))
+                .or_default() += 1;
         }
         OverviewTimeline {
             bucket_ms: width.unsigned_abs(),
@@ -612,12 +680,64 @@ impl Index {
 }
 
 const HOUR_MS: i128 = 3_600_000;
-const DAY_MS: i64 = 86_400_000;
-const WEEK_MS: i64 = 604_800_000;
+pub(crate) const DAY_MS: i64 = 86_400_000;
+pub(crate) const WEEK_MS: i64 = 604_800_000;
 /// 120 days: a span longer than this is bucketed by week.
-const WEEKLY_SPAN_MS: i64 = 10_368_000_000;
+pub(crate) const WEEKLY_SPAN_MS: i64 = 10_368_000_000;
 /// Three days: the epoch fell on a Thursday, so a week starting on Monday is shifted by this.
 const MONDAY_SHIFT_MS: i64 = 259_200_000;
+
+/// The most buckets a span is cut into; past it the next coarser width is taken.
+pub(crate) const MAX_BUCKETS: i128 = 200;
+
+/// The start of the bucket of `width` holding `at`: its UTC day for a day, otherwise the start
+/// of the `width`-long run of weeks from Monday 00:00 UTC that holds it; floor rounds toward
+/// negative infinity.
+pub(crate) fn bucket_start(at: i64, width: i64) -> i64 {
+    let (at, width) = (i128::from(at), i128::from(width));
+    let start = if width == i128::from(DAY_MS) {
+        at.div_euclid(width) * width
+    } else {
+        (at + i128::from(MONDAY_SHIFT_MS)).div_euclid(width) * width - i128::from(MONDAY_SHIFT_MS)
+    };
+    i64::try_from(start).unwrap_or(i64::MIN)
+}
+
+/// The `n`th bucket width, finest first: a day, a week, 4 weeks, 13 weeks, 52 weeks, then 52
+/// weeks doubled `n - 4` times.
+fn nth_width(n: u32) -> i128 {
+    let week = i128::from(WEEK_MS);
+    match n {
+        0 => i128::from(DAY_MS),
+        1 => week,
+        2 => 4 * week,
+        3 => 13 * week,
+        _ => (52 * week).saturating_mul(1_i128 << (n - 4).min(64)),
+    }
+}
+
+/// The bucket width for `span` (`views.yaml`, ekr.views.OverviewTimeline): the first width, from
+/// a week when `weekly` and a day otherwise, that cuts `[first, last]` into at most
+/// [`MAX_BUCKETS`] buckets.
+pub(crate) fn bucket_width(span: Option<(i64, i64)>, weekly: bool) -> i64 {
+    let mut n = u32::from(weekly);
+    loop {
+        let width = nth_width(n);
+        let fits = match (span, i64::try_from(width)) {
+            (_, Err(_)) => true,
+            (None, Ok(_)) => true,
+            (Some((first, last)), Ok(width)) => {
+                (i128::from(bucket_start(last, width)) - i128::from(bucket_start(first, width)))
+                    / i128::from(width)
+                    < MAX_BUCKETS
+            }
+        };
+        if fits {
+            return i64::try_from(width).unwrap_or(i64::MAX);
+        }
+        n += 1;
+    }
+}
 
 /// Every type and property id `ontology` declares, with its kind and the name it gives it:
 /// node types, then edge types, each by id, and a property under the first type declaring it.

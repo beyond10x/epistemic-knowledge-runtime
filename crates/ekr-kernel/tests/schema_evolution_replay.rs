@@ -517,7 +517,7 @@ fn schema_history_answers_a_revision_and_its_schema_versions_from_one_replay_on_
                 let mut reopened = open(directory.path(), file, v2()).unwrap();
                 reopened.set_full_replay(full);
                 let before = reopened.seed_replays();
-                let history = reopened.schema_history(revision).unwrap();
+                let history: ekr_kernel::SchemaHistory = reopened.schema_history(revision).unwrap();
                 let replays = reopened.seed_replays() - before;
                 if full {
                     assert_eq!(replays, 1, "revision {number}, full replay");

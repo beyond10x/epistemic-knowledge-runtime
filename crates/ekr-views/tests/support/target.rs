@@ -1,6 +1,7 @@
-//! The ESS conformance target over `ekr_views`' five reads, on one native provider:
+//! The ESS conformance target over `ekr_views`' six reads, on one native provider:
 //! `ekr_views::project` for `ProjectGraph`, and an [`ekr_views::Index`] of the requested revision
-//! for `ProjectOverview`, `ExpandNeighbourhood`, `DescribeNode` and `SearchNodes`.
+//! for `ProjectOverview`, `ExpandNeighbourhood`, `DescribeNode`, `SearchNodes` and
+//! `ProjectTimeline`.
 //!
 //! * **Isolation.** Every scenario gets a fresh directory below the caller's work directory, and
 //!   every store a scenario names is a fresh provider root inside it.
@@ -26,11 +27,12 @@ use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use ekr_core::{NodeId, RevisionNumber};
+use ekr_core::{NodeId, RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{
-    ExpandRequest, GraphOverviewed, GraphProjected, Index, LimitExceeded, NeighbourhoodExpanded,
-    NodeDescribed, NodesSearched, OverviewRequest, ProjectError, QueryError, SearchRequest,
+    BucketWidth, ExpandRequest, GraphOverviewed, GraphProjected, Index, LimitExceeded,
+    NeighbourhoodExpanded, NodeDescribed, NodesSearched, OverviewRequest, ProjectError, QueryError,
+    SearchRequest, SubjectsTimelined, TimelineRequest,
 };
 use ess_conformance::target::{
     ConformanceTarget, DeclaredErrorValue, EventObservationRequest, ExternalOutcomeControl,
@@ -48,12 +50,14 @@ const PROJECT_OVERVIEW: &str = "ekr.views.ProjectOverview";
 const EXPAND_NEIGHBOURHOOD: &str = "ekr.views.ExpandNeighbourhood";
 const DESCRIBE_NODE: &str = "ekr.views.DescribeNode";
 const SEARCH_NODES: &str = "ekr.views.SearchNodes";
-const COMMANDS: [&str; 5] = [
+const PROJECT_TIMELINE: &str = "ekr.views.ProjectTimeline";
+const COMMANDS: [&str; 6] = [
     PROJECT_GRAPH,
     PROJECT_OVERVIEW,
     EXPAND_NEIGHBOURHOOD,
     DESCRIBE_NODE,
     SEARCH_NODES,
+    PROJECT_TIMELINE,
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -92,6 +96,7 @@ enum Read {
     Expand(Result<ExpandRequest, LimitExceeded>),
     Describe(NodeId),
     Search(Result<SearchRequest, LimitExceeded>),
+    Timeline(Result<TimelineRequest, LimitExceeded>),
 }
 
 fn unavailable(operation: &str, detail: impl std::fmt::Display) -> TargetError {
@@ -231,6 +236,80 @@ fn nodes_searched(summary: &NodesSearched) -> Result<ObservedEvent, TargetError>
     observed("ekr.views.NodesSearched", fields)
 }
 
+fn subjects_timelined(summary: &SubjectsTimelined) -> Result<ObservedEvent, TargetError> {
+    let mut fields = counts(&[
+        ("revision", summary.revision),
+        ("head", summary.head),
+        ("hops", summary.hops),
+        ("bucket_ms", summary.bucket_ms),
+        ("row_types", summary.row_types),
+        ("subjects", summary.subjects),
+        ("active", summary.active),
+        ("rows", summary.rows),
+        ("events", summary.events),
+        ("row_events", summary.row_events),
+        ("cells", summary.cells),
+        ("strip", summary.strip),
+        ("listed_events", summary.listed_events),
+    ])?;
+    if let Some(row_type) = summary.row_type {
+        fields.push(("row_type", Node::Text(row_type.to_string())));
+    }
+    if let Some(first) = summary.first_row {
+        fields.push(("first_row", Node::Text(first.to_string())));
+    }
+    fields.push(("timeline_hash", Node::Text(summary.timeline_hash.clone())));
+    observed("ekr.views.SubjectsTimelined", fields)
+}
+
+/// An optional text input: `None` when absent or null.
+fn optional_text(
+    request: &SemanticCommandRequest,
+    field: &str,
+) -> Result<Option<String>, TargetError> {
+    match request.input.get(field) {
+        None | Some(Node::Null) => Ok(None),
+        Some(Node::Text(text)) => Ok(Some(text.clone())),
+        Some(other) => Err(unavailable(
+            &format!("reading `{field}`"),
+            format!("{} is not a text", other.type_name()),
+        )),
+    }
+}
+
+/// `ProjectTimeline`'s input, bounded.
+fn timeline_request(
+    request: &SemanticCommandRequest,
+) -> Result<Result<TimelineRequest, LimitExceeded>, TargetError> {
+    let row_type = optional_text(request, "row_type")?
+        .map(|text| {
+            text.parse::<TypeId>()
+                .map_err(|e| unavailable("reading `row_type`", format!("{text}: {e}")))
+        })
+        .transpose()?;
+    let bucket = match optional_text(request, "bucket")?.as_deref() {
+        None => None,
+        Some("Day") => Some(BucketWidth::Day),
+        Some("Week") => Some(BucketWidth::Week),
+        Some(other) => {
+            return Err(unavailable(
+                "reading `bucket`",
+                format!("{other} is no bucket width"),
+            ))
+        }
+    };
+    let subject = optional_text(request, "subject")?
+        .map(|text| node_id(&text, "subject"))
+        .transpose()?;
+    Ok(TimelineRequest::new(
+        row_type,
+        required_integer(request, "hops")?,
+        required_integer(request, "limit")?,
+        bucket,
+        subject,
+    ))
+}
+
 fn outcome_ref(
     command: &str,
     outcome: &str,
@@ -322,6 +401,7 @@ fn read(request: &SemanticCommandRequest, command: &str) -> Result<Read, TargetE
             text(request, "text")?,
             required_integer(request, "limit")?,
         )),
+        PROJECT_TIMELINE => Read::Timeline(timeline_request(request)?),
         _ => Read::Graph,
     })
 }
@@ -419,6 +499,12 @@ fn answer(
                 let answer = index.search(&request)?;
                 Ok(nodes_searched(&answer.summary).and_then(|e| took("searched", e)))
             }
+            Read::Timeline(request) => {
+                let request = request?;
+                let index = Index::load(runtime, at)?;
+                let answer = index.timeline(&request)?;
+                Ok(subjects_timelined(&answer.summary).and_then(|e| took("timelined", e)))
+            }
         }
     })();
     match result {
@@ -481,7 +567,7 @@ impl ConformanceTarget for ViewsTarget {
         let Some(command) = COMMANDS.iter().copied().find(|known| *known == command) else {
             return Err(TargetError::unsupported(
                 format!("executing `{}`", request.command),
-                "the views target answers the five ekr.views commands only",
+                "the views target answers the six ekr.views commands only",
             ));
         };
         let store = match request.input.get("store") {

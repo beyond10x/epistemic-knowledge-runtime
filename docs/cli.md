@@ -348,6 +348,7 @@ prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`, then answers:
 | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | the `ekr.graph-slice/1` page of the nodes within `D` hops of the seeds (`D` 0 to 2, at most `L` nodes, 1 to 2,000, and `E` edges, 1 to 5,000, 5,000 when absent, from cursor `A`), streamed as NDJSON (below) |
 | `GET /node/<node id>[?revision=N]` | the `ekr.node-detail/1` document of that node, `application/json` |
 | `GET /search?q=<text>[&limit=L][&revision=N]` | the `ekr.node-matches/1` document of the nodes whose name or an alias contains the text (at most `L`, 1 to 100, 20 when absent), `application/json` |
+| `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | the `ekr.graph-timeline/1` document: one row per node of the row type `type` (the first the document ranks when absent) with the events related to it within `H` hops (1 to 3) counted per time bucket, at most `L` rows (1 to 500), the most active first; `B` is the finest bucket, `day` or `week`; with `subject` the row of that node alone and its events; `application/json` |
 
 Any other method is 405 and any other path 404. A request that announces a body (a
 `Content-Length` above zero or any `Transfer-Encoding`) is 413; the body is never read. A request
@@ -362,10 +363,12 @@ origin. Evidence text is
 never served as HTML. Like every read verb, `ekr view` opens an existing store only (a path holding
 none is `store-not-found`, exit 1) and writes nothing to it.
 
-The query of `/overview`, `/expand`, `/node/<id>` and `/search` is `name=value` pairs joined by
-`&`, each name one the path takes and at most once, each value percent-decoded (`+` is a space) to
-UTF-8; `seeds` is node ids separated by commas, and `seeds`, `depth` and `limit` are required by
-`/expand`, `q` by `/search`. A query that breaks this is 400 with `{"refusal": "invalid-query", …}`.
+The query of `/overview`, `/expand`, `/node/<id>`, `/search` and `/timeline` is `name=value`
+pairs joined by `&`, each name one the path takes and at most once, each value percent-decoded
+(`+` is a space) to UTF-8; `seeds` is node ids separated by commas, and `seeds`, `depth` and
+`limit` are required by `/expand`, `q` by `/search`, `hops` and `limit` by `/timeline`. A query
+that breaks this, a `type` or `subject` that is not an id, or a `bucket` other than `day` or
+`week`, is 400 with `{"refusal": "invalid-query", …}`.
 A bound outside its range is 400 `ekr.views.LimitExceeded`, a node or seed the revision does not
 hold 404 `ekr.views.NodeNotFound`, and a revision the store does not hold 404
 `ekr.views.RevisionNotFound` (`ekr.views.NotSeeded` for a store never seeded), each a whole JSON
@@ -388,19 +391,21 @@ the 64 connections; each write waits at most 5 seconds and the whole stream at m
 client that closes the connection ends it and frees its place.
 
 A revision is loaded once. The first request of a revision to `/overview`, `/expand`, `/node`,
-`/search`, `/projection` or `/roles` loads and indexes it; every later request of that revision,
-whichever path, reads the store's head and answers from that index, so it costs its answer. The
+`/search`, `/timeline`, `/projection` or `/roles` loads and indexes it; every later request of
+that revision, whichever path, reads the store's head and answers from that index, so it costs its
+answer (a revision's first `/timeline` also ranks its row types once). The
 indexes of the 3 revisions used most recently are kept, each under the head it was loaded under,
 so a new head loads again. `/projection` and `/roles` also keep their rendered answers, byte for
 byte what the first answer was, for at most 8 revisions under one head, the one used longest ago
 going first.
 
-The page reads `/projection`, `/roles` and `/evidence/<id>` and nothing else, and derives what it
-shows from them: the timeline's event, observation and subject types from where valid time
-clusters, the growth per revision from each assertion's recorded time, and one link for an edge and
-the relation assertions with its source, type and target. The roles `/roles` serves appear only as
-badges in its tooltips. It fetches evidence only by an id the loaded projection holds, and writes
-everything a store holds as text.
+The page reads `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and
+`/evidence/<id>` and nothing else, never `/projection`: the overview once per revision, a
+neighbourhood as it streams in, a node's detail when it is opened, and the timeline's rows — one
+per subject of the chosen row type, with its events within the chosen hops — and a subject's
+swimlanes from `/timeline`. It fetches evidence only by an id an assertion it has read cites, and
+writes everything a store holds as text. The earlier page at `/alt` reads `/projection`, `/roles`
+and `/evidence/<id>`.
 
 #### Roles
 

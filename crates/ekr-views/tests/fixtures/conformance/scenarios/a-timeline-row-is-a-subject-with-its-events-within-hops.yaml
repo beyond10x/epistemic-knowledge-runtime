@@ -1,0 +1,253 @@
+# ProjectTimeline's rows (ekr.views.TimelineRow): one per subject, with the events the walk
+# reaches within `hops`.
+#
+# The store `subjects` is a seed only, revision 0. Its ontology: node types holder
+# 00000000-0000-4000-8000-000000a00001, place …a00002 and happening …a00003, each with one String
+# property, and notice …a00004 with one Integer property; one edge type, touches …a00005, from
+# every node type to every node type. Nodes: holders H1 …a00101, H2 …a00102 and H3 …a00103;
+# places L1 …a00201 and L2 …a00202; happenings E0 …a00300 to E6 …a00306; notices N1 …a00401 to
+# N3 …a00403. Times below are UTC in 2027.
+#   - E1 to E6: two assertions each, valid from day i of January at 10:00 and at 10:10, so each
+#     is placed on January i; E0 has no assertion and so no time;
+#   - N1, N2 and N3 carry their Integer property: January 8, January 9 and March 1 at 12:00;
+#   - holders and places have no assertion, so neither type is an event type; happening (six
+#     nodes judged, all within an hour) and notice (three timestamped) are.
+# Edges, in id order: H1→E1, E2→H1, H1→E0, H1→L1, E3→L1, L1→E4, H1→L2, H2→L2, E5→L2, E1→E6,
+# E6→N1, E1→H3, H2→N2.
+# The walk from each holder:
+#   - H1: 1 hop reaches E1 and E2 (E0 has no time); 2 hops add E6, from E1, and E3, which points
+#     at L1, the place only H1 reaches; E4 is not reached, because L1 is its source, and E5 not,
+#     because L2 has two holders; 3 hops add N1, from E6: 2, 4 and 5 events.
+#   - H2: N2 at every depth, since L2 has two holders: 1 event.
+#   - H3: E1 at 1 hop; E6 at 2, from E1, which walks on to events only and so not to H1; N1 at 3:
+#     1, 2 and 3 events.
+# Row types: holder (weight 4 + 2 for H1, 2 for H2, 2 + 1 for H3: 11 over 3 nodes) before place
+# (L1 reaches E3 and E4 at 1 hop, 4; L2 reaches E5, 2: 6 over 2 nodes). The span, January 1 10:00
+# to March 1 12:00, is under 120 days, so buckets are days unless the request asks for weeks.
+# From a happening, which is itself an event, the walk stops at every node that is not an event:
+# only E1 (E6 and N1) and E6 (E1 and N1) have events. A type the revision holds no node of answers
+# no rows.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-timeline-row-is-a-subject-with-its-events-within-hops
+summary: Each holder's row counts the events its walk reaches within 1, 2 and 3 hops, by day or by week, and a subject asked for alone lists its events.
+
+timeline:
+  - at: 2027-03-02T10:00:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: subjects
+      at: null
+      row_type: 00000000-0000-4000-8000-000000a00001
+      hops: 1
+      limit: 500
+      bucket: null
+      subject: null
+    outcome: timelined
+    events:
+      - event: ekr.views.SubjectsTimelined
+        payload:
+          revision: 0
+          head: 0
+          row_type: 00000000-0000-4000-8000-000000a00001
+          hops: 1
+          bucket_ms: 86400000
+          row_types: 2
+          subjects: 3
+          active: 3
+          rows: 3
+          events: 3
+          row_events: 4
+          cells: 4
+          strip: 3
+          first_row: 00000000-0000-4000-8000-000000a00101
+          listed_events: 0
+
+  - at: 2027-03-02T10:01:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: subjects
+      at: null
+      row_type: 00000000-0000-4000-8000-000000a00001
+      hops: 2
+      limit: 500
+      bucket: null
+      subject: null
+    outcome: timelined
+    events:
+      - event: ekr.views.SubjectsTimelined
+        payload:
+          hops: 2
+          bucket_ms: 86400000
+          active: 3
+          rows: 3
+          events: 5
+          row_events: 7
+          cells: 7
+          strip: 5
+          first_row: 00000000-0000-4000-8000-000000a00101
+
+  - at: 2027-03-02T10:02:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: subjects
+      at: null
+      row_type: 00000000-0000-4000-8000-000000a00001
+      hops: 2
+      limit: 2
+      bucket: null
+      subject: null
+    outcome: timelined
+    events:
+      - event: ekr.views.SubjectsTimelined
+        payload:
+          active: 3
+          rows: 2
+          events: 5
+          row_events: 6
+          cells: 6
+          strip: 5
+
+  - at: 2027-03-02T10:03:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: subjects
+      at: null
+      row_type: 00000000-0000-4000-8000-000000a00001
+      hops: 3
+      limit: 500
+      bucket: null
+      subject: null
+    outcome: timelined
+    events:
+      - event: ekr.views.SubjectsTimelined
+        payload:
+          hops: 3
+          rows: 3
+          events: 6
+          row_events: 9
+          cells: 9
+          strip: 6
+
+  - at: 2027-03-02T10:04:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: subjects
+      at: null
+      row_type: 00000000-0000-4000-8000-000000a00001
+      hops: 2
+      limit: 500
+      bucket: Week
+      subject: null
+    outcome: timelined
+    events:
+      - event: ekr.views.SubjectsTimelined
+        payload:
+          bucket_ms: 604800000
+          rows: 3
+          row_events: 7
+          cells: 5
+          strip: 3
+
+  - at: 2027-03-02T10:05:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: subjects
+      at: null
+      row_type: null
+      hops: 2
+      limit: 500
+      bucket: null
+      subject: 00000000-0000-4000-8000-000000a00101
+    outcome: timelined
+    events:
+      - event: ekr.views.SubjectsTimelined
+        payload:
+          row_type: 00000000-0000-4000-8000-000000a00001
+          subjects: 3
+          active: 3
+          rows: 1
+          events: 5
+          row_events: 4
+          cells: 4
+          strip: 5
+          first_row: 00000000-0000-4000-8000-000000a00101
+          listed_events: 4
+
+  - at: 2027-03-02T10:06:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: subjects
+      at: null
+      row_type: null
+      hops: 2
+      limit: 500
+      bucket: null
+      subject: null
+    outcome: timelined
+    events:
+      - event: ekr.views.SubjectsTimelined
+        payload:
+          row_type: 00000000-0000-4000-8000-000000a00001
+          row_types: 2
+          rows: 3
+          row_events: 7
+          first_row: 00000000-0000-4000-8000-000000a00101
+
+  - at: 2027-03-02T10:07:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: subjects
+      at: null
+      row_type: 00000000-0000-4000-8000-000000a00003
+      hops: 2
+      limit: 500
+      bucket: null
+      subject: null
+    outcome: timelined
+    events:
+      - event: ekr.views.SubjectsTimelined
+        payload:
+          row_type: 00000000-0000-4000-8000-000000a00003
+          subjects: 7
+          active: 2
+          rows: 2
+          events: 3
+          row_events: 4
+          cells: 4
+          strip: 3
+          first_row: 00000000-0000-4000-8000-000000a00301
+
+  - at: 2027-03-02T10:08:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: subjects
+      at: null
+      row_type: 00000000-0000-4000-8000-000000a00005
+      hops: 2
+      limit: 500
+      bucket: null
+      subject: null
+    outcome: timelined
+    events:
+      - event: ekr.views.SubjectsTimelined
+        payload:
+          row_type: 00000000-0000-4000-8000-000000a00005
+          row_types: 2
+          subjects: 0
+          active: 0
+          rows: 0
+          events: 0
+          row_events: 0
+          cells: 0
+          strip: 0
+          listed_events: 0

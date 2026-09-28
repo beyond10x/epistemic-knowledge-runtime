@@ -61,6 +61,15 @@ fn v3() -> AuthorityStateV1 {
     anchor(ValidationProfileV1::identity_keeping(context().validator))
 }
 
+/// Only the v3 profile keeps identities against the whole lineage.
+#[test]
+fn only_the_v3_profile_keeps_identities() {
+    let validator = context().validator;
+    assert!(!ValidationProfileV1::deterministic(validator).keeps_identities());
+    assert!(!ValidationProfileV1::schema_evolving(validator).keeps_identities());
+    assert!(ValidationProfileV1::identity_keeping(validator).keeps_identities());
+}
+
 fn open(path: &std::path::Path, file: bool, authority: AuthorityStateV1) -> Runtime {
     if file {
         Runtime::file(path, "test", context(), authority)

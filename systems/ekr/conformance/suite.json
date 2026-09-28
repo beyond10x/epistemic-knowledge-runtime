@@ -31,7 +31,7 @@
     "counts": {
       "authored": 4,
       "generated": 36,
-      "outside": 20,
+      "outside": 24,
       "refused": 0
     },
     "generated": [
@@ -270,6 +270,54 @@
         "needs": [
           {
             "kind": "command",
+            "name": "ekr.views.ProjectTimeline"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectTimeline/outcome/limit-exceeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectTimeline"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectTimeline/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectTimeline"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectTimeline/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectTimeline"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.SubjectsTimelined"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectTimeline/outcome/timelined"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
             "name": "ekr.views.SearchNodes"
           }
         ],
@@ -329,8 +377,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "d0f93cec4f2f25635cc720d370616847aa6a1f1607175c90805340fc1170ea7f",
-    "spec_digest": "5eeb4e45f925fe72e0a89dc6ce7abe810e164af88e59ba5be575ac60a786cf29",
+    "contract_digest": "965c39895cbf972dc505b122d5d081c0c8373d1aa607ac5fd2910b981b396af1",
+    "spec_digest": "bebbc3dfa734e645fa2838eba3700babe945965208420d73b517eeaa0425672b",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"
@@ -467,6 +515,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "view",
@@ -737,6 +789,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        },
+        {
           "step": "query_view",
           "view": "ekr.kernel.PendingTransactions"
         },
@@ -898,6 +954,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "view",
@@ -2143,6 +2203,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -2273,6 +2337,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "view",
@@ -2525,6 +2593,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        },
+        {
           "step": "query_view",
           "view": "ekr.kernel.PendingTransactions"
         },
@@ -2655,6 +2727,10 @@
           "name": "ekr.views.NodesSearched"
         },
         {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
           "kind": "error",
           "name": "ekr.kernel.TransactionNotFound"
         },
@@ -2752,6 +2828,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
           "step": "expect_no_event"
         }
       ]
@@ -2856,6 +2936,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -3271,6 +3355,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -3359,6 +3447,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "actor",
@@ -3464,6 +3556,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -3552,6 +3648,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -3658,6 +3758,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
           "step": "expect_no_event"
         }
       ]
@@ -4736,6 +4840,10 @@
           "name": "ekr.views.NodesSearched"
         },
         {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
           "kind": "error",
           "name": "ekr.kernel.TransactionStateConflict"
         },
@@ -5107,6 +5215,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
           "step": "expect_no_event"
         },
         {
@@ -5953,6 +6065,10 @@
           "name": "ekr.views.NodesSearched"
         },
         {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
           "kind": "error",
           "name": "ekr.kernel.TransactionStateConflict"
         },
@@ -6313,6 +6429,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
           "step": "expect_no_event"
         },
         {
@@ -6833,6 +6953,10 @@
           "name": "ekr.views.NodesSearched"
         },
         {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
           "kind": "error",
           "name": "ekr.kernel.TransactionStateConflict"
         },
@@ -7214,6 +7338,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        },
+        {
           "step": "expect_no_events"
         },
         {
@@ -7336,6 +7464,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -7694,6 +7826,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        },
+        {
           "step": "expect_no_events"
         },
         {
@@ -7837,6 +7973,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "view",
@@ -8107,6 +8247,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        },
+        {
           "step": "query_view",
           "view": "ekr.kernel.PendingTransactions"
         },
@@ -8266,6 +8410,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "view",
@@ -8475,6 +8623,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        },
+        {
           "step": "query_view",
           "view": "ekr.kernel.PendingTransactions"
         },
@@ -8641,6 +8793,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "view",
@@ -8893,6 +9049,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        },
+        {
           "step": "query_view",
           "view": "ekr.kernel.PendingTransactions"
         },
@@ -9052,6 +9212,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "view",
@@ -9261,6 +9425,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        },
+        {
           "step": "query_view",
           "view": "ekr.kernel.PendingTransactions"
         },
@@ -9391,6 +9559,10 @@
           "name": "ekr.views.NodesSearched"
         },
         {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
           "kind": "error",
           "name": "ekr.kernel.StructurallyInvalid"
         },
@@ -9496,6 +9668,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -9588,6 +9764,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -9694,6 +9874,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
           "step": "expect_no_event"
         }
       ]
@@ -9807,6 +9991,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "view",
@@ -9985,6 +10173,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        },
+        {
           "step": "query_view",
           "view": "ekr.kernel.PendingTransactions"
         },
@@ -10117,6 +10309,10 @@
           "name": "ekr.views.NodesSearched"
         },
         {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
           "kind": "error",
           "name": "ekr.kernel.AlreadySeeded"
         },
@@ -10222,6 +10418,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -10310,6 +10510,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -10417,6 +10621,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -10516,6 +10724,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "view",
@@ -11111,6 +11323,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -11219,6 +11435,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "view",
@@ -11392,6 +11612,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        },
+        {
           "step": "query_view",
           "view": "ekr.kernel.CurrentRevision"
         },
@@ -11520,6 +11744,10 @@
           "name": "ekr.views.NodesSearched"
         },
         {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
           "kind": "error",
           "name": "ekr.kernel.RevisionNotFound"
         },
@@ -11629,6 +11857,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -11721,6 +11953,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "actor",
@@ -11826,6 +12062,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
           "step": "expect_no_event"
         }
       ]
@@ -11946,6 +12186,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "view",
@@ -12155,6 +12399,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        },
+        {
           "step": "query_view",
           "view": "ekr.kernel.PendingTransactions"
         },
@@ -12285,6 +12533,10 @@
           "name": "ekr.views.NodesSearched"
         },
         {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
           "kind": "error",
           "name": "ekr.kernel.RevisionNotFound"
         },
@@ -12394,6 +12646,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -12482,6 +12738,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -12585,6 +12845,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
           "step": "expect_no_event"
         }
       ]
@@ -12705,6 +12969,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "view",
@@ -12911,6 +13179,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
           "step": "expect_no_event"
         },
         {

@@ -9,10 +9,10 @@ summary: >-
   evidence ids for the explain chain (§ 62), the schema version lineage (§ 95) and evidence
   identities without their bytes (§ 86). The format names no domain concept: it is generic over any
   ontology, and every name a viewer shows is taken from the projection's ontology or graph state.
-  Four bounded reads draw from the same revision without exporting it: ekr.graph-overview/1
-  (ProjectOverview), ekr.graph-slice/1 (ExpandNeighbourhood), ekr.node-detail/1 (DescribeNode) and
-  ekr.node-matches/1 (SearchNodes), each generic over any ontology in the same way. This domain
-  writes nothing; its five commands read.
+  Five bounded reads draw from the same revision without exporting it: ekr.graph-overview/1
+  (ProjectOverview), ekr.graph-slice/1 (ExpandNeighbourhood), ekr.node-detail/1 (DescribeNode),
+  ekr.node-matches/1 (SearchNodes) and ekr.graph-timeline/1 (ProjectTimeline), each generic over
+  any ontology in the same way. This domain writes nothing; its six commands read.
 
   Determinism, which every renderer of ekr.graph-projection/1 holds to so that two renders of one
   revision are byte-identical. (1) Order. By id: every array whose members carry an `id`, and
@@ -36,7 +36,7 @@ summary: >-
   format is an Optional inside a list or a map. (5) No field carries a wall-clock time, a host, a
   path or anything else that differs between two renders of one revision.
 
-  Determinism of the four bounded formats, so that two answers to one request against one
+  Determinism of the five bounded formats, so that two answers to one request against one
   revision are byte-identical. Rules (2) key order, (3) encoding, (4) presence and (5) above hold
   for each of them as written for ekr.graph-projection/1, with "render" read as "answer to one
   request"; a ProjectedOntology, ProjectedAssertion, ProjectedEdge or ProjectedValue inside them is
@@ -52,7 +52,11 @@ summary: >-
   node.aliases and each props value list in the store's order; props keys ascending by their text.
   ekr.node-matches/1 — matches by tier (Exact before Folded), then degree descending, then id;
   never by a name.
-  Bounds and the order of refusals, for the four: a bound over the input (depth, limit,
+  ekr.graph-timeline/1 — row_types by weight / nodes descending, compared exactly as rationals,
+  then type id; rows by total descending, then id; each row's cells and strip by start
+  ascending, then type id; events by start ascending, then id; each event's path from the
+  subject outward, which is not id order.
+  Bounds and the order of refusals, for the five: a bound over the input (depth, hops, limit,
   edge_limit, after) is checked before the store is read, and a broken one answers LimitExceeded
   naming the first broken input in the command's declared input order; then an unseeded store
   answers NotSeeded; then a revision beyond the head answers RevisionNotFound; then a node the
@@ -373,8 +377,9 @@ types:
         type: ekr.views.ProjectedSchema
 
   # ---------------------------------------------------------------------------------------------
-  # The four bounded reads a viewer draws from instead of the full projection: the overview, a
-  # neighbourhood slice, one node's detail and a name search. Each is its own format, and each is
+  # The five bounded reads a viewer draws from instead of the full projection: the overview, a
+  # neighbourhood slice, one node's detail, a name search and the subjects' timeline. Each is its
+  # own format, and each is
   # generic over any ontology: no type, property or edge type is named, and every label is taken
   # from the document's ontology or graph state. Their determinism rules are in the domain
   # summary above, one paragraph per format.
@@ -585,14 +590,18 @@ types:
   # node-subject assertions with no valid_from. Assertions whose subject is an edge or a type are
   # in neither. `first` and `last` are the least and greatest bucketed valid_from, omitted when
   # there is none.
-  # Width, the reference viewer's automatic rule applied to [first, last]: a week (604,800,000 ms)
-  # when last - first > 10,368,000,000 ms (120 days), otherwise a day (86,400,000 ms); a day when
-  # nothing is bucketed. A bucket's `start` is, for a day, floor(t / 86,400,000) × 86,400,000; for
-  # a week, floor((t + 259,200,000) / 604,800,000) × 604,800,000 - 259,200,000, which is Monday
-  # 00:00 UTC (the epoch fell on a Thursday); floor rounds toward negative infinity. Only buckets
-  # holding at least one assertion are listed. The reference viewer bucketed event nodes placed at
-  # their time within one subject's neighbourhood; the per-type assertion count is the approved
-  # plan's, and that per-subject heatmap is the page's to derive from slices.
+  # Width, the reference viewer's automatic rule applied to [first, last] and bounded: the finest
+  # is a week (604,800,000 ms) when last - first > 10,368,000,000 ms (120 days), otherwise a day
+  # (86,400,000 ms); a day when nothing is bucketed. The widths, finest first, are a day, a week,
+  # 4 weeks, 13 weeks, 52 weeks, and 52 weeks doubled once, twice and so on; the width is the
+  # first of them, from the finest, that cuts [first, last] into at most 200 buckets —
+  # (start(last) - start(first)) / width + 1 <= 200 — so the overview holds at most 200 bucket
+  # starts per node type however long its facts run. A bucket's `start` is, for a day,
+  # floor(t / 86,400,000) × 86,400,000; for any other width W, floor((t + 259,200,000) / W) × W -
+  # 259,200,000, which is a Monday 00:00 UTC (the epoch fell on a Thursday, and every W but a
+  # day is a whole number of weeks); floor rounds toward negative infinity. Only buckets holding
+  # at least one assertion are listed. The reference viewer bucketed event nodes placed at their
+  # time within one subject's neighbourhood; that per-subject heatmap is ekr.graph-timeline/1's.
   - name: ekr.views.TimelineBucket
     kind: struct
     fields:
@@ -871,6 +880,195 @@ types:
       - name: matches
         type: List<ekr.views.NodeMatch>
 
+  # ---------------------------------------------------------------------------------------------
+  # ekr.graph-timeline/1: the subjects' timeline. One row per subject — a node of the row type —
+  # with the events related to it counted per time bucket, the reference viewer's heatmap.
+  #
+  # Event types are the overview's (ekr.views.TypeTiming `event`), and an event is a node of an
+  # event type. A node's time: its least property value that is an Integer v with
+  # 1,000,000,000,000 <= v < 10,000,000,000,000 or a Timestamp (the overview's timestamped rule,
+  # with its UNMAPPED reading of a Timestamp); otherwise the earliest of its dated facts as
+  # ekr.views.TypeTiming defines them; a node with neither has no time. Its end is the greatest of
+  # its time and its dated facts. An event is placed at its time.
+  #
+  # A subject's events within h hops are the events a walk from the subject reaches, the reference
+  # viewer's walk exactly. The walk goes hop by hop, 1 to h, across the revision's edges
+  # (ekr.graph.Edge) in either direction; a node is reached at most once, at the first hop and by
+  # the first node that reaches it, where the nodes of a hop are walked in the order they were
+  # reached (the subject first) and each node's edges in edge id order. From each node of the
+  # previous hop:
+  #   - when the subject is itself an event, a node that is neither the subject nor an event is
+  #     not walked on;
+  #   - an intermediate — a node that is neither the subject nor an event — is walked on only when
+  #     it has exactly one neighbour of the type of the node that reached it, and then only across
+  #     edges whose target it is (what points at it, not what it originated);
+  #   - from an event other than the subject, a hop reaches events only;
+  #   - an event with no time is never reached.
+  # Every event reached is one of the subject's events, counted once whatever the number of paths
+  # to it. A Relation assertion with no Edge is not crossed (UNMAPPED, as on NodeSummary).
+  #
+  # Buckets: the span is [first, last], the least time and the greatest end of the revision's
+  # events that have a time. The finest width is the request's `bucket` when given, otherwise a
+  # week when last - first > 10,368,000,000 ms (120 days) and a day otherwise; the width is then
+  # chosen from it exactly as the overview's is (ekr.views.OverviewTimeline): the first width of
+  # the same list, from that finest one, that cuts the span into at most 200 buckets, so a row
+  # holds at most 200 bucket starts per event type. A bucket's start is the overview's too. Only
+  # buckets holding at least one event are listed.
+  # ---------------------------------------------------------------------------------------------
+
+  - name: ekr.views.GraphTimelineFormatV1
+    kind: enum
+    variants: [ekr.graph-timeline/1]
+
+  # The finest bucket width a request asks for; a longer span may be answered coarser.
+  - name: ekr.views.TimelineBucketWidth
+    kind: enum
+    variants: [Day, Week]
+
+  # A type the timeline offers as its row type, the reference viewer's subject types. The
+  # candidates are the node types some node of the revision has that are not event types; when
+  # every such type is an event type, every one but the overview's observation type. `nodes` is
+  # how many nodes the revision holds of it; `reached` how many of them have at least one event
+  # within 2 hops; `weight` sums, over its nodes, 2 for each event 1 hop away and 1 for each
+  # event 2 hops away (the reference viewer's hop weights 1 and 1/2, in halves). Listed: the
+  # candidates whose weight is above 0 and whose weight / nodes is at least 1/20 of the greatest,
+  # at most six, in the order the format's determinism paragraph names.
+  - name: ekr.views.TimelineRowType
+    kind: struct
+    fields:
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: nodes
+        type: Integer
+      - name: reached
+        type: Integer
+      - name: weight
+        type: Integer
+
+  # How many events of one event type are placed in the bucket starting at `start`.
+  - name: ekr.views.TimelineCell
+    kind: struct
+    fields:
+      - name: start
+        type: ekr.views.EpochMillis
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: events
+        type: Integer
+
+  # One subject: `total` counts its events within the hops asked for, `first` and `last` are the
+  # least and greatest of their times (omitted when it has none), and `cells` bucket them.
+  - name: ekr.views.TimelineRow
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: name
+        type: String
+      - name: total
+        type: Integer
+      - name: first
+        type: Optional<ekr.views.EpochMillis>
+      - name: last
+        type: Optional<ekr.views.EpochMillis>
+      - name: cells
+        type: List<ekr.views.TimelineCell>
+
+  # One hop of the walk that reached an event: across `edge`, of type `edge_type`, to the node
+  # `node`; `forward` is true when the edge's source is the node the hop left.
+  - name: ekr.views.TimelineStep
+    kind: struct
+    fields:
+      - name: edge
+        type: ekr.graph.EdgeId
+      - name: edge_type
+        type: ekr.ontology.TypeId
+      - name: forward
+        type: Boolean
+      - name: node
+        type: ekr.graph.NodeId
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: name
+        type: String
+
+  # One event of the subject a request names: its light record, its time and end, its distance in
+  # hops, and the path the walk took to it from the subject, whose last step arrives at it.
+  - name: ekr.views.TimelineEvent
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: name
+        type: String
+      - name: start
+        type: ekr.views.EpochMillis
+      - name: end
+        type: ekr.views.EpochMillis
+      - name: distance
+        type: Integer
+      - name: path
+        type: List<ekr.views.TimelineStep>
+
+  # `row_type` is the type the rows are of: the subject's type when a held subject was asked
+  # for, else the request's `row_type`, else the first listed row type; omitted when there is
+  # none.
+  # `subject` echoes the request's. `hops` and `limit` are the request's; `bucket_ms` the width
+  # used; `first` and `last` the span (omitted when no event has a time). `subjects` counts the
+  # revision's nodes of the row type, `active` those with at least one event, and `events` the
+  # distinct events of all of the active ones, which the strip buckets.
+  - name: ekr.views.TimelineMeta
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.GraphTimelineFormatV1
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: head
+        type: ekr.kernel.RevisionNumber
+      - name: row_type
+        type: Optional<ekr.ontology.TypeId>
+      - name: subject
+        type: Optional<ekr.graph.NodeId>
+      - name: hops
+        type: Integer
+      - name: limit
+        type: Integer
+      - name: bucket_ms
+        type: Integer
+      - name: first
+        type: Optional<ekr.views.EpochMillis>
+      - name: last
+        type: Optional<ekr.views.EpochMillis>
+      - name: subjects
+        type: Integer
+      - name: active
+        type: Integer
+      - name: events
+        type: Integer
+
+  # ekr.graph-timeline/1. `rows` is the first `limit` of the active subjects of the row type —
+  # a subject with no event is not listed — or, when the request names a held subject, that one's
+  # row alone, listed whatever its total. `strip` buckets the distinct events of every active
+  # subject, listed or not. `events` lists the named, held subject's events and is empty
+  # otherwise.
+  # Counts and cells are derived from many facts and carry no assertion id.
+  - name: ekr.views.GraphTimelineV1
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.TimelineMeta
+      - name: row_types
+        type: List<ekr.views.TimelineRowType>
+      - name: rows
+        type: List<ekr.views.TimelineRow>
+      - name: strip
+        type: List<ekr.views.TimelineCell>
+      - name: events
+        type: List<ekr.views.TimelineEvent>
+
 actors:
   - name: ekr.views.Reader
     may:
@@ -879,6 +1077,7 @@ actors:
       - ekr.views.ExpandNeighbourhood
       - ekr.views.DescribeNode
       - ekr.views.SearchNodes
+      - ekr.views.ProjectTimeline
     naming:
       display: Reader
 
@@ -975,7 +1174,7 @@ commands:
         error: ekr.views.NotSeeded
         summary: Nothing was rendered; the request is echoed and no head is reported, because there is none.
 
-  # The four bounded reads. Each reads one immutable revision, the newest when `at` is absent, and
+  # The five bounded reads. Each reads one immutable revision, the newest when `at` is absent, and
   # writes no canonical state. Their bounds are input guards, decided before the store is read;
   # their not-found, not-seeded and node-not-found outcomes are external for the reason
   # ProjectGraph's are: what decides them is store state, which no guard reads.
@@ -1209,6 +1408,76 @@ commands:
         error: ekr.views.NotSeeded
         summary: Nothing was answered; no head is reported, because there is none.
 
+  # The subjects' timeline (ekr.views.GraphTimelineV1). `row_type` names the type of the rows,
+  # the first listed row type when absent; a type the revision holds no node of answers no rows,
+  # not a refusal. `hops` is 1 to 3; `limit` 1 to 500 rows; `bucket` the finest width, the
+  # span's when absent. `subject`, when given, asks for that node's row alone with its events
+  # listed, and
+  # then the row type is its type whatever `row_type` names; a subject the revision does not hold
+  # is no refusal, and answers no row and no event.
+  - name: ekr.views.ProjectTimeline
+    naming:
+      wire: project-timeline
+      display: Timeline the subjects
+    input:
+      - name: store
+        type: ekr.views.StoreLocation
+      - name: at
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: row_type
+        type: Optional<ekr.ontology.TypeId>
+      - name: hops
+        type: Integer
+      - name: limit
+        type: Integer
+      - name: bucket
+        type: Optional<ekr.views.TimelineBucketWidth>
+      - name: subject
+        type: Optional<ekr.graph.NodeId>
+    response:
+      - name: timeline
+        type: ekr.views.GraphTimelineV1
+    outcomes:
+      - name: timelined
+        emits:
+          - ekr.views.SubjectsTimelined
+        payload:
+          ekr.views.SubjectsTimelined:
+            revision: {generated: true}
+            head: {generated: true}
+            row_type: {generated: true}
+            hops: input.hops
+            bucket_ms: {generated: true}
+            row_types: {generated: true}
+            subjects: {generated: true}
+            active: {generated: true}
+            rows: {generated: true}
+            events: {generated: true}
+            row_events: {generated: true}
+            cells: {generated: true}
+            strip: {generated: true}
+            first_row: {generated: true}
+            listed_events: {generated: true}
+            timeline_hash: {generated: true}
+        summary: One ekr.graph-timeline/1 document, byte-identical to every other answer to the same request.
+      - name: limit-exceeded
+        when:
+          any:
+            - hops < 1
+            - hops > 3
+            - limit < 1
+            - limit > 500
+        error: ekr.views.LimitExceeded
+        summary: The store was not read; the refusal names the first broken input of hops and limit, its value and its bounds.
+      - name: not-found
+        external: the store holds no committed revision with the requested number
+        error: ekr.views.RevisionNotFound
+        summary: Nothing was answered.
+      - name: not-seeded
+        external: the store has never been seeded
+        error: ekr.views.NotSeeded
+        summary: Nothing was answered; no head is reported, because there is none.
+
 events:
   # What one render returned, counted over the document it returned, so a suite can hold a
   # renderer to it without parsing the response. `projection_hash` is the hex SHA-256 of the
@@ -1383,4 +1652,44 @@ events:
       - name: first_match
         type: Optional<ekr.graph.NodeId>
       - name: matches_hash
+        type: ekr.kernel.ContentHash
+
+  # What one timeline returned. `row_type`, `hops`, `bucket_ms`, `subjects`, `active` and
+  # `events` are meta's; `row_types`, `rows`, `strip` and `listed_events` the lengths of
+  # row_types, rows, strip and events; `row_events` the sum of the rows' totals and `cells` of
+  # their cells' lengths; `first_row` the first row's id, omitted when there is none;
+  # `timeline_hash` the hex SHA-256 of the document's exact bytes.
+  - name: ekr.views.SubjectsTimelined
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: head
+        type: ekr.kernel.RevisionNumber
+      - name: row_type
+        type: Optional<ekr.ontology.TypeId>
+      - name: hops
+        type: Integer
+      - name: bucket_ms
+        type: Integer
+      - name: row_types
+        type: Integer
+      - name: subjects
+        type: Integer
+      - name: active
+        type: Integer
+      - name: rows
+        type: Integer
+      - name: events
+        type: Integer
+      - name: row_events
+        type: Integer
+      - name: cells
+        type: Integer
+      - name: strip
+        type: Integer
+      - name: first_row
+        type: Optional<ekr.graph.NodeId>
+      - name: listed_events
+        type: Integer
+      - name: timeline_hash
         type: ekr.kernel.ContentHash

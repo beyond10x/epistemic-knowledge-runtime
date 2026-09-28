@@ -20,16 +20,25 @@ use std::thread::JoinHandle;
 use std::time::Duration;
 
 use ekr::host::CliHostConfigurationV1;
-use ekr_core::{NodeId, RevisionNumber};
+use ekr_core::{NodeId, RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{
-    ExpandRequest, Index, OverviewRequest, QueryError, SearchRequest, SlicePage, SliceRecord,
+    BucketWidth, ExpandRequest, Index, OverviewRequest, QueryError, SearchRequest, SlicePage,
+    SliceRecord, TimelineRequest,
 };
 use serde_json::Value;
 
-/// The five addresses the page may read, and no other: the overview, the streamed expansion, one
-/// node's detail, the search and evidence by id (the `ekr view` data contract).
-const PAGE_ADDRESSES: [&str; 5] = ["/overview", "/expand", "/node/", "/search", "/evidence/"];
+/// The six addresses the page may read, and no other: the overview, the streamed expansion, one
+/// node's detail, the search, the subjects' timeline and evidence by id (the `ekr view` data
+/// contract).
+const PAGE_ADDRESSES: [&str; 6] = [
+    "/overview",
+    "/expand",
+    "/node/",
+    "/search",
+    "/timeline",
+    "/evidence/",
+];
 
 /// The three addresses the earlier page at `/alt` reads, and no other.
 const ALT_ADDRESSES: [&str; 3] = ["/projection", "/roles", "/evidence/"];
@@ -919,6 +928,32 @@ fn answer(mut stream: TcpStream, engine: &Engine, log: &Mutex<Vec<String>>) {
                 Err(limit) => refusal(&mut stream, 400, "LimitExceeded", &limit.to_string()),
             }
         }
+        "/timeline" => {
+            let row_type = query.get("type").map(|text| text.parse::<TypeId>());
+            let subject = query.get("subject").map(|text| text.parse::<NodeId>());
+            let bucket = match query.get("bucket").map(String::as_str) {
+                None => Ok(None),
+                Some("day") => Ok(Some(BucketWidth::Day)),
+                Some("week") => Ok(Some(BucketWidth::Week)),
+                Some(_) => Err(()),
+            };
+            let (Ok(row_type), Ok(subject), Ok(bucket), Ok(Some(hops)), Ok(Some(limit))) = (
+                row_type.transpose(),
+                subject.transpose(),
+                bucket,
+                number("hops"),
+                number("limit"),
+            ) else {
+                return refusal(&mut stream, 400, "invalid-query", "timeline");
+            };
+            match TimelineRequest::new(row_type, hops, limit, bucket, subject) {
+                Ok(request) => {
+                    let bytes = index.timeline(&request).unwrap().bytes;
+                    reply(&mut stream, 200, "application/json", &bytes);
+                }
+                Err(limit) => refusal(&mut stream, 400, "LimitExceeded", &limit.to_string()),
+            }
+        }
         "/search" => {
             let (Some(text), Ok(limit)) = (query.get("q"), number("limit")) else {
                 return refusal(&mut stream, 400, "invalid-query", "q");
@@ -1086,9 +1121,16 @@ fn reads_no_projection(requests: &[String], what: &str) {
     for target in requests {
         assert!(
             target == "/"
-                || ["/overview", "/expand?", "/node/", "/search?", "/evidence/"]
-                    .iter()
-                    .any(|address| target.starts_with(address)),
+                || [
+                    "/overview",
+                    "/expand?",
+                    "/node/",
+                    "/search?",
+                    "/timeline?",
+                    "/evidence/",
+                ]
+                .iter()
+                .any(|address| target.starts_with(address)),
             "{what}: the page read {target}: {requests:?}"
         );
     }
@@ -1131,6 +1173,110 @@ fn the_page_draws_each_store_from_its_overview_and_never_reads_the_projection() 
         );
         reads_no_projection(&double.requests(), &fixture.display().to_string());
     }
+}
+
+/// `task:timeline-rows-are-subjects`: the timeline's rows are subjects — one per node of the first
+/// row type `/timeline` lists that has an event, each under its own name — read from `/timeline`
+/// and never from `/projection`; a subject's swimlanes are read from `/timeline` naming it.
+#[test]
+fn the_timeline_rows_are_the_subjects_the_timeline_address_answers() {
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    // No fixture store has a type whose facts cluster in valid time, so one is generated whose
+    // second type is timed by an epoch-ms property: four subjects with four, three, two and one
+    // events.
+    let generated = tempfile::tempdir().unwrap();
+    timed_fixture(generated.path());
+    let mut stores = fixture_stores();
+    stores.push(generated.path().to_owned());
+    let mut with_rows = 0;
+    for fixture in stores {
+        let what = fixture.display().to_string();
+        let seeded = Seeded::new(&fixture);
+        let head = seeded.projection()["meta"]["head"].as_u64().unwrap();
+        let index = double_index(&seeded, head);
+        let request = TimelineRequest::new(None, 2, 500, None, None).unwrap();
+        let answer: Value =
+            serde_json::from_slice(&index.timeline(&request).unwrap().bytes).unwrap();
+        let rows = answer["rows"].as_array().unwrap();
+        let overview: Value = serde_json::from_slice(
+            &index
+                .overview(&OverviewRequest::new(None).unwrap())
+                .unwrap()
+                .bytes,
+        )
+        .unwrap();
+        let events = overview["roles"]["types"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|timing| timing["event"] == true);
+        let double = seeded.double(Duration::ZERO);
+        let dom = rendered(&browser, &format!("{}#mode=timeline", double.url));
+        let requests = double.requests();
+        reads_no_projection(&requests, &what);
+        if !events {
+            // No type is an event type: there is nothing to put on a time axis, and nothing to read.
+            assert!(
+                dom.contains("nothing to put on a time axis"),
+                "{what}: {dom}"
+            );
+            assert!(
+                !requests
+                    .iter()
+                    .any(|target| target.starts_with("/timeline")),
+                "{what}: {requests:?}"
+            );
+            continue;
+        }
+        assert!(
+            requests
+                .iter()
+                .any(|target| target.starts_with("/timeline?")),
+            "{what}: the rows are read from /timeline: {requests:?}"
+        );
+        assert_eq!(
+            dom.matches("class=\"tlrow\"").count(),
+            rows.len(),
+            "{what}: one row per subject with an event: {dom}"
+        );
+        let mut placed = Vec::new();
+        for row in rows {
+            let name = escaped(row["name"].as_str().unwrap());
+            let at = dom.find(&format!("<span class=\"nm\">{name}</span>"));
+            assert!(at.is_some(), "{what}: the row of {name}: {dom}");
+            placed.extend(at);
+        }
+        assert!(
+            placed.windows(2).all(|pair| pair[0] < pair[1]),
+            "{what}: the rows stand in the answer's order, the most active first"
+        );
+        let Some(first) = rows.first() else { continue };
+        with_rows += 1;
+        let id = first["id"].as_str().unwrap();
+        let dom = rendered(
+            &browser,
+            &format!("{}#mode=timeline&subject={id}", double.url),
+        );
+        assert!(
+            dom.contains("class=\"tllane\""),
+            "{what}: {id} has swimlanes: {dom}"
+        );
+        let requests = double.requests();
+        reads_no_projection(&requests, &what);
+        assert!(
+            requests
+                .iter()
+                .any(|target| target.starts_with("/timeline?") && target.contains(id)),
+            "{what}: the swimlanes are read from /timeline naming {id}: {requests:?}"
+        );
+    }
+    assert!(
+        with_rows > 0,
+        "no fixture store has a subject with an event"
+    );
 }
 
 /// The index `double` answers revision `at` from, built again for the case's own expectations.
@@ -1342,6 +1488,60 @@ const GENERATED: (usize, usize, usize, usize, usize) = (6, 3, 5000, 10000, 400);
 /// An id of the generated store: `space` tells kinds of object apart, `n` numbers them.
 fn generated_id(space: u16, n: usize) -> String {
     format!("00000000-0000-4000-{:04x}-{n:012x}", 0x8100 + space)
+}
+
+/// Writes a store fixture into `directory` whose timeline has rows: `type-1` subjects
+/// `entity-1` to `entity-4`, and `type-2` nodes `entity-101` to `entity-110`, each carrying one
+/// epoch-ms value of its Integer property a day apart, so `type-2` is an event type. Event `n`
+/// points at subject 1 for `n` up to 4, 2 up to 7, 3 up to 9 and 4 for 10.
+fn timed_fixture(directory: &Path) {
+    use std::fmt::Write as _;
+    let (version, root) = (generated_id(0, 1), generated_id(0, 2));
+    let (subject_type, event_type, link) =
+        (generated_id(1, 1), generated_id(1, 2), generated_id(2, 1));
+    let at = generated_id(7, 1);
+    let mut yaml = format!(
+        "format: ekr-seed/2\nontology:\n  version:\n    id: {version}\n    number: 0\n    parent: null\n    created_at: 0\n  node_types:\n  - id: {subject_type}\n    name: type-1\n    parents: []\n    properties: {{}}\n    abstract_type: false\n    lifecycle: null\n    operations: {{}}\n  - id: {event_type}\n    name: type-2\n    parents: []\n    properties:\n      {at}:\n        id: {at}\n        name: value-1\n        value_type:\n          value_kind: Integer\n        cardinality: One\n        required: false\n        constraints: []\n    abstract_type: false\n    lifecycle: null\n    operations: {{}}\n  edge_types:\n  - id: {link}\n    name: link-1\n    source_types:\n    - {subject_type}\n    - {event_type}\n    target_types:\n    - {subject_type}\n    - {event_type}\n    cardinality: Many\n    properties: {{}}\n    inverse: null\n    symmetric: false\n    transitive: false\ngraph:\n  format: ekr.graph-document/2\n  graph:\n    root:\n      id: {root}\n      space: Canonical\n      schema_version_id: {version}\n      parent: null\n      created_at: 0\n    revision: 0\n    nodes:\n"
+    );
+    for n in 1..=4 {
+        let id = generated_id(3, n);
+        let _ = write!(
+            yaml,
+            "      {id}:\n        id: {id}\n        root_id: {root}\n        type_id: {subject_type}\n        canonical_name: entity-{n}\n        aliases: []\n        type_state: null\n        properties: {{}}\n"
+        );
+    }
+    for n in 1..=10_usize {
+        let id = generated_id(3, 100 + n);
+        let time = 1_700_000_000_000_i64 + i64::try_from(n).unwrap() * 86_400_000;
+        let _ = write!(
+            yaml,
+            "      {id}:\n        id: {id}\n        root_id: {root}\n        type_id: {event_type}\n        canonical_name: entity-{}\n        aliases: []\n        type_state: null\n        properties:\n          {at}:\n          - value_kind: Integer\n            value: {time}\n",
+            100 + n
+        );
+    }
+    yaml.push_str("    edges:\n");
+    for n in 1..=10_usize {
+        let id = generated_id(4, n);
+        let subject = match n {
+            1..=4 => 1,
+            5..=7 => 2,
+            8 | 9 => 3,
+            _ => 4,
+        };
+        let _ = write!(
+            yaml,
+            "      {id}:\n        id: {id}\n        root_id: {root}\n        type_id: {link}\n        source: {}\n        target: {}\n        properties: {{}}\n",
+            generated_id(3, 100 + n),
+            generated_id(3, subject)
+        );
+    }
+    yaml.push_str("    assertions: {}\n    evidence: {}\nevidence_payloads: {}\n");
+    std::fs::write(directory.join("seed.yaml"), yaml).unwrap();
+    std::fs::copy(
+        manifest_dir().join("tests/fixtures/view-page/sounding/host.json"),
+        directory.join("host.json"),
+    )
+    .unwrap();
 }
 
 /// Writes a store fixture of `shape` (node types, edge types, nodes, edges, relation assertions) into
