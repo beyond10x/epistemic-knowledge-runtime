@@ -13,7 +13,10 @@
 //! * a line that is not a request is refused by name and the next line is still served, and the
 //!   page's session refusal table lists exactly the refusals drawn here;
 //! * a transaction proposed, validated and committed in the session is seen by the next `head`
-//!   and `resolve` of the same session.
+//!   and `resolve` of the same session;
+//! * `story:session-starts-before-a-store`: a session on a path holding no store serves `mint`,
+//!   `hash` and `schema` and answers a store verb `store-not-found`; `ekr session --create` seeds
+//!   the store and then answers as the one-shot sequence does, in one process.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write as _;
@@ -76,24 +79,75 @@ fn copy_tree(from: &Path, to: &Path) {
     }
 }
 
-/// One provider in its own directory under the example host, seeded from the example seed, with
-/// the files the requests name: `create.yaml`, `reference.yaml` and `payload.txt`.
+/// The example seed with its `evidence_payloads` replaced by `{}`, and the bytes of each payload
+/// it held, in document order: what `ekr seed - --evidence <file>...` completes again.
+fn example_without_payloads() -> (String, Vec<Vec<u8>>) {
+    let example = text(&["example", "ekr-seed/2"]);
+    let lines: Vec<&str> = example.lines().collect();
+    let start = lines
+        .iter()
+        .position(|line| *line == "evidence_payloads:")
+        .unwrap();
+    let payloads: Vec<Vec<u8>> = lines[start + 1..]
+        .iter()
+        .filter_map(|line| line.trim().split_once(": ["))
+        .map(|(_, list)| {
+            list.trim_end_matches(']')
+                .split(',')
+                .filter(|value| !value.trim().is_empty())
+                .map(|value| value.trim().parse().unwrap())
+                .collect()
+        })
+        .collect();
+    assert_eq!(payloads.len(), 2, "the example seed carries two payloads");
+    let mut document = lines[..start].join("\n");
+    document.push_str("\nevidence_payloads: {}\n");
+    (document, payloads)
+}
+
+/// One provider in its own directory under the example host, with the files the requests name:
+/// `seed.yaml`, `create.yaml`, `reference.yaml` and `payload.txt`; `stripped.yaml`, the example
+/// seed without its payloads, and `evidence-0.txt` and `evidence-1.txt`, those payloads;
+/// `other-seed.yaml`, a different valid seed. Every `ekr` process a world starts is counted.
 struct World {
     directory: tempfile::TempDir,
     backend: &'static str,
+    spawned: std::cell::Cell<usize>,
 }
 
 impl World {
-    fn seeded(backend: &'static str) -> Self {
+    /// The files, and no store.
+    fn absent(backend: &'static str) -> Self {
         let world = Self {
             directory: tempfile::tempdir().unwrap(),
             backend,
+            spawned: std::cell::Cell::new(0),
         };
+        let seed = text(&["example", "ekr-seed/2"]);
         world.file("host.json", &text(&["example", "ekr.cli-host/1"]));
-        world.file("seed.yaml", &text(&["example", "ekr-seed/2"]));
+        world.file(
+            "other-seed.yaml",
+            &seed.replace("canonical_name: Bob", "canonical_name: Robert"),
+        );
+        world.file("seed.yaml", &seed);
         world.file("reference.yaml", &text(&["example", "typed-reference"]));
         world.file("create.yaml", &create_globex());
         world.file("payload.txt", "Alice is CEO of Acme.\n");
+        let (stripped, payloads) = example_without_payloads();
+        world.file("stripped.yaml", &stripped);
+        for (at, payload) in payloads.iter().enumerate() {
+            std::fs::write(
+                world.directory.path().join(format!("evidence-{at}.txt")),
+                payload,
+            )
+            .unwrap();
+        }
+        assert!(!world.store().exists());
+        world
+    }
+
+    fn seeded(backend: &'static str) -> Self {
+        let world = Self::absent(backend);
         let seeded = world.run(&["seed", "seed.yaml"]);
         assert_eq!(
             seeded.status.code(),
@@ -109,6 +163,7 @@ impl World {
         let copy = Self {
             directory: tempfile::tempdir().unwrap(),
             backend: self.backend,
+            spawned: std::cell::Cell::new(0),
         };
         copy_tree(self.directory.path(), copy.directory.path());
         copy
@@ -141,7 +196,7 @@ impl World {
 
     /// One one-shot verb configured by flags, with `stdin` as its standard input.
     fn one_shot(&self, verb: &[&str], stdin: &str) -> Output {
-        Self::spawn(self.command(verb), stdin)
+        self.spawn(self.command(verb), stdin)
     }
 
     /// One one-shot verb configured by `EKR_*`, so that its argv is exactly `verb`: clap's usage
@@ -154,10 +209,11 @@ impl World {
             .env("EKR_STORE", self.store())
             .env("EKR_BACKEND", self.backend)
             .args(verb);
-        Self::spawn(command, stdin)
+        self.spawn(command, stdin)
     }
 
-    fn spawn(mut command: std::process::Command, stdin: &str) -> Output {
+    fn spawn(&self, mut command: std::process::Command, stdin: &str) -> Output {
+        self.spawned.set(self.spawned.get() + 1);
         let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -180,6 +236,11 @@ impl World {
     /// One `ekr session` over `lines`, configured by flags or by `EKR_*`, and its answers: exit 0,
     /// nothing on stderr, and one JSON line per request line.
     fn session(&self, lines: &[String], by_environment: bool) -> Vec<Value> {
+        self.session_as(&["session"], lines, by_environment)
+    }
+
+    /// [`World::session`], started as `verb`: `["session"]` or `["session", "--create"]`.
+    fn session_as(&self, verb: &[&str], lines: &[String], by_environment: bool) -> Vec<Value> {
         let mut command = if by_environment {
             let mut command = ekr();
             command
@@ -187,11 +248,12 @@ impl World {
                 .env("EKR_HOST", self.directory.path().join("host.json"))
                 .env("EKR_STORE", self.store())
                 .env("EKR_BACKEND", self.backend)
-                .arg("session");
+                .args(verb);
             command
         } else {
-            self.command(&["session"])
+            self.command(verb)
         };
+        self.spawned.set(self.spawned.get() + 1);
         let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -642,6 +704,8 @@ fn the_page_lists_exactly_the_session_refusals_this_suite_draws() {
         "\"exit\"",
         "\"stdout\"",
         "\"stderr\"",
+        "ekr session --create",
+        "`store-not-found`, `\"exit\": 1`",
     ] {
         assert!(
             section.contains(needle),
@@ -700,35 +764,409 @@ fn a_commit_in_the_session_is_seen_by_the_next_head_and_resolve() {
     }
 }
 
+/// A session whose configuration does not resolve — no host named, or a host file that is not
+/// there — answers nothing and exits as a store verb does on the same configuration. A store that
+/// does not exist yet is not such a failure: see
+/// [`a_session_on_an_absent_store_serves_mint_hash_and_schema_and_answers_store_verbs_as_one_shot`].
 #[test]
 fn a_session_that_cannot_open_its_store_answers_nothing_and_exits_as_the_verbs_do() {
     let world = World::seeded("file");
-    let unconfigured = ekr().arg("session").output().unwrap();
-    assert_eq!(unconfigured.status.code(), Some(2));
-    assert!(unconfigured.stdout.is_empty());
-    assert!(
-        String::from_utf8_lossy(&unconfigured.stderr)
-            .starts_with("ekr: `session` needs --host or EKR_HOST"),
-        "{}",
-        String::from_utf8_lossy(&unconfigured.stderr)
+    for create in [false, true] {
+        let session: &[&str] = if create {
+            &["session", "--create"]
+        } else {
+            &["session"]
+        };
+        let unconfigured = ekr().args(session).output().unwrap();
+        assert_eq!(unconfigured.status.code(), Some(2), "{session:?}");
+        assert!(unconfigured.stdout.is_empty());
+        assert!(
+            String::from_utf8_lossy(&unconfigured.stderr)
+                .starts_with("ekr: `session` needs --host or EKR_HOST"),
+            "{}",
+            String::from_utf8_lossy(&unconfigured.stderr)
+        );
+        let no_host = |verb: &[&str]| {
+            ekr()
+                .arg("--host")
+                .arg(world.directory.path().join("no-host.json"))
+                .arg("--store")
+                .arg(world.directory.path().join("nothing-here"))
+                .args(["--backend", "file"])
+                .args(verb)
+                .stdin(Stdio::null())
+                .output()
+                .unwrap()
+        };
+        let (session_output, head) = (no_host(session), no_host(&["head"]));
+        assert_eq!(session_output.status.code(), Some(1), "{session:?}");
+        assert!(session_output.stdout.is_empty());
+        assert_eq!(head.status.code(), Some(1));
+        let session_stderr = String::from_utf8_lossy(&session_output.stderr);
+        assert!(
+            session_stderr.starts_with("ekr: reading host "),
+            "{session_stderr}"
+        );
+        assert_eq!(session_stderr, String::from_utf8_lossy(&head.stderr));
+        assert!(!world.directory.path().join("nothing-here").exists());
+    }
+}
+
+/// `story:session-starts-before-a-store`: a session started on a path holding no store answers
+/// `mint`, `hash` and `schema` as the one-shot verbs do, answers a store verb as the one-shot verb
+/// does there — `store-not-found`, exit 1 — and serves the next line; without `--create` it
+/// refuses `seed`, and it creates nothing.
+#[test]
+fn a_session_on_an_absent_store_serves_mint_hash_and_schema_and_answers_store_verbs_as_one_shot() {
+    let bob = "Bob is CEO of Acme.\n";
+    let lines: Vec<(Vec<&str>, Option<&str>)> = vec![
+        (vec!["schema", "typed-reference"], None),
+        (vec!["schema", "ekr-seed/2"], None),
+        (vec!["hash", "payload.txt"], None),
+        (vec!["hash", "-"], Some(bob)),
+        (vec!["hash", "evidence-0.txt"], None),
+        (vec!["head"], None),
+        (vec!["resolve", "reference.yaml"], None),
+        (vec!["propose", "create.yaml"], None),
+        (vec!["validate", TRANSACTION], None),
+        (vec!["snapshot"], None),
+        (vec!["schema", "ekr.cli-host/1"], None),
+        (vec!["head"], None),
+    ];
+    for backend in BACKENDS {
+        let world = World::absent(backend);
+        let mut requests: Vec<String> = lines
+            .iter()
+            .map(|(argv, stdin)| request(argv, *stdin))
+            .collect();
+        requests.push(request(&["mint", "node"], None));
+        requests.push(request(&["seed", "seed.yaml"], None));
+        requests.push(request(&["head"], None));
+        let answers = world.session(&requests, true);
+        for ((argv, stdin), answer) in lines.iter().zip(&answers) {
+            let one_shot = world.one_shot_by_environment(argv, stdin.unwrap_or(""));
+            assert_answers_as(answer, &one_shot, &format!("{backend} {argv:?}"));
+        }
+        let not_found = lines
+            .iter()
+            .zip(&answers)
+            .filter(|(_, answer)| {
+                answer["exit"] == 1
+                    && answer["stderr"]
+                        .as_str()
+                        .unwrap()
+                        .starts_with("ekr: store-not-found: ")
+            })
+            .count();
+        assert_eq!(
+            not_found, 6,
+            "{backend}: every store verb is store-not-found"
+        );
+
+        let minted = &answers[lines.len()];
+        assert_eq!(minted["exit"], 0, "{backend} mint: {minted}");
+        assert_eq!(minted["stdout"]["kind"], "node", "{backend} mint: {minted}");
+        let seed = &answers[lines.len() + 1];
+        assert_eq!(seed["exit"], 2, "{backend} seed: {seed}");
+        assert!(
+            seed["stderr"]
+                .as_str()
+                .unwrap()
+                .starts_with("ekr: session-verb-refused: "),
+            "{backend} seed: {seed}"
+        );
+        assert_eq!(
+            answers[lines.len() + 2],
+            answers[5],
+            "{backend}: head again"
+        );
+        assert!(!world.store().exists(), "{backend}: nothing was created");
+    }
+}
+
+/// The one-shot documents of `a` and the fields two independent one-shot runs disagree on:
+/// `a` and `b` ran the same sequence on two worlds that started equal.
+fn volatile_between(a: &Output, b: &Output, what: &str) -> (Value, BTreeSet<String>) {
+    let (first, second) = (one_shot_document(a, what), one_shot_document(b, what));
+    let volatile = disagreeing(&first, &second);
+    (first, volatile)
+}
+
+/// The session's answer is the one-shot run's `a`: its exit status and stderr byte for byte, and
+/// its document byte for byte once the fields `a` and `b` disagree on are `a`'s. Those fields are
+/// a clock, a minted id or a hash over them — measured on 2026-09-28 at most 7 of the seed
+/// result's 14 leaves — and never more than half the document.
+fn assert_answers_as_the_sequence(answer: &Value, a: &Output, b: &Output, what: &str) {
+    assert_eq!(
+        a.status.code(),
+        b.status.code(),
+        "{what}: two one-shot runs"
     );
-    let missing = ekr()
-        .arg("--host")
-        .arg(world.directory.path().join("host.json"))
-        .arg("--store")
-        .arg(world.directory.path().join("nothing-here"))
-        .args(["--backend", "file", "session"])
-        .stdin(Stdio::null())
-        .output()
-        .unwrap();
-    assert_eq!(missing.status.code(), Some(1));
-    assert!(missing.stdout.is_empty());
+    if a.status.code() != Some(0) {
+        assert_answers_as(answer, a, what);
+        return;
+    }
+    let (document, volatile) = volatile_between(a, b, what);
     assert!(
-        String::from_utf8_lossy(&missing.stderr).starts_with("ekr: store-not-found: "),
-        "{}",
-        String::from_utf8_lossy(&missing.stderr)
+        volatile.len() * 2 <= leaf_map(&document).len(),
+        "{what}: two one-shot runs disagree at {volatile:?}, over half the document"
     );
-    assert!(!world.directory.path().join("nothing-here").exists());
+    assert_eq!(answer["exit"], 0, "{what}: {answer}");
+    assert_eq!(answer["stderr"], "", "{what}");
+    let elsewhere: Vec<String> = disagreeing(&answer["stdout"], &document)
+        .difference(&volatile)
+        .cloned()
+        .collect();
+    assert!(
+        elsewhere.is_empty(),
+        "{what}: the session disagrees with the one-shot verb at {elsewhere:?}, outside the fields \
+         two one-shot runs disagree on ({volatile:?})"
+    );
+    let aligned = with_volatile_from(&answer["stdout"], &document, &volatile);
+    assert_eq!(
+        String::from_utf8(printed(&aligned)).unwrap(),
+        String::from_utf8_lossy(&a.stdout),
+        "{what}: stdout"
+    );
+}
+
+/// `story:session-starts-before-a-store`: `ekr session --create` on an absent store serves `seed`
+/// — a document on `stdin` through `-`, payloads through `--evidence` — then holds the new store:
+/// `propose`, `validate`, `commit`, `resolve` and the reads after it answer as the same one-shot
+/// sequence does, and a second `seed` answers as one-shot `ekr seed` does on an existing store.
+#[test]
+fn a_create_session_seeds_and_then_answers_as_the_one_shot_sequence() {
+    let (stripped, _) = example_without_payloads();
+    let sequence: Vec<(Vec<&str>, Option<&str>)> = vec![
+        (vec!["head"], None),
+        (vec!["hash", "evidence-0.txt"], None),
+        (
+            vec![
+                "seed",
+                "-",
+                "--evidence",
+                "evidence-0.txt",
+                "--evidence",
+                "evidence-1.txt",
+            ],
+            Some(&stripped),
+        ),
+        (vec!["head"], None),
+        (vec!["resolve", "reference.yaml"], None),
+        (vec!["propose", "create.yaml"], None),
+        (vec!["validate", TRANSACTION], None),
+        (vec!["commit", TRANSACTION], None),
+        (vec!["head"], None),
+        (vec!["resolve", "reference.yaml"], None),
+        (vec!["snapshot"], None),
+        (vec!["transactions"], None),
+        (vec!["ontology"], None),
+        // A second seed: the same document is its exact retry, another one is refused.
+        (
+            vec![
+                "seed",
+                "-",
+                "--evidence",
+                "evidence-0.txt",
+                "--evidence",
+                "evidence-1.txt",
+            ],
+            Some(&stripped),
+        ),
+        (vec!["seed", "other-seed.yaml"], None),
+        (vec!["seed", "stripped.yaml"], None),
+        (vec!["head"], None),
+    ];
+    let requests: Vec<String> = sequence
+        .iter()
+        .map(|(argv, stdin)| request(argv, *stdin))
+        .collect();
+    for backend in BACKENDS {
+        let (session, a, b) = (
+            World::absent(backend),
+            World::absent(backend),
+            World::absent(backend),
+        );
+        let answers = session.session_as(&["session", "--create"], &requests, true);
+        assert_eq!(answers[0]["exit"], 1, "{backend}: head before the seed");
+        assert_eq!(answers[2]["exit"], 0, "{backend}: seed: {}", answers[2]);
+        assert_eq!(answers[7]["stdout"]["kind"], "Committed", "{backend}");
+        assert_eq!(answers[9]["stdout"]["kind"], "Resolved", "{backend}");
+        assert_eq!(answers[13], answers[2], "{backend}: the exact retry");
+        for (at, ((argv, stdin), answer)) in sequence.iter().zip(&answers).enumerate() {
+            let stdin = stdin.unwrap_or("");
+            // A fault names the store's path, which is each world's own.
+            let rebased = |from: &World, output: Output| Output {
+                stderr: String::from_utf8(output.stderr)
+                    .unwrap()
+                    .replace(
+                        from.directory.path().to_str().unwrap(),
+                        session.directory.path().to_str().unwrap(),
+                    )
+                    .into_bytes(),
+                ..output
+            };
+            let (first, second) = (
+                rebased(&a, a.one_shot_by_environment(argv, stdin)),
+                rebased(&b, b.one_shot_by_environment(argv, stdin)),
+            );
+            assert_answers_as_the_sequence(
+                answer,
+                &first,
+                &second,
+                &format!("{backend} #{at} {argv:?}"),
+            );
+        }
+        // Another create session on the store this one made: `seed` is one-shot `ekr seed` on an
+        // existing store, byte for byte, and every store verb is served.
+        let again = [
+            request(&["seed", "seed.yaml"], None),
+            request(&["seed", "other-seed.yaml"], None),
+            request(&["head"], None),
+        ];
+        let answers = session.session_as(&["session", "--create"], &again, false);
+        for (argv, answer) in [
+            vec!["seed", "seed.yaml"],
+            vec!["seed", "other-seed.yaml"],
+            vec!["head"],
+        ]
+        .iter()
+        .zip(&answers)
+        {
+            assert_answers_as(
+                answer,
+                &session.run(argv),
+                &format!("{backend} {argv:?} on the created store"),
+            );
+        }
+        assert_eq!(answers[2]["stdout"]["revision"], 1, "{backend}");
+    }
+}
+
+/// A session held open: one request written, its one answer read, then the next.
+struct Live {
+    child: std::process::Child,
+    stdin: Option<std::process::ChildStdin>,
+    stdout: std::io::BufReader<std::process::ChildStdout>,
+}
+
+impl Live {
+    fn start(world: &World, verb: &[&str]) -> Self {
+        world.spawned.set(world.spawned.get() + 1);
+        let mut child = world
+            .command(verb)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let stdin = child.stdin.take();
+        let stdout = std::io::BufReader::new(child.stdout.take().unwrap());
+        Self {
+            child,
+            stdin,
+            stdout,
+        }
+    }
+
+    /// The answer's document, which must have exit 0.
+    fn ask(&mut self, argv: &[&str], stdin: Option<&str>) -> Value {
+        use std::io::BufRead as _;
+        let input = self.stdin.as_mut().unwrap();
+        input
+            .write_all(format!("{}\n", request(argv, stdin)).as_bytes())
+            .unwrap();
+        input.flush().unwrap();
+        let mut line = String::new();
+        self.stdout.read_line(&mut line).unwrap();
+        let answer: Value = serde_json::from_str(&line).unwrap();
+        assert_eq!(answer["exit"], 0, "{argv:?}: {answer}");
+        answer["stdout"].clone()
+    }
+
+    fn close(mut self) {
+        drop(self.stdin.take());
+        let output = self.child.wait_with_output().unwrap();
+        assert_eq!(output.status.code(), Some(0));
+        assert!(output.stderr.is_empty());
+    }
+}
+
+/// `CreateNode` of `Globex` under a minted transaction and node id.
+fn create_globex_as(transaction: &str, node: &str) -> String {
+    create_globex()
+        .replace(TRANSACTION, transaction)
+        .replace(NODE, node)
+}
+
+/// The consumer's build of a small store: hash each evidence file for the seed's entries, seed
+/// with those files, mint the ids of a first transaction, then propose, validate and commit it.
+/// One-shot, every call is a process; in `ekr session --create` the whole build is one. The
+/// counts are measured as the processes each world started, and printed.
+#[test]
+fn a_create_session_builds_a_store_in_one_process_where_one_shot_takes_one_per_call() {
+    let seed_argv = [
+        "seed",
+        "stripped.yaml",
+        "--evidence",
+        "evidence-0.txt",
+        "--evidence",
+        "evidence-1.txt",
+    ];
+    for backend in BACKENDS {
+        let (one_shot, session) = (World::absent(backend), World::absent(backend));
+        let stripped =
+            std::fs::read_to_string(one_shot.directory.path().join("stripped.yaml")).unwrap();
+
+        let ok =
+            |argv: &[&str], stdin: &str| one_shot_document(&one_shot.one_shot(argv, stdin), "");
+        for file in ["evidence-0.txt", "evidence-1.txt"] {
+            let hash = ok(&["hash", file], "");
+            assert!(stripped.contains(hash["content_hash"].as_str().unwrap()));
+        }
+        ok(&seed_argv, "");
+        let (transaction, node) = (ok(&["mint", "transaction"], ""), ok(&["mint", "node"], ""));
+        let (transaction, node) = (
+            transaction["id"].as_str().unwrap().to_owned(),
+            node["id"].as_str().unwrap().to_owned(),
+        );
+        ok(&["propose", "-"], &create_globex_as(&transaction, &node));
+        ok(&["validate", &transaction], "");
+        ok(&["commit", &transaction], "");
+        let built = ok(&["resolve", "reference.yaml"], "");
+        assert_eq!(built["node_id"], node.as_str(), "{backend}: {built}");
+
+        let mut live = Live::start(&session, &["session", "--create"]);
+        for file in ["evidence-0.txt", "evidence-1.txt"] {
+            let hash = live.ask(&["hash", file], None);
+            assert!(stripped.contains(hash["content_hash"].as_str().unwrap()));
+        }
+        live.ask(&seed_argv, None);
+        let (transaction, node) = (
+            live.ask(&["mint", "transaction"], None),
+            live.ask(&["mint", "node"], None),
+        );
+        let (transaction, node) = (
+            transaction["id"].as_str().unwrap().to_owned(),
+            node["id"].as_str().unwrap().to_owned(),
+        );
+        live.ask(
+            &["propose", "-"],
+            Some(&create_globex_as(&transaction, &node)),
+        );
+        live.ask(&["validate", &transaction], None);
+        live.ask(&["commit", &transaction], None);
+        let built = live.ask(&["resolve", "reference.yaml"], None);
+        assert_eq!(built["node_id"], node.as_str(), "{backend}: {built}");
+        live.close();
+
+        println!(
+            "{backend}: building the store took {} one-shot processes and {} session process",
+            one_shot.spawned.get(),
+            session.spawned.get()
+        );
+        assert_eq!((one_shot.spawned.get(), session.spawned.get()), (9, 1));
+    }
 }
 
 /// The in-process seam: `ekr::cli::serve` answers the lines of any reader into any writer, as
@@ -770,4 +1208,43 @@ fn the_library_seam_serves_a_session_in_process() {
     assert_answers_as(&answers[0], &world.run(&["head"]), "in-process head");
     assert_eq!(answers[1]["exit"], 2);
     assert_eq!(answers[0], answers[2]);
+
+    // `ekr::cli::Command::Session { create }`: the flag as the library parses it, and an
+    // in-process create session on an absent store seeding it.
+    let absent = World::absent("sqlite");
+    let create = vec![
+        std::ffi::OsString::from("ekr"),
+        "--host".into(),
+        absent.directory.path().join("host.json").into(),
+        "--store".into(),
+        absent.store().into(),
+        "--backend".into(),
+        "sqlite".into(),
+        "session".into(),
+        "--create".into(),
+    ];
+    let cli = <ekr::cli::Cli as clap::Parser>::try_parse_from(&create).unwrap();
+    assert!(matches!(
+        cli.command,
+        ekr::cli::Command::Session { create: true }
+    ));
+    let seed = std::fs::read_to_string(absent.directory.path().join("seed.yaml")).unwrap();
+    let lines = format!(
+        "{}\n{}\n{}\n",
+        request(&["head"], None),
+        request(&["seed", "-"], Some(&seed)),
+        request(&["head"], None)
+    );
+    let returned = ekr::cli::run(create, &clock, &mut lines.as_bytes()).unwrap();
+    let answers: Vec<Value> = returned
+        .lines()
+        .map(|line| serde_json::from_str(line).unwrap())
+        .collect();
+    assert_eq!(answers[0]["exit"], 1, "{}", answers[0]);
+    assert_eq!(answers[1]["exit"], 0, "{}", answers[1]);
+    assert_answers_as(
+        &answers[2],
+        &absent.run(&["head"]),
+        "in-process head after seed",
+    );
 }

@@ -6,6 +6,12 @@
 //! against the runtime the session holds instead of one it opens: every verb body in this
 //! directory runs unchanged. The runtime reads the store's retained history on every verb, so a
 //! commit a request makes is what the next request reads.
+//!
+//! On a path that holds no store the session starts without one. Until it holds one, a store
+//! verb opens the store as the one-shot verb does — `store-not-found` where there is none — and
+//! the verbs that open no store answer as always. Started with `--create`, it also serves `seed`
+//! through the one-shot verb's own path; the seed that creates the store leaves the session
+//! holding it, opened once as at the start.
 
 use std::io::{BufRead, Write};
 
@@ -15,7 +21,7 @@ use ekr_core::Timestamp;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::{Cli, Command, Configured, Held, Source};
+use super::{Cli, Command, Configured, Session, Source};
 use crate::exit::Failure;
 
 /// A line that is not a request: not JSON, not an object, without `argv`, with a field a request
@@ -58,24 +64,28 @@ struct Answer {
     stderr: String,
 }
 
-/// Opens the store `cli`'s configuration names, once, then answers each line of `input` with one
-/// line on `output`, flushed, until end of input.
+/// Opens the store `cli`'s configuration names, once — or, where the path holds no store, starts
+/// without one — then answers each line of `input` with one line on `output`, flushed, until end
+/// of input. `ekr session --create` also serves `seed`.
 ///
 /// # Errors
 ///
-/// What a store verb reports when its configuration or store does not open — before any line is
-/// read — and a fault reading `input` or writing `output`. A request never ends the session.
+/// What a store verb reports when its configuration or an existing store does not open — before
+/// any line is read — and a fault reading `input` or writing `output`. A request never ends the
+/// session.
 pub fn serve(
     cli: Cli,
     now: &dyn Fn() -> Timestamp,
     input: &mut dyn BufRead,
     output: &mut dyn Write,
 ) -> Result<(), Failure> {
-    let (configured, _) = Configured::split(cli);
+    let (configured, command) = Configured::split(cli);
+    let create = matches!(command, Command::Session { create: true });
     let store = configured.resolve("session")?;
-    let held = Held {
-        runtime: store.open()?,
-        operator: store.host.context.operator,
+    let mut session = Session {
+        runtime: store.open_if_any()?,
+        store,
+        create,
     };
     let mut line = Vec::new();
     loop {
@@ -86,7 +96,7 @@ pub fn serve(
             Some(whole) => whole,
         };
         let answered = if whole {
-            respond(&line, &held, now)
+            respond(&line, &mut session, now)
         } else {
             Err(Failure::refused(
                 TOO_LARGE,
@@ -152,8 +162,13 @@ pub(super) fn next_line(
     }
 }
 
-/// The request's verb run against the held runtime, and the document it prints.
-fn respond(line: &[u8], held: &Held, now: &dyn Fn() -> Timestamp) -> Result<Value, Failure> {
+/// The request's verb run against the session's store, and the document it prints. A seed that
+/// succeeds in a session holding no store has created it: the session opens and holds it.
+fn respond(
+    line: &[u8],
+    session: &mut Session,
+    now: &dyn Fn() -> Timestamp,
+) -> Result<Value, Failure> {
     let request: Request = serde_json::from_slice(line).map_err(|error| {
         Failure::refused(
             MALFORMED,
@@ -161,9 +176,18 @@ fn respond(line: &[u8], held: &Held, now: &dyn Fn() -> Timestamp) -> Result<Valu
         )
     })?;
     let cli = parse(&request.argv)?;
-    admit(&cli)?;
+    admit(&cli, session.create)?;
+    let seeds = matches!(cli.command, Command::Seed { .. });
     let mut stdin = request.stdin.as_deref().unwrap_or_default().as_bytes();
-    match super::dispatch(cli.command, Source::Held(held), now, &mut stdin)? {
+    let printed = super::dispatch(cli.command, Source::Session(session), now, &mut stdin)?;
+    if seeds && session.runtime.is_none() {
+        // Where this open fails, the seed's answer still stands and the session stays without a
+        // store: each store verb then opens it as the one-shot verb does and says why it cannot.
+        if let Ok(Some(runtime)) = session.store.open_if_any() {
+            session.runtime = Some(runtime);
+        }
+    }
+    match printed {
         super::Printed::Document(document) => Ok(document),
         super::Printed::Text(_) => {
             Err(Failure::fault("the verb printed text, not a JSON document"))
@@ -193,8 +217,9 @@ fn parse(argv: &[String]) -> Result<Cli, Failure> {
     )
 }
 
-/// Refuses a request that sets a global option, or names a verb the session does not serve.
-fn admit(cli: &Cli) -> Result<(), Failure> {
+/// Refuses a request that sets a global option, or names a verb the session does not serve:
+/// `seed` is served only by a session started with `--create`.
+fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
     if cli.host.is_some() || cli.store.is_some() || cli.backend.is_some() || cli.full_replay {
         return Err(Failure::refused(
             OPTION,
@@ -203,9 +228,10 @@ fn admit(cli: &Cli) -> Result<(), Failure> {
         ));
     }
     match cli.command {
+        Command::Seed { .. } if create => Ok(()),
         Command::Seed { .. } => Err(verb_refused("seed")),
         Command::View { .. } => Err(verb_refused("view")),
-        Command::Session => Err(verb_refused("session")),
+        Command::Session { .. } => Err(verb_refused("session")),
         Command::Mcp => Err(verb_refused("mcp")),
         Command::Guide => Err(verb_refused("guide")),
         Command::Operations { .. } => Err(verb_refused("operations")),
@@ -225,16 +251,19 @@ fn admit(cli: &Cli) -> Result<(), Failure> {
     }
 }
 
-/// The refusal of a verb a session does not serve: `seed` creates a store, `view` serves until
-/// interrupted, `mcp` until its own input ends, a session does not nest, and `guide`,
-/// `operations` and `example` print text.
+/// The refusal of a verb a session does not serve: `seed` creates a store, which only a session
+/// started with `--create` does, `view` serves until interrupted, `mcp` until its own input ends,
+/// a session does not nest, and `guide`, `operations` and `example` print text.
 pub(super) fn verb_refused(verb: &str) -> Failure {
+    let instead = if verb == "seed" {
+        "run `ekr seed` outside the session, or start the session with `ekr session --create`"
+            .to_owned()
+    } else {
+        format!("run `ekr {verb}` outside the session")
+    };
     Failure::refused(
         REFUSED,
-        format!(
-            "a session serves the verbs that print one JSON document from an existing store; run \
-             `ekr {verb}` outside the session"
-        ),
+        format!("a session serves the verbs that print one JSON document; {instead}"),
     )
 }
 
