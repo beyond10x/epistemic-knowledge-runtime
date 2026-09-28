@@ -107,6 +107,19 @@ pub trait CommitAuthority {
         ontology: Option<&ekr_ontology::Ontology>,
         revision: Option<RevisionNumber>,
     ) -> Result<Option<AdmittedRevision>, StoreError>;
+    /// [`Self::replay`] for a caller that needs only the verdict, not the admitted state: `Ok`
+    /// exactly where `replay` admits the history or finds it empty, and `replay`'s refusal
+    /// otherwise. An authority may answer it without building the admitted head graph.
+    /// # Errors
+    /// Whatever [`Self::replay`] refuses.
+    fn verify(
+        &self,
+        history: &RetainedHistory,
+        ontology: Option<&ekr_ontology::Ontology>,
+        revision: Option<RevisionNumber>,
+    ) -> Result<(), StoreError> {
+        self.replay(history, ontology, revision).map(|_| ())
+    }
     /// Offers the retained replay checkpoint for `history`, which the authority may admit as the
     /// state its next replay of that history continues from. An authority that keeps none
     /// ignores it.

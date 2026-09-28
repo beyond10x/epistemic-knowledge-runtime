@@ -170,6 +170,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             .authority
             .reconstruct(&history, None, revision)?
             .ok_or(CommitError::NotSeeded)?;
+        let state = std::sync::Arc::unwrap_or_clone(state);
         let envelope = self
             .authority
             .seed_envelope(&history, state.seed.seed_hash)?;

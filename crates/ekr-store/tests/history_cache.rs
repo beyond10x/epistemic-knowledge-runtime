@@ -311,6 +311,59 @@ fn an_occurrence_appended_through_another_handle_is_seen_by_the_next_read_file()
     another_handles_append_is_seen(|| file(directory.path()));
 }
 
+/// `task:write-verbs-cost-most-of-an-ingest`: on the file provider every call re-hashes the log
+/// while it is younger than two seconds, so a head read that confirmed the last held occurrence
+/// in one call and read on in another paid for the log twice. The call that reads on confirms it.
+fn a_read_on_confirms_the_held_prefix_in_the_same_call<
+    S: RevisionLog + ObjectStore + Initialize,
+>(
+    open: impl Fn() -> S,
+) {
+    let reader = open();
+    written(&reader, "one call", 1);
+    let before = reader.history().unwrap();
+    let _ = ekr_store::stream_reads();
+
+    assert_eq!(reader.history().unwrap(), before);
+    assert_eq!(
+        ekr_store::stream_reads().revision,
+        1,
+        "a head read that found nothing new made more than one revision-stream read"
+    );
+
+    let late = proposal(2, payload("one call late record"));
+    {
+        let other = open();
+        assert_eq!(other.publish(&late).unwrap(), Appended::Written);
+    }
+    let _ = ekr_store::stream_reads();
+    let after = reader.history().unwrap();
+    assert_eq!(
+        ekr_store::stream_reads().revision,
+        1,
+        "a head read that found a new occurrence made more than one revision-stream read"
+    );
+    assert_eq!(after.occurrences.len(), 3);
+    assert_eq!(after.occurrences[2].event, late.event);
+    assert_eq!(
+        after,
+        open().history().unwrap(),
+        "the extended history differs from a fresh handle's"
+    );
+}
+
+#[test]
+fn a_read_on_confirms_the_held_prefix_in_the_same_call_sqlite() {
+    let directory = TempDir::new().unwrap();
+    a_read_on_confirms_the_held_prefix_in_the_same_call(|| sqlite(directory.path()));
+}
+
+#[test]
+fn a_read_on_confirms_the_held_prefix_in_the_same_call_file() {
+    let directory = TempDir::new().unwrap();
+    a_read_on_confirms_the_held_prefix_in_the_same_call(|| file(directory.path()));
+}
+
 // ---------------------------------------------------------------------------------------------
 // 3. A blob damaged on disk before its first load is still refused, as before.
 // ---------------------------------------------------------------------------------------------
