@@ -139,10 +139,26 @@ impl World {
         command
     }
 
-    /// One one-shot verb, with `stdin` as its standard input.
+    /// One one-shot verb configured by flags, with `stdin` as its standard input.
     fn one_shot(&self, verb: &[&str], stdin: &str) -> Output {
-        let mut child = self
-            .command(verb)
+        Self::spawn(self.command(verb), stdin)
+    }
+
+    /// One one-shot verb configured by `EKR_*`, so that its argv is exactly `verb`: clap's usage
+    /// line names the global options an argv gives, and a session request gives none.
+    fn one_shot_by_environment(&self, verb: &[&str], stdin: &str) -> Output {
+        let mut command = ekr();
+        command
+            .current_dir(self.directory.path())
+            .env("EKR_HOST", self.directory.path().join("host.json"))
+            .env("EKR_STORE", self.store())
+            .env("EKR_BACKEND", self.backend)
+            .args(verb);
+        Self::spawn(command, stdin)
+    }
+
+    fn spawn(mut command: std::process::Command, stdin: &str) -> Output {
+        let mut child = command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -341,6 +357,9 @@ fn each_verb_answers_as_the_one_shot_verb_on_the_same_store_state() {
         (vec!["snapshot", "--at", "zero"], None),
         (vec!["propose", "missing.yaml"], None),
         (vec!["resolve", "-"], Some("aliases: [nobody]\n")),
+        // Arguments clap refuses outside the named session refusals: its own usage message.
+        (vec!["--sto", "x", "head"], None),
+        (vec!["head", "-V"], None),
     ];
     let writes: [Vec<&str>; 3] = [
         vec!["propose", "create.yaml"],
@@ -370,9 +389,10 @@ fn each_verb_answers_as_the_one_shot_verb_on_the_same_store_state() {
         lines.extend(after.iter().map(|argv| request(argv, None)));
         let answers = world.session(&lines, false);
 
-        // Every read and refusal on the seeded state, which `before` still holds byte for byte.
+        // Every read and refusal on the seeded state, which `before` still holds byte for byte,
+        // against the one-shot verb given the same argv.
         for ((argv, stdin), answer) in reads.iter().zip(&answers) {
-            let one_shot = before.one_shot(argv, stdin.unwrap_or(""));
+            let one_shot = before.one_shot_by_environment(argv, stdin.unwrap_or(""));
             assert_answers_as(answer, &one_shot, &format!("{backend} {argv:?}"));
         }
         let refused = reads
@@ -380,7 +400,7 @@ fn each_verb_answers_as_the_one_shot_verb_on_the_same_store_state() {
             .zip(&answers)
             .filter(|(_, answer)| answer["exit"] != 0)
             .count();
-        assert_eq!(refused, 7, "{backend}: the refusal lines are refused");
+        assert_eq!(refused, 9, "{backend}: the refusal lines are refused");
 
         // `mint`: the shape, not the id.
         let minted = &answers[first_write - 1];
@@ -449,6 +469,19 @@ fn each_verb_answers_as_the_one_shot_verb_on_the_same_store_state() {
     }
 }
 
+/// The most bytes of one request line, newline excluded, as docs/cli.md states it: three times the
+/// 8388608-byte document cap and 65536 bytes.
+const LINE_LIMIT: usize = 25_231_360;
+
+/// A `hash -` request line of exactly `length` bytes, its payload `a` repeated.
+fn hash_request(length: usize) -> String {
+    let (open, close) = (r#"{"argv":["hash","-"],"stdin":""#, r#""}"#);
+    format!(
+        "{open}{}{close}",
+        "a".repeat(length - open.len() - close.len())
+    )
+}
+
 /// One malformed or refused line and the refusal name its answer carries.
 fn malformed() -> Vec<(String, &'static str)> {
     let line = |value: Value| value.to_string();
@@ -495,6 +528,12 @@ fn malformed() -> Vec<(String, &'static str)> {
             "session-verb-refused",
         ),
         (line(json!({"argv": ["--version"]})), "session-verb-refused"),
+        (line(json!({"argv": ["help"]})), "session-verb-refused"),
+        (
+            line(json!({"argv": ["help", "head"]})),
+            "session-verb-refused",
+        ),
+        (hash_request(LINE_LIMIT + 1), "session-request-too-large"),
         (
             line(json!({"argv": ["--store", "elsewhere", "head"]})),
             "session-option-refused",
@@ -540,6 +579,29 @@ fn a_malformed_line_is_refused_by_name_and_the_next_line_is_still_served() {
     }
 }
 
+/// The limit is the line's length: a line of exactly [`LINE_LIMIT`] bytes is served whole, one
+/// byte more is `session-request-too-large`, and the session serves the line after either.
+#[test]
+fn a_line_at_the_limit_is_served_and_one_byte_more_is_refused() {
+    let world = World::seeded("file");
+    let head = world.run(&["head"]);
+    let (at, over) = (hash_request(LINE_LIMIT), hash_request(LINE_LIMIT + 1));
+    assert_eq!((at.len(), over.len()), (LINE_LIMIT, LINE_LIMIT + 1));
+    let payload = at.len() - r#"{"argv":["hash","-"],"stdin":""}"#.len();
+    let lines = [at, request(&["head"], None), over, request(&["head"], None)];
+    let answers = world.session(&lines, false);
+    assert_eq!(answers[0]["exit"], 0, "{}", answers[0]["stderr"]);
+    assert_eq!(answers[0]["stdout"]["byte_len"], payload);
+    assert_answers_as(&answers[1], &head, "head after the line at the limit");
+    assert_eq!(answers[2]["exit"], 2);
+    assert!(answers[2]["stdout"].is_null());
+    assert!(answers[2]["stderr"]
+        .as_str()
+        .unwrap()
+        .starts_with("ekr: session-request-too-large: "));
+    assert_answers_as(&answers[3], &head, "head after the line over the limit");
+}
+
 /// The `ekr session` section of `docs/cli.md`, from its heading to the next `###` heading.
 fn session_section() -> String {
     let page = PathBuf::from(
@@ -573,6 +635,7 @@ fn the_page_lists_exactly_the_session_refusals_this_suite_draws() {
         "the session refusal table of docs/cli.md and the refusals this suite draws disagree"
     );
     for needle in [
+        "25231360",
         "\"argv\"",
         "\"stdin\"",
         "\"exit\"",

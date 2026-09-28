@@ -23,10 +23,19 @@ use crate::exit::Failure;
 const MALFORMED: &str = "session-request-malformed";
 /// A request whose `argv` names no verb, or one `ekr` does not have.
 const UNKNOWN: &str = "session-verb-unknown";
-/// A verb, `--help` or `--version` that a session does not serve.
+/// A verb, clap's `help` verb, `--help` or `--version`: what a session does not serve.
 const REFUSED: &str = "session-verb-refused";
 /// A request that sets a global option: the session's store was fixed when it started.
 const OPTION: &str = "session-option-refused";
+/// A line longer than [`LINE_LIMIT`]: longer than any request a verb could accept.
+const TOO_LARGE: &str = "session-request-too-large";
+
+/// The most bytes of one request line, its newline excluded: 25 231 360. The largest input a verb
+/// reads is an `ekr.transaction-document/2` of 8 388 608 bytes, and JSON-escaping text in a string
+/// at most triples it (a two-byte UTF-8 character written `\uXXXX` is six bytes; `\n`, `\"`
+/// are two), so three times that and 64 KiB for `argv` and the framing hold any request a verb
+/// could accept. Only this much of a line is ever held; the rest is read and dropped.
+const LINE_LIMIT: usize = 3 * ekr_kernel::DOCUMENT_V2_LIMITS.input_bytes + 65_536;
 
 /// One request line.
 #[derive(Deserialize)]
@@ -70,14 +79,24 @@ pub fn serve(
     };
     let mut line = Vec::new();
     loop {
-        line.clear();
-        let read = input
-            .read_until(b'\n', &mut line)
-            .map_err(|error| Failure::fault(format!("reading a session request: {error}")))?;
-        if read == 0 {
-            return Ok(());
-        }
-        let answer = match respond(&line, &held, now) {
+        let whole = match next_line(input, &mut line)
+            .map_err(|error| Failure::fault(format!("reading a session request: {error}")))?
+        {
+            None => return Ok(()),
+            Some(whole) => whole,
+        };
+        let answered = if whole {
+            respond(&line, &held, now)
+        } else {
+            Err(Failure::refused(
+                TOO_LARGE,
+                format!(
+                    "a request line holds at most {LINE_LIMIT} bytes; the rest of the line was \
+                     read and dropped"
+                ),
+            ))
+        };
+        let answer = match answered {
             Ok(stdout) => Answer {
                 exit: 0,
                 stdout,
@@ -95,6 +114,37 @@ pub fn serve(
             .write_all(text.as_bytes())
             .and_then(|()| output.flush())
             .map_err(|error| Failure::fault(format!("writing a session answer: {error}")))?;
+    }
+}
+
+/// Reads the next line into `line`, its newline dropped, holding at most [`LINE_LIMIT`] bytes of
+/// it: `Some(true)` for a whole line, `Some(false)` for one longer than that, whose rest was read
+/// and dropped up to its newline, and `None` at the end of input.
+fn next_line(input: &mut dyn BufRead, line: &mut Vec<u8>) -> std::io::Result<Option<bool>> {
+    line.clear();
+    let (mut any, mut whole) = (false, true);
+    loop {
+        let buffer = input.fill_buf()?;
+        if buffer.is_empty() {
+            return Ok(any.then_some(whole));
+        }
+        any = true;
+        let (taken, ended) = match buffer.iter().position(|byte| *byte == b'\n') {
+            Some(at) => (at, true),
+            None => (buffer.len(), false),
+        };
+        if whole {
+            if line.len() + taken > LINE_LIMIT {
+                whole = false;
+                line.clear();
+            } else {
+                line.extend_from_slice(&buffer[..taken]);
+            }
+        }
+        input.consume(if ended { taken + 1 } else { taken });
+        if ended {
+            return Ok(Some(whole));
+        }
     }
 }
 
@@ -123,8 +173,8 @@ fn parse(argv: &[String]) -> Result<Cli, Failure> {
         |error| match error.kind() {
             ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => Failure::refused(
                 REFUSED,
-                "`--help` and `--version` print text, not a JSON document; run them outside the \
-                 session",
+                "`help`, `--help` and `--version` print text, not a JSON document; run them \
+                 outside the session",
             ),
             ErrorKind::InvalidSubcommand
             | ErrorKind::MissingSubcommand

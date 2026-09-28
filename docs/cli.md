@@ -507,9 +507,17 @@ A session serves `propose`, `validate`, `commit`, `snapshot`, `explain`, `resolv
 | refusal | exit | what it means | what to fix |
 |---|---|---|---|
 | `session-request-malformed` | 2 | the line is not a JSON object with `argv`, a list of strings, and at most `stdin`, a string; an empty line included | send `{"argv": [...]}` on one line |
+| `session-request-too-large` | 2 | the line is longer than 25231360 bytes, its newline excluded: three times the 8388608-byte `ekr.transaction-document/2` cap, the most JSON escaping can make of it, and 65536 bytes for `argv` and the framing. The session holds no more of the line than that; it reads the rest up to the newline, drops it and serves the next line | send the document as a file (`["propose", "doc.yaml"]`), or a smaller one |
 | `session-verb-unknown` | 2 | `argv` is empty, or its first word is not a verb of `ekr` | a verb from the list above |
-| `session-verb-refused` | 2 | the verb is `seed`, `view`, `session`, `guide`, `operations` or `example`, or the request asks for `--help` or `--version`: these create a store, serve until interrupted, nest, or print text | run it as its own `ekr` process |
+| `session-verb-refused` | 2 | the verb is `seed`, `view`, `session`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted, nest, or print text | run it as its own `ekr` process |
 | `session-option-refused` | 2 | the request sets `--host`, `--store`, `--backend` or `--full-replay` | the session's store is fixed when it starts; start another session for another store |
+
+Any other `argv` the verbs' definitions do not accept — an unknown flag
+(`["--sto", "x", "head"]`, `["head", "-V"]`), a missing argument, a value of the wrong kind
+(`["snapshot", "--at", "zero"]`) — is answered as the one-shot verb answers the same argv:
+`"exit": 2`, `"stdout": null` and clap's usage message, byte for byte, as `"stderr"`: the
+message `ekr <argv>` prints with the store configured through `EKR_HOST`, `EKR_STORE` and
+`EKR_BACKEND`, since clap's usage line repeats the global options an argv gives.
 
 ## The workflow
 
