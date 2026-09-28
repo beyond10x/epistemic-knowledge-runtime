@@ -399,6 +399,51 @@ fn a_tampered_copy_of_a_verified_object_is_refused_by_content_file() {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Nothing a handle holds answers for a store the provider says has diverged from it.
+// ---------------------------------------------------------------------------------------------
+
+fn copy_tree(from: &Path, to: &Path) {
+    std::fs::create_dir_all(to).unwrap();
+    for entry in std::fs::read_dir(from).unwrap() {
+        let entry = entry.unwrap();
+        let target = to.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            copy_tree(&entry.path(), &target);
+        } else {
+            std::fs::copy(entry.path(), &target).unwrap();
+        }
+    }
+}
+
+/// A file store replaced under a live handle by a different history. The provider refuses the
+/// replacement to a handle that observed the original; a single-object read of an object the
+/// handle verified must refuse too, rather than answer from what the handle holds.
+#[test]
+fn a_held_object_is_not_served_from_a_file_store_that_diverged() {
+    let held_dir = TempDir::new().unwrap();
+    let other_dir = TempDir::new().unwrap();
+    let reader = file(held_dir.path());
+    let payloads = written(&reader, "diverged get", 1);
+    reader.history().unwrap();
+    let address = ContentHash::of_bytes(&payloads[0]);
+    assert!(reader.get(&address).unwrap().is_some());
+    written(&file(other_dir.path()), "diverged replacement", 1);
+    std::fs::remove_dir_all(held_dir.path().join("state")).unwrap();
+    copy_tree(
+        &other_dir.path().join("state"),
+        &held_dir.path().join("state"),
+    );
+
+    let head = reader.history().unwrap_err();
+    let got = reader.get(&address);
+    assert_eq!(
+        got,
+        Err(head),
+        "a get answered from the handle's memo where the same handle's head read refuses"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
 // Measurement: two consecutive history reads on one handle over a large store. Ignored; run with
 // `cargo test -p ekr-store --test history_cache -- --ignored --nocapture`.
 // ---------------------------------------------------------------------------------------------

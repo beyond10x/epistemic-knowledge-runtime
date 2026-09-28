@@ -583,6 +583,13 @@ impl<S: EventStore> EventlogStore<S> {
     /// of the whole stream applies. Held occurrences are not fetched again: the stream is
     /// append-only. An occurrence that fails a check is not held, so every later read that
     /// reaches it refuses it again.
+    ///
+    /// Every read, including one answered wholly from the held prefix, first asks the provider for
+    /// the last held occurrence again ([`Self::still_holds`]). That is the provider call through
+    /// which it refuses a history that diverged from what this handle observed (the file
+    /// provider's own check), so a read at an earlier revision refuses where a head read does. A
+    /// provider that answers with a different occurrence there no longer has the held prefix, and
+    /// the handle drops everything it holds and reads from the start, as a new handle would.
     fn occurrences(
         &self,
         limit: usize,
@@ -594,13 +601,14 @@ impl<S: EventStore> EventlogStore<S> {
             .revisions
             .lock()
             .map_err(|_| StoreError::Document("held-revisions-poisoned".into()))?;
+        let stream = self.revision_stream()?;
+        self.confirm_held(&stream, &mut held)?;
         let found = |held: &HeldRevisions| {
             held.occurrences
                 .iter()
                 .position(|occurrence| selects(&occurrence.event))
         };
         if found(&held).is_none() {
-            let stream = self.revision_stream()?;
             let events = {
                 let mut read =
                     StreamRead::resumed(&stream, held.occurrences.len() as u64, &held.native_ids);
@@ -617,6 +625,43 @@ impl<S: EventStore> EventlogStore<S> {
         }
         let end = found(&held).map_or(held.occurrences.len(), |at| at + 1);
         Ok(held.occurrences[..end].to_vec())
+    }
+    /// Asks the provider whether this handle's held state still describes its store, before
+    /// anything held answers a read: the provider's own refusal of a diverged history is returned
+    /// as it is, and a store that no longer has the held prefix makes the handle drop everything
+    /// it holds, objects included.
+    fn confirm_held(&self, stream: &StreamId, held: &mut HeldRevisions) -> Result<(), StoreError> {
+        if !self.still_holds(stream, held)? {
+            self.forget_everything(held);
+        }
+        Ok(())
+    }
+    /// Whether the provider still has the last occurrence `held` holds, as it was read: one
+    /// single-event read. A provider refusal is returned as it is.
+    ///
+    /// Made even when no occurrence is held but objects are, because the call is what gives the
+    /// provider the chance to refuse. A handle that holds nothing at all makes none: nothing it
+    /// holds could answer, and its first read is the provider's own.
+    fn still_holds(&self, stream: &StreamId, held: &HeldRevisions) -> Result<bool, StoreError> {
+        let holds_objects = self.verified.lock().map_or(true, |memo| !memo.is_empty());
+        if held.occurrences.is_empty() && !holds_objects {
+            return Ok(true);
+        }
+        let after = held.occurrences.last().map_or(0, |last| last.version - 1);
+        let slice = self
+            .runtime()
+            .block_on(self.store.read_stream(stream, after, 1))?;
+        let Some(last) = held.occurrences.last() else {
+            return Ok(true);
+        };
+        Ok(slice.events.first().is_some_and(|event| {
+            !event.is_redacted()
+                && event.version == last.version
+                && event.event_id == last.provider_event_id
+                && event.tenant == self.tenant
+                && event.stream_type == stream.stream_type()
+                && event.stream_id == stream.stream_id()
+        }))
     }
     fn object(&self, hash: ContentHash) -> Result<Option<RetainedObject>, StoreError> {
         Ok(self
@@ -651,17 +696,42 @@ impl<S: EventStore> EventlogStore<S> {
     /// would have met it at the failing stream; and a provider refusal of any blob in the blob
     /// batch (a damaged SQLite blob, for example) comes before the blob checks of earlier objects,
     /// because a provider without its own `read_many` fails the whole batch on its first error.
+    ///
+    /// An object this handle already verified is not fetched again, unless its held class is below
+    /// the strongest: another handle may have raised it since, so its stream is read and checked
+    /// again in its place in the batch, and its held bytes stand in for its blob. A class is never
+    /// refused from a stale memo.
     fn required(&self, hashes: &[ContentHash]) -> Result<Vec<RetainedObject>, StoreError> {
         let mut known = self.verified_objects(hashes)?;
+        let raisable: Vec<ContentHash> = known
+            .iter()
+            .filter(|(_, object)| object.metadata.storage_class != StorageClass::Canonical)
+            .map(|(hash, _)| *hash)
+            .collect();
+        let raisable: BTreeMap<ContentHash, RetainedObject> = raisable
+            .into_iter()
+            .filter_map(|hash| known.remove(&hash).map(|object| (hash, object)))
+            .collect();
         let unknown: Vec<ContentHash> = hashes
             .iter()
             .filter(|hash| !known.contains_key(hash))
             .copied()
             .collect();
-        let (read, refusal) = self.read_required(&unknown)?;
+        let (read, refusal) = self.read_required(&unknown, raisable)?;
+        let (refreshed, read): (Vec<_>, Vec<_>) = read.into_iter().partition(|(_, _, held)| *held);
+        let read: Vec<_> = read
+            .into_iter()
+            .map(|(hash, object, _)| (hash, object))
+            .collect();
+        let refreshed: Vec<_> = refreshed
+            .into_iter()
+            .map(|(hash, object, _)| (hash, object))
+            .collect();
         self.remember_verified(&read)?;
+        self.refresh_verified(&refreshed)?;
         let mut read = read
             .into_iter()
+            .chain(refreshed)
             .map(|(hash, CheckedObject(object))| (hash, object))
             .collect::<BTreeMap<_, _>>();
         let mut objects = Vec::with_capacity(hashes.len());
@@ -676,13 +746,16 @@ impl<S: EventStore> EventlogStore<S> {
             None => Ok(objects),
         }
     }
-    /// [`Self::required`] for objects this handle has not verified yet: their streams in one
-    /// batch, then their blobs in one batch, checked in order up to the first refusal.
+    /// [`Self::required`] for objects this handle has not verified yet, and for those in `held`
+    /// whose class may have been raised: their streams in one batch, then the blobs of those not in
+    /// `held` in one batch, checked in order up to the first refusal. Each result says whether it
+    /// was held.
     #[allow(clippy::type_complexity)]
     fn read_required(
         &self,
         hashes: &[ContentHash],
-    ) -> Result<(Vec<(ContentHash, CheckedObject)>, Option<StoreError>), StoreError> {
+        mut held: BTreeMap<ContentHash, RetainedObject>,
+    ) -> Result<(Vec<(ContentHash, CheckedObject, bool)>, Option<StoreError>), StoreError> {
         if hashes.is_empty() {
             return Ok((Vec::new(), None));
         }
@@ -711,20 +784,35 @@ impl<S: EventStore> EventlogStore<S> {
             }
         }
         let mut objects = Vec::with_capacity(stored.len());
-        if !stored.is_empty() {
-            let reads: Vec<Read> = stored
-                .iter()
-                .map(|(hash, _, _)| Read::Blob {
-                    tenant: self.tenant.clone(),
-                    digest: hash.to_hex(),
-                })
-                .collect();
-            for ((hash, events, meta), blob) in stored.into_iter().zip(self.batch(&reads)?) {
-                let ReadResult::Blob(blob) = blob else {
-                    return Err(StoreError::Document("batch-read-disagrees".into()));
-                };
-                objects.push((hash, retained_object(hash, &events, meta, blob)?.0));
-            }
+        let reads: Vec<Read> = stored
+            .iter()
+            .filter(|(hash, _, _)| !held.contains_key(hash))
+            .map(|(hash, _, _)| Read::Blob {
+                tenant: self.tenant.clone(),
+                digest: hash.to_hex(),
+            })
+            .collect();
+        let mut blobs = if reads.is_empty() {
+            Vec::new()
+        } else {
+            self.batch(&reads)?
+        }
+        .into_iter();
+        for (hash, events, meta) in stored {
+            let (checked, was_held) = match held.remove(&hash) {
+                // Bytes this handle verified against `hash` when it first read them.
+                Some(object) => (
+                    checked_object(hash, &events, meta, object.bytes, |_| true)?.0,
+                    true,
+                ),
+                None => {
+                    let Some(ReadResult::Blob(blob)) = blobs.next() else {
+                        return Err(StoreError::Document("batch-read-disagrees".into()));
+                    };
+                    (retained_object(hash, &events, meta, blob)?.0, false)
+                }
+            };
+            objects.push((hash, checked, was_held));
         }
         Ok((objects, refusal))
     }
@@ -750,8 +838,7 @@ impl<S: EventStore> EventlogStore<S> {
             .lock()
             .map_err(|_| StoreError::Document("verified-object-memo-poisoned".into()))?;
         for (hash, CheckedObject(object)) in read {
-            let bytes = Arc::new(object.bytes.clone());
-            crate::verified::register(*hash, &bytes);
+            let bytes = crate::verified::register(*hash, &object.bytes);
             held.insert(
                 *hash,
                 HeldObject {
@@ -761,6 +848,26 @@ impl<S: EventStore> EventlogStore<S> {
             );
         }
         Ok(())
+    }
+    /// Records the retention class a stream re-read found for objects this handle holds.
+    fn refresh_verified(&self, read: &[(ContentHash, CheckedObject)]) -> Result<(), StoreError> {
+        let mut held = self
+            .verified
+            .lock()
+            .map_err(|_| StoreError::Document("verified-object-memo-poisoned".into()))?;
+        for (hash, CheckedObject(object)) in read {
+            if let Some(kept) = held.get_mut(hash) {
+                kept.metadata = object.metadata.clone();
+            }
+        }
+        Ok(())
+    }
+    /// Drops everything this handle holds: the revision prefix and every verified object.
+    fn forget_everything(&self, revisions: &mut HeldRevisions) {
+        *revisions = HeldRevisions::default();
+        if let Ok(mut held) = self.verified.lock() {
+            held.clear();
+        }
     }
     /// Forgets the verified objects a write of this handle may have moved: their retention.
     fn forget_verified(&self, digests: impl IntoIterator<Item = String>) {
@@ -1300,10 +1407,18 @@ impl<S: AtomicBlobEventStore> ObjectStore for EventlogStore<S> {
         }
         Err(StoreError::Conflict)
     }
-    /// An object this handle already verified is answered from what it holds; any other is read
-    /// and checked, and then held.
+    /// An object this handle already verified is answered from what it holds, once the provider
+    /// has confirmed the handle's held state as a history read does; any other is read and
+    /// checked, and then held.
     fn get(&self, hash: &ContentHash) -> Result<Option<Vec<u8>>, StoreError> {
         ensure_sync_context()?;
+        {
+            let mut held = self
+                .revisions
+                .lock()
+                .map_err(|_| StoreError::Document("held-revisions-poisoned".into()))?;
+            self.confirm_held(&self.revision_stream()?, &mut held)?;
+        }
         if let Some(held) = self.verified_objects(&[*hash])?.remove(hash) {
             return Ok(Some(held.bytes));
         }
@@ -1419,17 +1534,27 @@ fn stored_metadata(events: &[RecordedEvent]) -> Result<Option<ObjectMetadata>, S
 fn retained_object(
     hash: ContentHash,
     events: &[RecordedEvent],
-    mut meta: ObjectMetadata,
+    meta: ObjectMetadata,
     blob: Option<Vec<u8>>,
 ) -> Result<(CheckedObject, u64), StoreError> {
-    let later = events.get(1..).unwrap_or_default();
     let bytes =
         blob.ok_or_else(|| StoreError::Document("object-integrity: native blob missing".into()))?;
     crate::verified::count(|work| work.blobs_read += 1);
-    if meta.content_hash != hash
-        || meta.byte_len != bytes.len() as u64
-        || !crate::verified::addresses(hash, &bytes)
-    {
+    checked_object(hash, events, meta, bytes, |bytes| {
+        crate::verified::addresses(hash, bytes)
+    })
+}
+/// [`retained_object`]'s checks of a stream, its metadata and `bytes`, however the bytes were
+/// obtained; `addressed` says whether they are the payload `hash` addresses.
+fn checked_object(
+    hash: ContentHash,
+    events: &[RecordedEvent],
+    mut meta: ObjectMetadata,
+    bytes: Vec<u8>,
+    addressed: impl FnOnce(&[u8]) -> bool,
+) -> Result<(CheckedObject, u64), StoreError> {
+    let later = events.get(1..).unwrap_or_default();
+    if meta.content_hash != hash || meta.byte_len != bytes.len() as u64 || !addressed(&bytes) {
         return Err(StoreError::Document(
             "object-integrity: address or byte length disagrees".into(),
         ));

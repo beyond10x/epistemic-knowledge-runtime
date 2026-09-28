@@ -49,24 +49,28 @@ pub(crate) fn addresses(hash: ContentHash, bytes: &[u8]) -> bool {
     ContentHash::of_bytes(bytes) == hash
 }
 
-/// Records `bytes` as verified for `hash`. The caller must have established that with
-/// [`addresses`]; `crate::eventlog` does so for every object it passes here, through the one
-/// function that checks a loaded blob.
-pub(crate) fn register(hash: ContentHash, bytes: &Arc<Vec<u8>>) {
+/// The shared verified copy of the payload `hash` addresses, for a handle to keep: the copy another
+/// handle already keeps, if one does, and otherwise `bytes`, registered.
+///
+/// The caller must have established that `bytes` are what `hash` addresses, with [`addresses`];
+/// `crate::eventlog` does so for every object it passes here, through the one function that checks
+/// a loaded blob. A live copy is verified for the same address, so the caller keeps it in place of
+/// its own: one copy per process, and each handle keeps the registered one alive for as long as it
+/// holds the object, whichever handle registered it.
+pub(crate) fn register(hash: ContentHash, bytes: &[u8]) -> Arc<Vec<u8>> {
     let Ok(mut registry) = REGISTRY.lock() else {
-        return;
+        return Arc::new(bytes.to_vec());
     };
-    let live = registry
-        .by_hash
-        .get(&hash)
-        .is_some_and(|held| held.strong_count() > 0);
-    if !live {
-        registry.by_hash.insert(hash, Arc::downgrade(bytes));
+    if let Some(live) = registry.by_hash.get(&hash).and_then(Weak::upgrade) {
+        return live;
     }
+    let held = Arc::new(bytes.to_vec());
+    registry.by_hash.insert(hash, Arc::downgrade(&held));
     if registry.by_hash.len() >= registry.prune_at {
         registry.by_hash.retain(|_, held| held.strong_count() > 0);
         registry.prune_at = PRUNE_FLOOR.max(registry.by_hash.len() * 2);
     }
+    held
 }
 
 /// Work the reads on the calling thread have done since [`read_work`] last reported.
@@ -81,7 +85,9 @@ pub struct ReadWork {
     pub blobs_read: u64,
     /// Blobs whose content address this crate computed over their bytes.
     pub blobs_hashed: u64,
-    /// Revision-stream events fetched from the provider.
+    /// Revision-stream occurrences fetched from the provider and checked for the first time. The
+    /// one held occurrence each read fetches again, to confirm the provider still has it, is not
+    /// counted.
     pub occurrences_read: u64,
 }
 
@@ -119,12 +125,18 @@ mod registry {
     fn equal_bytes_skip_the_hash_and_any_other_bytes_are_hashed() {
         let bytes = b"verified-registry unit payload".to_vec();
         let hash = ContentHash::of_bytes(&bytes);
-        let held = Arc::new(bytes.clone());
+
         let _ = read_work();
         assert!(addresses(hash, &bytes));
         assert_eq!(read_work().blobs_hashed, 1, "unregistered bytes are hashed");
 
-        register(hash, &held);
+        let held = register(hash, &bytes);
+        let again = register(hash, &bytes);
+        assert!(
+            Arc::ptr_eq(&held, &again),
+            "a live copy is shared, not duplicated"
+        );
+        drop(again);
         assert!(addresses(hash, &bytes));
         assert_eq!(
             read_work().blobs_hashed,
