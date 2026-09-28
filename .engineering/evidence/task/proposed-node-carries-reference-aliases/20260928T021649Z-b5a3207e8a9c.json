@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-28T02:16:49Z",
+  "actor": "human:timo",
+  "artifact": "task:proposed-node-carries-reference-aliases",
+  "kind": "task",
+  "revision": 4,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "task check in CI on PR #36, Correctness run 36368580034 (success, 7m49s), merged as 0251272f",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/36368580034"
+  }
+}

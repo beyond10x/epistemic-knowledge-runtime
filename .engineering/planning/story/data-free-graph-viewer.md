@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:data-free-graph-viewer
 kind: story
-status: active
+status: implemented
 title: The embedded graph viewer names no type, edge type, property or entity
 relations:
 - serves: vision:o5
@@ -15,10 +15,11 @@ scope:
   path: crates/ekr/tests
 - confidence: inferred
   path: docs/cli.md
-revision: 7
+revision: 8
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-27T18:34:03Z", actor: "human:timo", revision: 5, imported: true}
 - {from: "proposed", to: "active", at: "2026-09-27T18:34:19Z", actor: "human:timo", revision: 6, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-28T02:16:48Z", actor: "human:timo", revision: 8, decided_on: {"recorded":{"test_result":1,"review_outcome":4}}}
 ---
 ## Context
 
