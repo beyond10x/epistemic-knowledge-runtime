@@ -151,3 +151,21 @@ wraps only commit, tag, push and fetch, so `bot -- merge` is refused.
 `b10x-gates bot -- commit -F <file>`, then read `git log --format='%an|%cn' -1`. Commit store writes
 as soon as they are made. Before any `git reset`, `checkout` or `restore`, run
 `git status --porcelain` and do not proceed while it lists anything you have not committed.
+
+## 9. A unit gate is not the wave gate: run the cross-crate checks the units skipped
+
+**Twice, two waves in a row.** Wave read-01: unit W changed `publish` in `crates/ekr-store`, its
+gates were scoped to its own crates, and `crates/ekr/tests/story_contract.rs` (which reads that
+function's text) failed first in the pull request's CI. Wave read-02: the adversaries' test files
+were committed as written, unformatted, and `fmt-check` failed the pull request after 29 s.
+
+**The check.** Before pushing the integration branch for its pull request, run on the combined
+tree, in one build directory:
+
+```console
+$ cargo fmt --all -- --check
+$ cargo clippy --locked --workspace --all-targets -- -D warnings
+$ cargo test --locked -p ekr --test story_contract --test public_surface --test docs_cli --test agent_cli
+```
+
+and run `cargo fmt --all` on every file an adversary wrote before committing it.
