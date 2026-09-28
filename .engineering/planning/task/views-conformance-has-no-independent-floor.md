@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: task:views-conformance-has-no-independent-floor
 kind: task
-status: draft
+status: implemented
 title: The views conformance suite's expected scenario set is read from the suite under test
 summary: 'Coverage concern: deleting an authored views scenario and regenerating the suite keeps every gate green'
 tags:
@@ -12,7 +12,11 @@ relations:
 - serves: vision:o5
 - derived_from: story:graph-projection-renderer
 - derived_from: story:view-streams-overview-and-expansion
-revision: 1
+revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-28T17:47:34Z", actor: "agent:claude-coordinator", revision: 2, decided_on: {"recorded":{"review_outcome":3}}}
+- {from: "proposed", to: "active", at: "2026-09-28T17:47:34Z", actor: "agent:claude-coordinator", revision: 3, decided_on: {"recorded":{"review_outcome":3}}}
+- {from: "active", to: "implemented", at: "2026-09-28T17:47:34Z", actor: "agent:claude-coordinator", revision: 4, decided_on: {"recorded":{"test_result":1,"review_outcome":3}}}
 ---
 ## Severity
 

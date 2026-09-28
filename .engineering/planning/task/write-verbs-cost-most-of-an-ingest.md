@@ -2,12 +2,15 @@
 format: aep.planning-md/3
 id: task:write-verbs-cost-most-of-an-ingest
 kind: task
-status: draft
+status: active
 title: A write verb costs about 0.6 s inside ekr session
 relations:
 - serves: vision:o5
 - derived_from: story:ekr-session
-revision: 1
+revision: 3
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-28T17:47:34Z", actor: "agent:claude-coordinator", revision: 2, decided_on: {"recorded":{"review_outcome":2}}}
+- {from: "proposed", to: "active", at: "2026-09-28T17:47:34Z", actor: "agent:claude-coordinator", revision: 3, decided_on: {"recorded":{"review_outcome":2}}}
 ---
 ## What is wrong
 

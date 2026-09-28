@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-28T17:30:00Z",
+  "actor": "agent:claude-coordinator",
+  "artifact": "story:mcp-read-tools",
+  "kind": "story",
+  "revision": 17,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Correctness CI (task check) on PR #42 head 0a693362",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/36458995840"
+  }
+}

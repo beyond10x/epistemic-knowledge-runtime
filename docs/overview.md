@@ -2,7 +2,7 @@
 
 This page is for a reader who is new to the Epistemic Knowledge Runtime (EKR). It explains what the
 runtime keeps, how a change travels from a proposal to a committed revision, and where the project
-is going. It then says which parts release 0.0.12 has and which are still plans.
+is going. It then says which parts release 0.0.13 has and which are still plans.
 
 Two pages go further. [The `ekr` guide](guide.md) walks through the same pipeline with a real store,
 command by command. [Schema evolution](schema-evolution.md) shows how the schema grows after seeding.
@@ -183,7 +183,7 @@ itself tidy: it consolidates, decays and forgets. The central sentence of the de
 integrate is itself information*
 ([design § 1](epistemic-knowledge-runtime-design.md#1-executive-summary), [§ 25](epistemic-knowledge-runtime-design.md#25-failure-to-integrate-as-information)).
 
-The diagram marks what exists in 0.0.12 (solid, green) and what is planned (dashed, grey).
+The diagram marks what exists in 0.0.13 (solid, green) and what is planned (dashed, grey).
 
 ```mermaid
 flowchart TB
@@ -211,9 +211,9 @@ flowchart TB
   CC -.-> MT
 ```
 
-### What exists in 0.0.12 and what is planned
+### What exists in 0.0.13 and what is planned
 
-| capability | design | 0.0.12 | planned in |
+| capability | design | 0.0.13 | planned in |
 |---|---|---|---|
 | typed schema: node types, edge types, eleven value kinds, lifecycles and named operations | § 11–12, § 87 | yes, declared in the seed | P1 (done) |
 | propose, validate, commit, with the operator and the validator kept apart | § 19–20, § 91 | yes | P1 (done) |
@@ -232,7 +232,7 @@ flowchart TB
 | `MergeEntity` | § 46 | parses, refused as `unsupported-operation` | P3, merge and split with lineage |
 | observations, source adapters, checkpoints, credential redaction | § 15–16, § 54–57 | no | P2 |
 | incubation forest, transient roots, interpretation sessions, entity resolution | § 22–28 | no; the one graph root is `Canonical` | P3 |
-| attention queue, answers as evidence, approvals for outward writes, rendered views, read-only MCP tools | § 81–84, § 62 | a read-only graph viewer, `ekr view`, since 0.0.11; the rest no, and `ekr explain` gives the commit-level chain only | P4 |
+| attention queue, answers as evidence, approvals for outward writes, rendered views, read-only MCP tools | § 81–84, § 62 | a read-only graph viewer, `ekr view`, since 0.0.11, and read-only MCP tools, `ekr mcp`, since 0.0.13; the rest no, and `ekr explain` gives the commit-level chain only | P4 |
 | frontier, schema discovery from evidence, `SchemaProposal` with risk classes, the unattended loop with a budget | § 30–33, § 50 | no | P5 |
 | retention, consolidation, decay, GC, deletion requests, health metrics | § 35–43, § 60–61 | no | P6 |
 | importing the two predecessor systems' data | [predecessors](predecessors.md) § 9 | no | P7 |

@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:mcp-read-tools
 kind: story
-status: draft
+status: implemented
 title: Agents read canonical state through read-only MCP tools
 relations:
 - serves: vision:o5
@@ -24,7 +24,11 @@ scope:
   path: crates/ekr/tests/mcp.rs
 - confidence: cited
   path: docs/cli.md
-revision: 15
+revision: 18
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-28T17:47:34Z", actor: "agent:claude-coordinator", revision: 16, decided_on: {"recorded":{"review_outcome":3}}}
+- {from: "proposed", to: "active", at: "2026-09-28T17:47:34Z", actor: "agent:claude-coordinator", revision: 17, decided_on: {"recorded":{"review_outcome":3}}}
+- {from: "active", to: "implemented", at: "2026-09-28T17:47:34Z", actor: "agent:claude-coordinator", revision: 18, decided_on: {"recorded":{"test_result":1,"review_outcome":3}}}
 ---
 ## Context
 
