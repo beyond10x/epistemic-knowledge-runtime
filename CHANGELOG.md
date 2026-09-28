@@ -4,6 +4,40 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.13] — 2026-09-28
+
+Agents read the store through MCP; write verbs cost less inside a session.
+
+### Added
+
+- `ekr mcp`: a read-only MCP server over stdio (JSON-RPC 2.0, one message per line), protocol
+  `2025-11-25` or `2025-06-18`. Seven tools: `overview`, `search`, `describe_node`, `expand` and
+  `timeline` answer the `ekr.views` documents byte for byte; `explain` and `resolve` answer
+  exactly what `ekr explain` and `ekr resolve` print. A refusal is an `isError` result with the
+  same refusal name `ekr view` or the verb gives; no tool proposes, validates or commits. The
+  server opens one store, re-reads the head on every call and sees commits another process makes.
+  `ekr session` refuses `mcp`. See `docs/cli.md` § `ekr mcp` for arguments and error codes.
+
+### Changed
+
+- Write verbs: a store handle authorizes a publication preparation once, and the candidate replay
+  still precedes every append; the kernel answers a verdict without copying the head graph;
+  replay states are shared, not copied. Inside `ekr session` on a 19 MB file store (tmpfs,
+  median): `propose` 120–167 → 58–88 ms, `validate` 140–188 → 78–144 ms, `commit`
+  185–277 → 123–212 ms.
+- The views conformance suite is held to `systems/ekr/conformance/views-baseline.json`: every
+  scenario name, each authored scenario's sha256, and a step-count floor per scenario.
+- AEP 0.64.0 (from 0.63.1) for the planning store; `.engineering/project.yaml` names the 0.64.0
+  tag commit (`58433bd8`) as its protocols.
+
+### Known limits
+
+- A `commit` still costs more than 100 ms in a session: the replay checkpoint on every commit and
+  the pointer after every verb (`task:checkpoint-cadence-costs-each-commit`), and the eventlog file
+  provider re-hashing the log after a write and syncing 28 times per verb
+  (`task:eventlog-rehash-and-fsync-per-write`).
+- No tool yet answers what changed since a revision or a time (`story:changes-since-read`).
+
 ## [0.0.12] — 2026-09-28
 
 Ingestion throughput: many calls over one opened store, and a store verified and decoded once per
