@@ -1829,8 +1829,10 @@ mod tests {
     fn every_bounded_read_on_an_unseeded_store_is_not_seeded_after_its_bounds() {
         let host = crate::host::CliHostConfigurationV1::from_json(
             &std::fs::read(
-                std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                    .join("tests/fixtures/retraction/host.json"),
+                std::path::PathBuf::from(
+                    std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR"),
+                )
+                .join("tests/fixtures/retraction/host.json"),
             )
             .unwrap(),
         )

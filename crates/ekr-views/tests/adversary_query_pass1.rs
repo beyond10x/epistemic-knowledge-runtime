@@ -91,7 +91,10 @@ fn generate(rng: &mut Lcg) -> Generated {
 fn seed_generated(generated: &Generated) -> (tempfile::TempDir, Runtime) {
     let mut document = ekr_kernel::SeedDocument::from_yaml(
         &std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/seed-empty.yaml"),
+            std::path::PathBuf::from(
+                std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR"),
+            )
+            .join("tests/fixtures/seed-empty.yaml"),
         )
         .unwrap(),
     )
@@ -503,7 +506,10 @@ fn every_detail_of_every_revision_carries_every_assertion_about_and_at_the_node(
 fn named_seed(names: &[(&str, &[&str])]) -> (tempfile::TempDir, Runtime) {
     let mut document = ekr_kernel::SeedDocument::from_yaml(
         &std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/seed-empty.yaml"),
+            std::path::PathBuf::from(
+                std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR"),
+            )
+            .join("tests/fixtures/seed-empty.yaml"),
         )
         .unwrap(),
     )
@@ -617,7 +623,10 @@ fn the_default_overview_of_ten_types_dated_weekly_for_ten_years_stays_under_300_
     const WEEK_MS: i64 = 604_800_000;
     let mut document = ekr_kernel::SeedDocument::from_yaml(
         &std::fs::read_to_string(
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/seed-empty.yaml"),
+            std::path::PathBuf::from(
+                std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR"),
+            )
+            .join("tests/fixtures/seed-empty.yaml"),
         )
         .unwrap(),
     )

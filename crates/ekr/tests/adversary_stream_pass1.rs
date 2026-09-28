@@ -21,7 +21,7 @@ const ALICE: &str = "00000000-0000-4000-8000-000000000301";
 const STAR_NODES: usize = 400;
 
 fn fixture(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/retraction")
         .join(name)
 }
