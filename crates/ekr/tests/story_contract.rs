@@ -830,7 +830,9 @@ fn seed_admission_is_kernel_owned_and_the_commit_api_lends_no_writer() {
     // Amendment 94 and ADR 0009 replaced `admit_seed` with one publication path: `initialize`
     // accepts only a Seeded occurrence at version zero and delegates to `publish`, and `publish`
     // replays the candidate history — the pending occurrence included — through the injected
-    // kernel authority before it builds any native append.
+    // kernel authority before it builds any native append. Since design § 98 it asks for the
+    // verdict alone (`CommitAuthority::verify`, `Ok` exactly where `replay` admits), which the
+    // kernel answers from the same replay without copying the head graph.
     let store = std::fs::read_to_string(root.join("crates/ekr-store/src/eventlog.rs")).unwrap();
     let initialize = &store[store
         .find("fn initialize(&self, publication: &Publication)")
@@ -848,7 +850,7 @@ fn seed_admission_is_kernel_owned_and_the_commit_api_lends_no_writer() {
         .find("history.occurrences.push(")
         .expect("publish stages the candidate occurrence");
     let admitted = publish[staged..]
-        .find(".replay(&history, self.ontology.as_ref(), None)?")
+        .find(".verify(&history, self.ontology.as_ref(), None)?")
         .map(|at| staged + at)
         .expect("publish replays the staged candidate through the kernel authority");
     let written = publish
