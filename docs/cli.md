@@ -84,10 +84,10 @@ not input: keep it next to the store and use the same file for every command aga
 | `context.validator` | the agent id that validates. It must differ from the operator |
 | `authority.format` | exactly `ekr.authority-state/1` |
 | `authority.agents` | a map from agent id to `{id, name, capabilities}`. The key must equal `id`; both the operator and the validator must be registered. `name` is a label. `capabilities` is a list of distinct strings that P1 records and does not interpret (the example uses `propose`, `read` and `validate`) |
-| `authority.validation_profile` | one of the two deterministic validation profiles. Copy it from `ekr example ekr.cli-host/1` unchanged except `validator`, which must equal `context.validator`. That is profile v1 (`ruleset` `ekr.p1-deterministic/1`, `application` `ekr.p1-apply/1`), under which the schema is fixed at seeding. Profile v2 is the same with `ruleset` `ekr.p2-deterministic/1` and `application` `ekr.p2-apply/1`, and admits [schema changes](#evolve-the-schema). A store keeps the profile it was seeded under |
+| `authority.validation_profile` | one of the three deterministic validation profiles. Copy it from `ekr example ekr.cli-host/1` unchanged except `validator`, which must equal `context.validator`. That is profile v1 (`ruleset` `ekr.p1-deterministic/1`, `application` `ekr.p1-apply/1`), under which the schema is fixed at seeding. Profile v2 is the same with `ruleset` `ekr.p2-deterministic/1` and `application` `ekr.p2-apply/1`, and admits [schema changes](#evolve-the-schema). Profile v3 is v2 with `ruleset` `ekr.p3-deterministic/1` and the same `application` `ekr.p2-apply/1`: it admits schema changes as v2 does, and also refuses a `CreateNode` or `CreateEdge` whose id an earlier revision held, such as a deleted edge's (`identity-previously-held`). What this page says of profile v2 holds of v3. A store keeps the profile it was seeded under |
 
 Unknown, missing or duplicated fields are refused. A host document that parses but whose profile is
-neither of the two, or whose agent registry the kernel does not accept, is refused when the
+none of the three, or whose agent registry the kernel does not accept, is refused when the
 store is opened, by any store verb including
 `ekr seed`: `ekr: opening the provider: invalid seed: seed-authority-profile`, exit 1 (an operator
 equal to the validator reads `…: invalid seed: proposer-is-validator`). The host's authority is
@@ -733,7 +733,7 @@ on such a line is held to the `/1` cap.
 
 ### Operation kinds
 
-There are twelve kinds. Eight are applied under either validation profile. Three are **schema
+There are twelve kinds. Eight are applied under every validation profile. Three are **schema
 changes**, applied only under profile v2 and only in a transaction of their own that names its
 `schema_version` ([Evolve the schema](#evolve-the-schema)); under profile v1 validation rejects them
 with the issue code `unsupported-operation`, so the schema is fixed at seeding. One, `MergeEntity`,
@@ -1634,7 +1634,7 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `seed-evidence-payload-missing` | seed | 2 | an evidence entry's `content_hash` is not a key of `evidence_payloads` | pass the payload file with `--evidence`, or paste the hash `ekr hash` prints as the key |
 | `seed-evidence-payload-mismatch` | seed | 2 | a payload's bytes do not hash to its key | re-run `ekr hash` on the exact bytes |
 | `ekr.kernel.AlreadySeeded` | seed | 2 | the store already holds a different seed | use a new store or tenant |
-| `seed-authority-profile` | any store verb | 1 | the host's `validation_profile` is neither accepted profile exactly — an unknown `ruleset`, or a `ruleset` of one profile with the `application` of the other — or its agent registry does not fit it for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example and keep `ruleset` and `application` a pair: `ekr.p1-deterministic/1` with `ekr.p1-apply/1` (v1) or `ekr.p2-deterministic/1` with `ekr.p2-apply/1` (v2); set `validator` to `context.validator` |
+| `seed-authority-profile` | any store verb | 1 | the host's `validation_profile` is no accepted profile exactly — an unknown `ruleset`, or a `ruleset` of one profile with an `application` it is not paired with — or its agent registry does not fit it for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example and keep `ruleset` and `application` a pair: `ekr.p1-deterministic/1` with `ekr.p1-apply/1` (v1) , `ekr.p2-deterministic/1` with `ekr.p2-apply/1` (v2) or `ekr.p3-deterministic/1` with `ekr.p2-apply/1` (v3); set `validator` to `context.validator` |
 | `store-not-found` | propose, validate, commit, snapshot, explain, head, transactions, ontology, resolve | 1 | `--store` names a path that holds no store: nothing, an empty directory, an empty file, a symlink to nothing, a SQLite database without the runtime's tables, or a file-store directory holding only what `ekr seed` writes before its manifest; nothing is created there. Only `ekr seed` creates a store, and a seed that is refused creates none | check `--store` or `EKR_STORE`; run `ekr seed` first |
 | `bootstrap-authority-mismatch` | any store verb | 1 | the store was seeded under a host document whose authority differs from this one | use the host document the store was seeded with |
 | `ekr.kernel.ProposalAttribution` | propose | 2 | the document's `proposer` is not the host operator | use `context.operator` |
@@ -1679,6 +1679,7 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `assertion-without-evidence` | validation issue | 0 | an assertion cites no evidence | cite at least one evidence id |
 | `assertion-states-its-own-verdict` | validation issue | 0 | an assertion written with a complete assessment other than `Proposed`, such as `!Accepted {validators: [...]}` (a bare `Accepted` is refused earlier, as `ekr.kernel.StructurallyInvalid`) | write `assessment: Proposed` |
 | `identity-already-exists` | validation issue | 0 | a create reuses an id that already exists | `ekr mint` a fresh id |
+| `identity-previously-held` | validation issue | 0 | under profile v3, a `CreateNode` or `CreateEdge` takes an id an earlier revision held for a node or an edge, such as a deleted edge's | `ekr mint` a fresh id |
 | `duplicate-identity` | validation issue | 0 | one transaction creates the same id twice | `ekr mint` one id per created thing |
 | `alias-already-exists` | validation issue | 0 | a `CreateNode` gives a non-empty alias that a node of the same type already holds | resolve the reference and use that node instead of creating one |
 | `duplicate-alias` | validation issue | 0 | two `CreateNode` operations of one transaction give the same non-empty alias to nodes of one type | give each alias to one node |

@@ -6,16 +6,28 @@
 //! against an earlier revision, whose graph a checkpoint does not hold, replays in full; and
 //! every record and preparation a command retains spells its byte strings as base64 and holds
 //! each staged object once.
+//!
+//! The forgery cases run under validation profile v1 and again under v3, whose checkpoint also
+//! carries every node and edge identity the lineage held (`task:deleted-edge-id-is-reusable`).
 use ekr_core::*;
 use ekr_graph::*;
 use ekr_kernel::*;
-use ekr_ontology::{NodeType, PropertyDefinition, Value, ValueType};
+use ekr_ontology::{Cardinality, EdgeType, NodeType, PropertyDefinition, Value, ValueType};
 use ekr_store::RevisionLog;
 use serde::Serialize;
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 const TENANT: &str = "checkpoint";
+/// The seed's edge type, from `Subject` to `Subject`.
+const RELATES: &str = "00000000-0000-4000-8000-000000000008";
+
+thread_local! {
+    /// Whether the stores this test thread opens run validation profile v3 rather than v1. Each
+    /// test runs on its own thread, so a case that sets it affects only itself.
+    static KEEPS_IDENTITIES: Cell<bool> = const { Cell::new(false) };
+}
 
 fn context() -> BootstrapContext {
     BootstrapContext {
@@ -40,7 +52,11 @@ fn anchor() -> AuthorityStateV1 {
                 )
             })
             .collect(),
-        validation_profile: ValidationProfileV1::deterministic(c.validator),
+        validation_profile: if KEEPS_IDENTITIES.get() {
+            ValidationProfileV1::identity_keeping(c.validator)
+        } else {
+            ValidationProfileV1::deterministic(c.validator)
+        },
     }
 }
 fn open(path: &Path, file: bool) -> Runtime {
@@ -66,6 +82,11 @@ fn seed() -> SeedDocument {
         PropertyDefinition::new(label, "label", ValueType::String),
     );
     seed.ontology.node_types.push(declared);
+    let mut relates = EdgeType::new(RELATES.parse().unwrap(), "relates");
+    relates.source_types = [type_id].into_iter().collect();
+    relates.target_types = [type_id].into_iter().collect();
+    relates.cardinality = Cardinality::Many;
+    seed.ontology.edge_types.push(relates);
     let bytes = b"synthetic human evidence".to_vec();
     let hash = ContentHash::of_bytes(&bytes);
     let evidence = Evidence {
@@ -184,6 +205,74 @@ fn commit_under(
     open(path, file)
         .commit(tx, context().operator, || Timestamp::from_millis(at + 2))
         .unwrap()
+}
+/// Commits revision `n`, a transaction of exactly `operations`, validated against `n - 1`.
+fn commit_operations(path: &Path, file: bool, n: u64, operations: Vec<GraphOperation>) {
+    #[derive(Serialize)]
+    struct Wire<'a> {
+        format: &'static str,
+        transaction: &'a GraphTransaction,
+    }
+    let tx = GraphTransaction {
+        id: TransactionId::mint(),
+        proposer: context().operator,
+        operations,
+        evidence: BTreeSet::new(),
+        schema_version: None,
+    };
+    let bytes = serde_yaml_ng::to_string(&Wire {
+        format: "ekr.transaction-document/1",
+        transaction: &tx,
+    })
+    .unwrap()
+    .into_bytes();
+    let at = i64::try_from(n * 100).unwrap();
+    open(path, file)
+        .propose(&bytes, context().operator, || Timestamp::from_millis(at))
+        .unwrap();
+    let verdict = open(path, file)
+        .validate(tx.id, RevisionNumber::new(n - 1), || {
+            Timestamp::from_millis(at + 1)
+        })
+        .unwrap();
+    assert!(
+        matches!(verdict, ValidationCommandResult::Validated(_)),
+        "{verdict:?}"
+    );
+    let result = open(path, file)
+        .commit(tx.id, context().operator, || Timestamp::from_millis(at + 2))
+        .unwrap();
+    assert!(
+        matches!(result, CommitCommandResult::Committed(_)),
+        "{result:?}"
+    );
+}
+/// [`build`] of two revisions, then revision 3 creating an edge between two nodes of revision 1
+/// and revision 4 deleting it again. Returns the seed and the deleted edge's id.
+fn build_with_a_deleted_edge(path: &Path, file: bool) -> (SeedDocument, EdgeId) {
+    let seed = build(path, file, 2);
+    let nodes: Vec<NodeId> = open(path, file)
+        .replay(RevisionNumber::new(1))
+        .unwrap()
+        .nodes
+        .into_keys()
+        .collect();
+    let deleted = EdgeId::mint();
+    commit_operations(
+        path,
+        file,
+        3,
+        vec![GraphOperation::CreateEdge(EdgeDraft {
+            id: deleted,
+            root_id: seed.graph.root.id,
+            type_id: RELATES.parse().unwrap(),
+            source: nodes[0],
+            target: nodes[1],
+            properties: BTreeMap::new(),
+        })],
+    );
+    commit_operations(path, file, 4, vec![GraphOperation::DeleteEdge(deleted)]);
+    (seed, deleted)
 }
 type Answers = (
     Option<Root>,
@@ -389,13 +478,58 @@ fn forgeries() -> Vec<(&'static str, &'static str, Forge)> {
         }),
     ]
 }
+/// Each forgery of the identities a profile-v3 checkpoint says its lineage held.
+fn held_forgeries() -> Vec<(&'static str, &'static str, Forge)> {
+    vec![
+        ("held", "a dropped deleted edge id", |forged| {
+            for at in forged["held"].as_array_mut().unwrap() {
+                at["edges"] = serde_json::json!([]);
+            }
+        }),
+        ("held", "an id held from a later revision", |forged| {
+            let at = forged["held"].as_array_mut().unwrap().last_mut().unwrap();
+            at["from"] = (at["from"].as_u64().unwrap() + 1).into();
+        }),
+        ("held", "an extra held node id", |forged| {
+            forged["held"][0]["nodes"]
+                .as_array_mut()
+                .unwrap()
+                .push(serde_json::to_value(NodeId::mint()).unwrap());
+        }),
+        ("held", "no held ids", |forged| {
+            forged.as_object_mut().unwrap().remove("held");
+        }),
+    ]
+}
 
 #[test]
 fn a_checkpoint_that_does_not_verify_is_ignored_and_the_history_replays_in_full() {
+    forged_checkpoints_are_ignored(false);
+}
+
+/// The same under profile v3, whose checkpoint also carries the identities every revision held,
+/// over a lineage that created an edge and deleted it: only its checkpoint names that edge's id.
+#[test]
+fn a_v3_checkpoint_that_does_not_verify_is_ignored_and_the_history_replays_in_full() {
+    KEEPS_IDENTITIES.set(true);
+    forged_checkpoints_are_ignored(true);
+}
+
+fn forged_checkpoints_are_ignored(v3: bool) {
     for file in [false, true] {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path();
-        let seed = build(path, file, 2);
+        let seed = if v3 {
+            let (seed, deleted) = build_with_a_deleted_edge(path, file);
+            assert!(!open(path, file)
+                .snapshot()
+                .unwrap()
+                .edges
+                .contains_key(&deleted));
+            seed
+        } else {
+            build(path, file, 2)
+        };
         let truth = answers(&open_in_full(path, file));
         let evidence = seed_evidence(&open_in_full(path, file), &seed);
         assert!(
@@ -408,7 +542,23 @@ fn a_checkpoint_that_does_not_verify_is_ignored_and_the_history_replays_in_full(
         // The genuine pointer's coverage and binding, so that only the checkpoint is forged.
         let covered = newest["covered"].as_u64().unwrap();
         let binding: ContentHash = serde_json::from_value(newest["binding"].clone()).unwrap();
-        let forgeries = forgeries();
+        // The genuine checkpoint is taken: an open continues from it and replays nothing.
+        let genuine_open = open(path, file);
+        assert_eq!(answers(&genuine_open), truth, "file={file}");
+        assert_eq!(genuine_open.seed_replays(), 0, "file={file}");
+        let mut forgeries = forgeries();
+        if v3 {
+            forgeries.extend(held_forgeries());
+        } else {
+            // A v1 store keeps no identities, and its checkpoint says none: its bytes are the
+            // ones written before profile v3 existed.
+            assert!(genuine.get("held").is_none(), "file={file}: {genuine}");
+            forgeries.push(("held", "held ids in a store that keeps none", |forged| {
+                forged["held"] = serde_json::json!([
+                    { "from": 1, "nodes": [NodeId::mint()], "edges": [] }
+                ]);
+            }));
+        }
         // Every field a checkpoint carries, and every field of the graph root it carries, is
         // forged by at least one case: a field no case changes is a field nothing shows is bound.
         let forged_paths: BTreeSet<&str> = forgeries.iter().map(|(path, _, _)| *path).collect();
@@ -444,10 +594,16 @@ fn a_checkpoint_that_does_not_verify_is_ignored_and_the_history_replays_in_full(
                 serde_json::to_value(ContentHash::of_bytes(&bytes)).unwrap(),
                 "file={file}: the forgery with {name} is the newest checkpoint"
             );
+            let forged_open = open(path, file);
             assert_eq!(
-                answers(&open(path, file)),
+                answers(&forged_open),
                 truth,
                 "file={file}: a checkpoint with {name} is ignored"
+            );
+            assert!(
+                forged_open.seed_replays() > 0,
+                "file={file}: a checkpoint with {name} is ignored, and the open replays from the \
+                 seed"
             );
             assert_eq!(
                 seed_evidence(&open(path, file), &seed),

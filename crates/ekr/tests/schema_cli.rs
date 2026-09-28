@@ -852,12 +852,16 @@ fn the_host_schemas_fixed_texts_are_the_ones_the_authority_check_requires() {
         assert!(constant.is_string(), "{field}: no const in {printed}");
         assert_eq!(constant, example, "{field}");
     }
-    // Two profiles are accepted (design § 95): v1 and v2, each one exact pair of ruleset and
+    // Three profiles are accepted (design § 95): v1, v2 and v3, each one exact pair of ruleset and
     // application. The example host carries v1.
     for (field, admitted) in [
         (
             "ruleset",
-            json!(["ekr.p1-deterministic/1", "ekr.p2-deterministic/1"]),
+            json!([
+                "ekr.p1-deterministic/1",
+                "ekr.p2-deterministic/1",
+                "ekr.p3-deterministic/1"
+            ]),
         ),
         ("application", json!(["ekr.p1-apply/1", "ekr.p2-apply/1"])),
     ] {
@@ -888,6 +892,12 @@ fn the_host_schemas_fixed_texts_are_the_ones_the_authority_check_requires() {
     assert!(
         validator.iter_errors(&v2).next().is_none(),
         "the schema refuses profile v2"
+    );
+    let mut v3 = v2.clone();
+    v3["authority"]["validation_profile"]["ruleset"] = json!("ekr.p3-deterministic/1");
+    assert!(
+        validator.iter_errors(&v3).next().is_none(),
+        "the schema refuses profile v3"
     );
     let mut mixed = host.clone();
     mixed["authority"]["validation_profile"]["ruleset"] = json!("ekr.p2-deterministic/1");

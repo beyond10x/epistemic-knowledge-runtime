@@ -1,4 +1,4 @@
-//! Host-supplied authority anchor and the two exact deterministic validation profiles.
+//! Host-supplied authority anchor and the three exact deterministic validation profiles.
 use crate::{BootstrapContext, ValidatorName};
 use ekr_core::{AgentId, Canonical, Encoder};
 use serde::{Deserialize, Serialize};
@@ -26,12 +26,16 @@ const P1_APPLICATION: &str = "ekr.p1-apply/1";
 const P2_RULESET: &str = "ekr.p2-deterministic/1";
 /// The application of validation profile v2: a committed schema change replaces the ontology.
 const P2_APPLICATION: &str = "ekr.p2-apply/1";
+/// The ruleset of validation profile v3: v2, and a node or edge id any revision held is never
+/// created again (`task:deleted-edge-id-is-reusable`). Applied as v2 is.
+const P3_RULESET: &str = "ekr.p3-deterministic/1";
 
 /// The complete fixed profile under which a store seals and replays decisions.
 ///
-/// Two profiles exist, and each is one exact value for a given validator:
-/// [`ValidationProfileV1::deterministic`] (v1: `ekr.p1-deterministic/1` + `ekr.p1-apply/1`) and
-/// [`ValidationProfileV1::schema_evolving`] (v2: `ekr.p2-deterministic/1` + `ekr.p2-apply/1`).
+/// Three profiles exist, and each is one exact value for a given validator:
+/// [`ValidationProfileV1::deterministic`] (v1: `ekr.p1-deterministic/1` + `ekr.p1-apply/1`),
+/// [`ValidationProfileV1::schema_evolving`] (v2: `ekr.p2-deterministic/1` + `ekr.p2-apply/1`) and
+/// [`ValidationProfileV1::identity_keeping`] (v3: `ekr.p3-deterministic/1` + `ekr.p2-apply/1`).
 /// A store keeps the profile its authority anchor named at seed: the anchor is part of the seed
 /// envelope and compared again on every reopening, and no mechanism moves a store from one to
 /// the other.
@@ -51,18 +55,29 @@ const P2_APPLICATION: &str = "ekr.p2-apply/1";
                 "ruleset": { "const": "ekr.p2-deterministic/1" },
                 "application": { "const": "ekr.p2-apply/1" }
             }
+        },
+        {
+            "properties": {
+                "ruleset": { "const": "ekr.p3-deterministic/1" },
+                "application": { "const": "ekr.p2-apply/1" }
+            }
         }
     ]))
 )]
 #[serde(deny_unknown_fields)]
 pub struct ValidationProfileV1 {
-    /// Exactly `ekr.p1-validation-profile/1`, for both profiles.
+    /// Exactly `ekr.p1-validation-profile/1`, for every profile.
     #[cfg_attr(feature = "schema", schemars(extend("const" = "ekr.p1-validation-profile/1")))]
     pub format: String,
-    /// `ekr.p1-deterministic/1` (v1) or `ekr.p2-deterministic/1` (v2).
+    /// `ekr.p1-deterministic/1` (v1), `ekr.p2-deterministic/1` (v2) or `ekr.p3-deterministic/1`
+    /// (v3).
     #[cfg_attr(
         feature = "schema",
-        schemars(extend("enum" = ["ekr.p1-deterministic/1", "ekr.p2-deterministic/1"]))
+        schemars(extend("enum" = [
+            "ekr.p1-deterministic/1",
+            "ekr.p2-deterministic/1",
+            "ekr.p3-deterministic/1"
+        ]))
     )]
     pub ruleset: String,
     /// All seven checks, in deterministic order.
@@ -75,7 +90,7 @@ pub struct ValidationProfileV1 {
     /// Exactly `retained-admissible-evidence/1`.
     #[cfg_attr(feature = "schema", schemars(extend("const" = "retained-admissible-evidence/1")))]
     pub provenance: String,
-    /// `ekr.p1-apply/1` (v1) or `ekr.p2-apply/1` (v2), matching the ruleset.
+    /// `ekr.p1-apply/1` (v1) or `ekr.p2-apply/1` (v2 and v3), matching the ruleset.
     #[cfg_attr(
         feature = "schema",
         schemars(extend("enum" = ["ekr.p1-apply/1", "ekr.p2-apply/1"]))
@@ -98,15 +113,32 @@ impl ValidationProfileV1 {
         Self::with(validator, P2_RULESET, P2_APPLICATION)
     }
 
-    /// Whether this profile admits schema changes: true of v2 only.
+    /// Validation profile v3 for a host-selected validator: v2, and a `CreateNode` or
+    /// `CreateEdge` over an id any revision of the store held is refused, whether the record that
+    /// held it was a node or an edge and whether it still exists.
     #[must_use]
-    pub fn admits_schema_changes(&self) -> bool {
-        self.ruleset == P2_RULESET && self.application == P2_APPLICATION
+    pub fn identity_keeping(validator: AgentId) -> Self {
+        Self::with(validator, P3_RULESET, P2_APPLICATION)
     }
 
-    /// Whether this is exactly one of the two supported profiles for `validator`.
+    /// Whether this profile admits schema changes: true of v2 and v3.
+    #[must_use]
+    pub fn admits_schema_changes(&self) -> bool {
+        (self.ruleset == P2_RULESET || self.ruleset == P3_RULESET)
+            && self.application == P2_APPLICATION
+    }
+
+    /// Whether this profile holds node and edge ids against the whole lineage: true of v3 only.
+    #[must_use]
+    pub fn keeps_identities(&self) -> bool {
+        self.ruleset == P3_RULESET && self.application == P2_APPLICATION
+    }
+
+    /// Whether this is exactly one of the three supported profiles for `validator`.
     fn is_supported_for(&self, validator: AgentId) -> bool {
-        *self == Self::deterministic(validator) || *self == Self::schema_evolving(validator)
+        *self == Self::deterministic(validator)
+            || *self == Self::schema_evolving(validator)
+            || *self == Self::identity_keeping(validator)
     }
 
     fn with(validator: AgentId, ruleset: &str, application: &str) -> Self {

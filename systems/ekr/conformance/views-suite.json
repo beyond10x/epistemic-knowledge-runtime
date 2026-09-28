@@ -2470,6 +2470,190 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ExpandNeighbourhood",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "depth": {
+              "kind": "literal",
+              "value": -1.0
+            },
+            "edge_limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "seeds": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ExpandNeighbourhood",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "step": "expect_error"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ExpandNeighbourhood",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "depth": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "edge_limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "seeds": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ExpandNeighbourhood",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "step": "expect_error"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ExpandNeighbourhood",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "depth": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "edge_limit": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "seeds": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ExpandNeighbourhood",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "step": "expect_error"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ExpandNeighbourhood",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "depth": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "edge_limit": {
+              "kind": "literal",
+              "value": 5001.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "seeds": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ExpandNeighbourhood",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "step": "expect_error"
         }
       ]
     },
@@ -4027,6 +4211,36 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectOverview",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 501.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectOverview",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "step": "expect_error"
         }
       ]
     },
@@ -4948,6 +5162,40 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.SearchNodes",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 101.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            },
+            "text": {
+              "kind": "literal",
+              "value": "text"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.SearchNodes",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "step": "expect_error"
         }
       ]
     },
