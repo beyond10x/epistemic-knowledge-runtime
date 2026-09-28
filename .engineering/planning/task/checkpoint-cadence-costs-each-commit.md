@@ -2,12 +2,15 @@
 format: aep.planning-md/3
 id: task:checkpoint-cadence-costs-each-commit
 kind: task
-status: draft
+status: active
 title: A replay checkpoint on every commit and a pointer after every verb cost about 45 ms
 relations:
 - serves: vision:o5
 - derived_from: task:write-verbs-cost-most-of-an-ingest
-revision: 1
+revision: 3
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-28T18:16:21Z", actor: "agent:claude-coordinator", revision: 2}
+- {from: "proposed", to: "active", at: "2026-09-28T18:56:02Z", actor: "agent:claude-coordinator", revision: 3}
 ---
 ## What is wrong
 

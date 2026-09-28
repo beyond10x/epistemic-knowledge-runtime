@@ -2,13 +2,16 @@
 format: aep.planning-md/3
 id: epic:p3-incubation-integration
 kind: epic
-status: draft
+status: active
 title: P3 — Incubation, interpretation, integration
 relations:
 - decomposes: initiative:epistemic-knowledge-runtime
 - depends_on: epic:p2-observation-layer
 - serves: vision:o5
-revision: 1
+revision: 3
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-28T18:16:20Z", actor: "agent:claude-coordinator", revision: 2}
+- {from: "proposed", to: "active", at: "2026-09-28T18:16:20Z", actor: "agent:claude-coordinator", revision: 3}
 ---
 ## Context
 

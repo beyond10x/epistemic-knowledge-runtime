@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: task:historical-projection-carries-the-head
 kind: task
-status: draft
+status: active
 title: A projection of a past revision changes bytes when the head moves, against the views determinism rule
 summary: 'Medium: meta.head is emitted in every views format while rule (5) forbids a field that differs between renders of one revision'
 tags:
@@ -12,7 +12,10 @@ relations:
 - serves: vision:o5
 - derived_from: story:graph-projection-renderer
 - derived_from: story:view-streams-overview-and-expansion
-revision: 1
+revision: 3
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-28T18:16:21Z", actor: "agent:claude-coordinator", revision: 2}
+- {from: "proposed", to: "active", at: "2026-09-28T18:56:02Z", actor: "agent:claude-coordinator", revision: 3}
 ---
 ## Severity
 

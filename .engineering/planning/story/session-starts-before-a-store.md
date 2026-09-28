@@ -2,13 +2,27 @@
 format: aep.planning-md/3
 id: story:session-starts-before-a-store
 kind: story
-status: draft
+status: active
 title: ekr session starts before a store exists and can seed it
 relations:
 - serves: vision:o5
 - decomposes: epic:ingestion-throughput
 - derived_from: story:ekr-session
-revision: 1
+scope:
+- confidence: inferred
+  path: crates/ekr/src/cli/mod.rs
+- confidence: inferred
+  path: crates/ekr/src/cli/session.rs
+- confidence: inferred
+  path: crates/ekr/src/main.rs
+- confidence: inferred
+  path: crates/ekr/tests/session.rs
+- confidence: inferred
+  path: docs/cli.md
+revision: 8
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-28T18:16:21Z", actor: "agent:claude-coordinator", revision: 2}
+- {from: "proposed", to: "active", at: "2026-09-28T18:56:02Z", actor: "agent:claude-coordinator", revision: 3}
 ---
 ## Context
 

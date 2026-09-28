@@ -2,13 +2,15 @@
 format: aep.planning-md/3
 id: story:changes-since-read
 kind: story
-status: draft
+status: proposed
 title: Agents ask what changed since a revision or a time
 relations:
 - serves: vision:o5
 - decomposes: epic:p4-operator-surface
 - informed_by: story:mcp-read-tools
-revision: 1
+revision: 2
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-28T18:16:21Z", actor: "agent:claude-coordinator", revision: 2}
 ---
 ## Context
 

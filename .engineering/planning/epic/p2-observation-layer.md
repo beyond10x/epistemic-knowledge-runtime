@@ -2,13 +2,16 @@
 format: aep.planning-md/3
 id: epic:p2-observation-layer
 kind: epic
-status: draft
+status: active
 title: P2 — Observation layer and adapters
 relations:
 - decomposes: initiative:epistemic-knowledge-runtime
 - depends_on: epic:p1-kernel-ontology-core
 - serves: vision:o5
-revision: 2
+revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-28T18:16:19Z", actor: "agent:claude-coordinator", revision: 3}
+- {from: "proposed", to: "active", at: "2026-09-28T18:16:20Z", actor: "agent:claude-coordinator", revision: 4}
 ---
 ## Context
 
