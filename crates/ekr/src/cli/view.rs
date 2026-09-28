@@ -8,10 +8,14 @@
 //! must arrive within 5 s of it, every read waits only for what is left, and a head not complete
 //! by then is 400. The thread reads at most 16 KiB of request head and parses it; it never reads a
 //! body. It sends what it parsed over a channel to the one thread that opened the [`Runtime`],
-//! gets the response bytes back, writes them with `Connection: close` (each write waiting at most
-//! 5 s), and closes. So every store call runs on that one thread, outside any Tokio context, as
+//! gets the answer back — a whole response, or the [`SlicePage`] of an `/expand` — writes it with
+//! `Connection: close` (each write waiting at most 5 s), and closes. So every store call runs on
+//! that one thread, outside any Tokio context, as
 //! `architecture-decision-record:0006-ekr-store-bridges-the-async-port` requires, and a client
-//! that stalls holds one of the 64 places for at most 10 s.
+//! that stalls holds one of the 64 places for at most 10 s. A stream is written by its own
+//! connection's thread, never by the store thread, so a slow reader of one holds its own place
+//! and nobody else's; the whole stream is written within [`STREAM_TIMEOUT`] or abandoned, and a
+//! client that closes the connection ends it at the next write.
 //!
 //! Before any store call a request is refused unless it carries exactly one `Host` header naming
 //! this server, `127.0.0.1:<port>` or `localhost:<port>` — on port 80 also `127.0.0.1` or
@@ -20,15 +24,17 @@
 //! or any `Transfer-Encoding` is 413, answered without reading the body.
 //!
 //! Nothing here proposes, validates, commits or seeds: the only store calls are
-//! [`Runtime::head`], [`ekr_views::load`], [`ekr_views::render`], [`Runtime::snapshot`] and
-//! [`Runtime::content`]. A local read-only page is not an outward write (design § 82, § 83).
+//! [`Runtime::head`], [`IndexCache::index`] (which loads through [`ekr_views::load`]),
+//! [`Runtime::snapshot`] and [`Runtime::content`]. A local read-only page is not an outward write
+//! (design § 82, § 83).
 //!
-//! A revision is loaded once: the first `/projection` or `/roles` of a revision loads it with
-//! [`ekr_views::load`], renders both answers from that one load and keeps them in memory, keyed by
-//! the revision and the head it was loaded under ([`Cache`]). Every later request of that
-//! revision reads the store's head only and is answered from memory. A committed revision never
-//! changes, but the projection names the head (`meta.head`), so a new head empties the cache. At
-//! most [`CACHE_LIMIT`] revisions are kept; the one used longest ago goes first.
+//! A revision is loaded once: the first request of a revision, whichever path, loads and indexes
+//! it through one [`IndexCache`] of [`IndexCache::DEFAULT_CAPACITY`] revisions, keyed by the
+//! revision and the head it was loaded under, and every endpoint of that revision answers from
+//! that index. `/projection` and `/roles` render from the index's loaded revision and also keep
+//! their rendered answers ([`Cache`]): a committed revision never changes, but the projection
+//! names the head (`meta.head`), so a new head empties that cache. At most [`CACHE_LIMIT`]
+//! revisions are kept there; the one used longest ago goes first.
 //!
 //! | request | answer |
 //! |---|---|
@@ -38,6 +44,16 @@
 //! | `GET /projection?revision=N` | the same at revision `N`; an absent revision is 404 `ekr.views.RevisionNotFound` |
 //! | `GET /roles[?revision=N]` | the `ekr.view-roles/1` node-type roles of that revision (the head when absent), derived by [`super::view_roles`] from the same loaded revision the projection renders, `application/json`; refused as `/projection` refuses |
 //! | `GET /evidence/<evidence id>` | that evidence's retained bytes, `text/plain; charset=utf-8` when they are UTF-8, else `application/octet-stream`; 404 for an unknown id or bytes not retained |
+//! | `GET /overview[?revision=N&limit=L]` | [`ekr_views::Index::overview`]'s `ekr.graph-overview/1` bytes, `application/json` |
+//! | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | [`ekr_views::Index::page`]'s records, streamed by [`write_stream`] as chunked `application/x-ndjson` |
+//! | `GET /node/<node id>[?revision=N]` | [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes, `application/json` |
+//! | `GET /search?q=<text>[&limit=L][&revision=N]` | [`ekr_views::Index::search`]'s `ekr.node-matches/1` bytes (`L` is [`SEARCH_LIMIT`] when absent), `application/json` |
+//!
+//! Those four read their query with [`Query`]: `name=value` pairs, each name one the path takes
+//! and at most once, each value percent-decoded; anything else is 400 `invalid-query`. A bound out
+//! of range is 400 `ekr.views.LimitExceeded` before any store call, an unknown node or seed 404
+//! `ekr.views.NodeNotFound`, an absent revision 404 as `/projection` refuses it — each a whole JSON
+//! refusal, decided before the first byte of an answer.
 //! | any other method on those paths | 405, with `Allow: GET` |
 //! | any other path | 404 |
 //! | a `GET` of those paths that announces a body | 413 |
@@ -58,9 +74,13 @@ use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use ekr_core::{EvidenceId, RevisionNumber};
+use ekr_core::{EvidenceId, NodeId, RevisionNumber};
 use ekr_kernel::Runtime;
-use ekr_views::ProjectError;
+use ekr_views::{
+    ExpandRequest, IndexCache, LimitExceeded, OverviewRequest, ProjectError, QueryError,
+    SearchRequest, SliceEdge, SliceMeta, SliceNode, SlicePage, SliceRecord,
+};
+use serde::Serialize;
 
 use crate::exit::Failure;
 
@@ -80,6 +100,7 @@ const HTML: &str = "text/html; charset=utf-8";
 const JSON: &str = "application/json";
 const TEXT: &str = "text/plain; charset=utf-8";
 const BYTES: &str = "application/octet-stream";
+const NDJSON: &str = "application/x-ndjson";
 
 /// The most request-head bytes a connection reads.
 const HEAD_LIMIT: usize = 16 * 1024;
@@ -87,11 +108,43 @@ const HEAD_LIMIT: usize = 16 * 1024;
 const HEADER_LIMIT: usize = 64;
 /// How long after accept a connection has to send its whole head, and how long a write waits.
 const TIMEOUT: Duration = Duration::from_secs(5);
+/// How long a whole `/expand` stream may take to write before it is abandoned.
+const STREAM_TIMEOUT: Duration = Duration::from_secs(60);
 /// The most connections in flight at once; one more is answered 503 without being read.
 const IN_FLIGHT_LIMIT: usize = 64;
+/// A stream writes a `progress` line, and ends its chunk, after every this many records.
+const PROGRESS_EVERY: usize = 256;
+/// The `/search` limit when the query names none.
+const SEARCH_LIMIT: i64 = 20;
 
 /// One parsed request and where its answer goes: from a connection thread to the store thread.
-type Job = (Asked, Sender<Vec<u8>>);
+type Job = (Asked, Sender<Answered>);
+
+/// What the store thread hands back to a connection: a whole response, or the page an
+/// `/expand` streams, which the connection writes itself.
+#[derive(Debug)]
+enum Answered {
+    Whole(Reply),
+    Stream(Box<SlicePage>),
+}
+
+/// Everything the store thread keeps between requests.
+#[derive(Debug)]
+struct Memory {
+    /// The index every endpoint of a revision answers from.
+    indexes: IndexCache,
+    /// `/projection` and `/roles`, rendered.
+    rendered: Cache,
+}
+
+impl Default for Memory {
+    fn default() -> Self {
+        Self {
+            indexes: IndexCache::new(IndexCache::DEFAULT_CAPACITY),
+            rendered: Cache::default(),
+        }
+    }
+}
 
 /// Binds 127.0.0.1 on `port` (0 picks a free one), prints `{"url": …}` as one JSON line on
 /// stdout, and answers requests until the process is interrupted.
@@ -118,10 +171,10 @@ pub(super) fn run(runtime: &Runtime, port: u16) -> Result<String, Failure> {
         .spawn(move || accept(&listener, &jobs))
         .map_err(|error| Failure::fault(format!("starting the accept thread: {error}")))?;
     let port = address.port();
-    let mut cache = Cache::default();
+    let mut memory = Memory::default();
     for (asked, reply_to) in store_thread {
         // A connection that timed out meanwhile is its own business.
-        let _ = reply_to.send(answer(runtime, &mut cache, port, &asked).into_bytes());
+        let _ = reply_to.send(answer(runtime, &mut memory, port, &asked));
     }
     Err(Failure::fault("the accept loop stopped"))
 }
@@ -184,7 +237,8 @@ fn accept(listener: &TcpListener, jobs: &Sender<Job>) {
 }
 
 /// One connection: read and parse the head by `deadline`, get the answer from the store thread,
-/// write it, close. The body, if any, is never read.
+/// write it — a stream from this thread, with the store thread already free — close. The body,
+/// if any, is never read.
 fn connection(stream: TcpStream, deadline: Instant, jobs: &Sender<Job>) {
     if stream.set_write_timeout(Some(TIMEOUT)).is_err() {
         return;
@@ -202,22 +256,146 @@ fn connection(stream: TcpStream, deadline: Instant, jobs: &Sender<Job>) {
                 .map_err(|error| format!("setting the read timeout: {error}"))
         })
     };
-    let bytes = match head {
+    let answered = match head {
         Ok(asked) => {
             let (reply_to, reply) = channel();
             if jobs.send((asked, reply_to)).is_err() {
                 return;
             }
             match reply.recv() {
-                Ok(bytes) => bytes,
+                Ok(answered) => answered,
                 Err(_) => return,
             }
         }
-        Err(message) => Reply::text(400, format!("bad-request: {message}")).into_bytes(),
+        Err(message) => Answered::Whole(Reply::text(400, format!("bad-request: {message}"))),
     };
-    // A client that went away is its own business.
-    let _ = stream.write_all(&bytes).and_then(|()| stream.flush());
+    // A client that went away is its own business: the first failed write ends the answer.
+    let _ = match answered {
+        Answered::Whole(reply) => stream
+            .write_all(&reply.into_bytes())
+            .and_then(|()| stream.flush()),
+        Answered::Stream(page) => write_stream(
+            &mut Deadlined {
+                stream: &stream,
+                deadline: Instant::now() + STREAM_TIMEOUT,
+            },
+            &page,
+        ),
+    };
     let _ = stream.shutdown(Shutdown::Write);
+}
+
+/// A connection written to within a deadline: each write waits at most [`TIMEOUT`] and never past
+/// `deadline`, and once it has passed every write fails.
+struct Deadlined<'a> {
+    stream: &'a TcpStream,
+    deadline: Instant,
+}
+
+impl Write for Deadlined<'_> {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        let left = self.deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Err(std::io::ErrorKind::TimedOut.into());
+        }
+        self.stream.set_write_timeout(Some(left.min(TIMEOUT)))?;
+        let mut stream = self.stream;
+        stream.write(bytes)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        let mut stream = self.stream;
+        stream.flush()
+    }
+}
+
+/// One NDJSON line of a stream: `{"kind": <kind>, …the fields of body}`.
+#[derive(Serialize)]
+struct Line<'a, T: Serialize> {
+    kind: &'static str,
+    #[serde(flatten)]
+    body: &'a T,
+}
+
+#[derive(Serialize)]
+struct Progress {
+    sent: usize,
+}
+
+#[derive(Serialize)]
+struct End {
+    next: Option<u64>,
+    remaining: u64,
+}
+
+/// Writes `page` as the `/expand` answer: the response head, then HTTP/1.1 chunks of NDJSON,
+/// each flushed as it is written — the meta line alone, then the records with a `progress` line
+/// ending the chunk after every [`PROGRESS_EVERY`], then the rest and the `end` line — then the
+/// last, empty chunk. Stops at the first write that fails.
+fn write_stream(out: &mut impl Write, page: &SlicePage) -> std::io::Result<()> {
+    write_lines(
+        out,
+        page.meta(),
+        page.records(),
+        page.next(),
+        page.remaining(),
+    )
+}
+
+/// [`write_stream`] over a page's parts.
+fn write_lines(
+    out: &mut impl Write,
+    meta: &SliceMeta,
+    records: &[SliceRecord],
+    next: Option<u64>,
+    remaining: u64,
+) -> std::io::Result<()> {
+    out.write_all(stream_head().as_bytes())?;
+    let mut chunk = Vec::with_capacity(64 * 1024);
+    line(&mut chunk, "meta", meta)?;
+    send_chunk(out, &mut chunk)?;
+    for (at, record) in records.iter().enumerate() {
+        match record {
+            SliceRecord::Node(node) => line::<SliceNode>(&mut chunk, "node", node)?,
+            SliceRecord::Edge(edge) => line::<SliceEdge>(&mut chunk, "edge", edge)?,
+        }
+        let sent = at + 1;
+        if sent % PROGRESS_EVERY == 0 {
+            line(&mut chunk, "progress", &Progress { sent })?;
+            send_chunk(out, &mut chunk)?;
+        }
+    }
+    line(&mut chunk, "end", &End { next, remaining })?;
+    send_chunk(out, &mut chunk)?;
+    out.write_all(b"0\r\n\r\n")?;
+    out.flush()
+}
+
+/// The head of a streamed answer: the headers every answer carries, and no `Content-Length`.
+fn stream_head() -> String {
+    format!(
+        "HTTP/1.1 200 OK\r\nContent-Type: {NDJSON}\r\nTransfer-Encoding: chunked\r\n\
+         X-Content-Type-Options: nosniff\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n"
+    )
+}
+
+/// Appends `{"kind": kind, …body}` and a newline to `chunk`.
+fn line<T: Serialize>(chunk: &mut Vec<u8>, kind: &'static str, body: &T) -> std::io::Result<()> {
+    serde_json::to_writer(&mut *chunk, &Line { kind, body }).map_err(std::io::Error::other)?;
+    chunk.push(b'\n');
+    Ok(())
+}
+
+/// Writes `chunk` as one HTTP/1.1 chunk and flushes it, then empties it.
+fn send_chunk(out: &mut impl Write, chunk: &mut Vec<u8>) -> std::io::Result<()> {
+    if chunk.is_empty() {
+        return Ok(());
+    }
+    out.write_all(format!("{:x}\r\n", chunk.len()).as_bytes())?;
+    chunk.extend_from_slice(b"\r\n");
+    out.write_all(chunk)?;
+    chunk.clear();
+    out.flush()
 }
 
 /// Why a head that did not arrive in time is refused.
@@ -378,18 +556,28 @@ enum Route<'a> {
     Projection,
     Roles,
     Evidence(&'a str),
+    Overview,
+    Expand,
+    Node(&'a str),
+    Search,
 }
 
 fn route(path: &str) -> Option<Route<'_>> {
+    let named = |prefix: &str| {
+        path.strip_prefix(prefix)
+            .filter(|id| !id.is_empty() && !id.contains('/'))
+    };
     match path {
         "/" => Some(Route::Page),
         "/alt" => Some(Route::AltPage),
         "/projection" => Some(Route::Projection),
         "/roles" => Some(Route::Roles),
-        _ => path
-            .strip_prefix("/evidence/")
-            .filter(|id| !id.is_empty() && !id.contains('/'))
-            .map(Route::Evidence),
+        "/overview" => Some(Route::Overview),
+        "/expand" => Some(Route::Expand),
+        "/search" => Some(Route::Search),
+        _ => named("/evidence/")
+            .map(Route::Evidence)
+            .or_else(|| named("/node/").map(Route::Node)),
     }
 }
 
@@ -426,34 +614,261 @@ fn own_host(hosts: &[String], port: u16) -> bool {
 /// Answers one request, and touches the store only for a `GET` of a known path that names this
 /// server as its `Host` and announces no body: another `Host` (or none) is 421, an unknown path
 /// 404 whatever the method, a known path 405 for any method but `GET`, and a body 413.
-fn answer(runtime: &Runtime, cache: &mut Cache, port: u16, asked: &Asked) -> Reply {
+fn answer(runtime: &Runtime, memory: &mut Memory, port: u16, asked: &Asked) -> Answered {
     if !own_host(&asked.hosts, port) {
-        return Reply::text(
+        return Answered::Whole(Reply::text(
             421,
             format!("misdirected-request: Host must be 127.0.0.1:{port} or localhost:{port}"),
-        );
+        ));
     }
     let target = asked.target.as_str();
     let (path, query) = target.split_once('?').unwrap_or((target, ""));
     let Some(route) = route(path) else {
-        return Reply::text(404, format!("not-found: {path}"));
+        return Answered::Whole(Reply::text(404, format!("not-found: {path}")));
     };
     if asked.method != "GET" {
-        return Reply::text(
+        return Answered::Whole(Reply::text(
             405,
             format!("method-not-allowed: {} {path}; only GET", asked.method),
-        );
+        ));
     }
     if asked.announces_body {
-        return Reply::text(413, "request-body-refused: a GET carries no body");
+        return Answered::Whole(Reply::text(
+            413,
+            "request-body-refused: a GET carries no body",
+        ));
     }
-    match route {
+    let reply = match route {
         Route::Page => Reply::ok(HTML, PAGE.as_bytes().to_vec()),
         Route::AltPage => Reply::ok(HTML, ALT_PAGE.as_bytes().to_vec()),
-        Route::Projection => rendered(runtime, cache, query, "projection", |r| &r.projection),
-        Route::Roles => rendered(runtime, cache, query, "roles", |r| &r.roles),
+        Route::Projection => rendered(runtime, memory, query, "projection", |r| &r.projection),
+        Route::Roles => rendered(runtime, memory, query, "roles", |r| &r.roles),
         Route::Evidence(id) => evidence(runtime, id),
+        Route::Overview => overview(runtime, &mut memory.indexes, query).unwrap_or_else(|r| r),
+        Route::Node(id) => node(runtime, &mut memory.indexes, id, query).unwrap_or_else(|r| r),
+        Route::Search => search(runtime, &mut memory.indexes, query).unwrap_or_else(|r| r),
+        Route::Expand => {
+            return match expand(runtime, &mut memory.indexes, query) {
+                Ok(page) => Answered::Stream(Box::new(page)),
+                Err(refused) => Answered::Whole(refused),
+            }
+        }
+    };
+    Answered::Whole(reply)
+}
+
+/// The query of `/overview`, `/expand`, `/node/<id>` and `/search`: `name=value` pairs joined by
+/// `&`, each name one the path takes and given at most once, each value percent-decoded to UTF-8
+/// with `+` read as a space. An empty query has no pairs; an empty pair, a pair without `=`, an
+/// unknown or repeated name, a `%` not followed by two hex digits, or bytes that are not UTF-8
+/// are refused.
+#[derive(Debug, PartialEq, Eq)]
+struct Query {
+    pairs: Vec<(&'static str, String)>,
+}
+
+impl Query {
+    fn parse(query: &str, known: &[&'static str]) -> Result<Self, String> {
+        let mut pairs: Vec<(&'static str, String)> = Vec::new();
+        if query.is_empty() {
+            return Ok(Self { pairs });
+        }
+        for pair in query.split('&') {
+            let Some((name, value)) = pair.split_once('=') else {
+                return Err(format!("the query pair {pair:?} is not `name=value`"));
+            };
+            let name = decode(name)?;
+            let Some(known) = known.iter().find(|known| **known == name) else {
+                return Err(format!(
+                    "the query names {name:?}; this path takes {}",
+                    known.join(", ")
+                ));
+            };
+            if pairs.iter().any(|(held, _)| held == known) {
+                return Err(format!("the query names {name:?} twice"));
+            }
+            pairs.push((known, decode(value)?));
+        }
+        Ok(Self { pairs })
     }
+
+    fn get(&self, name: &str) -> Option<&str> {
+        self.pairs
+            .iter()
+            .find(|(held, _)| *held == name)
+            .map(|(_, value)| value.as_str())
+    }
+
+    fn required(&self, name: &str) -> Result<&str, String> {
+        self.get(name)
+            .ok_or_else(|| format!("the query names no {name}"))
+    }
+
+    /// `name` as a decimal integer: an optional `-` and one or more ASCII digits that fit an
+    /// `i64`. The range is the engine's to refuse, as `ekr.views.LimitExceeded`.
+    fn integer(&self, name: &str) -> Result<Option<i64>, String> {
+        let Some(value) = self.get(name) else {
+            return Ok(None);
+        };
+        let digits = value.strip_prefix('-').unwrap_or(value);
+        if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+            return Err(format!("{name} {value:?} is not a decimal integer"));
+        }
+        value
+            .parse()
+            .map(Some)
+            .map_err(|_| format!("{name} {value:?} is out of range"))
+    }
+
+    /// `revision` as ASCII decimal digits that fit a `u64`, as `/projection` reads it.
+    fn revision(&self) -> Result<Option<RevisionNumber>, String> {
+        let Some(value) = self.get("revision") else {
+            return Ok(None);
+        };
+        revision(&format!("revision={value}"))
+    }
+}
+
+/// Percent-decodes `text` to UTF-8, reading `+` as a space.
+fn decode(text: &str) -> Result<String, String> {
+    let mut bytes = Vec::with_capacity(text.len());
+    let mut rest = text.as_bytes();
+    while let Some((first, tail)) = rest.split_first() {
+        match first {
+            b'%' => {
+                let hex = tail
+                    .get(..2)
+                    .and_then(|hex| std::str::from_utf8(hex).ok())
+                    .filter(|hex| hex.bytes().all(|byte| byte.is_ascii_hexdigit()))
+                    .ok_or_else(|| format!("{text:?} has a `%` not followed by two hex digits"))?;
+                bytes.push(u8::from_str_radix(hex, 16).map_err(|error| error.to_string())?);
+                rest = &tail[2..];
+            }
+            b'+' => {
+                bytes.push(b' ');
+                rest = tail;
+            }
+            other => {
+                bytes.push(*other);
+                rest = tail;
+            }
+        }
+    }
+    String::from_utf8(bytes).map_err(|_| format!("{text:?} does not decode to UTF-8"))
+}
+
+fn invalid_query(message: impl std::fmt::Display) -> Reply {
+    Reply::refusal(400, "invalid-query", message)
+}
+
+fn limit_exceeded(error: &LimitExceeded) -> Reply {
+    Reply::refusal(400, "ekr.views.LimitExceeded", error)
+}
+
+/// A bounded read that answered nothing: the named 400s and 404s, or a 500 for `what`.
+fn query_refused(what: &str, error: QueryError) -> Reply {
+    match error {
+        QueryError::LimitExceeded(error) => limit_exceeded(&error),
+        error @ QueryError::NodeNotFound { .. } => {
+            Reply::refusal(404, "ekr.views.NodeNotFound", error)
+        }
+        QueryError::Project(error) => refused(what, error),
+    }
+}
+
+/// `/overview[?revision=N&limit=L]`.
+fn overview(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<Reply, Reply> {
+    let query = Query::parse(query, &["revision", "limit"]).map_err(invalid_query)?;
+    let at = query.revision().map_err(invalid_query)?;
+    let limit = query.integer("limit").map_err(invalid_query)?;
+    let request = OverviewRequest::new(limit).map_err(|error| limit_exceeded(&error))?;
+    let index = indexes
+        .index(runtime, at)
+        .map_err(|error| refused("overview", error))?;
+    let answer = index
+        .overview(&request)
+        .map_err(|error| refused("overview", error))?;
+    Ok(Reply::ok(JSON, answer.bytes))
+}
+
+/// `/node/<id>[?revision=N]`: an id that is not a node id names no node, so it is 404 too.
+fn node(
+    runtime: &Runtime,
+    indexes: &mut IndexCache,
+    id: &str,
+    query: &str,
+) -> Result<Reply, Reply> {
+    let query = Query::parse(query, &["revision"]).map_err(invalid_query)?;
+    let at = query.revision().map_err(invalid_query)?;
+    let Ok(node) = id.parse::<NodeId>() else {
+        return Err(Reply::refusal(
+            404,
+            "ekr.views.NodeNotFound",
+            format!("{id:?} is not a node id"),
+        ));
+    };
+    let index = indexes
+        .index(runtime, at)
+        .map_err(|error| refused("node", error))?;
+    let answer = index
+        .describe(node)
+        .map_err(|error| query_refused("node", error))?;
+    Ok(Reply::ok(JSON, answer.bytes))
+}
+
+/// `/search?q=<text>[&limit=L][&revision=N]`.
+fn search(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<Reply, Reply> {
+    let query = Query::parse(query, &["q", "limit", "revision"]).map_err(invalid_query)?;
+    let text = query.required("q").map_err(invalid_query)?.to_owned();
+    let limit = query.integer("limit").map_err(invalid_query)?;
+    let at = query.revision().map_err(invalid_query)?;
+    let request = SearchRequest::new(text, limit.unwrap_or(SEARCH_LIMIT))
+        .map_err(|error| limit_exceeded(&error))?;
+    let index = indexes
+        .index(runtime, at)
+        .map_err(|error| refused("search", error))?;
+    let answer = index
+        .search(&request)
+        .map_err(|error| refused("search", error))?;
+    Ok(Reply::ok(JSON, answer.bytes))
+}
+
+/// `/expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]`: the page the
+/// connection streams, or the refusal it answers instead.
+fn expand(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<SlicePage, Reply> {
+    let query = Query::parse(
+        query,
+        &["seeds", "depth", "limit", "edges", "after", "revision"],
+    )
+    .map_err(invalid_query)?;
+    let seeds = query
+        .required("seeds")
+        .map_err(invalid_query)?
+        .split(',')
+        .map(|seed| {
+            seed.parse::<NodeId>()
+                .map_err(|_| invalid_query(format!("the seed {seed:?} is not a node id")))
+        })
+        .collect::<Result<Vec<NodeId>, Reply>>()?;
+    let required = |name: &str| {
+        query
+            .integer(name)
+            .and_then(|value| value.ok_or_else(|| format!("the query names no {name}")))
+            .map_err(invalid_query)
+    };
+    let depth = required("depth")?;
+    let limit = required("limit")?;
+    let edges = query.integer("edges").map_err(invalid_query)?;
+    let after = query.integer("after").map_err(invalid_query)?;
+    let at = query.revision().map_err(invalid_query)?;
+    let request = ExpandRequest::new(seeds, depth, limit, edges, after)
+        .map_err(|error| limit_exceeded(&error))?;
+    let index = indexes
+        .index(runtime, at)
+        .map_err(|error| refused("expand", error))?;
+    index
+        .page(&request)
+        .map_err(|error| query_refused("expand", error))
 }
 
 /// The revision a `/projection` or `/roles` query names: none for an empty query, else the query
@@ -526,11 +941,12 @@ impl Cache {
 
 /// `/projection` or `/roles` (`what`) of the revision the query names, the head when it names
 /// none: `pick` chooses which of the revision's [`Answers`]. The head is read on every request;
-/// the revision is loaded only when the cache does not hold it. Refused as before: 400 for a
-/// query that is not `revision=N`, 404 `ekr.views.NotSeeded` or `ekr.views.RevisionNotFound`.
+/// the answers are rendered only when the cache does not hold them, from the index every other
+/// endpoint of the revision reads. Refused as before: 400 for a query that is not `revision=N`,
+/// 404 `ekr.views.NotSeeded` or `ekr.views.RevisionNotFound`.
 fn rendered(
     runtime: &Runtime,
-    cache: &mut Cache,
+    memory: &mut Memory,
     query: &str,
     what: &str,
     pick: impl Fn(&Answers) -> &Vec<u8>,
@@ -554,16 +970,23 @@ fn rendered(
             },
         );
     }
-    match cache.get_or_load(head, wanted, || load_answers(runtime, wanted)) {
+    let Memory { indexes, rendered } = memory;
+    match rendered.get_or_load(head, wanted, || load_answers(runtime, indexes, wanted)) {
         Ok(answers) => Reply::ok(JSON, pick(answers).clone()),
         Err(error) => refused(what, error),
     }
 }
 
-/// Loads revision `at` once and renders both of its answers from that load.
-fn load_answers(runtime: &Runtime, at: RevisionNumber) -> Result<Answers, ProjectError> {
-    let loaded = ekr_views::load(runtime, Some(at))?;
-    let projection = ekr_views::render(&loaded)?.bytes;
+/// Renders both answers of revision `at` from its one index, loading it only when `indexes` does
+/// not hold it.
+fn load_answers(
+    runtime: &Runtime,
+    indexes: &mut IndexCache,
+    at: RevisionNumber,
+) -> Result<Answers, ProjectError> {
+    let index = indexes.index(runtime, Some(at))?;
+    let loaded = index.loaded();
+    let projection = ekr_views::render(loaded)?.bytes;
     let roles = super::view_roles::document(&loaded.graph);
     Ok(Answers { projection, roles })
 }
@@ -798,7 +1221,7 @@ mod tests {
     }
 
     #[test]
-    fn only_the_five_routes_exist() {
+    fn only_the_nine_routes_exist() {
         assert!(matches!(route("/"), Some(Route::Page)));
         assert!(matches!(route("/alt"), Some(Route::AltPage)));
         assert!(matches!(route("/projection"), Some(Route::Projection)));
@@ -807,6 +1230,10 @@ mod tests {
             route("/evidence/abc"),
             Some(Route::Evidence("abc"))
         ));
+        assert!(matches!(route("/overview"), Some(Route::Overview)));
+        assert!(matches!(route("/expand"), Some(Route::Expand)));
+        assert!(matches!(route("/search"), Some(Route::Search)));
+        assert!(matches!(route("/node/abc"), Some(Route::Node("abc"))));
         for path in [
             "",
             "/index.html",
@@ -817,9 +1244,222 @@ mod tests {
             "/evidence",
             "/alt/",
             "/alt.html",
+            "/overview/",
+            "/expand/",
+            "/search/",
+            "/node",
+            "/node/",
+            "/node/a/b",
+            "/nodes/abc",
         ] {
             assert!(route(path).is_none(), "{path}");
         }
+    }
+
+    #[test]
+    fn a_query_is_known_names_once_each_with_percent_decoded_values() {
+        let known = &["q", "limit", "revision"];
+        assert_eq!(Query::parse("", known), Ok(Query { pairs: Vec::new() }));
+        let query = Query::parse("q=a%20b+c%2B%C3%A9&limit=-3&revision=%32", known).unwrap();
+        assert_eq!(query.get("q"), Some("a b c+é"));
+        assert_eq!(query.integer("limit"), Ok(Some(-3)));
+        assert_eq!(query.revision(), Ok(Some(RevisionNumber::new(2))));
+        assert_eq!(query.integer("absent"), Ok(None));
+        assert_eq!(Query::parse("q=", known).unwrap().get("q"), Some(""));
+        for bad in [
+            "&", "q=a&", "&q=a", "q", "q=a&q=b", "other=1", "Q=a", "q=%", "q=%4", "q=%4g", "q=%ff",
+            "q=%C3",
+        ] {
+            assert!(Query::parse(bad, known).is_err(), "{bad}");
+        }
+        for bad in [
+            "1.5",
+            "",
+            "-",
+            "+1",
+            " 1",
+            "1e3",
+            "٣",
+            "18446744073709551616",
+        ] {
+            let query = Query {
+                pairs: vec![("limit", bad.to_owned()), ("revision", bad.to_owned())],
+            };
+            assert!(query.integer("limit").is_err(), "limit {bad:?}");
+            assert!(query.revision().is_err(), "revision {bad:?}");
+        }
+        let query = Query {
+            pairs: vec![("revision", "1&revision=2".to_owned())],
+        };
+        assert!(query.revision().is_err(), "a decoded `&` is not a digit");
+    }
+
+    fn id<T: std::str::FromStr>(n: u64) -> T
+    where
+        T::Err: std::fmt::Debug,
+    {
+        format!("00000000-0000-4000-8000-{n:012x}").parse().unwrap()
+    }
+
+    fn meta() -> SliceMeta {
+        SliceMeta {
+            format: ekr_views::SLICE_FORMAT,
+            revision: 1,
+            head: 2,
+            seeds: vec![id(1)],
+            depth: 1,
+            after: 0,
+            node_total: 600,
+            edge_total: 0,
+        }
+    }
+
+    fn records(count: u64) -> Vec<SliceRecord> {
+        (0..count)
+            .map(|n| {
+                SliceRecord::Node(SliceNode {
+                    id: id(n + 1),
+                    type_id: id(9),
+                    name: format!("n{n}"),
+                    degree: u64::MAX,
+                    distance: 0,
+                })
+            })
+            .collect()
+    }
+
+    /// Each chunk's data from a whole chunked body, checking its framing.
+    fn chunks(mut body: &[u8]) -> Vec<&[u8]> {
+        let mut out = Vec::new();
+        loop {
+            let end = body.windows(2).position(|w| w == b"\r\n").unwrap();
+            let size =
+                usize::from_str_radix(std::str::from_utf8(&body[..end]).unwrap(), 16).unwrap();
+            body = &body[end + 2..];
+            if size == 0 {
+                assert_eq!(body, b"\r\n");
+                return out;
+            }
+            out.push(&body[..size]);
+            assert_eq!(&body[size..size + 2], b"\r\n");
+            body = &body[size + 2..];
+        }
+    }
+
+    #[test]
+    fn a_stream_is_the_meta_chunk_then_a_chunk_per_256_records_then_the_end() {
+        for (count, next) in [(0_u64, None), (256, Some(256)), (600, Some(600))] {
+            let mut out = Vec::new();
+            write_lines(&mut out, &meta(), &records(count), next, 7).unwrap();
+            let end = out.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
+            assert_eq!(
+                std::str::from_utf8(&out[..end + 4]).unwrap(),
+                stream_head(),
+                "{count}"
+            );
+            let head = stream_head().to_ascii_lowercase();
+            for line in [
+                "content-type: application/x-ndjson",
+                "transfer-encoding: chunked",
+                "x-content-type-options: nosniff",
+                "cache-control: no-store",
+                "connection: close",
+            ] {
+                assert!(head.lines().any(|l| l == line), "{line}");
+            }
+            assert!(!head.contains("content-length"));
+            let chunks = chunks(&out[end + 4..]);
+            let full = usize::try_from(count).unwrap() / PROGRESS_EVERY;
+            assert_eq!(chunks.len(), 2 + full, "{count}");
+            assert_eq!(
+                chunks[0],
+                format!(
+                    "{{\"kind\":\"meta\",{}\n",
+                    &serde_json::to_string(&meta()).unwrap()[1..]
+                )
+                .as_bytes()
+            );
+            let body = chunks.concat();
+            let lines: Vec<&str> = body
+                .split_inclusive(|byte| *byte == b'\n')
+                .map(|line| std::str::from_utf8(line).unwrap())
+                .collect();
+            assert!(lines.iter().all(|line| line.ends_with('\n')));
+            assert_eq!(
+                lines.len(),
+                1 + usize::try_from(count).unwrap() + full + 1,
+                "{count}"
+            );
+            if count > 0 {
+                assert!(
+                    lines[1].starts_with("{\"kind\":\"node\",\"id\":"),
+                    "{}",
+                    lines[1]
+                );
+            }
+            if count >= 256 {
+                assert_eq!(lines[257], "{\"kind\":\"progress\",\"sent\":256}\n");
+                assert!(std::str::from_utf8(chunks[1])
+                    .unwrap()
+                    .ends_with("{\"kind\":\"progress\",\"sent\":256}\n"));
+                assert!(lines[1].contains("\"degree\":18446744073709551615"));
+            }
+            let expected_end = match next {
+                Some(next) => format!("{{\"kind\":\"end\",\"next\":{next},\"remaining\":7}}\n"),
+                None => "{\"kind\":\"end\",\"next\":null,\"remaining\":7}\n".to_owned(),
+            };
+            assert_eq!(*lines.last().unwrap(), expected_end);
+        }
+    }
+
+    /// Takes `room` bytes, then fails every write, and counts the writes it was asked for.
+    struct Closing {
+        room: usize,
+        refused: usize,
+    }
+
+    impl Write for Closing {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            if self.room == 0 {
+                self.refused += 1;
+                return Err(std::io::ErrorKind::BrokenPipe.into());
+            }
+            let taken = bytes.len().min(self.room);
+            self.room -= taken;
+            Ok(taken)
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_stream_stops_at_the_first_write_that_fails() {
+        let mut closing = Closing {
+            room: 300,
+            refused: 0,
+        };
+        let written = write_lines(&mut closing, &meta(), &records(2000), None, 0);
+        assert_eq!(
+            written.map_err(|error| error.kind()),
+            Err(std::io::ErrorKind::BrokenPipe)
+        );
+        assert_eq!(closing.refused, 1, "nothing is written after the failure");
+    }
+
+    #[test]
+    fn a_stream_past_its_deadline_writes_nothing() {
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let mut late = Deadlined {
+            stream: &client,
+            deadline: Instant::now(),
+        };
+        assert_eq!(
+            late.write(b"x").map_err(|error| error.kind()),
+            Err(std::io::ErrorKind::TimedOut)
+        );
     }
 
     fn answers(tag: u8) -> Answers {

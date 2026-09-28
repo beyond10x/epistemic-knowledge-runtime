@@ -344,6 +344,10 @@ prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`, then answers:
 | `GET /projection` | the `ekr.graph-projection/1` document at the head, `application/json`, byte for byte what the projection renders |
 | `GET /projection?revision=N` | the same as of revision `N`; a revision the store does not hold is 404 with `{"refusal": "ekr.views.RevisionNotFound", …}` |
 | `GET /evidence/<evidence id>` | that evidence's retained bytes: `text/plain; charset=utf-8` when they are UTF-8, otherwise `application/octet-stream`; 404 for an id the head does not hold or bytes the store did not retain |
+| `GET /overview[?revision=N&limit=L]` | the `ekr.graph-overview/1` document of revision `N` (the head when absent), listing the `L` highest-degree nodes (1 to 500, 300 when absent), `application/json` |
+| `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | the `ekr.graph-slice/1` page of the nodes within `D` hops of the seeds (`D` 0 to 2, at most `L` nodes, 1 to 2,000, and `E` edges, 1 to 5,000, 5,000 when absent, from cursor `A`), streamed as NDJSON (below) |
+| `GET /node/<node id>[?revision=N]` | the `ekr.node-detail/1` document of that node, `application/json` |
+| `GET /search?q=<text>[&limit=L][&revision=N]` | the `ekr.node-matches/1` document of the nodes whose name or an alias contains the text (at most `L`, 1 to 100, 20 when absent), `application/json` |
 
 Any other method is 405 and any other path 404. A request that announces a body (a
 `Content-Length` above zero or any `Transfer-Encoding`) is 413; the body is never read. A request
@@ -358,11 +362,38 @@ origin. Evidence text is
 never served as HTML. Like every read verb, `ekr view` opens an existing store only (a path holding
 none is `store-not-found`, exit 1) and writes nothing to it.
 
-A revision is loaded once. The first `/projection` or `/roles` of a revision loads it, renders both
-answers from that one load and keeps them in memory; a later request of the same revision reads
-only the store's head and is answered from memory, byte for byte what the first answer was. The
-projection names the head, so a new head empties the memory. At most 8 revisions are kept, and the
-one used longest ago goes first.
+The query of `/overview`, `/expand`, `/node/<id>` and `/search` is `name=value` pairs joined by
+`&`, each name one the path takes and at most once, each value percent-decoded (`+` is a space) to
+UTF-8; `seeds` is node ids separated by commas, and `seeds`, `depth` and `limit` are required by
+`/expand`, `q` by `/search`. A query that breaks this is 400 with `{"refusal": "invalid-query", …}`.
+A bound outside its range is 400 `ekr.views.LimitExceeded`, a node or seed the revision does not
+hold 404 `ekr.views.NodeNotFound`, and a revision the store does not hold 404
+`ekr.views.RevisionNotFound` (`ekr.views.NotSeeded` for a store never seeded), each a whole JSON
+refusal decided before any byte of an answer is sent.
+
+`/expand` answers `application/x-ndjson` with `Transfer-Encoding: chunked`: one JSON object per
+line, each ending in `\n` and opening with its `kind`, flushed a chunk at a time as it is written:
+
+1. `{"kind":"meta", …}` — the page's `ekr.graph-slice/1` meta (`format`, `revision`, `head`,
+   `seeds`, `depth`, `after`, `node_total`, `edge_total`), alone in the first chunk;
+2. the records in the slice's order: `{"kind":"node", …}` with a node's fields and
+   `{"kind":"edge", …}` with an edge's, a node always before the edges it closes;
+3. after every 256 records, `{"kind":"progress","sent":<records so far>}`, which ends its chunk;
+4. last, `{"kind":"end","next":<cursor>|null,"remaining":<records after this page>}`; ask again
+   with `after=<next>` for the next page.
+
+The page is computed before the first byte, so a refusal is never sent mid-stream. The stream is
+written from its own connection, never from the thread that reads the store, and counts as one of
+the 64 connections; each write waits at most 5 seconds and the whole stream at most 60, and a
+client that closes the connection ends it and frees its place.
+
+A revision is loaded once. The first request of a revision to `/overview`, `/expand`, `/node`,
+`/search`, `/projection` or `/roles` loads and indexes it; every later request of that revision,
+whichever path, reads the store's head and answers from that index, so it costs its answer. The
+indexes of the 3 revisions used most recently are kept, each under the head it was loaded under,
+so a new head loads again. `/projection` and `/roles` also keep their rendered answers, byte for
+byte what the first answer was, for at most 8 revisions under one head, the one used longest ago
+going first.
 
 The page reads `/projection`, `/roles` and `/evidence/<id>` and nothing else, and derives what it
 shows from them: the timeline's event, observation and subject types from where valid time
