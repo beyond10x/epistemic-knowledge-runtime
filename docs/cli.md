@@ -531,10 +531,17 @@ to stderr. If the configuration or the store does not open, it answers nothing a
 store verb does (`store-not-found`, exit 1). To register it with an MCP client, give the client
 the command `ekr mcp` with `EKR_HOST`, `EKR_STORE` and `EKR_BACKEND` in its environment.
 
+A line that is empty or holds only whitespace is not a message: it is read and not answered.
+Every response carries the request's `id` exactly as the client wrote it — a number beyond 64
+bits, an exponent or an escaped string comes back byte for byte.
+
 It answers these methods:
 
-- `initialize` — `params.protocolVersion` is required. The server answers `2025-11-25`, or the
-  version the client asked for when that is `2025-06-18`, `2025-03-26` or `2024-11-05`;
+- `initialize` — `params.protocolVersion` is required. The server supports the MCP revisions
+  `2025-11-25` and `2025-06-18`: it answers the one the client asked for when it is one of these,
+  and `2025-11-25` otherwise. It does not agree to `2025-03-26`, whose transport requires
+  receiving JSON-RPC batches, which this server refuses, nor to `2024-11-05`; a client asking for
+  either is answered `2025-11-25`;
   `capabilities` is `{"tools": {"listChanged": false}}`, `serverInfo.name` is `ekr` and
   `serverInfo.version` the binary's version, and `instructions` says that record text is
   untrusted evidence.
@@ -559,7 +566,7 @@ serves:
 | `expand` | **`seeds`** (a list of node ids; empty answers an empty page), **`depth`** (0 to 2), **`limit`** (1 to 2,000 nodes), `edges` (1 to 5,000, 5,000 when absent), `after` (a cursor, 0 or more), `revision` | the whole `ekr.graph-slice/1` page as one document, `next` naming the next page's `after` | `GET /expand`, as one document rather than NDJSON |
 | `timeline` | `type` (a node type id), **`hops`** (1 to 3), **`limit`** (1 to 500), `bucket` (`day` or `week`), `subject` (a node id), `revision` | the `ekr.graph-timeline/1` document | `GET /timeline` |
 | `explain` | **`assertion`** (an assertion id) | what `ekr explain <assertion>` prints, byte for byte | `ekr explain` |
-| `resolve` | **`type_id`**, **`aliases`** (the [`typed-reference`](#ekr-resolve) document's fields, read by the same reader), `at` (a revision) | what `ekr resolve` prints for that reference, byte for byte | `ekr resolve [--at N]` |
+| `resolve` | **`type_id`** (a string), **`aliases`** (a list of strings) — the [`typed-reference`](#ekr-resolve) document's fields, taken as the JSON strings hold them, every character included — and `at` (a revision) | what `ekr resolve` prints for that reference, byte for byte | `ekr resolve [--at N]` |
 
 A tool's answer is a result with one text content item holding the document, the same document
 parsed as `structuredContent`, and `"isError": false`:
@@ -584,10 +591,10 @@ Anything else is a JSON-RPC error response, and the server keeps serving:
 
 | code | when |
 |---|---|
-| `-32700` | the line is not JSON; `id` is null |
-| `-32600` | the line is not one JSON object (a batch included), lacks `"jsonrpc": "2.0"`, lacks a method (a message carrying `result` or `error` instead is a response, and is not answered), carries an `id` that is not a string or a number, or is longer than 6356992 bytes, its newline excluded |
+| `-32700` | the line is not JSON (an empty or whitespace-only line is not answered at all); `id` is null |
+| `-32600` | the line is not one JSON object (a batch included), lacks `"jsonrpc": "2.0"`, lacks a method (a message carrying `result` or `error` instead is a response, and is not answered), carries an `id` that is not a string or a number or carries `id` twice, or is longer than 6356992 bytes, its newline excluded |
 | `-32601` | the method is none of the five above |
-| `-32602` | `initialize` without `protocolVersion`; `tools/call` without a `name`, naming a tool the server does not have, or with arguments the tool does not take: an unknown or missing argument, a value of the wrong type, a `revision` or `at` below 0, a seed, `type` or `subject` that is not an id, a `bucket` other than `day` or `week`, an `assertion` that is not an assertion id, or a typed reference the `ekr resolve` reader refuses. `ekr view` answers these `invalid-query` |
+| `-32602` | `initialize` without `protocolVersion`; `tools/call` without a `name`, naming a tool the server does not have, or with arguments the tool does not take: an unknown or missing argument, a value of the wrong type, a `revision` or `at` below 0, a seed, `type` or `subject` that is not an id, a `bucket` other than `day` or `week`, an `assertion` that is not an assertion id, or a `type_id` that is not an id, with the reason `ekr resolve` gives for it. `ekr view` answers these `invalid-query` |
 | `-32603` | the store could not be read |
 
 Record text — names, aliases, property values, evidence text — is untrusted evidence. The server

@@ -22,7 +22,7 @@
 //! | `expand` | [`ekr_views::Index::expand`]'s whole `ekr.graph-slice/1` page |
 //! | `timeline` | [`ekr_views::Index::timeline`]'s `ekr.graph-timeline/1` bytes |
 //! | `explain` | what `ekr explain` prints for the assertion, through the same `explain::run` |
-//! | `resolve` | what `ekr resolve` prints for the reference, through the same `resolve::read` and `resolve::run` |
+//! | `resolve` | what `ekr resolve` prints for the reference, built by the verb's own `resolve::type_id` and `resolve::reference` from the JSON arguments and answered through the same `resolve::run` |
 //!
 //! A refusal — each of the refusals `ekr view` answers for a bounded read, and the named refusals
 //! of `ekr explain` and `ekr resolve` — is a tool result with `isError: true` whose document is
@@ -30,7 +30,9 @@
 //! that is not a call the server can make is a JSON-RPC error: a line that is not JSON (-32700), a
 //! message that is not a request (-32600), an unknown method (-32601), arguments the tool does
 //! not take — where `ekr view` answers `invalid-query` — or a tool it does not have (-32602), and
-//! a store that cannot be read (-32603). A notification is never answered.
+//! a store that cannot be read (-32603). A notification is never answered, and neither is an
+//! empty or whitespace-only line. A response's `id` is the request's id token as the client wrote
+//! it ([`Id`]).
 //!
 //! **Reads only.** The store calls are [`IndexCache::index`] (which reads the head on every call,
 //! so a commit made by another process is what the next call reads, and loads a revision once
@@ -39,7 +41,6 @@
 //! server's instructions and every tool's description say so.
 
 use std::io::{BufRead, Write};
-use std::path::Path;
 use std::sync::Arc;
 
 use ekr_core::{AssertionId, NodeId, RevisionNumber, TypeId};
@@ -49,7 +50,8 @@ use ekr_views::{
     QueryError, SearchRequest, TimelineRequest,
 };
 use serde::de::DeserializeOwned;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json::value::RawValue;
 use serde_json::{json, Map, Value};
 
 use super::view::{not_a_node_id, project_refusal, LIMIT_EXCEEDED, NODE_NOT_FOUND, SEARCH_LIMIT};
@@ -59,12 +61,13 @@ use crate::exit::Failure;
 /// The MCP revision the server implements and answers with when a client asks for another:
 /// the latest revision `rmcp` 3.2.0 names (`ProtocolVersion::LATEST`).
 const PROTOCOL: &str = "2025-11-25";
-/// Every revision the server answers with when a client asks for it. For what this server does —
-/// the lifecycle, `ping` and tools — they differ only in fields the older ones ignore.
-const PROTOCOLS: [&str; 4] = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
+/// Every revision the server answers with when a client asks for it: those whose transport does
+/// not require receiving JSON-RPC batches, which this server refuses. `2025-03-26` requires it,
+/// and `2024-11-05` is not offered either.
+const PROTOCOLS: [&str; 2] = ["2025-11-25", "2025-06-18"];
 
-/// The most bytes of one message line, its newline excluded. The largest argument a tool reads
-/// is a typed reference of at most 1 MiB, which JSON escaping at most sextuples.
+/// The most bytes of one message line, its newline excluded: 6 MiB and 64 KiB, room for a typed
+/// reference at `ekr resolve`'s 1 MiB cap written with every character JSON-escaped.
 const LINE_LIMIT: usize = 6 * 1024 * 1024 + 65_536;
 
 /// JSON-RPC 2.0: the line is not JSON.
@@ -117,7 +120,7 @@ pub fn serve_mcp(cli: Cli, input: &mut dyn BufRead, output: &mut dyn Write) -> R
             server.message(&line)
         } else {
             Some(error(
-                Value::Null,
+                Id::Null,
                 INVALID_REQUEST,
                 format!("a message line holds at most {LINE_LIMIT} bytes"),
             ))
@@ -138,9 +141,49 @@ struct Server {
     indexes: IndexCache,
 }
 
+/// A response's `id`: `null`, or the request's own id token exactly as the client wrote it, so
+/// that a number no `f64` or `u64` holds, an exponent or an escape comes back unchanged.
+#[derive(Clone, Copy, Debug)]
+enum Id<'a> {
+    Null,
+    Raw(&'a RawValue),
+}
+
+impl Serialize for Id<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Null => serializer.serialize_unit(),
+            Self::Raw(raw) => raw.serialize(serializer),
+        }
+    }
+}
+
+/// One JSON-RPC response line: a result or an error.
+#[derive(Debug, Serialize)]
+struct Response<'a> {
+    jsonrpc: &'static str,
+    id: Id<'a>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    result: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<Value>,
+}
+
 /// A JSON-RPC error response.
-fn error(id: Value, code: i64, message: impl Into<String>) -> Value {
-    json!({"jsonrpc": "2.0", "id": id, "error": {"code": code, "message": message.into()}})
+fn error(id: Id<'_>, code: i64, message: impl Into<String>) -> Response<'_> {
+    Response {
+        jsonrpc: "2.0",
+        id,
+        result: None,
+        error: Some(json!({"code": code, "message": message.into()})),
+    }
+}
+
+/// The request's `id` member as its raw token, for the echo.
+#[derive(Deserialize)]
+struct RawId<'a> {
+    #[serde(borrow, default)]
+    id: Option<&'a RawValue>,
 }
 
 /// Why a call answered no document.
@@ -215,8 +258,9 @@ impl From<Failure> for Unanswered {
 }
 
 impl Server {
-    /// The response to one message line; `None` for a notification, a response or a blank line.
-    fn message(&mut self, line: &[u8]) -> Option<Value> {
+    /// The response to one message line; `None` for a notification, a response, or a line that
+    /// is empty or whitespace only, which carries no message.
+    fn message<'a>(&mut self, line: &'a [u8]) -> Option<Response<'a>> {
         if line.iter().all(u8::is_ascii_whitespace) {
             return None;
         }
@@ -224,7 +268,7 @@ impl Server {
             Ok(message) => message,
             Err(parse) => {
                 return Some(error(
-                    Value::Null,
+                    Id::Null,
                     PARSE_ERROR,
                     format!("parse error: {parse}"),
                 ))
@@ -232,25 +276,28 @@ impl Server {
         };
         let Value::Object(message) = message else {
             return Some(error(
-                Value::Null,
+                Id::Null,
                 INVALID_REQUEST,
                 "a message is one JSON object; a batch is not accepted",
             ));
         };
-        let id = match message.get("id") {
-            None => None,
-            Some(id @ (Value::String(_) | Value::Number(_))) => Some(id.clone()),
-            Some(_) => {
+        let id = match (message.get("id"), serde_json::from_slice::<RawId<'a>>(line)) {
+            (None, _) => None,
+            (Some(Value::String(_) | Value::Number(_)), Ok(RawId { id: Some(raw) })) => {
+                Some(Id::Raw(raw))
+            }
+            // Not a string or a number, or the id member written twice.
+            (Some(_), _) => {
                 return Some(error(
-                    Value::Null,
+                    Id::Null,
                     INVALID_REQUEST,
-                    "a request id is a string or a number",
+                    "a request id is one string or number",
                 ))
             }
         };
         if message.get("jsonrpc").and_then(Value::as_str) != Some("2.0") {
             return Some(error(
-                id.unwrap_or(Value::Null),
+                id.unwrap_or(Id::Null),
                 INVALID_REQUEST,
                 "a message carries \"jsonrpc\": \"2.0\"",
             ));
@@ -261,7 +308,7 @@ impl Server {
                 return None;
             }
             return Some(error(
-                id.unwrap_or(Value::Null),
+                id.unwrap_or(Id::Null),
                 INVALID_REQUEST,
                 "a request names its method",
             ));
@@ -280,7 +327,12 @@ impl Server {
             }),
         });
         Some(match answered {
-            Ok(result) => json!({"jsonrpc": "2.0", "id": id, "result": result}),
+            Ok(result) => Response {
+                jsonrpc: "2.0",
+                id,
+                result: Some(result),
+                error: None,
+            },
             Err(Unanswered::Error { code, message }) => error(id, code, message),
             Err(Unanswered::Refused { name, message }) => {
                 error(id, INVALID_PARAMS, format!("{name}: {message}"))
@@ -422,22 +474,22 @@ impl Server {
         Ok(super::render(&super::explain::run(&self.runtime, id)?)?.text()?)
     }
 
-    /// What `ekr resolve <reference> [--at N]` prints, byte for byte: every argument but `at` is
-    /// the typed-reference document, read by the verb's own reader.
+    /// What `ekr resolve <reference> [--at N]` prints, byte for byte. The arguments are the
+    /// typed-reference document's two fields as JSON values, and `at`: the strings are taken as
+    /// the JSON holds them, never re-read as text, and the verb's own
+    /// [`super::resolve::type_id`] and [`super::resolve::reference`] build the reference.
     fn resolve(&self, arguments: Value) -> Result<String, Unanswered> {
-        let Value::Object(mut reference) = arguments else {
-            return Err(Unanswered::params("a tool's arguments are one object"));
-        };
-        let at =
-            match reference.remove("at") {
-                None | Some(Value::Null) => None,
-                Some(at) => Some(at.as_u64().ok_or_else(|| {
-                    Unanswered::params(format!("at {at} is not a revision number"))
-                })?),
-            };
-        let document = Value::Object(reference).to_string();
-        let reference = super::resolve::read(Path::new("-"), &mut document.as_bytes())
-            .map_err(|failure| Unanswered::params(failure.to_string()))?;
+        let ResolveArguments {
+            type_id,
+            aliases,
+            at,
+        } = decode(arguments)?;
+        let type_id = type_id
+            .as_deref()
+            .map(super::resolve::type_id)
+            .transpose()
+            .map_err(Unanswered::params)?;
+        let reference = super::resolve::reference(type_id, aliases).map_err(Unanswered::params)?;
         Ok(super::render(&super::resolve::run(&self.runtime, &reference, at)?)?.text()?)
     }
 }
@@ -564,6 +616,19 @@ enum Bucket {
 #[serde(deny_unknown_fields)]
 struct ExplainArguments {
     assertion: String,
+}
+
+/// A typed reference's fields and `at`. A missing field is named by the verb's own reference
+/// builder, so both are optional here.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ResolveArguments {
+    #[serde(default)]
+    type_id: Option<String>,
+    #[serde(default)]
+    aliases: Option<Vec<String>>,
+    #[serde(default)]
+    at: Option<u64>,
 }
 
 /// A `revision` argument: the committed revision read, the head when absent.

@@ -383,10 +383,11 @@ fn initialize_then_tools_list_names_exactly_the_seven_read_tools_with_input_sche
             "{initialized}"
         );
         // A version the server also speaks is echoed; one it does not is answered with its own.
+        // 2025-03-26 requires receiving batches, which this server refuses, so it is not agreed.
         for (asked, answered) in [
             ("2025-06-18", "2025-06-18"),
-            ("2025-03-26", "2025-03-26"),
-            ("2024-11-05", "2024-11-05"),
+            ("2025-03-26", "2025-11-25"),
+            ("2024-11-05", "2025-11-25"),
             ("1999-01-01", "2025-11-25"),
         ] {
             let again = server.request(
@@ -862,14 +863,46 @@ fn a_refusal_is_a_tool_error_with_its_name_and_the_server_keeps_serving() {
                 "{backend}: {tool} {arguments}: {refused}"
             );
         }
+        // A reference the verb's own builder refuses is refused with the verb's own reason.
+        for (arguments, file) in [
+            (
+                json!({"type_id": "acme", "aliases": ["Acme"]}),
+                "bad-type.json",
+            ),
+            (json!({"type_id": ORGANIZATION}), "no-aliases.json"),
+        ] {
+            world.file(file, &arguments.to_string());
+            let refused = server.call("resolve", arguments.clone());
+            assert_eq!(Server::error_code(&refused), -32602, "{refused}");
+            let message = refused["error"]["message"].as_str().unwrap();
+            let one_shot = world.run(&["resolve", file]);
+            assert_eq!(one_shot.status.code(), Some(1));
+            let stderr = String::from_utf8_lossy(&one_shot.stderr);
+            assert!(
+                stderr.trim_end().ends_with(message),
+                "{backend}: {arguments}: {message:?} is not the verb's reason {stderr:?}"
+            );
+        }
         let without_name = server.request("tools/call", Some(json!({"arguments": {}})));
         assert_eq!(Server::error_code(&without_name), -32602);
 
         // A notification is never answered, whatever its method: the next answer is the ping's.
         server.notify("notifications/cancelled");
         server.notify("no/such/notification");
+        // Nor is a blank or whitespace-only line.
+        server.send_line("");
+        server.send_line(" \t ");
         let pinged = server.request("ping", None);
         assert_eq!(pinged["result"], json!({}));
+        // An id is echoed as the client wrote it, escapes, exponents and all.
+        for id in [r#""ping""#, "1e2", "-0", "18446744073709551616"] {
+            server.send_line(&format!(r#"{{"jsonrpc":"2.0","id":{id},"method":"ping"}}"#));
+            let line = server
+                .lines
+                .recv_timeout(ANSWER_WITHIN)
+                .expect("the server answers within the minute");
+            assert!(line.contains(&format!(r#""id":{id},"#)), "{id}: {line}");
+        }
 
         // And the server still reads.
         let alice = server.document("describe_node", json!({"node": ALICE}));
