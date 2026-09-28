@@ -92,6 +92,10 @@ pub(crate) struct ReplayState {
     /// restored from a checkpoint holds it too, so validating against any revision reads it here
     /// rather than from that revision's graph.
     pub(crate) held: HeldIdentities,
+    /// Each validation or rejection this state holds whose basis was not the head when it was
+    /// recorded, as its occurrence's stream position and that basis. Replaying one needs its
+    /// basis revision's graph, which a checkpoint of a later head does not hold (design § 99).
+    pub(crate) earlier_bases: Vec<(u64, RevisionNumber)>,
 }
 /// The refusal a state restored from a checkpoint gives for a graph it does not hold. It is never
 /// a verdict about the history: whoever meets it replays that history in full instead.
@@ -146,6 +150,13 @@ pub(crate) fn graph_not_held(error: &StoreError) -> bool {
 }
 
 impl ReplayState {
+    /// Notes that the occurrence at `version` was validated against `basis`, when that is not
+    /// the head it was recorded at.
+    pub(crate) fn note_basis(&mut self, version: u64, basis: RevisionNumber) {
+        if basis < self.head().root.revision {
+            self.earlier_bases.push((version, basis));
+        }
+    }
     pub(crate) fn head(&self) -> &Revision {
         self.revisions
             .last_key_value()
@@ -497,6 +508,7 @@ impl KernelAuthority {
                 version: first.version,
                 digest: None,
                 seed_payloads,
+                earlier_bases: Vec::new(),
             };
             if selected == Some(RevisionNumber::SEED) {
                 return Ok(Some(Arc::new(state)));
@@ -591,6 +603,7 @@ impl KernelAuthority {
                         "validation-record-disagrees",
                     )?;
                     state.validated.insert(transaction_id, Arc::new(validated));
+                    state.note_basis(occurrence.version, against);
                     let tx = state
                         .transactions
                         .get_mut(&transaction_id)
@@ -645,6 +658,8 @@ impl KernelAuthority {
                             "rejection-issue-disagrees",
                         )?;
                     }
+                    let basis = record.requested_basis.previous_root.revision;
+                    state.note_basis(occurrence.version, basis);
                     state
                         .transactions
                         .get_mut(&transaction_id)

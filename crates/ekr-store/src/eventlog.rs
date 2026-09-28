@@ -1348,12 +1348,14 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
     /// The store neither reads nor judges what a checkpoint or a binding says; the kernel admits
     /// one or not when it next replays. A pointer that loses a race with another writer is
     /// dropped, which leaves the store as it was and is not an error: a checkpoint is a cache.
+    /// Whether the pointer stands afterwards is the answer, so that a writer knows whether its
+    /// checkpoint is the retained one.
     fn write_checkpoint(
         &self,
         covered: u64,
         binding: ContentHash,
         checkpoint: Option<&[u8]>,
-    ) -> Result<(), StoreError> {
+    ) -> Result<bool, StoreError> {
         ensure_sync_context()?;
         // This handle's own last append names the newest pointer and the stream's length, unless
         // another handle has written since. Only an append at that length proves the record still
@@ -1362,11 +1364,11 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         // stream holds — is decided again from the stream as read, as a handle without the record
         // decides it.
         let remembered = self.pointer.lock().ok().and_then(|mut held| held.take());
-        let appended = match remembered {
+        let written = match remembered {
             Some((previous, length)) => {
                 match self.append_pointer(covered, binding, checkpoint, previous, length)? {
-                    Some(appended) => Some(appended),
-                    None => {
+                    PointerWrite::Appended(appended) => PointerWrite::Appended(appended),
+                    PointerWrite::Current | PointerWrite::Nothing => {
                         let (previous, length) = self.checkpoint_pointer()?;
                         self.append_pointer(covered, binding, checkpoint, previous, length)?
                     }
@@ -1377,17 +1379,30 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
                 self.append_pointer(covered, binding, checkpoint, previous, length)?
             }
         };
-        if let (Some(appended), Ok(mut held)) = (appended, self.pointer.lock()) {
-            *held = Some(appended);
-        }
-        Ok(())
+        Ok(match written {
+            PointerWrite::Appended(appended) => {
+                if let Ok(mut held) = self.pointer.lock() {
+                    *held = Some(appended);
+                }
+                true
+            }
+            PointerWrite::Current => true,
+            PointerWrite::Nothing => false,
+        })
     }
+}
+/// What one conditional pointer append did.
+enum PointerWrite {
+    /// Appended: the pointer and the stream's length after it.
+    Appended((Option<CheckpointWritten>, u64)),
+    /// Nothing appended, because the newest pointer already is this one.
+    Current,
+    /// Nothing appended: no retained checkpoint to name, or the append lost to another writer.
+    Nothing,
 }
 impl<S: AtomicBlobEventStore> EventlogStore<S> {
     /// [`RevisionLog::write_checkpoint`] after `previous`, the newest pointer of a stream `length`
-    /// long. The pointer it appended and the stream's length after it; `None` when it appended
-    /// nothing, because there was nothing to write after `previous` or because the conditional
-    /// append lost to another writer.
+    /// long: the pointer it appended and the stream's length after it, or why it appended none.
     fn append_pointer(
         &self,
         covered: u64,
@@ -1395,18 +1410,18 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         checkpoint: Option<&[u8]>,
         previous: Option<CheckpointWritten>,
         length: u64,
-    ) -> Result<Option<(Option<CheckpointWritten>, u64)>, StoreError> {
+    ) -> Result<PointerWrite, StoreError> {
         let hash = match (checkpoint, &previous) {
             (Some(bytes), _) => ContentHash::of_bytes(bytes),
             (None, Some(previous)) => previous.checkpoint_hash,
-            (None, None) => return Ok(None),
+            (None, None) => return Ok(PointerWrite::Nothing),
         };
         if previous.as_ref().is_some_and(|previous| {
             previous.checkpoint_hash == hash
                 && previous.covered == covered
                 && previous.binding == binding
         }) {
-            return Ok(None);
+            return Ok(PointerWrite::Current);
         }
         let pointer = CheckpointWritten {
             checkpoint_hash: hash,
@@ -1459,7 +1474,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         };
         match written {
             Ok(()) => {}
-            Err(StoreError::Conflict) => return Ok(None),
+            Err(StoreError::Conflict) => return Ok(PointerWrite::Nothing),
             Err(error) => return Err(error),
         }
         if let Some(replaced) = replaced {
@@ -1468,7 +1483,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
                     .delete_blob(&self.tenant, &checkpoint_key(replaced)),
             )?;
         }
-        Ok(Some((Some(pointer), length + 1)))
+        Ok(PointerWrite::Appended((Some(pointer), length + 1)))
     }
 }
 impl<S: AtomicBlobEventStore> Initialize for EventlogStore<S> {
