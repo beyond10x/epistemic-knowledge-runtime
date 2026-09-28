@@ -22,6 +22,12 @@
 //! So this validator reads two things from the graph: the identities it already holds, and the
 //! types its ontology already declares.
 //!
+//! Canonical state is one revision, and `DeleteEdge` leaves no trace of the id it removes, so
+//! "already holds" does not cover an id an earlier revision held. [`HeldIdentities`] carries that
+//! history, and the structural validator of [`Pipeline::identity_keeping`](super::Pipeline) holds
+//! node and edge ids against it in one space (`identity-previously-held`). Profiles v1 and v2 do
+//! not, and keep answering as they did, so a store that already committed such a reuse replays.
+//!
 //! # The class is five, and it was written here as three
 //!
 //! The rule is "an operation that brings an identity into existence", and this file said so while
@@ -51,8 +57,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use ekr_core::{EvidenceId, TypeId};
-use ekr_graph::GraphSnapshot;
+use ekr_core::{EdgeId, EvidenceId, NodeId, TypeId};
+use ekr_graph::{CanonicalGraph, GraphSnapshot};
 
 use super::{finish, issue, node_types, Validator};
 use crate::issue::{ValidationIssue, ValidatorName};
@@ -66,6 +72,9 @@ const DUPLICATE_IDENTITY: &str = "duplicate-identity";
 
 /// An identity created over one canonical state already holds.
 const IDENTITY_ALREADY_EXISTS: &str = "identity-already-exists";
+
+/// A node or edge created over an id an earlier revision held and canonical state no longer does.
+const IDENTITY_PREVIOUSLY_HELD: &str = "identity-previously-held";
 
 /// One `(type, alias)` taken by two `CreateNode` operations of one transaction.
 const DUPLICATE_ALIAS: &str = "duplicate-alias";
@@ -276,6 +285,162 @@ fn schema_shape(tx: &GraphTransaction, admits_schema: bool, issues: &mut Vec<Val
                 tx.operations.len()
             ),
         ));
+    }
+}
+
+/// Every node and edge identity some revision of a lineage held.
+///
+/// The history half of the rule this module opens with. `DeleteEdge` removes an edge from
+/// canonical state and keeps no record of its id, so "canonical state already holds it" is true
+/// of a deleted edge's id at the revision that deletes it and false ever after, and a later
+/// `CreateEdge` could take the id for a different relationship: one `EdgeId` naming two records at
+/// two revisions, so that a reference to it, an assertion about it or an explain chain through it
+/// can mean the wrong one. The snapshot a validator reads is one revision and cannot answer that,
+/// so the lineage's identities are handed in, as the schema lineage is to
+/// [`SchemaOntology`](super::schema::SchemaOntology).
+///
+/// `NodeId` and `EdgeId` are two types over one UUID space — a transaction document writes both
+/// as the same text — so the set is keyed by the UUID and remembers which kind held it.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct HeldIdentities(BTreeMap<u128, Held>);
+
+/// Which kind of record an identity named.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Held {
+    Node,
+    Edge,
+}
+
+impl Held {
+    const fn name(self) -> &'static str {
+        match self {
+            Self::Node => "a node",
+            Self::Edge => "an edge",
+        }
+    }
+}
+
+impl HeldIdentities {
+    /// The identities `graphs` hold between them.
+    #[must_use]
+    pub fn of<'a>(graphs: impl IntoIterator<Item = &'a CanonicalGraph>) -> Self {
+        let mut held = Self::default();
+        for graph in graphs {
+            for id in graph.nodes.keys() {
+                held.0.insert(id.to_uuid().as_u128(), Held::Node);
+            }
+            for id in graph.edges.keys() {
+                held.0.insert(id.to_uuid().as_u128(), Held::Edge);
+            }
+        }
+        held
+    }
+}
+
+/// The structural check of [`Pipeline::identity_keeping`](super::Pipeline::identity_keeping):
+/// profile v2's, and node and edge ids held in one space against the whole lineage.
+///
+/// A separate validator rather than a change to v1's and v2's, because replay re-runs a store's
+/// own profile over every retained decision and compares the verdict: a v1 or v2 store that
+/// already committed a reuse must keep reopening, so those two keep answering as they did.
+pub(crate) struct IdentityStructural {
+    /// Every node and edge identity the lineage up to the snapshot held.
+    pub(crate) held: HeldIdentities,
+}
+
+impl Validator for IdentityStructural {
+    fn name(&self) -> ValidatorName {
+        ValidatorName::Structural
+    }
+
+    fn validate(
+        &self,
+        graph: &GraphSnapshot<'_>,
+        tx: &GraphTransaction,
+    ) -> Result<(), Vec<ValidationIssue>> {
+        let mut issues = check(graph, tx, true).err().unwrap_or_default();
+        once_held(graph, &self.held, tx, &mut issues);
+        finish(issues)
+    }
+}
+
+/// The rule of [`IdentityStructural`] that the per-kind checks in [`check`] do not already state:
+/// a node and an edge minted under one id in one transaction (`duplicate-identity`), a node or
+/// edge minted over an id canonical state holds as the other kind (`identity-already-exists`),
+/// and either minted over an id an earlier revision held and none holds now
+/// (`identity-previously-held`). The same-kind cases are [`check`]'s and are not repeated here.
+fn once_held(
+    graph: &GraphSnapshot<'_>,
+    history: &HeldIdentities,
+    tx: &GraphTransaction,
+    issues: &mut Vec<ValidationIssue>,
+) {
+    let state = graph.graph();
+    let mut minted = BTreeMap::new();
+    for operation in &tx.operations {
+        let (uuid, kind, named) = match operation {
+            GraphOperation::CreateNode(draft) => {
+                (draft.id.to_uuid(), Held::Node, format!("node {}", draft.id))
+            }
+            GraphOperation::CreateEdge(draft) => {
+                (draft.id.to_uuid(), Held::Edge, format!("edge {}", draft.id))
+            }
+            _ => continue,
+        };
+        match minted.insert(uuid.as_u128(), kind) {
+            Some(other) if other != kind => {
+                issues.push(issue(
+                    tx,
+                    ValidatorName::Structural,
+                    DUPLICATE_IDENTITY,
+                    format!(
+                        "{named} is created by one transaction that also creates {} with that \
+                         id; node and edge ids share one space",
+                        other.name()
+                    ),
+                ));
+                continue;
+            }
+            // The same kind twice is `duplicate-identity` already.
+            Some(_) => continue,
+            None => {}
+        }
+        let current = if state.nodes.contains_key(&NodeId::from_uuid(uuid)) {
+            Some(Held::Node)
+        } else if state.edges.contains_key(&EdgeId::from_uuid(uuid)) {
+            Some(Held::Edge)
+        } else {
+            None
+        };
+        match current {
+            // `identity-already-exists` already.
+            Some(held) if held == kind => {}
+            Some(held) => issues.push(issue(
+                tx,
+                ValidatorName::Structural,
+                IDENTITY_ALREADY_EXISTS,
+                format!(
+                    "{named} is created by this transaction and canonical state already holds {} \
+                     with that id; node and edge ids share one space, and an id names one record",
+                    held.name()
+                ),
+            )),
+            None => {
+                if let Some(held) = history.0.get(&uuid.as_u128()) {
+                    issues.push(issue(
+                        tx,
+                        ValidatorName::Structural,
+                        IDENTITY_PREVIOUSLY_HELD,
+                        format!(
+                            "{named} is created by this transaction and an earlier revision held \
+                             {} with that id, which no longer exists; an id names one record for \
+                             the life of the store, so a new record takes a new id",
+                            held.name()
+                        ),
+                    ));
+                }
+            }
+        }
     }
 }
 
