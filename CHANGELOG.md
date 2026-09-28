@@ -4,6 +4,42 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.12] — 2026-09-28
+
+Ingestion throughput: many calls over one opened store, and a store verified and decoded once per
+process.
+
+### Added
+
+- `ekr session`: reads one JSON request per line, `{"argv": [...], "stdin": "..."}`, parses `argv`
+  with the same definitions as the one-shot verbs, and answers one line
+  `{"exit": N, "stdout": <document>, "stderr": "..."}`, where `stdout` is the document the one-shot
+  verb prints. It serves `propose`, `validate`, `commit`, `snapshot`, `explain`, `resolve`, `head`,
+  `transactions`, `ontology`, `mint`, `hash` and `schema` over one opened store, and a commit is
+  seen by the next read, including one made by another process. New refusals (exit 2):
+  `session-request-malformed`, `session-verb-unknown`, `session-verb-refused`,
+  `session-option-refused` and `session-request-too-large` (a line over 25,231,360 bytes).
+
+### Changed
+
+- A store handle verifies a retained blob once and keeps the revision stream it has read; a later
+  read asks the provider only for newer events and re-checks the last one it holds, so a replaced
+  or diverged store is still refused. `RetainedHistory::content` hashes an object at most once per
+  process.
+- The seed envelope is decoded once per process and shared by checkpoint restore, the verified
+  read and the commit path; before publishing, the staged envelope bytes are decoded, so a seed
+  whose bytes do not decode is refused rather than published.
+- On a store seeded with 11 MB of evidence (112 MB on disk, release build), one `ekr resolve`
+  takes 1.47 s on file (was 2.58 s) and 0.77 s on SQLite (was 1.72 s); inside `ekr session` the
+  same request takes 33.9 ms and 19.8 ms.
+
+### Known limits
+
+- A session request still costs 20–34 ms on that store, against 4.4 ms on a 1.4 MB store
+  (`task:session-request-cost-grows-with-evidence`).
+- The seed envelope still embeds evidence payloads as JSON integer arrays
+  (`story:seed-envelope-v3-references-payloads`).
+
 ## [0.0.11] — 2026-09-28
 
 The first runtime code of the views, observation and integration domains, the streamed `ekr view`

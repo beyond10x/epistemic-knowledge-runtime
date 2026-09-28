@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:ekr-session
 kind: story
-status: active
+status: implemented
 title: ekr session serves the existing verbs over one opened store
 relations:
 - serves: vision:o5
@@ -16,10 +16,11 @@ scope:
   path: crates/ekr/tests/session.rs
 - confidence: cited
   path: docs/cli.md
-revision: 7
+revision: 8
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T09:14:09Z", actor: "agent:claude-coordinator", revision: 6}
 - {from: "proposed", to: "active", at: "2026-09-28T09:14:09Z", actor: "agent:claude-coordinator", revision: 7}
+- {from: "active", to: "implemented", at: "2026-09-28T12:03:49Z", actor: "agent:claude-coordinator", revision: 8, decided_on: {"recorded":{"test_result":1,"review_outcome":3}}}
 ---
 ## Context
 

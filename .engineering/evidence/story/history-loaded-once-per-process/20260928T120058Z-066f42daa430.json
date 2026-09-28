@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-28T12:00:58Z",
+  "actor": "agent:claude-coordinator",
+  "artifact": "story:history-loaded-once-per-process",
+  "kind": "story",
+  "revision": 5,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Correctness CI (task check) on PR #39 head 7e383084",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/36418512743"
+  }
+}

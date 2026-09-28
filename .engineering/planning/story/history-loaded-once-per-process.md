@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:history-loaded-once-per-process
 kind: story
-status: active
+status: implemented
 title: The eventlog store verifies a retained blob once per process
 relations:
 - serves: vision:o5
@@ -12,10 +12,11 @@ scope:
   path: crates/ekr-store/src/eventlog.rs
 - confidence: cited
   path: crates/ekr-store/tests/history_cache.rs
-revision: 5
+revision: 6
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T09:14:09Z", actor: "agent:claude-coordinator", revision: 4}
 - {from: "proposed", to: "active", at: "2026-09-28T09:14:09Z", actor: "agent:claude-coordinator", revision: 5}
+- {from: "active", to: "implemented", at: "2026-09-28T12:03:49Z", actor: "agent:claude-coordinator", revision: 6, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}}
 ---
 ## Context
 
