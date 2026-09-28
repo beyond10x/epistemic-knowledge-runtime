@@ -32,7 +32,7 @@ CONFIGURATION (every store verb)
   already exist (exit 1 otherwise). Every other store verb opens an existing store only: a
   --store that holds none is store-not-found (exit 1), and nothing is created there.
   --full-replay                  or EKR_FULL_REPLAY=1: replay the whole history from the seed
-                                 instead of continuing from the checkpoint each commit leaves;
+                                 instead of continuing from the store's replay checkpoint;
                                  the answer is the same
 
 WORKFLOW

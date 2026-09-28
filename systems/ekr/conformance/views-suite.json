@@ -254,10 +254,6 @@
           },
           {
             "kind": "event",
-            "name": "ekr.store.CheckpointWritten"
-          },
-          {
-            "kind": "event",
             "name": "ekr.store.ObjectStored"
           },
           {
@@ -708,10 +704,6 @@
           },
           {
             "kind": "event",
-            "name": "ekr.store.CheckpointWritten"
-          },
-          {
-            "kind": "event",
             "name": "ekr.store.ObjectStored"
           },
           {
@@ -755,10 +747,6 @@
           },
           {
             "kind": "event",
-            "name": "ekr.store.CheckpointWritten"
-          },
-          {
-            "kind": "event",
             "name": "ekr.store.ObjectStored"
           },
           {
@@ -795,10 +783,6 @@
           {
             "kind": "event",
             "name": "ekr.kernel.TransactionValidated"
-          },
-          {
-            "kind": "event",
-            "name": "ekr.store.CheckpointWritten"
           },
           {
             "kind": "event",
@@ -852,10 +836,6 @@
           {
             "kind": "event",
             "name": "ekr.kernel.TransactionProposed"
-          },
-          {
-            "kind": "event",
-            "name": "ekr.store.CheckpointWritten"
           },
           {
             "kind": "event",
@@ -1016,10 +996,6 @@
           },
           {
             "kind": "event",
-            "name": "ekr.store.CheckpointWritten"
-          },
-          {
-            "kind": "event",
             "name": "ekr.store.ObjectStored"
           },
           {
@@ -1081,10 +1057,6 @@
           },
           {
             "kind": "event",
-            "name": "ekr.store.CheckpointWritten"
-          },
-          {
-            "kind": "event",
             "name": "ekr.store.ObjectStored"
           },
           {
@@ -1119,8 +1091,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "5ae213f1bd2befd1212341ec285bb0076eb1b4532438b03037d8095c0be806a4",
-    "spec_digest": "684cbac7a224af35508d0394642868df45ffc049561c272bffae57b657be883a",
+    "contract_digest": "eac8f5b2f68f9af13ff4ff3ddc73b23285953a5bcaeeb8ed2565925ea439356c",
+    "spec_digest": "fc74df41c3579a00ace0b97f0d5cd98950495e8315cf7714d827358a688ea787",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"

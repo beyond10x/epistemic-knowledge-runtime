@@ -4536,3 +4536,111 @@ deleted in a further call) and the two knowledge roots invariant 1 asks for, the
 candidate replay's. Per verb, what remains is the provider's own: a hash of the whole log per call
 inside its two-second window, and 8 to 10 `fsync` calls per atomic group. Writing checkpoints and
 pointers less often than once per verb is a change to § 96.3 and is not made here.
+
+---
+
+# 99. Replay Checkpoint Cadence
+
+*Added 2026-09-28 by wave read-02 (`task:checkpoint-cadence-costs-each-commit`). Amends § 96.3's
+cadence — when a checkpoint and a pointer are written — and extends § 98.1 item 2. The checkpoint
+and pointer formats, what admitting either checks, what a checkpoint takes on trust and
+`--full-replay` are unchanged, and so is every retained format, canonical root, validation rule and
+refusal.*
+
+**What was measured.** A file store seeded from `ekr example ekr-seed/2` and 40 committed
+transactions of 185 `CreateNode` each (a `Person` with a 60-character name and one alias; 7,403
+nodes, 20,864,929 bytes, an 855,415-byte log, a 2,827,023-byte checkpoint), on tmpfs, release
+build, then trios of 25-node propose, validate and commit inside one `ekr session`. Under § 96.3
+every commit wrote a checkpoint — its graph document serialised and hashed, fingerprinted and hashed
+again by the provider, the replaced blob deleted in a further call — and every proposal and
+validation a pointer, each its own atomic group: 84 `fsync` calls per trio. A commit that writes a
+checkpoint took about 43 ms more than one that appends only a pointer. On the next open, each commit
+after the checkpoint is replayed: one of 25 nodes cost about 21 ms (one-shot open 282 ms against
+261 ms with none), and replay grows by about 0.12 ms per committed operation (one commit of 1,000
+`CreateNode`: 402 ms).
+
+## 99.1 The cadence
+
+1. A seed writes a checkpoint, as before.
+2. A commit writes one when one is due, and otherwise appends only a pointer that names the
+   retained checkpoint again with the new coverage and binding. One is due when the committing
+   handle's kernel authority knows of no retained checkpoint — it admitted none at its first head
+   read and has written none — or when the revision the commit published is at least
+   `REPLAY_CHECKPOINT_COMMITS` (4) revisions past the retained checkpoint's head, or when the
+   transactions committed after that head hold together at least `REPLAY_CHECKPOINT_OPERATIONS`
+   (512) operations, counted by their proposals' `operation_count`.
+3. A proposal, a validation, a rejection and a stale decision append nothing: they move no head
+   and write no checkpoint.
+
+An authority knows the checkpoint it admitted and the last one it wrote. One that another handle
+wrote since is not known to it, so its next checkpoint can come earlier or later than the bound; as
+before, a checkpoint that is not written costs an open time, never an answer. A handle opened with
+`--full-replay` admits none, so each of its commits writes one, as every commit did before.
+
+## 99.2 What an open does, and `head`
+
+Admission is § 96.3's. An open that admits the retained checkpoint replays what follows it through
+the kernel authority — at most three commits, or fewer commits holding under 512 operations, and
+the proposals and validations around them — re-deriving each decision there as a full replay does.
+It reaches the roots, graph and records a full replay reaches wherever the checkpoint lies. A
+validation against a revision after the checkpoint's head finds that revision's graph in the replay;
+one against an earlier revision replays the whole history, as before.
+
+`ekr head` answers from the pointer alone only when the newest pointer names every occurrence the
+stream holds: after a seed or a commit. After a proposal or a validation it replays from the
+checkpoint as every other read does, and the store asks the authority for the head root alone:
+`CommitAuthority::replay_root`, whose default answers as `replay` does and which the kernel answers
+without copying the head graph, as it answers `verify` (§ 98.1 item 2).
+
+## 99.3 Why these bounds
+
+Both costs grow with the head graph: a checkpoint is the head graph, and replaying a commit copies
+it and recomputes its knowledge and evidence roots. On the measured store one checkpoint cost about
+two replayed commits (43 ms against 21 ms). With one every fourth commit a session pays about 11 ms
+per commit for checkpoints instead of 43, its median commit writes none, and an open replays at
+most three commits, about 63 ms. A bound of 8 would save a session 5 ms more per commit while every
+one-shot command, which opens the store itself, would replay twice as much on average and up to
+seven commits, about 150 ms. 512 operations are about 60 ms of replay at 0.12 ms each, the order of
+three small commits: of the 185-operation commits above, the third writes a checkpoint rather than
+leaving about 130 ms of replay to every open until a fourth.
+
+## 99.4 Result, and what is not changed
+
+On that store, trios 2–10 of one session on a tmpfs copy, nine before and nine after sessions on
+fresh copies alternating, on a shared machine (load average 18–22 on 20 cores); each cell is the
+median of the nine per-session medians and, after it, their range, in ms:
+
+| | propose | validate | commit | `fsync` per trio |
+|---|---|---|---|---|
+| session, before | 64 (60–79) | 76 (70–94) | 127 (125–154) | 84 |
+| session, after | 58 (51–84) | 77 (71–102) | 87 (75–116) | 63 |
+
+Seven of the nine after-sessions had a median commit under 100 ms; the two over it (105 and 116 ms)
+came with slower proposals and validations in the same session. The commit that writes a
+checkpoint, one in four, took 117–205 ms after (the slowest commit of each session). One process
+per verb, eight trios: 1,082–1,160 ms per trio before and 1,093–1,281 ms after, the later opens
+replaying what follows the checkpoint. One-shot open with a history read (`ekr validate` of an
+absent transaction) after 100 further commits in one session, where the retained checkpoint is the
+head's under either cadence: 447–587 ms before, 421–582 ms after; after 103, three commits past
+the checkpoint: 465–515 ms before, 482–588 ms after (four rounds of five, load average 33–50).
+
+The kernel domain in `systems/ekr` declares `ekr.store.CheckpointWritten` for the seeded and
+committed outcomes only, and its conformance suite is regenerated from it.
+
+What remains per commit is what § 98.2 names: the provider's hash of its whole log at each call
+inside its two-second window, 68 % of the CPU samples of a ten-trio session after this change
+(`task:eventlog-rehash-and-fsync-per-write`), 8 to 10 `fsync` calls per atomic group, and the two
+knowledge roots invariant 1 asks for.
+
+Executed by `crates/ekr-kernel/tests/replay_checkpoint.rs`, on both providers:
+`a_fresh_open_continues_from_the_checkpoint_with_the_answers_of_a_full_replay` (after each of nine
+commits a fresh open answers as a full replay and replays nothing from the seed; checkpoints at the
+seed and revisions 4 and 8, one pointer per seed and commit, one blob retained),
+`one_runtime_serving_every_command_writes_checkpoints_at_the_same_revisions`,
+`a_verb_that_moves_no_head_appends_no_pointer`,
+`a_commit_that_reaches_the_operation_bound_writes_a_checkpoint`,
+`a_handle_that_restored_no_checkpoint_writes_one_at_its_next_commit` and
+`head_answers_from_the_pointer_alone_after_a_commit_and_replays_after_a_proposal`; the forgery
+cases of § 96.3 run unchanged against a checkpoint a commit wrote.
+`crates/ekr-store/tests/authority_verify.rs` holds `replay_root`'s default and that a head no
+pointer answers asks for the root alone.

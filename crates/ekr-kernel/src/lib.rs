@@ -119,6 +119,7 @@ pub mod transaction;
 pub mod validate;
 
 pub use authority::{Agent, AuthorityStateV1, ValidationProfileV1};
+pub use checkpoint::{REPLAY_CHECKPOINT_COMMITS, REPLAY_CHECKPOINT_OPERATIONS};
 pub use commands::{CommitCommandResult, ValidationCommandResult};
 pub use commit::{Commit, CommitError, KernelAuthority};
 pub use document::{
