@@ -9,7 +9,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use ekr_core::{PropertyId, TypeId};
+use ekr_core::{EdgeId, NodeId, PropertyId, TypeId};
 use ekr_graph::{
     Assertion, AssertionLifecycle, Assessment, CanonicalDependency, CanonicalValue, Edge,
     EvidenceKind, Object, Predicate, Subject,
@@ -398,46 +398,40 @@ fn declared(ontology: &Ontology) -> BTreeSet<String> {
     ids
 }
 
-/// Where an assertion is listed: under the node, edge or type that is its subject.
-enum Place {
-    Node(String),
-    Edge(String),
-    Type(TypeId),
-}
-
 pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> {
     let graph = &loaded.graph;
 
-    let mut by_subject: BTreeMap<String, Vec<&Assertion>> = BTreeMap::new();
+    // An assertion is listed under the node, edge or type that is its subject. Each kind has its
+    // own buckets, keyed by its own id type: a node and an edge may hold one UUID, and each lists
+    // only the assertions about itself.
+    let mut by_node: BTreeMap<NodeId, Vec<&Assertion>> = BTreeMap::new();
+    let mut by_edge: BTreeMap<EdgeId, Vec<&Assertion>> = BTreeMap::new();
     let mut by_type: BTreeMap<TypeId, Vec<&Assertion>> = BTreeMap::new();
     let mut listed = 0_u64;
     for claim in graph.assertions.values() {
-        let place = match claim.subject {
-            Subject::Node(node) => Place::Node(node.id().to_string()),
-            Subject::Edge(edge) => Place::Edge(edge.id().to_string()),
-            Subject::Type(type_id) => Place::Type(type_id),
-        };
-        let held = match &place {
-            Place::Node(_) => {
-                matches!(claim.subject, Subject::Node(node) if graph.nodes.contains_key(&node.id()))
+        let held = match claim.subject {
+            Subject::Node(node) if graph.nodes.contains_key(&node.id()) => {
+                by_node.entry(node.id()).or_default().push(claim);
+                true
             }
-            Place::Edge(_) => {
-                matches!(claim.subject, Subject::Edge(edge) if graph.edges.contains_key(&edge.id()))
+            Subject::Edge(edge) if graph.edges.contains_key(&edge.id()) => {
+                by_edge.entry(edge.id()).or_default().push(claim);
+                true
             }
-            Place::Type(type_id) => {
-                graph.ontology.node_type(*type_id).is_some()
-                    || graph.ontology.edge_type(*type_id).is_some()
+            Subject::Type(type_id)
+                if graph.ontology.node_type(type_id).is_some()
+                    || graph.ontology.edge_type(type_id).is_some() =>
+            {
+                by_type.entry(type_id).or_default().push(claim);
+                true
             }
+            _ => false,
         };
         if !held {
             return Err(ProjectError::Inconsistent(format!(
                 "assertion {} is about a subject revision {} does not hold",
                 claim.id, graph.revision
             )));
-        }
-        match place {
-            Place::Node(key) | Place::Edge(key) => by_subject.entry(key).or_default().push(claim),
-            Place::Type(type_id) => by_type.entry(type_id).or_default().push(claim),
         }
         listed += 1;
     }
@@ -450,33 +444,27 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
     let mut nodes: Vec<ProjectedNode> = graph
         .nodes
         .values()
-        .map(|node| {
-            let id = node.id.to_string();
-            ProjectedNode {
-                assertions: listed_under(by_subject.get(&id)),
-                id,
-                name: node.canonical_name.clone(),
-                type_id: node.type_id.to_string(),
-                aliases: node.aliases.clone(),
-                state: node.type_state.clone(),
-                props: props(&node.properties),
-            }
+        .map(|node| ProjectedNode {
+            assertions: listed_under(by_node.get(&node.id)),
+            id: node.id.to_string(),
+            name: node.canonical_name.clone(),
+            type_id: node.type_id.to_string(),
+            aliases: node.aliases.clone(),
+            state: node.type_state.clone(),
+            props: props(&node.properties),
         })
         .collect();
     nodes.sort_by(|a, b| a.id.cmp(&b.id));
     let mut edges: Vec<ProjectedEdge> = graph
         .edges
         .values()
-        .map(|edge| {
-            let id = edge.id.to_string();
-            ProjectedEdge {
-                assertions: listed_under(by_subject.get(&id)),
-                id,
-                source: edge.source.id().to_string(),
-                target: edge.target.id().to_string(),
-                type_id: edge.type_id.to_string(),
-                props: props(&edge.properties),
-            }
+        .map(|edge| ProjectedEdge {
+            assertions: listed_under(by_edge.get(&edge.id)),
+            id: edge.id.to_string(),
+            source: edge.source.id().to_string(),
+            target: edge.target.id().to_string(),
+            type_id: edge.type_id.to_string(),
+            props: props(&edge.properties),
         })
         .collect();
     edges.sort_by(|a, b| a.id.cmp(&b.id));
