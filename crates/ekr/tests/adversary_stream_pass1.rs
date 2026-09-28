@@ -455,10 +455,9 @@ fn a_pinned_revision_pages_across_a_commit_with_nothing_lost_or_repeated() {
         };
         assert_eq!(answered.status, 200, "GET {path}");
         let lines = answered.lines();
-        let mut expected = expected_lines(&page);
-        // task:historical-projection-carries-the-head: meta.head is allowed to move.
-        expected[0]["head"] = lines[0]["head"].clone();
-        assert_eq!(lines, expected, "GET {path}");
+        // task:historical-projection-carries-the-head: no line names the head, so every page of
+        // the pinned revision is the engine's, byte for byte, whether the commit came before it.
+        assert_eq!(lines, expected_lines(&page), "GET {path}");
         delivered.extend(
             lines
                 .iter()
@@ -474,7 +473,11 @@ fn a_pinned_revision_pages_across_a_commit_with_nothing_lost_or_repeated() {
     }
     assert!(pages > 2, "the commit fell between pages");
     assert_eq!(delivered, record_lines(&whole));
-    assert_eq!(server.get("/overview").json()["meta"]["head"], 1);
+    assert_eq!(
+        server.get("/head").json(),
+        serde_json::json!({"format": "ekr.view-head/1", "head": 1})
+    );
+    assert_eq!(server.get("/overview").json()["meta"]["revision"], 1);
 }
 
 /// Sixty-four readers — the in-flight cap — stream the same 1-hop expansion of the star's hub at

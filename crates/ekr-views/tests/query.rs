@@ -83,7 +83,7 @@ fn the_overview_opens_with_its_meta_and_lists_its_sections_in_declared_order() {
     let (text, value) = json(&answer.bytes);
     assert!(
         text.starts_with(
-            "{\"meta\":{\"format\":\"ekr.graph-overview/1\",\"revision\":0,\"head\":0,\
+            "{\"meta\":{\"format\":\"ekr.graph-overview/1\",\"revision\":0,\
              \"node_count\":601,\"edge_count\":600,\"assertion_count\":0,\"evidence_count\":0,\
              \"limit\":2},\"ontology\":{\"node_types\":["
         ),
@@ -277,7 +277,7 @@ fn a_slice_lists_each_node_before_the_edges_it_closes_and_pages_by_record() {
     assert_eq!(
         text,
         format!(
-            "{{\"meta\":{{\"format\":\"ekr.graph-slice/1\",\"revision\":0,\"head\":0,\
+            "{{\"meta\":{{\"format\":\"ekr.graph-slice/1\",\"revision\":0,\
              \"seeds\":[\"{hub}\"],\"depth\":1,\"after\":0,\"node_total\":601,\"edge_total\":600}},\
              \"nodes\":[\
              {{\"id\":\"{hub}\",\"type\":\"{vertex}\",\"name\":\"hub\",\"degree\":600,\"distance\":0}},\
@@ -397,7 +397,7 @@ fn a_detail_carries_the_node_its_own_and_incoming_assertions_its_edges_and_neigh
     let (text, value) = json(&second.bytes);
     assert!(
         text.starts_with(&format!(
-            "{{\"meta\":{{\"format\":\"ekr.node-detail/1\",\"revision\":1,\"head\":1}},\
+            "{{\"meta\":{{\"format\":\"ekr.node-detail/1\",\"revision\":1}},\
              \"node\":{{\"id\":\"{}\",\"name\":\"second\",\"type\":\"{}\",\"aliases\":[],\
              \"props\":{{}},\"degree\":1}},\"assertions\":[{{\"id\":\"{}\",",
             uuid(GROWTH_SECOND),
@@ -475,7 +475,7 @@ fn exact_matches_come_before_folded_ones_whatever_their_degree() {
     assert_eq!(
         text,
         format!(
-            "{{\"meta\":{{\"format\":\"ekr.node-matches/1\",\"revision\":0,\"head\":0,\
+            "{{\"meta\":{{\"format\":\"ekr.node-matches/1\",\"revision\":0,\
              \"text\":\"Hub\",\"total\":2,\"exact_total\":1}},\"matches\":[\
              {{\"id\":\"{leaf}\",\"type\":\"{vertex}\",\"name\":\"leaf-600\",\"degree\":1,\
              \"tier\":\"Exact\",\"field\":\"Alias\",\"alias\":\"Hub-Leaf\"}},\
@@ -637,7 +637,7 @@ fn both_providers_answer_every_read_of_every_revision_with_the_same_bytes_every_
 // ---- the cache ----------------------------------------------------------------------------------
 
 #[test]
-fn the_cache_keeps_the_three_most_recently_used_revisions_by_revision_and_head() {
+fn the_cache_keeps_the_three_most_recently_used_revisions_by_revision() {
     fn shared<T: Send + Sync>(_: &T) {}
     let (_work, runtime) = built(Fixture::Evolved, Provider::File);
     let mut cache = IndexCache::new(IndexCache::DEFAULT_CAPACITY);
@@ -645,7 +645,7 @@ fn the_cache_keeps_the_three_most_recently_used_revisions_by_revision_and_head()
     let at = |n| Some(RevisionNumber::new(n));
     let head = cache.index(&runtime, None).unwrap();
     shared(&head);
-    assert_eq!((head.revision().get(), head.head().get()), (5, 5));
+    assert_eq!(head.revision().get(), 5);
     assert!(
         Arc::ptr_eq(&head, &cache.index(&runtime, at(5)).unwrap()),
         "None is the head"
@@ -657,14 +657,10 @@ fn the_cache_keeps_the_three_most_recently_used_revisions_by_revision_and_head()
     assert!(Arc::ptr_eq(&head, &cache.index(&runtime, at(5)).unwrap()));
     let three = cache.index(&runtime, at(3)).unwrap();
     assert_eq!(cache.len(), 3);
-    assert!(cache
-        .get(RevisionNumber::new(1), RevisionNumber::new(5))
-        .is_none());
+    assert!(cache.get(RevisionNumber::new(1)).is_none());
     assert!(Arc::ptr_eq(
         &two,
-        &cache
-            .get(RevisionNumber::new(2), RevisionNumber::new(5))
-            .unwrap()
+        &cache.get(RevisionNumber::new(2)).unwrap()
     ));
     assert!(Arc::ptr_eq(&three, &cache.index(&runtime, at(3)).unwrap()));
     assert!(
@@ -675,6 +671,30 @@ fn the_cache_keeps_the_three_most_recently_used_revisions_by_revision_and_head()
         cache.index(&runtime, at(6)),
         Err(ProjectError::RevisionNotFound { .. })
     ));
+}
+
+/// `task:historical-projection-carries-the-head`: no answer names the head, so a commit leaves a
+/// held revision's index current — it is answered from memory, not loaded again — while the
+/// head itself is read on every call: `None` names the new head and it is no longer refused.
+#[test]
+fn a_commit_keeps_every_held_index_and_moves_only_what_none_names() {
+    let (_work, runtime) = built(Fixture::Evolved, Provider::Sqlite);
+    let mut cache = IndexCache::new(IndexCache::DEFAULT_CAPACITY);
+    let at = |n| Some(RevisionNumber::new(n));
+    let one = cache.index(&runtime, at(1)).unwrap();
+    let five = cache.index(&runtime, None).unwrap();
+    assert!(matches!(
+        cache.index(&runtime, at(6)),
+        Err(ProjectError::RevisionNotFound { requested, head })
+            if (requested.get(), head.get()) == (6, 5)
+    ));
+    fixtures::commit_unrelated(&runtime, 0);
+    assert!(Arc::ptr_eq(&one, &cache.index(&runtime, at(1)).unwrap()));
+    assert!(Arc::ptr_eq(&five, &cache.index(&runtime, at(5)).unwrap()));
+    let six = cache.index(&runtime, None).unwrap();
+    assert_eq!(six.revision().get(), 6, "None is the new head");
+    assert!(Arc::ptr_eq(&six, &cache.index(&runtime, at(6)).unwrap()));
+    assert_eq!(cache.len(), 3);
 }
 
 // ---- the public names a host builds on ----------------------------------------------------------

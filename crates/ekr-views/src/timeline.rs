@@ -112,8 +112,6 @@ impl TimelineRequest {
 pub struct SubjectsTimelined {
     /// `meta.revision`.
     pub revision: u64,
-    /// `meta.head`.
-    pub head: u64,
     /// `meta.row_type`.
     pub row_type: Option<TypeId>,
     /// `meta.hops`.
@@ -150,7 +148,6 @@ pub struct SubjectsTimelined {
 struct TimelineMeta {
     format: &'static str,
     revision: u64,
-    head: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     row_type: Option<TypeId>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -515,7 +512,6 @@ impl Index {
             meta: TimelineMeta {
                 format: TIMELINE_FORMAT,
                 revision: graph.revision.get(),
-                head: self.loaded.head.get(),
                 row_type,
                 subject: request.subject(),
                 hops: request.hops(),
@@ -543,7 +539,6 @@ impl Index {
         let bytes = encode(&document)?;
         let summary = SubjectsTimelined {
             revision: document.meta.revision,
-            head: document.meta.head,
             row_type: document.meta.row_type,
             hops: document.meta.hops,
             bucket_ms: document.meta.bucket_ms,

@@ -80,7 +80,6 @@ timeline:
       - event: ekr.views.NodeDescribed
         payload:
           revision: 0
-          head: 1
           node: 00000000-0000-4000-8000-000000400001
           assertions: 0
           referencing: 0
@@ -103,7 +102,6 @@ timeline:
       - event: ekr.views.NeighbourhoodExpanded
         payload:
           revision: 0
-          head: 1
           nodes: 1
           edges: 0
           remaining: 0
@@ -120,7 +118,6 @@ timeline:
       - event: ekr.views.NodeDescribed
         payload:
           revision: 1
-          head: 1
           node: 00000000-0000-4000-8000-000000400002
           assertions: 2
           referencing: 0
@@ -177,7 +174,6 @@ timeline:
       - event: ekr.views.GraphOverviewed
         payload:
           revision: 1
-          head: 1
           nodes: 2
           edges: 1
           assertions: 2

@@ -35,9 +35,9 @@
 //! it ([`Id`]).
 //!
 //! **Reads only.** The store calls are [`IndexCache::index`] (which reads the head on every call,
-//! so a commit made by another process is what the next call reads, and loads a revision once
-//! per head), `explain::run` and `resolve::run`. Nothing here proposes, validates, commits or
-//! seeds. Record text is untrusted evidence (A14): it is returned as JSON string data, and the
+//! so a commit made by another process is what the next call reads, and loads a revision once,
+//! since no document names the head), `explain::run` and `resolve::run`. Nothing here proposes,
+//! validates, commits or seeds. Record text is untrusted evidence (A14): it is returned as JSON string data, and the
 //! server's instructions and every tool's description say so.
 
 use std::io::{BufRead, Write};
@@ -376,7 +376,7 @@ impl Server {
         }
     }
 
-    /// The index of revision `revision` (the head when absent), read under the current head.
+    /// The index of revision `revision` (the head when absent), the head read at the call.
     fn index(&mut self, revision: Option<u64>) -> Result<Arc<Index>, Unanswered> {
         Ok(self
             .indexes

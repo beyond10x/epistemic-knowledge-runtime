@@ -134,7 +134,6 @@ fn counts(fields: &[(&'static str, u64)]) -> Result<Vec<(&'static str, Node)>, T
 fn graph_projected(summary: &GraphProjected) -> Result<ObservedEvent, TargetError> {
     let mut fields = counts(&[
         ("revision", summary.revision),
-        ("head", summary.head),
         ("nodes", summary.nodes),
         ("edges", summary.edges),
         ("assertions", summary.assertions),
@@ -159,7 +158,6 @@ fn graph_projected(summary: &GraphProjected) -> Result<ObservedEvent, TargetErro
 fn graph_overviewed(summary: &GraphOverviewed) -> Result<ObservedEvent, TargetError> {
     let mut fields = counts(&[
         ("revision", summary.revision),
-        ("head", summary.head),
         ("nodes", summary.nodes),
         ("edges", summary.edges),
         ("assertions", summary.assertions),
@@ -192,7 +190,6 @@ fn graph_overviewed(summary: &GraphOverviewed) -> Result<ObservedEvent, TargetEr
 fn neighbourhood_expanded(summary: &NeighbourhoodExpanded) -> Result<ObservedEvent, TargetError> {
     let mut fields = counts(&[
         ("revision", summary.revision),
-        ("head", summary.head),
         ("seeds", summary.seeds),
         ("depth", summary.depth),
         ("after", summary.after),
@@ -209,7 +206,6 @@ fn neighbourhood_expanded(summary: &NeighbourhoodExpanded) -> Result<ObservedEve
 fn node_described(summary: &NodeDescribed) -> Result<ObservedEvent, TargetError> {
     let mut fields = counts(&[
         ("revision", summary.revision),
-        ("head", summary.head),
         ("assertions", summary.assertions),
         ("referencing", summary.referencing),
         ("edges", summary.edges),
@@ -223,7 +219,6 @@ fn node_described(summary: &NodeDescribed) -> Result<ObservedEvent, TargetError>
 fn nodes_searched(summary: &NodesSearched) -> Result<ObservedEvent, TargetError> {
     let mut fields = counts(&[
         ("revision", summary.revision),
-        ("head", summary.head),
         ("matches", summary.matches),
         ("total", summary.total),
         ("exact_total", summary.exact_total),
@@ -239,7 +234,6 @@ fn nodes_searched(summary: &NodesSearched) -> Result<ObservedEvent, TargetError>
 fn subjects_timelined(summary: &SubjectsTimelined) -> Result<ObservedEvent, TargetError> {
     let mut fields = counts(&[
         ("revision", summary.revision),
-        ("head", summary.head),
         ("hops", summary.hops),
         ("bucket_ms", summary.bucket_ms),
         ("row_types", summary.row_types),

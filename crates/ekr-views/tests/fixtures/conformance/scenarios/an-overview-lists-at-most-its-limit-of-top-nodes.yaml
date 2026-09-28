@@ -33,7 +33,6 @@ timeline:
       - event: ekr.views.GraphOverviewed
         payload:
           revision: 0
-          head: 0
           nodes: 601
           edges: 600
           assertions: 0

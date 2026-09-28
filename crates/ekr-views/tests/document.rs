@@ -42,7 +42,7 @@ fn the_head_projection_opens_with_its_meta_in_declared_order_and_no_whitespace()
     let (text, _) = render(5);
     assert!(
         text.starts_with(
-            "{\"meta\":{\"format\":\"ekr.graph-projection/1\",\"revision\":5,\"head\":5,\
+            "{\"meta\":{\"format\":\"ekr.graph-projection/1\",\"revision\":5,\
              \"node_count\":4,\"edge_count\":1,\"assertion_count\":2,\"evidence_count\":3},\
              \"ontology\":{\"node_types\":["
         ),
@@ -213,7 +213,12 @@ fn the_schema_lists_each_version_from_its_first_revision_and_every_revision_up_t
     let (_, third) = render(3);
     assert_eq!(third["schema"]["versions"].as_array().unwrap().len(), 2);
     assert_eq!(third["schema"]["revisions"].as_array().unwrap().len(), 4);
-    assert_eq!(third["meta"]["head"], 5);
+    assert_eq!(third["meta"]["revision"], 3);
+    assert!(
+        third["meta"].get("head").is_none(),
+        "a past revision names no head: {}",
+        third["meta"]
+    );
 }
 
 #[test]

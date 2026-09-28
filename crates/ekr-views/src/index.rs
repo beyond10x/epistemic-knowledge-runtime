@@ -8,8 +8,9 @@
 //! answer, not the revision. It owns the loaded revision, so a host renders
 //! `ekr.graph-projection/1` from the same load through [`Index::loaded`].
 //!
-//! [`IndexCache`] keeps the most recently used indexes by revision and head, so only the first
-//! read of a revision pays for its load.
+//! [`IndexCache`] keeps the most recently used indexes by revision, so only the first read of a
+//! revision pays for its load. A committed revision never changes and no answer names the head,
+//! so a later commit leaves every held index current.
 
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
@@ -79,7 +80,6 @@ impl std::fmt::Debug for Index {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Index")
             .field("revision", &self.revision())
-            .field("head", &self.head())
             .field("nodes", &self.node_ids.len())
             .field("edges", &self.edge_ids.len())
             .finish_non_exhaustive()
@@ -282,12 +282,6 @@ impl Index {
     #[must_use]
     pub fn revision(&self) -> RevisionNumber {
         self.loaded.graph.revision
-    }
-
-    /// The store's head when the revision was loaded.
-    #[must_use]
-    pub const fn head(&self) -> RevisionNumber {
-        self.loaded.head
     }
 
     /// The loaded revision the index was built from.
@@ -844,8 +838,9 @@ impl Natural {
     }
 }
 
-/// The indexes of the most recently used revisions, keyed by revision and the head they were
-/// loaded under, evicting the least recently used beyond its capacity.
+/// The indexes of the most recently used revisions, keyed by revision, evicting the least
+/// recently used beyond its capacity. A committed revision is immutable and its index names no
+/// head, so a held index stays current however far the head moves.
 #[derive(Debug)]
 pub struct IndexCache {
     capacity: usize,
@@ -878,29 +873,30 @@ impl IndexCache {
         self.entries.is_empty()
     }
 
-    /// The index of `revision` loaded under `head`, if held; it becomes the most recently used.
-    pub fn get(&mut self, revision: RevisionNumber, head: RevisionNumber) -> Option<Arc<Index>> {
+    /// The index of `revision`, if held; it becomes the most recently used.
+    pub fn get(&mut self, revision: RevisionNumber) -> Option<Arc<Index>> {
         let at = self
             .entries
             .iter()
-            .position(|index| index.revision() == revision && index.head() == head)?;
+            .position(|index| index.revision() == revision)?;
         let index = self.entries.remove(at)?;
         self.entries.push_front(Arc::clone(&index));
         Some(index)
     }
 
-    /// Holds `index` as the most recently used, replacing one of the same revision and head and
-    /// evicting the least recently used beyond the capacity. Returns it.
+    /// Holds `index` as the most recently used, replacing one of the same revision and evicting
+    /// the least recently used beyond the capacity. Returns it.
     pub fn insert(&mut self, index: Arc<Index>) -> Arc<Index> {
         self.entries
-            .retain(|held| (held.revision(), held.head()) != (index.revision(), index.head()));
+            .retain(|held| held.revision() != index.revision());
         self.entries.push_front(Arc::clone(&index));
         self.entries.truncate(self.capacity);
         index
     }
 
     /// The index of revision `at` of `runtime`'s store (its head when `None`): the held one if
-    /// the store's head is still the one it was loaded under, else [`Index::load`]ed and held.
+    /// any, else [`Index::load`]ed and held. The head is read on every call, so `None` names the
+    /// newest revision and a revision beyond it is refused, whatever the cache holds.
     ///
     /// # Errors
     ///
@@ -922,7 +918,7 @@ impl IndexCache {
                 head,
             });
         }
-        if let Some(index) = self.get(revision, head) {
+        if let Some(index) = self.get(revision) {
             return Ok(index);
         }
         Ok(self.insert(Arc::new(Index::load(runtime, Some(revision))?)))

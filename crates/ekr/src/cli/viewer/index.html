@@ -321,8 +321,9 @@
 <script>
 "use strict";
 // =====================================================================================================
-// Data: the only code that talks to the server, through one `get`. It reads the six addresses of the
+// Data: the only code that talks to the server, through one `get`. It reads the seven addresses of the
 // `ekr view` data contract and nothing else:
+//   /head          the newest committed revision of the store, after every overview: no document names it
 //   /overview      once per revision: meta, ontology, schema lineage with what each version added and
 //                  removed, growth per revision, type counts, roles, timeline buckets and the top nodes
 //   /expand        a neighbourhood, streamed as NDJSON and handed on in batches as the lines arrive
@@ -334,6 +335,7 @@
 // dropped, and an expansion of a revision no longer shown is cancelled.
 // =====================================================================================================
 const Data = (() => {
+  const HEAD = "/head";
   const OVERVIEW = "/overview";
   const EXPAND = "/expand";
   const NODE = "/node/";
@@ -392,16 +394,19 @@ const Data = (() => {
   async function overview(at) {
     const mine = ++loads;
     const answer = await get(OVERVIEW + query({revision: at})).then(json);
+    // read after the overview, so the head it names is never older than the revision it answered
+    const newest = await get(HEAD).then(json);
     if (mine !== loads) return null;
     closeAll();
     details.clear();
     timelines.clear();
-    current = adapt(answer);
+    current = adapt(answer, newest.head);
     return current;
   }
 
   // The document the UI reads, keyed by ids throughout; every name is looked up in `names`:
-  //   meta       revision, head, schema_version_number, counts {nodes, edges, assertions, evidence}
+  //   meta       revision, head (from /head, never below the revision), schema_version_number,
+  //              counts {nodes, edges, assertions, evidence}
   //   names      type, edgeType, prop (id → name), propKind (id → value kind)
   //   ontology   as the overview carries it
   //   nodeTypes, edgeTypes   Map type id → how many the revision holds
@@ -411,7 +416,7 @@ const Data = (() => {
   //   schema     {head, versions [{number, id, parent, revision, added {node_types, edge_types, properties,
   //              unknown}, removed [{id, kind, name}]}], revisions [{revision, committed_at, transaction_id,
   //              schema_version_number, nodes, edges, assertions}], undated {nodes, edges}}
-  function adapt(o) {
+  function adapt(o, head) {
     const names = {type: new Map(), edgeType: new Map(), prop: new Map(), propKind: new Map()};
     for (const t of o.ontology.node_types) names.type.set(t.id, t.name);
     for (const t of o.ontology.edge_types) names.edgeType.set(t.id, t.name);
@@ -441,7 +446,7 @@ const Data = (() => {
       nodes: r.nodes, edges: r.edges, assertions: r.assertions}));
     const shown = revisions.find(r => r.revision === o.meta.revision);
     return {
-      meta: {revision: o.meta.revision, head: o.meta.head, schema_version_number: shown ? shown.schema_version_number : null,
+      meta: {revision: o.meta.revision, head: typeof head === "number" && head > o.meta.revision ? head : o.meta.revision, schema_version_number: shown ? shown.schema_version_number : null,
         counts: {nodes: o.meta.node_count, edges: o.meta.edge_count, assertions: o.meta.assertion_count, evidence: o.meta.evidence_count}},
       names, ontology: o.ontology,
       nodeTypes: new Map(o.node_types.map(c => [c.type, c.count])),
