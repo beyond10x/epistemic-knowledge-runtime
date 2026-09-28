@@ -113,6 +113,19 @@
   .evbody { margin-top: 8px; padding: 7px 9px; border-radius: 8px; background: var(--surface-1); border: 1px solid var(--line);
             font: 11.5px/1.45 ui-monospace, monospace; color: var(--text-secondary); max-height: 340px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
   #evcard { border-color: #86b6ef; }
+  table.claim { width: 100%; border-collapse: collapse; margin: 8px 0 0; font-size: 12px; background: var(--surface-1);
+                border: 1px solid var(--line); border-radius: 8px; }
+  table.claim th, table.claim td { text-align: left; vertical-align: top; padding: 3px 8px; word-break: break-word; }
+  table.claim th:first-child, table.claim td:first-child { width: 86px; color: var(--text-muted); font-weight: 400; }
+  table.claim thead th { border-bottom: 1px solid var(--line); }
+  table.claim thead th:last-child { font: 10.5px ui-monospace, monospace; color: var(--text-secondary); }
+  table.claim.faded { opacity: .6; }
+  #stream { margin-top: 8px; font-size: 11.5px; color: var(--text-secondary); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  #stream:empty { display: none; }
+  #stream b { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+  #stream button { background: var(--surface-2); color: var(--text-secondary); border: 1px solid var(--line); border-radius: 999px;
+                   padding: 2px 10px; cursor: pointer; font: inherit; }
+  #stream button:hover { color: var(--text-primary); border-color: var(--text-muted); }
   #crumbs { position: absolute; left: 12px; top: 52px; z-index: 3; display: none; align-items: center; gap: 6px; flex-wrap: wrap;
             max-width: calc(100% - 200px); background: rgba(35,35,34,.96); border: 1px solid var(--line); border-radius: 8px;
             padding: 4px 10px; font-size: 12px; color: var(--text-secondary); }
@@ -257,6 +270,8 @@
     <div class="tile"><div class="v" id="kLinked">–</div><div class="k">connected</div></div>
   </div>
   <div class="sub" id="subline"></div>
+  <div class="sub" id="drawn"></div>
+  <div id="stream"></div>
   <div id="error"></div>
   <h2>Revision</h2>
   <div class="revnav"><button id="revPrev" title="The revision before ([)">‹</button><select id="revSel" title="Show the graph as of a committed revision"></select><button id="revNext" title="The revision after (])">›</button></div>
@@ -299,23 +314,33 @@
 <div id="palette"><div class="box"><input id="palQ" placeholder="Jump to a node, a type, a revision or an action…" autocomplete="off"><div id="palList"></div></div></div>
 <aside class="right" id="panel">
   <div class="card"><h1>Explore the graph</h1>
-    <div class="empty">Click a node or an edge for its details. Scroll to zoom: labels appear as you zoom in.
-      A click highlights the node's neighbourhood; click the background to clear it.</div></div>
+    <div class="empty">The graph starts with the revision's best-connected nodes. Click a node for its details: its
+      neighbourhood streams in around it. Scroll to zoom: labels appear as you zoom in. Click the background to clear.</div></div>
 </aside>
 <svg id="svgns" width="0" height="0" style="position:absolute" aria-hidden="true"></svg>
 <script>
 "use strict";
 // =====================================================================================================
-// Data: the only code that talks to the server. It reads three addresses and nothing else, and hands the
-// UI one document per revision (the shape is described at `adapt`). A later data layer (overview,
-// streamed expansion, one node at a time) replaces this module and keeps that document's shape.
+// Data: the only code that talks to the server, through one `get`. It reads the five addresses of the
+// `ekr view` data contract and nothing else:
+//   /overview      once per revision: meta, ontology, schema lineage with what each version added and
+//                  removed, growth per revision, type counts, roles, timeline buckets and the top nodes
+//   /expand        a neighbourhood, streamed as NDJSON and handed on in batches as the lines arrive
+//   /node/<id>     one node's detail, when it is opened
+//   /search        nodes whose name or alias holds a text
+//   /evidence/<id> the bytes of evidence, and only for an id named by an assertion the page read
+// Every load is numbered: an answer that is no longer the latest of its kind resolves to null and is
+// dropped, and an expansion of a revision no longer shown is cancelled.
 // =====================================================================================================
 const Data = (() => {
-  const PROJECTION = "/projection";
-  const ROLES = "/roles";
+  const OVERVIEW = "/overview";
+  const EXPAND = "/expand";
+  const NODE = "/node/";
+  const SEARCH = "/search";
   const EVIDENCE = "/evidence/";
+  const STREAM_TYPE = "application/x-ndjson";
 
-  function get(path) { return fetch(path, {credentials: "omit", cache: "no-store"}); }
+  function get(path, signal) { return fetch(path, {credentials: "omit", cache: "no-store", signal}); }
   function failed(response) {
     return response.text().then(message => { throw new Error(`${response.status} ${message.trim()}`); });
   }
@@ -330,14 +355,12 @@ const Data = (() => {
       return "\"" + token + "\"";
     }));
   }
-  const query = revision => revision == null ? "" : `?revision=${encodeURIComponent(revision)}`;
-
-  // Roles are optional: a server without them, or one that fails, leaves every type without a role.
-  function readRoles(revision) {
-    return get(ROLES + query(revision))
-      .then(response => response.status === 404 && revision == null ? {absent: true} : json(response))
-      .catch(error => ({failed: error.message}));
-  }
+  // A query string; a list is comma-joined after each item is encoded, as `seeds` is.
+  const query = params => {
+    const parts = Object.entries(params).filter(([, v]) => v != null && v !== "")
+      .map(([k, v]) => `${k}=${Array.isArray(v) ? v.map(encodeURIComponent).join(",") : encodeURIComponent(v)}`);
+    return parts.length ? `?${parts.join("&")}` : "";
+  };
 
   // A time as the store holds it (epoch milliseconds): a number, or null when absent or not a safe integer.
   const ms = v => typeof v === "number" && Number.isSafeInteger(v) ? v : null;
@@ -353,198 +376,178 @@ const Data = (() => {
       default: return v.value;
     }
   }
+  const plainProps = props => Object.fromEntries(Object.entries(props || {}).map(([k, vs]) => [k, vs.map(plain)]));
 
-  const plainProps = props => Object.fromEntries(Object.entries(props).map(([k, vs]) => [k, vs.map(plain)]));
-
-  // Each load is numbered; an answer that is not the latest load's resolves to null and is dropped, so
-  // the page never shows one revision while its URL and selector name another.
+  // ---- the overview: one per revision, numbered ----
   let loads = 0;
   let current = null;
-  async function load(revision) {
+  const revision = () => current ? current.meta.revision : null;
+  async function overview(at) {
     const mine = ++loads;
-    const [projection, roles] = await Promise.all([get(PROJECTION + query(revision)).then(json), readRoles(revision)]);
+    const answer = await get(OVERVIEW + query({revision: at})).then(json);
     if (mine !== loads) return null;
-    current = adapt(projection, roles);
+    closeAll();
+    details.clear();
+    current = adapt(answer);
     return current;
   }
 
   // The document the UI reads, keyed by ids throughout; every name is looked up in `names`:
-  //   meta      revision, head, schema_version_number, counts {nodes, edges, relations_without_edge,
-  //             assertions, superseded, evidence}
-  //   names     type, edgeType, prop (id → name), propKind (id → value kind)
-  //   nodes     {id, name, type, aliases, state, props {propId: [plain]}, assertions (its property
-  //             assertions: {id, prop, value, lifecycle, valid_from, valid_to, recorded_from, evidence, claim}),
-  //             claims (every assertion whose subject it is, as projected)}
-  //   edges     {id, source, target, type, lifecycle, valid_from, valid_to, evidence, has_edge, stated
-  //             (the relation assertions joined to it), claims (assertions about the edge), props}
-  //   evidence  Map id → evidence entry
-  //   roles     Map type id → the structural role /roles served, and rolesNote
-  //   schema    {head, versions [{number, id, parent, revision, added {node_types, edge_types, properties,
-  //             unknown}, removed}], revisions [{revision, committed_at, transaction_id,
-  //             schema_version_number, nodes, edges, assertions}], undated {nodes, edges}}
-  function adapt(p, roles) {
+  //   meta       revision, head, schema_version_number, counts {nodes, edges, assertions, evidence}
+  //   names      type, edgeType, prop (id → name), propKind (id → value kind)
+  //   ontology   as the overview carries it
+  //   nodeTypes, edgeTypes   Map type id → how many the revision holds
+  //   roles      {types: Map type id → its valid-time timing, observation: a type id or null}
+  //   timeline   {bucket_ms, first, last, undated, buckets [{start, type, assertions}]}
+  //   top        the highest-degree nodes, light: {id, type, name, degree}
+  //   schema     {head, versions [{number, id, parent, revision, added {node_types, edge_types, properties,
+  //              unknown}, removed [{id, kind, name}]}], revisions [{revision, committed_at, transaction_id,
+  //              schema_version_number, nodes, edges, assertions}], undated {nodes, edges}}
+  function adapt(o) {
     const names = {type: new Map(), edgeType: new Map(), prop: new Map(), propKind: new Map()};
-    for (const t of p.ontology.node_types) names.type.set(t.id, t.name);
-    for (const t of p.ontology.edge_types) names.edgeType.set(t.id, t.name);
-    for (const x of p.ontology.properties) { names.prop.set(x.id, x.name); names.propKind.set(x.id, x.value_kind); }
-    const known = new Set(p.nodes.map(n => n.id));
-
-    // A relation assertion and an Edge with the same source, type and target are shown as one link. The
-    // format joins neither to the other; this is the page's display join, and both ids stay visible.
-    const relations = new Map();
-    let superseded = 0;
-    const count = c => { if (c.lifecycle.kind === "Superseded") superseded++; };
-    const nodes = p.nodes.map(n => {
-      const props = plainProps(n.props);
-      const assertions = [];
-      for (const c of n.assertions) {
-        count(c);
-        if (c.predicate_kind === "Property" && c.object_kind === "Value") {
-          assertions.push({id: c.id, prop: c.predicate, value: plain(c.object_value), lifecycle: c.lifecycle.kind,
-            valid_from: ms(c.valid_from), valid_to: ms(c.valid_to), recorded_from: ms(c.recorded_from), evidence: c.evidence, claim: c});
-        } else if (c.predicate_kind === "Relation" && c.object_kind === "Node" && known.has(c.object_ref)) {
-          const k = `${n.id}|${c.predicate}|${c.object_ref}`;
-          if (!relations.has(k)) relations.set(k, []);
-          relations.get(k).push({source: n.id, claim: c});
-        }
+    for (const t of o.ontology.node_types) names.type.set(t.id, t.name);
+    for (const t of o.ontology.edge_types) names.edgeType.set(t.id, t.name);
+    for (const x of o.ontology.properties) { names.prop.set(x.id, x.name); names.propKind.set(x.id, x.value_kind); }
+    const nodeTypes = new Map(o.ontology.node_types.map(t => [t.id, t]));
+    const edgeTypes = new Map(o.ontology.edge_types.map(t => [t.id, t]));
+    const owners = new Map();
+    for (const [kind, list] of [["node", o.ontology.node_types], ["edge", o.ontology.edge_types]])
+      for (const t of list) for (const x of t.properties) { if (!owners.has(x)) owners.set(x, []); owners.get(x).push({kind, type: t.id}); }
+    // a version's members carry the names that version gave them, so what a version removed is still named
+    const versions = o.schema.versions.map(v => {
+      const added = {node_types: [], edge_types: [], properties: [], unknown: []};
+      for (const m of v.added) {
+        if (m.kind === "NodeType") added.node_types.push({id: m.id, name: m.name, properties: nodeTypes.get(m.id)?.properties || []});
+        else if (m.kind === "EdgeType") {
+          const t = edgeTypes.get(m.id);
+          added.edge_types.push({id: m.id, name: m.name, source_types: t ? t.source_types : [], target_types: t ? t.target_types : []});
+        } else if (m.kind === "Property") {
+          for (const w of owners.get(m.id) || [{kind: null, type: null}]) added.properties.push({id: m.id, name: m.name, owner: w.type, owner_kind: w.kind});
+        } else added.unknown.push(m);
       }
-      return {id: n.id, name: n.name, type: n.type, aliases: n.aliases, state: n.state ?? null, props, assertions, claims: n.assertions};
+      return {number: v.number, id: v.id, parent: v.parent ?? null, revision: v.revision, added, removed: v.removed};
     });
-    // of the relation assertions joined to one link, the Active one speaks for it, else the latest recorded
-    const lead = list => list.find(r => r.claim.lifecycle.kind === "Active") ||
-      list.reduce((a, b) => (ms(b.claim.recorded_from) ?? 0) > (ms(a.claim.recorded_from) ?? 0) ? b : a);
-    const linkOf = (base, list) => {
-      const c = lead(list).claim;
-      return {...base, lifecycle: c.lifecycle.kind, valid_from: ms(c.valid_from), valid_to: ms(c.valid_to),
-        recorded_from: ms(c.recorded_from), evidence: c.evidence, stated: list.map(r => r.claim)};
-    };
-    const edges = [];
-    for (const e of p.edges) {
-      for (const c of e.assertions) count(c);
-      if (!known.has(e.source) || !known.has(e.target)) continue;
-      const base = {id: e.id, source: e.source, target: e.target, type: e.type, has_edge: true, claims: e.assertions, props: plainProps(e.props)};
-      const k = `${e.source}|${e.type}|${e.target}`, list = relations.get(k);
-      if (list) { relations.delete(k); edges.push(linkOf(base, list)); }
-      else edges.push({...base, lifecycle: "unasserted", valid_from: null, valid_to: null, recorded_from: null, evidence: [], stated: []});
-    }
-    let withoutEdge = 0;
-    for (const list of relations.values()) {
-      const c = list[0].claim;
-      edges.push(linkOf({id: lead(list).claim.id, source: list[0].source, target: c.object_ref, type: c.predicate, has_edge: false, claims: [], props: {}}, list));
-      withoutEdge++;
-    }
-    for (const t of p.ontology.node_types) for (const c of t.assertions) count(c);
-    for (const t of p.ontology.edge_types) for (const c of t.assertions) count(c);
-
-    const roleOf = new Map();
-    let rolesNote;
-    if (roles && Array.isArray(roles.node_types)) {
-      for (const r of roles.node_types) if (r && typeof r.type_id === "string" && typeof r.role === "string") roleOf.set(r.type_id, r.role);
-      rolesNote = `structural roles of revision ${roles.revision}`;
-    } else rolesNote = roles && roles.absent ? "no structural roles served" : `structural roles did not load${roles && roles.failed ? `: ${roles.failed}` : ""}`;
-
-    const schema = schemaOf(p, names, nodes, edges);
-    const current = schema.revisions.find(r => r.revision === p.meta.revision);
+    const numberOf = new Map(o.schema.versions.map(v => [v.id, v.number]));
+    const revisions = o.schema.revisions.map(r => ({revision: r.number, committed_at: ms(r.committed_at),
+      transaction_id: r.transaction_id ?? null, schema_version_number: numberOf.get(r.schema_version) ?? null,
+      nodes: r.nodes, edges: r.edges, assertions: r.assertions}));
+    const shown = revisions.find(r => r.revision === o.meta.revision);
     return {
-      meta: {revision: p.meta.revision, head: p.meta.head, schema_version_number: current ? current.schema_version_number : null,
-        counts: {nodes: p.meta.node_count, edges: edges.length - withoutEdge, relations_without_edge: withoutEdge,
-          assertions: p.meta.assertion_count, superseded, evidence: p.meta.evidence_count}},
-      names, nodes, edges, evidence: new Map(p.evidence.map(x => [x.id, x])), roles: roleOf, rolesNote, schema,
+      meta: {revision: o.meta.revision, head: o.meta.head, schema_version_number: shown ? shown.schema_version_number : null,
+        counts: {nodes: o.meta.node_count, edges: o.meta.edge_count, assertions: o.meta.assertion_count, evidence: o.meta.evidence_count}},
+      names, ontology: o.ontology,
+      nodeTypes: new Map(o.node_types.map(c => [c.type, c.count])),
+      edgeTypes: new Map(o.edge_types.map(c => [c.type, c.count])),
+      roles: {types: new Map(o.roles.types.map(t => [t.type, t])), observation: o.roles.observation_type ?? null},
+      timeline: o.timeline, top: o.top,
+      schema: {head: o.meta.revision, versions, revisions, undated: {nodes: o.schema.unrecorded_nodes, edges: o.schema.unrecorded_edges}},
     };
   }
 
-  // The schema lineage and the growth per revision, both from the projection alone.
-  //  - A version's added ids are resolved against the projected ontology; an id it no longer declares is
-  //    listed as unknown. What a version removed needs the earlier ontologies, which the projection does
-  //    not carry: `removed` stays null until a data layer that carries it replaces this one.
-  //  - Growth: every assertion's recorded time is the commit time of the revision that recorded it, so a
-  //    node counts from its first recorded assertion (as subject or as a relation's object), a link from
-  //    its first stating assertion and an assertion from its own. What carries no recorded time counts
-  //    from revision 0, and `undated` says how many.
-  function schemaOf(p, names, nodes, edges) {
-    const nodeTypes = new Map(p.ontology.node_types.map(t => [t.id, t]));
-    const edgeTypes = new Map(p.ontology.edge_types.map(t => [t.id, t]));
-    const owners = new Map();
-    for (const [kind, list] of [["node", p.ontology.node_types], ["edge", p.ontology.edge_types]])
-      for (const t of list) for (const x of t.properties) { if (!owners.has(x)) owners.set(x, []); owners.get(x).push({kind, type: t.id}); }
-    const numberOf = new Map(p.schema.versions.map(v => [v.id, v.number]));
-    const versions = p.schema.versions.map(v => {
-      const added = {node_types: [], edge_types: [], properties: [], unknown: []};
-      for (const id of v.added) {
-        if (nodeTypes.has(id)) added.node_types.push({id, properties: nodeTypes.get(id).properties});
-        else if (edgeTypes.has(id)) { const t = edgeTypes.get(id); added.edge_types.push({id, source_types: t.source_types, target_types: t.target_types}); }
-        else if (names.prop.has(id)) for (const o of owners.get(id) || [{kind: null, type: null}]) added.properties.push({id, owner: o.type, owner_kind: o.kind});
-        else added.unknown.push(id);
-      }
-      return {number: v.number, id: v.id, parent: v.parent ?? null, revision: v.revision, added, removed: null};
-    });
-    const commits = p.schema.revisions.map(r => ms(r.committed_at));
-    // the revision a recorded time belongs to: the last one committed at or before it
-    const revAt = t => {
-      if (t == null) return 0;
-      let lo = 0, hi = commits.length - 1, at = 0;
-      while (lo <= hi) { const mid = (lo + hi) >> 1; if (commits[mid] != null && commits[mid] <= t) { at = mid; lo = mid + 1; } else hi = mid - 1; }
-      return p.schema.revisions[at].number;
+  // ---- expansion: /expand streamed as NDJSON ----
+  // Lines are parsed as they arrive; each read's nodes and edges go to `on.batch` together, `meta` and
+  // `progress` to their own. `cancel` closes the reader, and an expansion of a revision no longer shown
+  // cancels itself. `done` resolves to {next, remaining} from the end line, or {cancelled: true}.
+  const streams = new Set();
+  function expand({seeds, depth, limit, after}, on) {
+    const load = loads, at = revision(), control = new AbortController();
+    let reader = null, closed = false;
+    const handle = {
+      cancel() {
+        if (closed) return;
+        closed = true; streams.delete(handle); control.abort();
+        if (reader) reader.cancel().catch(() => {});
+      },
     };
-    const first = new Map();
-    const note = (id, t) => { if (t != null && (!first.has(id) || t < first.get(id))) first.set(id, t); };
-    const n = p.schema.revisions.length;
-    const born = {nodes: new Array(n + 1).fill(0), edges: new Array(n + 1).fill(0), assertions: new Array(n + 1).fill(0), gone: new Array(n + 1).fill(0)};
-    const index = new Map(p.schema.revisions.map((r, i) => [r.number, i]));
-    const place = (arr, t) => { arr[index.get(revAt(t)) ?? 0]++; };
-    for (const node of p.nodes) for (const c of node.assertions) {
-      note(node.id, ms(c.recorded_from));
-      if (c.object_kind === "Node") note(c.object_ref, ms(c.recorded_from));
-    }
-    const all = [];
-    for (const node of p.nodes) all.push(...node.assertions);
-    for (const e of p.edges) all.push(...e.assertions);
-    for (const t of p.ontology.node_types) all.push(...t.assertions);
-    for (const t of p.ontology.edge_types) all.push(...t.assertions);
-    for (const c of all) {
-      place(born.assertions, ms(c.recorded_from));
-      const to = ms(c.recorded_to);
-      if (to != null) { const i = index.get(revAt(to)); if (i != null && commits[i] === to) born.gone[i]++; }
-    }
-    let undatedNodes = 0, undatedEdges = 0;
-    for (const node of nodes) { const t = first.get(node.id); if (t == null) undatedNodes++; place(born.nodes, t ?? null); }
-    for (const e of edges) {
-      if (!e.has_edge) continue;
-      const t = e.stated.length ? Math.min(...e.stated.map(c => ms(c.recorded_from) ?? Infinity)) : null;
-      const at = t == null || t === Infinity ? null : t;
-      if (at == null) undatedEdges++;
-      place(born.edges, at);
-    }
-    let cn = 0, ce = 0, ca = 0;
-    const revisions = p.schema.revisions.map((r, i) => {
-      cn += born.nodes[i]; ce += born.edges[i]; ca += born.assertions[i] - born.gone[i];
-      return {revision: r.number, committed_at: ms(r.committed_at), transaction_id: r.transaction_id ?? null,
-        schema_version_number: numberOf.get(r.schema_version) ?? null, nodes: cn, edges: ce, assertions: ca};
+    streams.add(handle);
+    handle.done = (async () => {
+      const response = await get(EXPAND + query({seeds, depth, limit, after: after || null, revision: at}), control.signal);
+      if (!response.ok) await failed(response);
+      const type = response.headers.get("content-type") || "";
+      if (type.indexOf(STREAM_TYPE) !== 0) throw new Error(`an expansion answered ${type}, not ${STREAM_TYPE}`);
+      reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let rest = "", end = null;
+      for (;;) {
+        const {value, done} = await reader.read();
+        if (closed || load !== loads) { handle.cancel(); return {cancelled: true}; }
+        rest += decoder.decode(value || new Uint8Array(0), {stream: !done});
+        const lines = rest.split("\n");
+        rest = done ? "" : lines.pop();
+        const nodes = [], edges = [];
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const record = exact(line);
+          if (record.kind === "node") nodes.push(record);
+          else if (record.kind === "edge") edges.push(record);
+          else if (record.kind === "meta") { if (on.meta) on.meta(record); }
+          else if (record.kind === "progress") { if (on.progress) on.progress(record.sent); }
+          else if (record.kind === "end") end = record;
+        }
+        if (nodes.length || edges.length) on.batch(nodes, edges);
+        if (done) break;
+      }
+      closed = true; streams.delete(handle);
+      if (!end) throw new Error("the expansion ended without its end line");
+      return {next: end.next, remaining: end.remaining};
+    })().catch(error => {
+      streams.delete(handle);
+      if (closed && (error.name === "AbortError" || load !== loads)) return {cancelled: true};
+      closed = true;
+      throw error;
     });
-    return {head: p.meta.revision, versions, revisions, undated: {nodes: undatedNodes, edges: undatedEdges}};
+    return handle;
+  }
+  function closeAll() { for (const s of [...streams]) s.cancel(); }
+
+  // ---- one node's detail; the evidence ids its assertions cite become the ones the page may read ----
+  const details = new Map();         // revision|id → the detail's promise, for the life of a revision
+  const cited = new Set();           // evidence ids cited by an assertion of a detail the page read
+  const sequence = new Map();        // purpose → the number of its latest read
+  function cite(claim) { for (const id of claim.evidence) cited.add(id); }
+  async function node(id, purpose = "panel") {
+    const mine = (sequence.get(purpose) || 0) + 1, load = loads;
+    sequence.set(purpose, mine);
+    const key = `${revision()}|${id}`;
+    if (!details.has(key)) {
+      details.set(key, get(NODE + encodeURIComponent(id) + query({revision: revision()})).then(json)
+        .then(d => {
+          d.assertions.forEach(cite); d.referencing.forEach(r => cite(r.assertion));
+          d.edges.forEach(e => e.assertions.forEach(cite));
+          return d;
+        })
+        .catch(error => { details.delete(key); throw error; }));
+    }
+    const d = await details.get(key);
+    return mine === sequence.get(purpose) && load === loads ? d : null;
+  }
+
+  let searches = 0;
+  async function search(text) {
+    const mine = ++searches, load = loads;
+    const found = await get(SEARCH + query({q: text, limit: 25, revision: revision()})).then(json);
+    return mine === searches && load === loads ? found : null;
   }
 
   // One read per evidence id for the life of the page: retained bytes never change under an id. Only an id
-  // the loaded projection holds, with retained bytes, is ever read: any other id never becomes an address.
+  // named by an assertion the page read is ever read: any other id never becomes an address.
   const evidenceRead = new Map();
   function evidenceText(id) {
-    const item = current && current.evidence.get(id);
-    if (!item) return Promise.resolve({missing: `${id} is not in this revision's evidence`});
-    if (!item.retained) return Promise.resolve({missing: "the bytes of this evidence are not retained"});
-    if (!evidenceRead.has(item.id)) {
-      evidenceRead.set(item.id, get(EVIDENCE + encodeURIComponent(item.id))
+    if (!cited.has(id)) return Promise.resolve({missing: `${id} is not cited by an assertion the page has read, so it is not read`});
+    if (!evidenceRead.has(id)) {
+      evidenceRead.set(id, get(EVIDENCE + encodeURIComponent(id))
         .then(response => {
           if (!response.ok) return failed(response);
           const type = response.headers.get("content-type") || "";
           return response.arrayBuffer().then(bytes => type.indexOf("text/plain") === 0
             ? {text: new TextDecoder("utf-8").decode(bytes)} : {missing: `${bytes.byteLength} bytes that are not text`});
         })
-        .catch(error => { evidenceRead.delete(item.id); return {missing: `the evidence did not load: ${error.message}`}; }));
+        .catch(error => { evidenceRead.delete(id); return {missing: `the evidence did not load: ${error.message}`}; }));
     }
-    return evidenceRead.get(item.id);
+    return evidenceRead.get(id);
   }
 
-  return {load, evidenceText, plain};
+  return {overview, expand, closeAll, node, search, evidenceText, cited: id => cited.has(id), plain, plainProps, ms};
 })();
 
 // =====================================================================================================
@@ -582,7 +585,6 @@ const join = (items, sep) => items.flatMap((x, i) => i ? [sep, x] : [x]);
 // A time as a date where a date can hold it, else its exact milliseconds as the store holds them.
 const iso = ms => ms == null ? "open" : typeof ms === "number" && Math.abs(ms) <= 8.64e15
   ? new Date(ms).toISOString().replace(".000Z", "Z").replace("T", " ") : String(ms);
-const validSpan = (from, to) => to == null ? iso(from ?? null) : `${iso(from ?? null)} → ${iso(to)}`;
 const short = s => s.length > 30 ? s.slice(0, 12) + "…" + s.slice(-14) : s;   // both ends: names often share a prefix
 const shortId = id => "…" + String(id).slice(-8);
 const fmt = n => n == null ? "–" : n.toLocaleString("en-US");
@@ -614,20 +616,26 @@ function revFromHash(hash) {
 async function main() {
   if (!window.graphology || !window.graphologyLibrary || !window.Sigma) throw new Error("the graph libraries did not load");
   $("statusText").textContent = "loading";
-  let doc = await Data.load(revFromHash(location.hash));
+  let doc = await Data.overview(revFromHash(location.hash));
   const tname = t => doc.names.type.get(t) ?? t;
   const ename = t => t === CO ? CO : doc.names.edgeType.get(t) ?? doc.names.type.get(t) ?? t;
   const pname = p => doc.names.prop.get(p) ?? p;
-  const roleBadge = t => doc.roles.has(t) ? h("span", {class: "badge", title: "the structural role /roles gives this type"}, doc.roles.get(t)) : "";
+  // the role the overview's valid-time rule gives a type
+  const roleOf = t => t != null && t === doc.roles.observation ? "observation type" : doc.roles.types.get(t)?.event ? "event type" : null;
+  const roleBadge = t => roleOf(t) ? h("span", {class: "badge", title: "from the valid time of the type's facts"}, roleOf(t)) : "";
   // a type keeps its slot for the life of the page: the most numerous type of the first revision shown
   // takes the first, the order among equals is the type id's
   const typeSlot = new Map();
   const slot = t => { if (!typeSlot.has(t)) typeSlot.set(t, typeSlot.size); return typeSlot.get(t); };
   const seedSlots = () => {
-    const counts = new Map();
-    for (const n of doc.nodes) counts.set(n.type, (counts.get(n.type) || 0) + 1);
-    [...counts].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).forEach(([t]) => slot(t));
+    [...doc.nodeTypes].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).forEach(([t]) => slot(t));
   };
+  // what the page knows of a node it has not drawn: its name and type, from a slice, a detail or a hit
+  const known = new Map();
+  const RENDER_BUDGET = 20000;         // nodes drawn before labels go by degree and more asks first
+  const LABELLED = 2000;               // beyond the budget, this many of the best-connected keep a label
+  const PAGE = 500;                    // nodes per page of an expansion
+  let labelCut = 0;
   const colour = t => PALETTE[slot(t) % PALETTE.length];
   const glyph = t => GLYPHS[Math.floor(slot(t) / PALETTE.length) % GLYPHS.length];
   // the same glyph as a CSS swatch, for chips, hits and the detail panel
@@ -703,16 +711,16 @@ async function main() {
   let cursor = null;                   // keyboard: {list, i} over the focused node's neighbours
   let evidenceShown = null;            // the evidence card's id
   const EDGE_LABEL_RATIO = 0.3;        // camera ratio under which edge labels join node labels
-  // the observation type (derived in tlBuild from shape: the most numerous well-linked event type)
-  const isObservation = t => !!t && t === tlModel().obsType;
-  const obsName = () => tlModel().obsType ? tname(tlModel().obsType) : "observation";
+  // the observation type: the overview's, by its valid-time rule (the most numerous well-linked event type)
+  const isObservation = t => !!t && t === doc.roles.observation;
+  const obsName = () => doc.roles.observation ? tname(doc.roles.observation) : "observation";
   const nodeHidden = (id, a) => hiddenNodeTypes.has(a.kind) || (!$("showIsolated").checked && a.deg === 0) ||
     (entitiesOnly && isObservation(a.kind)) || (scope && !scope.set.has(id)) || (timeNodes && !timeNodes.has(id));
   const nodeHiddenId = id => nodeHidden(id, graph.getNodeAttributes(id));
   const validAt = (a, t) => !a.vf || (a.vf <= t && (a.vt == null || a.vt > t));
-  // an Edge no relation assertion states is drawn as a plain edge; only a stated lifecycle other than
-  // Active counts as superseded
-  const plainLife = l => l === "Active" || l === "unasserted";
+  // an Edge no relation assertion states, or one whose assertions are not read yet (null), is drawn as a
+  // plain edge; only a stated lifecycle other than Active counts as superseded
+  const plainLife = l => l == null || l === "Active" || l === "unasserted";
   const edgeHidden = a => hiddenEdgeTypes.has(a.kind) || (!$("showSuperseded").checked && !plainLife(a.lifecycle)) ||
     (timeT != null && !validAt(a, timeT)) || (timeLo != null && a.vf && a.vf < timeLo);
   // the opacity a node or an edge is drawn at: a schema highlight dims what it does not select (0.12),
@@ -747,7 +755,8 @@ async function main() {
   function nodeReducer(id, a) {
     if (nodeHidden(id, a)) return {x: a.x, y: a.y, size: a.size, hidden: true};
     const opacity = nodeOpacity(id);
-    let label = a.label, forceLabel = false, zIndex = a.hub ? 2 : 0;
+    // beyond the render budget only the best-connected nodes keep a label
+    let label = labelCut && a.deg < labelCut ? null : a.label, forceLabel = false, zIndex = a.hub ? 2 : 0;
     let b0 = 1.5, c0 = OUTLINE, labelSize = a.hub ? 13 : 11, labelWeight = a.hub ? 600 : 400;
     if (hlSets && hlSets.nodes.has(id)) { b0 = 2.5; c0 = "#f2f2ee"; zIndex = 8; }
     if (focused && hood.has(id)) { zIndex = 10; if (hoodLabels) forceLabel = true; }
@@ -855,9 +864,11 @@ async function main() {
       barnesHutOptimize: graph.order > 800, barnesHutTheta: 0.6, outboundAttractionDistribution: true,
       scalingRatio: 6, gravity: 0.4, strongGravityMode: true, slowDown: 1 + Math.log(graph.order + 1) / 1.5}});
   }
+  // A stopped layout lets its worker go: the supervisor respawns the worker on every node or edge added or
+  // dropped, and a streamed expansion adds them by the thousand. The next run makes a new one.
   function stopLayout() {
     clearInterval(layoutTimer); layoutTimer = 0;
-    if (layout?.isRunning()) layout.stop();
+    if (layout) { layout.kill(); layout = null; }
     if (pinned) { graph.forEachNode((_, a) => { delete a.fixed; }); pinned = false; }
     if (!fg) hud.textContent = "";
   }
@@ -1042,21 +1053,22 @@ async function main() {
 
   // ---- selection and details ----
   const clearFocus = () => { focused = null; hood = new Set(); hoodEdges = new Set(); setCursor(null); refresh(); };
-  const focusOn = id => {
+  const focusOn = (id, keepCursor = false) => {
     focused = id;
     hood = new Set([id]); hoodEdges = new Set();
-    graph.forEachEdge(id, (e, _, s, t) => { hoodEdges.add(e); hood.add(s); hood.add(t); });
+    if (graph.hasNode(id)) graph.forEachEdge(id, (e, _, s, t) => { hoodEdges.add(e); hood.add(s); hood.add(t); });
     hoodLabels = hood.size <= 40;   // a hub's hundreds of labels would pile up
-    setCursor(null);
+    if (!keepCursor) setCursor(null);
     refresh();
   };
-  // a click selects; a shift-click picks the ends of a path
+  // a click selects, reads the node's detail and streams its neighbourhood; a shift-click picks the ends of a path
   function nodeClicked(id, ev) {
     if (ev?.shiftKey) { pathClick(id); return; }
-    focusOn(id); showNode(id); pushState();
+    openNode(id);
   }
-  const nodeName = id => graph.hasNode(id) ? graph.getNodeAttribute(id, "name") : id;
-  const nodeLink = id => graph.hasNode(id) ? h("a", {class: "link", "data-node": id}, nodeName(id)) : id;
+  const nodeName = id => graph.hasNode(id) ? graph.getNodeAttribute(id, "name") : known.get(id)?.name ?? shortId(id);
+  const nodeType = id => graph.hasNode(id) ? graph.getNodeAttribute(id, "kind") : known.get(id)?.type ?? null;
+  const nodeLink = id => h("a", {class: "link", "data-node": id, title: graph.hasNode(id) ? null : "not drawn yet: a click streams it in"}, nodeName(id));
   const typeChip = t => h("span", {class: "typechip"}, h("span", {class: "sw", style: swatch(t)}), tname(t));
   const lifeBadge = l => plainLife(l) ? "" : h("span", {class: `badge ${l === "Superseded" ? "sup" : ""}`}, l);
   const card = (...kids) => h("div", {class: "card"}, ...kids);
@@ -1071,15 +1083,14 @@ async function main() {
     return typeof v === "number" && Number.isInteger(v) && v >= 1e12 && v < 1e13
       ? h("span", {title: `${v} (epoch ms)`}, iso(v)) : String(v);
   };
+  const num = Data.ms;
 
-  // ---- evidence: links by id, the lines of its text that carry a fact's valid time, and a card ----
-  const evLinks = ids => ids.length ? join(ids.map(id => {
-    const item = doc.evidence.get(id);
-    return h("a", {class: "link", "data-evidence": id, title: item ? `${item.locator} · ${id}` : id}, item ? short(item.locator) : shortId(id));
-  }), ", ") : h("span", {class: "empty"}, "none");
+  // ---- evidence: links by id, the lines of its text that carry a fact's valid time, and a text-only panel ----
+  const evLinks = ids => ids.length ? join(ids.map(id => h("a", {class: "link ev", "data-evidence": id, title: id}, shortId(id))), ", ")
+    : h("span", {class: "empty"}, "none");
   // A fact's valid time, as whole seconds or milliseconds, is looked for in its evidence's text; the lines
   // that carry it are shown. Nothing about the text's format is assumed beyond that.
-  const srcBlock = (evidence, validFrom) => evidence?.length && validFrom
+  const srcBlock = (evidence, validFrom) => evidence?.length && num(validFrom)
     ? h("div", {class: "src", "data-srcev": evidence.join(","), "data-ts": String(validFrom)}, h("span", {class: "empty"}, "source…")) : "";
   function linesAt(text, t) {
     const keys = [String(Math.floor(t / 1000)), String(t)], out = [];
@@ -1102,102 +1113,172 @@ async function main() {
           if (got.text == null) continue;
           const lines = linesAt(got.text, t);
           if (!lines.length) continue;
-          const item = doc.evidence.get(id);
-          put(el, lines.map(([n, line]) => h("div", null, line.trim())), h("div", {class: "where"}, `${item ? item.locator : id}:${lines[0][0]}`));
+          put(el, lines.map(([, line]) => h("div", null, line.trim())), h("div", {class: "where"}, `evidence ${shortId(id)}:${lines[0][0]}`));
           return;
         }
         put(el, h("span", {class: "empty"}, "no line of its evidence carries this valid time"));
       })();
     });
   }
+  // Evidence is shown as text, and read only when an assertion the page has read names it.
   function showEvidence(id, push = true) {
-    const item = doc.evidence.get(id);
     $("evcard")?.remove();
     evidenceShown = id;
-    const body = h("div", {class: "evbody"}, item ? "reading…" : `${id} is not in this revision's evidence`);
+    const cited = Data.cited(id);
+    const body = h("div", {class: "evbody"}, cited ? "reading…" : `${id} is not cited by an assertion shown here, so it is not read`);
     const c = h("div", {class: "card", id: "evcard"},
       h("div", {class: "vhead"}, h("h1", null, "Evidence"), h("button", {"data-act": "evidence-close"}, "Close")),
-      item ? h("dl", null,
-        h("dt", null, "id"), h("dd", {class: "ev"}, item.id),
-        h("dt", null, "kind"), h("dd", null, item.kind),
-        h("dt", null, "locator"), h("dd", null, item.locator),
-        item.section != null ? [h("dt", null, "section"), h("dd", null, item.section)] : "",
-        h("dt", null, "content hash"), h("dd", {class: "ev"}, item.content_hash),
-        h("dt", null, "observed"), h("dd", null, iso(item.observed_at)),
-        h("dt", null, "confidence"), h("dd", null, `${(item.confidence_bp / 100).toFixed(2)} %`),
-        h("dt", null, "retained"), h("dd", null, item.retained ? "yes" : "no")) : "",
-      body);
+      h("div", {class: "idline"}, id), body);
     $("panel").prepend(c);
     $("panel").scrollTop = 0;
-    if (item) Data.evidenceText(id).then(got => { if (evidenceShown === id) body.textContent = got.text ?? got.missing; });
+    if (cited) Data.evidenceText(id).then(got => { if (evidenceShown === id) body.textContent = got.text ?? got.missing; });
     if (push) pushState();
   }
   const closeEvidence = (push = true) => { evidenceShown = null; $("evcard")?.remove(); if (push) pushState(); };
 
   const pathButtons = id => h("div", {class: "actions"},
+    h("button", {"data-act": "expand", "data-id": id, title: "Stream every node within two hops"}, "Expand 2 hops"),
     h("button", {"data-act": "scope", "data-id": id}, "Neighbourhood"),
     h("button", {"data-act": "path-from", "data-id": id}, "Path from here"),
     pathFrom && pathFrom !== id ? h("button", {"data-act": "path-to", "data-id": id}, "Path to here") : "",
-    tlSubjectKind(id) ? h("button", {"data-act": "timeline", "data-id": id}, "Timeline") : "",
-    tlHasHistory(id) ? h("button", {"data-act": "timeline", "data-id": id}, `${pname(tlModel().hist.prop)} history`) : "",
+    h("button", {"data-act": "timeline", "data-id": id}, "Timeline"),
     document.body.classList.contains("tl-on") ? h("button", {"data-act": "show-graph", "data-id": id}, "Show in graph") : "");
 
+  // ---- one assertion as a card: id, predicate, object, assessment, lifecycle, valid and recorded time, evidence ----
+  const span2 = (from, to) => `${from == null ? "open" : iso(from)} → ${to == null ? "open" : iso(to)}`;
+  function assessment(a) {
+    const parts = [a.kind];
+    if (typeof a.completed === "number") parts.push(`${a.completed} of ${a.required}`);
+    if (a.validators) parts.push(plural(a.validators.length, "validator", "validators"));
+    if (a.issues?.length) parts.push(a.issues.join("; "));
+    if (a.competing_assertions?.length) parts.push(`against ${a.competing_assertions.join(", ")}`);
+    return parts.join(" · ");
+  }
+  function lifecycle(l) {
+    const parts = [l.kind];
+    if (l.at_revision != null) parts.push(`at revision ${l.at_revision}`);
+    if (l.by) parts.push(`by ${l.by}`);
+    if (l.effective_from != null) parts.push(`from ${iso(l.effective_from)}`);
+    if (l.reason) parts.push(l.reason);
+    return parts.join(" · ");
+  }
+  const predicateName = c => c.predicate_kind === "Property" ? pname(c.predicate) : c.predicate_kind === "Relation" ? ename(c.predicate) : tname(c.predicate);
+  const objectOf = c => c.object_kind === "Value" ? val(Data.plain(c.object_value)) : c.object_kind === "Node" ? nodeLink(c.object_ref) : c.object_ref ?? "";
+  function claimCard(c, subject, source) {
+    const rows = [
+      subject ? ["subject", subject] : null,
+      ["predicate", [predicateName(c), " ", h("span", {class: "aid"}, c.predicate_kind)]],
+      ["object", objectOf(c)],
+      ["assessment", assessment(c.assessment)],
+      ["lifecycle", lifecycle(c.lifecycle)],
+      ["valid", span2(c.valid_from ?? null, c.valid_to ?? null)],
+      ["recorded", span2(c.recorded_from ?? null, c.recorded_to ?? null)],
+      ["evidence", evLinks(c.evidence)],
+    ].filter(Boolean);
+    return [h("table", {class: `claim ${plainLife(c.lifecycle.kind) ? "" : "faded"}`},
+      h("thead", null, h("tr", null, h("th", null, "assertion"), h("th", null, c.id))),
+      h("tbody", null, rows.map(([k, v]) => h("tr", null, h("td", null, k), h("td", null, v))))),
+      source ? srcBlock(c.evidence, c.valid_from) : ""];
+  }
+
+  // ---- the detail of one node, read from /node/<id> when it is opened ----
+  const details = new Map();           // id → the detail read for the revision shown
+  let panelFor = null;
   const STATED = 30;
-  function showNode(id, all = false) {
-    const n = graph.getNodeAttribute(id, "raw");
-    const props = Object.entries(n.props || {});
-    const edges = [];
-    graph.forEachEdge(id, (e, a) => edges.push(a.raw));
+  async function showNode(id, all = false) {
+    panelFor = id;
+    evidenceShown = null;
+    const t = nodeType(id);
+    put($("panel"), card(h("h1", null, nodeName(id)), t ? typeChip(t) : "", h("div", {class: "idline"}, id),
+      h("div", {class: "empty", style: "margin-top:8px"}, "reading its detail…")));
+    let d;
+    try { d = await Data.node(id); } catch (err) {
+      if (panelFor === id) put($("panel"), card(h("h1", null, nodeName(id)), h("div", {class: "idline"}, id), h("div", {class: "empty"}, `its detail did not load: ${err.message}`)));
+      return false;
+    }
+    if (!d || panelFor !== id) return false;      // a later choice superseded this one
+    details.set(id, d);
+    learn(d);
+    drawNode(id, d, all);
+    return true;
+  }
+  // a detail teaches the page names and types of the nodes it names, and the assertions of the edges at it
+  function learn(d) {
+    known.set(d.node.id, {name: d.node.name, type: d.node.type});
+    for (const n of d.neighbours) known.set(n.id, {name: n.name, type: n.type});
+    const me = d.node.id, rel = new Map();
+    const relation = (source, c) => {
+      if (c.predicate_kind !== "Relation" || c.object_kind !== "Node") return;
+      const k = `${source}|${c.predicate}|${c.object_ref}`;
+      if (!rel.has(k)) rel.set(k, {source, type: c.predicate, target: c.object_ref, list: []});
+      rel.get(k).list.push(c);
+    };
+    d.assertions.forEach(c => relation(me, c));
+    d.referencing.forEach(r => { if (r.subject_kind === "Node") relation(r.subject, r.assertion); });
+    // of the relation assertions joined to one link, the Active one speaks for it, else the latest recorded
+    const lead = list => list.find(c => c.lifecycle.kind === "Active") ||
+      list.reduce((a, b) => (num(b.recorded_from) ?? 0) > (num(a.recorded_from) ?? 0) ? b : a);
+    const stated = (list, base) => {
+      const c = list.length ? lead(list) : null;
+      return {...base, lifecycle: c ? c.lifecycle.kind : "unasserted", valid_from: c ? num(c.valid_from) : null,
+        valid_to: c ? num(c.valid_to) : null, evidence: c ? c.evidence : [], stated: list};
+    };
+    for (const e of d.edges) {
+      const k = `${e.source}|${e.type}|${e.target}`, found = rel.get(k);
+      rel.delete(k);
+      const raw = stated(found ? found.list : [], {id: e.id, source: e.source, target: e.target, type: e.type, has_edge: true,
+        claims: e.assertions, props: Data.plainProps(e.props)});
+      if (graph.hasEdge(e.id)) graph.mergeEdgeAttributes(e.id, {raw, lifecycle: raw.lifecycle, vf: raw.valid_from, vt: raw.valid_to});
+    }
+    // a relation no edge record carries, between two drawn nodes: drawn as an assertion-only link (violet)
+    for (const r of rel.values()) {
+      const raw = stated(r.list, {id: lead(r.list).id, source: r.source, target: r.target, type: r.type, has_edge: false, claims: [], props: {}});
+      if (!graph.hasNode(r.source) || !graph.hasNode(r.target) || graph.hasEdge(raw.id)) continue;
+      if (layout) stopLayout();
+      graph.addDirectedEdgeWithKey(raw.id, r.source, r.target, {kind: r.type, lifecycle: raw.lifecycle, has_edge: false, raw,
+        s: r.source, t: r.target, vf: raw.valid_from, vt: raw.valid_to});
+    }
+    computeTimeRange(); computeTime(); refresh();
+  }
+  function drawNode(id, d, all) {
+    const n = d.node;
+    const props = Object.entries(Data.plainProps(n.props));
     const byType = new Map();
-    edges.forEach(d => { const k = (d.source === n.id ? "→ " : "← ") + ename(d.type);
-      if (!byType.has(k)) byType.set(k, []); byType.get(k).push(d); });
+    for (const e of d.edges) {
+      const k = (e.source === n.id ? "→ " : "← ") + ename(e.type);
+      if (!byType.has(k)) byType.set(k, []);
+      byType.get(k).push(e);
+    }
     const groups = [...byType.entries()].sort((a, b) => b[1].length - a[1].length).map(([k, es]) =>
       h("div", {style: "margin-top:8px"}, h("div", {class: "t", style: "color:var(--text-muted);font-size:11px;font-family:ui-monospace,monospace"}, `${k} · ${es.length}`),
-        es.slice(0, 40).map(d => { const other = d.source === n.id ? d.target : d.source;
-          const ids = d.derived ? "" : [d.has_edge ? `edge ${d.id}` : "", ...(d.stated || []).map(c => `assertion ${c.id}`)].filter(Boolean).join(" · ");
-          return h("div", {class: `rel ${plainLife(d.lifecycle) ? "" : "faded"}`, title: ids},
-            h("span", null, nodeLink(other)), lifeBadge(d.lifecycle), d.has_edge === false ? h("span", {class: "badge noedge"}, "assertion only") : "",
-            d.count ? h("span", {class: "badge"}, `×${d.count}`) : "",
-            d.derived ? "" : h("a", {class: "link aid", "data-edge": d.id}, shortId(d.id))); }),
+        es.slice(0, 40).map(e => {
+          const other = e.source === n.id ? e.target : e.source, a = graph.hasEdge(e.id) ? graph.getEdgeAttributes(e.id) : null;
+          return h("div", {class: `rel ${plainLife(a?.lifecycle) ? "" : "faded"}`, title: `edge ${e.id}`},
+            h("span", null, nodeLink(other)), lifeBadge(a?.lifecycle), h("a", {class: "link aid", "data-edge": e.id}, shortId(e.id)));
+        }),
         es.length > 40 ? h("div", {class: "empty"}, `… ${es.length - 40} more`) : ""));
-    const list = all ? n.assertions : n.assertions.slice(0, STATED);
-    const stated = list.map((a, i) =>
-      h("div", {class: `rel ${plainLife(a.lifecycle) ? "" : "faded"}`}, h("span", {class: "p"}, pname(a.prop)),
-        h("span", null, val(a.value), " ", lifeBadge(a.lifecycle), h("br"),
-          h("span", {class: "ev"}, validSpan(a.claim.valid_from, a.claim.valid_to), " · ", evLinks(a.evidence)), h("br"),
-          h("span", {class: "aid", title: `assessment ${a.claim.assessment.kind}`}, `assertion ${a.id}`),
-          i < 10 ? srcBlock(a.evidence, a.valid_from) : "")));
+    const list = all ? d.assertions : d.assertions.slice(0, STATED);
     // an observation shows its own text: the lines its first dated evidence carries
     let own = "";
     if (isObservation(n.type)) {
-      const a = n.assertions.find(x => x.valid_from && x.evidence?.length) || edges.find(x => x.valid_from && x.evidence?.length);
+      const a = d.assertions.find(x => num(x.valid_from) && x.evidence.length);
       if (a) own = card(cardHead(tname(n.type)), srcBlock(a.evidence, a.valid_from));
     }
-    const other = n.claims.filter(c => c.predicate_kind !== "Property" && c.predicate_kind !== "Relation");
     put($("panel"),
-      card(h("h1", null, n.name), typeChip(n.type), " ", h("span", {class: "badge"}, `${edges.length} edges`),
-        n.aliases?.length ? h("div", {class: "sub"}, `also: ${n.aliases.join(", ")}`) : "",
+      card(h("h1", null, n.name), typeChip(n.type), " ", h("span", {class: "badge"}, `${fmt(n.degree)} edges`), " ", roleBadge(n.type),
+        n.aliases.length ? h("div", {class: "sub"}, `also: ${n.aliases.join(", ")}`) : "",
         n.state ? h("div", {class: "sub"}, `state: ${n.state}`) : "",
-        h("div", {class: "idline"}, n.id), pathButtons(id)),
+        h("div", {class: "idline"}, n.id, ` · revision ${d.meta.revision}`), pathButtons(id)),
       own,
       props.length ? card(cardHead("Properties"), h("dl", null, props.map(([k, vs]) => [h("dt", null, pname(k)), h("dd", null, join(vs.map(val), ", "))]))) : "",
-      stated.length ? card(cardHead("Stated with evidence"), stated,
-        n.assertions.length > list.length ? h("div", {class: "actions"}, h("button", {"data-act": "stated-all", "data-id": id}, `Show all ${fmt(n.assertions.length)}`)) : "") : "",
-      other.length ? card(cardHead("Other assertions"), other.map(c => h("div", {class: "rel"}, h("span", {class: "p"}, c.predicate_kind),
-        h("span", null, c.object_kind === "Node" ? nodeLink(c.object_ref) : c.object_ref ?? "", h("br"), h("span", {class: "aid"}, `assertion ${c.id}`))))) : "",
-      card(cardHead("Connections"), groups.length ? groups : h("div", {class: "empty"}, "none")));
-    evidenceShown = null;
+      card(cardHead(`Stated with evidence · ${fmt(d.assertions.length)}`), list.length ? list.map((c, i) => claimCard(c, null, i < 10)) : h("div", {class: "empty"}, "no assertion"),
+        d.assertions.length > list.length ? h("div", {class: "actions"}, h("button", {"data-act": "stated-all", "data-id": id}, `Show all ${fmt(d.assertions.length)}`)) : ""),
+      d.referencing.length ? card(cardHead(`Stated about it · ${fmt(d.referencing.length)}`),
+        d.referencing.slice(0, all ? undefined : STATED).map(r => claimCard(r.assertion, r.subject_kind === "Node" ? nodeLink(r.subject) : `${r.subject_kind} ${r.subject}`, false))) : "",
+      card(cardHead(`Connections · ${fmt(d.edges.length)}`), groups.length ? groups : h("div", {class: "empty"}, "none")));
     hydrateSources();
   }
 
-  function claimRow(c) {
-    const pred = c.predicate_kind === "Property" ? pname(c.predicate) : ename(c.predicate);
-    const obj = c.object_kind === "Value" ? val(Data.plain(c.object_value)) : c.object_kind === "Node" ? nodeLink(c.object_ref) : c.object_ref;
-    return h("div", {class: `rel ${c.lifecycle.kind === "Active" ? "" : "faded"}`}, h("span", {class: "p"}, pred),
-      h("span", null, obj, " ", lifeBadge(c.lifecycle.kind), h("br"),
-        h("span", {class: "ev"}, validSpan(c.valid_from, c.valid_to), " · ", evLinks(c.evidence)), h("br"),
-        h("span", {class: "aid", title: `assessment ${c.assessment.kind}`}, `assertion ${c.id}`)));
-  }
   function showEdge(id) {
     const a = graph.getEdgeAttributes(id), d = a.raw;
     if (a.derived) {
@@ -1210,6 +1291,7 @@ async function main() {
           a.msgs.length > 25 ? h("div", {class: "empty"}, `… ${a.msgs.length - 25} more`) : ""));
       return;
     }
+    const read = d.lifecycle !== undefined;
     const props = Object.entries(d.props || {});
     put($("panel"),
       card(h("h1", null, ename(d.type)), lifeBadge(d.lifecycle), " ",
@@ -1217,13 +1299,13 @@ async function main() {
         d.lifecycle === "unasserted" ? h("span", {class: "badge"}, "no relation assertion states it") : "",
         h("div", {class: "idline"}, d.has_edge ? `edge ${d.id}` : `assertion ${d.id}`)),
       card(h("dl", null, h("dt", null, "from"), h("dd", null, nodeLink(d.source)), h("dt", null, "to"), h("dd", null, nodeLink(d.target)),
-        h("dt", null, "lifecycle"), h("dd", null, d.lifecycle), h("dt", null, "valid from"), h("dd", null, iso(d.valid_from)),
-        h("dt", null, "valid to"), h("dd", null, iso(d.valid_to)),
-        h("dt", null, "evidence"), h("dd", {class: "ev"}, evLinks(d.evidence || []))),
-        srcBlock(d.evidence, d.valid_from)),
-      d.stated?.length ? card(cardHead("Stated by"), d.stated.map(claimRow)) : "",
+        read ? [h("dt", null, "lifecycle"), h("dd", null, d.lifecycle), h("dt", null, "valid"), h("dd", null, span2(d.valid_from, d.valid_to)),
+          h("dt", null, "evidence"), h("dd", {class: "ev"}, evLinks(d.evidence || []))]
+          : [h("dt", null, "assertions"), h("dd", null, d.assertions.length ? d.assertions.map(shortId).join(", ") : "none")]),
+        read ? srcBlock(d.evidence, d.valid_from) : h("div", {class: "empty", style: "margin-top:8px"}, "open either end for the assertions that state it")),
+      d.stated?.length ? card(cardHead("Stated by"), d.stated.map(c => claimCard(c, nodeLink(d.source), false))) : "",
       props.length ? card(cardHead("Properties"), h("dl", null, props.map(([k, vs]) => [h("dt", null, pname(k)), h("dd", null, join(vs.map(val), ", "))]))) : "",
-      d.claims?.length ? card(cardHead("Assertions about this edge"), d.claims.map(claimRow)) : "");
+      d.claims?.length ? card(cardHead("Assertions about this edge"), d.claims.map(c => claimCard(c, null, false))) : "");
     evidenceShown = null;
     hydrateSources();
   }
@@ -1234,11 +1316,126 @@ async function main() {
     const p = renderer?.getNodeDisplayData(id);
     if (p) camera.animate({x: p.x, y: p.y, ratio: Math.min(camera.ratio, 0.3)}, {duration: 350});
   };
-  const goTo = (id, push = true) => {
-    if (!graph.hasNode(id)) return;
-    focusOn(id); showNode(id); centreOn(id);
+  // Opening a node focuses it, reads its detail for the panel and streams its neighbourhood. One the graph
+  // does not hold yet arrives with that stream, and is focused as soon as it has.
+  function openNode(id, push = true) {
+    focusOn(id);
+    if (graph.hasNode(id)) centreOn(id);
+    else pending = id;
+    expandFrom([id], 1);
+    const shown = showNode(id);
     if (push) pushState();
+    return shown;
+  }
+  const goTo = (id, push = true) => openNode(id, push);
+  let pending = null;                  // an opened node the graph does not hold yet
+
+  // ---- expansion: a stream of /expand merged into the live graph in batches ----
+  // The line under the tiles counts what the latest stream has sent, offers the page after it when there is
+  // one, and closes it on Stop. Beyond the render budget, loading more asks first.
+  let streamLine = null, asking = null;
+  function expandFrom(seeds, depth, after = 0, what = null, ask = true) {
+    if (ask && graph.order >= RENDER_BUDGET) {
+      asking = {seeds, depth, after, what};
+      drawStream();
+      return null;
+    }
+    asking = null;
+    const line = {seeds, depth, after, what: what ?? (seeds.length === 1 ? nodeName(seeds[0]) : `${fmt(seeds.length)} nodes`),
+      sent: 0, total: null, state: "streaming", next: null, remaining: 0, error: null, handle: null};
+    line.handle = Data.expand({seeds, depth, limit: PAGE, after}, {
+      meta: m => { line.total = m.node_total + m.edge_total - after; drawStream(line); },
+      progress: n => { line.sent = Math.max(line.sent, n); drawStream(line); },
+      batch: (nodes, edges) => { line.got = (line.got || 0) + nodes.length + edges.length;
+        line.sent = Math.max(line.sent, line.got); merge(nodes, edges, seeds[0]); drawStream(line); },
+    });
+    line.handle.done.then(end => {
+      if (end.cancelled) line.state = "closed";
+      else { line.state = "done"; line.next = end.next; line.remaining = end.remaining; }
+      drawStream(line);
+    }).catch(err => { line.state = "failed"; line.error = err.message; drawStream(line); });
+    if (what !== false) streamLine = line;
+    drawStream(line);
+    return line.handle;
+  }
+  function drawStream(line = streamLine) {
+    if (line !== streamLine && !asking) return;
+    const el = $("stream");
+    if (asking) {
+      put(el, h("span", null, h("b", null, fmt(graph.order)), ` nodes drawn, over the render budget of ${fmt(RENDER_BUDGET)}: labels go by degree.`),
+        h("button", {"data-act": "ask-yes"}, "load anyway"), h("button", {"data-act": "ask-no"}, "cancel"));
+      return;
+    }
+    if (!line) { el.replaceChildren(); return; }
+    const of = line.total != null ? [" of ", h("b", null, fmt(line.total))] : "";
+    if (line.state === "streaming") put(el, h("span", null, "streaming ", line.what, ": ", h("b", null, fmt(line.sent)), of, " records"),
+      h("button", {"data-act": "stream-stop"}, "stop"));
+    else if (line.state === "failed") put(el, h("span", {class: "empty"}, `${line.what}: the expansion failed: ${line.error}`));
+    else put(el, h("span", null, line.what, ": ", h("b", null, fmt(line.sent)), of, " records", line.state === "closed" ? ", closed" : ""),
+      line.next != null ? h("button", {"data-act": "stream-more", title: "Stream the next page of this neighbourhood"}, `load ${fmt(line.remaining)} more`) : "");
+  }
+  function drawnLine() {
+    $("drawn").textContent = `${fmt(graph.order)} of ${fmt(doc.meta.counts.nodes)} nodes drawn`;
+  }
+  const nodeAttrs = n => {
+    const d = typeof n.degree === "number" ? n.degree : 0;
+    return {name: n.name, kind: n.type, raw: n, deg: d, hub: d >= hubCut, label: short(n.name),
+      size: 2.6 + 9.5 * Math.sqrt(Math.min(d, 60) / 60), colour: colour(n.type), glyph: glyph(n.type)};
   };
+  let hubCut = 3;
+  // One batch of a stream: nodes join beside the node the expansion started from, edges between drawn nodes.
+  // What was placed before stays put while the layout settles what is new.
+  let settleTimer = 0, freshEdges = 0;
+  const fresh = new Set();
+  function merge(nodes, edges, anchor) {
+    if (layout) stopLayout();          // no worker is respawned per record: the batch settles once, below
+    const at = graph.hasNode(anchor) ? graph.getNodeAttributes(anchor) : {x: 0, y: 0};
+    const spread = 12 + 4 * Math.sqrt(nodes.length);
+    for (const n of nodes) {
+      known.set(n.id, {name: n.name, type: n.type});
+      if (graph.hasNode(n.id)) { graph.mergeNodeAttributes(n.id, nodeAttrs(n)); continue; }
+      const th = Math.random() * 2 * Math.PI, r = spread * Math.sqrt(Math.random());
+      graph.addNode(n.id, {...nodeAttrs(n), x: at.x + r * Math.cos(th), y: at.y + r * Math.sin(th)});
+      fresh.add(n.id);
+    }
+    for (const e of edges) {
+      if (!graph.hasNode(e.source) || !graph.hasNode(e.target)) continue;
+      if (graph.hasEdge(e.id)) continue;
+      graph.addDirectedEdgeWithKey(e.id, e.source, e.target, {kind: e.type, lifecycle: null, has_edge: true,
+        raw: {id: e.id, source: e.source, target: e.target, type: e.type, has_edge: true, assertions: e.assertions},
+        s: e.source, t: e.target, vf: null, vt: null});
+      freshEdges++;
+    }
+    // the details already read speak for the edges they carry
+    for (const d of details.values()) learn(d);
+    if (pending && graph.hasNode(pending)) { const id = pending; pending = null; if (focused === id) centreOn(id); }
+    if (focused) focusOn(focused, true);
+    drawnLine();
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(settle, 120);
+  }
+  function settle() {
+    if (graph.order > RENDER_BUDGET) {
+      const degrees = []; graph.forEachNode((_, a) => degrees.push(a.deg));
+      degrees.sort((a, b) => b - a);
+      labelCut = Math.max(1, degrees[Math.min(degrees.length - 1, LABELLED)]);
+    } else labelCut = 0;
+    if (entitiesOnly) deriveCoMentions();
+    refreshScope(); if (scope) renderCrumbs();
+    const placed = graph.order - fresh.size;
+    if (fresh.size && placed > 0) { graph.forEachNode((id, a) => { if (!fresh.has(id)) a.fixed = true; }); pinned = !!renderer; }
+    if (fresh.size) runLayout(placed > 0 ? 2500 : budget());
+    else if (freshEdges && !layoutTimer) runLayout(2500);      // new edges between placed nodes pull them together
+    if (!renderer) graph.forEachNode((_, a) => { delete a.fixed; });
+    if ((fresh.size || freshEdges) && fg) {
+      const was = new Set(fgNodes.keys()), data = data3D();
+      for (const n of data.nodes) if (was.has(n.id) && n.x != null) { n.fx = n.x; n.fy = n.y; n.fz = n.z; }
+      fg.cooldownTicks(80).cooldownTime(2500).graphData(data); hud.textContent = "laying out…";
+    }
+    fresh.clear(); freshEdges = 0;
+    tlM = null;
+    refresh(); render(false);
+  }
   const fitTo = (ids, pad = 1.35) => {
     if (fg) { fg.zoomToFit(400, 60, n => ids.has(n.id)); return; }
     if (!renderer) return;
@@ -1261,6 +1458,14 @@ async function main() {
       else if (act.dataset.act === "show-graph") { setView("graph"); goTo(id); }
       else if (act.dataset.act === "stated-all") showNode(id, true);
       else if (act.dataset.act === "evidence-close") closeEvidence();
+      else if (act.dataset.act === "expand") expandFrom([id], 2);
+      else if (act.dataset.act === "stream-stop") streamLine?.handle?.cancel();
+      else if (act.dataset.act === "stream-more" && streamLine?.next != null) {
+        const l = streamLine;
+        expandFrom(l.seeds, l.depth, l.next, l.what);
+      }
+      else if (act.dataset.act === "ask-yes" && asking) { const a = asking; expandFrom(a.seeds, a.depth, a.after, a.what, false); }
+      else if (act.dataset.act === "ask-no") { asking = null; drawStream(); }
       return;
     }
     const ev_ = ev.target.closest("[data-evidence]");
@@ -1276,7 +1481,7 @@ async function main() {
   const moveTip = ev => { tip.style.left = `${ev.x + 14}px`; tip.style.top = `${ev.y + 14}px`; };
   const nodeTip = id => {
     const a = graph.getNodeAttributes(id);
-    put(tip, h("b", null, a.name), h("div", {class: "t"}, `${tname(a.kind)} · ${graph.degreeWithoutSelfLoops(id)} edges`, roleBadge(a.kind)));
+    put(tip, h("b", null, a.name), h("div", {class: "t"}, `${tname(a.kind)} · ${fmt(a.deg)} edges, ${fmt(graph.degreeWithoutSelfLoops(id))} drawn`, roleBadge(a.kind)));
     tip.style.display = "block";
   };
   const edgeTip = id => {
@@ -1305,19 +1510,29 @@ async function main() {
   $("edgeTypes").addEventListener("click", ev => toggleType(hiddenEdgeTypes, ev));
   for (const id of ["showSuperseded", "showIsolated", "showEdgeLabels"]) $(id).addEventListener("change", () => { refreshScope(); refresh(); });
 
-  $("search").addEventListener("input", ev => {
-    const q = ev.target.value.trim().toLowerCase();
+  // The search asks the server (/search): names and aliases of the whole revision, not only what is drawn.
+  // A hit that is drawn is marked in the graph; opening one streams its neighbourhood in.
+  let searchTimer = 0;
+  async function runSearch(text) {
+    const q = text.trim();
     matches = new Set();
     if (!q) { $("hits").replaceChildren(); refresh(); return; }
-    const hits = [];
-    graph.forEachNode((id, a) => { if (a.name.toLowerCase().includes(q)) { hits.push([id, a]); matches.add(id); } });
+    let found;
+    try { found = await Data.search(q); } catch (err) { put($("hits"), h("div", {class: "empty"}, `the search failed: ${err.message}`)); return; }
+    if (!found) return;                // a later search superseded this one
+    for (const m of found.matches) { known.set(m.id, {name: m.name, type: m.type}); if (graph.hasNode(m.id)) matches.add(m.id); }
     refresh();
-    put($("hits"), h("div", {class: "sub"}, `${plural(hits.length, "match", "matches")} · shift-click a hit to route a path`),
-      hits.sort((a, b) => b[1].deg - a[1].deg).slice(0, 25).map(([id, a]) =>
-        h("div", {class: "hit", "data-node": id}, h("span", {class: "sw", style: `width:8px;height:8px;border-radius:50%;${swatch(a.kind)}`}),
-          short(a.name), h("span", {class: "t"}, tname(a.kind)))));
-    if (hits.length === 1) goTo(hits[0][0]);
-    else if (hits.length && hits.length < 200) fitTo(matches);
+    const more = found.meta.total > found.matches.length ? `, the ${fmt(found.matches.length)} best connected listed` : "";
+    put($("hits"), h("div", {class: "sub"}, `${plural(found.meta.total, "match", "matches")}${more} · shift-click a hit to route a path`),
+      found.matches.map(m => h("div", {class: "hit", "data-node": m.id, title: m.field === "Alias" ? `${m.name} · alias ${m.alias}` : m.name},
+        h("span", {class: "sw", style: `width:8px;height:8px;border-radius:50%;${swatch(m.type)}`}),
+        short(m.name), h("span", {class: "t"}, `${tname(m.type)} · ${fmt(m.degree)}`))));
+    if (found.matches.length === 1) goTo(found.matches[0].id);
+    else if (matches.size && matches.size < 200) fitTo(matches);
+  }
+  $("search").addEventListener("input", ev => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { runSearch(ev.target.value); pushState(); }, 200);
   });
   $("fit").addEventListener("click", fitAll);
   const relayout = () => {
@@ -1333,6 +1548,7 @@ async function main() {
   const CO = "co-mentioned";
   let derivedKeys = [];
   function deriveCoMentions() {
+    if (layout) stopLayout();
     for (const k of derivedKeys) if (graph.hasEdge(k)) graph.dropEdge(k);
     derivedKeys = [];
     if (!entitiesOnly) return;
@@ -1445,6 +1661,11 @@ async function main() {
     let lo = Infinity, hi = -Infinity;
     nodeDated = new Set();
     graph.forEachEdge((_, a, s, t) => { if (!a.vf) return; if (a.vf < lo) lo = a.vf; if (a.vf > hi) hi = a.vf; nodeDated.add(s); nodeDated.add(t); });
+    // the overview's valid-time span, so the slider spans the revision and not only what is drawn; an edge
+    // is dated once a detail that carries its assertions has been read
+    const first = num(doc.timeline.first), last = num(doc.timeline.last);
+    if (first != null && first < lo) lo = first;
+    if (last != null && last > hi) hi = last;
     timeRange = lo < hi ? {lo, hi} : null;
     const bar = $("timeline");
     bar.style.display = timeRange ? "flex" : "none";
@@ -1566,10 +1787,10 @@ async function main() {
     revLoading = n;
     $("statusText").textContent = `loading revision ${n}…`;
     try {
-      const next = await Data.load(n === m.head ? null : n);
+      const next = await Data.overview(n === m.head ? null : n);
       if (!next) return;                // a later load superseded this one
       doc = next; render();
-      if (focused && graph.hasNode(focused)) showNode(focused);
+      if (focused) openNode(focused, false);
       if (push) pushState();
     } catch (err) {
       $("error").textContent = `revision ${n}: ${err.message}`;
@@ -1597,7 +1818,9 @@ async function main() {
     ["Fit", "F", fitAll],
     ["2D view", "2", () => setDim("2d")], ["3D view", "3", () => setDim("3d")],
     ...["graph", "timeline", "schema"].filter(v => v !== currentView()).map(v => [`${v[0].toUpperCase()}${v.slice(1)} view`, "", () => { setView(v); pushState(); }]),
-    ...tlModel().subjects.slice(0, 3).map(s => [`Timeline: overview of every ${tname(s.type)}`, "", () => tlOpen(null, s.type)]),
+    ...(focused ? [[`Timeline of ${short(nodeName(focused))}`, "", () => tlOpen(focused)], [`Expand ${short(nodeName(focused))}, 2 hops`, "", () => expandFrom([focused], 2)]] : []),
+    ...(streamLine?.state === "streaming" ? [["Stop the stream", "", () => streamLine.handle.cancel()]] : []),
+    ...(streamLine?.next != null && streamLine.state !== "streaming" ? [[`Load ${fmt(streamLine.remaining)} more of ${streamLine.what}`, "", () => expandFrom(streamLine.seeds, streamLine.depth, streamLine.next, streamLine.what)]] : []),
     [entitiesOnly ? `Show ${obsName()} nodes (entities only: off)` : "Entities only", "", () => setEntities(!entitiesOnly)],
     ["Clear selection, path and search", "Esc", clearAll],
     ["Clear neighbourhood focus", "", () => clearScope()],
@@ -1623,19 +1846,14 @@ async function main() {
     graph.forEachNode((id, a) => { const s = q ? fuzzy(q, a.name) : 0; if (s >= 0) nodes.push([s, a.deg, id, a]); });
     nodes.sort((x, y) => y[0] - x[0] || y[1] - x[1]);
     for (const [s, , id, a] of nodes.slice(0, q ? 12 : 8)) items.push({kind: "node", label: a.name, sub: `${tname(a.kind)} · ${a.deg}`, s, run: () => goTo(id), id});
-    // "timeline: <subject>" and "<property> history: <item>": typing "timeline" or "tl" lists them, otherwise the best matches get one
+    // "timeline: <node>": typing "timeline" or "tl" lists the drawn nodes whose timeline can be opened
     const tq = q.replace(/^(timeline|lifecycle|tl)\b:?\s*/, ""), asked = tq !== q;
-    if (q && (asked || nodes.length)) {
+    if (q && asked) {
       const cands = [];
-      graph.forEachNode((id, a) => {
-        const life = tlHasHistory(id);
-        if (!tlSubjectKind(id) && !life) return;
-        const s = tq ? fuzzy(tq, a.name) : 0;
-        if (s >= 0) cands.push([s + (asked ? 3 : -0.5), a.deg, id, a, life]);
-      });
+      graph.forEachNode((id, a) => { const s = tq ? fuzzy(tq, a.name) : 0; if (s >= 0) cands.push([s + 3, a.deg, id, a]); });
       cands.sort((x, y) => y[0] - x[0] || y[1] - x[1]);
-      for (const [s, , id, a, life] of cands.slice(0, asked ? 10 : 4))
-        items.push({kind: "tl", label: `${life ? `${pname(tlModel().hist.prop)} history` : "timeline"}: ${a.name}`, sub: tname(a.kind), s, run: () => tlOpen(id), id});
+      for (const [s, , id, a] of cands.slice(0, 10))
+        items.push({kind: "tl", label: `timeline: ${a.name}`, sub: tname(a.kind), s, run: () => tlOpen(id), id});
     }
     items.sort((x, y) => q ? y.s - x.s : (x.kind === "node") - (y.kind === "node"));
     palItems = items.slice(0, 16); palSel = 0;
@@ -1710,7 +1928,7 @@ async function main() {
     }
   });
 
-  // ---- 7. URL state: #revision=…&view=2d|3d&node=…&evidence=…&types=…&t=…&focus=…&hops=…&entities=1&path=a~b&schema=1 ----
+  // ---- 7. URL state: #revision=…&view=2d|3d&node=…&evidence=…&q=…&types=…&t=…&focus=…&hops=…&entities=1&path=a~b&schema=1 ----
   let applying = false;
   function stateString() {
     const p = new URLSearchParams();
@@ -1721,6 +1939,8 @@ async function main() {
     if (v === "timeline") { p.set("mode", "timeline"); tlToParams(p); }
     if (focused) p.set("node", focused);
     if (evidenceShown) p.set("evidence", evidenceShown);
+    const q = $("search").value.trim();
+    if (q) p.set("q", q);
     if (hiddenNodeTypes.size) {
       const all = new Set(); graph.forEachNode((_, a) => all.add(a.kind));
       p.set("types", [...all].filter(t => !hiddenNodeTypes.has(t)).join(","));
@@ -1744,7 +1964,7 @@ async function main() {
       stopPlay();
       const want = revFromHash(hash) ?? doc.meta.head;
       if (want !== doc.meta.revision) {
-        const next = await Data.load(want >= doc.meta.head ? null : want);
+        const next = await Data.overview(want >= doc.meta.head ? null : want);
         if (next) { doc = next; render(); }
       }
       const v = p.get("view") === "3d" ? "3d" : "2d";
@@ -1765,10 +1985,14 @@ async function main() {
       } else scope = null;
       refreshScope(); renderCrumbs();
       path = null; pathFrom = null;
+      const q = p.get("q") ?? "";
+      if (q !== $("search").value) { $("search").value = q; await runSearch(q); }
       const node = p.get("node");
       if (p.has("path")) { const [a, b] = p.get("path").split("~"); findPath(a, b, false); }
-      else if (node && graph.hasNode(node)) { focusOn(node); showNode(node); centreOn(node); }
+      else if (node && node === focused && details.has(node) && graph.hasNode(node)) { focusOn(node); await showNode(node); centreOn(node); }
+      else if (node) await openNode(node, false);
       else { clearFocus(); }
+      // evidence is shown after the detail whose assertions cite it has been read
       if (p.get("evidence")) showEvidence(p.get("evidence"), false); else if (evidenceShown) closeEvidence(false);
       if (scope && !p.has("path")) fitTo(scope.set, 1.5);
       refresh(); render(false);
@@ -1798,10 +2022,8 @@ async function main() {
     hlSets = null;
     if (v) {
       const s = addedSets(v), nodes = new Set(), edges = new Set();
-      graph.forEachNode((id, a) => {
-        const ps = s.props.get(a.kind);
-        if (s.nodeTypes.has(a.kind) || (ps && Object.keys(a.raw.props || {}).some(k => ps.has(k)))) nodes.add(id);
-      });
+      // a drawn node is light: one of a type the version added, or a type it gave a property, is selected
+      graph.forEachNode((id, a) => { if (s.nodeTypes.has(a.kind) || s.props.has(a.kind)) nodes.add(id); });
       graph.forEachEdge((id, a) => { if (s.edgeTypes.has(a.kind)) edges.add(id); });
       hlSets = {nodes, edges};
     }
@@ -1896,19 +2118,22 @@ async function main() {
 
   function addedChips(v) {
     const a = v.added;
-    const nodeChip = t => h("span", {class: "typechip", title: t.id}, h("span", {class: "sw", style: swatch(t.id)}), tname(t.id),
+    // every type and property is named as the version that added or removed it names it
+    const nodeChip = t => h("span", {class: "typechip", title: t.id}, h("span", {class: "sw", style: swatch(t.id)}), t.name,
       t.properties.length ? [" ", h("span", {class: "p"}, t.properties.map(pname).join(", "))] : "");
-    const edgeChip = t => h("span", {class: "typechip edge", title: t.id}, h("span", {class: "sw"}), ename(t.id), " ",
+    const edgeChip = t => h("span", {class: "typechip edge", title: t.id}, h("span", {class: "sw"}), t.name, " ",
       h("span", {class: "p"}, `${t.source_types.map(tname).join("|")} → ${t.target_types.map(tname).join("|")}`));
     const propChip = p => h("span", {class: "typechip", title: p.id}, p.owner ? h("span", {class: "p"}, `${p.owner_kind === "edge" ? ename(p.owner) : tname(p.owner)}.`) : "",
-      pname(p.id), " ", h("span", {class: "p"}, doc.names.propKind.get(p.id) || ""));
-    const unknownChip = id => h("span", {class: "typechip gone", title: "declared by this version, not by the projected revision's ontology"}, shortId(id));
+      p.name, " ", h("span", {class: "p"}, doc.names.propKind.get(p.id) || ""));
+    const otherChip = m => h("span", {class: "typechip", title: `${m.kind} ${m.id}`}, m.name);
+    const KIND = {NodeType: "node type", EdgeType: "edge type", Property: "property"};
+    const goneChip = m => h("span", {class: "typechip gone", title: `${KIND[m.kind] || m.kind} ${m.id}`}, m.name, " ", h("span", {class: "p"}, KIND[m.kind] || m.kind));
     const group = (title, items, chip) => items?.length ? [h("h2", null, `${title} · ${items.length}`), h("div", {class: "added"}, items.map(chip))] : "";
     const parts = [group("Added node types", a.node_types, nodeChip), group("Added edge types", a.edge_types, edgeChip),
-      group("Added properties", a.properties, propChip), group("Added, no longer declared", a.unknown, unknownChip)].filter(Boolean);
-    // What a version removed needs its parent's ontology, which ekr.graph-projection/1 does not carry.
-    const removed = [h("h2", null, "Removed"), h("div", {class: "kept"},
-      "none shown: this projection carries only the projected revision's ontology, so what a version dropped from its parent is not known here")];
+      group("Added properties", a.properties, propChip), group("Added, of another kind", a.unknown, otherChip)].filter(Boolean);
+    // what the version declares no longer, against its parent, as the overview's lineage carries it
+    const removed = v.removed?.length ? group("Removed", v.removed, goneChip)
+      : [h("h2", null, "Removed"), h("div", {class: "kept"}, v.parent ? "nothing its parent declared" : "nothing: the first version has no parent")];
     return [parts.length ? parts : h("div", {class: "kept"}, "adds no types or properties"), removed];
   }
 
@@ -1935,7 +2160,7 @@ async function main() {
         growth),
       [...vs].reverse().map(v => h("div", {class: `card vcard ${v.number === chosenVersion ? "on" : ""}`, id: `ver-${v.number}`, "data-version": v.number},
         h("div", {class: "vhead"}, h("span", {class: "vn"}, `v${v.number}`),
-          h("span", {class: "meta"}, `${v.number === vs[0].number ? "initial schema" : "introduced"} at revision ${v.revision} · adds ${addedCount(v)}`),
+          h("span", {class: "meta"}, `${v.number === vs[0].number ? "initial schema" : "introduced"} at revision ${v.revision} · adds ${addedCount(v)}${v.removed?.length ? ` · removes ${fmt(v.removed.length)}` : ""}`),
           h("button", {"data-highlight": v.number}, hlVersion === v.number ? "Highlighted" : "Highlight in graph")),
         h("div", {class: "idline"}, v.id, v.parent ? ` · parent ${v.parent}` : ""), addedChips(v))));
     if (rows.length) growthChart(growth, rows, vs, sc.head); else put(growth, h("div", {class: "empty"}, "no revisions read yet"));
@@ -1958,22 +2183,19 @@ async function main() {
   }
 
   // =====================================================================================================
-  // ---- Timeline: heatmap over all subjects of a type, swimlanes for one subject, history of one item ----
-  // Nothing here names a type, an edge type or a property: every role is derived from the loaded revision's
-  // shape (tlBuild), and every order is measured (salience, colour distance), never listed.
+  // ---- Timeline: a heatmap of dated assertions per node type, and swimlanes for one node ----
+  // Nothing here names a type, an edge type or a property, and every order is measured (salience, colour
+  // distance), never listed. The heatmap is the overview's timeline buckets: node-subject assertions per
+  // valid-time bucket per node type. A node's swimlanes come from its detail: one lane per predicate it
+  // states or is stated by, and a history bar for the property whose stated value changes most. Roles come
+  // from the overview, by the valid time of each type's facts:
   //   event type        most instances carry a time: an epoch-ms value, or dated facts that cluster at one moment
   //   observation type  the most numerous event type among those linking to more types than the average one
-  //   subject type      ranked by the weighted timed items within 2 hops of an instance, per instance
-  //   history property  a text property whose asserted value changes over time on one node
-  // The structural roles /roles serves are shown beside these in the tooltips; they do not place anything.
   // =====================================================================================================
   const DAY = 864e5, HOUR = 36e5;
-  const EVENT_SHARE = 0.6;                    // share of a type's instances that must be timed
-  const HOP_W = [1, 1, 0.5, 0.25];            // a link's weight by hop distance: 1-hop counts double a 2-hop
   // sequential blue, 600 → 100 (dataviz reference ramp; ordinal check passes on #1a1a19): near zero recedes
   const SEQ = ["#184f95", "#256abf", "#3987e5", "#6da7ec", "#9ec5f4", "#cde2fb"];
   const PLOT_BG = "#1a1a19", GRID = "#2c2c2a", AXIS = "#383835";
-  const isEpoch = v => typeof v === "number" && v >= 1e12 && v < 1e13;
   const fmtDay = new Intl.DateTimeFormat("en-GB", {timeZone: "UTC", month: "short", day: "numeric"});
   const dShort = ms => fmtDay.format(ms);
   const dLong = ms => iso(ms).slice(0, 16);
@@ -2030,190 +2252,93 @@ async function main() {
   }
 
   let tlM = null;
-  const tlCache = new Map();
   const tlModel = () => tlM ??= tlBuild();
+  // The overview's timeline: node-subject assertions per valid-time bucket per node type, and the roles the
+  // overview gives each type. A bucket start a double cannot hold is left out and counted.
   function tlBuild() {
-    const t0 = performance.now();
-    tlCache.clear();
-    const byId = new Map(), byType = new Map(), adj = new Map();
-    for (const n of doc.nodes) {
-      byId.set(n.id, n); adj.set(n.id, []);
-      if (!byType.has(n.type)) byType.set(n.type, []);
-      byType.get(n.type).push(n.id);
-    }
-    for (const e of doc.edges) {
-      const a = adj.get(e.source), b = adj.get(e.target);
-      if (!a || !b) continue;
-      a.push({o: e.target, type: e.type, fwd: true, vf: e.valid_from || null});
-      b.push({o: e.source, type: e.type, fwd: false, vf: e.valid_from || null});
-    }
-    // a node carries a time when it has an epoch-ms property value, or when all its dated facts sit within an
-    // hour of the first (a thing that happened, not one referred to over time). A type whose instances mostly
-    // carry one is an event type; each of its instances is then placed at its epoch value or its first fact.
-    const info = new Map(), stat = new Map();
-    for (const n of doc.nodes) {
-      let st = stat.get(n.type);
-      if (!st) stat.set(n.type, st = {n: 0, props: new Map(), clustered: 0, timed: 0, told: 0, nbr: 0});
-      st.n++;
-      let t = null, src = null;
-      for (const [k, vs] of Object.entries(n.props || {})) for (const v of vs) if (isEpoch(v) && (t == null || v < t)) { t = v; src = k; }
-      let lo = Infinity, hi = -Infinity;
-      const facts = [];
-      for (const a of n.assertions || []) if (a.valid_from) facts.push(a.valid_from);
-      for (const l of adj.get(n.id)) if (l.vf) facts.push(l.vf);
-      for (const f of facts) { if (f < lo) lo = f; if (f > hi) hi = f; }
-      if (src) { st.props.set(src, (st.props.get(src) || 0) + 1); st.timed++; st.told++; }
-      // a single dated fact is one moment whatever the node is: such a node says nothing either way and
-      // stays out of its type's share
-      else if (facts.length >= 2) { st.told++; if (hi - lo <= HOUR) { st.clustered++; st.timed++; } }
-      if (t == null && facts.length) { t = lo; src = "valid_from"; }
-      const nbr = new Set();
-      for (const l of adj.get(n.id)) nbr.add(byId.get(l.o).type);
-      st.nbr += nbr.size;
-      info.set(n.id, {t, end: t == null ? null : Math.max(t, hi), src});
-    }
+    const t0 = performance.now(), T = doc.timeline;
     const events = [];
-    for (const [type, st] of stat) {
-      if (!st.told || st.timed / st.told < EVENT_SHARE) continue;
-      const [prop, pn] = [...st.props].sort((a, b) => b[1] - a[1])[0] || [null, 0];
-      const why = [pn ? `${pct(pn / st.told)} of ${tname(type)} nodes carry \`${pname(prop)}\`` : "",
-        st.clustered ? `${pct(st.clustered / st.told)} have all their dated facts (valid_from) within one hour` : "",
-        st.told < st.n ? `${fmt(st.n - st.told)} of ${fmt(st.n)} with a single dated fact left out` : ""].filter(Boolean).join("; ");
-      events.push({type, n: st.n, timed: st.timed, share: st.timed / st.told, told: st.told, why, links: st.nbr / st.n});
+    for (const [type, r] of doc.roles.types) {
+      if (!r.event) continue;
+      const why = [r.timestamped ? `${pct(r.timestamped / r.judged)} of the ${tname(type)} nodes it judges carry an epoch-ms value` : "",
+        r.within_hour ? `${pct(r.within_hour / r.judged)} have all their dated facts (valid_from) within one hour` : "",
+        r.judged < r.nodes ? `${fmt(r.nodes - r.judged)} of ${fmt(r.nodes)} with fewer than two dated facts left out` : ""].filter(Boolean).join("; ");
+      events.push({type, n: r.nodes, timed: r.instant, told: r.judged, why, links: r.nodes ? r.neighbour_types / r.nodes : 0});
     }
     const evType = new Set(events.map(e => e.type));
-    const meanLinks = events.reduce((sm, e) => sm + e.links, 0) / Math.max(1, events.length);
-    const obs = events.filter(e => e.links >= meanLinks).sort((a, b) => b.n - a.n)[0] || null;
-    // the edge type that joins an observation to what it is about: the one reaching the most distinct types
+    const byType = new Map();
+    let lo = Infinity, hi = -Infinity, outside = 0;
+    for (const b of T.buckets) {
+      const t = num(b.start);
+      if (t == null) { outside += b.assertions; continue; }
+      if (!byType.has(b.type)) byType.set(b.type, []);
+      byType.get(b.type).push({t, n: b.assertions});
+      if (t < lo) lo = t;
+      if (t > hi) hi = t;
+    }
+    const totals = new Map([...byType].map(([t, list]) => [t, list.reduce((sm, b) => sm + b.n, 0)]));
+    // the edge type that joins an observation to what it is about: of the drawn edges from an observation,
+    // the type reaching the most distinct node types
     let mentionEdge = null;
+    const obs = doc.roles.observation;
     if (obs) {
       const reach = new Map();
-      for (const id of byType.get(obs.type)) for (const l of adj.get(id)) if (l.fwd) {
-        if (!reach.has(l.type)) reach.set(l.type, new Set());
-        reach.get(l.type).add(byId.get(l.o).type);
-      }
+      graph.forEachEdge((_, a, s, t) => {
+        if (a.derived || graph.getNodeAttribute(s, "kind") !== obs) return;
+        if (!reach.has(a.kind)) reach.set(a.kind, new Set());
+        reach.get(a.kind).add(graph.getNodeAttribute(t, "kind"));
+      });
       mentionEdge = [...reach].sort((a, b) => b[1].size - a[1].size)[0]?.[0] || null;
     }
-    // history property: most nodes whose asserted text value changes; failing that (no store has to have
-    // one), the text property that only event types carry, whose values repeat most often across nodes
-    // (count − distinct values): a vocabulary of states rather than a name or a key
-    const hp = new Map();
-    for (const n of doc.nodes) {
-      const per = new Map();
-      for (const a of n.assertions || []) if (typeof a.value === "string") {
-        if (!per.has(a.prop)) per.set(a.prop, new Set());
-        per.get(a.prop).add(a.value);
-      }
-      for (const [k, vals] of per) {
-        let hh = hp.get(k);
-        if (!hh) hp.set(k, hh = {prop: k, nodes: 0, changes: 0, values: new Set(), count: 0, evOnly: true});
-        hh.nodes++; hh.count += vals.size; if (vals.size > 1) hh.changes++;
-        for (const v of vals) hh.values.add(v);
-        if (!evType.has(n.type)) hh.evOnly = false;
-      }
-    }
-    const hps = [...hp.values()];
-    let hist = hps.filter(x => x.changes).sort((a, b) => b.changes - a.changes)[0];
-    if (hist) hist = {prop: hist.prop, changed: true, why: `${fmt(hist.changes)} nodes carry more than one \`${pname(hist.prop)}\` value over time`};
-    else {
-      const rep = x => x.count - x.values.size;
-      const f = hps.filter(x => x.evOnly && x.values.size >= 2 && rep(x) >= 2).sort((a, b) => rep(b) - rep(a))[0];
-      hist = f ? {prop: f.prop, changed: false, why: `no property changes value over time in this store; \`${pname(f.prop)}\` is the text property only event types carry ` +
-        `whose values repeat most (${fmt(f.values.size)} values on ${fmt(f.nodes)} nodes), shown as its single stated value`} : null;
-    }
-    let lo = Infinity, hi = -Infinity;
-    for (const [id, inf] of info) if (inf.t != null && evType.has(byId.get(id).type)) { if (inf.t < lo) lo = inf.t; if (inf.end > hi) hi = inf.end; }
-    const M = {byId, byType, adj, info, events, evType, obsType: obs?.type || null, mentionEdge, hist, lo, hi,
-      share: new Map(), order: stackOrder(events.map(e => e.type)), subjects: [], ms: 0};
-    // subject types: the non-event types, ranked by weighted timed items within two hops, per instance.
-    // When every type carries a time there are none; then every type but the observation type is ranked.
-    const noEntities = [...byType.keys()].every(t => evType.has(t));
-    M.subjectsFrom = noEntities ? "every type carries a time: all types except the observation type ranked" : "non-event types ranked";
-    for (const [type, ids] of byType) {
-      if (noEntities ? type === M.obsType : evType.has(type)) continue;
-      let sum = 0, reached = 0;
-      for (const id of ids) {
-        const r = tlRelated(M, id, 2);
-        tlCache.set(`${id}|2`, r);
-        let w = 0;
-        for (const it of r.items) w += HOP_W[r.seen.get(it).d];
-        sum += w; if (w) reached++;
-      }
-      M.subjects.push({type, n: ids.length, score: sum / ids.length, reached});
-    }
-    M.subjects.sort((a, b) => b.score - a.score);
-    const top = M.subjects[0]?.score || 0;
-    M.subjects = M.subjects.filter(x => x.score > 0 && x.score >= top * 0.05).slice(0, 6);
-    M.subjTypes = new Set(M.subjects.map(x => x.type));
+    const M = {events, evType, obsType: obs, mentionEdge, byType, totals, types: [...byType.keys()],
+      order: stackOrder([...byType.keys()]), lo, hi: lo <= hi ? hi + Number(T.bucket_ms) - 1 : hi, bucket: Number(T.bucket_ms),
+      outside, undated: T.undated, ms: 0};
     M.ms = performance.now() - t0;
     return M;
   }
-  // an intermediate node passes events on only when it belongs to the node it was reached from alone:
-  // it has no other neighbour of that node's type
-  function shareOf(M, id, type) {
-    const k = `${id}|${type}`;
-    let v = M.share.get(k);
-    if (v == null) {
-      const st = new Set();
-      for (const l of M.adj.get(id)) if (M.byId.get(l.o).type === type) st.add(l.o);
-      M.share.set(k, v = st.size);
+
+  // ---- one node's timeline, from its detail (/node/<id>): every dated assertion about it, by it, and about
+  // its edges, one lane per predicate; the property whose stated value changes most over time is its history
+  const tlDetail = {id: null, d: null};
+  function tlItems(d) {
+    const me = d.node.id, items = [];
+    const typeOf = id => id === me ? d.node.type : nodeType(id);
+    const add = (c, other, dir) => {
+      const t = num(c.valid_from);
+      if (t == null) return;
+      const to = num(c.valid_to), type = typeOf(other ?? me) ?? d.node.type;
+      const key = `${c.predicate}${dir === "in" ? "|in" : ""}`;
+      items.push({id: c.id, key, predicate: c, dir, t, end: to != null && to > t ? to : t, type, node: other,
+        name: other ? nodeName(other) : valueText(Data.plain(c.object_value)), lifecycle: c.lifecycle.kind});
+    };
+    for (const c of d.assertions) add(c, c.object_kind === "Node" ? c.object_ref : null, "out");
+    for (const r of d.referencing) add(r.assertion, r.subject_kind === "Node" ? r.subject : null, "in");
+    for (const e of d.edges) for (const c of e.assertions) add(c, e.source === me ? e.target : e.source, e.source === me ? "out" : "in");
+    return items;
+  }
+  function tlHistory(d) {
+    const per = new Map();
+    for (const c of d.assertions) {
+      if (c.predicate_kind !== "Property" || c.object_kind !== "Value" || num(c.valid_from) == null) continue;
+      if (!per.has(c.predicate)) per.set(c.predicate, []);
+      per.get(c.predicate).push(c);
     }
-    return v;
-  }
-  // timed items within `hops` of root. Entities lead on to anything; an event leads on only to other events;
-  // a shared intermediate leads nowhere; an event's own timeline (a history) chains through events only.
-  // Every reached node keeps the step that reached it, for "via …".
-  function tlRelated(M, root, hops) {
-    const seen = new Map([[root, {d: 0}]]), items = [], rootEv = M.evType.has(M.byId.get(root).type);
-    let frontier = [root];
-    for (let d = 1; d <= hops && frontier.length; d++) {
-      const next = [];
-      for (const v of frontier) {
-        const vt = M.byId.get(v).type, vEv = v !== root && M.evType.has(vt);
-        if (rootEv && v !== root && !vEv) continue;
-        const mid = v !== root && !vEv;
-        if (mid && shareOf(M, v, M.byId.get(seen.get(v).prev).type) > 1) continue;
-        for (const l of M.adj.get(v)) {
-          if (seen.has(l.o)) continue;
-          // past the first hop an entity hands on only what points at it (what happened at or to it),
-          // not what it originated itself
-          if (mid && l.fwd) continue;
-          const oEv = M.evType.has(M.byId.get(l.o).type);
-          if (vEv && !oEv) continue;
-          if (oEv && M.info.get(l.o).t == null) continue;
-          seen.set(l.o, {d, prev: v, type: l.type, fwd: l.fwd});
-          next.push(l.o);
-          if (oEv) items.push(l.o);
-        }
-      }
-      frontier = next;
+    let best = null;
+    for (const [prop, list] of per) {
+      const values = new Set(list.map(c => JSON.stringify(c.object_value)));
+      if (values.size > 1 && (!best || values.size > best.values)) best = {prop, list, values: values.size};
     }
-    return {items, seen};
+    return best;
   }
-  const tlRel = (id, hops) => { const k = `${id}|${hops}`; let r = tlCache.get(k); if (!r) tlCache.set(k, r = tlRelated(tlModel(), id, hops)); return r; };
-  // the path that linked an item, for its tooltip
-  function viaText(rel, id) {
-    const M = tlModel(), steps = [];
-    let cur = id;
-    while (rel.seen.get(cur)?.prev != null) { const st = rel.seen.get(cur); steps.push({from: st.prev, to: cur, type: st.type, fwd: st.fwd}); cur = st.prev; }
-    steps.reverse();
-    const nm = x => short(M.byId.get(x).name);
-    const edge = st => st.fwd ? `—${ename(st.type)}→` : `←${ename(st.type)}—`;
-    if (steps.length === 1) return `direct: subject ${edge(steps[0])} ${tname(M.byId.get(id).type)}`;
-    return `via ` + steps.slice(0, -1).map(st => `${tname(M.byId.get(st.to).type)} ${nm(st.to)} (${ename(st.type)})`).join(" › ") +
-      ` · ${steps.length} hops, last ${edge(steps[steps.length - 1])}`;
-  }
-  function tlSubjectKind(id) { const M = tlModel(), n = M.byId.get(id); return n && M.subjTypes.has(n.type) ? n.type : null; }
-  function tlHasHistory(id) {
-    const M = tlModel(), n = M.byId.get(id);
-    return !!(n && M.hist && M.evType.has(n.type) && (n.assertions || []).some(a => a.prop === M.hist.prop));
-  }
+  const valueText = v => v && typeof v === "object" ? ("ref" in v ? nodeName(v.ref) : v.list ? `[${v.list.map(valueText).join(", ")}]`
+    : v.record ? `{${Object.entries(v.record).map(([k, x]) => `${k}: ${valueText(x)}`).join(", ")}}` : "") : String(v);
 
   // ---- state; every user override lives in the URL only ----
-  const tl = {kind: null, bucket: "auto", sort: "activity", hops: 2, off: new Set(), subject: null,
+  const tl = {bucket: "auto", sort: "activity", off: new Set(), subject: null,
     lanes: [], pins: [], other: false, view: null, sel: null, stats: {}};
   const tlRange = () => { const M = tlModel(); return {lo: timeLo ?? M.lo, hi: timeT ?? M.hi, set: timeLo != null || timeT != null}; };
-  const bucketSize = (lo, hi) => tl.bucket === "week" || (tl.bucket === "auto" && hi - lo > 120 * DAY) ? 7 * DAY : DAY;
+  // the overview's own bucket, or weeks made of its days; a day cannot be made of the overview's weeks
+  const bucketSize = () => tl.bucket === "week" || tlModel().bucket > DAY ? 7 * DAY : DAY;
   const bStart = (t, size) => size === DAY ? Math.floor(t / DAY) * DAY : (Math.floor((t / DAY + 3) / 7) * 7 - 3) * DAY;   // weeks from Monday, UTC
   const tlOn = () => document.body.classList.contains("tl-on");
   const plot = $("tlPlot"), tlTip = $("tlTip");
@@ -2254,11 +2379,12 @@ async function main() {
   const kindRows = pairs => pairs.map(([t, n]) => h("div", {class: "row"}, h("i", {style: `background:${colour(t)}`}), tname(t), h("b", null, fmt(n))));
   const segButtons = (name, opts, cur) => h("div", {class: "seg", "data-seg": name},
     opts.map(([v, label, title]) => h("button", {"data-v": v, class: String(v) === String(cur) ? "on" : "", title: title || null}, label)));
-  const roleNote = t => doc.roles.has(t) ? ` · structural role: ${doc.roles.get(t)}` : "";
+  const roleNote = t => roleOf(t) ? ` · ${roleOf(t)}, by the valid time of its facts` : "";
   function evChips() {
     const M = tlModel();
-    return h("span", {class: "grp"}, "events ", M.order.map(t => { const e = M.events.find(x => x.type === t);
-      return h("span", {class: `evchip ${tl.off.has(t) ? "off" : ""}`, "data-ev": t, title: e.why + roleNote(t)}, h("span", {class: "sw", style: typeSwatch(t)}), tname(t), h("span", {class: "n"}, fmt(e.timed))); }));
+    return h("span", {class: "grp"}, "types ", M.order.map(t => { const e = M.events.find(x => x.type === t);
+      return h("span", {class: `evchip ${tl.off.has(t) ? "off" : ""}`, "data-ev": t, title: `${fmt(M.totals.get(t))} dated assertions${e ? ` · event type because ${e.why}` : ""}${roleNote(t)}`},
+        h("span", {class: "sw", style: typeSwatch(t)}), tname(t), h("span", {class: "n"}, fmt(M.totals.get(t)))); }));
   }
   function rangeChip() {
     const R = tlRange();
@@ -2266,68 +2392,65 @@ async function main() {
       h("button", {class: "plain", "data-tlact": "clear-range", title: "Show the whole time span (also in the graph)"}, "clear")) : "";
   }
 
-  // ---- overview: one row per subject, one column per bucket ----
+  // ---- overview: one row per node type, one column per bucket, from the overview's timeline buckets ----
   const OV = {LABEL: 190, TOT: 92, PAD: 12, ROW: 20, STRIP: 84, AXIS: 24};
   let ov = null;          // geometry and data of the last overview render, for hit-testing
   function ovData() {
-    const M = tlModel(), R = tlRange(), size = bucketSize(R.lo, R.hi);
+    const M = tlModel(), R = tlRange(), size = bucketSize();
     const b0 = bStart(R.lo, size), nCols = Math.max(1, Math.round((bStart(R.hi, size) - b0) / size) + 1);
     const types = M.order.filter(t => !tl.off.has(t)), ti = new Map(types.map((t, i) => [t, i])), K = types.length;
-    const rows = [], union = new Set();
-    let hidden = 0;
-    for (const id of M.byType.get(tl.kind) || []) {
-      const rel = tlRel(id, tl.hops), counts = new Uint16Array(nCols * K);
+    const rows = [], strip = new Float64Array(nCols * K);
+    let hidden = 0, events = 0;
+    for (const type of types) {
+      const k = ti.get(type), counts = new Float64Array(nCols * K);
       let total = 0, last = -Infinity, first = Infinity;
-      for (const it of rel.items) {
-        const inf = M.info.get(it), k = ti.get(M.byId.get(it).type);
-        if (k == null || inf.t < R.lo || inf.t > R.hi) continue;
-        counts[Math.floor((inf.t - b0) / size) * K + k]++; total++;
-        if (inf.t > last) last = inf.t;
-        if (inf.t < first) first = inf.t;
-        union.add(it);
+      for (const b of M.byType.get(type)) {
+        if (b.t < R.lo - size || b.t > R.hi) continue;
+        const c = Math.floor((bStart(b.t, size) - b0) / size);
+        if (c < 0 || c >= nCols) continue;
+        counts[c * K + k] += b.n; strip[c * K + k] += b.n; total += b.n;
+        if (b.t > last) last = b.t;
+        if (b.t < first) first = b.t;
       }
-      const pinnedRow = tl.pins.includes(id);
+      const pinnedRow = tl.pins.includes(type);
       if (!total && !pinnedRow) { hidden++; continue; }
-      rows.push({id, name: M.byId.get(id).name, counts, total, last, first, pinned: pinnedRow});
+      events += total;
+      rows.push({id: type, name: tname(type), counts, total, last, first, pinned: pinnedRow});
     }
     // orders are measured, never by a stored name: activity (count), recent (last time), first (first time)
     const cmp = tl.sort === "first" ? (a, b) => a.first - b.first : tl.sort === "recent" ? (a, b) => b.last - a.last : (a, b) => b.total - a.total;
     rows.sort((a, b) => (b.pinned - a.pinned) || (a.pinned ? tl.pins.indexOf(a.id) - tl.pins.indexOf(b.id) : 0) || cmp(a, b));
-    const strip = new Uint16Array(nCols * K);
-    for (const it of union) { const inf = M.info.get(it); strip[Math.floor((inf.t - b0) / size) * K + ti.get(M.byId.get(it).type)]++; }
     let maxCell = 0, maxTot = 0, maxStrip = 0;
     for (const r of rows) {
       if (r.total > maxTot) maxTot = r.total;
       for (let c = 0; c < nCols; c++) { let sm = 0; for (let k = 0; k < K; k++) sm += r.counts[c * K + k]; if (sm > maxCell) maxCell = sm; }
     }
     for (let c = 0; c < nCols; c++) { let sm = 0; for (let k = 0; k < K; k++) sm += strip[c * K + k]; if (sm > maxStrip) maxStrip = sm; }
-    return {R, size, b0, nCols, types, K, rows, hidden, strip, maxCell, maxTot, maxStrip, events: union.size};
+    return {R, size, b0, nCols, types, K, rows, hidden, strip, maxCell, maxTot, maxStrip, events};
   }
   const seqStep = (c, max) => c <= 0 ? -1 : Math.min(SEQ.length - 1, Math.floor(SEQ.length * Math.log(c) / Math.log(max + 1)));
   function seqLegend(max) {
     const ranges = [];
     for (let c = 1; c <= max; c++) { const st = seqStep(c, max); if (!ranges[st]) ranges[st] = [c, c]; else ranges[st][1] = c; }
     const txt = r => r[0] === r[1] ? String(r[0]) : `${r[0]}–${r[1]}`;
-    return h("span", null, "events per cell ", h("span", {class: "seq"}, ranges.map((r, st) => r ? h("i", {style: `background:${SEQ[st]}`, title: txt(r)}) : "")),
+    return h("span", null, "assertions per cell ", h("span", {class: "seq"}, ranges.map((r, st) => r ? h("i", {style: `background:${SEQ[st]}`, title: txt(r)}) : "")),
       h("em", null, ranges.filter(Boolean).map(txt).join(" · ")));
   }
   const axisText = (x, y, cls, text) => s("text", {x, y, class: cls || null}, text);
 
   function renderOverview() {
     const t0 = performance.now(), M = tlModel();
-    if (!M.subjTypes.has(tl.kind)) tl.kind = M.subjects[0]?.type || null;
     const d = ovData(), R = d.R;
     put($("tlBar"),
-      h("span", {class: "grp"}, "rows ", segButtons("kind", M.subjects.map(sb => [sb.type, tname(sb.type),
-        `${tname(sb.type)}: ${sb.score.toFixed(1)} weighted timed items within 2 hops per instance (${sb.reached} of ${sb.n} reach any)${roleNote(sb.type)}`]), tl.kind)),
       evChips(),
-      h("span", {class: "grp"}, "bucket ", segButtons("bucket", [["auto", "auto"], ["day", "day"], ["week", "week"]], tl.bucket)),
-      h("span", {class: "grp"}, "sort ", segButtons("sort", [["activity", "activity"], ["recent", "recent"], ["first", "first"]], tl.sort)),
-      h("span", {class: "grp"}, "hops ", segButtons("hops", [[1, "1"], [2, "2"], [3, "3"]], tl.hops)), rangeChip());
-    put($("tlHead"), h("h1", null, tl.kind ? tname(tl.kind) : "no subject type"), h("span", {class: "badge"}, `${fmt(d.rows.length)} with events`),
-      d.hidden ? h("span", {class: "badge"}, `${fmt(d.hidden)} without`) : "");
-    $("tlSub").textContent = `${d.size === DAY ? "day" : "week"} buckets, UTC · ${dShort(R.lo)} – ${dShort(R.hi)} · ${fmt(d.events)} distinct events within ${tl.hops} hop${tl.hops > 1 ? "s" : ""}` +
-      ` · drag across the strip to zoom (the graph follows), double-click it to reset · click a row for its swimlanes`;
+      h("span", {class: "grp"}, "bucket ", segButtons("bucket", M.bucket > DAY ? [["auto", "week"]] : [["auto", "day"], ["week", "week"]], tl.bucket)),
+      h("span", {class: "grp"}, "sort ", segButtons("sort", [["activity", "activity"], ["recent", "recent"], ["first", "first"]], tl.sort)), rangeChip());
+    put($("tlHead"), h("h1", null, "Dated assertions by node type"), h("span", {class: "badge"}, `${fmt(d.rows.length)} types with dated facts`),
+      d.hidden ? h("span", {class: "badge"}, `${fmt(d.hidden)} without in this range`) : "",
+      M.undated ? h("span", {class: "badge", title: "assertions about a node that carry no valid time"}, `${fmt(M.undated)} undated`) : "",
+      M.outside ? h("span", {class: "badge", title: "valid times a date cannot hold"}, `${fmt(M.outside)} beyond a date`) : "");
+    $("tlSub").textContent = `${d.size === DAY ? "day" : "week"} buckets, UTC · ${dShort(R.lo)} – ${dShort(R.hi)} · ${fmt(d.events)} assertions about a node, by the valid time they start` +
+      ` · drag across the strip to zoom (the graph follows), double-click it to reset · click a cell to show its bucket in the graph · a node's own timeline opens from its panel`;
     put($("tlLegend"), d.types.map(t => h("span", null, h("i", {style: `display:inline-block;width:10px;height:10px;border-radius:2px;${typeSwatch(t)}`}), tname(t))),
       h("span", {style: "color:var(--text-muted)"}, "(strip, stacked bottom → top)"), seqLegend(Math.max(1, d.maxCell)));
     const W = Math.max(520, plot.clientWidth - 2), gx = OV.LABEL, gw = W - OV.LABEL - OV.TOT - OV.PAD, colW = gw / d.nCols;
@@ -2335,15 +2458,16 @@ async function main() {
     const axis = s("svg", {class: "tlaxis", id: "tlAxis", width: W, height: OV.AXIS});
     put(plot,
       h("div", {class: "tlsticky"}, h("canvas", {id: "tlStrip"}), axis,
-        h("div", {class: "tlcap", style: "left:10px;top:6px"}, `events per ${d.size === DAY ? "day" : "week"}`),
+        h("div", {class: "tlcap", style: "left:10px;top:6px"}, `assertions per ${d.size === DAY ? "day" : "week"}`),
         h("div", {class: "tlcap", style: `left:${gx - 8}px;top:${OV.STRIP - 70 - 6}px;transform:translateX(-100%)`}, fmt(d.maxStrip)),
         h("div", {class: "tlcap", style: `left:${gx + gw + 8}px;top:6px`}, "row total")),
       h("div", {class: "tlrows", style: `height:${H}px`}, h("canvas", {id: "tlCells", style: "position:absolute;left:0;top:0"}),
         d.rows.map((r, i) => [
-          h("div", {class: "tlrow", "data-tlsub": r.id, style: `top:${i * OV.ROW}px;width:${gx}px;height:${OV.ROW}px`, title: r.name},
-            h("span", {class: "nm"}, r.name), h("span", {class: `pin ${r.pinned ? "on" : ""}`, "data-pin": r.id, title: r.pinned ? "Unpin" : "Pin to the top"}, PIN())),
+          h("div", {class: "tlrow", style: `top:${i * OV.ROW}px;width:${gx}px;height:${OV.ROW}px`, title: `${r.name}${roleNote(r.id)}`},
+            h("span", {class: "sw", style: typeSwatch(r.id)}), h("span", {class: "nm"}, r.name),
+            h("span", {class: `pin ${r.pinned ? "on" : ""}`, "data-pin": r.id, title: r.pinned ? "Unpin" : "Pin to the top"}, PIN())),
           h("div", {class: "tltot", style: `top:${i * OV.ROW + 3}px;left:${gx + gw + 14 + Math.max(2, (OV.TOT - 46) * r.total / d.maxTot)}px`}, fmt(r.total))]),
-        d.rows.length ? "" : h("div", {id: "tlEmpty"}, `No ${tname(tl.kind)} has events in this range with these filters.`)));
+        d.rows.length ? "" : h("div", {id: "tlEmpty"}, "No type has dated assertions in this range with these filters.")));
     ov = {...d, W, gx, gw, colW, H};
     drawStrip(); drawCells();
     // axis: a label every k columns, so labels keep 46 px apart
@@ -2409,13 +2533,13 @@ async function main() {
     const d = ov, row = d.rows[r], pairs = [];
     let sm = 0;
     for (let k = d.K - 1; k >= 0; k--) { const n = row.counts[c * d.K + k]; if (n) { pairs.push([d.types[k], n]); sm += n; } }
-    showTip([h("span", {class: "v"}, fmt(sm)), ` event${sm === 1 ? "" : "s"}`, h("div", {class: "t"}, `${row.name} · ${bucketLabel(d.b0 + c * d.size, d.size)}`), kindRows(pairs)], ev);
+    showTip([h("span", {class: "v"}, fmt(sm)), ` assertion${sm === 1 ? "" : "s"}`, h("div", {class: "t"}, `${row.name} · ${bucketLabel(d.b0 + c * d.size, d.size)}`), kindRows(pairs)], ev);
   }
   function stripTip(c, ev) {
     const d = ov, pairs = [];
     let sm = 0;
     for (let k = d.K - 1; k >= 0; k--) { const n = d.strip[c * d.K + k]; if (n) { pairs.push([d.types[k], n]); sm += n; } }
-    showTip([h("span", {class: "v"}, fmt(sm)), ` distinct event${sm === 1 ? "" : "s"}`, h("div", {class: "t"}, bucketLabel(d.b0 + c * d.size, d.size)), kindRows(pairs)], ev);
+    showTip([h("span", {class: "v"}, fmt(sm)), ` assertion${sm === 1 ? "" : "s"}`, h("div", {class: "t"}, bucketLabel(d.b0 + c * d.size, d.size)), kindRows(pairs)], ev);
   }
   const colAt = x => { const c = Math.floor((x - ov.gx) / ov.colW); return c >= 0 && c < ov.nCols ? c : -1; };
   plot.addEventListener("pointermove", ev => {
@@ -2457,37 +2581,42 @@ async function main() {
   plot.addEventListener("click", ev => {
     const pin = ev.target.closest("[data-pin]");
     if (pin) { const id = pin.dataset.pin; tl.pins = tl.pins.includes(id) ? tl.pins.filter(x => x !== id) : [...tl.pins, id]; renderOverview(); pushState(); return; }
-    const row = ev.target.closest("[data-tlsub]");
-    if (row) { tlOpen(row.dataset.tlsub); return; }
-    if (ev.target.id === "tlCells" && cellHover) tlOpen(ov.rows[cellHover.r].id);
+    // a cell shows its bucket in the graph's time range
+    if (ev.target.id === "tlCells" && cellHover) { const t = ov.b0 + cellHover.c * ov.size; setRange(t, t + ov.size - 1, true); }
   });
 
-  // ---- swimlanes: one lane per event type, ordered by salience; a history bar for an item with one ----
+  // ---- swimlanes of one node: one lane per predicate it states or is stated by, ordered by salience; a
+  // history bar for the property whose value changes most over time ----
   const LN = {LABEL: 178, PAD: 8, ROW: 13, AXIS: 26, MAXROWS: 6, STATUS: 40};
   let ln = null;
+  const laneName = l => {
+    const c = l.items[0].predicate, name = predicateName(c);
+    return l.key.endsWith("|in") ? `← ${name}` : name;
+  };
   function laneData() {
-    const M = tlModel(), R = tlRange(), sid = tl.subject, rel = tlRel(sid, tl.hops), size = bucketSize(R.lo, R.hi);
-    const byType = new Map();
-    for (const id of rel.items) {
-      const n = M.byId.get(id), inf = M.info.get(id);
-      if (tl.off.has(n.type) || inf.end < R.lo || inf.t > R.hi) continue;
-      if (!byType.has(n.type)) byType.set(n.type, []);
-      byType.get(n.type).push({id, type: n.type, t: inf.t, end: inf.end, d: rel.seen.get(id).d, name: n.name});
+    const R = tlRange(), sid = tl.subject, d = tlDetail.d, size = bucketSize();
+    const byKey = new Map();
+    for (const it of tlItems(d)) {
+      if (tl.off.has(it.type) || it.end < R.lo || it.t > R.hi) continue;
+      if (!byKey.has(it.key)) byKey.set(it.key, []);
+      byKey.get(it.key).push(it);
     }
-    // salience = weighted links × recency × burstiness, normalised to the top lane
+    // salience = links × recency × burstiness, normalised to the top lane
     const tau = Math.max(DAY, (R.hi - R.lo) / 3), b0 = bStart(R.lo, size), nb = Math.max(1, Math.round((bStart(R.hi, size) - b0) / size) + 1);
     const lanes = [];
-    for (const [type, items] of byType) {
+    for (const [key, items] of byKey) {
       items.sort((a, b) => a.t - b.t);
-      let w = 0, rec = 0, w1 = 0;
-      const per = new Float64Array(nb);
-      for (const it of items) { w += HOP_W[it.d]; if (it.d === 1) w1++; rec += Math.exp(-(R.hi - it.t) / tau);
-        per[Math.min(nb - 1, Math.max(0, Math.floor((it.t - b0) / size)))]++; }
+      let rec = 0;
+      const per = new Float64Array(nb), kinds = new Map();
+      for (const it of items) { rec += Math.exp(-(R.hi - it.t) / tau);
+        per[Math.min(nb - 1, Math.max(0, Math.floor((it.t - b0) / size)))]++;
+        kinds.set(it.type, (kinds.get(it.type) || 0) + 1); }
       rec /= items.length;
       const mean = items.length / nb;
       let v = 0; for (const x of per) v += (x - mean) ** 2;
-      const cv = mean ? Math.sqrt(v / nb) / mean : 0;
-      lanes.push({key: type, types: [type], items, w, w1, rec, burst: 1 + cv, s: w * rec * (1 + cv)});
+      const cv = mean ? Math.sqrt(v / nb) / mean : 0, w = items.length;
+      const type = [...kinds].sort((a, b) => b[1] - a[1])[0][0];
+      lanes.push({key, type, types: [type], items, w, w1: w, rec, burst: 1 + cv, s: w * rec * (1 + cv)});
     }
     const top = Math.max(1e-9, ...lanes.map(l => l.s));
     lanes.forEach(l => { l.sal = l.s / top; });
@@ -2506,15 +2635,16 @@ async function main() {
       const items = rest.flatMap(l => l.items).sort((a, b) => a.t - b.t);
       order = [...order.slice(0, n - 1), {key: "*other", types: rest.map(l => l.key), items, folded: rest, w: 0, s: 0}];
     }
-    const node = M.byId.get(sid);
+    const node = {id: sid, name: d.node.name, type: d.node.type};
+    const hist = tlHistory(d);
     let status = null;
-    if (M.hist && tlHasHistory(sid)) {
-      const as = (node.assertions || []).filter(a => a.prop === M.hist.prop && a.valid_from).sort((a, b) => a.valid_from - b.valid_from);
-      const inf = M.info.get(sid);
-      status = as.map((a, i) => ({value: String(a.value), lifecycle: a.lifecycle, t: a.valid_from, open: a.valid_to == null && !as[i + 1],
-        end: a.valid_to ?? as[i + 1]?.valid_from ?? Math.max(M.hi, inf?.end || 0)}));
+    if (hist) {
+      const as = hist.list.slice().sort((a, b) => num(a.valid_from) - num(b.valid_from));
+      const last = Math.max(tlModel().hi, ...as.map(a => num(a.valid_from)));
+      status = as.map((a, i) => ({value: valueText(Data.plain(a.object_value)), lifecycle: a.lifecycle.kind, t: num(a.valid_from),
+        open: num(a.valid_to) == null && !as[i + 1], end: num(a.valid_to) ?? num(as[i + 1]?.valid_from) ?? last}));
     }
-    return {R, rel, lanes: order, hiddenLanes, all: lanes, status, node};
+    return {R, lanes: order, hiddenLanes, all: lanes, status, hist, node};
   }
   function fitView(d) {
     let lo = Infinity, hi = -Infinity;
@@ -2539,19 +2669,19 @@ async function main() {
     return {rows: out, need};
   }
   function renderLanes() {
-    const t0 = performance.now(), M = tlModel(), d = laneData(), node = d.node;
-    const hist = d.status ? M.hist : null;
-    put($("tlBar"), h("span", {class: "grp"}, h("button", {class: "plain", "data-tlact": "back"}, `← all ${tname(tl.kind || node.type)}`)),
-      h("span", {class: "grp"}, "hops ", segButtons("hops", [[1, "1"], [2, "2"], [3, "3"]], tl.hops)), evChips(),
+    const t0 = performance.now(), d = laneData(), node = d.node;
+    const hist = d.hist;
+    put($("tlBar"), h("span", {class: "grp"}, h("button", {class: "plain", "data-tlact": "back"}, "← every type")),
+      evChips(),
       h("span", {class: "grp"}, h("button", {class: "plain", "data-tlact": "fit", title: "Fit the time axis (F)"}, "fit"),
         h("button", {class: "plain", "data-tlact": "graph"}, "show in graph")), rangeChip());
     const count = d.lanes.reduce((sm, l) => sm + l.items.length, 0);
-    put($("tlHead"), h("h1", {title: node.name}, node.name), typeChip(node.type), h("span", {class: "badge"}, `${fmt(count)} events within ${tl.hops} hop${tl.hops > 1 ? "s" : ""}`),
-      hist ? h("span", {class: "badge", title: hist.why}, `${pname(hist.prop)} history`) : "");
-    $("tlSub").textContent = `lanes ordered by salience (weighted links × recency × burstiness; hover a lane name for why) · drag a lane name to reorder · ` +
-      `wheel zooms, drag pans, double-click fits · click an item for its details`;
+    put($("tlHead"), h("h1", {title: node.name}, node.name), typeChip(node.type), h("span", {class: "badge"}, `${fmt(count)} dated assertions`),
+      hist ? h("span", {class: "badge", title: `${fmt(hist.values)} values stated over time`}, `${pname(hist.prop)} history`) : "");
+    $("tlSub").textContent = `one lane per predicate, from its detail; lanes ordered by salience (assertions × recency × burstiness; hover a lane name for why) · ` +
+      `drag a lane name to reorder · wheel zooms, drag pans, double-click fits · click an item to open what it links`;
     put($("tlLegend"), d.hiddenLanes.length ? [h("span", {style: "color:var(--text-muted)"}, "hidden:"),
-      d.hiddenLanes.map(l => h("span", {class: "evchip", "data-unhide": l.key, title: "Show this lane again"}, `${tname(l.key)} · ${fmt(l.items.length)} ↺`))] : "");
+      d.hiddenLanes.map(l => h("span", {class: "evchip", "data-unhide": l.key, title: "Show this lane again"}, `${laneName(l)} · ${fmt(l.items.length)} ↺`))] : "");
     const W = Math.max(520, plot.clientWidth - 2), cw = W - LN.LABEL - 16;
     if (!tl.view) tl.view = fitView(d);
     // lane geometry
@@ -2573,11 +2703,11 @@ async function main() {
             pname(hist.prop), h("span", {class: "n"}, `${fmt(d.status.length)} stated value${d.status.length === 1 ? "" : "s"}`));
           const l = g.lane, other = l.key === "*other";
           return h("div", {class: "tllane", draggable: other ? null : "true", "data-lane": other ? null : l.key, "data-why": l.key, style: `top:${g.top}px;width:${LN.LABEL}px;height:${g.h}px`},
-            other ? h("a", {class: "link", "data-tlact": "other"}, `other · ${l.types.length} types ▸`) :
-              [h("span", {class: "lk", style: typeSwatch(l.key)}), tname(l.key), h("span", {class: "pin", "data-hide": l.key, title: "Hide this lane", style: "float:right;cursor:pointer;color:var(--text-muted)"}, "×")],
-            h("span", {class: "n"}, fmt(l.items.length), other ? "" : ` · ${fmt(l.w1)} direct · salience ${l.sal.toFixed(2)}`));
+            other ? h("a", {class: "link", "data-tlact": "other"}, `other · ${l.types.length} predicates ▸`) :
+              [h("span", {class: "lk", style: typeSwatch(l.type)}), laneName(l), h("span", {class: "pin", "data-hide": l.key, title: "Hide this lane", style: "float:right;cursor:pointer;color:var(--text-muted)"}, "×")],
+            h("span", {class: "n"}, fmt(l.items.length), other ? "" : ` · salience ${l.sal.toFixed(2)}`));
         }),
-        geo.length ? "" : h("div", {id: "tlEmpty"}, `Nothing linked to ${node.name} within ${tl.hops} hop${tl.hops > 1 ? "s" : ""} in this range.`)));
+        geo.length ? "" : h("div", {id: "tlEmpty"}, `No assertion of ${node.name} carries a valid time in this range.`)));
     ln = {d, geo, W, cw, H, marks: []};
     drawLanes();
     tl.stats.lanesMs = performance.now() - t0;
@@ -2665,25 +2795,27 @@ async function main() {
     return best;
   }
   function itemTip(m, ev) {
-    const M = tlModel();
     if (m.seg) {
       const st = m.seg;
-      showTip([h("span", {class: "v"}, st.value), h("div", {class: "t"}, `${pname(M.hist.prop)} · ${dLong(st.t)} → ${st.open ? "still current" : dLong(st.end)}` +
+      showTip([h("span", {class: "v"}, st.value), h("div", {class: "t"}, `${pname(ln.d.hist.prop)} · ${dLong(st.t)} → ${st.open ? "still current" : dLong(st.end)}` +
         `${st.open ? "" : ` (${dur(st.end - st.t)})`} · ${st.lifecycle}`)], ev);
       return;
     }
-    const it = m.it, n = M.byId.get(it.id);
-    showTip([h("b", null, n.name), h("div", {class: "t"}, `${tname(n.type)} · ${dLong(it.t)} UTC${it.end - it.t >= HOUR ? ` → ${dLong(it.end)} (${dur(it.end - it.t)})` : ""}`, roleBadge(n.type)),
-      h("div", {class: "via"}, viaText(ln.d.rel, it.id))], ev);
+    const it = m.it;
+    showTip([h("b", null, it.name), h("div", {class: "t"}, `${predicateName(it.predicate)} · ${dLong(it.t)} UTC${it.end - it.t >= HOUR ? ` → ${dLong(it.end)} (${dur(it.end - it.t)})` : ""} · ${it.lifecycle}`,
+      it.node ? ` · ${tname(it.type)}` : "", roleBadge(it.type)),
+      h("div", {class: "via"}, `${it.dir === "in" ? "stated about" : "stated by"} ${ln.d.node.name} · assertion ${shortId(it.id)}`)], ev);
   }
   function laneWhy(key, ev) {
-    const M = tlModel();
-    if (key === "*status") { showTip([h("b", null, pname(M.hist.prop)), h("div", {class: "t", style: "white-space:normal"}, M.hist.why)], ev); return; }
-    const l = ln.d.lanes.find(x => x.key === key), e = M.events.find(x => x.type === key);
-    if (!l || !e) return;
-    showTip([h("b", null, tname(key)), " · salience ", h("span", {class: "v"}, l.sal.toFixed(2)), ` (rank ${l.rank} of ${ln.d.all.length})`, roleBadge(key),
-      h("div", {class: "t", style: "white-space:normal"}, `${l.w.toFixed(1)} weighted links (1-hop ×1, 2-hop ×½, 3-hop ×¼) × ${l.rec.toFixed(2)} recency × ${l.burst.toFixed(2)} burstiness (1 + CV of per-bucket counts)`),
-      h("div", {class: "via", style: "color:var(--text-secondary)"}, `event type because ${e.why}`)], ev);
+    if (key === "*status") {
+      const hs = ln.d.hist;
+      showTip([h("b", null, pname(hs.prop)), h("div", {class: "t", style: "white-space:normal"}, `${fmt(hs.values)} values stated over time: the property of this node whose value changes most`)], ev);
+      return;
+    }
+    const l = ln.d.lanes.find(x => x.key === key);
+    if (!l || l.key === "*other") return;
+    showTip([h("b", null, laneName(l)), " · salience ", h("span", {class: "v"}, l.sal.toFixed(2)), ` (rank ${l.rank} of ${ln.d.all.length})`,
+      h("div", {class: "t", style: "white-space:normal"}, `${fmt(l.w)} dated assertions × ${l.rec.toFixed(2)} recency × ${l.burst.toFixed(2)} burstiness (1 + CV of per-bucket counts)`)], ev);
   }
   // zoom (wheel, around the pointer), pan (drag), fit (double-click)
   let drag = null, frame = 0;
@@ -2724,7 +2856,7 @@ async function main() {
     drag = null; ev.target.style.cursor = "grab";
     if (moved || ev.target.id !== "tlLanes") return;
     const b = ev.target.getBoundingClientRect(), m = markAt(ev.clientX - b.left, ev.clientY - b.top);
-    if (m?.it) { tl.sel = m.it.id; showNode(m.it.id); drawLanes(); }
+    if (m?.it) { tl.sel = m.it.id; drawLanes(); if (m.it.node) openNode(m.it.node); }
   });
   plot.addEventListener("dblclick", ev => { if (tl.subject && ev.target.id === "tlLanes") tlFit(); });
   plot.addEventListener("click", ev => {
@@ -2751,9 +2883,7 @@ async function main() {
     const seg = ev.target.closest("[data-seg] button");
     if (seg) {
       const name = seg.closest("[data-seg]").dataset.seg, v = seg.dataset.v;
-      if (name === "kind") { tl.kind = v; tl.pins = []; }
-      else if (name === "hops") { tl.hops = +v; tl.view = null; }
-      else tl[name] = v;
+      tl[name] = v;
       tlRender(); pushState(); return;
     }
     const chip = ev.target.closest("[data-ev]");
@@ -2767,15 +2897,22 @@ async function main() {
     else if (act === "clear-range") setRange(null, null, true);
     else if (act === "other") { tl.other = true; renderLanes(); pushState(); }
   });
-  function tlOpen(id, kind) {
-    const M = tlModel();
-    if (id && !M.byId.has(id)) return;
-    if (kind) tl.kind = kind;
-    if (id && M.subjTypes.has(M.byId.get(id).type)) tl.kind = M.byId.get(id).type;
+  // A node's timeline is drawn from its detail, read once per revision.
+  async function tlSubject(id) {
+    if (tlDetail.id === id && tlDetail.d) return true;
+    tlDetail.id = id; tlDetail.d = null;
+    let d;
+    try { d = await Data.node(id, "timeline"); } catch (err) { if (tlDetail.id === id) tlEmpty(`the detail of ${nodeName(id)} did not load: ${err.message}`); return false; }
+    if (!d || tlDetail.id !== id) return false;
+    tlDetail.d = d;
+    learn(d);
+    return true;
+  }
+  function tlOpen(id) {
     if (id !== tl.subject) { tl.lanes = []; tl.other = false; tl.sel = null; }
     tl.subject = id || null; tl.view = null;
     if (!tlOn()) setView("timeline"); else tlRender();
-    if (id) showNode(id);
+    if (id && panelFor !== id) showNode(id);
     pushState();
   }
   function tlEmpty(text) {
@@ -2785,19 +2922,27 @@ async function main() {
   function tlRender() {
     if (!tlOn()) return;
     tlHideTip(); brush = null; cellHover = null; stripHover = -1;
-    if (!doc.nodes.length) { tlEmpty("This revision holds no nodes yet."); return; }
+    if (tl.subject) {
+      const id = tl.subject;
+      if (tlDetail.id !== id || !tlDetail.d) {
+        tlEmpty(`reading the detail of ${nodeName(id)}…`);
+        tlSubject(id).then(ok => { if (ok && tl.subject === id && tlOn()) tlRender(); });
+        return;
+      }
+      renderLanes();
+      return;
+    }
+    ln = null;
     const M = tlModel();
-    if (!M.events.length) { tlEmpty(`No node type carries a time on at least ${pct(EVENT_SHARE)} of its instances, so there is nothing to put on a time axis.`); return; }
-    if (tl.subject && !M.byId.has(tl.subject)) tl.subject = null;
-    if (tl.subject) renderLanes(); else { ln = null; renderOverview(); }
+    if (!doc.meta.counts.nodes) { tlEmpty("This revision holds no nodes yet."); return; }
+    if (!M.types.length) { tlEmpty(`No assertion about a node carries a valid time a date can hold${M.undated ? ` (${fmt(M.undated)} carry none)` : ""}, so there is nothing to put on a time axis.`); return; }
+    renderOverview();
   }
   function tlOnTime() { if (!tlM) return; tl.view = null; if (tlOn()) tlRender(); }
   function tlToParams(p) {
     if (tl.subject) p.set("subject", tl.subject);
-    if (tl.kind && tl.kind !== tlModel().subjects[0]?.type) p.set("kind", tl.kind);
     if (tl.bucket !== "auto") p.set("bucket", tl.bucket);
     if (tl.sort !== "activity") p.set("sort", tl.sort);
-    if (tl.hops !== 2) p.set("thops", String(tl.hops));
     if (tl.off.size) p.set("off", [...tl.off].join(","));
     if (tl.lanes.length) p.set("lanes", tl.lanes.join(","));
     if (tl.pins.length) p.set("pins", tl.pins.join(","));
@@ -2805,75 +2950,51 @@ async function main() {
   }
   function tlFromParams(p) {
     const M = tlModel(), list = k => (p.get(k) || "").split(",").filter(Boolean);
-    tl.kind = M.subjTypes.has(p.get("kind")) ? p.get("kind") : M.subjects[0]?.type || null;
-    tl.bucket = ["day", "week"].includes(p.get("bucket")) ? p.get("bucket") : "auto";
+    tl.bucket = p.get("bucket") === "week" ? "week" : "auto";
     tl.sort = ["recent", "first"].includes(p.get("sort")) ? p.get("sort") : "activity";
-    tl.hops = Math.min(3, Math.max(1, Number(p.get("thops")) || 2));
-    tl.off = new Set(list("off").filter(t => M.evType.has(t)));
-    tl.lanes = list("lanes"); tl.pins = list("pins").filter(id => M.byId.has(id)); tl.other = p.get("other") === "1";
+    tl.off = new Set(list("off").filter(t => M.byType.has(t)));
+    tl.lanes = list("lanes"); tl.pins = list("pins").filter(t => M.byType.has(t)); tl.other = p.get("other") === "1";
     const sb = p.get("subject");
     if (sb !== tl.subject) { tl.view = null; tl.sel = null; }
-    tl.subject = sb && M.byId.has(sb) ? sb : null;
+    tl.subject = sb || null;
   }
   let tlResize = 0;
   window.addEventListener("resize", () => { if (tlOn()) { clearTimeout(tlResize); tlResize = setTimeout(tlRender, 120); } });
-  window.__tl = {get model() { return tlModel(); }, state: tl, get stats() { return tl.stats; }, tlOpen, tlRelated: (id, hp) => tlRel(id, hp),
+  window.__tl = {get model() { return tlModel(); }, state: tl, get stats() { return tl.stats; }, tlOpen,
     get lanes() { return ln?.d; }, get overview() { return ov; }};
 
-  // ---- merge a revision's document: add what is new, update what changed, keep positions of the rest ----
+  // ---- a revision's overview: its top nodes are drawn, and the edges among them streamed in; of what earlier
+  // expansions drew, what the new top holds keeps its place ----
   function render(fromData = true) {
     const m = doc.meta, c = m.counts;
     if (fromData) {
-      tlM = null;                     // timeline roles are re-derived from the new revision when next needed
+      tlM = null;                     // the timeline is rebuilt from the new overview when next needed
+      tlDetail.id = null; tlDetail.d = null;
+      details.clear();
       if (!typeSlot.size) seedSlots();
       const first = graph.order === 0;
-      const nodeIds = new Set(doc.nodes.map(n => n.id));
-      const edges = doc.edges.filter(e => nodeIds.has(e.source) && nodeIds.has(e.target));
-      const edgeIds = new Set(edges.map(e => e.id)), deg = new Map();
-      edges.forEach(e => { deg.set(e.source, (deg.get(e.source) || 0) + 1); deg.set(e.target, (deg.get(e.target) || 0) + 1); });
-      const degrees = [...deg.values()].sort((a, b) => b - a);
-      const hubCut = Math.max(3, degrees[Math.min(degrees.length - 1, Math.floor(degrees.length * 0.03))] || 3);
-      let fresh = 0; const newIds = new Set();
-      graph.forEachEdge((id, a) => { if (!a.derived && !edgeIds.has(id)) { graph.dropEdge(id); fresh++; } });
-      graph.forEachNode(id => { if (!nodeIds.has(id)) { graph.dropNode(id); fresh++; } });
-      for (const n of doc.nodes) {
-        const d = deg.get(n.id) || 0;
-        const attrs = {name: n.name, kind: n.type, raw: n, deg: d, hub: d >= hubCut, label: short(n.name),
-          size: 2.6 + 9.5 * Math.sqrt(Math.min(d, 60) / 60), colour: colour(n.type), glyph: glyph(n.type)};
-        if (graph.hasNode(n.id)) { graph.mergeNodeAttributes(n.id, attrs); continue; }
-        fresh++;
-        // a new node starts beside a neighbour that already has a place
-        let x = 0, y = 0;
-        if (!first) {
-          const anchor = edges.find(e => (e.source === n.id && graph.hasNode(e.target)) || (e.target === n.id && graph.hasNode(e.source)));
-          if (anchor) ({x, y} = graph.getNodeAttributes(anchor.source === n.id ? anchor.target : anchor.source));
-          x += (Math.random() - 0.5) * 30; y += (Math.random() - 0.5) * 30;
-        }
-        graph.addNode(n.id, {...attrs, x, y}); newIds.add(n.id);
-      }
-      for (const e of edges) {
-        const attrs = {kind: e.type, lifecycle: e.lifecycle, has_edge: e.has_edge, raw: e,
-          s: e.source, t: e.target, vf: e.valid_from || null, vt: e.valid_to ?? null};
-        if (graph.hasEdge(e.id)) graph.mergeEdgeAttributes(e.id, attrs);
-        else { graph.addDirectedEdgeWithKey(e.id, e.source, e.target, attrs); fresh++; }
+      const top = new Set(doc.top.map(n => n.id));
+      if (layout) stopLayout();
+      graph.forEachNode(id => { if (!top.has(id)) graph.dropNode(id); });
+      const degrees = doc.top.map(n => typeof n.degree === "number" ? n.degree : 0).sort((a, b) => b - a);
+      hubCut = Math.max(3, degrees[Math.min(degrees.length - 1, Math.floor(degrees.length * 0.03))] || 3);
+      for (const n of doc.top) {
+        known.set(n.id, {name: n.name, type: n.type});
+        if (graph.hasNode(n.id)) { graph.mergeNodeAttributes(n.id, nodeAttrs(n)); continue; }
+        graph.addNode(n.id, {...nodeAttrs(n), x: (Math.random() - 0.5) * 30, y: (Math.random() - 0.5) * 30});
+        fresh.add(n.id);
       }
       if (first) seedPositions();
       if (entitiesOnly) deriveCoMentions();
       computeTimeRange(); computeTime(); refreshScope(); renderCrumbs();
-      // an addition moves only what is new: every placed node is pinned while the layout runs briefly
-      if (fresh && !first && newIds.size) { graph.forEachNode((id, a) => { if (!newIds.has(id)) a.fixed = true; }); pinned = !!renderer; }
-      if (fresh) runLayout(first ? budget() : 2500);
-      if (!renderer) graph.forEachNode((_, a) => { delete a.fixed; });
-      // 3D: the same, with d3-force's fx/fy/fz pins, released when the engine stops
-      if (fresh && fg) {
-        const placed = new Set(fgNodes.keys());
-        const data = data3D();
-        if (!first) for (const n of data.nodes) if (placed.has(n.id) && n.x != null) { n.fx = n.x; n.fy = n.y; n.fz = n.z; }
-        fg.cooldownTicks(80).cooldownTime(2500).graphData(data); hud.textContent = "laying out…";
-      }
-      if (focused && !graph.hasNode(focused)) focused = null;
+      // the layout starts once the first batches have settled, not under them
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(settle, 120);
+      if (fg) { fg.cooldownTicks(120).cooldownTime(3000).graphData(data3D()); hud.textContent = "laying out…"; }
+      if (focused && !graph.hasNode(focused)) pending = focused;
       if (focused) focusOn(focused); else refresh();
-      if (evidenceShown && !doc.evidence.has(evidenceShown)) closeEvidence(false);
+      streamLine = null; asking = null; drawStream();
+      topEdges();
       fillRevisions();
       refreshSchema();
       if (tlOn()) tlRender();
@@ -2881,23 +3002,37 @@ async function main() {
     let linked = 0;
     graph.forEachNode((_, a) => { if (a.deg > 0) linked++; });
     const atHead = m.revision === m.head;
-    $("run").textContent = doc.rolesNote;
+    $("run").textContent = roleSummary();
     $("statusText").textContent = atHead ? `head · revision ${m.revision}` : `revision ${m.revision} · head is ${m.head}`;
     $("status").classList.toggle("past", !atHead);
     $("kNodes").textContent = fmt(c.nodes);
-    $("kEdges").textContent = fmt(c.edges + (c.relations_without_edge || 0));
+    $("kEdges").textContent = fmt(c.edges);
     $("kAssertions").textContent = fmt(c.assertions);
     $("kLinked").textContent = graph.order ? `${Math.round(100 * linked / graph.order)}%` : "–";
     put($("subline"), `revision ${m.revision} of ${m.head} · schema v${m.schema_version_number ?? "–"}`,
-      versions().length > 1 ? ` (${versions().length} versions)` : "", ` · ${fmt(c.evidence)} evidence`,
-      c.superseded ? ` · ${fmt(c.superseded)} superseded (amber)` : "",
-      c.relations_without_edge ? [h("br"), `${fmt(c.relations_without_edge)} relations have no edge record (violet)`] : "");
-    const nodeCounts = new Map(), edgeCounts = new Map();
-    doc.nodes.forEach(n => nodeCounts.set(n.type, (nodeCounts.get(n.type) || 0) + 1));
-    doc.edges.forEach(e => edgeCounts.set(e.type, (edgeCounts.get(e.type) || 0) + 1));
+      versions().length > 1 ? ` (${versions().length} versions)` : "", ` · ${fmt(c.evidence)} evidence`);
+    drawnLine();
+    const edgeCounts = new Map(doc.edgeTypes);
     if (entitiesOnly) edgeCounts.set(CO, derivedKeys.length);
-    chips($("nodeTypes"), nodeCounts, hiddenNodeTypes, true);
+    chips($("nodeTypes"), doc.nodeTypes, hiddenNodeTypes, true);
     chips($("edgeTypes"), edgeCounts, hiddenEdgeTypes, false);
+  }
+  // the roles line under the brand: how many types the valid-time rule calls events, and which observes
+  function roleSummary() {
+    const events = [...doc.roles.types.values()].filter(t => t.event).length;
+    return `${plural(events, "event type", "event types")}${doc.roles.observation ? ` · observation type ${tname(doc.roles.observation)}` : ""}, by the valid time of their facts`;
+  }
+  // The edges among the top nodes: one depth-0 expansion of them, as many as a request line holds (12,000
+  // characters of seeds: the default 300 ids take about 11,100, under the server's 16 KiB request head).
+  function topEdges() {
+    const seeds = [];
+    let length = 0;
+    for (const n of doc.top) {
+      length += encodeURIComponent(n.id).length + 1;
+      if (length > 12000) break;
+      seeds.push(n.id);
+    }
+    if (seeds.length) expandFrom(seeds, 0, 0, `the ${fmt(seeds.length)} best-connected nodes`, false);
   }
   render();
   document.querySelectorAll("#dims button").forEach(b => b.classList.toggle("on", b.dataset.dim === dim));
