@@ -2,15 +2,35 @@
 format: aep.planning-md/3
 id: story:changes-since-read
 kind: story
-status: proposed
+status: active
 title: Agents ask what changed since a revision or a time
 relations:
 - serves: vision:o5
 - decomposes: epic:p4-operator-surface
 - informed_by: story:mcp-read-tools
-revision: 2
+scope:
+- confidence: inferred
+  path: crates/ekr-views/src/lib.rs
+- confidence: inferred
+  path: crates/ekr-views/src/query.rs
+- confidence: inferred
+  path: crates/ekr-views/tests/fixtures/conformance/scenarios
+- confidence: inferred
+  path: crates/ekr/src/cli/mcp.rs
+- confidence: inferred
+  path: crates/ekr/src/cli/view.rs
+- confidence: inferred
+  path: docs/cli.md
+- confidence: inferred
+  path: systems/ekr/conformance/views-baseline.json
+- confidence: inferred
+  path: systems/ekr/conformance/views-suite.json
+- confidence: inferred
+  path: systems/ekr/domains/views.yaml
+revision: 12
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T18:16:21Z", actor: "agent:claude-coordinator", revision: 2}
+- {from: "proposed", to: "active", at: "2026-09-28T22:44:17Z", actor: "agent:claude-coordinator", revision: 3}
 ---
 ## Context
 
