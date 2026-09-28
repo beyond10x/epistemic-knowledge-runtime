@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use ess_conformance::report::Status;
 use ess_conformance::{AdmittedSuite, CountReport, CountRun, CountStatus, ExecutedRun, Runner};
+use sha2::{Digest, Sha256};
 
 use super::fixtures::Provider;
 use super::target::{Answered, ViewsTarget};
@@ -21,16 +22,29 @@ pub const PROVENANCE: &str = "systems/ekr/conformance/views-provenance.json";
 /// The directory of authored scenario files the synthesis reads.
 pub const AUTHORED: &str = "crates/ekr-views/tests/fixtures/conformance/scenarios";
 
-/// The name prefix the synthesis gives a scenario read from an authored file.
-pub const AUTHORED_PREFIX: &str = "ekr.views/authored/";
+/// An authored scenario's file in `AUTHORED` and the sha256 of its bytes, as the baseline pins
+/// them and as the synthesis records them under `coverage.authored_sources`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AuthoredFile {
+    pub file: String,
+    pub digest: String,
+}
 
-/// The committed views baseline: every scenario name it requires, and the counts it floors.
+/// The committed views baseline: every scenario name it requires, the counts it floors, each
+/// authored scenario's file content, and each scenario's minimum number of steps of each kind.
+///
+/// The exact checks — the scenario set, every selected scenario passing, the authored digests —
+/// are the gate. `total`, `answered_floor` and `unavailable_ceiling` mirror the kernel baseline's
+/// shape and are asserted too, but while the baseline admits no quarantine the exact checks
+/// dominate them.
 pub struct Baseline {
     pub suite_version: String,
     pub total: u64,
     pub answered_floor: u64,
     pub unavailable_ceiling: u64,
     pub scenarios: BTreeSet<String>,
+    pub authored: BTreeMap<String, AuthoredFile>,
+    pub step_floors: BTreeMap<String, BTreeMap<String, u64>>,
 }
 
 pub fn baseline() -> Baseline {
@@ -56,6 +70,58 @@ pub fn baseline() -> Baseline {
         scenarios.len(),
         "{BASELINE} names a scenario twice"
     );
+    let authored: BTreeMap<String, AuthoredFile> = value["authored"]
+        .as_object()
+        .expect("authored scenario files")
+        .iter()
+        .map(|(name, pin)| {
+            let field = |key: &str| {
+                pin[key]
+                    .as_str()
+                    .unwrap_or_else(|| panic!("{BASELINE}: {name} has no {key}"))
+                    .to_owned()
+            };
+            let pinned = AuthoredFile {
+                file: field("file"),
+                digest: field("digest"),
+            };
+            (name.clone(), pinned)
+        })
+        .collect();
+    let step_floors: BTreeMap<String, BTreeMap<String, u64>> = value["step_floors"]
+        .as_object()
+        .expect("step floors")
+        .iter()
+        .map(|(name, floors)| {
+            let floors = floors
+                .as_object()
+                .unwrap_or_else(|| panic!("{BASELINE}: {name}'s step floors"))
+                .iter()
+                .map(|(kind, floor)| {
+                    let floor = floor
+                        .as_u64()
+                        .unwrap_or_else(|| panic!("{BASELINE}: {name}'s {kind} floor"));
+                    (kind.clone(), floor)
+                })
+                .collect();
+            (name.clone(), floors)
+        })
+        .collect();
+    let authored_names: BTreeSet<String> = scenarios
+        .iter()
+        .filter(|name| name.contains("/authored/"))
+        .cloned()
+        .collect();
+    assert_eq!(
+        authored.keys().cloned().collect::<BTreeSet<_>>(),
+        authored_names,
+        "{BASELINE}: `authored` pins exactly the authored scenarios it names"
+    );
+    assert_eq!(
+        step_floors.keys().cloned().collect::<BTreeSet<_>>(),
+        scenarios,
+        "{BASELINE}: `step_floors` floors exactly the scenarios it names"
+    );
     let baseline = Baseline {
         suite_version: value["suite_version"]
             .as_str()
@@ -65,6 +131,8 @@ pub fn baseline() -> Baseline {
         answered_floor: number("answered_floor"),
         unavailable_ceiling: number("unavailable_ceiling"),
         scenarios,
+        authored,
+        step_floors,
     };
     assert_eq!(
         baseline.scenarios.len() as u64,
@@ -95,6 +163,72 @@ pub fn holds_the_baseline_scenarios(baseline: &Baseline, names: &BTreeSet<String
          baseline in the same change: {unlisted:#?}",
         unlisted.len()
     );
+}
+
+/// Holds the content of `suite` — the committed suite's JSON, or one under test — to the
+/// baseline, so a scenario kept by name with its expectations stripped is named:
+///
+/// - each authored scenario's source file, as the synthesis records it under
+///   `coverage.authored_sources`, is the file and sha256 digest the baseline pins;
+/// - each scenario has at least the baseline's number of steps of every kind it floors.
+///
+/// A deliberate change to an authored scenario, or one that removes steps, updates
+/// `views-baseline.json` in the same change; that update is the point a reviewer sees it.
+/// Generated scenarios are floored by step count only, not by digest, so a specification change
+/// that adds an event or an outcome does not collide with this file.
+pub fn holds_the_baseline_content(baseline: &Baseline, suite: &serde_json::Value, subject: &str) {
+    let mut changed = Vec::new();
+    let sources = &suite["coverage"]["authored_sources"];
+    for (name, pinned) in &baseline.authored {
+        let source = &sources[pinned.file.as_str()];
+        if source.is_null() {
+            changed.push(format!(
+                "{name}: no authored source {} is recorded",
+                pinned.file
+            ));
+            continue;
+        }
+        if source["scenario"] != name.as_str() {
+            changed.push(format!(
+                "{name}: {} is recorded as scenario {}",
+                pinned.file, source["scenario"]
+            ));
+        }
+        if source["digest"] != pinned.digest.as_str() {
+            changed.push(format!(
+                "{name}: {} has digest {}, not the baseline's {}",
+                pinned.file, source["digest"], pinned.digest
+            ));
+        }
+    }
+    for (name, floors) in &baseline.step_floors {
+        let Some(steps) = suite["scenarios"][name.as_str()]["steps"].as_array() else {
+            changed.push(format!("{name}: no steps"));
+            continue;
+        };
+        for (kind, floor) in floors {
+            let count = steps
+                .iter()
+                .filter(|step| step["step"] == kind.as_str())
+                .count() as u64;
+            if count < *floor {
+                changed.push(format!(
+                    "{name}: {count} {kind} step(s), below the baseline's floor of {floor}"
+                ));
+            }
+        }
+    }
+    assert!(
+        changed.is_empty(),
+        "{subject} changed {} scenario content item(s) the committed baseline {BASELINE} pins; a \
+         deliberate change updates the baseline in the same change: {changed:#?}",
+        changed.len()
+    );
+}
+
+/// The committed suite's JSON.
+pub fn suite_json() -> serde_json::Value {
+    serde_json::from_str(&super::read(SUITE)).expect("suite")
 }
 
 /// The authored scenario files `views-provenance.json` records the committed suite was
@@ -146,13 +280,31 @@ pub fn authored_files() -> BTreeSet<String> {
         .collect()
 }
 
-/// The scenario name the synthesis gives an authored file: its stem under `AUTHORED_PREFIX`.
-pub fn authored_scenario_name(path: &str) -> String {
-    let stem = std::path::Path::new(path)
-        .file_stem()
-        .and_then(|stem| stem.to_str())
-        .unwrap_or_else(|| panic!("{path} has no file stem"));
-    format!("{AUTHORED_PREFIX}{stem}")
+/// Every file in the authored scenario directory under the scenario name the synthesis gives it,
+/// with its file name and the sha256 of its bytes. ESS 0.36.0 names an authored scenario
+/// `<domain>/authored/<scenario>` from the file's own `domain:` and `scenario:` fields, not
+/// from its file name: a renamed file keeps its scenario name.
+pub fn authored_scenarios_in_files() -> BTreeMap<String, AuthoredFile> {
+    let mut named = BTreeMap::new();
+    for path in authored_files() {
+        let bytes = std::fs::read(super::workspace_root().join(&path))
+            .unwrap_or_else(|e| panic!("reading {path}: {e}"));
+        let document: serde_yaml_ng::Value = serde_yaml_ng::from_slice(&bytes)
+            .unwrap_or_else(|e| panic!("{path} is not a YAML scenario: {e}"));
+        let field = |key: &str| {
+            document[key]
+                .as_str()
+                .unwrap_or_else(|| panic!("{path} has no `{key}:`"))
+                .to_owned()
+        };
+        let name = format!("{}/authored/{}", field("domain"), field("scenario"));
+        let file = path.rsplit('/').next().expect("a file name").to_owned();
+        let digest = format!("sha256:{}", hex::encode(Sha256::digest(&bytes)));
+        if let Some(earlier) = named.insert(name.clone(), AuthoredFile { file, digest }) {
+            panic!("{path} and {} both author {name}", earlier.file);
+        }
+    }
+    named
 }
 
 pub fn admitted() -> AdmittedSuite {
@@ -162,7 +314,7 @@ pub fn admitted() -> AdmittedSuite {
 
 /// Every scenario name the committed suite selects, read off its JSON.
 pub fn suite_scenarios() -> BTreeSet<String> {
-    let suite: serde_json::Value = serde_json::from_str(&super::read(SUITE)).expect("suite");
+    let suite = suite_json();
     suite["scenarios"]
         .as_object()
         .expect("scenarios")
@@ -197,13 +349,14 @@ fn statuses(run: &ExecutedRun) -> BTreeMap<String, Status> {
 
 /// Runs the admitted suite through a fresh target over `provider` and holds the verdict: every
 /// selected scenario ran and passed; none failed, errored, was unsupported or was skipped; and
-/// the suite and the run each hold the committed baseline's scenario set, total and floor.
+/// the suite and the run each hold the committed baseline's scenario set, content, total and floor.
 /// Returns every projection the target answered during the run.
 pub fn passes_every_admitted_scenario(provider: Provider) -> Vec<Answered> {
     let baseline = baseline();
     let admitted = admitted();
     let expected = suite_scenarios();
     holds_the_baseline_scenarios(&baseline, &expected, "the committed views suite");
+    holds_the_baseline_content(&baseline, &suite_json(), "the committed views suite");
     let work = tempfile::TempDir::new().expect("isolated provider root");
     let target = ViewsTarget::new(provider, work.path().to_path_buf());
     let run = Runner::for_suite(admitted.suite()).run_admitted(&admitted, &target);
