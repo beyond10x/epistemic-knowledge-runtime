@@ -248,6 +248,11 @@ pub trait RevisionLog {
     /// replacing an older one. Without `checkpoint` the retained checkpoint is kept and only the
     /// record of verification advances. Private cache data: it confers no authority and may be
     /// lost at any time. A log that keeps none ignores it.
+    ///
+    /// `true` when the newest pointer is this one afterwards — appended now, or already the newest
+    /// — so that `checkpoint`, when given, is the retained one; `false` when nothing was written:
+    /// the append lost to another writer, there is no retained checkpoint for a pointer without
+    /// one to name, or the log keeps none (design § 99).
     /// # Errors
     /// Provider failure.
     fn write_checkpoint(
@@ -255,9 +260,9 @@ pub trait RevisionLog {
         covered: u64,
         binding: ContentHash,
         checkpoint: Option<&[u8]>,
-    ) -> Result<(), StoreError> {
+    ) -> Result<bool, StoreError> {
         let _ = (covered, binding, checkpoint);
-        Ok(())
+        Ok(false)
     }
 }
 /// Initialization requires the same complete atomic publication path with no existing stream.

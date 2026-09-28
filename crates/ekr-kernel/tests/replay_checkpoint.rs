@@ -2,7 +2,8 @@
 //!
 //! The seed and every `REPLAY_CHECKPOINT_COMMITS`-th commit leave a checkpoint of the head they
 //! published, and so does a commit that brings the operations committed since the retained one
-//! to `REPLAY_CHECKPOINT_OPERATIONS`, or one made by a handle that restored none; every other
+//! to `REPLAY_CHECKPOINT_OPERATIONS`, or one made by a handle that restored none or whose last
+//! checkpoint write the store did not keep; every other
 //! commit appends only a pointer, and a verb that moves no head appends nothing. After any number
 //! of commits a fresh open continues from the checkpoint and answers exactly as a full replay from
 //! the seed does; a checkpoint that does not verify in any field it carries is ignored, and a
@@ -1133,5 +1134,177 @@ fn retained_records_and_preparations_hold_each_payload_once_as_base64() {
         "ekr.publication-preparation/1",
     ] {
         assert!(!formats.contains_key(format), "{format} in {formats:?}");
+    }
+}
+
+/// A store handle whose checkpoint writes can be made to lose, as a pointer append loses to
+/// another writer twice over: nothing is written and the store says so.
+struct Losing<S> {
+    inner: S,
+    lose: std::rc::Rc<Cell<bool>>,
+}
+impl<S: RevisionLog> RevisionLog for Losing<S> {
+    fn preparation(
+        &self,
+        key: &ekr_store::PublicationCommandKey,
+    ) -> Result<Option<ekr_store::PublicationPreparationV1>, ekr_store::StoreError> {
+        self.inner.preparation(key)
+    }
+    fn prepare(
+        &self,
+        key: &ekr_store::PublicationCommandKey,
+        input: ContentHash,
+        decision: &ekr_store::Publication,
+        previous: Option<&ekr_store::PublicationPreparationV1>,
+    ) -> Result<ekr_store::PublicationPreparationV1, ekr_store::StoreError> {
+        self.inner.prepare(key, input, decision, previous)
+    }
+    fn resume(
+        &self,
+        prepared: &ekr_store::PublicationPreparationV1,
+    ) -> Result<ekr_store::Appended, ekr_store::StoreError> {
+        self.inner.resume(prepared)
+    }
+    fn history(&self) -> Result<ekr_store::RetainedHistory, ekr_store::StoreError> {
+        self.inner.history()
+    }
+    fn history_at(
+        &self,
+        revision: RevisionNumber,
+    ) -> Result<ekr_store::RetainedHistory, ekr_store::StoreError> {
+        self.inner.history_at(revision)
+    }
+    fn publish(
+        &self,
+        publication: &ekr_store::Publication,
+    ) -> Result<ekr_store::Appended, ekr_store::StoreError> {
+        self.inner.publish(publication)
+    }
+    fn seed_bytes(&self) -> Result<Option<Vec<u8>>, ekr_store::StoreError> {
+        self.inner.seed_bytes()
+    }
+    fn fold(&self) -> Result<CanonicalGraph, ekr_store::StoreError> {
+        self.inner.fold()
+    }
+    fn head(&self) -> Result<Option<Root>, ekr_store::StoreError> {
+        self.inner.head()
+    }
+    fn replay(&self, revision: RevisionNumber) -> Result<CanonicalGraph, ekr_store::StoreError> {
+        self.inner.replay(revision)
+    }
+    fn write_checkpoint(
+        &self,
+        covered: u64,
+        binding: ContentHash,
+        checkpoint: Option<&[u8]>,
+    ) -> Result<bool, ekr_store::StoreError> {
+        if checkpoint.is_some() && self.lose.get() {
+            return Ok(false);
+        }
+        self.inner.write_checkpoint(covered, binding, checkpoint)
+    }
+}
+impl<S: ekr_store::Initialize> ekr_store::Initialize for Losing<S> {
+    fn initialize(
+        &self,
+        publication: &ekr_store::Publication,
+    ) -> Result<ekr_store::Appended, ekr_store::StoreError> {
+        self.inner.initialize(publication)
+    }
+}
+impl<S: ekr_store::ObjectStore> ekr_store::ObjectStore for Losing<S> {
+    fn put(
+        &self,
+        class: ekr_store::StorageClass,
+        bytes: &[u8],
+        at: Timestamp,
+    ) -> Result<ekr_store::StoredObject, ekr_store::StoreError> {
+        self.inner.put(class, bytes, at)
+    }
+    fn get(&self, hash: &ContentHash) -> Result<Option<Vec<u8>>, ekr_store::StoreError> {
+        self.inner.get(hash)
+    }
+}
+
+/// Runs the commits of revisions `1..=to` through `kernel`, each against the one before, with the
+/// checkpoint write of revision `lost` losing.
+fn commit_through<S>(kernel: &Commit<S>, lose: &Cell<bool>, seed: &SeedDocument, to: u64, lost: u64)
+where
+    S: RevisionLog + ekr_store::ObjectStore,
+{
+    for n in 1..=to {
+        let at = i64::try_from(n * 100).unwrap();
+        let (tx, bytes) = document_under(seed, seed.graph.root.id, n, 1);
+        kernel
+            .propose(&bytes, context().operator, || Timestamp::from_millis(at))
+            .unwrap();
+        kernel
+            .validate(tx, RevisionNumber::new(n - 1), || {
+                Timestamp::from_millis(at + 1)
+            })
+            .unwrap();
+        lose.set(n == lost);
+        let result = kernel
+            .commit(tx, context().operator, || Timestamp::from_millis(at + 2))
+            .unwrap();
+        lose.set(false);
+        assert!(matches!(result, CommitCommandResult::Committed(_)));
+    }
+}
+
+/// A checkpoint the store did not write — its pointer lost to another writer — is not taken for
+/// the retained one: the handle's next commit writes it, so the head stays within the bound of the
+/// newest checkpoint (design § 99.1).
+#[test]
+fn a_checkpoint_the_store_did_not_write_is_written_at_the_next_commit() {
+    fn run<S>(
+        seed: &SeedDocument,
+        store: impl FnOnce(KernelAuthority) -> Result<S, ekr_store::StoreError>,
+    ) where
+        S: RevisionLog + ekr_store::ObjectStore + ekr_store::Initialize,
+    {
+        let n = ekr_kernel::REPLAY_CHECKPOINT_COMMITS;
+        let lose = std::rc::Rc::new(Cell::new(false));
+        let kernel = Commit::over_with_authority(context(), anchor(), |authority| {
+            Ok(Losing {
+                inner: store(authority)?,
+                lose: lose.clone(),
+            })
+        })
+        .unwrap();
+        kernel
+            .seed(seed.clone(), || Timestamp::from_millis(10))
+            .unwrap();
+        // The commit of revision n is due and its checkpoint write loses.
+        commit_through(&kernel, &lose, seed, n + 1, n);
+    }
+    let n = ekr_kernel::REPLAY_CHECKPOINT_COMMITS;
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path();
+        let seed = seed();
+        if file {
+            run(&seed, |authority| {
+                Ok(ekr_store::FileStore::file(path, TENANT, None)?.under(authority))
+            });
+        } else {
+            run(&seed, |authority| {
+                Ok(
+                    ekr_store::SqliteStore::sqlite(&path.join("state.db"), TENANT, None)?
+                        .under(authority),
+                )
+            });
+        }
+        let newest = pointers(&open(path, file)).pop().unwrap();
+        assert_eq!(
+            checkpoint_revision(path, file, &newest),
+            n + 1,
+            "file={file}: the lost checkpoint of revision {n} is written by the next commit"
+        );
+        assert_eq!(
+            answers(&open(path, file)),
+            answers(&open_in_full(path, file)),
+            "file={file}"
+        );
     }
 }

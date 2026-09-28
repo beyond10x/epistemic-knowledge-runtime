@@ -489,13 +489,11 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         };
         self.write_checkpoint_of(&state);
     }
+    /// Writes the checkpoint of `state`, and takes it for the retained one only when the store
+    /// says its pointer stands: one whose pointer lost to another writer is not retained.
     fn write_checkpoint_of(&self, state: &crate::replay::ReplayState) {
         if let Ok(Some((covered, binding, bytes))) = self.authority.checkpoint(state) {
-            if self
-                .store
-                .write_checkpoint(covered, binding, Some(&bytes))
-                .is_ok()
-            {
+            if self.store.write_checkpoint(covered, binding, Some(&bytes)) == Ok(true) {
                 self.authority
                     .checkpoint_retained(covered, state.head().root.revision);
             }

@@ -35,8 +35,8 @@
 //!
 //! A seed writes one. A commit writes one when it is due (design § 99): when the authority knows
 //! of no retained checkpoint, or the head is [`REPLAY_CHECKPOINT_COMMITS`] revisions past the
-//! retained one's, or the commits since it hold [`REPLAY_CHECKPOINT_OPERATIONS`] operations.
-//! Any other commit appends only a pointer that names the retained checkpoint with the new
+//! retained one's, or the commits since it hold [`REPLAY_CHECKPOINT_OPERATIONS`] operations, or
+//! a validation since it was made against a revision before its head. Any other commit appends only a pointer that names the retained checkpoint with the new
 //! coverage. A proposal, a validation or a stale decision appends nothing: an open replays what
 //! follows the checkpoint, and it answers the same wherever the checkpoint lies.
 use crate::replay::{prefix_digests, refuse, require, ReplayState, Revision};
@@ -343,7 +343,9 @@ impl KernelAuthority {
     /// pointer to the retained one (design § 99): when this authority knows of no retained
     /// checkpoint — it admitted none and wrote none — or when the head is at least
     /// [`REPLAY_CHECKPOINT_COMMITS`] revisions past the retained one's, or the transactions
-    /// committed after it hold at least [`REPLAY_CHECKPOINT_OPERATIONS`] operations.
+    /// committed after it hold at least [`REPLAY_CHECKPOINT_OPERATIONS`] operations, or a
+    /// validation or rejection after it was made against a revision before its head, which every
+    /// open continuing from it would replay from the seed to re-derive.
     pub(crate) fn checkpoint_due(&self, state: &ReplayState) -> bool {
         let Some((covered, revision)) = self.cache.lock().ok().and_then(|cache| cache.retained)
         else {
@@ -354,6 +356,13 @@ impl KernelAuthority {
             return true;
         }
         if head - revision.get() >= REPLAY_CHECKPOINT_COMMITS {
+            return true;
+        }
+        if state
+            .earlier_bases
+            .iter()
+            .any(|(version, basis)| *version > covered && *basis < revision)
+        {
             return true;
         }
         let operations: u64 = state
@@ -386,6 +395,22 @@ fn held(
     transactions
         .get_mut(&id)
         .ok_or_else(|| refuse("checkpoint-transaction-absent"))
+}
+
+/// [`ReplayState::note_basis`] for a state being restored, whose head so far is the newest of
+/// `coordinates`.
+fn note_basis(
+    earlier: &mut Vec<(u64, RevisionNumber)>,
+    coordinates: &BTreeMap<RevisionNumber, Coordinates>,
+    version: u64,
+    basis: RevisionNumber,
+) {
+    if coordinates
+        .last_key_value()
+        .is_some_and(|(head, _)| basis < *head)
+    {
+        earlier.push((version, basis));
+    }
 }
 
 /// The coordinates of one revision, read from its retained record.
@@ -431,6 +456,7 @@ fn restored(
     let mut event_ids = BTreeSet::from([first.event.event_id]);
     let mut issue_ids = BTreeSet::new();
     let mut version = first.version;
+    let mut earlier_bases = Vec::new();
     for occurrence in &occurrences[1..] {
         let event = &occurrence.event;
         require(
@@ -460,14 +486,21 @@ fn restored(
                     },
                 );
             }
-            RevisionPayload::TransactionValidated { transaction_id, .. } => {
+            RevisionPayload::TransactionValidated {
+                transaction_id,
+                against,
+                ..
+            } => {
                 let record = ValidationReceiptV1::from_bytes(bytes)?;
+                note_basis(&mut earlier_bases, &coordinates, version, against);
                 let held = held(&mut transactions, transaction_id)?;
                 held.validation = Some(record);
                 held.validation_record_hash = Some(event.record_hash);
             }
             RevisionPayload::TransactionRejected { transaction_id, .. } => {
                 let record = RejectionRecordV1::from_bytes(bytes)?;
+                let basis = record.requested_basis.previous_root.revision;
+                note_basis(&mut earlier_bases, &coordinates, version, basis);
                 issue_ids.extend(record.issues.iter().map(|issue| issue.id));
                 held(&mut transactions, transaction_id)?.rejection = Some(record);
             }
@@ -592,6 +625,7 @@ fn restored(
         event_ids,
         issue_ids,
         held: HeldIdentities::default(),
+        earlier_bases,
     })
 }
 

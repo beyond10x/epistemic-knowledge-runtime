@@ -4568,14 +4568,22 @@ after the checkpoint is replayed: one of 25 nodes cost about 21 ms (one-shot ope
    read and has written none — or when the revision the commit published is at least
    `REPLAY_CHECKPOINT_COMMITS` (4) revisions past the retained checkpoint's head, or when the
    transactions committed after that head hold together at least `REPLAY_CHECKPOINT_OPERATIONS`
-   (512) operations, counted by their proposals' `operation_count`.
+   (512) operations, counted by their proposals' `operation_count`, or when a validation or
+   rejection recorded after the retained checkpoint was made against a revision before its head.
+   The checkpoint holds no graph of that revision, so until the next checkpoint every open would
+   replay the whole history to re-derive that decision (§ 99.2); the commit after it writes one,
+   as every commit did before this section.
 3. A proposal, a validation, a rejection and a stale decision append nothing: they move no head
    and write no checkpoint.
 
-An authority knows the checkpoint it admitted and the last one it wrote. One that another handle
-wrote since is not known to it, so its next checkpoint can come earlier or later than the bound; as
-before, a checkpoint that is not written costs an open time, never an answer. A handle opened with
-`--full-replay` admits none, so each of its commits writes one, as every commit did before.
+An authority knows the checkpoint it admitted and the last one it wrote, and a checkpoint it wrote
+counts only when the store answers that its pointer stands: appended, or already the newest.
+`RevisionLog::write_checkpoint` answers whether it does; a pointer that lost to another writer on
+both of its attempts does not, and the authority's next commit is due as if it had never been
+written. A checkpoint another handle wrote since is not known to it, so its next checkpoint can come
+earlier or later than the bound; as before, a checkpoint that is not written costs an open time,
+never an answer. A handle opened with `--full-replay` admits none, so its first commit writes one;
+from there it counts from the one it wrote, as any handle does.
 
 ## 99.2 What an open does, and `head`
 
@@ -4584,7 +4592,10 @@ the kernel authority — at most three commits, or fewer commits holding under 5
 the proposals and validations around them — re-deriving each decision there as a full replay does.
 It reaches the roots, graph and records a full replay reaches wherever the checkpoint lies. A
 validation against a revision after the checkpoint's head finds that revision's graph in the replay;
-one against an earlier revision replays the whole history, as before.
+one against an earlier revision replays the whole history, as before, until the commit after it
+writes a checkpoint (§ 99.1 item 2). The kernel notes, for each validation and rejection it
+replays or restores, the stream position of one whose basis was not the head it was recorded at;
+that note is what makes such a commit due, and it is not part of the checkpoint.
 
 `ekr head` answers from the pointer alone only when the newest pointer names every occurrence the
 stream holds: after a seed or a commit. After a proposal or a validation it replays from the
@@ -4640,7 +4651,14 @@ seed and revisions 4 and 8, one pointer per seed and commit, one blob retained),
 `a_verb_that_moves_no_head_appends_no_pointer`,
 `a_commit_that_reaches_the_operation_bound_writes_a_checkpoint`,
 `a_handle_that_restored_no_checkpoint_writes_one_at_its_next_commit` and
-`head_answers_from_the_pointer_alone_after_a_commit_and_replays_after_a_proposal`; the forgery
-cases of § 96.3 run unchanged against a checkpoint a commit wrote.
+`head_answers_from_the_pointer_alone_after_a_commit_and_replays_after_a_proposal` and
+`a_checkpoint_the_store_did_not_write_is_written_at_the_next_commit`; the forgery cases of § 96.3
+run unchanged against a checkpoint a commit wrote. `crates/ekr-kernel/tests/
+adversary_checkpoint_cadence_p1.rs` (adversary pass 1) holds a mixed history under profiles v1–v3
+on both providers — after every step a fresh open, two session handles and a full replay answer
+alike and the newest checkpoint is within the bound — crash-like pointer states,
+`…_an_early_basis_validation_is_covered_by_the_next_commit` and
+`…_a_full_replay_handle_writes_a_checkpoint_at_its_first_commit`.
 `crates/ekr-store/tests/authority_verify.rs` holds `replay_root`'s default and that a head no
-pointer answers asks for the root alone.
+pointer answers asks for the root alone; `crates/ekr-store/tests/checkpoint_pointer.rs`'s
+`a_write_says_whether_its_pointer_stands` holds what `write_checkpoint` answers.
