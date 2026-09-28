@@ -7,7 +7,7 @@ title: A read reports a store's quality beyond its size
 relations:
 - serves: vision:o6
 - decomposes: epic:p6-maintenance-observability
-revision: 1
+revision: 2
 ---
 ## Context
 
@@ -26,3 +26,10 @@ transactions. Deterministic, one JSON document, specified in ESS before code.
 - On a fixture store with known counts, every figure equals the fixture's count, on both
   providers.
 - Two reads of one revision are byte-identical.
+
+## Consumer input (2026-09-29)
+
+A consumer instance runs its own health report (node, edge and evidence counts, identity and schema
+checks, 456 lines) and asks for it in the engine; this story is that report. Its data-free code
+check is `story:store-reading-code-names-no-contents`, and its sampled fact-quality method is
+`story:fact-quality-by-judged-sample`.

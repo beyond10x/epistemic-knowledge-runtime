@@ -17,7 +17,7 @@ What they proved necessary and how their data enters this runtime is written dow
 
 ## Status
 
-0.0.13 is the latest release: the kernel, the typed graph and ontology, the store and the `ekr`
+0.0.14 is the latest release: the kernel, the typed graph and ontology, the store and the `ekr`
 binary, with the user documentation and schema evolution, and the executable specifications of the
 graph projection, observation and integration domains. Product crates: `ekr-core`,
 `ekr-kernel`, `ekr-ontology`, `ekr-graph`, `ekr-store`, `ekr-views`, `ekr-observe`,
@@ -25,7 +25,7 @@ graph projection, observation and integration domains. Product crates: `ekr-core
 
 Repository utility: `xtask`.
 
-| works in 0.0.13 | not in 0.0.13 |
+| works in 0.0.14 | not in 0.0.14 |
 |---|---|
 | a schema of node types, edge types, typed properties, lifecycles and named operations, declared in the seed | `MergeEntity`, refused as `unsupported-operation` |
 | in a store seeded under validation profile v2, the schema grows after seeding: a committed transaction adds a node or edge type, or adds or redeclares a property, and each change is a new schema version; see [Evolve the schema](docs/cli.md#evolve-the-schema) | moving a store seeded under profile v1, the example host's, to v2: it keeps the seed's schema |
@@ -34,7 +34,7 @@ Repository utility: `xtask`.
 | file and SQLite storage, with the kernel's executable specification passing on both | ingestion, the incubation forest, schema discovery from evidence and maintenance: later phases of [`docs/roadmap.md`](docs/roadmap.md) |
 | the ESS specifications of `ekr.views` (the graph projection `ekr.graph-projection/1` and the overview, neighbourhood, node, search and timeline reads, with their own conformance suite), `ekr.observe` and `ekr.integrate` in `systems/ekr/`; `ekr view` serves them to a read-only graph viewer on 127.0.0.1, and `ekr resolve` resolves a typed reference to a node, a new-node proposal or an ambiguity | polling a source and persisting observations: `ekr-observe` maps a JSONL file to observations but stores nothing |
 | validation profile v3: profile v2 plus a refusal of any `CreateNode` or `CreateEdge` whose id an earlier revision held, such as a deleted edge's (`identity-previously-held`) | the same refusal under profiles v1 and v2: they still admit a reused id |
-| `ekr session`: one long-lived process serves the store verbs (`resolve`, `propose`, `validate`, `commit`, `snapshot`, `head` and others) as JSON lines over one opened store, each answer the one-shot verb's document; see [`ekr session`](docs/cli.md#ekr-session) | a request cost that does not grow with retained evidence: 20–34 ms per resolve on a store seeded with 11 MB of evidence |
+| `ekr session`: one long-lived process serves the store verbs (`resolve`, `propose`, `validate`, `commit`, `snapshot`, `head` and others) as JSON lines over one opened store, each answer the one-shot verb's document; it starts before a store exists, and `--create` seeds one; see [`ekr session`](docs/cli.md#ekr-session) | a request cost that does not grow with retained evidence: 20–34 ms per resolve on a store seeded with 11 MB of evidence |
 | `ekr mcp`: a read-only MCP server over stdio for agents, with the tools `overview`, `search`, `describe_node`, `expand`, `timeline`, `explain` and `resolve`, each answering the `ekr.views` or one-shot document; see [`ekr mcp`](docs/cli.md#ekr-mcp) | a tool for what changed since a revision or time (`story:changes-since-read`), and any write tool |
 
 A command continues from the store's replay checkpoint rather than replaying the whole
@@ -74,7 +74,7 @@ ekr explain 00000000-0000-4000-8000-000000000501            # the assertion, its
 
 | read | for |
 |---|---|
-| [`docs/overview.md`](docs/overview.md) | new to EKR: the pipeline from seed to explained assertion in diagrams, the transaction lifecycle, and what 0.0.13 has versus what is planned |
+| [`docs/overview.md`](docs/overview.md) | new to EKR: the pipeline from seed to explained assertion in diagrams, the transaction lifecycle, and what 0.0.14 has versus what is planned |
 | [`docs/guide.md`](docs/guide.md) | a task-oriented walk through a real store: record, change and explain claims, handle `Stale` and `Rejected`, exit codes, reading output, scripting |
 | [`docs/schema-evolution.md`](docs/schema-evolution.md) | growing the schema under validation profile v2, schema versions, `ekr ontology --at`, and every refusal on the way |
 | [`docs/cli.md`](docs/cli.md) | the CLI reference: configuration, every verb, the seed and transaction formats, how to design a schema, a worked example from schema to committed assertion, and the common refusals |
