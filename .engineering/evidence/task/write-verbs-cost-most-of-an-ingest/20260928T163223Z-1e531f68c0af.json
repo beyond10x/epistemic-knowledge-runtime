@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-28T16:32:23Z",
+  "actor": "agent:claude-coordinator",
+  "artifact": "task:write-verbs-cost-most-of-an-ingest",
+  "kind": "task",
+  "revision": 1,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:adversary-read-01-w-pass-1",
+    "review": "review-result:adversary-read-01-w-pass-1",
+    "outcome": "fixed"
+  }
+}

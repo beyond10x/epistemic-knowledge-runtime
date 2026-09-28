@@ -9,14 +9,22 @@ relations:
 - decomposes: epic:p4-operator-surface
 scope:
 - confidence: inferred
-  path: crates/ekr-mcp/src/lib.rs
-- confidence: inferred
+  path: crates/ekr/src/cli/agent.rs
+- confidence: cited
   path: crates/ekr/src/cli/mcp.rs
-- confidence: inferred
+- confidence: cited
+  path: crates/ekr/src/cli/mod.rs
+- confidence: cited
+  path: crates/ekr/src/cli/session.rs
+- confidence: cited
+  path: crates/ekr/src/main.rs
+- confidence: cited
+  path: crates/ekr/tests/agent_cli.rs
+- confidence: cited
   path: crates/ekr/tests/mcp.rs
-- confidence: inferred
+- confidence: cited
   path: docs/cli.md
-revision: 5
+revision: 15
 ---
 ## Context
 

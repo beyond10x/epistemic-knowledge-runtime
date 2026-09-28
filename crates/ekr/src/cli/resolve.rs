@@ -20,6 +20,9 @@ const LIMIT: u64 = 1 << 20;
 /// quadratic in flow depth. A typed reference needs two.
 const DEPTH: usize = 64;
 
+/// What a typed reference is, for a refusal of its shape.
+const SHAPE: &str = "a typed reference is one mapping with the keys `type_id` and `aliases`";
+
 /// Reads and decodes the document at `document`, or stdin for `-`. A document that cannot be read
 /// or is not a typed reference is a fault naming it, before any store is opened.
 pub(super) fn read(document: &Path, stdin: &mut dyn Read) -> Result<TypedReference, Failure> {
@@ -108,7 +111,6 @@ fn nesting(text: &str) -> Result<(), String> {
 fn decode(text: &str) -> Result<TypedReference, String> {
     use serde_yaml_ng::observation::{Documents, Event, ScalarKind};
 
-    const SHAPE: &str = "a typed reference is one mapping with the keys `type_id` and `aliases`";
     let error = |e: serde_yaml_ng::Error| e.to_string();
     let mut documents = Documents::from_str(text).map_err(error)?;
     let document = documents.next_document().ok_or(SHAPE)?;
@@ -150,11 +152,7 @@ fn decode(text: &str) -> Result<TypedReference, String> {
         at += 1;
         match key.as_str() {
             "type_id" if type_id.is_none() => {
-                let text = string(at, "type_id")?;
-                type_id = Some(
-                    text.parse()
-                        .map_err(|e| format!("type_id {text:?} is not an id: {e}"))?,
-                );
+                type_id = Some(self::type_id(&string(at, "type_id")?)?);
                 at += 1;
             }
             "aliases" if aliases.is_none() => {
@@ -177,11 +175,27 @@ fn decode(text: &str) -> Result<TypedReference, String> {
     if at != document.event_count() || documents.next_document().is_some() {
         return Err("more than one document; a typed reference is one".into());
     }
+    reference(type_id, aliases)
+}
+
+/// The typed reference of a document's two fields, once its reader has taken them out of the
+/// document's syntax: what the YAML reader here and the `resolve` tool of `ekr mcp` both build,
+/// naming a missing field alike.
+pub(super) fn reference(
+    type_id: Option<TypeId>,
+    aliases: Option<Vec<String>>,
+) -> Result<TypedReference, String> {
     match (type_id, aliases) {
         (Some(type_id), Some(aliases)) => Ok(TypedReference { type_id, aliases }),
         (None, _) => Err(format!("missing `type_id`; {SHAPE}")),
         (_, None) => Err(format!("missing `aliases`; {SHAPE}")),
     }
+}
+
+/// A `type_id` field's text as the id it names, or why it names none.
+pub(super) fn type_id(text: &str) -> Result<TypeId, String> {
+    text.parse()
+        .map_err(|e| format!("type_id {text:?} is not an id: {e}"))
 }
 
 /// Captures the requested (or newest) revision once and resolves `reference` against it. A

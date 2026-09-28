@@ -4447,3 +4447,92 @@ the generated Propose scenarios submit is a `/2` document, and the unknown-forma
 **Measured** on the rebuilt store of § 96.4 (70 MB, file provider, release build, median of three
 fresh copies): one propose, validate and commit of a `/2` document of 2,000 operations (714 KB) took
 1.20 + 1.08 + 1.31 s, 3.60 s in all; of 10,000 operations (3.6 MB), 2.40 + 1.45 + 2.22 s, 6.08 s.
+
+---
+
+# 98. Write Verb Cost: One Authorization per Handle, Fewer Provider Calls
+
+*Added 2026-09-28 by wave read-01 (`task:write-verbs-cost-most-of-an-ingest`). Extends §§ 94.2, 96.2
+and 96.3. No retained format, canonical root, validation rule, refusal or checkpoint cadence
+changes.*
+
+**What was measured.** A file store seeded from `ekr example ekr-seed/2` with 40 committed
+transactions of 185 `CreateNode` each (7,403 nodes, 19,971,175 bytes, a 856 KB log), then trios of
+25-node propose, validate and commit inside one `ekr session`, release build with frame pointers,
+`perf record --call-graph fp`. Of the CPU samples, 42 % were the File provider hashing its whole
+log at the start of a call: it trusts the log unread only when the log has not changed for two
+seconds (eventlog-file `fe8a0a7`, `UNTRUSTED_NS`), which during an ingest it never has, so every
+provider call paid for the log again. Authorizing preparations was 28 %: a verb authorized its one
+preparation three times, at election, when `resume` read it back, and again in `resume`, each with
+a basis and a candidate replay. Every store-side replay copied the admitted head graph that
+`CommitAuthority::replay` returns and the caller dropped (11 %), and every replay the authority's
+cache answered copied the cached state (4 %). Off the CPU each verb made 28 `fsync` calls: three
+atomic groups (the preparation, the publication, the checkpoint pointer), 8 to 10 each.
+
+## 98.1 What changes
+
+1. **A store handle authorizes one preparation once.** It records the payload address of each
+   preparation it authorized: the one it elects, and any it reads back and authorizes. A read-back
+   whose bytes hash to such an address is not authorized again, and `resume` appends the request of
+   the attempt the read-back returned, which that read authorized or found authorized. What
+   authorizing reads besides the preparation's own bytes is fixed once it is elected — the
+   revision-stream prefix and object-stream prefixes it names and the handle's tenant, authority
+   and ontology — so a repeated authorization could only reach the answer already reached. A
+   candidate replay through the kernel authority still precedes every native append (invariant
+   1): in the electing handle at election, in any other handle at read-back. Any other bytes are
+   authorized as before, and refused by the names they were refused by. Executed by
+   `crates/ekr-store/tests/preparation_authorized_once.rs`'s
+   `a_preparation_this_handle_authorized_is_not_authorized_again_when_read_back_identical` and
+   `a_preparation_changed_after_this_handle_authorized_it_is_authorized_again_and_refused` (a
+   successor attempt installed through a second provider handle between `prepare` and `resume` is
+   refused `preparation-fingerprint` or `preparation-native-metadata`, and nothing is appended), on
+   both providers; the fresh-handle refusals of `crates/ekr-kernel/tests/recovery.rs` are
+   unchanged.
+2. **`CommitAuthority::verify`** is `replay`'s verdict without the admitted state; an authority
+   that does not implement it answers as its `replay` does. The store's history reads, preparation
+   authorization and `publish` ask for it, and the kernel answers it without copying the head
+   graph. Executed by `crates/ekr-store/tests/authority_verify.rs`.
+3. **A replay state reached over exactly the history asked for is shared, not copied**, and a new
+   state is shared with the authority's cache rather than copied into it.
+4. **The confirming read is the read that goes on.** A history read that continues past the held
+   prefix reads from the last held occurrence: the provider call that confirms it (§ 96.2) returns
+   what follows. A provider that no longer has it makes the handle drop what it holds and read from
+   the start, as before. Executed by `crates/ekr-store/tests/history_cache.rs`'s
+   `a_read_on_confirms_the_held_prefix_in_the_same_call_sqlite` and `…_file`.
+5. **A pointer write continues from the handle's own last one.** A handle that wrote the newest
+   checkpoint pointer knows the stream's length and newest pointer without reading them; when
+   another handle has written since, its conditional append loses, and the write reads the stream
+   and is made again, as a handle without that record makes it. Only an append proves the record:
+   a write the record says has nothing to append is decided again from the stream too, and a
+   write that appends nothing leaves no record. Executed by
+   `crates/ekr-store/tests/checkpoint_pointer.rs` and `adversary_write_path_pointer.rs`.
+
+## 98.2 Result, and what is not changed
+
+On that store, one session of ten 25-node trios on a tmpfs copy took 4.89 s of CPU before and
+3.04 s after (median of three, open included; one trio alone 0.69 s and 0.50 s). The session made
+about 28 provider calls per verb before and 19 after, and 28 `fsync` calls per verb before and
+after. Per verb, trios 2–5 on a tmpfs copy on a shared machine, in ms: the session rows are the
+range of two measurement sets an hour apart, each the median of two or three sessions; the one-shot
+rows are the medians of one set, plain release build:
+
+| | propose | validate | commit |
+|---|---|---|---|
+| session, before | 120–167 | 140–188 | 185–277 |
+| session, after | 58–88 | 78–144 | 123–212 |
+| one-shot, before | 366 | 407 | 435 |
+| one-shot, after | 302 | 326 | 383 |
+
+The first verb of a session also makes its first history read, which restores the checkpoint: the
+first propose took 353–611 ms before and 289–533 ms after.
+
+On the machine's disk, where a synchronous 4 KB write took 12–32 ms while measuring, the 28
+`fsync` calls a verb makes dominate: session medians 558 / 532 / 729 ms before and 385 / 414 /
+641 ms after.
+
+What remains per commit is mostly its checkpoint (§ 96.3: a 4 MB graph document on this store,
+hashed by this runtime, fingerprinted and hashed again by the provider, and the blob it replaces
+deleted in a further call) and the two knowledge roots invariant 1 asks for, the command's and the
+candidate replay's. Per verb, what remains is the provider's own: a hash of the whole log per call
+inside its two-second window, and 8 to 10 `fsync` calls per atomic group. Writing checkpoints and
+pointers less often than once per verb is a change to § 96.3 and is not made here.

@@ -413,7 +413,7 @@ impl KernelAuthority {
         history: &RetainedHistory,
         ontology: Option<&ekr_ontology::Ontology>,
         selected: Option<RevisionNumber>,
-    ) -> Result<Option<ReplayState>, StoreError> {
+    ) -> Result<Option<Arc<ReplayState>>, StoreError> {
         match self.replay_from(history, ontology, selected, true) {
             Err(error) if graph_not_held(&error) => {
                 self.replay_from(history, ontology, selected, false)
@@ -425,7 +425,7 @@ impl KernelAuthority {
     pub(crate) fn reconstruct_in_full(
         &self,
         history: &RetainedHistory,
-    ) -> Result<Option<ReplayState>, StoreError> {
+    ) -> Result<Option<Arc<ReplayState>>, StoreError> {
         self.replay_from(history, None, None, false)
     }
     fn replay_from(
@@ -434,7 +434,7 @@ impl KernelAuthority {
         ontology: Option<&ekr_ontology::Ontology>,
         selected: Option<RevisionNumber>,
         reuse: bool,
-    ) -> Result<Option<ReplayState>, StoreError> {
+    ) -> Result<Option<Arc<ReplayState>>, StoreError> {
         // Only the ordinary head replay is shared: a replay under a caller's ontology or to a
         // selected revision is computed in full, as before.
         let shared = ontology.is_none() && selected.is_none();
@@ -453,6 +453,11 @@ impl KernelAuthority {
         };
         let reused = reached.is_some();
         let (mut state, start) = if let Some((covered, reached)) = reached {
+            // A state reached over exactly this history is this history's state, digest included:
+            // it is shared, not copied.
+            if covered == history.occurrences.len() && reached.digest == Some(digests[covered]) {
+                return Ok(Some(reached));
+            }
             // The seed checks bind the host context and anchor; this authority's are immutable.
             ((*reached).clone(), covered)
         } else {
@@ -490,7 +495,7 @@ impl KernelAuthority {
                 seed_payloads,
             };
             if selected == Some(RevisionNumber::SEED) {
-                return Ok(Some(state));
+                return Ok(Some(Arc::new(state)));
             }
             (state, 1)
         };
@@ -799,22 +804,26 @@ impl KernelAuthority {
             }
             state.version = occurrence.version;
             if selected.is_some_and(|number| state.head().root.revision == number) {
-                return Ok(Some(state));
+                return Ok(Some(Arc::new(state)));
             }
         }
         if let Some(requested) = selected {
             return Err(StoreError::NoMaterialisedState { requested });
         }
-        if shared {
+        let state = if shared {
             let covered = history.occurrences.len();
             state.digest = Some(digests[covered]);
+            let state = Arc::new(state);
             if !reused || start < covered {
                 self.cache
                     .lock()
                     .map_err(|_| refuse("replay-cache-poisoned"))?
-                    .insert(covered, digests[covered], Arc::new(state.clone()));
+                    .insert(covered, digests[covered], Arc::clone(&state));
             }
-        }
+            state
+        } else {
+            Arc::new(state)
+        };
         Ok(Some(state))
     }
 }

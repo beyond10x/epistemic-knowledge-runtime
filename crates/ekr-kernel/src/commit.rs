@@ -55,6 +55,19 @@ impl CommitAuthority for KernelAuthority {
             .map(|state| state.head().admitted())
             .transpose()
     }
+    /// [`CommitAuthority::replay`]'s verdict without copying the head graph into an admitted
+    /// revision: the same reconstruction, and the same refusal where the head graph is not held.
+    fn verify(
+        &self,
+        history: &RetainedHistory,
+        ontology: Option<&ekr_ontology::Ontology>,
+        revision: Option<RevisionNumber>,
+    ) -> Result<(), StoreError> {
+        if let Some(state) = self.reconstruct(history, ontology, revision)? {
+            state.head().graph()?;
+        }
+        Ok(())
+    }
     fn restore(&self, history: &RetainedHistory, checkpoint: &[u8]) -> Result<(), StoreError> {
         self.restore_checkpoint(history, checkpoint)
     }

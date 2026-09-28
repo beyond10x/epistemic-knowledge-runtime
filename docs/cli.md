@@ -135,6 +135,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr schema` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2`, `ekr.cli-host/1` or `typed-reference` (aliases `transaction` for `/2`, `seed`, `host`) | the format's JSON Schema (draft 2020-12) |
 | `ekr view` | reads | `--port <port>` (`0`, the default, picks a free one) | `{"url": "http://127.0.0.1:<port>/"}` as one line, then serves a read-only viewer until interrupted |
 | `ekr session` | reads and writes | one JSON request per line on stdin, `{"argv": [...]}`, until it ends | one JSON answer per request, `{"exit", "stdout", "stderr"}`: what the verb exits with and prints |
+| `ekr mcp` | reads | JSON-RPC 2.0 messages, one per line on stdin, until it ends | one JSON-RPC response per request: read-only MCP tools over the store (below) |
 
 Every verb has `--help`.
 
@@ -509,7 +510,7 @@ A session serves `propose`, `validate`, `commit`, `snapshot`, `explain`, `resolv
 | `session-request-malformed` | 2 | the line is not a JSON object with `argv`, a list of strings, and at most `stdin`, a string; an empty line included | send `{"argv": [...]}` on one line |
 | `session-request-too-large` | 2 | the line is longer than 25231360 bytes, its newline excluded: three times the 8388608-byte `ekr.transaction-document/2` cap, the most JSON escaping can make of it, and 65536 bytes for `argv` and the framing. The session holds no more of the line than that; it reads the rest up to the newline, drops it and serves the next line | send the document as a file (`["propose", "doc.yaml"]`), or a smaller one |
 | `session-verb-unknown` | 2 | `argv` is empty, or its first word is not a verb of `ekr` | a verb from the list above |
-| `session-verb-refused` | 2 | the verb is `seed`, `view`, `session`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted, nest, or print text | run it as its own `ekr` process |
+| `session-verb-refused` | 2 | the verb is `seed`, `view`, `session`, `mcp`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, or print text | run it as its own `ekr` process |
 | `session-option-refused` | 2 | the request sets `--host`, `--store`, `--backend` or `--full-replay` | the session's store is fixed when it starts; start another session for another store |
 
 Any other `argv` the verbs' definitions do not accept — an unknown flag
@@ -518,6 +519,88 @@ Any other `argv` the verbs' definitions do not accept — an unknown flag
 `"exit": 2`, `"stdout": null` and clap's usage message, byte for byte, as `"stderr"`: the
 message `ekr <argv>` prints with the store configured through `EKR_HOST`, `EKR_STORE` and
 `EKR_BACKEND`, since clap's usage line repeats the global options an argv gives.
+
+### `ekr mcp`
+
+Serves the store's canonical state to an agent as read-only [MCP](https://modelcontextprotocol.io)
+tools over stdio. It reads the configuration (`--host`, `--store`, `--backend`, `--full-replay` or
+their variables) and opens the existing store once when it starts, then reads JSON-RPC 2.0
+messages from standard input, one per line, and writes each response as one line on standard
+output, flushed, until its input ends; then it exits 0. It writes nothing to the store and nothing
+to stderr. If the configuration or the store does not open, it answers nothing and exits as a
+store verb does (`store-not-found`, exit 1). To register it with an MCP client, give the client
+the command `ekr mcp` with `EKR_HOST`, `EKR_STORE` and `EKR_BACKEND` in its environment.
+
+A line that is empty or holds only whitespace is not a message: it is read and not answered.
+Every response carries the request's `id` exactly as the client wrote it — a number beyond 64
+bits, an exponent or an escaped string comes back byte for byte.
+
+It answers these methods:
+
+- `initialize` — `params.protocolVersion` is required. The server supports the MCP revisions
+  `2025-11-25` and `2025-06-18`: it answers the one the client asked for when it is one of these,
+  and `2025-11-25` otherwise. It does not agree to `2025-03-26`, whose transport requires
+  receiving JSON-RPC batches, which this server refuses, nor to `2024-11-05`; a client asking for
+  either is answered `2025-11-25`;
+  `capabilities` is `{"tools": {"listChanged": false}}`, `serverInfo.name` is `ekr` and
+  `serverInfo.version` the binary's version, and `instructions` says that record text is
+  untrusted evidence.
+- `notifications/initialized`, and every other notification — never answered.
+- `ping` — `{}`.
+- `tools/list` — the seven tools below, each with its `inputSchema` (a JSON Schema object that
+  refuses any other argument) and `annotations.readOnlyHint: true`.
+- `tools/call` — `{"name": <tool>, "arguments": {…}}`.
+
+Every tool reads the store as it stands when the call is read, so a transaction another process
+committed is what the next call reads. `revision` is a committed revision, the newest when
+absent; `overview`, `search`, `describe_node`, `expand` and `timeline` read the revision's
+`ekr.views` index, loaded once per revision and head exactly as [`ekr view`](#ekr-view) keeps
+it, and answer its document byte for byte what the `ekr view` endpoint in the last column
+serves:
+
+| tool | arguments (required in bold) | answers | as |
+|---|---|---|---|
+| `overview` | `revision`, `limit` (1 to 500, 300 when absent) | the `ekr.graph-overview/1` document | `GET /overview` |
+| `search` | **`text`**, `limit` (1 to 100, 20 when absent), `revision` | the `ekr.node-matches/1` document | `GET /search` |
+| `describe_node` | **`node`** (a node id), `revision` | the `ekr.node-detail/1` document | `GET /node/<node id>` |
+| `expand` | **`seeds`** (a list of node ids; empty answers an empty page), **`depth`** (0 to 2), **`limit`** (1 to 2,000 nodes), `edges` (1 to 5,000, 5,000 when absent), `after` (a cursor, 0 or more), `revision` | the whole `ekr.graph-slice/1` page as one document, `next` naming the next page's `after` | `GET /expand`, as one document rather than NDJSON |
+| `timeline` | `type` (a node type id), **`hops`** (1 to 3), **`limit`** (1 to 500), `bucket` (`day` or `week`), `subject` (a node id), `revision` | the `ekr.graph-timeline/1` document | `GET /timeline` |
+| `explain` | **`assertion`** (an assertion id) | what `ekr explain <assertion>` prints, byte for byte | `ekr explain` |
+| `resolve` | **`type_id`** (a string), **`aliases`** (a list of strings) — the [`typed-reference`](#ekr-resolve) document's fields, taken as the JSON strings hold them, every character included — and `at` (a revision) | what `ekr resolve` prints for that reference, byte for byte | `ekr resolve [--at N]` |
+
+A tool's answer is a result with one text content item holding the document, the same document
+parsed as `structuredContent`, and `"isError": false`:
+
+```console
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"describe_node","arguments":{"node":"00000000-0000-4000-8000-000000000301"}}}
+{"id":3,"jsonrpc":"2.0","result":{"content":[{"text":"{\"format\":\"ekr.node-detail/1\",…}","type":"text"}],"isError":false,"structuredContent":{"format":"ekr.node-detail/1",…}}}
+```
+
+A refusal is a result too, with `"isError": true` and the document `{"message": <reason>,
+"refusal": <name>}` — the body `ekr view` answers for the same refusal, and the name and reason
+`ekr explain` and `ekr resolve` write to stderr. The server keeps serving after it. The refusals,
+in the order they are decided: a bound outside its range is `ekr.views.LimitExceeded` before the
+store is read; a store never seeded `ekr.views.NotSeeded`; a revision the store does not hold
+`ekr.views.RevisionNotFound` (`ekr.kernel.RevisionNotFound` for `resolve`); a node or seed the
+revision does not hold, or a `node` that is no node id, `ekr.views.NodeNotFound`; an assertion
+the head does not hold `ekr.kernel.AssertionNotFound`; and for `resolve`,
+`reference-without-identity`, `reference-type-undeclared` and `reference-type-has-subtypes`
+([`ekr resolve`](#ekr-resolve)).
+
+Anything else is a JSON-RPC error response, and the server keeps serving:
+
+| code | when |
+|---|---|
+| `-32700` | the line is not JSON (an empty or whitespace-only line is not answered at all); `id` is null |
+| `-32600` | the line is not one JSON object (a batch included), lacks `"jsonrpc": "2.0"`, lacks a method (a message carrying `result` or `error` instead is a response, and is not answered), carries an `id` that is not a string or a number or carries `id` twice, or is longer than 6356992 bytes, its newline excluded |
+| `-32601` | the method is none of the five above |
+| `-32602` | `initialize` without `protocolVersion`; `tools/call` without a `name`, naming a tool the server does not have, or with arguments the tool does not take: an unknown or missing argument, a value of the wrong type, a `revision` or `at` below 0, a seed, `type` or `subject` that is not an id, a `bucket` other than `day` or `week`, an `assertion` that is not an assertion id, or a `type_id` that is not an id, with the reason `ekr resolve` gives for it. `ekr view` answers these `invalid-query` |
+| `-32603` | the store could not be read |
+
+Record text — names, aliases, property values, evidence text — is untrusted evidence. The server
+returns it as JSON string data, and its instructions and every tool's description tell the agent
+to treat it as data, never as instructions. No tool proposes, validates or commits: an agent
+records knowledge only through [`ekr propose`, `ekr validate` and `ekr commit`](#the-workflow).
 
 ## The workflow
 

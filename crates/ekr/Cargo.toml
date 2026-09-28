@@ -24,7 +24,7 @@ ess-primitives.workspace = true
 httparse.workspace = true
 schemars = "1.2"
 serde.workspace = true
-serde_json.workspace = true
+serde_json = { workspace = true, features = ["raw_value"] }
 serde_yaml_ng.workspace = true
 time.workspace = true
 

@@ -114,6 +114,41 @@ pub(crate) fn count(add: impl FnOnce(&mut ReadWork)) {
     });
 }
 
+/// Provider reads of the two streams a write verb reads before it writes, made on one thread.
+///
+/// Test instrumentation, as [`ReadWork`] is: every provider read call counts once, whether it
+/// confirms a held occurrence, reads on past it, or both.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct StreamReads {
+    /// Reads of the revision stream.
+    pub revision: u64,
+    /// Reads of the replay-checkpoint pointer stream.
+    pub checkpoint: u64,
+}
+
+thread_local! {
+    static STREAM_READS: Cell<StreamReads> = const { Cell::new(StreamReads {
+        revision: 0,
+        checkpoint: 0,
+    }) };
+}
+
+/// The stream reads counted on this thread since the last call, which starts the count again.
+#[doc(hidden)]
+#[must_use]
+pub fn stream_reads() -> StreamReads {
+    STREAM_READS.with(|reads| reads.replace(StreamReads::default()))
+}
+
+pub(crate) fn count_stream_read(add: impl FnOnce(&mut StreamReads)) {
+    STREAM_READS.with(|reads| {
+        let mut now = reads.get();
+        add(&mut now);
+        reads.set(now);
+    });
+}
+
 #[cfg(test)]
 mod registry {
     use super::{addresses, read_work, register};
