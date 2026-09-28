@@ -299,16 +299,16 @@ fn schema_shape(tx: &GraphTransaction, admits_schema: bool, issues: &mut Vec<Val
 /// two revisions, so that a reference to it, an assertion about it or an explain chain through it
 /// can mean the wrong one. The snapshot a validator reads is one revision and cannot answer that,
 /// so the lineage's identities are handed in, as the schema lineage is to
-/// [`SchemaOntology`](super::schema::SchemaOntology).
+/// `SchemaOntology`.
 ///
 /// `NodeId` and `EdgeId` are two types over one UUID space — a transaction document writes both
 /// as the same text — so the set is keyed by the UUID and remembers which kind held it.
 ///
 /// Each identity also remembers the revision that first held it, so that one set carried forward
 /// through a lineage answers for every revision of it: the identities held at revision N are the
-/// ones first held at N or before. [`HeldIdentities::at`] reads the set at one revision without
+/// ones first held at N or before. `HeldIdentities::at` reads the set at one revision without
 /// copying it, and a replay extends it by the identities each committed revision creates
-/// ([`HeldIdentities::hold`]) rather than rescanning every revision's graph.
+/// (`HeldIdentities::hold`) rather than rescanning every revision's graph.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct HeldIdentities {
     /// Each identity, the revision that first held it, and the record it named there.
