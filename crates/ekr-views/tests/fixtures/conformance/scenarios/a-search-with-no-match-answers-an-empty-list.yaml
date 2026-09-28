@@ -1,0 +1,71 @@
+# A search with no match is an answer with no matches, not a refusal; and Exact matches come
+# before Folded ones whatever their degree (ekr.views.MatchTier).
+#
+# The store `hub` is the one an-overview-lists-at-most-its-limit-of-top-nodes describes: the hub
+# `hub` (degree 600, no alias), leaves `leaf-001` to `leaf-600` (degree 1), and leaf-600
+# 00000000-0000-4000-8000-000000100258 with the one alias `Hub-Leaf`.
+#   - `absent-from-every-name` is in no name and no alias: 0 matches, 0 total, and no first match;
+#   - `LEAF-00` is in no name byte-exactly, and in leaf-001 to leaf-009 after lowercasing: 9
+#     matches, all Folded, so exact_total is 0. A search that only compares bytes finds none;
+#   - `Hub` is a byte-exact substring of leaf-600's alias only, and of the hub's name only after
+#     lowercasing: 2 matches, 1 Exact. The first is leaf-600, because Exact comes before Folded;
+#     a renderer that orders by degree first answers the hub first.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-search-with-no-match-answers-an-empty-list
+summary: A text in no name or alias answers no match; a text found only after lowercasing answers Folded matches; an Exact alias match of degree 1 comes before a Folded name match of degree 600.
+
+timeline:
+  - at: 2027-01-15T14:30:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      text: absent-from-every-name
+      limit: 10
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          revision: 0
+          text: absent-from-every-name
+          matches: 0
+          total: 0
+          exact_total: 0
+
+  - at: 2027-01-15T14:31:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      text: LEAF-00
+      limit: 10
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          text: LEAF-00
+          matches: 9
+          total: 9
+          exact_total: 0
+          first_match: 00000000-0000-4000-8000-000000100001
+
+  - at: 2027-01-15T14:32:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      text: Hub
+      limit: 10
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          text: Hub
+          matches: 2
+          total: 2
+          exact_total: 1
+          first_match: 00000000-0000-4000-8000-000000100258

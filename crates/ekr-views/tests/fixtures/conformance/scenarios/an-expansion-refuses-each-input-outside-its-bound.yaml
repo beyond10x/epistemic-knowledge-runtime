@@ -1,0 +1,259 @@
+# ExpandNeighbourhood's bounds: `depth` 0 to 2, `limit` 1 to 2,000, `edge_limit` 1 to 5,000
+# (5,000 when absent), `after` 0 or more.
+#
+# The store `hub` is the one an-overview-lists-at-most-its-limit-of-top-nodes describes: the hub
+# 00000000-0000-4000-8000-000000100000 joined by one edge to each of 600 leaves, leaf-001
+# 00000000-0000-4000-8000-000000100001 first. Every bound's edge value is answered and the value
+# one past it is refused, naming the input, its value and its bounds (`after` has no maximum).
+#   - depth 0 from the hub is the hub alone: 1 node, no edge;
+#   - depth 2 from leaf-001 reaches the hub at 1 and every other leaf at 2: 601 nodes, 600 edges;
+#   - limit 2,000 and edge_limit 5,000 hold the hub's whole 1-hop neighbourhood in one page.
+# The last step breaks depth and limit together: the refusal names depth, the first broken input
+# in the command's declared order.
+type: ess-scenario/1
+domain: ekr.views
+scenario: an-expansion-refuses-each-input-outside-its-bound
+summary: Depth 0 and 2, limit 2,000 and edge_limit 5,000 are answered; depth 3 or -1, limit 2,001 or 0, edge_limit 5,001 or 0 and a negative cursor are refused, naming the first broken input.
+
+timeline:
+  - at: 2027-01-15T10:00:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      seeds: [00000000-0000-4000-8000-000000100000]
+      depth: 0
+      limit: 2000
+      edge_limit: null
+      after: null
+    outcome: expanded
+    events:
+      - event: ekr.views.NeighbourhoodExpanded
+        payload:
+          revision: 0
+          seeds: 1
+          depth: 0
+          after: 0
+          nodes: 1
+          edges: 0
+          node_total: 1
+          edge_total: 0
+          remaining: 0
+
+  - at: 2027-01-15T10:01:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      seeds: [00000000-0000-4000-8000-000000100001]
+      depth: 2
+      limit: 2000
+      edge_limit: null
+      after: null
+    outcome: expanded
+    events:
+      - event: ekr.views.NeighbourhoodExpanded
+        payload:
+          depth: 2
+          nodes: 601
+          edges: 600
+          node_total: 601
+          edge_total: 600
+          remaining: 0
+
+  - at: 2027-01-15T10:02:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      seeds: [00000000-0000-4000-8000-000000100000]
+      depth: 1
+      limit: 2000
+      edge_limit: 5000
+      after: null
+    outcome: expanded
+    events:
+      - event: ekr.views.NeighbourhoodExpanded
+        payload:
+          depth: 1
+          nodes: 601
+          edges: 600
+          remaining: 0
+
+  - at: 2027-01-15T10:03:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      seeds: [00000000-0000-4000-8000-000000100000]
+      depth: 3
+      limit: 10
+      edge_limit: null
+      after: null
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: depth
+        requested: 3
+        minimum: 0
+        maximum: 2
+    no_events:
+      - ekr.views.NeighbourhoodExpanded
+
+  - at: 2027-01-15T10:04:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      seeds: [00000000-0000-4000-8000-000000100000]
+      depth: -1
+      limit: 10
+      edge_limit: null
+      after: null
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: depth
+        requested: -1
+        minimum: 0
+        maximum: 2
+    no_events:
+      - ekr.views.NeighbourhoodExpanded
+
+  - at: 2027-01-15T10:05:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      seeds: [00000000-0000-4000-8000-000000100000]
+      depth: 1
+      limit: 2001
+      edge_limit: null
+      after: null
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: limit
+        requested: 2001
+        minimum: 1
+        maximum: 2000
+    no_events:
+      - ekr.views.NeighbourhoodExpanded
+
+  - at: 2027-01-15T10:06:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      seeds: [00000000-0000-4000-8000-000000100000]
+      depth: 1
+      limit: 0
+      edge_limit: null
+      after: null
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: limit
+        requested: 0
+        minimum: 1
+        maximum: 2000
+    no_events:
+      - ekr.views.NeighbourhoodExpanded
+
+  - at: 2027-01-15T10:07:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      seeds: [00000000-0000-4000-8000-000000100000]
+      depth: 1
+      limit: 10
+      edge_limit: 5001
+      after: null
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: edge_limit
+        requested: 5001
+        minimum: 1
+        maximum: 5000
+    no_events:
+      - ekr.views.NeighbourhoodExpanded
+
+  - at: 2027-01-15T10:08:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      seeds: [00000000-0000-4000-8000-000000100000]
+      depth: 1
+      limit: 10
+      edge_limit: 0
+      after: null
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: edge_limit
+        requested: 0
+        minimum: 1
+        maximum: 5000
+    no_events:
+      - ekr.views.NeighbourhoodExpanded
+
+  - at: 2027-01-15T10:09:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      seeds: [00000000-0000-4000-8000-000000100000]
+      depth: 1
+      limit: 10
+      edge_limit: null
+      after: -1
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: after
+        requested: -1
+        minimum: 0
+    no_events:
+      - ekr.views.NeighbourhoodExpanded
+
+  - at: 2027-01-15T10:10:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      seeds: [00000000-0000-4000-8000-000000100000]
+      depth: 3
+      limit: 0
+      edge_limit: null
+      after: null
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: depth
+        requested: 3
+        minimum: 0
+        maximum: 2
+    no_events:
+      - ekr.views.NeighbourhoodExpanded

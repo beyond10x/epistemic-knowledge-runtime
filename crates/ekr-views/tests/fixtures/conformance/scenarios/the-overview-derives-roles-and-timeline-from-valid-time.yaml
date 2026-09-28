@@ -1,0 +1,119 @@
+# The overview's layout roles (ekr.views.TypeTiming) and timeline buckets
+# (ekr.views.TimelineBucket), from valid time.
+#
+# The store `timeline` has three revisions. Its ontology: node types kind-a
+# 00000000-0000-4000-8000-000000300001, kind-b …300002 and kind-c …300003, each declaring its own
+# String property (…300005, …300006 and …300007 respectively); edge type …300004 from kind-a to
+# kind-b. No node carries a property value. Times below are UTC.
+#   - revision 0, the seed:
+#       - five kind-a nodes …300101 to …300105; node i has two assertions of its property, valid
+#         from day i of January 2027 at 09:00 and at 09:30;
+#       - two kind-b nodes …300201 and …300202; each has one assertion valid from 2027-01-01
+#         12:00, and …300202 one more with no valid time;
+#       - six kind-c nodes …300301 to …300306; each has two assertions valid from 2027-01-02
+#         10:00 and 10:20;
+#       - five edges …300401 to …300405 from the kind-a nodes 1 to 5 to the kind-b nodes
+#         …300201, …300202, …300201, …300202, …300201; no assertion is about an edge and none is
+#         a Relation assertion;
+#   - revision 1: one assertion on each kind-b node, valid from 2027-01-11 12:00;
+#   - revision 2: one assertion on …300201, valid from 2027-06-01 12:00.
+# Roles, at every revision: kind-a's five nodes each have two dated facts 30 minutes apart, so
+# all five are judged, within_hour and instant, and kind-a is an event type; kind-c likewise,
+# with six.
+# kind-b is judged at revisions 1 and 2 (two or three dated facts, days apart) and never instant,
+# and at revision 0 not judged at all (one dated fact each), so it is no event type. kind-a's
+# nodes each reach one other node type, kind-c's none: the mean over the two event types is 1/2,
+# only kind-a
+# reaches it, and kind-a is the observation type although kind-c has more nodes. A renderer that
+# takes the largest event type answers kind-c.
+# Timeline:
+#   - revision 0: dated assertions span 2027-01-01 09:00 to 01-05 09:30, so day buckets: kind-a
+#     on each of 5 days, kind-b on 01-01, kind-c on 01-02 — 7 buckets, 24 dated, 1 undated;
+#   - revision 1: the span reaches 01-11 12:00, still under 120 days: one more kind-b bucket, 8;
+#   - revision 2: the span reaches 06-01 12:00, over 120 days, so week buckets from Monday:
+#     kind-a in the weeks of 2026-12-28 and 2027-01-04, kind-b in those of 2026-12-28, 2027-01-11
+#     and 2027-05-31, kind-c in that of 2026-12-28 — 6 buckets. A renderer that starts weeks on
+#     the epoch's Thursday puts 2027-01-01 and 01-04 in one week and answers 5.
+# Growth: every node is the subject of an assertion, so none is unrecorded; the five edges have
+# neither an assertion about them nor a matching Relation assertion, so all five are.
+type: ess-scenario/1
+domain: ekr.views
+scenario: the-overview-derives-roles-and-timeline-from-valid-time
+summary: The better-linked of two event types is the observation type, and the buckets turn from days to Monday weeks past a 120-day span.
+
+timeline:
+  - at: 2027-01-15T15:00:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: timeline
+      at: 0
+      limit: null
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          revision: 0
+          head: 2
+          nodes: 13
+          edges: 5
+          assertions: 25
+          node_types: 3
+          edge_types: 1
+          schema_versions: 1
+          added: 7
+          removed: 0
+          unrecorded_nodes: 0
+          unrecorded_edges: 5
+          event_types: 2
+          observation_type: 00000000-0000-4000-8000-000000300001
+          bucket_ms: 86400000
+          timeline_buckets: 7
+          dated_assertions: 24
+          undated_assertions: 1
+          top: 13
+
+  - at: 2027-01-15T15:01:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: timeline
+      at: 1
+      limit: null
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          revision: 1
+          assertions: 27
+          revisions: 2
+          revision_zero_assertions: 25
+          event_types: 2
+          observation_type: 00000000-0000-4000-8000-000000300001
+          bucket_ms: 86400000
+          timeline_buckets: 8
+          dated_assertions: 26
+          undated_assertions: 1
+
+  - at: 2027-01-15T15:02:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: timeline
+      at: null
+      limit: null
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          revision: 2
+          head: 2
+          assertions: 28
+          revisions: 3
+          revision_zero_assertions: 25
+          event_types: 2
+          observation_type: 00000000-0000-4000-8000-000000300001
+          bucket_ms: 604800000
+          timeline_buckets: 6
+          dated_assertions: 27
+          undated_assertions: 1

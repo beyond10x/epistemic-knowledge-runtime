@@ -1,0 +1,85 @@
+# SearchNodes' bound: `limit` is 1 to 100.
+#
+# The store `hub` is the one an-overview-lists-at-most-its-limit-of-top-nodes describes. `leaf` is
+# a byte-exact substring of the 600 leaves' names and of no other node's name or alias, so it
+# matches 600 nodes, all Exact. At limit 100 the first 100 are answered, and the first of them is
+# leaf-001 00000000-0000-4000-8000-000000100001: every leaf has degree 1, so id decides. At limit
+# 1, one. Limits 101 and 0 are refused before the store is read. `total` and `exact_total` count
+# every match, before the limit.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-search-lists-at-most-its-limit-of-matches
+summary: A search matching 600 nodes answers 100 at limit 100 and 1 at limit 1, reporting all 600, and refuses a limit of 101 or 0.
+
+timeline:
+  - at: 2027-01-15T14:00:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      text: leaf
+      limit: 100
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          revision: 0
+          text: leaf
+          matches: 100
+          total: 600
+          exact_total: 600
+          first_match: 00000000-0000-4000-8000-000000100001
+
+  - at: 2027-01-15T14:01:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      text: leaf
+      limit: 1
+    outcome: searched
+    events:
+      - event: ekr.views.NodesSearched
+        payload:
+          matches: 1
+          total: 600
+
+  - at: 2027-01-15T14:02:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      text: leaf
+      limit: 101
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: limit
+        requested: 101
+        minimum: 1
+        maximum: 100
+    no_events:
+      - ekr.views.NodesSearched
+
+  - at: 2027-01-15T14:03:00Z
+    command: ekr.views.SearchNodes
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      text: leaf
+      limit: 0
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: limit
+        requested: 0
+        minimum: 1
+        maximum: 100
+    no_events:
+      - ekr.views.NodesSearched

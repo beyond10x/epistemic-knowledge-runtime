@@ -1,0 +1,118 @@
+# ProjectOverview's bound: `limit` is 1 to 500, 300 when absent.
+#
+# The store `hub` is a seed and nothing else (head 0). Its ontology is one node type
+# 00000000-0000-4000-8000-000000110000 with no property, and one edge type
+# 00000000-0000-4000-8000-000000110001 from that type to itself. It holds 601 nodes of that type:
+# the hub 00000000-0000-4000-8000-000000100000, named `hub`, with no alias, and 600 leaves
+# 00000000-0000-4000-8000-000000100001 to 00000000-0000-4000-8000-000000100258, named `leaf-001`
+# to `leaf-600` in id order, none with an alias except leaf-600, whose one alias is `Hub-Leaf`.
+# It holds 600 edges 00000000-0000-4000-8000-000000200001 to 00000000-0000-4000-8000-000000200258,
+# edge n from the hub to leaf n, and no assertion and no evidence. The hub's degree is 600; each
+# leaf's is 1.
+#
+# Absent, the limit is 300; 500 and 1 are the bounds and are answered; 501 and 0 are refused
+# before the store is read. With no assertion there is no dated fact, so no type is judged, none
+# is an event type, there is no observation type and no bucket, and every node and edge has no
+# recorded time, so all of them are counted at revision 0. A renderer that clamps a limit instead
+# of refusing it answers `overviewed` for 501 and fails.
+type: ess-scenario/1
+domain: ekr.views
+scenario: an-overview-lists-at-most-its-limit-of-top-nodes
+summary: The overview lists 300 top nodes by default, 500 and 1 at the bounds, and refuses a limit of 501 or 0.
+
+timeline:
+  - at: 2027-01-15T09:00:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      limit: null
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          revision: 0
+          head: 0
+          nodes: 601
+          edges: 600
+          assertions: 0
+          node_types: 1
+          edge_types: 1
+          schema_versions: 1
+          revisions: 1
+          added: 2
+          removed: 0
+          unrecorded_nodes: 601
+          unrecorded_edges: 600
+          revision_zero_nodes: 601
+          revision_zero_edges: 600
+          revision_zero_assertions: 0
+          event_types: 0
+          bucket_ms: 86400000
+          timeline_buckets: 0
+          dated_assertions: 0
+          undated_assertions: 0
+          top: 300
+
+  - at: 2027-01-15T09:01:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      limit: 500
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          top: 500
+
+  - at: 2027-01-15T09:02:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      limit: 1
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          top: 1
+
+  - at: 2027-01-15T09:03:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      limit: 501
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: limit
+        requested: 501
+        minimum: 1
+        maximum: 500
+    no_events:
+      - ekr.views.GraphOverviewed
+
+  - at: 2027-01-15T09:04:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      limit: 0
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: limit
+        requested: 0
+        minimum: 1
+        maximum: 500
+    no_events:
+      - ekr.views.GraphOverviewed

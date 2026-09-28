@@ -1,0 +1,71 @@
+# A seed the revision does not hold is refused, and the refusal names it.
+#
+# The store `hub` is the one an-overview-lists-at-most-its-limit-of-top-nodes describes; it holds
+# no node 00000000-0000-4000-8000-0000001fffff and none 00000000-0000-4000-8000-0000001ffffe.
+#   - seeds [hub, …1fffff]: the known hub does not rescue the request; nothing is answered, and
+#     the refusal names …1fffff at revision 0. A renderer that drops unknown seeds answers the
+#     hub's neighbourhood and fails;
+#   - seeds […1fffff, …1ffffe]: the refusal names …1fffff, the first unknown seed in the order
+#     the request gave them, not …1ffffe, the lower id;
+#   - DescribeNode of …1fffff is refused the same way.
+type: ess-scenario/1
+domain: ekr.views
+scenario: an-unknown-seed-is-refused-by-name
+summary: An expansion with one unknown seed among known ones is refused naming it, two unknown seeds name the first given, and describing an unknown node is refused naming it.
+
+timeline:
+  - at: 2027-01-15T12:00:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      seeds: [00000000-0000-4000-8000-000000100000, 00000000-0000-4000-8000-0000001fffff]
+      depth: 1
+      limit: 10
+      edge_limit: null
+      after: null
+    outcome: node-not-found
+    error:
+      name: ekr.views.NodeNotFound
+      fields:
+        node: 00000000-0000-4000-8000-0000001fffff
+        revision: 0
+    no_events:
+      - ekr.views.NeighbourhoodExpanded
+
+  - at: 2027-01-15T12:01:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      seeds: [00000000-0000-4000-8000-0000001fffff, 00000000-0000-4000-8000-0000001ffffe]
+      depth: 1
+      limit: 10
+      edge_limit: null
+      after: null
+    outcome: node-not-found
+    error:
+      name: ekr.views.NodeNotFound
+      fields:
+        node: 00000000-0000-4000-8000-0000001fffff
+        revision: 0
+    no_events:
+      - ekr.views.NeighbourhoodExpanded
+
+  - at: 2027-01-15T12:02:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: null
+      node: 00000000-0000-4000-8000-0000001fffff
+    outcome: node-not-found
+    error:
+      name: ekr.views.NodeNotFound
+      fields:
+        node: 00000000-0000-4000-8000-0000001fffff
+        revision: 0
+    no_events:
+      - ekr.views.NodeDescribed
