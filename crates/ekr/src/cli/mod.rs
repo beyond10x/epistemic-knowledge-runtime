@@ -238,12 +238,14 @@ pub enum Command {
         at: Option<u64>,
     },
     /// Serve a read-only viewer of the store on 127.0.0.1 until interrupted: the page, the
-    /// `ekr.graph-projection/1` at the head or at a revision, and retained evidence bytes.
+    /// `ekr.graph-projection/1` at the head or at a revision, its bounded reads, and retained
+    /// evidence bytes.
     ///
     /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST); it opens an existing
     /// store only and writes nothing. Binds 127.0.0.1 and no other address, prints
     /// `{"url": "http://127.0.0.1:<port>/"}` as one JSON line, then serves `GET /`,
-    /// `GET /projection[?revision=N]`, `GET /roles[?revision=N]` and
+    /// `GET /projection[?revision=N]`, `GET /roles[?revision=N]`, `GET /overview`,
+    /// `GET /expand` (streamed NDJSON), `GET /node/<node id>`, `GET /search` and
     /// `GET /evidence/<evidence id>`.
     #[command(after_help = SEE)]
     View {
