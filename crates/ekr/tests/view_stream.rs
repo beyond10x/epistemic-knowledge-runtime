@@ -213,13 +213,18 @@ struct Server {
 
 impl Server {
     fn connect(&self, method: &str, path: &str) -> TcpStream {
+        self.connect_as("HTTP/1.1", method, path)
+    }
+
+    /// A request naming `version` (`HTTP/1.0` or `HTTP/1.1`) in its request line.
+    fn connect_as(&self, version: &str, method: &str, path: &str) -> TcpStream {
         let mut stream = TcpStream::connect(&self.address).unwrap();
         stream
             .set_read_timeout(Some(Duration::from_secs(60)))
             .unwrap();
         write!(
             stream,
-            "{method} {path} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
+            "{method} {path} {version}\r\nHost: {}\r\nConnection: close\r\n\r\n",
             self.address
         )
         .unwrap();
@@ -477,6 +482,8 @@ fn overview_node_and_search_answer_the_engines_bytes_on_both_providers() {
             ("/search?q=Ali".to_owned(), search(&head, "Ali", 20)),
             ("/search?q=%41li".to_owned(), search(&head, "Ali", 20)),
             ("/search?q=ac+me".to_owned(), search(&head, "ac me", 20)),
+            // views.yaml, SearchNodes: "Empty text matches every node".
+            ("/search?q=".to_owned(), search(&head, "", 20)),
             (
                 "/search?q=b&limit=1&revision=0".to_owned(),
                 search(&zero, "b", 1),
@@ -545,6 +552,135 @@ fn expand_streams_meta_records_progress_and_end_as_chunked_ndjson() {
         );
     }
     assert!(streamed.chunks.len() >= 2 + page.records().len() / 256);
+}
+
+/// RFC 9112 § 6.1: a server sends no `Transfer-Encoding` to a request that does not name
+/// HTTP/1.1. An HTTP/1.0 `/expand` gets the same NDJSON lines as an HTTP/1.1 one, unframed, with
+/// no `Content-Length`: the close ends the body. Every other answer carries a `Content-Length`,
+/// which HTTP/1.0 reads as it is.
+#[test]
+fn an_http_1_0_expand_is_the_same_lines_unframed_and_ended_by_the_close() {
+    let world = World::seeded_star("file");
+    let hub: NodeId = star_id(3, 1).parse().unwrap();
+    let page = world
+        .index(None)
+        .page(&ExpandRequest::new(vec![hub], 1, 2000, None, None).unwrap())
+        .unwrap();
+    assert!(
+        page.records().len() > 256,
+        "the stream carries a progress line"
+    );
+    let server = world.serve();
+    let path = format!("/expand?seeds={hub}&depth=1&limit=2000");
+    let mut raw = Vec::new();
+    server
+        .connect_as("HTTP/1.0", "GET", &path)
+        .read_to_end(&mut raw)
+        .unwrap();
+    let answered = Response::parse(&raw);
+    assert_eq!(answered.status, 200, "GET {path} HTTP/1.0");
+    assert!(!answered.chunked, "GET {path} HTTP/1.0: no chunk framing");
+    assert_eq!(answered.header("transfer-encoding"), None);
+    assert_eq!(answered.header("content-length"), None);
+    assert_eq!(
+        answered.header("content-type"),
+        Some("application/x-ndjson")
+    );
+    answered.assert_plain(&format!("GET {path} HTTP/1.0"));
+    assert_eq!(stream_lines(&answered), expected_lines(&page));
+
+    for path in [
+        "/overview".to_owned(),
+        format!("/node/{hub}"),
+        format!("/expand?seeds={hub}&depth=3&limit=10"),
+    ] {
+        let mut raw = Vec::new();
+        server
+            .connect_as("HTTP/1.0", "GET", &path)
+            .read_to_end(&mut raw)
+            .unwrap();
+        let answered = Response::parse(&raw);
+        assert!(!answered.chunked, "GET {path} HTTP/1.0");
+        let length: usize = answered
+            .header("content-length")
+            .unwrap_or_else(|| panic!("GET {path} HTTP/1.0 names its length"))
+            .parse()
+            .unwrap();
+        assert_eq!(length, answered.body().len(), "GET {path} HTTP/1.0");
+    }
+}
+
+/// views.yaml, "Bounds and the order of refusals": a broken bound answers LimitExceeded before the
+/// store is read; then an absent revision answers RevisionNotFound; then a node the revision does
+/// not hold answers NodeNotFound. Each request here breaks more than one of those, and is answered
+/// the earliest. A `/node/<id>` whose id is no node id names no node, so it is refused where a
+/// node the revision does not hold is, after the revision. (NotSeeded, between the bound and the
+/// revision, is `view.rs`'s own `every_bounded_read_on_an_unseeded_store_is_not_seeded_after_its_bounds`.)
+#[test]
+fn every_bounded_read_refuses_in_the_order_views_yaml_names() {
+    let world = World::seeded_with_two_revisions("file");
+    let server = world.serve();
+    for (path, status, name) in [
+        (
+            "/overview?limit=0&revision=9".to_owned(),
+            400,
+            "ekr.views.LimitExceeded",
+        ),
+        (
+            format!("/expand?seeds={UNKNOWN_NODE}&depth=3&limit=10&revision=9"),
+            400,
+            "ekr.views.LimitExceeded",
+        ),
+        (
+            format!("/expand?seeds={UNKNOWN_NODE}&depth=1&limit=10&revision=9"),
+            404,
+            "ekr.views.RevisionNotFound",
+        ),
+        (
+            "/expand?seeds=&depth=3&limit=10&revision=9".to_owned(),
+            400,
+            "ekr.views.LimitExceeded",
+        ),
+        (
+            "/expand?seeds=&depth=1&limit=10&revision=9".to_owned(),
+            404,
+            "ekr.views.RevisionNotFound",
+        ),
+        (
+            format!("/node/{UNKNOWN_NODE}?revision=9"),
+            404,
+            "ekr.views.RevisionNotFound",
+        ),
+        (
+            "/node/not-an-id?revision=9".to_owned(),
+            404,
+            "ekr.views.RevisionNotFound",
+        ),
+        (
+            "/node/not-an-id?revision=1".to_owned(),
+            404,
+            "ekr.views.NodeNotFound",
+        ),
+        (
+            "/search?q=a&limit=0&revision=9".to_owned(),
+            400,
+            "ekr.views.LimitExceeded",
+        ),
+        (
+            "/timeline?hops=0&limit=10&revision=9".to_owned(),
+            400,
+            "ekr.views.LimitExceeded",
+        ),
+        (
+            format!("/timeline?subject={UNKNOWN_NODE}&hops=4&limit=10&revision=9"),
+            400,
+            "ekr.views.LimitExceeded",
+        ),
+    ] {
+        server
+            .get(&path)
+            .assert_refused(&format!("GET {path}"), status, name);
+    }
 }
 
 /// A cursor pages to the end: each page's `end.next` is the next request's `after`, the records
@@ -661,7 +797,7 @@ fn the_bounded_reads_refuse_as_whole_json_before_any_byte() {
         ),
         ("/expand?depth=1&limit=10".to_owned(), 400, "invalid-query"),
         (
-            "/expand?seeds=&depth=1&limit=10".to_owned(),
+            format!("/expand?seeds={ALICE},&depth=1&limit=10"),
             400,
             "invalid-query",
         ),
@@ -749,6 +885,18 @@ fn the_bounded_reads_refuse_as_whole_json_before_any_byte() {
             .get(&path)
             .assert_refused(&format!("GET {path}"), status, name);
     }
+    // views.yaml, ExpandNeighbourhood: "an empty set answers an empty page with node_total 0".
+    // `seeds=` is the empty set, not a query the endpoint cannot read (this case answered 400
+    // `invalid-query` until adversary pass 1, finding F3).
+    let path = "/expand?seeds=&depth=1&limit=10";
+    let empty = server.get(path);
+    assert_streamed(&empty, path);
+    let page = world
+        .index(None)
+        .page(&ExpandRequest::new(Vec::new(), 1, 10, None, None).unwrap())
+        .unwrap();
+    assert_eq!(page.meta().node_total, 0);
+    assert_eq!(stream_lines(&empty), expected_lines(&page), "GET {path}");
     for path in ["/overview", "/expand", "/node/x", "/search"] {
         let refused = server.request("POST", path);
         assert_eq!(refused.status, 405, "POST {path}");
