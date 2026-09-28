@@ -2,15 +2,16 @@
 format: aep.planning-md/3
 id: task:timeline-rows-are-subjects
 kind: task
-status: active
+status: implemented
 title: The viewer's timeline rows are subjects again, from a ProjectTimeline read
 relations:
 - serves: vision:o5
 - derived_from: story:view-streams-overview-and-expansion
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T03:47:00Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-09-28T03:47:00Z", actor: "human:timo", revision: 3}
+- {from: "active", to: "implemented", at: "2026-09-28T06:19:11Z", actor: "human:timo", revision: 4, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Context
 

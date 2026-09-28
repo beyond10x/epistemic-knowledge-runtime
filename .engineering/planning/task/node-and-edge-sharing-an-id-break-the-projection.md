@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: task:node-and-edge-sharing-an-id-break-the-projection
 kind: task
-status: active
+status: implemented
 title: A node and an edge that share one UUID are admitted, and the graph projection then refuses the revision
 summary: 'Medium: the renderer buckets node and edge assertions under one string key'
 tags:
@@ -11,10 +11,11 @@ tags:
 relations:
 - serves: vision:o5
 - derived_from: story:graph-projection-renderer
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T02:51:37Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-09-28T02:51:37Z", actor: "human:timo", revision: 3}
+- {from: "active", to: "implemented", at: "2026-09-28T06:19:11Z", actor: "human:timo", revision: 4, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Severity
 

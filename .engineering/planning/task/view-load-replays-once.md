@@ -2,15 +2,16 @@
 format: aep.planning-md/3
 id: task:view-load-replays-once
 kind: task
-status: active
+status: implemented
 title: ekr_views::load replays once, not once per schema version
 relations:
 - serves: vision:o5
 - blocks: story:view-streams-overview-and-expansion
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T02:45:11Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-09-28T02:45:11Z", actor: "human:timo", revision: 3}
+- {from: "active", to: "implemented", at: "2026-09-28T06:19:10Z", actor: "human:timo", revision: 4, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Context
 

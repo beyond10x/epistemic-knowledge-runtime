@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:view-streams-overview-and-expansion
 kind: story
-status: active
+status: implemented
 title: ekr view loads an overview and streams expansions instead of the whole projection
 relations:
 - serves: vision:o5
@@ -18,10 +18,11 @@ scope:
   path: crates/ekr/tests/view_stream.rs
 - confidence: cited
   path: docs/cli.md
-revision: 8
+revision: 9
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T02:33:53Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-09-28T02:33:53Z", actor: "human:timo", revision: 3}
+- {from: "active", to: "implemented", at: "2026-09-28T06:19:10Z", actor: "human:timo", revision: 9, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}}
 ---
 ## Context
 

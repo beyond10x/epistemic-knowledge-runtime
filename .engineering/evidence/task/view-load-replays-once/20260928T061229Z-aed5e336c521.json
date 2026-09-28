@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-28T06:12:29Z",
+  "actor": "human:timo",
+  "artifact": "task:view-load-replays-once",
+  "kind": "task",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Correctness CI (task check) on PR #37 head 32f46ac5",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/36384872100"
+  }
+}
