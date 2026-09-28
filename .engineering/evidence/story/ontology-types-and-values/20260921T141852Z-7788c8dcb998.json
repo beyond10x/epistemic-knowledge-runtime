@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-21T14:18:52Z",
+  "actor": "human:timo",
+  "artifact": "story:ontology-types-and-values",
+  "kind": "story",
+  "revision": 9,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "task check",
+    "reference": "wave/p1-03 at 5fc356587b6f3e417d9a7df517d830f8204a57e4 — fmt-check, clippy, test, doc-check, spec-check, plan-check each exit 0; 146 cases, 0 failed, 0 ignored"
+  }
+}

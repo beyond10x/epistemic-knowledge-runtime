@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: architecture-decision-record:0004-timestamp-in-ekr-core
 kind: architecture-decision-record
 status: accepted
@@ -7,6 +7,8 @@ title: ADR 0004 — Timestamp is an ekr-core newtype over i64 milliseconds
 relations:
 - decides: story:graph-model-and-assertions
 revision: 3
+transitions:
+- {from: "proposed", to: "accepted", at: "2026-09-21T14:25:07Z", actor: "human:timo", revision: 2, imported: true}
 ---
 ## Status
 

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:conformance-command-input-contract
 kind: task
 status: archived
@@ -7,6 +7,8 @@ title: Align ESS command inputs and observable transaction states with the real 
 relations:
 - derived_from: story:ess-conformance-kernel
 revision: 5
+transitions:
+- {from: "draft", to: "archived", at: "2026-09-23T08:14:10Z", actor: "agent:claude-579ad7f9-p1-14", revision: 5, imported: true}
 ---
 ## Measured prerequisites for executable conformance
 

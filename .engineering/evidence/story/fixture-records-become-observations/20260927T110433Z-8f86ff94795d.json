@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-27T11:04:33Z",
+  "actor": "human:timo",
+  "artifact": "story:fixture-records-become-observations",
+  "kind": "story",
+  "revision": 10,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "impl/fixture-records-become-observations 2e4d7dba",
+    "review": "review-result:adversary-p2p3p4-02-observe-pass-2",
+    "outcome": "fixed"
+  }
+}

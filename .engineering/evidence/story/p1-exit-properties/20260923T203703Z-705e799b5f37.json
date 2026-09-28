@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-23T20:37:03Z",
+  "actor": "agent:claude-lazy-sutton-p1-14",
+  "artifact": "story:p1-exit-properties",
+  "kind": "story",
+  "revision": 19,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:p1-14-exit-adversary-r2",
+    "review": "review-result:p1-14-exit-adversary-r2",
+    "outcome": "fixed"
+  }
+}

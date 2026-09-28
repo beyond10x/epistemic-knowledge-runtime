@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:public-surface-covers-types
 kind: task
 status: implemented
@@ -9,6 +9,10 @@ relations:
 - serves: vision:o2
 - derived_from: story:source-guard-debt
 revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-22T04:22:20Z", actor: "agent:codex-ekr-completion-20260922", revision: 2, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-22T04:22:20Z", actor: "agent:codex-ekr-completion-20260922", revision: 3, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-22T05:33:13Z", actor: "agent:codex-ekr-completion-20260922", revision: 4, decided_on: {"recorded":{"test_result":1}}, imported: true}
 ---
 ## Context
 

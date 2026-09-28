@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:the-membrane-stops-at-the-store-boundary
 kind: task
 status: implemented
@@ -9,6 +9,10 @@ relations:
 - derived_from: story:seed-and-explain
 - derived_from: story:kernel-validated-seed
 revision: 7
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-22T05:28:50Z", actor: "agent:codex-ekr-completion-20260922", revision: 5, decided_on: {"recorded":{"test_result":1}}, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-22T05:28:50Z", actor: "agent:codex-ekr-completion-20260922", revision: 6, decided_on: {"recorded":{"test_result":1}}, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-22T05:28:50Z", actor: "agent:codex-ekr-completion-20260922", revision: 7, decided_on: {"recorded":{"test_result":1}}, imported: true}
 ---
 ## What is wrong
 

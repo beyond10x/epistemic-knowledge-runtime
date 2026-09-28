@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:fixture-records-become-observations
 kind: story
 status: implemented
@@ -20,6 +20,10 @@ scope:
 - confidence: inferred
   path: crates/ekr/tests/adversary_docs_contract.rs
 revision: 12
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-27T08:33:10Z", actor: "human:timo", revision: 9, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-27T08:33:55Z", actor: "human:timo", revision: 10, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-27T12:37:56Z", actor: "human:timo", revision: 12, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}, imported: true}
 ---
 ## Context
 

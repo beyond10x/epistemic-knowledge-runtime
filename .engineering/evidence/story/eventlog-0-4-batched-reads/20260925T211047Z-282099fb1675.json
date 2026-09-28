@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-25T21:10:47Z",
+  "actor": "agent:claude-lazy-sutton-p1-15",
+  "artifact": "story:eventlog-0-4-batched-reads",
+  "kind": "story",
+  "revision": 11,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:p1-15-eventlog-adversary-r1",
+    "review": "review-result:p1-15-eventlog-adversary-r1",
+    "outcome": "fixed"
+  }
+}

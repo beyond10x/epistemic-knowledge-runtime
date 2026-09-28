@@ -1,0 +1,15 @@
+{
+  "at": "2026-09-22T05:26:58Z",
+  "actor": "agent:codex-ekr-completion-20260922",
+  "artifact": "story:source-guard-debt",
+  "kind": "story",
+  "revision": 30,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "F3: generic impl and array/tuple/slice positions recognized; two exact adversary cases and isolated reversions",
+    "reference": ".engineering/reviews/p1-10-guards-correction.md",
+    "review": "review-result:p1-10-guards-adversary",
+    "outcome": "fixed"
+  }
+}

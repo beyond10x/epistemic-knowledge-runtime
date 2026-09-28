@@ -1,0 +1,12 @@
+{
+  "at": "2026-09-27T11:40:00Z",
+  "actor": "human:timo",
+  "artifact": "story:typed-reference-resolver",
+  "kind": "story",
+  "revision": 10,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "task check on wave/p2p3p4-02 at f44618da: 8 steps exit 0, 1251 passed 0 failed"
+  }
+}

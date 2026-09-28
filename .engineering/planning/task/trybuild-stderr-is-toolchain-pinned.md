@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:trybuild-stderr-is-toolchain-pinned
 kind: task
 status: implemented
@@ -8,6 +8,10 @@ relations:
 - serves: vision:o2
 - derived_from: story:source-guard-debt
 revision: 6
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-22T05:26:13Z", actor: "agent:codex-ekr-completion-20260922", revision: 4, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-22T05:26:13Z", actor: "agent:codex-ekr-completion-20260922", revision: 5, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-22T05:33:16Z", actor: "agent:codex-ekr-completion-20260922", revision: 6, decided_on: {"recorded":{"test_result":1}}, imported: true}
 ---
 ## What is wrong
 

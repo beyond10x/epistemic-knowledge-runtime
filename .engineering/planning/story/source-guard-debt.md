@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:source-guard-debt
 kind: story
 status: implemented
@@ -63,6 +63,10 @@ scope:
 - confidence: cited
   path: xtask/src/main.rs
 revision: 36
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-22T04:22:20Z", actor: "agent:codex-ekr-completion-20260922", revision: 23, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-22T04:22:20Z", actor: "agent:codex-ekr-completion-20260922", revision: 24, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-22T05:33:11Z", actor: "agent:codex-ekr-completion-20260922", revision: 36, decided_on: {"recorded":{"test_result":1,"review_outcome":4}}, imported: true}
 ---
 ## Outcome
 

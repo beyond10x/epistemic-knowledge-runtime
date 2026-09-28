@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:no-store-at-a-mistyped-path
 kind: task
 status: implemented
@@ -8,6 +8,10 @@ relations:
 - serves: vision:o5
 - derived_from: story:agent-discoverable-cli
 revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-26T07:27:52Z", actor: "agent:claude-lazy-sutton-p5-01", revision: 2, decided_on: {"recorded":{"test_result":1}}, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-26T07:27:52Z", actor: "agent:claude-lazy-sutton-p5-01", revision: 3, decided_on: {"recorded":{"test_result":1}}, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-26T07:27:54Z", actor: "agent:claude-lazy-sutton-p5-01", revision: 4, decided_on: {"recorded":{"test_result":1}}, imported: true}
 ---
 ## What is wrong
 

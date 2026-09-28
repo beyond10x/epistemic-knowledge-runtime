@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:conformance-cannot-observe-command-responses
 kind: task
 status: draft

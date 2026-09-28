@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-21T16:15:35Z",
+  "actor": "human:timo",
+  "artifact": "story:eventlog-store",
+  "kind": "story",
+  "revision": 13,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "task check",
+    "reference": "wave/p1-05 at 2231f08 — fmt-check, clippy, test, doc-check, spec-check, plan-check each exit 0; 337 cases, 0 failed, 0 ignored"
+  }
+}

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:commit-and-revision-lineage
 kind: story
 status: implemented
@@ -70,6 +70,10 @@ scope:
 - confidence: inferred
   path: vendor/serde_yaml_ng
 revision: 37
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-22T11:27:21Z", actor: "agent:codex-ekr-completion-20260922", revision: 32, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-22T11:27:22Z", actor: "agent:codex-ekr-completion-20260922", revision: 33, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-23T00:18:00Z", actor: "agent:claude-579ad7f9-p1-12", revision: 36, decided_on: {"recorded":{"test_result":2,"review_outcome":6}}, imported: true}
 ---
 ## Context
 

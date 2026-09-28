@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-27T22:29:07Z",
+  "actor": "human:timo",
+  "artifact": "task:proposed-node-carries-reference-aliases",
+  "kind": "task",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "impl/created-node-aliases 78f85e0e",
+    "review": "review-result:adversary-p2p3p4-05-alias-pass-1",
+    "outcome": "fixed"
+  }
+}

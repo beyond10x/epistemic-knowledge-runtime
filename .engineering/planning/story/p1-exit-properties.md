@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:p1-exit-properties
 kind: story
 status: implemented
@@ -39,6 +39,10 @@ scope:
 - confidence: inferred
   path: crates/ekr-store/src/snapshot.rs
 revision: 21
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-23T20:36:50Z", actor: "agent:claude-lazy-sutton-p1-14", revision: 18, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-23T20:36:51Z", actor: "agent:claude-lazy-sutton-p1-14", revision: 19, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-23T20:38:06Z", actor: "agent:claude-lazy-sutton-p1-14", revision: 20, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}, imported: true}
 ---
 ## Acceptance
 

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:schema-evolution-transactions
 kind: story
 status: implemented
@@ -85,6 +85,10 @@ scope:
 - confidence: cited
   path: systems/ekr/domains/ontology.yaml
 revision: 43
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-26T01:52:15Z", actor: "agent:claude-lazy-sutton-p5-01", revision: 40, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-26T01:52:16Z", actor: "agent:claude-lazy-sutton-p5-01", revision: 41, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-26T07:27:54Z", actor: "agent:claude-lazy-sutton-p5-01", revision: 43, decided_on: {"recorded":{"test_result":1,"review_outcome":6}}, imported: true}
 ---
 ## Context
 

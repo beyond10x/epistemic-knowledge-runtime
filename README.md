@@ -83,7 +83,7 @@ ekr explain 00000000-0000-4000-8000-000000000501            # the assertion, its
 
 For contributors.
 Rust 1.91 is the workspace's declared minimum; builds use the toolchain pinned in
-`rust-toolchain.toml`. The gate also needs [`task`](https://taskfile.dev), ESS 0.36.0 and AEP 0.61.1.
+`rust-toolchain.toml`. The gate also needs [`task`](https://taskfile.dev), ESS 0.36.0 and AEP 0.62.0.
 
 ```console
 task check

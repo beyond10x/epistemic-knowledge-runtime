@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: architecture-decision-record:0011-transaction-document-format-2
 kind: architecture-decision-record
 status: accepted
@@ -8,6 +8,8 @@ summary: A new document version with its own frozen profile; /1 keeps 256 operat
 relations:
 - decides: task:bounded-transaction-document-parser
 revision: 2
+transitions:
+- {from: "proposed", to: "accepted", at: "2026-09-26T17:21:30Z", actor: "agent:claude-ekr-release-007", revision: 2, imported: true}
 ---
 ## Status
 

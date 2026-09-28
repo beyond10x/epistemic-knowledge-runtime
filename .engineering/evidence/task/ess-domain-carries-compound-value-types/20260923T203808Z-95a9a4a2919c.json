@@ -1,0 +1,12 @@
+{
+  "at": "2026-09-23T20:38:08Z",
+  "actor": "agent:claude-lazy-sutton-p1-14",
+  "artifact": "task:ess-domain-carries-compound-value-types",
+  "kind": "task",
+  "revision": 5,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "task check on wave/wave-p1-14: fmt-check 0, clippy 0, test 0 (772 passed, 0 failed, 132 targets), vendor-check 0, spec-check 0 (ESS 0.29.0), conform-check 0 (40 of 40 scenarios, file and sqlite) at 2644da8; doc-check 0 and plan-check 0 (AEP 0.57.0) at 3d94297"
+  }
+}

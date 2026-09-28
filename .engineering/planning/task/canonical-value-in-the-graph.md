@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:canonical-value-in-the-graph
 kind: task
 status: implemented
@@ -7,6 +7,10 @@ title: A value admissible in canonical state, so an assertion can be content-add
 relations:
 - serves: vision:o2
 revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-21T15:05:24Z", actor: "human:timo", revision: 2, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-21T15:05:25Z", actor: "human:timo", revision: 3, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-21T16:15:35Z", actor: "human:timo", revision: 4, decided_on: {"recorded":{"test_result":1,"review_outcome":13}}, imported: true}
 ---
 ## What this implements
 

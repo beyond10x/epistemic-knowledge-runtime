@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:canonical-reference-holds-a-node-id-for-every-target
 kind: task
 status: implemented
@@ -8,6 +8,10 @@ relations:
 - serves: vision:o2
 - decomposes: story:p1-exit-properties
 revision: 5
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-23T20:36:52Z", actor: "agent:claude-lazy-sutton-p1-14", revision: 3, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-23T20:36:53Z", actor: "agent:claude-lazy-sutton-p1-14", revision: 4, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-23T20:38:07Z", actor: "agent:claude-lazy-sutton-p1-14", revision: 5, decided_on: {"recorded":{"test_result":1}}, imported: true}
 ---
 ## What is wrong
 

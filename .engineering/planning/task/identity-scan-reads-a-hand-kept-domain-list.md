@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:identity-scan-reads-a-hand-kept-domain-list
 kind: task
 status: draft

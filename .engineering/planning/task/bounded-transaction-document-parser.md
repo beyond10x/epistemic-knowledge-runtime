@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:bounded-transaction-document-parser
 kind: task
 status: implemented
@@ -8,6 +8,10 @@ relations:
 - serves: vision:o2
 - decomposes: story:commit-and-revision-lineage
 revision: 6
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-22T09:24:36Z", actor: "agent:codex-ekr-completion-20260922", revision: 2, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-22T09:24:36Z", actor: "agent:codex-ekr-completion-20260922", revision: 3, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-23T08:14:03Z", actor: "agent:claude-579ad7f9-p1-14", revision: 6, decided_on: {"recorded":{"test_result":3,"review_outcome":1}}, imported: true}
 ---
 ## Contract
 

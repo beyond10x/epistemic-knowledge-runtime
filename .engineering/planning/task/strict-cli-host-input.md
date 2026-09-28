@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:strict-cli-host-input
 kind: task
 status: implemented
@@ -8,6 +8,10 @@ relations:
 - decomposes: story:ekr-cli
 - serves: vision:o2
 revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-22T12:58:54Z", actor: "agent:codex-ekr-completion-20260922", revision: 2, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-22T12:58:55Z", actor: "agent:codex-ekr-completion-20260922", revision: 3, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-23T08:14:06Z", actor: "agent:claude-579ad7f9-p1-14", revision: 4, decided_on: {"recorded":{"test_result":1}}, imported: true}
 ---
 ## Context
 

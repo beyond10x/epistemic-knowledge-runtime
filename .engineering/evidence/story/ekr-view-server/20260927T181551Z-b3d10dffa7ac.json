@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-27T18:15:51Z",
+  "actor": "human:timo",
+  "artifact": "story:ekr-view-server",
+  "kind": "story",
+  "revision": 5,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "impl/ekr-view-server 80171b9a",
+    "review": "review-result:adversary-p2p3p4-03-view-pass-2",
+    "outcome": "fixed"
+  }
+}

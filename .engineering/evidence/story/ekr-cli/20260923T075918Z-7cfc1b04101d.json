@@ -1,0 +1,12 @@
+{
+  "at": "2026-09-23T07:59:18Z",
+  "actor": "agent:claude-579ad7f9-p1-13",
+  "artifact": "story:ekr-cli",
+  "kind": "story",
+  "revision": 14,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "task check, 7 steps exit 0, 730 passed, wave/wave-p1-13 @ 8fe1b04"
+  }
+}

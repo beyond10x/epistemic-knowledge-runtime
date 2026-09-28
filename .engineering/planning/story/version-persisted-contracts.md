@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:version-persisted-contracts
 kind: story
 status: implemented
@@ -123,6 +123,10 @@ scope:
 - confidence: cited
   path: systems/ekr/system.yaml
 revision: 48
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-22T03:20:55Z", actor: "agent:codex-ekr-completion-20260922", revision: 24, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-22T03:20:55Z", actor: "agent:codex-ekr-completion-20260922", revision: 25, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-23T00:18:01Z", actor: "agent:claude-579ad7f9-p1-12", revision: 48, decided_on: {"recorded":{"test_result":3,"review_outcome":5}}, imported: true}
 ---
 ## Context
 

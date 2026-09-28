@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:two-of-the-five-revision-sub-roots-are-placeholders
 kind: task
 status: implemented
@@ -7,6 +7,10 @@ title: ontology_root and agent_root have no type to hash and stay placeholders i
 relations:
 - serves: vision:o2
 revision: 5
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-23T00:17:27Z", actor: "agent:claude-579ad7f9-p1-12", revision: 3, decided_on: {"recorded":{"test_result":1}}, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-23T00:17:27Z", actor: "agent:claude-579ad7f9-p1-12", revision: 4, decided_on: {"recorded":{"test_result":1}}, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-23T00:17:28Z", actor: "agent:claude-579ad7f9-p1-12", revision: 5, decided_on: {"recorded":{"test_result":1}}, imported: true}
 ---
 ## What is wrong
 

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: architecture-decision-record:0007-the-commit-path-is-the-kernels
 kind: architecture-decision-record
 status: accepted
@@ -7,6 +7,8 @@ title: ADR 0007 — Only the kernel reaches a writer to canonical state
 relations:
 - decides: task:only-a-validated-transaction-commits
 revision: 2
+transitions:
+- {from: "proposed", to: "accepted", at: "2026-09-21T19:09:56Z", actor: "human:timo", revision: 2, imported: true}
 ---
 ## Status
 

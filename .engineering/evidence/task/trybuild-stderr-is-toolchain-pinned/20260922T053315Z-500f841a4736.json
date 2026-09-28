@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-22T05:33:15Z",
+  "actor": "agent:codex-ekr-completion-20260922",
+  "artifact": "task:trybuild-stderr-is-toolchain-pinned",
+  "kind": "task",
+  "revision": 5,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Combined task check: format, strict Clippy, workspace tests, rustdoc, ESS and AEP each completed successfully",
+    "reference": ".engineering/waves/wave-2026-09-22-p1-10.md"
+  }
+}

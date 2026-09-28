@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-22T03:15:47Z",
+  "actor": "agent:codex-ekr-completion-20260922",
+  "artifact": "story:kernel-validated-seed",
+  "kind": "story",
+  "revision": 23,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Every task check step, separately captured; coordinator mutation red and restored green",
+    "reference": ".engineering/waves/wave-2026-09-22-p1-08.md"
+  }
+}

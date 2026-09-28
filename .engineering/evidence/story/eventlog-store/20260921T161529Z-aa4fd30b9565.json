@@ -1,0 +1,15 @@
+{
+  "at": "2026-09-21T16:15:29Z",
+  "actor": "human:timo",
+  "artifact": "story:eventlog-store",
+  "kind": "story",
+  "revision": 13,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:adversary-eventlog-store-pass-2",
+    "reference": "corrects one of the four fixed records: the third finding, that two RevisionEvent variants carry no discriminator so a second rejection is byte-identical and can be lost, was escalated to task:two-revision-events-have-no-discriminator blocking story:commit-and-revision-lineage. The unit made the append report which happened; the shape change is another crate's",
+    "review": "review-result:adversary-eventlog-store-pass-2",
+    "outcome": "escalated"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-21T20:15:58Z",
+  "actor": "human:timo",
+  "artifact": "task:only-a-validated-transaction-commits",
+  "kind": "task",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "task check",
+    "reference": "wave/p1-06 at 15ed915 — fmt-check, clippy, test, doc-check, spec-check, plan-check each exit 0; 358 cases, 0 failed, 0 ignored"
+  }
+}

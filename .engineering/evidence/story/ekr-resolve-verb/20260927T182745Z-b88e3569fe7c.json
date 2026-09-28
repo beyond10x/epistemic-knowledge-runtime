@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-27T18:27:45Z",
+  "actor": "human:timo",
+  "artifact": "story:ekr-resolve-verb",
+  "kind": "story",
+  "revision": 16,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "impl/ekr-resolve-verb 886a2d9f",
+    "review": "review-result:adversary-p2p3p4-03-resolve-pass-1",
+    "outcome": "fixed"
+  }
+}

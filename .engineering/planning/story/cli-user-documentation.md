@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:cli-user-documentation
 kind: story
 status: implemented
@@ -19,6 +19,10 @@ scope:
 - confidence: cited
   path: docs/cli.md
 revision: 9
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-25T21:06:47Z", actor: "agent:claude-lazy-sutton-p1-15", revision: 7, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-25T21:06:47Z", actor: "agent:claude-lazy-sutton-p1-15", revision: 8, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-26T00:02:29Z", actor: "agent:claude-lazy-sutton-p1-15", revision: 9, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}, imported: true}
 ---
 ## Context
 

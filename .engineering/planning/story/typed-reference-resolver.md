@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:typed-reference-resolver
 kind: story
 status: implemented
@@ -20,6 +20,10 @@ scope:
 - confidence: inferred
   path: crates/ekr/tests/adversary_docs_contract.rs
 revision: 11
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-27T08:32:14Z", actor: "human:timo", revision: 8, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-27T08:32:44Z", actor: "human:timo", revision: 9, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-27T12:37:24Z", actor: "human:timo", revision: 11, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}, imported: true}
 ---
 ## Context
 

@@ -58,8 +58,10 @@ the binary and runs its worked example on both providers.
   not dropped without an ADR saying so.
 - `systems/ekr/` — the ESS domains, one per crate, added as the crates arrive. `ess specify validate`
   is part of `task check` once the first exists.
-- `.engineering/` — the planning store, an `aep.project/4` store: `state/` is the authority and
-  `planning/` its rendered Markdown, both governed through `aep plan artifact`. Never hand-edit either.
+- `.engineering/` — the planning store, a Git-native `aep.project/5` store (AEP 0.62.0): the
+  Markdown documents under `planning/` are the authority, each carrying its own transitions, and
+  each evidence record is one file; Git history holds the rest. It is governed through
+  `aep plan artifact`. Never hand-edit it.
   Before an agent writes, set `AEP_ACTOR` to the agent's execution identity.
 - `.engineering/waves/COORDINATOR.md` — **read before opening a wave and again before its closing
   commit.** Eight checks, each with a command, each written because it was skipped and cost

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:resolve-ignores-its-marker-parameter
 kind: task
 status: archived
@@ -7,6 +7,8 @@ title: Both resolve functions return a node whatever their marker parameter says
 relations:
 - serves: vision:o2
 revision: 3
+transitions:
+- {from: "draft", to: "archived", at: "2026-09-23T08:14:13Z", actor: "agent:claude-579ad7f9-p1-14", revision: 3, imported: true}
 ---
 ## What is wrong
 

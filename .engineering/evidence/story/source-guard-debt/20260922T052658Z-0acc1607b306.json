@@ -1,0 +1,15 @@
+{
+  "at": "2026-09-22T05:26:58Z",
+  "actor": "agent:codex-ekr-completion-20260922",
+  "artifact": "story:source-guard-debt",
+  "kind": "story",
+  "revision": 30,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "F1: shared literal-member parser reads comments and refuses unsupported inventory; exact adversary case and isolated reversion",
+    "reference": ".engineering/reviews/p1-10-guards-correction.md",
+    "review": "review-result:p1-10-guards-adversary",
+    "outcome": "fixed"
+  }
+}

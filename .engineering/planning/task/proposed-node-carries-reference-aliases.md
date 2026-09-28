@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:proposed-node-carries-reference-aliases
 kind: task
 status: active
@@ -7,6 +7,9 @@ title: A node committed from ProposeNew carries the reference's aliases
 relations:
 - serves: vision:o5
 revision: 3
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-27T18:34:36Z", actor: "human:timo", revision: 2, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-27T18:34:52Z", actor: "human:timo", revision: 3, imported: true}
 ---
 ## Context
 
