@@ -1838,8 +1838,8 @@ fn every_code_a_schema_change_is_refused_with_is_listed_or_unreachable() {
 
 // Correction round 1 (p5-01-cli) ---------------------------------------------------------------
 
-/// Phrases that tell a reader only the P1 validation profile is accepted. The binary accepts two
-/// profiles (v1 and v2), so no text an agent or a person reads may say either of these.
+/// Phrases that tell a reader only the P1 validation profile is accepted. The binary accepts three
+/// profiles (v1, v2 and v3), so no text an agent or a person reads may say any of these.
 const P1_ONLY: [&str; 4] = [
     "the P1 profile",
     "P1 validation profile",
@@ -1895,6 +1895,7 @@ fn no_text_a_reader_meets_says_only_the_p1_profile_is_accepted() {
     for needle in [
         "ekr.p1-deterministic/1",
         "ekr.p2-deterministic/1",
+        "ekr.p3-deterministic/1",
         "schema change",
     ] {
         assert!(
@@ -1916,6 +1917,7 @@ fn no_text_a_reader_meets_says_only_the_p1_profile_is_accepted() {
     for needle in [
         "`ekr.p1-deterministic/1` with `ekr.p1-apply/1`",
         "`ekr.p2-deterministic/1` with `ekr.p2-apply/1`",
+        "`ekr.p3-deterministic/1` with `ekr.p2-apply/1`",
     ] {
         assert!(
             line.contains(needle),
@@ -2088,10 +2090,11 @@ fn validator_codes(files: &[&str]) -> BTreeSet<String> {
 /// `the_structural_codes_are_partitioned_into_schema_shape_and_the_rest` until it is put in one
 /// of the two lists, and one put in `SCHEMA_SHAPE_CODES` must then be listed and drawn by
 /// `every_code_a_schema_change_is_refused_with_is_listed_or_unreachable`.
-const STRUCTURAL_NOT_SCHEMA_SHAPE: [&str; 9] = [
+const STRUCTURAL_NOT_SCHEMA_SHAPE: [&str; 10] = [
     "empty-transaction",
     "duplicate-identity",
     "identity-already-exists",
+    "identity-previously-held",
     "duplicate-alias",
     "alias-already-exists",
     "evidence-set-mismatch",

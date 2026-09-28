@@ -53,7 +53,7 @@ pub use cardinality::Cardinality;
 pub use ontology::OntologyConstraint;
 pub use provenance::Provenance;
 pub use reference::Reference;
-pub use structural::Structural;
+pub use structural::{HeldIdentities, Structural};
 pub use types::Types;
 
 /// One deterministic check over a proposal: design § 20.
@@ -140,6 +140,31 @@ impl Pipeline {
         Self {
             validators: vec![
                 Box::new(structural::SchemaStructural),
+                Box::new(Reference),
+                Box::new(Types),
+                Box::new(Cardinality),
+                Box::new(schema::SchemaOntology { lineage }),
+                Box::new(Provenance),
+                Box::new(Authorization { actor }),
+            ],
+        }
+    }
+
+    /// The seven validators of a profile that also holds identities against history, run by
+    /// `actor`: [`Pipeline::schema_evolving`], with a structural validator that refuses a
+    /// `CreateNode` or `CreateEdge` whose id `held` names.
+    ///
+    /// `held` is every node and edge identity the lineage up to the snapshot this pipeline will
+    /// validate against held, as `lineage` is every schema version id on it.
+    #[must_use]
+    pub fn identity_keeping(
+        actor: AgentId,
+        lineage: BTreeSet<SchemaVersionId>,
+        held: HeldIdentities,
+    ) -> Self {
+        Self {
+            validators: vec![
+                Box::new(structural::IdentityStructural { held }),
                 Box::new(Reference),
                 Box::new(Types),
                 Box::new(Cardinality),

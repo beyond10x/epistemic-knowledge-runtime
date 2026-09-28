@@ -29,6 +29,18 @@ impl Runtime {
             Backend::Sqlite(k) => k.read(revision),
         }
     }
+    /// The graph at `revision` and the schema history of its lineage, from one verified replay.
+    /// # Errors
+    /// Missing seed/revision or invalid required history.
+    pub fn schema_history(
+        &self,
+        revision: RevisionNumber,
+    ) -> Result<crate::SchemaHistory, crate::CommitError> {
+        match &self.backend {
+            Backend::File(k) => k.schema_history(revision),
+            Backend::Sqlite(k) => k.schema_history(revision),
+        }
+    }
     /// Bounded reader ingress using the same frozen parser and retained proposal handler.
     /// # Errors
     /// Input limits, invalid document, authority/state refusal or provider failure.
@@ -243,6 +255,16 @@ impl Runtime {
         match &self.backend {
             Backend::File(kernel) => kernel.replay(revision),
             Backend::Sqlite(kernel) => kernel.replay(revision),
+        }
+    }
+    /// How many replays this runtime's kernel has begun at the seed since it was opened: every
+    /// verified read that could not continue from a state it had already reached, or from the
+    /// store's replay checkpoint, counts one. A diagnostic of read cost; it changes nothing.
+    #[must_use]
+    pub fn seed_replays(&self) -> u64 {
+        match &self.backend {
+            Backend::File(kernel) => kernel.seed_replays(),
+            Backend::Sqlite(kernel) => kernel.seed_replays(),
         }
     }
     /// Every event the provider log has published, in log order, through the provider handle

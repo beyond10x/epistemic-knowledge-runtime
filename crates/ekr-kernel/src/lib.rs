@@ -132,7 +132,7 @@ pub use explain::{
     ProjectionError, SnapshotResult,
 };
 pub use issue::{ValidationIssue, ValidatorName};
-pub use read::{VerifiedRead, VerifiedRevision};
+pub use read::{SchemaHistory, VerifiedRead, VerifiedRevision};
 pub use records::{
     CommitReceiptV1, ProposalRecordV1, RecordedValidationIssue, RejectionRecordV1, SeedResultV1,
     StaleRecordV1, ValidationBasisV1, ValidationMaterialV1, ValidationReceiptV1,

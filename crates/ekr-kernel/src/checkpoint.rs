@@ -5,7 +5,9 @@
 //!
 //! The state one complete kernel replay reached at the end of a revision-stream prefix, reduced
 //! to what cannot be read back cheaply from the retained records themselves: the head revision's
-//! graph and the schema version in force at each revision. Everything else — the seed result,
+//! graph and the schema version in force at each revision, and under validation profile v3 every
+//! node and edge identity a revision of the lineage held, which profile v3 holds a new record
+//! against (`task:deleted-edge-id-is-reusable`). Everything else — the seed result,
 //! every transaction's records, every revision's coordinates — is decoded again from the verified
 //! record bytes the history already loads.
 //!
@@ -15,20 +17,27 @@
 //! occurrence's position and event, which binds every record address — and only by an authority
 //! with the same host context and anchor. Its head graph must reproduce the knowledge and
 //! evidence roots the head's retained receipt records, and each schema version must reproduce
-//! the ontology root of every revision it is in force at. What it takes on trust is that the
-//! prefix was replayed and every retained decision re-derived when the checkpoint was written:
-//! a checkpoint records that verification, it does not repeat it. A store opened for full
-//! replay ignores checkpoints and repeats it.
+//! the ontology root of every revision it is in force at. What no revision root binds — the
+//! head graph's root and the evidence payloads the seed requires — must equal what the seed
+//! envelope the prefix binds says, so that a changed cache can neither become the root the
+//! kernel's next decisions record nor drop bytes a verified read holds. Nor does a revision root
+//! bind the identities a v3 lineage held, so they must equal what the seed envelope and the
+//! retained proposal of every commit the prefix binds say were created, so that a changed cache
+//! cannot free a deleted edge's id for a different record. What it takes on trust
+//! is that the prefix was replayed and every retained decision re-derived when the checkpoint
+//! was written: a checkpoint records that verification, it does not repeat it. A store opened
+//! for full replay ignores checkpoints and repeats it.
 //!
 //! A checkpoint that fails any check is not an error of the store. It is ignored, and the
 //! history is replayed in full as if it were absent.
 use crate::replay::{prefix_digests, refuse, require, ReplayState, Revision};
 use crate::seed::{narrow_assertion, narrow_edge, narrow_node};
+use crate::validate::HeldIdentities;
 use crate::{
     CommitReceiptV1, KernelAuthority, ProposalRecordV1, RejectionRecordV1, SeedResultV1,
     StaleRecordV1, TransactionRecord, ValidationReceiptV1,
 };
-use ekr_core::{Canonical, ContentHash, Encoder, RevisionNumber};
+use ekr_core::{Canonical, ContentHash, EdgeId, Encoder, NodeId, RevisionNumber};
 use ekr_graph::{CanonicalGraph, RevisionPayload};
 use ekr_ontology::{Ontology, OntologyDocument};
 use ekr_store::{
@@ -59,12 +68,33 @@ struct CheckpointV1 {
     ontologies: Vec<OntologyAt>,
     /// The evidence payloads the admitted seed envelope requires.
     seed_payloads: BTreeSet<ContentHash>,
+    /// Under a profile that keeps identities, every node and edge id the lineage held, grouped
+    /// by the revision that first held it, in revision order. Empty, and not written, under any
+    /// other profile, so that their checkpoints are the bytes they were before the field existed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    held: Vec<HeldAt>,
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct OntologyAt {
     from: RevisionNumber,
     ontology: OntologyDocument,
+}
+/// The identities first held at one revision.
+#[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HeldAt {
+    from: RevisionNumber,
+    nodes: BTreeSet<NodeId>,
+    edges: BTreeSet<EdgeId>,
+}
+
+/// The checkpoint form of `held`.
+fn held_at(held: &HeldIdentities) -> Vec<HeldAt> {
+    held.by_revision()
+        .into_iter()
+        .map(|(from, (nodes, edges))| HeldAt { from, nodes, edges })
+        .collect()
 }
 
 impl KernelAuthority {
@@ -200,6 +230,7 @@ impl KernelAuthority {
             graph: GraphDocument::of(head.graph()?),
             ontologies,
             seed_payloads: state.seed_payloads.clone(),
+            held: held_at(&state.held),
         };
         let bytes = serde_json::to_vec(&checkpoint)
             .map_err(|error| StoreError::Document(error.to_string()))?;
@@ -219,7 +250,7 @@ impl KernelAuthority {
         history: &RetainedHistory,
         bytes: &[u8],
     ) -> Result<(), StoreError> {
-        let checkpoint: CheckpointV1 = serde_json::from_slice(bytes)
+        let mut checkpoint: CheckpointV1 = serde_json::from_slice(bytes)
             .map_err(|error| StoreError::Document(format!("checkpoint-decode: {error}")))?;
         require(checkpoint.format == FORMAT, "checkpoint-format")?;
         require(
@@ -247,8 +278,33 @@ impl KernelAuthority {
             RevisionPayload::Seeded { seed_hash, .. } => seed_hash,
             _ => return Err(StoreError::NotSeeded),
         };
+        // The graph root and the seed's evidence payloads are the seed's, not the replay's: no
+        // revision root binds them, so they are read from the seed envelope the prefix binds.
+        let envelope = crate::seed::envelope(history.content(seed_hash, StorageClass::Canonical)?)?;
+        require(
+            checkpoint.graph.root == envelope.input.graph.root,
+            "checkpoint-graph-root-identity",
+        )?;
+        require(
+            checkpoint
+                .seed_payloads
+                .iter()
+                .eq(envelope.input.evidence_payloads.keys()),
+            "checkpoint-seed-payloads",
+        )?;
         let payloads = checkpoint.seed_payloads.clone();
-        let state = restored(history, covered, checkpoint)?;
+        let claimed = std::mem::take(&mut checkpoint.held);
+        let mut state = restored(history, covered, checkpoint)?;
+        // The identities the lineage held are what the seed's graph holds and what each commit
+        // the prefix binds created, read from their retained proposals: the checkpoint's list
+        // must be exactly that, so that a changed cache cannot free an id for a new record.
+        let derived = if self.anchor.validation_profile.keeps_identities() {
+            held_by(&envelope.input.graph, &state)?
+        } else {
+            HeldIdentities::default()
+        };
+        require(held_at(&derived) == claimed, "checkpoint-held-identities")?;
+        state.held = derived;
         let mut cache = self
             .cache
             .lock()
@@ -471,7 +527,28 @@ fn restored(
         revision_ids,
         event_ids,
         issue_ids,
+        held: HeldIdentities::default(),
     })
+}
+
+/// The node and edge identities the lineage of `state` held: those of the seed graph at the seed
+/// revision, and those each committed transaction created at the revision it produced, read from
+/// its retained proposal. Under profile v3 that is every identity any of its revisions held,
+/// because a v3 commit never creates an id an earlier revision held.
+fn held_by(seed: &GraphDocument, state: &ReplayState) -> Result<HeldIdentities, StoreError> {
+    let mut held = HeldIdentities::default();
+    held.record(
+        RevisionNumber::SEED,
+        seed.nodes.keys().copied(),
+        seed.edges.keys().copied(),
+    );
+    for record in state.transactions.values() {
+        if let Some(committed) = &record.committed {
+            let document = state.document(&record.proposal)?;
+            held.hold(committed.result.revision, document.transaction());
+        }
+    }
+    Ok(held)
 }
 
 #[cfg(test)]
@@ -638,5 +715,6 @@ mod tests {
         assert_eq!(restored.revision_ids, replayed.revision_ids);
         assert_eq!(restored.event_ids, replayed.event_ids);
         assert_eq!(restored.issue_ids, replayed.issue_ids);
+        assert_eq!(restored.held, replayed.held);
     }
 }

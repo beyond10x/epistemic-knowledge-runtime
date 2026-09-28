@@ -1,8 +1,9 @@
 //! Complete retained decision verification; the same pure authority checks new publications.
 use crate::{
-    AuthorityStateV1, CommitReceiptV1, GraphOperation, GraphTransaction, KernelAuthority, Pipeline,
-    ProposalRecordV1, RejectionRecordV1, SeedResultV1, StaleRecordV1, TransactionDocument,
-    ValidatedTransaction, ValidationBasisV1, ValidationMaterialV1, ValidationReceiptV1,
+    validate::HeldIdentities, AuthorityStateV1, CommitReceiptV1, GraphOperation, GraphTransaction,
+    KernelAuthority, Pipeline, ProposalRecordV1, RejectionRecordV1, SeedResultV1, StaleRecordV1,
+    TransactionDocument, ValidatedTransaction, ValidationBasisV1, ValidationMaterialV1,
+    ValidationReceiptV1,
 };
 use ekr_core::{
     AgentId, Canonical, ContentHash, Encoder, EventId, IssueId, RevisionId, RevisionNumber,
@@ -86,6 +87,11 @@ pub(crate) struct ReplayState {
     pub(crate) revision_ids: BTreeSet<RevisionId>,
     pub(crate) event_ids: BTreeSet<EventId>,
     pub(crate) issue_ids: BTreeSet<IssueId>,
+    /// Under a profile that keeps identities, every node and edge id a revision of this state
+    /// held, from the revision that first held it; empty under every other profile. A state
+    /// restored from a checkpoint holds it too, so validating against any revision reads it here
+    /// rather than from that revision's graph.
+    pub(crate) held: HeldIdentities,
 }
 /// The refusal a state restored from a checkpoint gives for a graph it does not hold. It is never
 /// a verdict about the history: whoever meets it replays that history in full instead.
@@ -199,6 +205,8 @@ pub(crate) struct ReplayCache {
     entries: Vec<(usize, ContentHash, Arc<ReplayState>)>,
     /// The seed envelope this authority admitted, and the evidence payloads it requires.
     pub(crate) seed: Option<(ContentHash, BTreeSet<ContentHash>)>,
+    /// How many replays this authority began at the seed rather than at a state it had reached.
+    pub(crate) seed_replays: u64,
 }
 impl ReplayCache {
     const CAPACITY: usize = 4;
@@ -309,8 +317,9 @@ pub(crate) fn basis(
 /// Validates a retained proposal's parsed document against `prior` under the store's own profile.
 ///
 /// `revisions` are the committed revisions retained so far; those up to `prior` are the lineage a
-/// profile-v2 schema change is held new against. Profile v1 reads none of them, and seals and
-/// refuses exactly as P1 did.
+/// profile-v2 or v3 schema change is held new against. `held` is every node and edge identity
+/// those revisions held, which profile v3 reads at `prior` and holds a new record against.
+/// Profile v1 reads neither, and seals and refuses exactly as P1 did.
 ///
 /// # Errors
 ///
@@ -320,20 +329,23 @@ pub(crate) fn basis(
 pub(crate) fn validate(
     document: &TransactionDocument,
     revisions: &BTreeMap<RevisionNumber, Revision>,
+    held: &HeldIdentities,
     prior: &Revision,
     anchor: &AuthorityStateV1,
     validator: AgentId,
 ) -> Result<Result<ValidatedTransaction, Vec<crate::ValidationIssue>>, StoreError> {
     let graph = prior.graph()?;
-    let pipeline = if anchor.validation_profile.admits_schema_changes() {
-        Pipeline::schema_evolving(
-            validator,
-            crate::validate::schema::lineage(
-                revisions
-                    .range(..=prior.root.revision)
-                    .map(|(_, revision)| &*revision.ontology),
-            ),
+    let lineage = || {
+        crate::validate::schema::lineage(
+            revisions
+                .range(..=prior.root.revision)
+                .map(|(_, revision)| &*revision.ontology),
         )
+    };
+    let pipeline = if anchor.validation_profile.keeps_identities() {
+        Pipeline::identity_keeping(validator, lineage(), held.at(prior.root.revision))
+    } else if anchor.validation_profile.admits_schema_changes() {
+        Pipeline::schema_evolving(validator, lineage())
     } else {
         Pipeline::deterministic(validator)
     };
@@ -441,11 +453,24 @@ impl KernelAuthority {
             let Some((seed, seed_payloads)) = self.seed_state(history, ontology)? else {
                 return Ok(None);
             };
+            self.cache
+                .lock()
+                .map_err(|_| refuse("replay-cache-poisoned"))?
+                .seed_replays += 1;
             let first = &history.occurrences[0];
             let seed_result = SeedResultV1::from_bytes(
                 history.content(first.event.record_hash, StorageClass::Canonical)?,
             )?;
+            let mut held = HeldIdentities::default();
+            if self.anchor.validation_profile.keeps_identities() {
+                held.record(
+                    RevisionNumber::SEED,
+                    seed.graph.nodes.keys().copied(),
+                    seed.graph.edges.keys().copied(),
+                );
+            }
             let state = ReplayState {
+                held,
                 revision_ids: BTreeSet::from([seed_result.revision_id]),
                 event_ids: BTreeSet::from([first.event.event_id]),
                 issue_ids: BTreeSet::new(),
@@ -531,6 +556,7 @@ impl KernelAuthority {
                     let validated = validate(
                         &*state.document(&tx.proposal)?,
                         &state.revisions,
+                        &state.held,
                         prior,
                         &self.anchor,
                         self.context.validator,
@@ -581,6 +607,7 @@ impl KernelAuthority {
                     let actual = validate(
                         &*state.document(&tx.proposal)?,
                         &state.revisions,
+                        &state.held,
                         prior,
                         &self.anchor,
                         self.context.validator,
@@ -656,6 +683,7 @@ impl KernelAuthority {
                             validate(
                                 &*state.document(&tx.proposal)?,
                                 &state.revisions,
+                                &state.held,
                                 prior,
                                 &self.anchor,
                                 self.context.validator,
@@ -699,6 +727,9 @@ impl KernelAuthority {
                         Arc::new(graph.ontology.clone())
                     };
                     let graph_root = prior.graph_root;
+                    if self.anchor.validation_profile.keeps_identities() {
+                        state.held.hold(number, validated.transaction());
+                    }
                     state.revision_ids.insert(revision_id);
                     state.revisions.insert(
                         number,

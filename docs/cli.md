@@ -84,10 +84,10 @@ not input: keep it next to the store and use the same file for every command aga
 | `context.validator` | the agent id that validates. It must differ from the operator |
 | `authority.format` | exactly `ekr.authority-state/1` |
 | `authority.agents` | a map from agent id to `{id, name, capabilities}`. The key must equal `id`; both the operator and the validator must be registered. `name` is a label. `capabilities` is a list of distinct strings that P1 records and does not interpret (the example uses `propose`, `read` and `validate`) |
-| `authority.validation_profile` | one of the two deterministic validation profiles. Copy it from `ekr example ekr.cli-host/1` unchanged except `validator`, which must equal `context.validator`. That is profile v1 (`ruleset` `ekr.p1-deterministic/1`, `application` `ekr.p1-apply/1`), under which the schema is fixed at seeding. Profile v2 is the same with `ruleset` `ekr.p2-deterministic/1` and `application` `ekr.p2-apply/1`, and admits [schema changes](#evolve-the-schema). A store keeps the profile it was seeded under |
+| `authority.validation_profile` | one of the three deterministic validation profiles. Copy it from `ekr example ekr.cli-host/1` unchanged except `validator`, which must equal `context.validator`. That is profile v1 (`ruleset` `ekr.p1-deterministic/1`, `application` `ekr.p1-apply/1`), under which the schema is fixed at seeding. Profile v2 is the same with `ruleset` `ekr.p2-deterministic/1` and `application` `ekr.p2-apply/1`, and admits [schema changes](#evolve-the-schema). Profile v3 is v2 with `ruleset` `ekr.p3-deterministic/1` and the same `application` `ekr.p2-apply/1`: it admits schema changes as v2 does, and also refuses a `CreateNode` or `CreateEdge` whose id an earlier revision held, such as a deleted edge's (`identity-previously-held`). What this page says of profile v2 holds of v3. A store keeps the profile it was seeded under |
 
 Unknown, missing or duplicated fields are refused. A host document that parses but whose profile is
-neither of the two, or whose agent registry the kernel does not accept, is refused when the
+none of the three, or whose agent registry the kernel does not accept, is refused when the
 store is opened, by any store verb including
 `ekr seed`: `ekr: opening the provider: invalid seed: seed-authority-profile`, exit 1 (an operator
 equal to the validator reads `…: invalid seed: proposer-is-validator`). The host's authority is
@@ -344,6 +344,11 @@ prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`, then answers:
 | `GET /projection` | the `ekr.graph-projection/1` document at the head, `application/json`, byte for byte what the projection renders |
 | `GET /projection?revision=N` | the same as of revision `N`; a revision the store does not hold is 404 with `{"refusal": "ekr.views.RevisionNotFound", …}` |
 | `GET /evidence/<evidence id>` | that evidence's retained bytes: `text/plain; charset=utf-8` when they are UTF-8, otherwise `application/octet-stream`; 404 for an id the head does not hold or bytes the store did not retain |
+| `GET /overview[?revision=N&limit=L]` | the `ekr.graph-overview/1` document of revision `N` (the head when absent), listing the `L` highest-degree nodes (1 to 500, 300 when absent), `application/json` |
+| `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | the `ekr.graph-slice/1` page of the nodes within `D` hops of the seeds (`D` 0 to 2, at most `L` nodes, 1 to 2,000, and `E` edges, 1 to 5,000, 5,000 when absent, from cursor `A`), streamed as NDJSON (below) |
+| `GET /node/<node id>[?revision=N]` | the `ekr.node-detail/1` document of that node, `application/json` |
+| `GET /search?q=<text>[&limit=L][&revision=N]` | the `ekr.node-matches/1` document of the nodes whose name or an alias contains the text (at most `L`, 1 to 100, 20 when absent), `application/json` |
+| `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | the `ekr.graph-timeline/1` document: one row per node of the row type `type` (the first the document ranks when absent) with the events related to it within `H` hops (1 to 3) counted per time bucket, at most `L` rows (1 to 500), the most active first; `B` is the finest bucket, `day` or `week`; with `subject` the row of that node alone and its events; `application/json` |
 
 Any other method is 405 and any other path 404. A request that announces a body (a
 `Content-Length` above zero or any `Transfer-Encoding`) is 413; the body is never read. A request
@@ -358,18 +363,49 @@ origin. Evidence text is
 never served as HTML. Like every read verb, `ekr view` opens an existing store only (a path holding
 none is `store-not-found`, exit 1) and writes nothing to it.
 
-A revision is loaded once. The first `/projection` or `/roles` of a revision loads it, renders both
-answers from that one load and keeps them in memory; a later request of the same revision reads
-only the store's head and is answered from memory, byte for byte what the first answer was. The
-projection names the head, so a new head empties the memory. At most 8 revisions are kept, and the
-one used longest ago goes first.
+The query of `/overview`, `/expand`, `/node/<id>`, `/search` and `/timeline` is `name=value`
+pairs joined by `&`, each name one the path takes and at most once, each value percent-decoded
+(`+` is a space) to UTF-8; `seeds` is node ids separated by commas, and `seeds`, `depth` and
+`limit` are required by `/expand`, `q` by `/search`, `hops` and `limit` by `/timeline`. A query
+that breaks this, a `type` or `subject` that is not an id, or a `bucket` other than `day` or
+`week`, is 400 with `{"refusal": "invalid-query", …}`.
+A bound outside its range is 400 `ekr.views.LimitExceeded`, a node or seed the revision does not
+hold 404 `ekr.views.NodeNotFound`, and a revision the store does not hold 404
+`ekr.views.RevisionNotFound` (`ekr.views.NotSeeded` for a store never seeded), each a whole JSON
+refusal decided before any byte of an answer is sent.
 
-The page reads `/projection`, `/roles` and `/evidence/<id>` and nothing else, and derives what it
-shows from them: the timeline's event, observation and subject types from where valid time
-clusters, the growth per revision from each assertion's recorded time, and one link for an edge and
-the relation assertions with its source, type and target. The roles `/roles` serves appear only as
-badges in its tooltips. It fetches evidence only by an id the loaded projection holds, and writes
-everything a store holds as text.
+`/expand` answers `application/x-ndjson` with `Transfer-Encoding: chunked`: one JSON object per
+line, each ending in `\n` and opening with its `kind`, flushed a chunk at a time as it is written:
+
+1. `{"kind":"meta", …}` — the page's `ekr.graph-slice/1` meta (`format`, `revision`, `head`,
+   `seeds`, `depth`, `after`, `node_total`, `edge_total`), alone in the first chunk;
+2. the records in the slice's order: `{"kind":"node", …}` with a node's fields and
+   `{"kind":"edge", …}` with an edge's, a node always before the edges it closes;
+3. after every 256 records, `{"kind":"progress","sent":<records so far>}`, which ends its chunk;
+4. last, `{"kind":"end","next":<cursor>|null,"remaining":<records after this page>}`; ask again
+   with `after=<next>` for the next page.
+
+The page is computed before the first byte, so a refusal is never sent mid-stream. The stream is
+written from its own connection, never from the thread that reads the store, and counts as one of
+the 64 connections; each write waits at most 5 seconds and the whole stream at most 60, and a
+client that closes the connection ends it and frees its place.
+
+A revision is loaded once. The first request of a revision to `/overview`, `/expand`, `/node`,
+`/search`, `/timeline`, `/projection` or `/roles` loads and indexes it; every later request of
+that revision, whichever path, reads the store's head and answers from that index, so it costs its
+answer (a revision's first `/timeline` also ranks its row types once). The
+indexes of the 3 revisions used most recently are kept, each under the head it was loaded under,
+so a new head loads again. `/projection` and `/roles` also keep their rendered answers, byte for
+byte what the first answer was, for at most 8 revisions under one head, the one used longest ago
+going first.
+
+The page reads `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and
+`/evidence/<id>` and nothing else, never `/projection`: the overview once per revision, a
+neighbourhood as it streams in, a node's detail when it is opened, and the timeline's rows — one
+per subject of the chosen row type, with its events within the chosen hops — and a subject's
+swimlanes from `/timeline`. It fetches evidence only by an id an assertion it has read cites, and
+writes everything a store holds as text. The earlier page at `/alt` reads `/projection`, `/roles`
+and `/evidence/<id>`.
 
 #### Roles
 
@@ -702,7 +738,7 @@ on such a line is held to the `/1` cap.
 
 ### Operation kinds
 
-There are twelve kinds. Eight are applied under either validation profile. Three are **schema
+There are twelve kinds. Eight are applied under every validation profile. Three are **schema
 changes**, applied only under profile v2 and only in a transaction of their own that names its
 `schema_version` ([Evolve the schema](#evolve-the-schema)); under profile v1 validation rejects them
 with the issue code `unsupported-operation`, so the schema is fixed at seeding. One, `MergeEntity`,
@@ -1603,7 +1639,7 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `seed-evidence-payload-missing` | seed | 2 | an evidence entry's `content_hash` is not a key of `evidence_payloads` | pass the payload file with `--evidence`, or paste the hash `ekr hash` prints as the key |
 | `seed-evidence-payload-mismatch` | seed | 2 | a payload's bytes do not hash to its key | re-run `ekr hash` on the exact bytes |
 | `ekr.kernel.AlreadySeeded` | seed | 2 | the store already holds a different seed | use a new store or tenant |
-| `seed-authority-profile` | any store verb | 1 | the host's `validation_profile` is neither accepted profile exactly — an unknown `ruleset`, or a `ruleset` of one profile with the `application` of the other — or its agent registry does not fit it for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example and keep `ruleset` and `application` a pair: `ekr.p1-deterministic/1` with `ekr.p1-apply/1` (v1) or `ekr.p2-deterministic/1` with `ekr.p2-apply/1` (v2); set `validator` to `context.validator` |
+| `seed-authority-profile` | any store verb | 1 | the host's `validation_profile` is no accepted profile exactly — an unknown `ruleset`, or a `ruleset` of one profile with an `application` it is not paired with — or its agent registry does not fit it for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example and keep `ruleset` and `application` a pair: `ekr.p1-deterministic/1` with `ekr.p1-apply/1` (v1) , `ekr.p2-deterministic/1` with `ekr.p2-apply/1` (v2) or `ekr.p3-deterministic/1` with `ekr.p2-apply/1` (v3); set `validator` to `context.validator` |
 | `store-not-found` | propose, validate, commit, snapshot, explain, head, transactions, ontology, resolve | 1 | `--store` names a path that holds no store: nothing, an empty directory, an empty file, a symlink to nothing, a SQLite database without the runtime's tables, or a file-store directory holding only what `ekr seed` writes before its manifest; nothing is created there. Only `ekr seed` creates a store, and a seed that is refused creates none | check `--store` or `EKR_STORE`; run `ekr seed` first |
 | `bootstrap-authority-mismatch` | any store verb | 1 | the store was seeded under a host document whose authority differs from this one | use the host document the store was seeded with |
 | `ekr.kernel.ProposalAttribution` | propose | 2 | the document's `proposer` is not the host operator | use `context.operator` |
@@ -1648,6 +1684,7 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `assertion-without-evidence` | validation issue | 0 | an assertion cites no evidence | cite at least one evidence id |
 | `assertion-states-its-own-verdict` | validation issue | 0 | an assertion written with a complete assessment other than `Proposed`, such as `!Accepted {validators: [...]}` (a bare `Accepted` is refused earlier, as `ekr.kernel.StructurallyInvalid`) | write `assessment: Proposed` |
 | `identity-already-exists` | validation issue | 0 | a create reuses an id that already exists | `ekr mint` a fresh id |
+| `identity-previously-held` | validation issue | 0 | under profile v3, a `CreateNode` or `CreateEdge` takes an id an earlier revision held for a node or an edge, such as a deleted edge's | `ekr mint` a fresh id |
 | `duplicate-identity` | validation issue | 0 | one transaction creates the same id twice | `ekr mint` one id per created thing |
 | `alias-already-exists` | validation issue | 0 | a `CreateNode` gives a non-empty alias that a node of the same type already holds | resolve the reference and use that node instead of creating one |
 | `duplicate-alias` | validation issue | 0 | two `CreateNode` operations of one transaction give the same non-empty alias to nodes of one type | give each alias to one node |

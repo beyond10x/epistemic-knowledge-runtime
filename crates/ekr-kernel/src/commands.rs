@@ -331,6 +331,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             let verdict = replay::validate(
                 &*state.document(&tx.proposal)?,
                 &state.revisions,
+                &state.held,
                 prior,
                 &self.authority.anchor,
                 self.authority.context.validator,
@@ -553,6 +554,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                     replay::validate(
                         &*state.document(&tx.proposal)?,
                         &state.revisions,
+                        &state.held,
                         head,
                         &self.authority.anchor,
                         self.authority.context.validator,

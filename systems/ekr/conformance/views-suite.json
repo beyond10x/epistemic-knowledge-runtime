@@ -9,6 +9,8 @@
       "ekr.views/authored/a-search-lists-at-most-its-limit-of-matches",
       "ekr.views/authored/a-search-with-no-match-answers-an-empty-list",
       "ekr.views/authored/a-seed-only-store-projects-revision-zero",
+      "ekr.views/authored/a-timeline-refuses-each-input-outside-its-bound",
+      "ekr.views/authored/a-timeline-row-is-a-subject-with-its-events-within-hops",
       "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge",
       "ekr.views/authored/an-expansion-refuses-each-input-outside-its-bound",
       "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes",
@@ -58,6 +60,16 @@
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-seed-only-store-projects-revision-zero"
       },
+      "a-timeline-refuses-each-input-outside-its-bound.yaml": {
+        "digest": "sha256:d8d8d7c471d07cf7ea998739536a0a25f3317485e97450677226e78fe76ae732",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-timeline-refuses-each-input-outside-its-bound"
+      },
+      "a-timeline-row-is-a-subject-with-its-events-within-hops.yaml": {
+        "digest": "sha256:c72bc7358889f9d7d079d3de3502feab99b3923697dfab5987764e0147a11022",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-timeline-row-is-a-subject-with-its-events-within-hops"
+      },
       "an-assertion-about-an-edge-is-carried-by-that-edge.yaml": {
         "digest": "sha256:6af4281ad03aa69d90d2f551aa26c2c2cf0d9d3e7d8090262f4a6e2106197aa0",
         "disposition": "accepted",
@@ -95,8 +107,8 @@
       }
     },
     "counts": {
-      "authored": 15,
-      "generated": 20,
+      "authored": 17,
+      "generated": 24,
       "outside": 36,
       "refused": 0
     },
@@ -117,6 +129,10 @@
       "ekr.views.ProjectOverview/outcome/not-found",
       "ekr.views.ProjectOverview/outcome/not-seeded",
       "ekr.views.ProjectOverview/outcome/overviewed",
+      "ekr.views.ProjectTimeline/outcome/limit-exceeded",
+      "ekr.views.ProjectTimeline/outcome/not-found",
+      "ekr.views.ProjectTimeline/outcome/not-seeded",
+      "ekr.views.ProjectTimeline/outcome/timelined",
       "ekr.views.SearchNodes/outcome/limit-exceeded",
       "ekr.views.SearchNodes/outcome/not-found",
       "ekr.views.SearchNodes/outcome/not-seeded",
@@ -1103,8 +1119,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "d0f93cec4f2f25635cc720d370616847aa6a1f1607175c90805340fc1170ea7f",
-    "spec_digest": "5eeb4e45f925fe72e0a89dc6ce7abe810e164af88e59ba5be575ac60a786cf29",
+    "contract_digest": "965c39895cbf972dc505b122d5d081c0c8373d1aa607ac5fd2910b981b396af1",
+    "spec_digest": "bebbc3dfa734e645fa2838eba3700babe945965208420d73b517eeaa0425672b",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -1207,6 +1223,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "actor",
@@ -1344,6 +1364,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -1440,6 +1464,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -1555,6 +1583,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -1651,6 +1683,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -1766,6 +1802,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -1862,6 +1902,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -1977,6 +2021,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -2081,6 +2129,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "actor",
@@ -2246,6 +2298,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -2346,6 +2402,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -2470,6 +2530,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -2570,6 +2634,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -2701,6 +2769,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -2801,6 +2873,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -2931,6 +3007,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
           "step": "expect_no_event"
         }
       ]
@@ -3034,6 +3114,10 @@
           "name": "ekr.views.NodesSearched"
         },
         {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
           "kind": "error",
           "name": "ekr.views.NotSeeded"
         },
@@ -3163,6 +3247,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -3255,6 +3343,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -3366,6 +3458,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -3458,6 +3554,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -3569,6 +3669,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -3665,6 +3769,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "actor",
@@ -3827,6 +3935,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -3919,6 +4031,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -4027,6 +4143,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -4119,6 +4239,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -4234,6 +4358,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -4326,6 +4454,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -4441,6 +4573,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -4541,6 +4677,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "actor",
@@ -4744,6 +4884,1035 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.ProjectTimeline/outcome/limit-exceeded": {
+      "purpose": "`ekr.views.ProjectTimeline` answers `limit-exceeded` for an input that satisfies that branch's guard",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.TimelineBucketWidth"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectTimeline"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "limit-exceeded"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.LimitExceeded"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": "Day"
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-dcf9e2322dc4"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-735281e90c0f"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.ProjectTimeline/outcome/not-found": {
+      "purpose": "`ekr.views.ProjectTimeline` answers `not-found` for the cause it declares as external, injected",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.TimelineBucketWidth"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectTimeline"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "not-found"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.RevisionNotFound"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "force": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "not-found"
+          },
+          "step": "configure_external_outcome"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": "Day"
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-dcf9e2322dc4"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-735281e90c0f"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "not-found"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.RevisionNotFound",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.ProjectTimeline/outcome/not-seeded": {
+      "purpose": "`ekr.views.ProjectTimeline` answers `not-seeded` for the cause it declares as external, injected",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.TimelineBucketWidth"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectTimeline"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "not-seeded"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.NotSeeded"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "force": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "not-seeded"
+          },
+          "step": "configure_external_outcome"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": "Day"
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-dcf9e2322dc4"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-735281e90c0f"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "not-seeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.NotSeeded",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.ProjectTimeline/outcome/timelined": {
+      "purpose": "`ekr.views.ProjectTimeline` answers `timelined` for an input no other branch's guard claims",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.TimelineBucketWidth"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectTimeline"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": "Day"
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-dcf9e2322dc4"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-735281e90c0f"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "payload": {
+            "hops": 1.0
+          },
+          "shape": {
+            "active": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cells": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_row": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "hops": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "listed_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "row_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "rows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "strip": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "subjects": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -4836,6 +6005,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -4948,6 +6121,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -5040,6 +6217,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -5159,6 +6340,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -5251,6 +6436,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "error",
@@ -5370,6 +6559,10 @@
         {
           "event": "ekr.views.NodesSearched",
           "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
         }
       ]
     },
@@ -5470,6 +6663,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
         },
         {
           "kind": "actor",
@@ -5611,6 +6808,10 @@
         },
         {
           "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
           "step": "expect_no_event"
         }
       ]
@@ -8304,6 +9505,1886 @@
             "transactions": {
               "holds": "primitive",
               "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-timeline-refuses-each-input-outside-its-bound": {
+      "purpose": "Hops 1 and 3 and limits 1 and 500 are answered; hops 0 or 4 and limit 0 or 501 are refused naming the first broken input, and an unknown subject answers no row.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.TimelineBucketWidth"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectTimeline"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "limit-exceeded"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.LimitExceeded"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "subjects"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": null
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "payload": {
+            "first_row": "00000000-0000-4000-8000-000000a00101",
+            "hops": 1.0,
+            "rows": 1.0
+          },
+          "shape": {
+            "active": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cells": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_row": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "hops": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "listed_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "row_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "rows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "strip": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "subjects": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 500.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "subjects"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": null
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "payload": {
+            "hops": 3.0,
+            "rows": 3.0
+          },
+          "shape": {
+            "active": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cells": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_row": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "hops": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "listed_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "row_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "rows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "strip": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "subjects": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "subjects"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": null
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "fields": {
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "parameter": "hops",
+            "requested": 0.0
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 4.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "subjects"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": null
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "fields": {
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "parameter": "hops",
+            "requested": 4.0
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "subjects"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": null
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "fields": {
+            "maximum": 500.0,
+            "minimum": 1.0,
+            "parameter": "limit",
+            "requested": 0.0
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 501.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "subjects"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": null
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "fields": {
+            "maximum": 500.0,
+            "minimum": 1.0,
+            "parameter": "limit",
+            "requested": 501.0
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 4.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "subjects"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": null
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "fields": {
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "parameter": "hops",
+            "requested": 4.0
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 10.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "subjects"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000a09999"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "payload": {
+            "active": 3.0,
+            "cells": 0.0,
+            "events": 5.0,
+            "listed_events": 0.0,
+            "row_events": 0.0,
+            "row_type": "00000000-0000-4000-8000-000000a00001",
+            "rows": 0.0,
+            "strip": 5.0,
+            "subjects": 3.0
+          },
+          "shape": {
+            "active": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cells": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_row": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "hops": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "listed_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "row_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "rows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "strip": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "subjects": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-timeline-row-is-a-subject-with-its-events-within-hops": {
+      "purpose": "Each holder's row counts the events its walk reaches within 1, 2 and 3 hops, by day or by week, and a subject asked for alone lists its events.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.TimelineBucketWidth"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectTimeline"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 500.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000a00001"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "subjects"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": null
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "payload": {
+            "active": 3.0,
+            "bucket_ms": 86400000.0,
+            "cells": 4.0,
+            "events": 3.0,
+            "first_row": "00000000-0000-4000-8000-000000a00101",
+            "head": 0.0,
+            "hops": 1.0,
+            "listed_events": 0.0,
+            "revision": 0.0,
+            "row_events": 4.0,
+            "row_type": "00000000-0000-4000-8000-000000a00001",
+            "row_types": 2.0,
+            "rows": 3.0,
+            "strip": 3.0,
+            "subjects": 3.0
+          },
+          "shape": {
+            "active": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cells": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_row": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "hops": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "listed_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "row_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "rows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "strip": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "subjects": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 500.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000a00001"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "subjects"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": null
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "payload": {
+            "active": 3.0,
+            "bucket_ms": 86400000.0,
+            "cells": 7.0,
+            "events": 5.0,
+            "first_row": "00000000-0000-4000-8000-000000a00101",
+            "hops": 2.0,
+            "row_events": 7.0,
+            "rows": 3.0,
+            "strip": 5.0
+          },
+          "shape": {
+            "active": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cells": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_row": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "hops": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "listed_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "row_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "rows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "strip": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "subjects": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000a00001"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "subjects"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": null
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "payload": {
+            "active": 3.0,
+            "cells": 6.0,
+            "events": 5.0,
+            "row_events": 6.0,
+            "rows": 2.0,
+            "strip": 5.0
+          },
+          "shape": {
+            "active": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cells": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_row": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "hops": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "listed_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "row_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "rows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "strip": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "subjects": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 500.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000a00001"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "subjects"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": null
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "payload": {
+            "cells": 9.0,
+            "events": 6.0,
+            "hops": 3.0,
+            "row_events": 9.0,
+            "rows": 3.0,
+            "strip": 6.0
+          },
+          "shape": {
+            "active": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cells": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_row": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "hops": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "listed_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "row_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "rows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "strip": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "subjects": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": "Week"
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 500.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000a00001"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "subjects"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": null
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "payload": {
+            "bucket_ms": 604800000.0,
+            "cells": 5.0,
+            "row_events": 7.0,
+            "rows": 3.0,
+            "strip": 3.0
+          },
+          "shape": {
+            "active": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cells": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_row": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "hops": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "listed_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "row_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "rows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "strip": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "subjects": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 500.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "subjects"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000a00101"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "payload": {
+            "active": 3.0,
+            "cells": 4.0,
+            "events": 5.0,
+            "first_row": "00000000-0000-4000-8000-000000a00101",
+            "listed_events": 4.0,
+            "row_events": 4.0,
+            "row_type": "00000000-0000-4000-8000-000000a00001",
+            "rows": 1.0,
+            "strip": 5.0,
+            "subjects": 3.0
+          },
+          "shape": {
+            "active": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cells": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_row": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "hops": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "listed_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "row_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "rows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "strip": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "subjects": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 500.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "subjects"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": null
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "payload": {
+            "first_row": "00000000-0000-4000-8000-000000a00101",
+            "row_events": 7.0,
+            "row_type": "00000000-0000-4000-8000-000000a00001",
+            "row_types": 2.0,
+            "rows": 3.0
+          },
+          "shape": {
+            "active": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cells": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_row": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "hops": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "listed_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "row_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "rows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "strip": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "subjects": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 500.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000a00003"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "subjects"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": null
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "payload": {
+            "active": 2.0,
+            "cells": 4.0,
+            "events": 3.0,
+            "first_row": "00000000-0000-4000-8000-000000a00301",
+            "row_events": 4.0,
+            "row_type": "00000000-0000-4000-8000-000000a00003",
+            "rows": 2.0,
+            "strip": 3.0,
+            "subjects": 7.0
+          },
+          "shape": {
+            "active": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cells": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_row": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "hops": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "listed_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "row_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "rows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "strip": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "subjects": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectTimeline",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "bucket": {
+              "kind": "literal",
+              "value": null
+            },
+            "hops": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 500.0
+            },
+            "row_type": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-000000a00005"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "subjects"
+            },
+            "subject": {
+              "kind": "literal",
+              "value": null
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectTimeline",
+            "outcome": "timelined"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "payload": {
+            "active": 0.0,
+            "cells": 0.0,
+            "events": 0.0,
+            "listed_events": 0.0,
+            "row_events": 0.0,
+            "row_type": "00000000-0000-4000-8000-000000a00005",
+            "row_types": 2.0,
+            "rows": 0.0,
+            "strip": 0.0,
+            "subjects": 0.0
+          },
+          "shape": {
+            "active": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "cells": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_row": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "head": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "hops": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "listed_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "row_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "row_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "rows": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "strip": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "subjects": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_hash": {
+              "holds": "primitive",
+              "kind": "string"
             }
           },
           "step": "expect_event"

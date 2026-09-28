@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-28T05:56:09Z",
+  "actor": "human:timo",
+  "artifact": "story:view-streams-overview-and-expansion",
+  "kind": "story",
+  "revision": 8,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "wave/p2p3p4-06 2d9f6e38",
+    "review": "review-result:adversary-p2p3p4-06-page-pass-1",
+    "outcome": "fixed"
+  }
+}

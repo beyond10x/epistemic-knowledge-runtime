@@ -160,6 +160,25 @@ pub const JANUARY_FIRST_0900_MS: i64 = 1_798_794_000_000;
 const DAY_MS: i64 = 86_400_000;
 const MINUTE_MS: i64 = 60_000;
 
+// `subjects`: a-timeline-row-is-a-subject-with-its-events-within-hops.yaml.
+pub const HOLDER: u64 = 0xa0_0001;
+pub const PLACE: u64 = 0xa0_0002;
+pub const HAPPENING: u64 = 0xa0_0003;
+pub const NOTICE: u64 = 0xa0_0004;
+pub const TOUCHES: u64 = 0xa0_0005;
+const SUBJECTS_PROPERTIES: u64 = 0xa0_0010;
+/// Holders H1 to H3 are `HOLDERS + 1` to `+ 3`.
+pub const HOLDERS: u64 = 0xa0_0100;
+/// Places L1 and L2 are `PLACES + 1` and `+ 2`.
+pub const PLACES: u64 = 0xa0_0200;
+/// Happenings E0 to E6 are `HAPPENINGS` to `+ 6`.
+pub const HAPPENINGS: u64 = 0xa0_0300;
+/// Notices N1 to N3 are `NOTICES + 1` to `+ 3`.
+const NOTICES: u64 = 0xa0_0400;
+const SUBJECTS_EDGES: u64 = 0xa0_0500;
+const SUBJECTS_EVIDENCE: u64 = 0xa0_0600;
+const SUBJECTS_ASSERTIONS: u64 = 0xa1_0000;
+
 // `growth`: a-node-is-not-found-at-a-revision-before-it-existed.yaml.
 pub const GROWTH_FIRST: u64 = 0x40_0001;
 pub const GROWTH_SECOND: u64 = 0x40_0002;
@@ -170,6 +189,13 @@ const GROWTH_EVIDENCE: u64 = 0x40_0031;
 const GROWTH_NODE_TYPE: u64 = 0x40_0100;
 const GROWTH_PROPERTY: u64 = 0x40_0101;
 const GROWTH_EDGE_TYPE: u64 = 0x40_0102;
+
+// `build_shared_id`: a node and an edge holding one UUID.
+pub const SHARED: u64 = 0x90_0001;
+pub const SHARED_NODE_CLAIM: u64 = 0x90_0011;
+pub const SHARED_EDGE_CLAIM: u64 = 0x90_0012;
+pub const SEEDED_EDGE_ID: u64 = SEEDED_EDGE;
+pub const SEEDED_EDGE_CLAIM: u64 = EDGE_CLAIM;
 
 /// The first instant a fixture's host clock reads; each sample adds a millisecond.
 const CLOCK_START_MS: i64 = 1_800_000_000_000;
@@ -199,6 +225,9 @@ pub enum Fixture {
     Timeline,
     /// One node at the seed and a second, its edge and two assertions at revision 1.
     Growth,
+    /// A seed only: holders, places, happenings and notices whose edges exercise every rule of
+    /// the timeline's walk.
+    Subjects,
 }
 
 impl Fixture {
@@ -214,6 +243,7 @@ impl Fixture {
             "hub" => Self::Hub,
             "timeline" => Self::Timeline,
             "growth" => Self::Growth,
+            "subjects" => Self::Subjects,
             _ => return None,
         })
     }
@@ -280,6 +310,7 @@ impl Fixture {
                 writer.seed(growth_seed());
                 writer.commit(growth_second(), None);
             }
+            Self::Subjects => writer.seed(subjects_seed()),
             Self::Evolved => {
                 let mut document = seed(3, true, false, 2);
                 let described = Node::<Value>::new(
@@ -333,6 +364,54 @@ pub fn build_long(runtime: &Runtime, extra: u64) {
             None,
         );
     }
+}
+
+/// The `edge-assertion` seed, then one transaction creating the node [`SHARED`] and a `links`
+/// edge from it to `alpha` whose id is the same UUID, with one assertion about each: a node and
+/// an edge that share an id, which the kernel admits because it keeps node and edge identities
+/// apart.
+pub fn build_shared_id(runtime: &Runtime) {
+    let mut writer = Writer {
+        runtime,
+        clock: CLOCK_START_MS,
+        transactions: TRANSACTIONS,
+    };
+    writer.seed(seed(1, false, true, 2));
+    writer.commit(
+        vec![
+            GraphOperation::CreateNode(NodeDraft {
+                id: id(SHARED),
+                root_id: id(2),
+                type_id: id(SUBJECT),
+                canonical_name: "shared".into(),
+                properties: BTreeMap::new(),
+                aliases: Vec::new(),
+            }),
+            GraphOperation::CreateEdge(EdgeDraft {
+                id: id(SHARED),
+                root_id: id(2),
+                type_id: id(LINKS),
+                source: id(SHARED),
+                target: id(ALPHA),
+                properties: BTreeMap::new(),
+            }),
+            GraphOperation::AddAssertion(Box::new(claim(
+                SHARED_NODE_CLAIM,
+                Subject::Node(id(SHARED)),
+                LABEL,
+                "the node",
+                &[0],
+            ))),
+            GraphOperation::AddAssertion(Box::new(claim(
+                SHARED_EDGE_CLAIM,
+                Subject::Edge(id(SHARED)),
+                WEIGHT,
+                "the edge",
+                &[0],
+            ))),
+        ],
+        None,
+    );
 }
 
 struct Writer<'a> {
@@ -671,6 +750,109 @@ fn timeline_seed() -> SeedDocument {
             type_id: id(KIND_A_TO_B),
             source: id(TIMELINE_A + n),
             target: id(TIMELINE_B + target),
+            properties: BTreeMap::new(),
+        };
+        document.graph.edges.insert(edge.id, edge);
+    }
+    document
+}
+
+/// The `subjects` seed, as a-timeline-row-is-a-subject-with-its-events-within-hops.yaml states
+/// it: holders, places, happenings E0 to E6 (E1 to E6 each with two facts ten minutes apart on
+/// January i, E0 with none) and notices N1 to N3 timed by an Integer property, joined by thirteen
+/// `touches` edges.
+fn subjects_seed() -> SeedDocument {
+    let mut document = empty_seed();
+    let root = document.graph.root.id;
+    let types = [
+        (HOLDER, "holder", ValueType::String),
+        (PLACE, "place", ValueType::String),
+        (HAPPENING, "happening", ValueType::String),
+        (NOTICE, "notice", ValueType::Integer),
+    ];
+    for (n, (type_id, name, kind)) in types.iter().enumerate() {
+        let property = SUBJECTS_PROPERTIES + n as u64;
+        let mut declared = NodeType::new(id(*type_id), *name);
+        declared.properties.insert(
+            id(property),
+            PropertyDefinition::new(id(property), format!("{name}-value"), kind.clone()),
+        );
+        document.ontology.node_types.push(declared);
+    }
+    let mut touches = EdgeType::new(id(TOUCHES), "touches");
+    touches.source_types = types.iter().map(|(type_id, _, _)| id(*type_id)).collect();
+    touches.target_types = touches.source_types.clone();
+    touches.cardinality = Cardinality::Many;
+    document.ontology.edge_types.push(touches);
+    let evidence = statement(&mut document, SUBJECTS_EVIDENCE);
+
+    let mut add =
+        |node: u64, type_id: u64, name: String, properties: BTreeMap<PropertyId, Vec<Value>>| {
+            let mut held = Node::<Value>::new(id(node), root, id(type_id), name);
+            held.properties = properties;
+            document.graph.nodes.insert(held.id, held);
+        };
+    for n in 1..=3 {
+        add(HOLDERS + n, HOLDER, format!("h{n}"), BTreeMap::new());
+    }
+    for n in 1..=2 {
+        add(PLACES + n, PLACE, format!("l{n}"), BTreeMap::new());
+    }
+    for n in 0..=6 {
+        add(HAPPENINGS + n, HAPPENING, format!("e{n}"), BTreeMap::new());
+    }
+    // January 8 and 9 and March 1 2027, at 12:00 UTC.
+    let noon = JANUARY_FIRST_0900_MS + 180 * MINUTE_MS;
+    for (n, day) in [(1_u64, 7_i64), (2, 8), (3, 59)] {
+        add(
+            NOTICES + n,
+            NOTICE,
+            format!("n{n}"),
+            BTreeMap::from([(
+                id(SUBJECTS_PROPERTIES + 3),
+                vec![Value::Integer(noon + day * DAY_MS)],
+            )]),
+        );
+    }
+    let mut next = SUBJECTS_ASSERTIONS;
+    for n in 1..=6_u64 {
+        let ten = JANUARY_FIRST_0900_MS + (n as i64 - 1) * DAY_MS + 60 * MINUTE_MS;
+        for at in [ten, ten + 10 * MINUTE_MS] {
+            next += 1;
+            let claim = fact(
+                next,
+                Subject::Node(id(HAPPENINGS + n)),
+                Predicate::Property(id(SUBJECTS_PROPERTIES + 2)),
+                Object::Value(Value::String("happened".into())),
+                Some(at),
+                evidence,
+            );
+            document.graph.assertions.insert(claim.id, claim);
+        }
+    }
+    let (h, l, e, n) = (HOLDERS, PLACES, HAPPENINGS, NOTICES);
+    let joins = [
+        (h + 1, e + 1),
+        (e + 2, h + 1),
+        (h + 1, e),
+        (h + 1, l + 1),
+        (e + 3, l + 1),
+        (l + 1, e + 4),
+        (h + 1, l + 2),
+        (h + 2, l + 2),
+        (e + 5, l + 2),
+        (e + 1, e + 6),
+        (e + 6, n + 1),
+        (e + 1, h + 3),
+        (h + 2, n + 2),
+    ];
+    for (at, (source, target)) in joins.into_iter().enumerate() {
+        let edge = Edge::<Value> {
+            id: id(SUBJECTS_EDGES + 1 + at as u64),
+            root_id: root,
+            type_id: id(TOUCHES),
+            source: id(source),
+            target: id(target),
             properties: BTreeMap::new(),
         };
         document.graph.edges.insert(edge.id, edge);
