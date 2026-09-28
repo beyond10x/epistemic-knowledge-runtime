@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: task:deleted-edge-id-is-reusable
 kind: task
-status: active
+status: implemented
 title: A deleted edge's id can be created again for a different relationship
 summary: 'Medium: the identity-already-exists rule reads only the current state, so one EdgeId names two relationships over history'
 tags:
@@ -11,10 +11,11 @@ tags:
 relations:
 - serves: vision:o5
 - derived_from: story:transaction-and-validators
-revision: 4
+revision: 5
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T02:51:38Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-09-28T02:51:38Z", actor: "human:timo", revision: 3}
+- {from: "active", to: "implemented", at: "2026-09-28T06:19:11Z", actor: "human:timo", revision: 5, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Severity
 

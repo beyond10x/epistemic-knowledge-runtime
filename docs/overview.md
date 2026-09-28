@@ -2,7 +2,7 @@
 
 This page is for a reader who is new to the Epistemic Knowledge Runtime (EKR). It explains what the
 runtime keeps, how a change travels from a proposal to a committed revision, and where the project
-is going. It then says which parts release 0.0.10 has and which are still plans.
+is going. It then says which parts release 0.0.11 has and which are still plans.
 
 Two pages go further. [The `ekr` guide](guide.md) walks through the same pipeline with a real store,
 command by command. [Schema evolution](schema-evolution.md) shows how the schema grows after seeding.
@@ -183,7 +183,7 @@ itself tidy: it consolidates, decays and forgets. The central sentence of the de
 integrate is itself information*
 ([design § 1](epistemic-knowledge-runtime-design.md#1-executive-summary), [§ 25](epistemic-knowledge-runtime-design.md#25-failure-to-integrate-as-information)).
 
-The diagram marks what exists in 0.0.10 (solid, green) and what is planned (dashed, grey).
+The diagram marks what exists in 0.0.11 (solid, green) and what is planned (dashed, grey).
 
 ```mermaid
 flowchart TB
@@ -211,15 +211,15 @@ flowchart TB
   CC -.-> MT
 ```
 
-### What exists in 0.0.10 and what is planned
+### What exists in 0.0.11 and what is planned
 
-| capability | design | 0.0.10 | planned in |
+| capability | design | 0.0.11 | planned in |
 |---|---|---|---|
 | typed schema: node types, edge types, eleven value kinds, lifecycles and named operations | § 11–12, § 87 | yes, declared in the seed | P1 (done) |
 | propose, validate, commit, with the operator and the validator kept apart | § 19–20, § 91 | yes | P1 (done) |
 | up to 10,000 operations in 8 MiB in one `ekr.transaction-document/2`; `/1` keeps 256 in 262144 bytes | § 91.3, § 97 | yes, since 0.0.7 | done |
 | verbs continue from a replay checkpoint instead of replaying the history; `--full-replay` replays it | § 96 | yes, since 0.0.7 | done |
-| ESS specifications of the graph projection (`ekr.views`), observation (`ekr.observe`) and integration (`ekr.integrate`) domains | `systems/ekr/` | specification only, since 0.0.8 | runtime code in P2, P3 and P4 |
+| ESS specifications of the graph projection (`ekr.views`), observation (`ekr.observe`) and integration (`ekr.integrate`) domains | `systems/ekr/` | specified since 0.0.8; since 0.0.11 `ekr-views` renders the projection and its overview, neighbourhood, node, search and timeline reads, `ekr resolve` resolves a typed reference, and `ekr-observe` maps a JSONL file to observations without persisting them | persisted observations in P2, resolution into transactions in P3 |
 | deterministic validators: structural, reference, type, cardinality, ontology constraint, provenance, authorization | § 20, validators 1–7 | yes | P1 (done) |
 | contradiction, temporal consistency and policy validators | § 20, validators 8–10 | no | with the subsystems that need them |
 | bitemporal assertions, retraction, supersession, `snapshot --valid-at`, `explain` | § 13–14, § 36, § 88 | yes | P1 (done) |
@@ -232,7 +232,7 @@ flowchart TB
 | `MergeEntity` | § 46 | parses, refused as `unsupported-operation` | P3, merge and split with lineage |
 | observations, source adapters, checkpoints, credential redaction | § 15–16, § 54–57 | no | P2 |
 | incubation forest, transient roots, interpretation sessions, entity resolution | § 22–28 | no; the one graph root is `Canonical` | P3 |
-| attention queue, answers as evidence, approvals for outward writes, rendered views, read-only MCP tools | § 81–84, § 62 | no; `ekr explain` gives the commit-level chain only | P4 |
+| attention queue, answers as evidence, approvals for outward writes, rendered views, read-only MCP tools | § 81–84, § 62 | a read-only graph viewer, `ekr view`, since 0.0.11; the rest no, and `ekr explain` gives the commit-level chain only | P4 |
 | frontier, schema discovery from evidence, `SchemaProposal` with risk classes, the unattended loop with a budget | § 30–33, § 50 | no | P5 |
 | retention, consolidation, decay, GC, deletion requests, health metrics | § 35–43, § 60–61 | no | P6 |
 | importing the two predecessor systems' data | [predecessors](predecessors.md) § 9 | no | P7 |

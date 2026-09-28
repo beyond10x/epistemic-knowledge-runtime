@@ -4,13 +4,19 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.11] — 2026-09-28
+
+The first runtime code of the views, observation and integration domains, the streamed `ekr view`
+viewer, validation profile v3, fixes from an external review, and the planning store on
+`aep.project/5` under AEP 0.63.1.
+
 ### Added
 
 - `ekr-views`: renders `ekr.graph-projection/1` from a committed revision. Rendering is a pure
   function of the loaded revision, so two renders of one revision are byte-identical, in one
-  process and after reopening the store. The `ekr-views` conformance suite passes 9 of 9 on the
-  file and SQLite providers. On a store of 302 revisions (release build) the head renders in
-  1.04 s (file) and 286 ms (SQLite) right after opening, and 239 ms / 177 ms after that.
+  process and after reopening the store. On a store of 302 revisions (release build) the head
+  renders in 1.04 s (file) and 286 ms (SQLite) right after opening, and 239 ms / 177 ms after
+  that.
 - `ekr-observe`: maps a JSONL file of source records to one observation per line. The content
   hash covers the line's bytes, and the id is derived from the idempotency key (source,
   source-native id, content hash), so the same record always gets the same id. Nothing is
@@ -30,6 +36,52 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   gain the `typed-reference` format, and the guide says to resolve before `CreateNode`. The
   reader refuses YAML aliases, tags, non-string scalars and nesting past 64 levels before it
   loads the document.
+- `ekr.views` gains five read commands, each with its format and scenarios: `ProjectOverview`
+  (`ekr.graph-overview/1`), `ExpandNeighbourhood` (`ekr.graph-slice/1`), `DescribeNode`
+  (`ekr.node-detail/1`), `SearchNodes` (`ekr.node-matches/1`) and `ProjectTimeline`
+  (`ekr.graph-timeline/1`). `ekr-views` implements them over a per-revision index. The views
+  suite runs 41 scenarios on the file and SQLite providers; the kernel suite runs 40.
+- `ekr view` serves them: `/overview`, `/expand` (streamed as chunked NDJSON, a page at most 2,000
+  nodes and 5,000 edges), `/node/<id>`, `/search` and `/timeline`. The page is the operator's
+  prototype viewer (2D and 3D graph, timeline heatmap and swimlanes with one row per subject,
+  property history, schema history, command palette) and never reads `/projection`; the earlier
+  page is at `/alt`. The page's CSP is sent as a header with `frame-ancestors 'none'`, and every
+  script is pinned by SRI. The indexes of the 3 revisions used most recently are kept.
+- Validation profile v3 (`ekr.p3-deterministic/1` with `ekr.p2-apply/1`): profile v2 plus a
+  refusal of any `CreateNode` or `CreateEdge` whose id an earlier revision held, such as a deleted
+  edge's (`identity-previously-held`).
+- `CreateNode` carries aliases, so a created node resolves at the next revision;
+  `alias-already-exists` and `duplicate-alias` refuse a second node of one type holding one alias.
+
+### Changed
+
+- `ekr_views::load` replays a revision once and reads the schema at every schema-version boundary
+  from that one pass (`Runtime::schema_history`), where it replayed from revision 0 once per
+  boundary. On a store of 2,288 nodes, 6,314 edges and 5 schema versions (release build, two
+  runs each), the first `/overview` of the head went from 14.26 s and 10.78 s to 0.78 s and 0.83 s.
+- The planning store moves from `aep.project/4` to AEP's Git-native `aep.project/5`: one Markdown
+  file per artifact and one file per evidence record. AEP 0.63.1 (from 0.61.1) in the Taskfile, CI
+  and `plan-check`; `.engineering/project.yaml` names the 0.63.0 tag commit (`5bd56624`) as its
+  protocols.
+- The correctness CI installs ESS, AEP and go-task from checksummed release archives instead of
+  building them, builds dependencies at opt-level 3 with no debug info, and runs the conformance
+  binary once. The run the change started from took 1,818 s.
+
+### Fixed
+
+- A replay checkpoint whose cached graph-root id, seed payloads or held ids differ from its
+  history is refused on restore (`checkpoint-graph-root-identity`, `checkpoint-seed-payloads`,
+  `checkpoint-held-identities`), so a corrupted checkpoint can no longer admit a commit that full
+  replay then rejects, or drop evidence bytes from a verified read.
+- A node and an edge that share one id no longer break the projection: assertion buckets are keyed
+  by node id and edge id apart.
+
+### Known limits
+
+- A historical projection carries the store's current head, so rendering revision 0 before and
+  after an unrelated commit gives different bytes.
+- The views suite's baseline is regenerated from the suite it checks, so a scenario deleted from
+  the specification lowers its own floor.
 
 ## [0.0.10] — 2026-09-27
 

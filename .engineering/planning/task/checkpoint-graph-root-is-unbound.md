@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: task:checkpoint-graph-root-is-unbound
 kind: task
-status: active
+status: implemented
 title: A replay checkpoint with a changed graph root is admitted, and the commits made after it do not replay
 summary: 'High: restored checkpoint''s GraphRoot is outside every check; later receipts record it and full replay refuses them'
 tags:
@@ -12,10 +12,11 @@ relations:
 - serves: vision:o5
 - derived_from: story:eventlog-0-4-batched-reads
 - informed_by: architecture-decision-record:0010-replay-checkpoints-record-verified-history
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T02:51:37Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-09-28T02:51:37Z", actor: "human:timo", revision: 3}
+- {from: "active", to: "implemented", at: "2026-09-28T06:19:10Z", actor: "human:timo", revision: 4, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Severity
 
