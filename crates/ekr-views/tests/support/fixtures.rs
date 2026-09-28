@@ -171,6 +171,13 @@ const GROWTH_NODE_TYPE: u64 = 0x40_0100;
 const GROWTH_PROPERTY: u64 = 0x40_0101;
 const GROWTH_EDGE_TYPE: u64 = 0x40_0102;
 
+// `build_shared_id`: a node and an edge holding one UUID.
+pub const SHARED: u64 = 0x90_0001;
+pub const SHARED_NODE_CLAIM: u64 = 0x90_0011;
+pub const SHARED_EDGE_CLAIM: u64 = 0x90_0012;
+pub const SEEDED_EDGE_ID: u64 = SEEDED_EDGE;
+pub const SEEDED_EDGE_CLAIM: u64 = EDGE_CLAIM;
+
 /// The first instant a fixture's host clock reads; each sample adds a millisecond.
 const CLOCK_START_MS: i64 = 1_800_000_000_000;
 
@@ -333,6 +340,54 @@ pub fn build_long(runtime: &Runtime, extra: u64) {
             None,
         );
     }
+}
+
+/// The `edge-assertion` seed, then one transaction creating the node [`SHARED`] and a `links`
+/// edge from it to `alpha` whose id is the same UUID, with one assertion about each: a node and
+/// an edge that share an id, which the kernel admits because it keeps node and edge identities
+/// apart.
+pub fn build_shared_id(runtime: &Runtime) {
+    let mut writer = Writer {
+        runtime,
+        clock: CLOCK_START_MS,
+        transactions: TRANSACTIONS,
+    };
+    writer.seed(seed(1, false, true, 2));
+    writer.commit(
+        vec![
+            GraphOperation::CreateNode(NodeDraft {
+                id: id(SHARED),
+                root_id: id(2),
+                type_id: id(SUBJECT),
+                canonical_name: "shared".into(),
+                properties: BTreeMap::new(),
+                aliases: Vec::new(),
+            }),
+            GraphOperation::CreateEdge(EdgeDraft {
+                id: id(SHARED),
+                root_id: id(2),
+                type_id: id(LINKS),
+                source: id(SHARED),
+                target: id(ALPHA),
+                properties: BTreeMap::new(),
+            }),
+            GraphOperation::AddAssertion(Box::new(claim(
+                SHARED_NODE_CLAIM,
+                Subject::Node(id(SHARED)),
+                LABEL,
+                "the node",
+                &[0],
+            ))),
+            GraphOperation::AddAssertion(Box::new(claim(
+                SHARED_EDGE_CLAIM,
+                Subject::Edge(id(SHARED)),
+                WEIGHT,
+                "the edge",
+                &[0],
+            ))),
+        ],
+        None,
+    );
 }
 
 struct Writer<'a> {
