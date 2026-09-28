@@ -7,6 +7,7 @@ title: Nobody has decided how evidence enters canonical state after the seed
 relations:
 - blocks: epic:p2-observation-layer
 - informed_by: task:agent-cannot-add-evidence
+- blocks: story:add-evidence-operation
 revision: 2
 ---
 ## Question

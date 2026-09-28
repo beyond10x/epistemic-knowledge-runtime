@@ -6,6 +6,7 @@ status: open
 title: Nobody has decided how many checkpoints a source unit has, or which of the two outlives the other
 relations:
 - blocks: epic:p2-observation-layer
+- blocks: story:observations-are-retained
 revision: 2
 ---
 ## Question

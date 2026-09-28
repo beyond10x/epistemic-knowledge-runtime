@@ -6,6 +6,7 @@ status: open
 title: Nobody has decided whether a source unit is one observed item or the stream a checkpoint advances over
 relations:
 - blocks: epic:p2-observation-layer
+- blocks: story:observations-are-retained
 revision: 2
 ---
 ## Question
