@@ -125,7 +125,7 @@ const IN_FLIGHT_LIMIT: usize = 64;
 /// A stream writes a `progress` line, and ends its chunk, after every this many records.
 const PROGRESS_EVERY: usize = 256;
 /// The `/search` limit when the query names none.
-const SEARCH_LIMIT: i64 = 20;
+pub(super) const SEARCH_LIMIT: i64 = 20;
 
 /// One parsed request and where its answer goes: from a connection thread to the store thread.
 type Job = (Asked, Sender<Answered>);
@@ -811,17 +811,32 @@ fn invalid_query(message: impl std::fmt::Display) -> Reply {
     Reply::refusal(400, "invalid-query", message)
 }
 
+/// `ekr.views.LimitExceeded`: a bound refused before the store is read. `ekr view` and `ekr mcp`
+/// both name it from here.
+pub(super) const LIMIT_EXCEEDED: &str = "ekr.views.LimitExceeded";
+/// `ekr.views.NodeNotFound`: a node or seed the revision does not hold, or an id that is no node
+/// id.
+pub(super) const NODE_NOT_FOUND: &str = "ekr.views.NodeNotFound";
+
+/// The `ekr.views` refusal a revision that could not be loaded names — `NotSeeded` or
+/// `RevisionNotFound` — or `None` for a store that could not be read, which is a fault.
+pub(super) fn project_refusal(error: &ProjectError) -> Option<&'static str> {
+    match error {
+        ProjectError::RevisionNotFound { .. } => Some("ekr.views.RevisionNotFound"),
+        ProjectError::NotSeeded { .. } => Some("ekr.views.NotSeeded"),
+        ProjectError::Read(_) | ProjectError::Inconsistent(_) => None,
+    }
+}
+
 fn limit_exceeded(error: &LimitExceeded) -> Reply {
-    Reply::refusal(400, "ekr.views.LimitExceeded", error)
+    Reply::refusal(400, LIMIT_EXCEEDED, error)
 }
 
 /// A bounded read that answered nothing: the named 400s and 404s, or a 500 for `what`.
 fn query_refused(what: &str, error: QueryError) -> Reply {
     match error {
         QueryError::LimitExceeded(error) => limit_exceeded(&error),
-        error @ QueryError::NodeNotFound { .. } => {
-            Reply::refusal(404, "ekr.views.NodeNotFound", error)
-        }
+        error @ QueryError::NodeNotFound { .. } => Reply::refusal(404, NODE_NOT_FOUND, error),
         QueryError::Project(error) => refused(what, error),
     }
 }
@@ -856,16 +871,17 @@ fn node(
         .index(runtime, at)
         .map_err(|error| refused("node", error))?;
     let Ok(node) = id.parse::<NodeId>() else {
-        return Err(Reply::refusal(
-            404,
-            "ekr.views.NodeNotFound",
-            format!("{id:?} is not a node id"),
-        ));
+        return Err(Reply::refusal(404, NODE_NOT_FOUND, not_a_node_id(id)));
     };
     let answer = index
         .describe(node)
         .map_err(|error| query_refused("node", error))?;
     Ok(Reply::ok(JSON, answer.bytes))
+}
+
+/// Why an id that is no node id names no node: [`NODE_NOT_FOUND`]'s message for it.
+pub(super) fn not_a_node_id(id: &str) -> String {
+    format!("{id:?} is not a node id")
 }
 
 /// `/search?q=<text>[&limit=L][&revision=N]`.
@@ -1102,12 +1118,9 @@ fn load_answers(
 
 /// A revision that could not be loaded or rendered: the named 404s, or a 500 for `what`.
 fn refused(what: &str, error: ProjectError) -> Reply {
-    match error {
-        error @ ProjectError::RevisionNotFound { .. } => {
-            Reply::refusal(404, "ekr.views.RevisionNotFound", error)
-        }
-        error @ ProjectError::NotSeeded { .. } => Reply::refusal(404, "ekr.views.NotSeeded", error),
-        error => Reply::text(500, format!("{what}: {error}")),
+    match project_refusal(&error) {
+        Some(name) => Reply::refusal(404, name, error),
+        None => Reply::text(500, format!("{what}: {error}")),
     }
 }
 

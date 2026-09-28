@@ -79,7 +79,7 @@ pub fn serve(
     };
     let mut line = Vec::new();
     loop {
-        let whole = match next_line(input, &mut line)
+        let whole = match next_line(input, &mut line, LINE_LIMIT)
             .map_err(|error| Failure::fault(format!("reading a session request: {error}")))?
         {
             None => return Ok(()),
@@ -117,10 +117,14 @@ pub fn serve(
     }
 }
 
-/// Reads the next line into `line`, its newline dropped, holding at most [`LINE_LIMIT`] bytes of
+/// Reads the next line into `line`, its newline dropped, holding at most `limit` bytes of
 /// it: `Some(true)` for a whole line, `Some(false)` for one longer than that, whose rest was read
 /// and dropped up to its newline, and `None` at the end of input.
-fn next_line(input: &mut dyn BufRead, line: &mut Vec<u8>) -> std::io::Result<Option<bool>> {
+pub(super) fn next_line(
+    input: &mut dyn BufRead,
+    line: &mut Vec<u8>,
+    limit: usize,
+) -> std::io::Result<Option<bool>> {
     line.clear();
     let (mut any, mut whole) = (false, true);
     loop {
@@ -134,7 +138,7 @@ fn next_line(input: &mut dyn BufRead, line: &mut Vec<u8>) -> std::io::Result<Opt
             None => (buffer.len(), false),
         };
         if whole {
-            if line.len() + taken > LINE_LIMIT {
+            if line.len() + taken > limit {
                 whole = false;
                 line.clear();
             } else {
@@ -202,6 +206,7 @@ fn admit(cli: &Cli) -> Result<(), Failure> {
         Command::Seed { .. } => Err(verb_refused("seed")),
         Command::View { .. } => Err(verb_refused("view")),
         Command::Session => Err(verb_refused("session")),
+        Command::Mcp => Err(verb_refused("mcp")),
         Command::Guide => Err(verb_refused("guide")),
         Command::Operations { .. } => Err(verb_refused("operations")),
         Command::Example { .. } => Err(verb_refused("example")),
@@ -221,7 +226,8 @@ fn admit(cli: &Cli) -> Result<(), Failure> {
 }
 
 /// The refusal of a verb a session does not serve: `seed` creates a store, `view` serves until
-/// interrupted, a session does not nest, and `guide`, `operations` and `example` print text.
+/// interrupted, `mcp` until its own input ends, a session does not nest, and `guide`,
+/// `operations` and `example` print text.
 pub(super) fn verb_refused(verb: &str) -> Failure {
     Failure::refused(
         REFUSED,

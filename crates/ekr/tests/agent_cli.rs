@@ -665,6 +665,7 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         "hash",
         "schema",
         "view",
+        "mcp",
     ] {
         assert!(
             verbs.iter().any(|v| v == verb),
@@ -742,6 +743,18 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         (
             "session",
             &["\"argv\"", "\"stdin\"", "session-verb-refused", store],
+        ),
+        (
+            "mcp",
+            &[
+                "MCP",
+                "JSON-RPC 2.0",
+                "ekr.views",
+                "ekr explain",
+                "ekr resolve",
+                "untrusted evidence",
+                store,
+            ],
         ),
         (
             "resolve",

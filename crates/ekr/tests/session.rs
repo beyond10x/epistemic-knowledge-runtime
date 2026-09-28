@@ -514,6 +514,7 @@ fn malformed() -> Vec<(String, &'static str)> {
         ),
         (line(json!({"argv": ["view"]})), "session-verb-refused"),
         (line(json!({"argv": ["session"]})), "session-verb-refused"),
+        (line(json!({"argv": ["mcp"]})), "session-verb-refused"),
         (line(json!({"argv": ["guide"]})), "session-verb-refused"),
         (
             line(json!({"argv": ["operations"]})),
