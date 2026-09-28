@@ -263,8 +263,6 @@ pub(crate) fn encode(document: &impl Serialize) -> Result<Vec<u8>, ProjectError>
 pub struct GraphOverviewed {
     /// `meta.revision`.
     pub revision: u64,
-    /// `meta.head`.
-    pub head: u64,
     /// `meta.node_count`.
     pub nodes: u64,
     /// `meta.edge_count`.
@@ -318,8 +316,6 @@ pub struct GraphOverviewed {
 pub struct NeighbourhoodExpanded {
     /// `meta.revision`.
     pub revision: u64,
-    /// `meta.head`.
-    pub head: u64,
     /// Entries of `meta.seeds`.
     pub seeds: u64,
     /// `meta.depth`.
@@ -345,8 +341,6 @@ pub struct NeighbourhoodExpanded {
 pub struct NodeDescribed {
     /// `meta.revision`.
     pub revision: u64,
-    /// `meta.head`.
-    pub head: u64,
     /// `node.id`.
     pub node: NodeId,
     /// Entries of `assertions`.
@@ -366,8 +360,6 @@ pub struct NodeDescribed {
 pub struct NodesSearched {
     /// `meta.revision`.
     pub revision: u64,
-    /// `meta.head`.
-    pub head: u64,
     /// `meta.text`.
     pub text: String,
     /// Entries of `matches`.
@@ -446,8 +438,6 @@ pub struct SliceMeta {
     pub format: &'static str,
     /// The revision read.
     pub revision: u64,
-    /// The store's head when it was loaded.
-    pub head: u64,
     /// The request's seeds as a set, by id.
     pub seeds: Vec<NodeId>,
     /// The request's depth.
@@ -525,7 +515,6 @@ impl SlicePage {
         })?;
         let summary = NeighbourhoodExpanded {
             revision: self.meta.revision,
-            head: self.meta.head,
             seeds: self.meta.seeds.len() as u64,
             depth: self.meta.depth,
             after: self.meta.after,
@@ -546,7 +535,6 @@ impl SlicePage {
 struct OverviewMeta {
     format: &'static str,
     revision: u64,
-    head: u64,
     node_count: u64,
     edge_count: u64,
     assertion_count: u64,
@@ -676,7 +664,6 @@ struct ReferencingAssertion {
 struct DetailMeta {
     format: &'static str,
     revision: u64,
-    head: u64,
 }
 
 #[derive(Serialize)]
@@ -719,7 +706,6 @@ struct NodeMatch<'a> {
 struct MatchesMeta<'a> {
     format: &'static str,
     revision: u64,
-    head: u64,
     text: &'a str,
     total: u64,
     exact_total: u64,
@@ -793,7 +779,6 @@ impl Index {
             meta: OverviewMeta {
                 format: OVERVIEW_FORMAT,
                 revision: graph.revision.get(),
-                head: self.loaded.head.get(),
                 node_count: graph.nodes.len() as u64,
                 edge_count: graph.edges.len() as u64,
                 assertion_count: graph.assertions.len() as u64,
@@ -812,7 +797,6 @@ impl Index {
         let revision_zero = schema.revisions.first();
         let summary = GraphOverviewed {
             revision: document.meta.revision,
-            head: document.meta.head,
             nodes: document.meta.node_count,
             edges: document.meta.edge_count,
             assertions: document.meta.assertion_count,
@@ -935,7 +919,6 @@ impl Index {
             meta: SliceMeta {
                 format: SLICE_FORMAT,
                 revision: graph.revision.get(),
-                head: self.loaded.head.get(),
                 seeds: seeds
                     .iter()
                     .map(|seed| self.node_ids[*seed as usize])
@@ -1020,7 +1003,6 @@ impl Index {
             meta: DetailMeta {
                 format: DETAIL_FORMAT,
                 revision: graph.revision.get(),
-                head: self.loaded.head.get(),
             },
             node: DetailNode {
                 id: held.id,
@@ -1049,7 +1031,6 @@ impl Index {
         let bytes = encode(&document)?;
         let summary = NodeDescribed {
             revision: document.meta.revision,
-            head: document.meta.head,
             node,
             assertions: document.assertions.len() as u64,
             referencing: document.referencing.len() as u64,
@@ -1126,7 +1107,6 @@ impl Index {
             meta: MatchesMeta {
                 format: MATCHES_FORMAT,
                 revision: graph.revision.get(),
-                head: self.loaded.head.get(),
                 text,
                 total,
                 exact_total,
@@ -1136,7 +1116,6 @@ impl Index {
         let bytes = encode(&document)?;
         let summary = NodesSearched {
             revision: document.meta.revision,
-            head: document.meta.head,
             text: text.to_owned(),
             matches: document.matches.len() as u64,
             total,

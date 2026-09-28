@@ -5,13 +5,13 @@
 # parent is version 0, adding one node type, one edge type and one property: two node types, one
 # edge type, two properties). The newest projection lists both versions, both revisions — one of
 # them carrying a transaction id — and version 1's ontology. A projection at revision 0 is scoped
-# to revision 0: it lists only version 0 and revision 0's entry, and version 0's ontology, while
-# its head is still the store's newest revision, 1. A renderer that projects the head's ontology
+# to revision 0: it lists only version 0 and revision 0's entry, and version 0's ontology, though
+# the store's head is revision 1. A renderer that projects the head's ontology
 # at a past revision reports two node types at revision 0 and fails.
 type: ess-scenario/1
 domain: ekr.views
 scenario: a-schema-evolution-projects-each-version-from-its-revision
-summary: After one schema change the newest projection lists two versions and version 1's ontology, and a projection at revision 0 lists one version and version 0's ontology at head 1.
+summary: After one schema change the newest projection lists two versions and version 1's ontology, and a projection at revision 0 lists one version and version 0's ontology while the head is revision 1.
 
 timeline:
   - at: 2027-01-15T08:00:00Z
@@ -25,7 +25,6 @@ timeline:
       - event: ekr.views.GraphProjected
         payload:
           revision: 1
-          head: 1
           schema_versions: 2
           revisions: 2
           transactions: 1
@@ -44,7 +43,6 @@ timeline:
       - event: ekr.views.GraphProjected
         payload:
           revision: 0
-          head: 1
           schema_versions: 1
           revisions: 1
           transactions: 0

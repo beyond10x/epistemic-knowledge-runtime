@@ -36,16 +36,18 @@
 //!
 //! A revision is loaded once: the first request of a revision, whichever path, loads and indexes
 //! it through one [`IndexCache`] of [`IndexCache::DEFAULT_CAPACITY`] revisions, keyed by the
-//! revision and the head it was loaded under, and every endpoint of that revision answers from
-//! that index. `/projection` and `/roles` render from the index's loaded revision and also keep
-//! their rendered answers ([`Cache`]): a committed revision never changes, but the projection
-//! names the head (`meta.head`), so a new head empties that cache. At most [`CACHE_LIMIT`]
-//! revisions are kept there; the one used longest ago goes first.
+//! revision, and every endpoint of that revision answers from that index. `/projection` and
+//! `/roles` render from the index's loaded revision and also keep their rendered answers
+//! ([`Cache`]). A committed revision never changes and no answer names the head
+//! (`task:historical-projection-carries-the-head`), so a commit empties neither; the head is read
+//! on every request, so a request naming no revision reads the newest. At most [`CACHE_LIMIT`]
+//! revisions are kept in [`Cache`]; the one used longest ago goes first.
 //!
 //! | request | answer |
 //! |---|---|
 //! | `GET /` | the embedded viewer page, `text/html; charset=utf-8` |
 //! | `GET /alt` | the embedded earlier viewer page, kept while the new one is accepted, `text/html; charset=utf-8` |
+//! | `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision read at the request, `application/json`; no document names it, and both pages read it here. Any query is 400 `invalid-query`, an unseeded store 404 `ekr.views.NotSeeded` |
 //! | `GET /projection` | the `ekr.graph-projection/1` bytes `ekr-views` renders at the head, `application/json` |
 //! | `GET /projection?revision=N` | the same at revision `N`; an absent revision is 404 `ekr.views.RevisionNotFound` |
 //! | `GET /roles[?revision=N]` | the `ekr.view-roles/1` node-type roles of that revision (the head when absent), derived by [`super::view_roles`] from the same loaded revision the projection renders, `application/json`; refused as `/projection` refuses |
@@ -597,6 +599,7 @@ impl Reply {
 enum Route<'a> {
     Page,
     AltPage,
+    Head,
     Projection,
     Roles,
     Evidence(&'a str),
@@ -615,6 +618,7 @@ fn route(path: &str) -> Option<Route<'_>> {
     match path {
         "/" => Some(Route::Page),
         "/alt" => Some(Route::AltPage),
+        "/head" => Some(Route::Head),
         "/projection" => Some(Route::Projection),
         "/roles" => Some(Route::Roles),
         "/overview" => Some(Route::Overview),
@@ -690,6 +694,7 @@ fn answer(runtime: &Runtime, memory: &mut Memory, port: u16, asked: &Asked) -> A
     let reply = match route {
         Route::Page => Reply::ok(HTML, PAGE.as_bytes().to_vec()),
         Route::AltPage => Reply::ok(HTML, ALT_PAGE.as_bytes().to_vec()),
+        Route::Head => head(runtime, query),
         Route::Projection => rendered(runtime, memory, query, "projection", |r| &r.projection),
         Route::Roles => rendered(runtime, memory, query, "roles", |r| &r.roles),
         Route::Evidence(id) => evidence(runtime, id),
@@ -1025,27 +1030,21 @@ struct Answers {
     roles: Vec<u8>,
 }
 
-/// The answers of the revisions loaded so far under one head, the one used most recently last.
+/// The answers of the revisions loaded so far, the one used most recently last. A committed
+/// revision never changes and neither answer names the head, so a new head keeps them.
 #[derive(Debug, Default)]
 struct Cache {
-    head: Option<RevisionNumber>,
     entries: Vec<(RevisionNumber, Answers)>,
 }
 
 impl Cache {
-    /// The answers of `revision` under `head`: from memory, else from `load`, which is kept when it
-    /// succeeds and not when it fails. A head other than the one the entries were loaded under
-    /// empties the cache first; beyond [`CACHE_LIMIT`] entries the one used longest ago goes.
+    /// The answers of `revision`: from memory, else from `load`, which is kept when it succeeds
+    /// and not when it fails. Beyond [`CACHE_LIMIT`] entries the one used longest ago goes.
     fn get_or_load<E>(
         &mut self,
-        head: RevisionNumber,
         revision: RevisionNumber,
         load: impl FnOnce() -> Result<Answers, E>,
     ) -> Result<&Answers, E> {
-        if self.head != Some(head) {
-            self.entries.clear();
-            self.head = Some(head);
-        }
         if let Some(at) = self.entries.iter().position(|(held, _)| *held == revision) {
             let entry = self.entries.remove(at);
             self.entries.push(entry);
@@ -1061,6 +1060,27 @@ impl Cache {
             .last()
             .expect("an entry was just placed last")
             .1)
+    }
+}
+
+/// The format literal of the `/head` body.
+const HEAD_FORMAT: &str = "ekr.view-head/1";
+
+/// `/head`: the store's newest committed revision, read on every request, as
+/// `{"format":"ekr.view-head/1","head":N}`. No `ekr.views` document names the head, so this is
+/// where a page learns which revisions it may offer. It takes no query (400 `invalid-query`); an
+/// unseeded store is 404 `ekr.views.NotSeeded`.
+fn head(runtime: &Runtime, query: &str) -> Reply {
+    if !query.is_empty() {
+        return invalid_query(format!("/head takes no query; it was given {query:?}"));
+    }
+    match runtime.head() {
+        Ok(Some(root)) => {
+            let body = serde_json::json!({ "format": HEAD_FORMAT, "head": root.revision.get() });
+            Reply::ok(JSON, body.to_string().into_bytes())
+        }
+        Ok(None) => refused("head", ProjectError::NotSeeded { requested: None }),
+        Err(error) => Reply::text(500, format!("head: reading the head: {error}")),
     }
 }
 
@@ -1096,7 +1116,7 @@ fn rendered(
         );
     }
     let Memory { indexes, rendered } = memory;
-    match rendered.get_or_load(head, wanted, || load_answers(runtime, indexes, wanted)) {
+    match rendered.get_or_load(wanted, || load_answers(runtime, indexes, wanted)) {
         Ok(answers) => Reply::ok(JSON, pick(answers).clone()),
         Err(error) => refused(what, error),
     }
@@ -1343,9 +1363,10 @@ mod tests {
     }
 
     #[test]
-    fn only_the_ten_routes_exist() {
+    fn only_the_eleven_routes_exist() {
         assert!(matches!(route("/"), Some(Route::Page)));
         assert!(matches!(route("/alt"), Some(Route::AltPage)));
+        assert!(matches!(route("/head"), Some(Route::Head)));
         assert!(matches!(route("/projection"), Some(Route::Projection)));
         assert!(matches!(route("/roles"), Some(Route::Roles)));
         assert!(matches!(
@@ -1367,6 +1388,8 @@ mod tests {
             "/evidence",
             "/alt/",
             "/alt.html",
+            "/head/",
+            "/heads",
             "/overview/",
             "/expand/",
             "/search/",
@@ -1429,7 +1452,6 @@ mod tests {
         SliceMeta {
             format: ekr_views::SLICE_FORMAT,
             revision: 1,
-            head: 2,
             seeds: vec![id(1)],
             depth: 1,
             after: 0,
@@ -1649,11 +1671,10 @@ mod tests {
     #[test]
     fn a_revision_is_loaded_once_and_served_from_memory_after() {
         let mut cache = Cache::default();
-        let head = RevisionNumber::new(4);
         let mut loads = 0;
         for _ in 0..3 {
             let got = cache
-                .get_or_load(head, RevisionNumber::new(2), || {
+                .get_or_load(RevisionNumber::new(2), || {
                     loads += 1;
                     Ok::<_, ()>(answers(2))
                 })
@@ -1667,50 +1688,39 @@ mod tests {
     }
 
     #[test]
-    fn a_failed_load_is_not_kept_and_a_new_head_empties_the_cache() {
+    fn a_failed_load_is_not_kept_and_a_kept_one_is_not_loaded_again() {
         let mut cache = Cache::default();
         let at = RevisionNumber::new(1);
         assert_eq!(
-            cache.get_or_load(RevisionNumber::new(3), at, || Err::<Answers, _>("refused")),
+            cache.get_or_load(at, || Err::<Answers, _>("refused")),
             Err("refused")
         );
         assert!(cache.entries.is_empty(), "a refusal is not cached");
-        cache
-            .get_or_load(RevisionNumber::new(3), at, || Ok::<_, ()>(answers(1)))
-            .unwrap();
-        let mut loaded_again = false;
+        cache.get_or_load(at, || Ok::<_, ()>(answers(1))).unwrap();
         let got = cache
-            .get_or_load(RevisionNumber::new(4), at, || {
-                loaded_again = true;
-                Ok::<_, ()>(answers(9))
-            })
+            .get_or_load(at, || Err::<Answers, _>("loaded again"))
             .unwrap();
-        assert_eq!(got, &answers(9));
-        assert!(
-            loaded_again,
-            "the projection names the head, so a new head reloads"
-        );
+        assert_eq!(got, &answers(1));
         assert_eq!(cache.entries.len(), 1);
     }
 
     #[test]
     fn beyond_the_limit_the_revision_used_longest_ago_goes() {
         let mut cache = Cache::default();
-        let head = RevisionNumber::new(100);
         let tag = |n: usize| u8::try_from(n).unwrap();
         for n in 0..CACHE_LIMIT {
             cache
-                .get_or_load(head, RevisionNumber::new(u64::try_from(n).unwrap()), || {
+                .get_or_load(RevisionNumber::new(u64::try_from(n).unwrap()), || {
                     Ok::<_, ()>(answers(tag(n)))
                 })
                 .unwrap();
         }
         // Revision 0 is used again, so revision 1 is now the one used longest ago.
         cache
-            .get_or_load(head, RevisionNumber::new(0), || Err::<Answers, _>(()))
+            .get_or_load(RevisionNumber::new(0), || Err::<Answers, _>(()))
             .unwrap();
         cache
-            .get_or_load(head, RevisionNumber::new(99), || Ok::<_, ()>(answers(99)))
+            .get_or_load(RevisionNumber::new(99), || Ok::<_, ()>(answers(99)))
             .unwrap();
         let held: Vec<u64> = cache.entries.iter().map(|(n, _)| n.get()).collect();
         assert_eq!(held.len(), CACHE_LIMIT);
@@ -1905,6 +1915,8 @@ mod tests {
             ),
             ("/projection?revision=9".to_owned(), "ekr.views.NotSeeded"),
             ("/roles".to_owned(), "ekr.views.NotSeeded"),
+            ("/head".to_owned(), "ekr.views.NotSeeded"),
+            ("/head?revision=0".to_owned(), "invalid-query"),
         ] {
             assert_eq!(
                 refusal_name(&runtime, &mut memory, &target).as_deref(),

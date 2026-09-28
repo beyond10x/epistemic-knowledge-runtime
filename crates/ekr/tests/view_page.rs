@@ -28,10 +28,11 @@ use ekr_views::{
 };
 use serde_json::Value;
 
-/// The six addresses the page may read, and no other: the overview, the streamed expansion, one
-/// node's detail, the search, the subjects' timeline and evidence by id (the `ekr view` data
-/// contract).
-const PAGE_ADDRESSES: [&str; 6] = [
+/// The seven addresses the page may read, and no other: the head, the overview, the streamed
+/// expansion, one node's detail, the search, the subjects' timeline and evidence by id (the
+/// `ekr view` data contract).
+const PAGE_ADDRESSES: [&str; 7] = [
+    "/head",
     "/overview",
     "/expand",
     "/node/",
@@ -40,8 +41,8 @@ const PAGE_ADDRESSES: [&str; 6] = [
     "/evidence/",
 ];
 
-/// The three addresses the earlier page at `/alt` reads, and no other.
-const ALT_ADDRESSES: [&str; 3] = ["/projection", "/roles", "/evidence/"];
+/// The four addresses the earlier page at `/alt` reads, and no other.
+const ALT_ADDRESSES: [&str; 4] = ["/head", "/projection", "/roles", "/evidence/"];
 
 /// How many nodes the page draws before it asks first.
 const RENDER_BUDGET: &str = "20000";
@@ -881,6 +882,11 @@ fn answer(mut stream: TcpStream, engine: &Engine, log: &Mutex<Vec<String>>) {
     if path == "/" {
         return reply(&mut stream, 200, "text/html; charset=utf-8", &engine.page);
     }
+    if path == "/head" {
+        let body =
+            serde_json::json!({"format": "ekr.view-head/1", "head": engine.head}).to_string();
+        return reply(&mut stream, 200, "application/json", body.as_bytes());
+    }
     if let Some(id) = path.strip_prefix("/evidence/") {
         return match engine.evidence.get(id) {
             Some(bytes) => reply(&mut stream, 200, "text/plain; charset=utf-8", bytes),
@@ -1121,6 +1127,7 @@ fn reads_no_projection(requests: &[String], what: &str) {
     for target in requests {
         assert!(
             target == "/"
+                || target == "/head"
                 || [
                     "/overview",
                     "/expand?",
@@ -1147,7 +1154,7 @@ fn the_page_draws_each_store_from_its_overview_and_never_reads_the_projection() 
         let projection = seeded.projection();
         let double = seeded.double(Duration::ZERO);
         let dom = rendered(&browser, &double.url);
-        let head = projection["meta"]["head"].as_u64().unwrap();
+        let head = projection["meta"]["revision"].as_u64().unwrap(); // the head projection is of the head
         assert!(
             dom.contains(&format!("revision {head} of {head}")),
             "{}: the status names the revision: {dom}",
@@ -1195,7 +1202,7 @@ fn the_timeline_rows_are_the_subjects_the_timeline_address_answers() {
     for fixture in stores {
         let what = fixture.display().to_string();
         let seeded = Seeded::new(&fixture);
-        let head = seeded.projection()["meta"]["head"].as_u64().unwrap();
+        let head = seeded.projection()["meta"]["revision"].as_u64().unwrap(); // the head projection is of the head
         let index = double_index(&seeded, head);
         let request = TimelineRequest::new(None, 2, 500, None, None).unwrap();
         let answer: Value =
@@ -1303,7 +1310,7 @@ fn a_chosen_node_streams_its_neighbourhood_and_shows_its_detail_from_the_node_re
     for fixture in fixture_stores() {
         let seeded = Seeded::new(&fixture);
         let projection = seeded.projection();
-        let head = projection["meta"]["head"].as_u64().unwrap();
+        let head = projection["meta"]["revision"].as_u64().unwrap(); // the head projection is of the head
         let chosen = busiest(&projection);
         let claims = chosen["assertions"].as_array().unwrap();
         assert!(!claims.is_empty(), "{}", fixture.display());

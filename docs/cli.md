@@ -344,6 +344,7 @@ prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`, then answers:
 |---|---|
 | `GET /` | the viewer page, built into the binary: the graph in 2D and 3D, a timeline with a heatmap and swimlanes, property history, the schema history, a command palette (Ctrl+K), navigation between committed revisions, and the state in the URL after `#` |
 | `GET /alt` | the earlier viewer page, built into the binary, kept while the new one is accepted |
+| `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision as it stands at the request, `application/json`. No `ekr.views` document carries the head, so a render of a revision is the same bytes before and after any later commit; the pages read the head here. It takes no query (any is 400 `invalid-query`) |
 | `GET /projection` | the `ekr.graph-projection/1` document at the head, `application/json`, byte for byte what the projection renders |
 | `GET /projection?revision=N` | the same as of revision `N`; a revision the store does not hold is 404 with `{"refusal": "ekr.views.RevisionNotFound", …}` |
 | `GET /evidence/<evidence id>` | that evidence's retained bytes: `text/plain; charset=utf-8` when they are UTF-8, otherwise `application/octet-stream`; 404 for an id the head does not hold or bytes the store did not retain |
@@ -380,8 +381,8 @@ refusal decided before any byte of an answer is sent.
 `/expand` answers `application/x-ndjson` with `Transfer-Encoding: chunked`: one JSON object per
 line, each ending in `\n` and opening with its `kind`, flushed a chunk at a time as it is written:
 
-1. `{"kind":"meta", …}` — the page's `ekr.graph-slice/1` meta (`format`, `revision`, `head`,
-   `seeds`, `depth`, `after`, `node_total`, `edge_total`), alone in the first chunk;
+1. `{"kind":"meta", …}` — the page's `ekr.graph-slice/1` meta (`format`, `revision`, `seeds`,
+   `depth`, `after`, `node_total`, `edge_total`), alone in the first chunk;
 2. the records in the slice's order: `{"kind":"node", …}` with a node's fields and
    `{"kind":"edge", …}` with an edge's, a node always before the edges it closes;
 3. after every 256 records, `{"kind":"progress","sent":<records so far>}`, which ends its chunk;
@@ -397,18 +398,18 @@ A revision is loaded once. The first request of a revision to `/overview`, `/exp
 `/search`, `/timeline`, `/projection` or `/roles` loads and indexes it; every later request of
 that revision, whichever path, reads the store's head and answers from that index, so it costs its
 answer (a revision's first `/timeline` also ranks its row types once). The
-indexes of the 3 revisions used most recently are kept, each under the head it was loaded under,
-so a new head loads again. `/projection` and `/roles` also keep their rendered answers, byte for
-byte what the first answer was, for at most 8 revisions under one head, the one used longest ago
-going first.
+indexes of the 3 revisions used most recently are kept. A committed revision never changes and no
+answer names the head, so a commit loads nothing again; a request naming no revision reads the
+new head. `/projection` and `/roles` also keep their rendered answers, byte for byte what the first
+answer was, for at most 8 revisions, the one used longest ago going first.
 
-The page reads `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and
-`/evidence/<id>` and nothing else, never `/projection`: the overview once per revision, a
-neighbourhood as it streams in, a node's detail when it is opened, and the timeline's rows — one
-per subject of the chosen row type, with its events within the chosen hops — and a subject's
-swimlanes from `/timeline`. It fetches evidence only by an id an assertion it has read cites, and
-writes everything a store holds as text. The earlier page at `/alt` reads `/projection`, `/roles`
-and `/evidence/<id>`.
+The page reads `/head`, `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and
+`/evidence/<id>` and nothing else, never `/projection`: the overview once per revision and the
+head after it, a neighbourhood as it streams in, a node's detail when it is opened, and the
+timeline's rows — one per subject of the chosen row type, with its events within the chosen
+hops — and a subject's swimlanes from `/timeline`. It fetches evidence only by an id an assertion
+it has read cites, and writes everything a store holds as text. The earlier page at `/alt` reads
+`/projection`, `/roles`, `/head` and `/evidence/<id>`.
 
 #### Roles
 
@@ -575,9 +576,8 @@ It answers these methods:
 Every tool reads the store as it stands when the call is read, so a transaction another process
 committed is what the next call reads. `revision` is a committed revision, the newest when
 absent; `overview`, `search`, `describe_node`, `expand` and `timeline` read the revision's
-`ekr.views` index, loaded once per revision and head exactly as [`ekr view`](#ekr-view) keeps
-it, and answer its document byte for byte what the `ekr view` endpoint in the last column
-serves:
+`ekr.views` index, loaded once per revision exactly as [`ekr view`](#ekr-view) keeps it,
+and answer its document byte for byte what the `ekr view` endpoint in the last column serves:
 
 | tool | arguments (required in bold) | answers | as |
 |---|---|---|---|

@@ -34,7 +34,10 @@ summary: >-
   always emitted; an Optional field with no value is omitted, never emitted as null, and one with a
   value is always emitted; an empty list or map is emitted empty, never omitted. No field of this
   format is an Optional inside a list or a map. (5) No field carries a wall-clock time, a host, a
-  path or anything else that differs between two renders of one revision.
+  path, the store's head or anything else that differs between two renders of one revision; a
+  revision renders the same bytes before and after any later commit, so a cached or exported
+  render and its content hash stay those of a fresh render of that revision. A host that needs
+  the head reads it elsewhere.
 
   Determinism of the five bounded formats, so that two answers to one request against one
   revision are byte-identical. Rules (2) key order, (3) encoding, (4) presence and (5) above hold
@@ -93,17 +96,16 @@ types:
     kind: newtype
     of: Integer
 
-  # `revision` is the projected revision, `head` the store's newest committed revision when the
-  # projection was rendered. The four counts are over the document itself: nodes[], edges[], every
-  # assertion entry under nodes[], edges[] and the ontology's types, and evidence[].
+  # `revision` is the projected revision. The store's head is not carried: it moves with every
+  # later commit, which rule (5) forbids a field to do. The four counts are over the document
+  # itself: nodes[], edges[], every assertion entry under nodes[], edges[] and the ontology's
+  # types, and evidence[].
   - name: ekr.views.ProjectionMeta
     kind: struct
     fields:
       - name: format
         type: ekr.views.GraphProjectionFormatV1
       - name: revision
-        type: ekr.kernel.RevisionNumber
-      - name: head
         type: ekr.kernel.RevisionNumber
       - name: node_count
         type: Integer
@@ -635,8 +637,6 @@ types:
         type: ekr.views.GraphOverviewFormatV1
       - name: revision
         type: ekr.kernel.RevisionNumber
-      - name: head
-        type: ekr.kernel.RevisionNumber
       - name: node_count
         type: Integer
       - name: edge_count
@@ -711,8 +711,6 @@ types:
       - name: format
         type: ekr.views.GraphSliceFormatV1
       - name: revision
-        type: ekr.kernel.RevisionNumber
-      - name: head
         type: ekr.kernel.RevisionNumber
       - name: seeds
         type: List<ekr.graph.NodeId>
@@ -794,8 +792,6 @@ types:
         type: ekr.views.NodeDetailFormatV1
       - name: revision
         type: ekr.kernel.RevisionNumber
-      - name: head
-        type: ekr.kernel.RevisionNumber
 
   # ekr.node-detail/1: one node. `assertions` is every assertion whose subject is the node, of any
   # lifecycle, each with its assessment, lifecycle, valid and recorded time and evidence ids;
@@ -861,8 +857,6 @@ types:
       - name: format
         type: ekr.views.NodeMatchesFormatV1
       - name: revision
-        type: ekr.kernel.RevisionNumber
-      - name: head
         type: ekr.kernel.RevisionNumber
       - name: text
         type: String
@@ -1026,8 +1020,6 @@ types:
         type: ekr.views.GraphTimelineFormatV1
       - name: revision
         type: ekr.kernel.RevisionNumber
-      - name: head
-        type: ekr.kernel.RevisionNumber
       - name: row_type
         type: Optional<ekr.ontology.TypeId>
       - name: subject
@@ -1143,7 +1135,6 @@ commands:
         payload:
           ekr.views.GraphProjected:
             revision: {generated: true}
-            head: {generated: true}
             nodes: {generated: true}
             edges: {generated: true}
             assertions: {generated: true}
@@ -1201,7 +1192,6 @@ commands:
         payload:
           ekr.views.GraphOverviewed:
             revision: {generated: true}
-            head: {generated: true}
             nodes: {generated: true}
             edges: {generated: true}
             assertions: {generated: true}
@@ -1280,7 +1270,6 @@ commands:
         payload:
           ekr.views.NeighbourhoodExpanded:
             revision: {generated: true}
-            head: {generated: true}
             seeds: {generated: true}
             depth: input.depth
             after: {generated: true}
@@ -1338,7 +1327,6 @@ commands:
         payload:
           ekr.views.NodeDescribed:
             revision: {generated: true}
-            head: {generated: true}
             node: input.node
             assertions: {generated: true}
             referencing: {generated: true}
@@ -1384,7 +1372,6 @@ commands:
         payload:
           ekr.views.NodesSearched:
             revision: {generated: true}
-            head: {generated: true}
             text: input.text
             matches: {generated: true}
             total: {generated: true}
@@ -1444,7 +1431,6 @@ commands:
         payload:
           ekr.views.SubjectsTimelined:
             revision: {generated: true}
-            head: {generated: true}
             row_type: {generated: true}
             hops: input.hops
             bucket_ms: {generated: true}
@@ -1489,8 +1475,6 @@ events:
     fields:
       - name: revision
         type: ekr.kernel.RevisionNumber
-      - name: head
-        type: ekr.kernel.RevisionNumber
       - name: nodes
         type: Integer
       - name: edges
@@ -1533,8 +1517,6 @@ events:
   - name: ekr.views.GraphOverviewed
     fields:
       - name: revision
-        type: ekr.kernel.RevisionNumber
-      - name: head
         type: ekr.kernel.RevisionNumber
       - name: nodes
         type: Integer
@@ -1591,8 +1573,6 @@ events:
     fields:
       - name: revision
         type: ekr.kernel.RevisionNumber
-      - name: head
-        type: ekr.kernel.RevisionNumber
       - name: seeds
         type: Integer
       - name: depth
@@ -1617,8 +1597,6 @@ events:
     fields:
       - name: revision
         type: ekr.kernel.RevisionNumber
-      - name: head
-        type: ekr.kernel.RevisionNumber
       - name: node
         type: ekr.graph.NodeId
       - name: assertions
@@ -1638,8 +1616,6 @@ events:
   - name: ekr.views.NodesSearched
     fields:
       - name: revision
-        type: ekr.kernel.RevisionNumber
-      - name: head
         type: ekr.kernel.RevisionNumber
       - name: text
         type: String
@@ -1662,8 +1638,6 @@ events:
   - name: ekr.views.SubjectsTimelined
     fields:
       - name: revision
-        type: ekr.kernel.RevisionNumber
-      - name: head
         type: ekr.kernel.RevisionNumber
       - name: row_type
         type: Optional<ekr.ontology.TypeId>

@@ -26,22 +26,22 @@
         "scenario": "ekr.views/authored/a-cursor-pages-a-neighbourhood-to-its-end"
       },
       "a-node-is-not-found-at-a-revision-before-it-existed.yaml": {
-        "digest": "sha256:a48a7237aca346fdb4ea96476b131b5661a5fcd6226f9a18ae21bd65d262270e",
+        "digest": "sha256:d65a72a1823d4e0b8c73c142e250a5698151b333a51ca6165069eef0c5974227",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed"
       },
       "a-retracted-assertion-is-projected-with-its-lifecycle.yaml": {
-        "digest": "sha256:1dd0cad3136d0bc8d2f00fad3986f0a6a51c6192e454174e7c0300fa3722e01d",
+        "digest": "sha256:a1774726b0c6b2993d106d85e71669ee4cd9f1c0f6dbf16e3fe6bda27eee1ff5",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-retracted-assertion-is-projected-with-its-lifecycle"
       },
       "a-revision-beyond-the-head-is-refused.yaml": {
-        "digest": "sha256:1fdbc7e6abd2e0a4464743348e669f381517fdc855e8ec77791678aee1b815a4",
+        "digest": "sha256:28935562fd3515805424066d883e495799d4ec861fba65d380e6ac3b530074ad",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-revision-beyond-the-head-is-refused"
       },
       "a-schema-evolution-projects-each-version-from-its-revision.yaml": {
-        "digest": "sha256:da23133c88281059ad8b1a17bcdc4d14c5830d9678541c52f7e265cee464bdce",
+        "digest": "sha256:f0487fa7fb3004b3b99161941e3048a4cbf743d1d1ac76018b5136ee11ef00fb",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-schema-evolution-projects-each-version-from-its-revision"
       },
@@ -56,7 +56,7 @@
         "scenario": "ekr.views/authored/a-search-with-no-match-answers-an-empty-list"
       },
       "a-seed-only-store-projects-revision-zero.yaml": {
-        "digest": "sha256:b11743b6f327a0237a79b6a6594fcef3067b6b58ba81a33527705c699990c639",
+        "digest": "sha256:99f21721bb0d66622a9db4b94999edd19ab3ebf40936d9052d24d8e1c174d760",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-seed-only-store-projects-revision-zero"
       },
@@ -66,7 +66,7 @@
         "scenario": "ekr.views/authored/a-timeline-refuses-each-input-outside-its-bound"
       },
       "a-timeline-row-is-a-subject-with-its-events-within-hops.yaml": {
-        "digest": "sha256:c72bc7358889f9d7d079d3de3502feab99b3923697dfab5987764e0147a11022",
+        "digest": "sha256:20243123f149eb97f505dd4e6b1ea5af3be55463be405d05d6d9a6e826a3a631",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-timeline-row-is-a-subject-with-its-events-within-hops"
       },
@@ -81,7 +81,7 @@
         "scenario": "ekr.views/authored/an-expansion-refuses-each-input-outside-its-bound"
       },
       "an-overview-lists-at-most-its-limit-of-top-nodes.yaml": {
-        "digest": "sha256:13031029b5e9d5e0f44ae2cbcbb9193c2344f0ed8d3bdff69f664fd13bb8e8c3",
+        "digest": "sha256:b47fe99058aa5390735a8bb046b762bac04c29c17e7d1e1415fefacaddb8eaf6",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes"
       },
@@ -101,7 +101,7 @@
         "scenario": "ekr.views/authored/the-edge-limit-cuts-a-page-between-a-node-and-its-edges"
       },
       "the-overview-derives-roles-and-timeline-from-valid-time.yaml": {
-        "digest": "sha256:aa00e48148530e3b65fb9fb558c95c44c9eb4f09bef5954d130ccf105ca30e8a",
+        "digest": "sha256:716b6d89bc6c60e53f33df251a0e0b7446ead66d0e2d9221ec1736237640b720",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/the-overview-derives-roles-and-timeline-from-valid-time"
       }
@@ -1119,8 +1119,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "965c39895cbf972dc505b122d5d081c0c8373d1aa607ac5fd2910b981b396af1",
-    "spec_digest": "bebbc3dfa734e645fa2838eba3700babe945965208420d73b517eeaa0425672b",
+    "contract_digest": "5ae213f1bd2befd1212341ec285bb0076eb1b4532438b03037d8095c0be806a4",
+    "spec_digest": "684cbac7a224af35508d0394642868df45ffc049561c272bffae57b657be883a",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -1275,10 +1275,6 @@
               "kind": "string"
             },
             "edges": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -2201,10 +2197,6 @@
               "kind": "integer"
             },
             "edges": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -3825,10 +3817,6 @@
               "holds": "primitive",
               "kind": "integer"
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "node_types": {
               "holds": "primitive",
               "kind": "integer"
@@ -4746,10 +4734,6 @@
               "kind": "integer"
             },
             "evidence": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -5798,10 +5782,6 @@
               "kind": "uuid",
               "optional": true
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -6719,10 +6699,6 @@
               "kind": "uuid",
               "optional": true
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "matches": {
               "holds": "primitive",
               "kind": "integer"
@@ -6936,10 +6912,6 @@
               "holds": "primitive",
               "kind": "integer"
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "node_total": {
               "holds": "primitive",
               "kind": "integer"
@@ -7035,10 +7007,6 @@
               "kind": "integer"
             },
             "edges": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -7140,10 +7108,6 @@
               "holds": "primitive",
               "kind": "integer"
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "node_total": {
               "holds": "primitive",
               "kind": "integer"
@@ -7239,10 +7203,6 @@
               "kind": "integer"
             },
             "edges": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -7500,7 +7460,6 @@
           "payload": {
             "assertions": 0.0,
             "edges": 0.0,
-            "head": 1.0,
             "neighbours": 0.0,
             "node": "00000000-0000-4000-8000-000000400001",
             "referencing": 0.0,
@@ -7516,10 +7475,6 @@
               "kind": "string"
             },
             "edges": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -7590,7 +7545,6 @@
           "event": "ekr.views.NeighbourhoodExpanded",
           "payload": {
             "edges": 0.0,
-            "head": 1.0,
             "nodes": 1.0,
             "remaining": 0.0,
             "revision": 0.0
@@ -7609,10 +7563,6 @@
               "kind": "integer"
             },
             "edges": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -7674,7 +7624,6 @@
           "payload": {
             "assertions": 2.0,
             "edges": 1.0,
-            "head": 1.0,
             "neighbours": 1.0,
             "node": "00000000-0000-4000-8000-000000400002",
             "referencing": 0.0,
@@ -7690,10 +7639,6 @@
               "kind": "string"
             },
             "edges": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -7765,10 +7710,6 @@
               "holds": "primitive",
               "kind": "integer"
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "neighbours": {
               "holds": "primitive",
               "kind": "integer"
@@ -7857,10 +7798,6 @@
               "holds": "primitive",
               "kind": "integer"
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "node_total": {
               "holds": "primitive",
               "kind": "integer"
@@ -7919,7 +7856,6 @@
           "payload": {
             "assertions": 2.0,
             "edges": 1.0,
-            "head": 1.0,
             "nodes": 2.0,
             "revision": 1.0,
             "revision_zero_assertions": 0.0,
@@ -7960,10 +7896,6 @@
               "kind": "integer"
             },
             "evidence": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -8127,10 +8059,6 @@
               "holds": "primitive",
               "kind": "integer"
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "node_types": {
               "holds": "primitive",
               "kind": "integer"
@@ -8200,7 +8128,6 @@
           "event": "ekr.views.GraphProjected",
           "payload": {
             "assertions": 1.0,
-            "head": 2.0,
             "retracted_assertions": 0.0,
             "revision": 1.0
           },
@@ -8222,10 +8149,6 @@
               "kind": "integer"
             },
             "evidence": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -8298,7 +8221,6 @@
           "event": "ekr.views.GraphProjected",
           "payload": {
             "assertions": 0.0,
-            "head": 2.0,
             "retracted_assertions": 0.0,
             "revision": 0.0
           },
@@ -8320,10 +8242,6 @@
               "kind": "integer"
             },
             "evidence": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -8448,7 +8366,6 @@
         {
           "event": "ekr.views.GraphProjected",
           "payload": {
-            "head": 0.0,
             "revision": 0.0
           },
           "shape": {
@@ -8469,10 +8386,6 @@
               "kind": "integer"
             },
             "evidence": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -8556,7 +8469,7 @@
       ]
     },
     "ekr.views/authored/a-schema-evolution-projects-each-version-from-its-revision": {
-      "purpose": "After one schema change the newest projection lists two versions and version 1's ontology, and a projection at revision 0 lists one version and version 0's ontology at head 1.",
+      "purpose": "After one schema change the newest projection lists two versions and version 1's ontology, and a projection at revision 0 lists one version and version 0's ontology while the head is revision 1.",
       "source": [
         {
           "kind": "domain",
@@ -8621,7 +8534,6 @@
           "event": "ekr.views.GraphProjected",
           "payload": {
             "edge_types": 1.0,
-            "head": 1.0,
             "node_types": 2.0,
             "properties": 2.0,
             "revision": 1.0,
@@ -8647,10 +8559,6 @@
               "kind": "integer"
             },
             "evidence": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -8723,7 +8631,6 @@
           "event": "ekr.views.GraphProjected",
           "payload": {
             "edge_types": 0.0,
-            "head": 1.0,
             "node_types": 1.0,
             "properties": 1.0,
             "revision": 0.0,
@@ -8749,10 +8656,6 @@
               "kind": "integer"
             },
             "evidence": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -8906,10 +8809,6 @@
               "kind": "uuid",
               "optional": true
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "matches": {
               "holds": "primitive",
               "kind": "integer"
@@ -8978,10 +8877,6 @@
               "holds": "primitive",
               "kind": "uuid",
               "optional": true
-            },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
             },
             "matches": {
               "holds": "primitive",
@@ -9189,10 +9084,6 @@
               "kind": "uuid",
               "optional": true
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "matches": {
               "holds": "primitive",
               "kind": "integer"
@@ -9264,10 +9155,6 @@
               "holds": "primitive",
               "kind": "uuid",
               "optional": true
-            },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
             },
             "matches": {
               "holds": "primitive",
@@ -9341,10 +9228,6 @@
               "kind": "uuid",
               "optional": true
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "matches": {
               "holds": "primitive",
               "kind": "integer"
@@ -9371,7 +9254,7 @@
       ]
     },
     "ekr.views/authored/a-seed-only-store-projects-revision-zero": {
-      "purpose": "A store holding only its seed projects revision 0 at head 0, with one schema version, one revision entry and no transaction id.",
+      "purpose": "A store holding only its seed projects revision 0, with one schema version, one revision entry and no transaction id.",
       "source": [
         {
           "kind": "domain",
@@ -9435,7 +9318,6 @@
         {
           "event": "ekr.views.GraphProjected",
           "payload": {
-            "head": 0.0,
             "revision": 0.0,
             "revisions": 1.0,
             "schema_versions": 1.0,
@@ -9459,10 +9341,6 @@
               "kind": "integer"
             },
             "evidence": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -9645,10 +9523,6 @@
               "kind": "uuid",
               "optional": true
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -9762,10 +9636,6 @@
               "holds": "primitive",
               "kind": "uuid",
               "optional": true
-            },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
             },
             "hops": {
               "holds": "primitive",
@@ -10168,10 +10038,6 @@
               "kind": "uuid",
               "optional": true
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -10320,7 +10186,6 @@
             "cells": 4.0,
             "events": 3.0,
             "first_row": "00000000-0000-4000-8000-000000a00101",
-            "head": 0.0,
             "hops": 1.0,
             "listed_events": 0.0,
             "revision": 0.0,
@@ -10352,10 +10217,6 @@
               "holds": "primitive",
               "kind": "uuid",
               "optional": true
-            },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
             },
             "hops": {
               "holds": "primitive",
@@ -10478,10 +10339,6 @@
               "kind": "uuid",
               "optional": true
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -10599,10 +10456,6 @@
               "holds": "primitive",
               "kind": "uuid",
               "optional": true
-            },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
             },
             "hops": {
               "holds": "primitive",
@@ -10722,10 +10575,6 @@
               "kind": "uuid",
               "optional": true
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -10842,10 +10691,6 @@
               "holds": "primitive",
               "kind": "uuid",
               "optional": true
-            },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
             },
             "hops": {
               "holds": "primitive",
@@ -10969,10 +10814,6 @@
               "kind": "uuid",
               "optional": true
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -11089,10 +10930,6 @@
               "holds": "primitive",
               "kind": "uuid",
               "optional": true
-            },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
             },
             "hops": {
               "holds": "primitive",
@@ -11215,10 +11052,6 @@
               "kind": "uuid",
               "optional": true
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "hops": {
               "holds": "primitive",
               "kind": "integer"
@@ -11340,10 +11173,6 @@
               "holds": "primitive",
               "kind": "uuid",
               "optional": true
-            },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
             },
             "hops": {
               "holds": "primitive",
@@ -11479,10 +11308,6 @@
               "kind": "integer"
             },
             "evidence": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -11664,10 +11489,6 @@
               "holds": "primitive",
               "kind": "integer"
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "node_total": {
               "holds": "primitive",
               "kind": "integer"
@@ -11766,10 +11587,6 @@
               "holds": "primitive",
               "kind": "integer"
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "node_total": {
               "holds": "primitive",
               "kind": "integer"
@@ -11863,10 +11680,6 @@
               "kind": "integer"
             },
             "edges": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -12453,7 +12266,6 @@
             "edge_types": 1.0,
             "edges": 600.0,
             "event_types": 0.0,
-            "head": 0.0,
             "node_types": 1.0,
             "nodes": 601.0,
             "removed": 0.0,
@@ -12499,10 +12311,6 @@
               "kind": "integer"
             },
             "evidence": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -12638,10 +12446,6 @@
               "holds": "primitive",
               "kind": "integer"
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "node_types": {
               "holds": "primitive",
               "kind": "integer"
@@ -12771,10 +12575,6 @@
               "kind": "integer"
             },
             "evidence": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -13234,10 +13034,6 @@
               "holds": "primitive",
               "kind": "integer"
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "node_types": {
               "holds": "primitive",
               "kind": "integer"
@@ -13400,10 +13196,6 @@
               "holds": "primitive",
               "kind": "integer"
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "node_total": {
               "holds": "primitive",
               "kind": "integer"
@@ -13497,10 +13289,6 @@
               "kind": "integer"
             },
             "edges": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -13613,7 +13401,6 @@
             "edge_types": 1.0,
             "edges": 5.0,
             "event_types": 2.0,
-            "head": 2.0,
             "node_types": 3.0,
             "nodes": 13.0,
             "observation_type": "00000000-0000-4000-8000-000000300001",
@@ -13656,10 +13443,6 @@
               "kind": "integer"
             },
             "evidence": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -13804,10 +13587,6 @@
               "holds": "primitive",
               "kind": "integer"
             },
-            "head": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
             "node_types": {
               "holds": "primitive",
               "kind": "integer"
@@ -13909,7 +13688,6 @@
             "bucket_ms": 604800000.0,
             "dated_assertions": 27.0,
             "event_types": 2.0,
-            "head": 2.0,
             "observation_type": "00000000-0000-4000-8000-000000300001",
             "revision": 2.0,
             "revision_zero_assertions": 25.0,
@@ -13947,10 +13725,6 @@
               "kind": "integer"
             },
             "evidence": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "head": {
               "holds": "primitive",
               "kind": "integer"
             },

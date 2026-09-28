@@ -8,6 +8,10 @@
 //! [`render_in_a_child_process`], which reopens the provider without creating anything, renders
 //! and writes the bytes. Unset, that case returns at once; the parent refuses a child run that
 //! wrote nothing, so a filter that selected no case cannot pass for a render.
+//!
+//! `task:historical-projection-carries-the-head`: on each provider, every revision of the same
+//! store is answered — projected, and read through all five bounded formats — before and after
+//! an unrelated commit, and every answer keeps its bytes.
 
 mod support;
 
@@ -15,6 +19,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use ekr_core::RevisionNumber;
+use ekr_views::{
+    ExpandRequest, Index, IndexCache, OverviewRequest, SearchRequest, TimelineRequest,
+};
 use sha2::{Digest, Sha256};
 
 use support::fixtures::{self, Fixture, Provider};
@@ -93,7 +100,7 @@ fn three_renders_are_one(provider: Provider) {
     );
     assert_eq!(first.summary, second.summary);
     assert_eq!(first.summary.projection_hash, hex_sha256(&third));
-    assert_eq!((first.summary.revision, first.summary.head), (REVISION, 5));
+    assert_eq!(first.summary.revision, REVISION);
     println!(
         "{} provider: revision {REVISION} renders {} bytes, sha256 {}",
         provider.name(),
@@ -126,6 +133,96 @@ fn the_file_provider_renders_one_revision_identically_three_times() {
 #[test]
 fn the_sqlite_provider_renders_one_revision_identically_three_times() {
     three_renders_are_one(Provider::Sqlite);
+}
+
+/// Every answer this crate gives about revision `at`, by what was asked: the projection, and the
+/// five bounded reads from a freshly loaded [`Index`] and from `cache` — the overview, an
+/// expansion and a detail of every node, two searches and the timeline.
+fn every_answer(
+    runtime: &ekr_kernel::Runtime,
+    cache: &mut IndexCache,
+    at: u64,
+) -> Vec<(String, Vec<u8>)> {
+    let at = Some(RevisionNumber::new(at));
+    let projected = ekr_views::project(runtime, at).expect("projection");
+    let mut answers = vec![("projection".to_owned(), projected.bytes)];
+    let fresh = Index::load(runtime, at).expect("index");
+    let held = cache.index(runtime, at).expect("cached index");
+    for (how, index) in [("fresh", &fresh), ("cached", &*held)] {
+        let mut answer =
+            |what: String, bytes: Vec<u8>| answers.push((format!("{how} {what}"), bytes));
+        let overview = OverviewRequest::new(None).unwrap();
+        answer("overview".into(), index.overview(&overview).unwrap().bytes);
+        let nodes: Vec<_> = index.loaded().graph.nodes.keys().copied().collect();
+        for node in &nodes {
+            answer(
+                format!("describe {node}"),
+                index.describe(*node).unwrap().bytes,
+            );
+        }
+        let expand = ExpandRequest::new(nodes.clone(), 2, 10, None, None).unwrap();
+        answer("expand".into(), index.expand(&expand).unwrap().bytes);
+        for text in ["", "a"] {
+            let search = SearchRequest::new(text.to_owned(), 100).unwrap();
+            answer(
+                format!("search {text:?}"),
+                index.search(&search).unwrap().bytes,
+            );
+        }
+        let timeline = TimelineRequest::new(None, 2, 500, None, None).unwrap();
+        answer("timeline".into(), index.timeline(&timeline).unwrap().bytes);
+    }
+    answers
+}
+
+/// `task:historical-projection-carries-the-head`: on one store, every revision answered before
+/// an unrelated commit and again after it gives the same bytes — the projection and every one of
+/// the five bounded formats, through a fresh index and through an [`IndexCache`] large enough to
+/// hold all six revisions across the commit. A document that named the head would differ after
+/// the commit.
+fn a_later_commit_changes_no_answer_about_an_earlier_revision(provider: Provider) {
+    let work = tempfile::tempdir().expect("work directory");
+    let runtime = fixtures::open(&work.path().join("store"), provider);
+    Fixture::Evolved.build(&runtime);
+    let mut cache = IndexCache::new(6);
+    let before: Vec<_> = (0..=5)
+        .map(|at| every_answer(&runtime, &mut cache, at))
+        .collect();
+    fixtures::commit_unrelated(&runtime, 0);
+    assert_eq!(runtime.head().unwrap().unwrap().revision.get(), 6);
+    let mut changed = Vec::new();
+    let mut compared = 0;
+    for (at, before) in (0_u64..).zip(before) {
+        let after = every_answer(&runtime, &mut cache, at);
+        assert_eq!(before.len(), after.len(), "revision {at}");
+        for ((what, one), (_, other)) in before.iter().zip(&after) {
+            compared += 1;
+            if one != other {
+                changed.push(format!(
+                    "revision {at}, {what}:\n  before {}\n  after  {}",
+                    String::from_utf8_lossy(&one[..one.len().min(120)]),
+                    String::from_utf8_lossy(&other[..other.len().min(120)]),
+                ));
+            }
+        }
+    }
+    assert!(
+        changed.is_empty(),
+        "{} provider: {} of {compared} answers changed bytes after an unrelated commit:\n{}",
+        provider.name(),
+        changed.len(),
+        changed.join("\n")
+    );
+}
+
+#[test]
+fn the_file_provider_answers_a_past_revision_identically_after_a_later_commit() {
+    a_later_commit_changes_no_answer_about_an_earlier_revision(Provider::File);
+}
+
+#[test]
+fn the_sqlite_provider_answers_a_past_revision_identically_after_a_later_commit() {
+    a_later_commit_changes_no_answer_about_an_earlier_revision(Provider::Sqlite);
 }
 
 /// Two providers holding the same fixture render every one of its revisions to the same bytes:

@@ -42,7 +42,6 @@ timeline:
       - event: ekr.views.GraphProjected
         payload:
           revision: 1
-          head: 2
           assertions: 1
           retracted_assertions: 0
 
@@ -57,6 +56,5 @@ timeline:
       - event: ekr.views.GraphProjected
         payload:
           revision: 0
-          head: 2
           assertions: 0
           retracted_assertions: 0

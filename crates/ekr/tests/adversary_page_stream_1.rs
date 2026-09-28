@@ -954,7 +954,7 @@ fn past_the_render_budget_at_most_the_two_thousand_best_connected_keep_a_label()
         }
         let count = 20_500_usize;
         let mut lines = vec![format!(
-            "{{\"kind\":\"meta\",\"format\":\"ekr.graph-slice/1\",\"revision\":1,\"head\":1,\"seeds\":[],\"depth\":0,\"after\":0,\"node_total\":{count},\"edge_total\":0}}\n"
+            "{{\"kind\":\"meta\",\"format\":\"ekr.graph-slice/1\",\"revision\":1,\"seeds\":[],\"depth\":0,\"after\":0,\"node_total\":{count},\"edge_total\":0}}\n"
         )];
         for n in 0..count {
             lines.push(format!(
@@ -1112,7 +1112,7 @@ fn chunk(stream: &mut TcpStream, text: &str) -> bool {
 
 fn meta_line(total: usize) -> String {
     format!(
-        "{{\"kind\":\"meta\",\"format\":\"ekr.graph-slice/1\",\"revision\":1,\"head\":1,\"seeds\":[],\"depth\":0,\"after\":0,\"node_total\":{total},\"edge_total\":0}}\n"
+        "{{\"kind\":\"meta\",\"format\":\"ekr.graph-slice/1\",\"revision\":1,\"seeds\":[],\"depth\":0,\"after\":0,\"node_total\":{total},\"edge_total\":0}}\n"
     )
 }
 
