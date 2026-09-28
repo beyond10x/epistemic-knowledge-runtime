@@ -385,6 +385,10 @@ const Data = (() => {
   let loads = 0;
   let current = null;
   const revision = () => current ? current.meta.revision : null;
+  // A read answers for the revision it asked about: it is kept only while no overview has started since
+  // and that revision is still the one shown. One asked while a new overview was in flight asked about
+  // the revision it replaces.
+  const still = (load, at) => load === loads && at === revision();
   async function overview(at) {
     const mine = ++loads;
     const answer = await get(OVERVIEW + query({revision: at})).then(json);
@@ -479,25 +483,29 @@ const Data = (() => {
         const lines = rest.split("\n");
         rest = done ? "" : lines.pop();
         const nodes = [], edges = [];
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          const record = exact(line);
-          if (record.kind === "node") nodes.push(record);
-          else if (record.kind === "edge") edges.push(record);
-          else if (record.kind === "meta") { if (on.meta) on.meta(record); }
-          else if (record.kind === "progress") { if (on.progress) on.progress(record.sent); }
-          else if (record.kind === "end") end = record;
+        try {
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            const record = exact(line);
+            if (record.kind === "node") nodes.push(record);
+            else if (record.kind === "edge") edges.push(record);
+            else if (record.kind === "meta") { if (on.meta) on.meta(record); }
+            else if (record.kind === "progress") { if (on.progress) on.progress(record.sent); }
+            else if (record.kind === "end") end = record;
+          }
+        } finally {
+          // what parsed before a line that does not is handed on, and stays drawn
+          if (nodes.length || edges.length) on.batch(nodes, edges);
         }
-        if (nodes.length || edges.length) on.batch(nodes, edges);
         if (done) break;
       }
       closed = true; streams.delete(handle);
       if (!end) throw new Error("the expansion ended without its end line");
       return {next: end.next, remaining: end.remaining};
     })().catch(error => {
-      streams.delete(handle);
-      if (closed && (error.name === "AbortError" || load !== loads)) return {cancelled: true};
-      closed = true;
+      const cancelled = closed && (error.name === "AbortError" || load !== loads);
+      handle.cancel();                 // a stream given up on lets its connection go, whatever ended it
+      if (cancelled) return {cancelled: true};
       throw error;
     });
     return handle;
@@ -510,7 +518,7 @@ const Data = (() => {
   const sequence = new Map();        // purpose → the number of its latest read
   function cite(claim) { for (const id of claim.evidence) cited.add(id); }
   async function node(id, purpose = "panel") {
-    const mine = (sequence.get(purpose) || 0) + 1, load = loads;
+    const mine = (sequence.get(purpose) || 0) + 1, load = loads, at = revision();
     sequence.set(purpose, mine);
     const key = `${revision()}|${id}`;
     if (!details.has(key)) {
@@ -523,7 +531,7 @@ const Data = (() => {
         .catch(error => { details.delete(key); throw error; }));
     }
     const d = await details.get(key);
-    return mine === sequence.get(purpose) && load === loads ? d : null;
+    return mine === sequence.get(purpose) && still(load, at) ? d : null;
   }
 
   // ---- the subjects' timeline: one read per revision and question, the latest of each purpose kept ----
@@ -532,21 +540,21 @@ const Data = (() => {
   const timelines = new Map();       // the address → the answer's promise, for the life of a revision
   async function timeline({type, hops, bucket, subject}) {
     const purpose = subject ? "lanes" : "rows";
-    const mine = (sequence.get(purpose) || 0) + 1, load = loads;
+    const mine = (sequence.get(purpose) || 0) + 1, load = loads, at = revision();
     sequence.set(purpose, mine);
     const path = TIMELINE + query({type, hops, limit: ROWS, bucket, subject, revision: revision()});
     if (!timelines.has(path)) {
       timelines.set(path, get(path).then(json).catch(error => { timelines.delete(path); throw error; }));
     }
     const d = await timelines.get(path);
-    return mine === sequence.get(purpose) && load === loads ? d : null;
+    return mine === sequence.get(purpose) && still(load, at) ? d : null;
   }
 
   let searches = 0;
   async function search(text) {
-    const mine = ++searches, load = loads;
+    const mine = ++searches, load = loads, at = revision();
     const found = await get(SEARCH + query({q: text, limit: 25, revision: revision()})).then(json);
-    return mine === searches && load === loads ? found : null;
+    return mine === searches && still(load, at) ? found : null;
   }
 
   // One read per evidence id for the life of the page: retained bytes never change under an id. Only an id
@@ -636,7 +644,16 @@ function revFromHash(hash) {
 async function main() {
   if (!window.graphology || !window.graphologyLibrary || !window.Sigma) throw new Error("the graph libraries did not load");
   $("statusText").textContent = "loading";
-  let doc = await Data.overview(revFromHash(location.hash));
+  // an address may name a revision this store does not hold (another store's, a hand-edited one): the
+  // store refuses it, and the page opens at the head and says so
+  const asked = revFromHash(location.hash);
+  let refused = null;
+  let doc = await Data.overview(asked).catch(err => {
+    if (asked == null) throw err;
+    refused = `revision ${asked}: ${err.message}; the head is shown`;
+    return Data.overview(null);
+  });
+  if (refused) $("error").textContent = refused;
   const tname = t => doc.names.type.get(t) ?? t;
   const ename = t => t === CO ? CO : doc.names.edgeType.get(t) ?? doc.names.type.get(t) ?? t;
   const pname = p => doc.names.prop.get(p) ?? p;
@@ -655,7 +672,7 @@ async function main() {
   const RENDER_BUDGET = 20000;         // nodes drawn before labels go by degree and more asks first
   const LABELLED = 2000;               // beyond the budget, this many of the best-connected keep a label
   const PAGE = 500;                    // nodes per page of an expansion
-  let labelCut = 0;
+  let labelled = null;                 // beyond the budget, the ids that keep a label; null keeps every label
   const colour = t => PALETTE[slot(t) % PALETTE.length];
   const glyph = t => GLYPHS[Math.floor(slot(t) / PALETTE.length) % GLYPHS.length];
   // the same glyph as a CSS swatch, for chips, hits and the detail panel
@@ -776,7 +793,7 @@ async function main() {
     if (nodeHidden(id, a)) return {x: a.x, y: a.y, size: a.size, hidden: true};
     const opacity = nodeOpacity(id);
     // beyond the render budget only the best-connected nodes keep a label
-    let label = labelCut && a.deg < labelCut ? null : a.label, forceLabel = false, zIndex = a.hub ? 2 : 0;
+    let label = labelled && !labelled.has(id) ? null : a.label, forceLabel = false, zIndex = a.hub ? 2 : 0;
     let b0 = 1.5, c0 = OUTLINE, labelSize = a.hub ? 13 : 11, labelWeight = a.hub ? 600 : 400;
     if (hlSets && hlSets.nodes.has(id)) { b0 = 2.5; c0 = "#f2f2ee"; zIndex = 8; }
     if (focused && hood.has(id)) { zIndex = 10; if (hoodLabels) forceLabel = true; }
@@ -1342,18 +1359,19 @@ async function main() {
     focusOn(id);
     if (graph.hasNode(id)) centreOn(id);
     else pending = id;
-    expandFrom([id], 1);
+    opened = expandFrom([id], 1);
     const shown = showNode(id);
     if (push) pushState();
     return shown;
   }
   const goTo = (id, push = true) => openNode(id, push);
   let pending = null;                  // an opened node the graph does not hold yet
+  let opened = null;                   // the stream of the node opened last, or null when none was started
 
   // ---- expansion: a stream of /expand merged into the live graph in batches ----
   // The line under the tiles counts what the latest stream has sent, offers the page after it when there is
   // one, and closes it on Stop. Beyond the render budget, loading more asks first.
-  let streamLine = null, asking = null;
+  let streamLine = null, asking = null, topStream = null;   // topStream: the edges among the overview's top
   function expandFrom(seeds, depth, after = 0, what = null, ask = true) {
     if (ask && graph.order >= RENDER_BUDGET) {
       asking = {seeds, depth, after, what};
@@ -1436,10 +1454,11 @@ async function main() {
   }
   function settle() {
     if (graph.order > RENDER_BUDGET) {
-      const degrees = []; graph.forEachNode((_, a) => degrees.push(a.deg));
-      degrees.sort((a, b) => b - a);
-      labelCut = Math.max(1, degrees[Math.min(degrees.length - 1, LABELLED)]);
-    } else labelCut = 0;
+      // a rank, not a degree value: by degree, then by id, so ties at the cut never add labels
+      const ranked = []; graph.forEachNode((id, a) => ranked.push([a.deg, id]));
+      ranked.sort((x, y) => y[0] - x[0] || (x[1] < y[1] ? -1 : x[1] > y[1] ? 1 : 0));
+      labelled = new Set(ranked.slice(0, LABELLED).map(([, id]) => id));
+    } else labelled = null;
     if (entitiesOnly) deriveCoMentions();
     refreshScope(); if (scope) renderCrumbs();
     const placed = graph.order - fresh.size;
@@ -1533,7 +1552,8 @@ async function main() {
   // The search asks the server (/search): names and aliases of the whole revision, not only what is drawn.
   // A hit that is drawn is marked in the graph; opening one streams its neighbourhood in.
   let searchTimer = 0;
-  async function runSearch(text) {
+  // `open`: a search the reader typed opens its only hit; one read again for a new revision does not
+  async function runSearch(text, open = true) {
     const q = text.trim();
     matches = new Set();
     if (!q) { $("hits").replaceChildren(); refresh(); return; }
@@ -1547,6 +1567,7 @@ async function main() {
       found.matches.map(m => h("div", {class: "hit", "data-node": m.id, title: m.field === "Alias" ? `${m.name} · alias ${m.alias}` : m.name},
         h("span", {class: "sw", style: `width:8px;height:8px;border-radius:50%;${swatch(m.type)}`}),
         short(m.name), h("span", {class: "t"}, `${tname(m.type)} · ${fmt(m.degree)}`))));
+    if (!open) return;
     if (found.matches.length === 1) goTo(found.matches[0].id);
     else if (matches.size && matches.size < 200) fitTo(matches);
   }
@@ -1949,7 +1970,14 @@ async function main() {
   });
 
   // ---- 7. URL state: #revision=…&view=2d|3d&node=…&evidence=…&q=…&types=…&t=…&focus=…&hops=…&entities=1&path=a~b&schema=1 ----
-  let applying = false;
+  let applying = false, moved = false, applyTurn = 0;
+  // `types=` lists the node types shown out of every type the revision's ontology names, drawn or not: a
+  // type an expansion draws after the address was read is hidden or shown as the address says
+  const nodeTypeIds = () => {
+    const all = new Set(doc.ontology.node_types.map(t => t.id));
+    graph.forEachNode((_, a) => all.add(a.kind));
+    return all;
+  };
   function stateString() {
     const p = new URLSearchParams();
     if (doc.meta.revision !== doc.meta.head) p.set("revision", String(doc.meta.revision));
@@ -1961,10 +1989,7 @@ async function main() {
     if (evidenceShown) p.set("evidence", evidenceShown);
     const q = $("search").value.trim();
     if (q) p.set("q", q);
-    if (hiddenNodeTypes.size) {
-      const all = new Set(); graph.forEachNode((_, a) => all.add(a.kind));
-      p.set("types", [...all].filter(t => !hiddenNodeTypes.has(t)).join(","));
-    }
+    if (hiddenNodeTypes.size) p.set("types", [...nodeTypeIds()].filter(t => !hiddenNodeTypes.has(t)).join(","));
     if (timeLo != null) p.set("range", `${Math.round(timeLo)}~${Math.round(timeT ?? timeRange?.hi ?? timeLo)}`);
     else if (timeT != null) p.set("t", String(Math.round(timeT)));
     if (scope) { p.set("focus", scope.trail.join(",")); p.set("hops", String(scope.hops)); }
@@ -1973,50 +1998,74 @@ async function main() {
     return "#" + p.toString();
   }
   function pushState() {
-    if (applying) return;
+    if (applying) { moved = true; return; }
     const s = stateString();
     if (s !== location.hash) history.pushState(null, "", s);
   }
   async function applyState(hash) {
     const p = new URLSearchParams(hash.replace(/^#/, ""));
+    const turn = ++applyTurn;
     applying = true;
     try {
       stopPlay();
-      const want = revFromHash(hash) ?? doc.meta.head;
+      const want = Math.min(revFromHash(hash) ?? doc.meta.head, doc.meta.head);
       if (want !== doc.meta.revision) {
-        const next = await Data.overview(want >= doc.meta.head ? null : want);
+        const next = await Data.overview(want === doc.meta.head ? null : want);
         if (next) { doc = next; render(); }
       }
       const v = p.get("view") === "3d" ? "3d" : "2d";
       if (v !== dim || !(v === "3d" ? fg : renderer)) await setDim(v);
-      const all = new Set(); graph.forEachNode((_, a) => all.add(a.kind));
       hiddenNodeTypes.clear();
-      if (p.has("types")) { const shown = new Set(p.get("types").split(",").filter(Boolean)); for (const t of all) if (!shown.has(t)) hiddenNodeTypes.add(t); }
+      if (p.has("types")) { const shown = new Set(p.get("types").split(",").filter(Boolean)); for (const t of nodeTypeIds()) if (!shown.has(t)) hiddenNodeTypes.add(t); }
       if ((p.get("entities") === "1") !== entitiesOnly) setEntities(p.get("entities") === "1", false);
       tlFromParams(p);
       const range = (p.get("range") || "").split("~").map(Number);
       if (range.length === 2 && range.every(Number.isFinite)) setRange(range[0], range[1]);
       else { timeLo = null; setTime(p.has("t") ? Number(p.get("t")) : null); }
       setView(p.get("mode") === "timeline" ? "timeline" : p.get("schema") === "1" ? "schema" : "graph");
-      if (p.has("focus")) {
-        const trail = p.get("focus").split(",").filter(id => graph.hasNode(id));
-        scope = trail.length ? {trail, hops: Math.min(3, Math.max(1, Number(p.get("hops")) || 1)), set: null} : null;
-        if (scope) lastHops = scope.hops;
-      } else scope = null;
-      refreshScope(); renderCrumbs();
+      // the focus trail and the path name nodes; they are applied once the graph holds them, after the
+      // streams that draw them have ended, and not at all if the reader has moved on meanwhile
+      const trail = p.has("focus") ? p.get("focus").split(",").filter(Boolean) : [];
+      const ends = p.has("path") ? p.get("path").split("~") : null;
+      scope = null; renderCrumbs();
       path = null; pathFrom = null;
       const q = p.get("q") ?? "";
       if (q !== $("search").value) { $("search").value = q; await runSearch(q); }
       const node = p.get("node");
-      if (p.has("path")) { const [a, b] = p.get("path").split("~"); findPath(a, b, false); }
-      else if (node && node === focused && details.has(node) && graph.hasNode(node)) { focusOn(node); await showNode(node); centreOn(node); }
-      else if (node) await openNode(node, false);
-      else { clearFocus(); }
+      opened = null;
+      if (!ends) {                            // a path takes the panel, so its address opens no node
+        if (node && node === focused && details.has(node) && graph.hasNode(node)) { focusOn(node); await showNode(node); centreOn(node); }
+        else if (node) await openNode(node, false);
+        else clearFocus();
+      }
       // evidence is shown after the detail whose assertions cite it has been read
       if (p.get("evidence")) showEvidence(p.get("evidence"), false); else if (evidenceShown) closeEvidence(false);
-      if (scope && !p.has("path")) fitTo(scope.set, 1.5);
+      // a path is found once, over the edges drawn then, so it also waits for the streams in flight
+      const named = [...trail, ...(ends || [])];
+      if (ends || named.some(id => !graph.hasNode(id))) {
+        moved = false;
+        await drawNamed(named, [topStream, opened]);
+        if (turn !== applyTurn) return;       // a later address took over
+        if (moved) { applying = false; pushState(); return; }
+      }
+      if (trail.length) {
+        scope = {trail: trail.filter(id => graph.hasNode(id)), hops: Math.min(3, Math.max(1, Number(p.get("hops")) || 1)), set: null};
+        lastHops = scope.hops;
+      }
+      refreshScope(); renderCrumbs();
+      if (ends) findPath(ends[0], ends[1], false);
+      if (scope && !ends) fitTo(scope.set, 1.5);
       refresh(); render(false);
-    } finally { applying = false; }
+    } finally { if (turn === applyTurn) applying = false; }
+  }
+  // Draws the nodes an address names: waits for the streams in flight (the overview's edges, the opened
+  // node's neighbourhood), then streams each named node they did not draw with its neighbourhood, as a
+  // click would. A stream that fails or is closed ends the wait all the same.
+  async function drawNamed(ids, inFlight) {
+    const ended = handle => handle ? handle.done.catch(() => null) : null;
+    await Promise.all(inFlight.map(ended));
+    const missing = [...new Set(ids)].filter(id => id && !graph.hasNode(id));
+    await Promise.all(missing.map(id => ended(expandFrom([id], 1, 0, false))));
   }
   window.addEventListener("popstate", () => { applyState(location.hash).catch(err => { $("error").textContent = String(err); }); });
 
@@ -3034,6 +3083,8 @@ async function main() {
       fillRevisions();
       refreshSchema();
       if (tlOn()) tlRender();
+      // the hits are a read of the revision shown: a new revision reads them again
+      if ($("search").value.trim()) runSearch($("search").value, false);
     }
     let linked = 0;
     graph.forEachNode((_, a) => { if (a.deg > 0) linked++; });
@@ -3068,7 +3119,7 @@ async function main() {
       if (length > 12000) break;
       seeds.push(n.id);
     }
-    if (seeds.length) expandFrom(seeds, 0, 0, `the ${fmt(seeds.length)} best-connected nodes`, false);
+    topStream = seeds.length ? expandFrom(seeds, 0, 0, `the ${fmt(seeds.length)} best-connected nodes`, false) : null;
   }
   render();
   document.querySelectorAll("#dims button").forEach(b => b.classList.toggle("on", b.dataset.dim === dim));
