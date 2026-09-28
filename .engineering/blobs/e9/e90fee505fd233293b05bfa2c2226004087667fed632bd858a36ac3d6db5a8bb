@@ -1,9 +1,0 @@
-## Context
-
-Operator request (2026-09-25): a machine-readable schema for the documents an agent writes, so a schema author does not depend on prose. Today only printed examples (`ekr example`) and the readers' Rust types describe `ekr-seed/2`, `ekr.transaction-document/1` and `ekr.cli-host/1`.
-
-## Acceptance
-
-- `ekr schema <format>` prints a JSON Schema (draft 2020-12) for each of the three formats, generated from the same Rust types the readers deserialize, so it cannot drift from them.
-- A test validates every `ekr example` document, every operation example and every document block in `docs/cli.md` against the printed schema, and holds that each schema refuses a document the reader refuses (a missing required field, an unknown field, a wrong value kind) on at least one case per format.
-- `ekr guide`, `ekr --help` and `docs/cli.md` name `ekr schema`.

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: architecture-decision-record:0009-retain-publication-preparations
 kind: architecture-decision-record
 status: accepted
@@ -8,6 +8,8 @@ relations:
 - decides: story:commit-and-revision-lineage
 - decides: story:version-persisted-contracts
 revision: 3
+transitions:
+- {from: "proposed", to: "accepted", at: "2026-09-22T13:17:26Z", actor: "agent:codex-ekr-completion-20260922", revision: 2, imported: true}
 ---
 ## Status
 

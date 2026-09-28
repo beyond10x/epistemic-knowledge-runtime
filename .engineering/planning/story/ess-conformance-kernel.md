@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:ess-conformance-kernel
 kind: story
 status: implemented
@@ -33,6 +33,10 @@ scope:
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
 revision: 12
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-23T20:36:48Z", actor: "agent:claude-lazy-sutton-p1-14", revision: 9, decided_on: {"recorded":{"review_outcome":2}}, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-23T20:36:49Z", actor: "agent:claude-lazy-sutton-p1-14", revision: 10, decided_on: {"recorded":{"review_outcome":2}}, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-23T20:38:05Z", actor: "agent:claude-lazy-sutton-p1-14", revision: 11, decided_on: {"recorded":{"test_result":1,"review_outcome":4}}, imported: true}
 ---
 ## Context
 

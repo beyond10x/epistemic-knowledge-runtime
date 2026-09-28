@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-21T07:57:56Z",
+  "actor": "agent:claude",
+  "artifact": "story:workspace-crate-skeleton",
+  "kind": "story",
+  "revision": 10,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:adversary-skeleton-pass-1",
+    "review": "review-result:adversary-skeleton-pass-1",
+    "outcome": "fixed"
+  }
+}

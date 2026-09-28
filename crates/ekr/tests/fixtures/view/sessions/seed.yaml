@@ -1,0 +1,398 @@
+format: ekr-seed/2
+ontology:
+  version:
+    id: 00000000-0000-4000-8000-000000002001
+    number: 0
+    parent: null
+    created_at: 0
+  node_types:
+  - id: 00000000-0000-4000-8000-000000002101
+    name: Member
+    parents: []
+    properties: {}
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-000000002102
+    name: Council
+    parents: []
+    properties: {}
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-000000002103
+    name: Session
+    parents: []
+    properties:
+      00000000-0000-4000-8000-000000002301:
+        id: 00000000-0000-4000-8000-000000002301
+        name: session_room
+        value_type:
+          value_kind: String
+        cardinality: One
+        required: false
+        constraints: []
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-000000002104
+    name: Motion
+    parents: []
+    properties:
+      00000000-0000-4000-8000-000000002302:
+        id: 00000000-0000-4000-8000-000000002302
+        name: motion_outcome
+        value_type:
+          value_kind: String
+        cardinality: One
+        required: false
+        constraints: []
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-000000002105
+    name: Minute
+    parents: []
+    properties:
+      00000000-0000-4000-8000-000000002303:
+        id: 00000000-0000-4000-8000-000000002303
+        name: minute_page
+        value_type:
+          value_kind: Integer
+        cardinality: One
+        required: false
+        constraints: []
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-000000002106
+    name: Venue
+    parents: []
+    properties:
+      00000000-0000-4000-8000-000000002304:
+        id: 00000000-0000-4000-8000-000000002304
+        name: venue_capacity
+        value_type:
+          value_kind: Integer
+        cardinality: One
+        required: false
+        constraints: []
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-000000002107
+    name: Petition
+    parents: []
+    properties: {}
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-000000002108
+    name: Archive
+    parents: []
+    properties: {}
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  edge_types:
+  - id: 00000000-0000-4000-8000-000000002201
+    name: SITS_ON
+    source_types:
+    - 00000000-0000-4000-8000-000000002101
+    target_types:
+    - 00000000-0000-4000-8000-000000002102
+    cardinality: Many
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+  - id: 00000000-0000-4000-8000-000000002202
+    name: CORRESPONDS_WITH
+    source_types:
+    - 00000000-0000-4000-8000-000000002107
+    target_types:
+    - 00000000-0000-4000-8000-000000002102
+    cardinality: Many
+    properties: {}
+    inverse: null
+    symmetric: true
+    transitive: false
+  - id: 00000000-0000-4000-8000-000000002203
+    name: CONVENED_BY
+    source_types:
+    - 00000000-0000-4000-8000-000000002103
+    target_types:
+    - 00000000-0000-4000-8000-000000002102
+    cardinality: One
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+  - id: 00000000-0000-4000-8000-000000002204
+    name: ATTENDED_BY
+    source_types:
+    - 00000000-0000-4000-8000-000000002103
+    target_types:
+    - 00000000-0000-4000-8000-000000002101
+    cardinality: Many
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+  - id: 00000000-0000-4000-8000-000000002205
+    name: HELD_AT
+    source_types:
+    - 00000000-0000-4000-8000-000000002103
+    target_types:
+    - 00000000-0000-4000-8000-000000002106
+    cardinality: One
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+  - id: 00000000-0000-4000-8000-000000002206
+    name: RAISED_IN
+    source_types:
+    - 00000000-0000-4000-8000-000000002104
+    target_types:
+    - 00000000-0000-4000-8000-000000002103
+    cardinality: One
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+  - id: 00000000-0000-4000-8000-000000002207
+    name: CONCERNS
+    source_types:
+    - 00000000-0000-4000-8000-000000002104
+    target_types:
+    - 00000000-0000-4000-8000-000000002102
+    cardinality: Many
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+  - id: 00000000-0000-4000-8000-000000002208
+    name: RECORDS_PROCEEDINGS
+    source_types:
+    - 00000000-0000-4000-8000-000000002105
+    target_types:
+    - 00000000-0000-4000-8000-000000002103
+    - 00000000-0000-4000-8000-000000002104
+    cardinality: Many
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+graph:
+  format: ekr.graph-document/2
+  graph:
+    root:
+      id: 00000000-0000-4000-8000-000000002002
+      space: Canonical
+      schema_version_id: 00000000-0000-4000-8000-000000002001
+      parent: null
+      created_at: 0
+    revision: 0
+    nodes:
+      00000000-0000-4000-8000-000000002401:
+        id: 00000000-0000-4000-8000-000000002401
+        root_id: 00000000-0000-4000-8000-000000002002
+        type_id: 00000000-0000-4000-8000-000000002101
+        canonical_name: Member seat nine
+        aliases: []
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-000000002402:
+        id: 00000000-0000-4000-8000-000000002402
+        root_id: 00000000-0000-4000-8000-000000002002
+        type_id: 00000000-0000-4000-8000-000000002102
+        canonical_name: Council of the lower ward
+        aliases:
+        - Lower ward council
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-000000002403:
+        id: 00000000-0000-4000-8000-000000002403
+        root_id: 00000000-0000-4000-8000-000000002002
+        type_id: 00000000-0000-4000-8000-000000002103
+        canonical_name: Spring session twelve
+        aliases: []
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-000000002404:
+        id: 00000000-0000-4000-8000-000000002404
+        root_id: 00000000-0000-4000-8000-000000002002
+        type_id: 00000000-0000-4000-8000-000000002104
+        canonical_name: Motion on lamp repair
+        aliases: []
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-000000002405:
+        id: 00000000-0000-4000-8000-000000002405
+        root_id: 00000000-0000-4000-8000-000000002002
+        type_id: 00000000-0000-4000-8000-000000002105
+        canonical_name: Minute sheet four
+        aliases: []
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-000000002406:
+        id: 00000000-0000-4000-8000-000000002406
+        root_id: 00000000-0000-4000-8000-000000002002
+        type_id: 00000000-0000-4000-8000-000000002106
+        canonical_name: Venue old granary
+        aliases: []
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-000000002407:
+        id: 00000000-0000-4000-8000-000000002407
+        root_id: 00000000-0000-4000-8000-000000002002
+        type_id: 00000000-0000-4000-8000-000000002107
+        canonical_name: Petition for benches
+        aliases: []
+        type_state: null
+        properties: {}
+    edges:
+      00000000-0000-4000-8000-000000002701:
+        id: 00000000-0000-4000-8000-000000002701
+        root_id: 00000000-0000-4000-8000-000000002002
+        type_id: 00000000-0000-4000-8000-000000002201
+        source: 00000000-0000-4000-8000-000000002401
+        target: 00000000-0000-4000-8000-000000002402
+        properties: {}
+      00000000-0000-4000-8000-000000002702:
+        id: 00000000-0000-4000-8000-000000002702
+        root_id: 00000000-0000-4000-8000-000000002002
+        type_id: 00000000-0000-4000-8000-000000002205
+        source: 00000000-0000-4000-8000-000000002403
+        target: 00000000-0000-4000-8000-000000002406
+        properties: {}
+      00000000-0000-4000-8000-000000002703:
+        id: 00000000-0000-4000-8000-000000002703
+        root_id: 00000000-0000-4000-8000-000000002002
+        type_id: 00000000-0000-4000-8000-000000002206
+        source: 00000000-0000-4000-8000-000000002404
+        target: 00000000-0000-4000-8000-000000002403
+        properties: {}
+    assertions:
+      00000000-0000-4000-8000-000000002501:
+        id: 00000000-0000-4000-8000-000000002501
+        root_id: 00000000-0000-4000-8000-000000002002
+        subject: !Node 00000000-0000-4000-8000-000000002403
+        predicate: !Property 00000000-0000-4000-8000-000000002301
+        object: !Value
+          value_kind: String
+          value: east hall
+        evidence:
+        - 00000000-0000-4000-8000-000000002601
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: 1775030400000
+          to: 1775044800000
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+      00000000-0000-4000-8000-000000002502:
+        id: 00000000-0000-4000-8000-000000002502
+        root_id: 00000000-0000-4000-8000-000000002002
+        subject: !Node 00000000-0000-4000-8000-000000002404
+        predicate: !Property 00000000-0000-4000-8000-000000002302
+        object: !Value
+          value_kind: String
+          value: carried
+        evidence:
+        - 00000000-0000-4000-8000-000000002601
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: 1775041200000
+          to: null
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+      00000000-0000-4000-8000-000000002503:
+        id: 00000000-0000-4000-8000-000000002503
+        root_id: 00000000-0000-4000-8000-000000002002
+        subject: !Node 00000000-0000-4000-8000-000000002405
+        predicate: !Property 00000000-0000-4000-8000-000000002303
+        object: !Value
+          value_kind: Integer
+          value: 4
+        evidence:
+        - 00000000-0000-4000-8000-000000002601
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: null
+          to: null
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+      00000000-0000-4000-8000-000000002504:
+        id: 00000000-0000-4000-8000-000000002504
+        root_id: 00000000-0000-4000-8000-000000002002
+        subject: !Node 00000000-0000-4000-8000-000000002406
+        predicate: !Property 00000000-0000-4000-8000-000000002304
+        object: !Value
+          value_kind: Integer
+          value: 120
+        evidence:
+        - 00000000-0000-4000-8000-000000002601
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: 1735689600000
+          to: 1798761600000
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+      00000000-0000-4000-8000-000000002505:
+        id: 00000000-0000-4000-8000-000000002505
+        root_id: 00000000-0000-4000-8000-000000002002
+        subject: !Node 00000000-0000-4000-8000-000000002405
+        predicate: !Relation 00000000-0000-4000-8000-000000002208
+        object: !Node 00000000-0000-4000-8000-000000002404
+        evidence:
+        - 00000000-0000-4000-8000-000000002601
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: null
+          to: null
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+      00000000-0000-4000-8000-000000002506:
+        id: 00000000-0000-4000-8000-000000002506
+        root_id: 00000000-0000-4000-8000-000000002002
+        subject: !Node 00000000-0000-4000-8000-000000002407
+        predicate: !Relation 00000000-0000-4000-8000-000000002202
+        object: !Node 00000000-0000-4000-8000-000000002402
+        evidence:
+        - 00000000-0000-4000-8000-000000002601
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: null
+          to: null
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+    evidence:
+      00000000-0000-4000-8000-000000002601:
+        id: 00000000-0000-4000-8000-000000002601
+        source: !HumanStatement
+          identity: Runtime operator
+        content_hash: d6c9cf308b67fe95a4aca69c9be385c2df3728d2d37edcf0082028677c7b0dda
+        extracted_by: 00000000-0000-4000-8000-000000000101
+        observed_at: 1775048400000
+        confidence: 10000
+evidence_payloads:
+  d6c9cf308b67fe95a4aca69c9be385c2df3728d2d37edcf0082028677c7b0dda: [65, 32, 115, 121, 110, 116, 104, 101, 116, 105, 99, 32, 115, 116, 97, 116, 101, 109, 101, 110, 116, 32, 114, 101, 99, 111, 114, 100, 101, 100, 32, 102, 111, 114, 32, 97, 32, 118, 105, 101, 119, 32, 102, 105, 120, 116, 117, 114, 101, 46]

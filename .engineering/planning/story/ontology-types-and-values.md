@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:ontology-types-and-values
 kind: story
 status: implemented
@@ -37,6 +37,10 @@ scope:
 - confidence: cited
   path: crates/ekr-ontology/tests/value_type_checking.rs
 revision: 11
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-21T13:51:09Z", actor: "agent:claude", revision: 6, decided_on: {"recorded":{"review_outcome":2}}, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-21T13:51:10Z", actor: "agent:claude", revision: 7, decided_on: {"recorded":{"review_outcome":2}}, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-21T14:18:52Z", actor: "human:timo", revision: 10, decided_on: {"recorded":{"test_result":1,"review_outcome":11}}, imported: true}
 ---
 ## Context
 

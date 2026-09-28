@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: architecture-decision-record:0006-ekr-store-bridges-the-async-port
 kind: architecture-decision-record
 status: accepted
@@ -7,6 +7,8 @@ title: ADR 0006 — ekr-store owns the tokio runtime and exposes a synchronous l
 relations:
 - decides: story:eventlog-store
 revision: 3
+transitions:
+- {from: "proposed", to: "accepted", at: "2026-09-21T15:14:59Z", actor: "human:timo", revision: 2, imported: true}
 ---
 ## Status
 

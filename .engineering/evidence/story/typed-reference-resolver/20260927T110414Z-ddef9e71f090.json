@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-27T11:04:14Z",
+  "actor": "human:timo",
+  "artifact": "story:typed-reference-resolver",
+  "kind": "story",
+  "revision": 9,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "impl/typed-reference-resolver d174c511",
+    "review": "review-result:adversary-p2p3p4-02-integrate-pass-1",
+    "outcome": "fixed"
+  }
+}

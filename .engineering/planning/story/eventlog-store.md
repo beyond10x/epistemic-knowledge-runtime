@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:eventlog-store
 kind: story
 status: implemented
@@ -53,6 +53,10 @@ scope:
 - confidence: cited
   path: systems/ekr/domains/store.yaml
 revision: 15
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-21T15:05:18Z", actor: "human:timo", revision: 7, decided_on: {"recorded":{"review_outcome":2}}, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-21T15:05:19Z", actor: "human:timo", revision: 8, decided_on: {"recorded":{"review_outcome":2}}, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-21T16:15:36Z", actor: "human:timo", revision: 14, decided_on: {"recorded":{"test_result":1,"review_outcome":13}}, imported: true}
 ---
 ## Context
 

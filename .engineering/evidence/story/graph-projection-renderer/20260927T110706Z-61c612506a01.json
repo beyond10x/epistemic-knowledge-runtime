@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-27T11:07:06Z",
+  "actor": "human:timo",
+  "artifact": "story:graph-projection-renderer",
+  "kind": "story",
+  "revision": 6,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "impl/graph-projection-renderer 43a1682e",
+    "review": "review-result:adversary-p2p3p4-02-views-pass-2",
+    "outcome": "fixed"
+  }
+}

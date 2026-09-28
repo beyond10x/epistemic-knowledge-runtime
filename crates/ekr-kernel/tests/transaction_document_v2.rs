@@ -310,6 +310,7 @@ fn document(seed: &SeedDocument, operations: usize) -> (TransactionId, Vec<u8>) 
             type_id: ty.id,
             canonical_name: format!("subject {n}"),
             properties: BTreeMap::new(),
+            aliases: Vec::new(),
         }));
         list.push(GraphOperation::AddAssertion(Box::new(Assertion {
             id: AssertionId::mint(),

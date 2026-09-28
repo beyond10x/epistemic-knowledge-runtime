@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:typed-value-canonical-field-is-undecided
 kind: task
 status: archived
@@ -7,6 +7,8 @@ title: TypedValue.canonical is declared a String and was described as the conten
 relations:
 - serves: vision:o2
 revision: 6
+transitions:
+- {from: "draft", to: "archived", at: "2026-09-23T20:38:04Z", actor: "agent:claude-lazy-sutton-p1-14", revision: 6, imported: true}
 ---
 ## What is wrong
 

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:only-a-validated-transaction-commits
 kind: task
 status: implemented
@@ -7,6 +7,10 @@ title: A commit lands with no ValidatedTransaction anywhere in the process
 relations:
 - serves: vision:o2
 revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-21T19:09:50Z", actor: "human:timo", revision: 2, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-21T19:09:50Z", actor: "human:timo", revision: 3, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-21T20:16:06Z", actor: "human:timo", revision: 4, decided_on: {"recorded":{"test_result":1,"review_outcome":7}}, imported: true}
 ---
 ## What this implements
 

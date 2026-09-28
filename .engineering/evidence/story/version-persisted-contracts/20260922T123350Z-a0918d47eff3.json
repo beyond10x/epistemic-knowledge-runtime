@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-22T12:33:50Z",
+  "actor": "agent:codex-ekr-completion-20260922",
+  "artifact": "story:version-persisted-contracts",
+  "kind": "story",
+  "revision": 47,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Selected format and seed checkpoint at edf4799; coupled unit and full gate incomplete",
+    "reference": ".engineering/reviews/p1-durable-seed-checkpoint.md"
+  }
+}

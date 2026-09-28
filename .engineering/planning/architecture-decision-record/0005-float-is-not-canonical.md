@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: architecture-decision-record:0005-float-is-not-canonical
 kind: architecture-decision-record
 status: accepted
@@ -8,6 +8,8 @@ relations:
 - decides: story:eventlog-store
 - decides: story:transaction-and-validators
 revision: 3
+transitions:
+- {from: "proposed", to: "accepted", at: "2026-09-21T15:05:07Z", actor: "human:timo", revision: 2, imported: true}
 ---
 ## Status
 

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:two-revision-events-have-no-discriminator
 kind: task
 status: implemented
@@ -8,6 +8,10 @@ relations:
 - serves: vision:o2
 - derived_from: story:version-persisted-contracts
 revision: 5
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-23T00:17:28Z", actor: "agent:claude-579ad7f9-p1-12", revision: 3, decided_on: {"recorded":{"test_result":1}}, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-23T00:17:29Z", actor: "agent:claude-579ad7f9-p1-12", revision: 4, decided_on: {"recorded":{"test_result":1}}, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-23T00:17:29Z", actor: "agent:claude-579ad7f9-p1-12", revision: 5, decided_on: {"recorded":{"test_result":1}}, imported: true}
 ---
 ## What is wrong
 

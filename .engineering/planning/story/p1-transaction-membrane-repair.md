@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:p1-transaction-membrane-repair
 kind: story
 status: implemented
@@ -30,6 +30,10 @@ scope:
 - confidence: cited
   path: crates/ekr-kernel/tests/validation.rs
 revision: 11
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-22T01:15:31Z", actor: "agent:codex-ekr-completion-20260922", revision: 6, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-22T01:15:31Z", actor: "agent:codex-ekr-completion-20260922", revision: 7, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-22T01:54:41Z", actor: "agent:codex-ekr-completion-20260922", revision: 11, decided_on: {"recorded":{"test_result":1}}, imported: true}
 ---
 ## Context
 

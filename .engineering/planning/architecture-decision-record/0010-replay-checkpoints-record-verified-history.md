@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: architecture-decision-record:0010-replay-checkpoints-record-verified-history
 kind: architecture-decision-record
 status: accepted
@@ -9,6 +9,8 @@ relations:
 - decides: story:version-persisted-contracts
 - decides: story:eventlog-0-4-batched-reads
 revision: 2
+transitions:
+- {from: "proposed", to: "accepted", at: "2026-09-26T17:21:25Z", actor: "agent:claude-ekr-release-007", revision: 2, imported: true}
 ---
 ## Status
 

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: executable-system-specification:ekr-v1
 kind: executable-system-specification
 status: conforming
@@ -7,6 +7,9 @@ title: systems/ekr — the runtime's executable system specification, v1
 relations:
 - specifies: epic:p1-kernel-ontology-core
 revision: 3
+transitions:
+- {from: "draft", to: "validated", at: "2026-09-21T01:59:07Z", actor: "agent:claude", revision: 2, imported: true}
+- {from: "validated", to: "conforming", at: "2026-09-23T20:38:55Z", actor: "agent:claude-lazy-sutton-p1-14", revision: 3, decided_on: {"recorded":{"ess_conformance":1}}, imported: true}
 ---
 ## What this is
 

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:seed-evidence-content-hash
 kind: story
 status: implemented
@@ -29,6 +29,10 @@ scope:
 - confidence: inferred
   path: crates/ekr/tests/agent_cli.rs
 revision: 15
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-25T19:32:08Z", actor: "agent:claude-lazy-sutton-p1-15", revision: 13, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-25T19:32:08Z", actor: "agent:claude-lazy-sutton-p1-15", revision: 14, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-26T00:02:29Z", actor: "agent:claude-lazy-sutton-p1-15", revision: 15, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}, imported: true}
 ---
 ## Context
 

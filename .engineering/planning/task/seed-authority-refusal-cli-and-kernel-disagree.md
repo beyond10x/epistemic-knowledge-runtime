@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:seed-authority-refusal-cli-and-kernel-disagree
 kind: task
 status: draft

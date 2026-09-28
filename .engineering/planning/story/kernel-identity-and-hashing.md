@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:kernel-identity-and-hashing
 kind: story
 status: implemented
@@ -41,6 +41,10 @@ scope:
 - confidence: cited
   path: crates/ekr-core/tests/rename_stability.rs
 revision: 21
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-21T10:53:23Z", actor: "agent:claude", revision: 7, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-21T10:53:23Z", actor: "agent:claude", revision: 8, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-21T11:20:08Z", actor: "agent:claude", revision: 21, decided_on: {"recorded":{"test_result":1,"review_outcome":11}}, imported: true}
 ---
 ## Context
 

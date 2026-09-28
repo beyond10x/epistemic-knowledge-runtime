@@ -1,0 +1,15 @@
+{
+  "at": "2026-09-21T20:16:02Z",
+  "actor": "human:timo",
+  "artifact": "task:canonical-state-references-are-typed",
+  "kind": "task",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:adversary-invariants-pass-1",
+    "reference": "corrects two of the seven fixed records: finding 4, the canonical reference holding a node id for every marker, went to task:canonical-reference-holds-a-node-id-for-every-target and no code changed; finding 6, the commit authority being in no domain and no story, was dispositioned as a doc note because the domain models entities and events rather than ports",
+    "review": "review-result:adversary-invariants-pass-1",
+    "outcome": "escalated"
+  }
+}

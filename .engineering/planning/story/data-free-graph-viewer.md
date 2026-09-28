@@ -1,8 +1,8 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:data-free-graph-viewer
 kind: story
-status: draft
+status: active
 title: The embedded graph viewer names no type, edge type, property or entity
 relations:
 - serves: vision:o5
@@ -15,7 +15,10 @@ scope:
   path: crates/ekr/tests
 - confidence: inferred
   path: docs/cli.md
-revision: 4
+revision: 7
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-27T18:34:03Z", actor: "human:timo", revision: 5, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-27T18:34:19Z", actor: "human:timo", revision: 6, imported: true}
 ---
 ## Context
 
@@ -53,3 +56,10 @@ Editing, answering attention items, any write, layouts beyond what the roles nee
 ## Acceptance
 
 A test holds that the embedded viewer asset contains none of the names of two fixture stores with different ontologies, that role derivation assigns each store its documented roles by type id, and that renaming every name in one store leaves its role assignment unchanged.
+
+
+## State, 2026-09-28 (held off-side while the store was stopped, written with AEP 0.62.0)
+
+- Waves p2p3p4-04 (this story, units R and P) and -05 are merged on the integration branch `wave/p2p3p4-04`, local and unpushed; the operator holds landing.
+- Gate at `cfe9dcd6`: fmt, clippy, doc, vendor, spec, conform-fresh and plan-check exit 0; the test step exited 201 with 3 failures in `adversary_p1_14_conformance`, which pass alone (7 of 7, 315 s). The operator stopped the rerun and all gates, so there is no green gate and no test_result.
+- Operator-approved plan (`jazzy-cooking-sonnet`): the page is rebuilt on the operator's prototype viewer (commit `d50654e1`, earlier page at `/alt`); `ekr.views` gains ProjectOverview, ExpandNeighbourhood, DescribeNode and SearchNodes (`a63f474f`); layout roles follow the valid-time rule, and the structural rule of unit R is a tooltip badge. The engine, the streamed endpoints and the page data layer follow.

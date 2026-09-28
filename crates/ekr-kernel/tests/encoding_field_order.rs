@@ -27,7 +27,7 @@
 
 use std::collections::BTreeMap;
 
-use ekr_core::canonical::Canonical;
+use ekr_core::canonical::{Canonical, Encoder};
 use ekr_core::{EdgeId, GraphRootId, NodeId, PropertyId, TypeId};
 use ekr_graph::CanonicalValue;
 use ekr_kernel::{
@@ -92,9 +92,10 @@ fn every_field_of_the_kernels_encodings_is_written_in_declaration_order() {
         properties: [(property, vec![CanonicalValue::String("one".to_owned())])]
             .into_iter()
             .collect(),
+        aliases: Vec::new(),
     };
     fields_ascend(
-        "NodeDraft: id, root_id, type_id, canonical_name, properties",
+        "NodeDraft: id, root_id, type_id, canonical_name, properties, aliases",
         &GraphOperation::CreateNode(draft()),
         vec![
             (
@@ -136,6 +137,14 @@ fn every_field_of_the_kernels_encodings_is_written_in_declaration_order() {
                     it.properties = [(property, vec![CanonicalValue::String("two".to_owned())])]
                         .into_iter()
                         .collect();
+                    GraphOperation::CreateNode(it)
+                }),
+            ),
+            (
+                "aliases",
+                Box::new(move || {
+                    let mut it = draft();
+                    it.aliases = vec!["two".to_owned()];
                     GraphOperation::CreateNode(it)
                 }),
             ),
@@ -518,5 +527,49 @@ fn every_field_of_the_kernels_encodings_is_written_in_declaration_order() {
                 }),
             ),
         ],
+    );
+}
+
+/// `task:proposed-node-carries-reference-aliases`: a `CreateNode` that names no alias encodes to
+/// exactly the five-field bytes it had before `aliases` existed, so no retained address moves; one
+/// that names an alias encodes it after the properties, behind a `Some` tag no enclosing encoding
+/// opens with.
+#[test]
+fn a_draft_without_aliases_encodes_to_the_bytes_it_had_before_the_field() {
+    let draft = NodeDraft::<CanonicalValue> {
+        id: NodeId::mint(),
+        root_id: GraphRootId::mint(),
+        type_id: TypeId::mint(),
+        canonical_name: "one".to_owned(),
+        properties: [(
+            PropertyId::mint(),
+            vec![CanonicalValue::String("one".to_owned())],
+        )]
+        .into_iter()
+        .collect(),
+        aliases: Vec::new(),
+    };
+    let mut before = Encoder::new();
+    before.variant(0);
+    draft.id.encode(&mut before);
+    draft.root_id.encode(&mut before);
+    draft.type_id.encode(&mut before);
+    draft.canonical_name.encode(&mut before);
+    before.map(draft.properties.iter());
+    let before = before.finish();
+    assert_eq!(
+        GraphOperation::CreateNode(draft.clone()).canonical_bytes(),
+        before
+    );
+
+    let aliases = vec!["Globex".to_owned(), "Globex Corporation".to_owned()];
+    let mut after = Encoder::new();
+    after.option(Some(&aliases));
+    let mut expected = before;
+    expected.extend(after.finish());
+    let aliased = NodeDraft { aliases, ..draft };
+    assert_eq!(
+        GraphOperation::CreateNode(aliased).canonical_bytes(),
+        expected
     );
 }

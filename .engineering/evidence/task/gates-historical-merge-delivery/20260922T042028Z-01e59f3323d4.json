@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-22T04:20:28Z",
+  "actor": "agent:codex-ekr-completion-20260922",
+  "artifact": "task:gates-historical-merge-delivery",
+  "kind": "task",
+  "revision": 2,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Actual EKR publication and both required CI checks passed with released Gates",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/pull/8"
+  }
+}

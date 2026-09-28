@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:ekr-resolve-verb
 kind: story
 status: implemented
@@ -34,6 +34,10 @@ scope:
 - confidence: cited
   path: docs/cli.md
 revision: 17
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-27T12:44:04Z", actor: "human:timo", revision: 15, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-27T12:44:23Z", actor: "human:timo", revision: 16, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-27T21:33:06Z", actor: "human:timo", revision: 17, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}, imported: true}
 ---
 ## Context
 

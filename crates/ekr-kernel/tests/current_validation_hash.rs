@@ -81,6 +81,7 @@ impl World {
                 type_id: self.decision,
                 canonical_name: name.to_owned(),
                 properties: BTreeMap::new(),
+                aliases: Vec::new(),
             })],
             evidence: BTreeSet::new(),
             schema_version: None,

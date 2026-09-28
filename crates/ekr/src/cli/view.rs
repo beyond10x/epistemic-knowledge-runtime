@@ -20,14 +20,23 @@
 //! or any `Transfer-Encoding` is 413, answered without reading the body.
 //!
 //! Nothing here proposes, validates, commits or seeds: the only store calls are
-//! [`ekr_views::project`], [`Runtime::snapshot`] and [`Runtime::content`]. A local read-only page
-//! is not an outward write (design § 82, § 83).
+//! [`Runtime::head`], [`ekr_views::load`], [`ekr_views::render`], [`Runtime::snapshot`] and
+//! [`Runtime::content`]. A local read-only page is not an outward write (design § 82, § 83).
+//!
+//! A revision is loaded once: the first `/projection` or `/roles` of a revision loads it with
+//! [`ekr_views::load`], renders both answers from that one load and keeps them in memory, keyed by
+//! the revision and the head it was loaded under ([`Cache`]). Every later request of that
+//! revision reads the store's head only and is answered from memory. A committed revision never
+//! changes, but the projection names the head (`meta.head`), so a new head empties the cache. At
+//! most [`CACHE_LIMIT`] revisions are kept; the one used longest ago goes first.
 //!
 //! | request | answer |
 //! |---|---|
 //! | `GET /` | the embedded viewer page, `text/html; charset=utf-8` |
+//! | `GET /alt` | the embedded earlier viewer page, kept while the new one is accepted, `text/html; charset=utf-8` |
 //! | `GET /projection` | the `ekr.graph-projection/1` bytes `ekr-views` renders at the head, `application/json` |
 //! | `GET /projection?revision=N` | the same at revision `N`; an absent revision is 404 `ekr.views.RevisionNotFound` |
+//! | `GET /roles[?revision=N]` | the `ekr.view-roles/1` node-type roles of that revision (the head when absent), derived by [`super::view_roles`] from the same loaded revision the projection renders, `application/json`; refused as `/projection` refuses |
 //! | `GET /evidence/<evidence id>` | that evidence's retained bytes, `text/plain; charset=utf-8` when they are UTF-8, else `application/octet-stream`; 404 for an unknown id or bytes not retained |
 //! | any other method on those paths | 405, with `Allow: GET` |
 //! | any other path | 404 |
@@ -37,7 +46,8 @@
 //! | a connection while 64 are in flight | 503 `busy`, unread |
 //!
 //! Every response carries `X-Content-Type-Options: nosniff`, `Cache-Control: no-store` and
-//! `Connection: close`, and no cookie or CORS header. Record text is untrusted evidence (A14) and
+//! `Connection: close`, and no cookie or CORS header. The page also carries its
+//! Content-Security-Policy as a header, with `frame-ancestors 'none'` added. Record text is untrusted evidence (A14) and
 //! is never served as HTML: the only HTML is the page, which is embedded in the binary at build
 //! time and writes what it fetches through `textContent`.
 
@@ -56,6 +66,15 @@ use crate::exit::Failure;
 
 /// The viewer page, embedded at build time; nothing is read from disk at run time.
 const PAGE: &str = include_str!("viewer/index.html");
+/// The earlier viewer page, served at `/alt` under the same policy.
+const ALT_PAGE: &str = include_str!("viewer/alt.html");
+/// The most revisions whose answers are kept in memory at once.
+const CACHE_LIMIT: usize = 8;
+/// The page's Content-Security-Policy as its `<meta>` carries it; the header adds
+/// [`FRAME_POLICY`], which a `<meta>` policy cannot express.
+const PAGE_POLICY: &str = "default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js https://cdn.jsdelivr.net/npm/graphology-library@0.8.0/dist/graphology-library.min.js https://cdn.jsdelivr.net/npm/sigma@3.0.3/dist/sigma.min.js https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.0/dist/3d-force-graph.min.js; worker-src blob:; style-src 'unsafe-inline'; connect-src 'self'";
+/// Refuses framing, so another page cannot overlay the viewer.
+const FRAME_POLICY: &str = "; frame-ancestors 'none'";
 
 const HTML: &str = "text/html; charset=utf-8";
 const JSON: &str = "application/json";
@@ -99,9 +118,10 @@ pub(super) fn run(runtime: &Runtime, port: u16) -> Result<String, Failure> {
         .spawn(move || accept(&listener, &jobs))
         .map_err(|error| Failure::fault(format!("starting the accept thread: {error}")))?;
     let port = address.port();
+    let mut cache = Cache::default();
     for (asked, reply_to) in store_thread {
         // A connection that timed out meanwhile is its own business.
-        let _ = reply_to.send(answer(runtime, port, &asked).into_bytes());
+        let _ = reply_to.send(answer(runtime, &mut cache, port, &asked).into_bytes());
     }
     Err(Failure::fault("the accept loop stopped"))
 }
@@ -332,9 +352,14 @@ impl Reply {
         } else {
             ""
         };
+        let policy = if self.content_type == HTML {
+            format!("Content-Security-Policy: {PAGE_POLICY}{FRAME_POLICY}\r\n")
+        } else {
+            String::new()
+        };
         let mut bytes = format!(
             "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\nContent-Length: {}\r\n\
-             X-Content-Type-Options: nosniff\r\nCache-Control: no-store\r\n{allow}\
+             X-Content-Type-Options: nosniff\r\nCache-Control: no-store\r\n{allow}{policy}\
              Connection: close\r\n\r\n",
             self.status,
             self.content_type,
@@ -349,14 +374,18 @@ impl Reply {
 /// The paths this server knows.
 enum Route<'a> {
     Page,
+    AltPage,
     Projection,
+    Roles,
     Evidence(&'a str),
 }
 
 fn route(path: &str) -> Option<Route<'_>> {
     match path {
         "/" => Some(Route::Page),
+        "/alt" => Some(Route::AltPage),
         "/projection" => Some(Route::Projection),
+        "/roles" => Some(Route::Roles),
         _ => path
             .strip_prefix("/evidence/")
             .filter(|id| !id.is_empty() && !id.contains('/'))
@@ -397,7 +426,7 @@ fn own_host(hosts: &[String], port: u16) -> bool {
 /// Answers one request, and touches the store only for a `GET` of a known path that names this
 /// server as its `Host` and announces no body: another `Host` (or none) is 421, an unknown path
 /// 404 whatever the method, a known path 405 for any method but `GET`, and a body 413.
-fn answer(runtime: &Runtime, port: u16, asked: &Asked) -> Reply {
+fn answer(runtime: &Runtime, cache: &mut Cache, port: u16, asked: &Asked) -> Reply {
     if !own_host(&asked.hosts, port) {
         return Reply::text(
             421,
@@ -420,42 +449,133 @@ fn answer(runtime: &Runtime, port: u16, asked: &Asked) -> Reply {
     }
     match route {
         Route::Page => Reply::ok(HTML, PAGE.as_bytes().to_vec()),
-        Route::Projection => projection(runtime, query),
+        Route::AltPage => Reply::ok(HTML, ALT_PAGE.as_bytes().to_vec()),
+        Route::Projection => rendered(runtime, cache, query, "projection", |r| &r.projection),
+        Route::Roles => rendered(runtime, cache, query, "roles", |r| &r.roles),
         Route::Evidence(id) => evidence(runtime, id),
     }
 }
 
-/// The revision a projection query names: none, or exactly `revision=N`.
+/// The revision a `/projection` or `/roles` query names: none for an empty query, else the query
+/// is exactly `revision=N` with `N` one or more ASCII digits that fit a `u64`. Anything else —
+/// an empty pair, a second pair, a sign, a space, another digit script — is refused.
 fn revision(query: &str) -> Result<Option<RevisionNumber>, String> {
-    let mut revision = None;
-    for pair in query.split('&').filter(|pair| !pair.is_empty()) {
-        match pair.split_once('=') {
-            Some(("revision", value)) if revision.is_none() => {
-                let number = value
-                    .parse::<u64>()
-                    .map_err(|_| format!("revision {value:?} is not a revision number"))?;
-                revision = Some(RevisionNumber::new(number));
-            }
-            _ => return Err(format!("the query {query:?} is not `revision=N`")),
-        }
+    if query.is_empty() {
+        return Ok(None);
     }
-    Ok(revision)
+    let Some(value) = query.strip_prefix("revision=") else {
+        return Err(format!("the query {query:?} is not `revision=N`"));
+    };
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(format!(
+            "the query {query:?} is not `revision=N` with N a decimal revision number"
+        ));
+    }
+    let number = value
+        .parse::<u64>()
+        .map_err(|_| format!("revision {value:?} is not a revision number"))?;
+    Ok(Some(RevisionNumber::new(number)))
 }
 
-fn projection(runtime: &Runtime, query: &str) -> Reply {
+/// Both answers of one loaded revision: the `ekr.graph-projection/1` bytes and the
+/// `ekr.view-roles/1` body, rendered from the same [`ekr_views::load`].
+#[derive(Debug, PartialEq, Eq)]
+struct Answers {
+    projection: Vec<u8>,
+    roles: Vec<u8>,
+}
+
+/// The answers of the revisions loaded so far under one head, the one used most recently last.
+#[derive(Debug, Default)]
+struct Cache {
+    head: Option<RevisionNumber>,
+    entries: Vec<(RevisionNumber, Answers)>,
+}
+
+impl Cache {
+    /// The answers of `revision` under `head`: from memory, else from `load`, which is kept when it
+    /// succeeds and not when it fails. A head other than the one the entries were loaded under
+    /// empties the cache first; beyond [`CACHE_LIMIT`] entries the one used longest ago goes.
+    fn get_or_load<E>(
+        &mut self,
+        head: RevisionNumber,
+        revision: RevisionNumber,
+        load: impl FnOnce() -> Result<Answers, E>,
+    ) -> Result<&Answers, E> {
+        if self.head != Some(head) {
+            self.entries.clear();
+            self.head = Some(head);
+        }
+        if let Some(at) = self.entries.iter().position(|(held, _)| *held == revision) {
+            let entry = self.entries.remove(at);
+            self.entries.push(entry);
+        } else {
+            let answers = load()?;
+            if self.entries.len() >= CACHE_LIMIT {
+                self.entries.remove(0);
+            }
+            self.entries.push((revision, answers));
+        }
+        Ok(&self
+            .entries
+            .last()
+            .expect("an entry was just placed last")
+            .1)
+    }
+}
+
+/// `/projection` or `/roles` (`what`) of the revision the query names, the head when it names
+/// none: `pick` chooses which of the revision's [`Answers`]. The head is read on every request;
+/// the revision is loaded only when the cache does not hold it. Refused as before: 400 for a
+/// query that is not `revision=N`, 404 `ekr.views.NotSeeded` or `ekr.views.RevisionNotFound`.
+fn rendered(
+    runtime: &Runtime,
+    cache: &mut Cache,
+    query: &str,
+    what: &str,
+    pick: impl Fn(&Answers) -> &Vec<u8>,
+) -> Reply {
     let at = match revision(query) {
         Ok(at) => at,
         Err(message) => return Reply::refusal(400, "invalid-query", message),
     };
-    match ekr_views::project(runtime, at) {
-        Ok(rendered) => Reply::ok(JSON, rendered.bytes),
-        Err(error @ ProjectError::RevisionNotFound { .. }) => {
+    let head = match runtime.head() {
+        Ok(Some(root)) => root.revision,
+        Ok(None) => return refused(what, ProjectError::NotSeeded { requested: at }),
+        Err(error) => return Reply::text(500, format!("{what}: reading the head: {error}")),
+    };
+    let wanted = at.unwrap_or(head);
+    if wanted > head {
+        return refused(
+            what,
+            ProjectError::RevisionNotFound {
+                requested: wanted,
+                head,
+            },
+        );
+    }
+    match cache.get_or_load(head, wanted, || load_answers(runtime, wanted)) {
+        Ok(answers) => Reply::ok(JSON, pick(answers).clone()),
+        Err(error) => refused(what, error),
+    }
+}
+
+/// Loads revision `at` once and renders both of its answers from that load.
+fn load_answers(runtime: &Runtime, at: RevisionNumber) -> Result<Answers, ProjectError> {
+    let loaded = ekr_views::load(runtime, Some(at))?;
+    let projection = ekr_views::render(&loaded)?.bytes;
+    let roles = super::view_roles::document(&loaded.graph);
+    Ok(Answers { projection, roles })
+}
+
+/// A revision that could not be loaded or rendered: the named 404s, or a 500 for `what`.
+fn refused(what: &str, error: ProjectError) -> Reply {
+    match error {
+        error @ ProjectError::RevisionNotFound { .. } => {
             Reply::refusal(404, "ekr.views.RevisionNotFound", error)
         }
-        Err(error @ ProjectError::NotSeeded { .. }) => {
-            Reply::refusal(404, "ekr.views.NotSeeded", error)
-        }
-        Err(error) => Reply::text(500, format!("projection: {error}")),
+        error @ ProjectError::NotSeeded { .. } => Reply::refusal(404, "ekr.views.NotSeeded", error),
+        error => Reply::text(500, format!("{what}: {error}")),
     }
 }
 
@@ -502,6 +622,26 @@ mod tests {
     #[allow(clippy::unnecessary_wraps)]
     fn no_deadline() -> Result<(), String> {
         Ok(())
+    }
+
+    /// The header policy is the page's own `<meta>` policy plus `frame-ancestors 'none'`, so the
+    /// two cannot drift apart.
+    #[test]
+    fn the_page_header_policy_is_the_meta_policy_and_refuses_framing() {
+        for (name, page) in [("/", PAGE), ("/alt", ALT_PAGE)] {
+            assert!(
+                page.contains(&format!("content=\"{PAGE_POLICY}\"")),
+                "the <meta> policy of {name} is not PAGE_POLICY"
+            );
+        }
+        let head = String::from_utf8(Reply::ok(HTML, Vec::new()).into_bytes())
+            .expect("a reply head is text");
+        assert!(
+            head.contains(&format!(
+                "Content-Security-Policy: {PAGE_POLICY}; frame-ancestors 'none'\r\n"
+            )),
+            "{head}"
+        );
     }
 
     #[test]
@@ -619,6 +759,13 @@ mod tests {
             "at=1",
             "revision=1&revision=2",
             "revision",
+            "&",
+            "revision=1&",
+            "&revision=1",
+            "revision=+0",
+            "revision= 1",
+            "revision=1 ",
+            "revision=٣",
         ] {
             assert!(revision(bad).is_err(), "{bad}");
         }
@@ -651,9 +798,11 @@ mod tests {
     }
 
     #[test]
-    fn only_the_three_routes_exist() {
+    fn only_the_five_routes_exist() {
         assert!(matches!(route("/"), Some(Route::Page)));
+        assert!(matches!(route("/alt"), Some(Route::AltPage)));
         assert!(matches!(route("/projection"), Some(Route::Projection)));
+        assert!(matches!(route("/roles"), Some(Route::Roles)));
         assert!(matches!(
             route("/evidence/abc"),
             Some(Route::Evidence("abc"))
@@ -662,12 +811,96 @@ mod tests {
             "",
             "/index.html",
             "/projection/",
+            "/roles/",
             "/evidence/",
             "/evidence/a/b",
             "/evidence",
+            "/alt/",
+            "/alt.html",
         ] {
             assert!(route(path).is_none(), "{path}");
         }
+    }
+
+    fn answers(tag: u8) -> Answers {
+        Answers {
+            projection: vec![tag],
+            roles: vec![tag, tag],
+        }
+    }
+
+    #[test]
+    fn a_revision_is_loaded_once_and_served_from_memory_after() {
+        let mut cache = Cache::default();
+        let head = RevisionNumber::new(4);
+        let mut loads = 0;
+        for _ in 0..3 {
+            let got = cache
+                .get_or_load(head, RevisionNumber::new(2), || {
+                    loads += 1;
+                    Ok::<_, ()>(answers(2))
+                })
+                .unwrap();
+            assert_eq!(got, &answers(2));
+        }
+        assert_eq!(
+            loads, 1,
+            "the second and third request are answered from memory"
+        );
+    }
+
+    #[test]
+    fn a_failed_load_is_not_kept_and_a_new_head_empties_the_cache() {
+        let mut cache = Cache::default();
+        let at = RevisionNumber::new(1);
+        assert_eq!(
+            cache.get_or_load(RevisionNumber::new(3), at, || Err::<Answers, _>("refused")),
+            Err("refused")
+        );
+        assert!(cache.entries.is_empty(), "a refusal is not cached");
+        cache
+            .get_or_load(RevisionNumber::new(3), at, || Ok::<_, ()>(answers(1)))
+            .unwrap();
+        let mut loaded_again = false;
+        let got = cache
+            .get_or_load(RevisionNumber::new(4), at, || {
+                loaded_again = true;
+                Ok::<_, ()>(answers(9))
+            })
+            .unwrap();
+        assert_eq!(got, &answers(9));
+        assert!(
+            loaded_again,
+            "the projection names the head, so a new head reloads"
+        );
+        assert_eq!(cache.entries.len(), 1);
+    }
+
+    #[test]
+    fn beyond_the_limit_the_revision_used_longest_ago_goes() {
+        let mut cache = Cache::default();
+        let head = RevisionNumber::new(100);
+        let tag = |n: usize| u8::try_from(n).unwrap();
+        for n in 0..CACHE_LIMIT {
+            cache
+                .get_or_load(head, RevisionNumber::new(u64::try_from(n).unwrap()), || {
+                    Ok::<_, ()>(answers(tag(n)))
+                })
+                .unwrap();
+        }
+        // Revision 0 is used again, so revision 1 is now the one used longest ago.
+        cache
+            .get_or_load(head, RevisionNumber::new(0), || Err::<Answers, _>(()))
+            .unwrap();
+        cache
+            .get_or_load(head, RevisionNumber::new(99), || Ok::<_, ()>(answers(99)))
+            .unwrap();
+        let held: Vec<u64> = cache.entries.iter().map(|(n, _)| n.get()).collect();
+        assert_eq!(held.len(), CACHE_LIMIT);
+        assert!(
+            held.contains(&0) && !held.contains(&1) && held.contains(&99),
+            "{held:?}"
+        );
     }
 
     #[test]

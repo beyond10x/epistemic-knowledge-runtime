@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:kernel-validated-seed
 kind: story
 status: implemented
@@ -61,6 +61,10 @@ scope:
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
 revision: 25
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-22T02:13:08Z", actor: "agent:codex-ekr-completion-20260922", revision: 17, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-22T02:13:08Z", actor: "agent:codex-ekr-completion-20260922", revision: 18, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-22T03:15:47Z", actor: "agent:codex-ekr-completion-20260922", revision: 24, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}, imported: true}
 ---
 ## Context
 

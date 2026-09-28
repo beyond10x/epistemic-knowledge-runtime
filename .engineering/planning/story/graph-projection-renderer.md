@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:graph-projection-renderer
 kind: story
 status: implemented
@@ -16,6 +16,10 @@ scope:
 - confidence: inferred
   path: crates/ekr-views
 revision: 8
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-27T08:31:11Z", actor: "human:timo", revision: 5, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-27T08:31:36Z", actor: "human:timo", revision: 6, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-27T12:36:53Z", actor: "human:timo", revision: 8, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}, imported: true}
 ---
 ## Context
 

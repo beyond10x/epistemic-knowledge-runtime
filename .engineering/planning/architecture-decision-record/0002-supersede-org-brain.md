@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: architecture-decision-record:0002-supersede-org-brain
 kind: architecture-decision-record
 status: accepted
@@ -7,6 +7,8 @@ title: ADR 0002 — Supersede the v2 engine and instance (D2)
 relations:
 - decides: initiative:epistemic-knowledge-runtime
 revision: 2
+transitions:
+- {from: "proposed", to: "accepted", at: "2026-09-21T01:48:06Z", actor: "agent:claude", revision: 2, imported: true}
 ---
 ## Status
 

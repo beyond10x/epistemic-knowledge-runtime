@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:planning-store-on-project-3
 kind: story
 status: implemented
@@ -26,6 +26,10 @@ scope:
 - confidence: cited
   path: Taskfile.yml
 revision: 14
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-26T01:52:17Z", actor: "agent:claude-lazy-sutton-p5-01", revision: 12, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-26T01:52:18Z", actor: "agent:claude-lazy-sutton-p5-01", revision: 13, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-26T07:32:27Z", actor: "agent:claude-lazy-sutton-p5-01", revision: 14, decided_on: {"recorded":{"test_result":1}}, imported: true}
 ---
 ## Context
 

@@ -1,0 +1,12 @@
+{
+  "at": "2026-09-25T09:11:42Z",
+  "actor": "agent:claude-lazy-sutton-p4-01",
+  "artifact": "story:agent-discoverable-cli",
+  "kind": "story",
+  "revision": 8,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "task check on wave/wave-p4-01 at c3040ad (nice 19, 4 jobs, 4 test threads): fmt 0, clippy 0, test 0 (798 passed, 0 failed, 135 targets), doc 0, vendor 0, spec 0 (ESS 0.29.0), conform 0, plan 0 (AEP 0.57.0); blind agent trials 1 and 2 PASS"
+  }
+}

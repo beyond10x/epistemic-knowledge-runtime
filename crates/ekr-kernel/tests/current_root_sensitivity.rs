@@ -65,6 +65,7 @@ fn transaction(id_bits: u64, name: &str) -> GraphTransaction {
                 type_id: id(0x05),
                 canonical_name: name.into(),
                 properties: BTreeMap::from([(label, vec![Value::String("beta".into())])]),
+                aliases: Vec::new(),
             }),
             GraphOperation::AddAssertion(Box::new(Assertion {
                 id: id(0x61),
@@ -105,6 +106,7 @@ fn canonical(tx: &GraphTransaction) -> GraphTransaction<CanonicalValue> {
                     .iter()
                     .map(|(key, values)| (*key, values.iter().map(string).collect()))
                     .collect(),
+                aliases: Vec::new(),
             }),
             GraphOperation::AddAssertion(assertion) => {
                 let Subject::Node(node) = assertion.subject else {

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: review-result:independent-review-p1-durability
 kind: review-result
 status: active

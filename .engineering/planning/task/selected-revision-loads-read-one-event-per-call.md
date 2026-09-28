@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:selected-revision-loads-read-one-event-per-call
 kind: task
 status: draft

@@ -1,0 +1,15 @@
+{
+  "at": "2026-09-21T14:52:21Z",
+  "actor": "human:timo",
+  "artifact": "story:graph-model-and-assertions",
+  "kind": "story",
+  "revision": 16,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:adversary-graph-pass-1",
+    "reference": "corrects one of the eight fixed records above: pass-1 finding 5, the retraction erasing its own acceptance, was escalated to task:assertion-retraction-erases-its-acceptance and not fixed. The crate implements design section 17 as written; the shape is a design decision. Recorded fixed in error at 8 of 8, and this record is the correction the append-only journal allows",
+    "review": "review-result:adversary-graph-pass-1",
+    "outcome": "escalated"
+  }
+}

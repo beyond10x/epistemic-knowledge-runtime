@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: epic:p0-bootstrap
 kind: epic
 status: implemented
@@ -8,6 +8,10 @@ relations:
 - decomposes: initiative:epistemic-knowledge-runtime
 - serves: vision:o2
 revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-21T01:48:05Z", actor: "agent:claude", revision: 2, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-21T01:48:32Z", actor: "agent:claude", revision: 3, decided_on: {"recorded":{"test_result":1}}, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-21T01:48:32Z", actor: "agent:claude", revision: 4, decided_on: {"recorded":{"test_result":1}}, imported: true}
 ---
 ## Context
 

@@ -22,7 +22,7 @@ use ekr_kernel::{
     GraphTransaction, NodeDraft, PropertyModification, PropertyMutation, Retraction, Runtime,
     SeedDocument, ValidationCommandResult, ValidationProfileV1,
 };
-use ekr_ontology::{EdgeType, NodeType, PropertyDefinition, Value, ValueType};
+use ekr_ontology::{Cardinality, EdgeType, NodeType, PropertyDefinition, Value, ValueType};
 use serde::Serialize;
 
 /// The native provider a store is opened on.
@@ -130,6 +130,46 @@ const OBSERVED_EDGE_CLAIM: u64 = 0x133;
 const SEEDED_EDGE: u64 = 0x140;
 const OBSERVED_EDGE: u64 = 0x141;
 const TRANSACTIONS: u64 = 0x200;
+/// The node the generated `DescribeNode` scenarios ask for in `store`: the ESS synthesizer's
+/// witness id, which `Fixture::Evolved` holds from its seed onward.
+pub const DESCRIBED: u64 = 0x1bba_d186_42ad;
+
+// `hub`: an-overview-lists-at-most-its-limit-of-top-nodes.yaml.
+pub const HUB: u64 = 0x10_0000;
+pub const HUB_LEAVES: u64 = 600;
+const HUB_NODE_TYPE: u64 = 0x11_0000;
+const HUB_EDGE_TYPE: u64 = 0x11_0001;
+const HUB_EDGES: u64 = 0x20_0000;
+
+// `timeline`: the-overview-derives-roles-and-timeline-from-valid-time.yaml.
+pub const KIND_A: u64 = 0x30_0001;
+pub const KIND_B: u64 = 0x30_0002;
+pub const KIND_C: u64 = 0x30_0003;
+const KIND_A_TO_B: u64 = 0x30_0004;
+const KIND_A_VALUE: u64 = 0x30_0005;
+const KIND_B_VALUE: u64 = 0x30_0006;
+const KIND_C_VALUE: u64 = 0x30_0007;
+const TIMELINE_A: u64 = 0x30_0100;
+const TIMELINE_B: u64 = 0x30_0200;
+const TIMELINE_C: u64 = 0x30_0300;
+const TIMELINE_EDGES: u64 = 0x30_0400;
+const TIMELINE_EVIDENCE: u64 = 0x30_0500;
+const TIMELINE_ASSERTIONS: u64 = 0x31_0000;
+/// 2027-01-01T09:00:00Z.
+pub const JANUARY_FIRST_0900_MS: i64 = 1_798_794_000_000;
+const DAY_MS: i64 = 86_400_000;
+const MINUTE_MS: i64 = 60_000;
+
+// `growth`: a-node-is-not-found-at-a-revision-before-it-existed.yaml.
+pub const GROWTH_FIRST: u64 = 0x40_0001;
+pub const GROWTH_SECOND: u64 = 0x40_0002;
+const GROWTH_VALUE_ASSERTION: u64 = 0x40_0011;
+const GROWTH_RELATION_ASSERTION: u64 = 0x40_0012;
+pub const GROWTH_EDGE: u64 = 0x40_0021;
+const GROWTH_EVIDENCE: u64 = 0x40_0031;
+const GROWTH_NODE_TYPE: u64 = 0x40_0100;
+const GROWTH_PROPERTY: u64 = 0x40_0101;
+const GROWTH_EDGE_TYPE: u64 = 0x40_0102;
 
 /// The first instant a fixture's host clock reads; each sample adds a millisecond.
 const CLOCK_START_MS: i64 = 1_800_000_000_000;
@@ -150,8 +190,15 @@ pub enum Fixture {
     /// One schema change at revision 1.
     SchemaEvolution,
     /// The seeded, schema-evolved store: two schema changes, an edge, an edge assertion and a
-    /// retraction over six revisions.
+    /// retraction over six revisions. Its seed also holds [`DESCRIBED`], the node the generated
+    /// `DescribeNode` scenarios name.
     Evolved,
+    /// A seed only: one hub joined by one edge to each of 600 leaves.
+    Hub,
+    /// Three node types whose facts gather in valid time or do not, over three revisions.
+    Timeline,
+    /// One node at the seed and a second, its edge and two assertions at revision 1.
+    Growth,
 }
 
 impl Fixture {
@@ -164,6 +211,9 @@ impl Fixture {
             "retracted-assertion" => Self::RetractedAssertion,
             "schema-evolution" => Self::SchemaEvolution,
             "store" => Self::Evolved,
+            "hub" => Self::Hub,
+            "timeline" => Self::Timeline,
+            "growth" => Self::Growth,
             _ => return None,
         })
     }
@@ -197,8 +247,49 @@ impl Fixture {
                 writer.seed(seed(0, false, false, 1));
                 writer.commit(first_schema_change(false), Some(id(VERSION_1)));
             }
+            Self::Hub => writer.seed(hub()),
+            Self::Timeline => {
+                writer.seed(timeline_seed());
+                writer.commit(
+                    [TIMELINE_B + 1, TIMELINE_B + 2]
+                        .into_iter()
+                        .enumerate()
+                        .map(|(n, node)| {
+                            GraphOperation::AddAssertion(Box::new(timeline_fact(
+                                TIMELINE_ASSERTIONS + 0x100 + n as u64,
+                                node,
+                                KIND_B_VALUE,
+                                Some(JANUARY_FIRST_0900_MS + 10 * DAY_MS + 180 * MINUTE_MS),
+                            )))
+                        })
+                        .collect(),
+                    None,
+                );
+                writer.commit(
+                    vec![GraphOperation::AddAssertion(Box::new(timeline_fact(
+                        TIMELINE_ASSERTIONS + 0x200,
+                        TIMELINE_B + 1,
+                        KIND_B_VALUE,
+                        // 2027-06-01T12:00:00Z.
+                        Some(1_811_851_200_000),
+                    )))],
+                    None,
+                );
+            }
+            Self::Growth => {
+                writer.seed(growth_seed());
+                writer.commit(growth_second(), None);
+            }
             Self::Evolved => {
-                writer.seed(seed(3, true, false, 2));
+                let mut document = seed(3, true, false, 2);
+                let described = Node::<Value>::new(
+                    id(DESCRIBED),
+                    document.graph.root.id,
+                    id(SUBJECT),
+                    "described",
+                );
+                document.graph.nodes.insert(described.id, described);
+                writer.seed(document);
                 writer.commit(first_schema_change(true), Some(id(VERSION_1)));
                 writer.commit(observed(), None);
                 writer.commit(retraction(SEEDED_CLAIM), None);
@@ -326,16 +417,7 @@ fn evidence_id(n: u64) -> EvidenceId {
 /// statements, optionally one assertion citing all of them, and optionally a `links` edge type
 /// with one edge between the first two subjects carrying one assertion.
 fn seed(evidence: u64, claimed: bool, edge: bool, nodes: u64) -> SeedDocument {
-    let mut document = SeedDocument::from_yaml(
-        &std::fs::read_to_string(
-            Path::new(
-                &std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the manifest dir"),
-            )
-            .join("tests/fixtures/seed-empty.yaml"),
-        )
-        .expect("the empty seed fixture"),
-    )
-    .expect("the empty seed parses");
+    let mut document = empty_seed();
     let root = document.graph.root.id;
     let mut subject = NodeType::new(id(SUBJECT), "Subject");
     subject.properties.insert(
@@ -404,6 +486,335 @@ fn seed(evidence: u64, claimed: bool, edge: bool, nodes: u64) -> SeedDocument {
         document.graph.assertions.insert(assertion.id, assertion);
     }
     document
+}
+
+/// `tests/fixtures/seed-empty.yaml`: schema version 1, the root, and nothing else.
+fn empty_seed() -> SeedDocument {
+    SeedDocument::from_yaml(
+        &std::fs::read_to_string(
+            Path::new(
+                &std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the manifest dir"),
+            )
+            .join("tests/fixtures/seed-empty.yaml"),
+        )
+        .expect("the empty seed fixture"),
+    )
+    .expect("the empty seed parses")
+}
+
+/// One retained human statement with the id `n`, in `document`.
+fn statement(document: &mut SeedDocument, n: u64) -> EvidenceId {
+    let bytes = format!("synthetic statement {n:x}").into_bytes();
+    let hash = ContentHash::of_bytes(&bytes);
+    let record = Evidence {
+        id: id(n),
+        source: EvidenceSource::HumanStatement {
+            identity: Some("operator".into()),
+        },
+        content_hash: hash,
+        extracted_by: context().operator,
+        observed_at: Timestamp::from_millis(1_000),
+        confidence: Confidence::from_basis_points(9_000).expect("basis points"),
+    };
+    document.graph.evidence.insert(record.id, record);
+    document.evidence_payloads.insert(hash, bytes);
+    id(n)
+}
+
+/// A proposed assertion, citing `evidence`, valid from `valid_from` when one is given and
+/// unbounded otherwise.
+fn fact(
+    assertion: u64,
+    subject: Subject<NodeId, EdgeId>,
+    predicate: Predicate,
+    object: Object<Value>,
+    valid_from: Option<i64>,
+    evidence: EvidenceId,
+) -> Assertion<Value> {
+    Assertion {
+        id: id::<AssertionId>(assertion),
+        root_id: id(2),
+        subject,
+        predicate,
+        object,
+        evidence: [evidence].into_iter().collect(),
+        proposed_by: context().operator,
+        assessment: Assessment::Proposed,
+        lifecycle: AssertionLifecycle::Active,
+        valid_time: valid_from.map_or(TemporalRange::UNBOUNDED, |from| {
+            TemporalRange::since(Timestamp::from_millis(from))
+        }),
+        transaction_time: TransactionTime::since(Timestamp::EPOCH),
+    }
+}
+
+/// The `hub` seed: one node type with no property, one edge type from it to itself, the hub,
+/// 600 leaves named `leaf-001` to `leaf-600` in id order — leaf-600 alone with an alias,
+/// `Hub-Leaf` — and edge n from the hub to leaf n. No assertion and no evidence.
+fn hub() -> SeedDocument {
+    let mut document = empty_seed();
+    let root = document.graph.root.id;
+    document
+        .ontology
+        .node_types
+        .push(NodeType::new(id(HUB_NODE_TYPE), "vertex"));
+    let mut joins = EdgeType::new(id(HUB_EDGE_TYPE), "joins");
+    joins.source_types = [id(HUB_NODE_TYPE)].into_iter().collect();
+    joins.target_types = [id(HUB_NODE_TYPE)].into_iter().collect();
+    joins.cardinality = Cardinality::Many;
+    document.ontology.edge_types.push(joins);
+    let hub = Node::<Value>::new(id(HUB), root, id(HUB_NODE_TYPE), "hub");
+    document.graph.nodes.insert(hub.id, hub);
+    for n in 1..=HUB_LEAVES {
+        let mut leaf =
+            Node::<Value>::new(id(HUB + n), root, id(HUB_NODE_TYPE), format!("leaf-{n:03}"));
+        if n == HUB_LEAVES {
+            leaf.aliases = vec!["Hub-Leaf".into()];
+        }
+        document.graph.nodes.insert(leaf.id, leaf);
+        let edge = Edge::<Value> {
+            id: id(HUB_EDGES + n),
+            root_id: root,
+            type_id: id(HUB_EDGE_TYPE),
+            source: id(HUB),
+            target: id(HUB + n),
+            properties: BTreeMap::new(),
+        };
+        document.graph.edges.insert(edge.id, edge);
+    }
+    document
+}
+
+/// A timeline assertion: `node`'s own String property `property`, valid from `valid_from`.
+fn timeline_fact(
+    assertion: u64,
+    node: u64,
+    property: u64,
+    valid_from: Option<i64>,
+) -> Assertion<Value> {
+    fact(
+        assertion,
+        Subject::Node(id(node)),
+        Predicate::Property(id(property)),
+        Object::Value(Value::String("observed".into())),
+        valid_from,
+        id(TIMELINE_EVIDENCE),
+    )
+}
+
+/// The `timeline` seed, as the scenario's header states it.
+fn timeline_seed() -> SeedDocument {
+    let mut document = empty_seed();
+    let root = document.graph.root.id;
+    for (type_id, name, property, property_name) in [
+        (KIND_A, "kind-a", KIND_A_VALUE, "a-value"),
+        (KIND_B, "kind-b", KIND_B_VALUE, "b-value"),
+        (KIND_C, "kind-c", KIND_C_VALUE, "c-value"),
+    ] {
+        let mut declared = NodeType::new(id(type_id), name);
+        declared.properties.insert(
+            id(property),
+            PropertyDefinition::new(id(property), property_name, ValueType::String),
+        );
+        document.ontology.node_types.push(declared);
+    }
+    let mut a_to_b = EdgeType::new(id(KIND_A_TO_B), "a-to-b");
+    a_to_b.source_types = [id(KIND_A)].into_iter().collect();
+    a_to_b.target_types = [id(KIND_B)].into_iter().collect();
+    document.ontology.edge_types.push(a_to_b);
+    statement(&mut document, TIMELINE_EVIDENCE);
+
+    let mut facts = Vec::new();
+    let mut next = TIMELINE_ASSERTIONS;
+    let mut fact_at = |node: u64, property: u64, valid_from: Option<i64>| {
+        next += 1;
+        facts.push(timeline_fact(next, node, property, valid_from));
+    };
+    let mut nodes = Vec::new();
+    for i in 1..=5_u64 {
+        nodes.push((TIMELINE_A + i, KIND_A, format!("a-{i}")));
+        let day = JANUARY_FIRST_0900_MS + (i as i64 - 1) * DAY_MS;
+        fact_at(TIMELINE_A + i, KIND_A_VALUE, Some(day));
+        fact_at(TIMELINE_A + i, KIND_A_VALUE, Some(day + 30 * MINUTE_MS));
+    }
+    for i in 1..=2_u64 {
+        nodes.push((TIMELINE_B + i, KIND_B, format!("b-{i}")));
+        fact_at(
+            TIMELINE_B + i,
+            KIND_B_VALUE,
+            Some(JANUARY_FIRST_0900_MS + 180 * MINUTE_MS),
+        );
+    }
+    fact_at(TIMELINE_B + 2, KIND_B_VALUE, None);
+    for i in 1..=6_u64 {
+        nodes.push((TIMELINE_C + i, KIND_C, format!("c-{i}")));
+        let second_day_1000 = JANUARY_FIRST_0900_MS + DAY_MS + 60 * MINUTE_MS;
+        fact_at(TIMELINE_C + i, KIND_C_VALUE, Some(second_day_1000));
+        fact_at(
+            TIMELINE_C + i,
+            KIND_C_VALUE,
+            Some(second_day_1000 + 20 * MINUTE_MS),
+        );
+    }
+    for (node, type_id, name) in nodes {
+        let node = Node::<Value>::new(id(node), root, id(type_id), name);
+        document.graph.nodes.insert(node.id, node);
+    }
+    for assertion in facts {
+        document.graph.assertions.insert(assertion.id, assertion);
+    }
+    for (n, target) in [1_u64, 2, 1, 2, 1].into_iter().enumerate() {
+        let n = n as u64 + 1;
+        let edge = Edge::<Value> {
+            id: id(TIMELINE_EDGES + n),
+            root_id: root,
+            type_id: id(KIND_A_TO_B),
+            source: id(TIMELINE_A + n),
+            target: id(TIMELINE_B + target),
+            properties: BTreeMap::new(),
+        };
+        document.graph.edges.insert(edge.id, edge);
+    }
+    document
+}
+
+/// The `growth` seed: one node type with one String property, one edge type from it to itself,
+/// the node `first`, and one retained statement for revision 1 to cite.
+fn growth_seed() -> SeedDocument {
+    let mut document = empty_seed();
+    let root = document.graph.root.id;
+    let mut item = NodeType::new(id(GROWTH_NODE_TYPE), "item");
+    item.properties.insert(
+        id(GROWTH_PROPERTY),
+        PropertyDefinition::new(id(GROWTH_PROPERTY), "remark", ValueType::String),
+    );
+    document.ontology.node_types.push(item);
+    let mut follows = EdgeType::new(id(GROWTH_EDGE_TYPE), "follows");
+    follows.source_types = [id(GROWTH_NODE_TYPE)].into_iter().collect();
+    follows.target_types = [id(GROWTH_NODE_TYPE)].into_iter().collect();
+    document.ontology.edge_types.push(follows);
+    let first = Node::<Value>::new(id(GROWTH_FIRST), root, id(GROWTH_NODE_TYPE), "first");
+    document.graph.nodes.insert(first.id, first);
+    statement(&mut document, GROWTH_EVIDENCE);
+    document
+}
+
+/// `growth`'s revision 1: `second`, a value assertion about it, an edge from it to `first`, and
+/// the Relation assertion that matches that edge on source, type and target.
+fn growth_second() -> Vec<GraphOperation> {
+    vec![
+        GraphOperation::CreateNode(NodeDraft {
+            id: id(GROWTH_SECOND),
+            root_id: id(2),
+            type_id: id(GROWTH_NODE_TYPE),
+            canonical_name: "second".into(),
+            properties: BTreeMap::new(),
+            aliases: Vec::new(),
+        }),
+        GraphOperation::AddAssertion(Box::new(fact(
+            GROWTH_VALUE_ASSERTION,
+            Subject::Node(id(GROWTH_SECOND)),
+            Predicate::Property(id(GROWTH_PROPERTY)),
+            Object::Value(Value::String("added".into())),
+            None,
+            id(GROWTH_EVIDENCE),
+        ))),
+        GraphOperation::CreateEdge(EdgeDraft {
+            id: id(GROWTH_EDGE),
+            root_id: id(2),
+            type_id: id(GROWTH_EDGE_TYPE),
+            source: id(GROWTH_SECOND),
+            target: id(GROWTH_FIRST),
+            properties: BTreeMap::new(),
+        }),
+        GraphOperation::AddAssertion(Box::new(fact(
+            GROWTH_RELATION_ASSERTION,
+            Subject::Node(id(GROWTH_SECOND)),
+            Predicate::Relation(id(GROWTH_EDGE_TYPE)),
+            Object::Node(id(GROWTH_FIRST)),
+            None,
+            id(GROWTH_EVIDENCE),
+        ))),
+    ]
+}
+
+/// A generated store for the index measurement: `nodes` nodes of three types, `edges` edges
+/// between them chosen by a fixed linear congruential sequence (every tenth one into a hub of a
+/// few hundred nodes, so the degree distribution has a tail), and one dated assertion per node.
+/// A seed only, so the kernel admits it once.
+pub fn build_large(runtime: &Runtime, nodes: u64, edges: u64) {
+    let mut document = empty_seed();
+    let root = document.graph.root.id;
+    let types = [0x50_0001_u64, 0x50_0002, 0x50_0003];
+    let property = 0x50_0010_u64;
+    let edge_type = 0x50_0004_u64;
+    for (n, type_id) in types.iter().enumerate() {
+        let mut declared = NodeType::new(id(*type_id), format!("generated-{n}"));
+        declared.properties.insert(
+            id(property + n as u64),
+            PropertyDefinition::new(id(property + n as u64), "value", ValueType::String),
+        );
+        document.ontology.node_types.push(declared);
+    }
+    let mut joins = EdgeType::new(id(edge_type), "joins");
+    joins.source_types = types.iter().map(|t| id(*t)).collect();
+    joins.target_types = types.iter().map(|t| id(*t)).collect();
+    joins.cardinality = Cardinality::Many;
+    document.ontology.edge_types.push(joins);
+    let evidence = statement(&mut document, 0x50_0020);
+    let node_base = 0x60_0000_0000_u64;
+    for n in 0..nodes {
+        let kind = (n % 3) as usize;
+        let node = Node::<Value>::new(
+            id(node_base + n),
+            root,
+            id(types[kind]),
+            format!("generated node {n}"),
+        );
+        document.graph.nodes.insert(node.id, node);
+        let assertion = fact(
+            0x70_0000_0000 + n,
+            Subject::Node(id(node_base + n)),
+            Predicate::Property(id(property + kind as u64)),
+            Object::Value(Value::String("generated".into())),
+            Some(JANUARY_FIRST_0900_MS + (n % 400) as i64 * DAY_MS),
+            evidence,
+        );
+        document.graph.assertions.insert(assertion.id, assertion);
+    }
+    let mut state = 0x2545_f491_4f6c_dd1d_u64;
+    let mut step = || {
+        state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        state >> 33
+    };
+    for e in 0..edges {
+        let source = step() % nodes;
+        let mut target = if e % 10 == 0 {
+            step() % 300.min(nodes)
+        } else {
+            step() % nodes
+        };
+        if target == source {
+            target = (source + 1) % nodes;
+        }
+        let edge = Edge::<Value> {
+            id: id(0x80_0000_0000 + e),
+            root_id: root,
+            type_id: id(edge_type),
+            source: id(node_base + source),
+            target: id(node_base + target),
+            properties: BTreeMap::new(),
+        };
+        document.graph.edges.insert(edge.id, edge);
+    }
+    Writer {
+        runtime,
+        clock: CLOCK_START_MS,
+        transactions: TRANSACTIONS,
+    }
+    .seed(document);
 }
 
 /// A proposed property assertion about `subject`, citing the fixture's evidence `cited`.
@@ -476,6 +887,7 @@ fn observed() -> Vec<GraphOperation> {
                 id(SUMMARY),
                 vec![Value::String("observed after the schema change".into())],
             )]),
+            aliases: Vec::new(),
         }),
         GraphOperation::CreateEdge(EdgeDraft {
             id: id(OBSERVED_EDGE),

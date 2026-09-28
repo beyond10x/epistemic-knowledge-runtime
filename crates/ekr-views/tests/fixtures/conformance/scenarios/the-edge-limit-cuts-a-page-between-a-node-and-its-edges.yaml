@@ -1,0 +1,57 @@
+# The edge limit ends a page, and a page may end between a node and the edges it closes.
+#
+# The store `hub` and the hub's record sequence are as a-cursor-pages-a-neighbourhood-to-its-end
+# describes: the hub at 0, leaf n at 2n - 1, the edge from the hub to leaf n at 2n.
+# With limit 2,000 nodes and edge_limit 100:
+#   - page 1 (no cursor): positions 0 to 201 — the hub, leaves 1 to 101 and edges 1 to 100, so
+#     102 nodes and 100 edges; the edge at 202 would be the page's 101st. 999 records remain;
+#   - page 2 (after 202): it starts with edge 101, the edge page 1's last node closes, then
+#     leaves 102 to 201 and edges 101 to 200 — positions 202 to 401, 100 nodes and 100 edges;
+#     799 records remain.
+# A renderer that cuts only on whole nodes answers 101 nodes on page 1; one that never lets a
+# page start with an edge loses edge 101.
+type: ess-scenario/1
+domain: ekr.views
+scenario: the-edge-limit-cuts-a-page-between-a-node-and-its-edges
+summary: At edge_limit 100 the hub's neighbourhood pages as 102 nodes and 100 edges, then 100 and 100 starting with the edge the first page's last node closes.
+
+timeline:
+  - at: 2027-01-15T11:30:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: 0
+      seeds: [00000000-0000-4000-8000-000000100000]
+      depth: 1
+      limit: 2000
+      edge_limit: 100
+      after: null
+    outcome: expanded
+    events:
+      - event: ekr.views.NeighbourhoodExpanded
+        payload:
+          after: 0
+          nodes: 102
+          edges: 100
+          remaining: 999
+
+  - at: 2027-01-15T11:31:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: 0
+      seeds: [00000000-0000-4000-8000-000000100000]
+      depth: 1
+      limit: 2000
+      edge_limit: 100
+      after: 202
+    outcome: expanded
+    events:
+      - event: ekr.views.NeighbourhoodExpanded
+        payload:
+          after: 202
+          nodes: 100
+          edges: 100
+          remaining: 799

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:eventlog-0-4-batched-reads
 kind: story
 status: implemented
@@ -23,6 +23,10 @@ scope:
 - confidence: cited
   path: crates/ekr/tests/story_contract.rs
 revision: 13
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-25T19:32:07Z", actor: "agent:claude-lazy-sutton-p1-15", revision: 10, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-25T19:32:07Z", actor: "agent:claude-lazy-sutton-p1-15", revision: 11, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-26T00:02:28Z", actor: "agent:claude-lazy-sutton-p1-15", revision: 13, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}, imported: true}
 ---
 ## Context
 

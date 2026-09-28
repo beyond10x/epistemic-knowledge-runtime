@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:assertion-retraction-erases-its-acceptance
 kind: task
 status: implemented
@@ -8,6 +8,10 @@ relations:
 - derived_from: story:version-persisted-contracts
 - serves: vision:o2
 revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-23T00:17:38Z", actor: "agent:claude-579ad7f9-p1-12", revision: 2, decided_on: {"recorded":{"test_result":1}}, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-23T00:17:38Z", actor: "agent:claude-579ad7f9-p1-12", revision: 3, decided_on: {"recorded":{"test_result":1}}, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-23T00:17:39Z", actor: "agent:claude-579ad7f9-p1-12", revision: 4, decided_on: {"recorded":{"test_result":1}}, imported: true}
 ---
 ## What is wrong
 

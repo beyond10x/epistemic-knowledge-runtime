@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-22T11:26:05Z",
+  "actor": "agent:codex-ekr-completion-20260922",
+  "artifact": "task:qualify-released-eventlog",
+  "kind": "task",
+  "revision": 5,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Complete EKR gate and direct old-to-repaired fresh-process compatibility",
+    "reference": ".engineering/reviews/eventlog-repair-adoption.md"
+  }
+}

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:graph-projection-specification
 kind: story
 status: implemented
@@ -29,6 +29,10 @@ scope:
 - confidence: cited
   path: systems/ekr/system.yaml
 revision: 16
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-26T22:13:24Z", actor: "human:timo", revision: 12, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-26T22:13:34Z", actor: "human:timo", revision: 13, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-26T23:14:07Z", actor: "human:timo", revision: 16, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}, imported: true}
 ---
 ## Context
 

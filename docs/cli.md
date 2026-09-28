@@ -239,8 +239,9 @@ answer:
 | `reference-type-undeclared` | `type_id` is not a node type the ontology at that revision declares | take the id from `ekr ontology` |
 | `reference-type-has-subtypes` | `type_id` is an abstract type or has a declared subtype | name the concrete type the node is an instance of |
 
-Aliases enter a store only through the seed: a `!CreateNode` carries none, so a node created by a
-transaction is never a candidate, and a later reference to it resolves `ProposeNew` again.
+Give the `!CreateNode` the reference's aliases: the created node is then a candidate at the next
+revision. A `!CreateNode` naming an alias a node of its type already holds is `Rejected`
+(`alias-already-exists`); resolve again and use the node it returns.
 
 A document that is not a typed reference exits 1, `ekr: typed reference <file>: <reason>`, before
 the store is opened. That includes a document over 1048576 bytes, a YAML alias (`*name`), a tag,
@@ -338,7 +339,8 @@ prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`, then answers:
 
 | request | answer |
 |---|---|
-| `GET /` | the viewer page, built into the binary: it shows the projection's `meta` |
+| `GET /` | the viewer page, built into the binary: the graph in 2D and 3D, a timeline with a heatmap and swimlanes, property history, the schema history, a command palette (Ctrl+K), navigation between committed revisions, and the state in the URL after `#` |
+| `GET /alt` | the earlier viewer page, built into the binary, kept while the new one is accepted |
 | `GET /projection` | the `ekr.graph-projection/1` document at the head, `application/json`, byte for byte what the projection renders |
 | `GET /projection?revision=N` | the same as of revision `N`; a revision the store does not hold is 404 with `{"refusal": "ekr.views.RevisionNotFound", …}` |
 | `GET /evidence/<evidence id>` | that evidence's retained bytes: `text/plain; charset=utf-8` when they are UTF-8, otherwise `application/octet-stream`; 404 for an id the head does not hold or bytes the store did not retain |
@@ -355,6 +357,67 @@ rebinding reads nothing. Every response carries `X-Content-Type-Options: nosniff
 origin. Evidence text is
 never served as HTML. Like every read verb, `ekr view` opens an existing store only (a path holding
 none is `store-not-found`, exit 1) and writes nothing to it.
+
+A revision is loaded once. The first `/projection` or `/roles` of a revision loads it, renders both
+answers from that one load and keeps them in memory; a later request of the same revision reads
+only the store's head and is answered from memory, byte for byte what the first answer was. The
+projection names the head, so a new head empties the memory. At most 8 revisions are kept, and the
+one used longest ago goes first.
+
+The page reads `/projection`, `/roles` and `/evidence/<id>` and nothing else, and derives what it
+shows from them: the timeline's event, observation and subject types from where valid time
+clusters, the growth per revision from each assertion's recorded time, and one link for an edge and
+the relation assertions with its source, type and target. The roles `/roles` serves appear only as
+badges in its tooltips. It fetches evidence only by an id the loaded projection holds, and writes
+everything a store holds as text.
+
+#### Roles
+
+`GET /roles` (the head) and `GET /roles?revision=N` answer, as `application/json`, which node types
+the viewer lays out as events, subjects and observations:
+
+```json
+{"format":"ekr.view-roles/1","revision":0,"node_types":[{"type_id":"<type id>","role":"event"}]}
+```
+
+`role` is `event`, `subject` or `observation`; entries are ordered by `type_id`, and a type the rule
+below does not place has no entry (the viewer still shows it). The body is computed from the same
+loaded revision `/projection` renders and is not part of `ekr.graph-projection/1`. It is refused
+exactly as `/projection` is: 404 `ekr.views.RevisionNotFound` for a revision the store does not
+hold, 400 `invalid-query` for any query but exactly `revision=N` with `N` in ASCII decimal
+digits (an empty pair, a second pair, a sign or a space is refused).
+
+The rule reads the store's shape and nothing else — never a type, edge-type, property or entity
+name, and never an id compared to a constant — so a store whose every name is changed gets the same
+roles, id for id. To apply it by hand to the revision's ontology and assertions:
+
+1. **Arcs.** First widen each edge type's `source_types` and `target_types` to every node type that
+   conforms to one of them: the listed types and all their descendants through `parents`,
+   transitively, which is how the runtime checks an edge's endpoints. Each edge type then gives an
+   arc from every widened source type to every widened target type; a `symmetric` edge type gives
+   the reverse arcs too. An arc from a type to itself is dropped. Abstract types count like any
+   other.
+2. **Degree.** A type's *targets* are the other types it has an arc to; its *sources* are the other
+   types with an arc to it.
+3. **Timed.** A type is *timed* when some assertion the revision holds — property or relation,
+   whatever its assessment or lifecycle — has a node of that type as its subject and a valid time
+   with `from` or `to` set. The node's own type counts, not its ancestors. Assertions about an edge
+   or a type do not count.
+4. **Advancing.** A type is *advancing* when it is timed and has at least one target.
+
+Each node type then takes the first role whose condition holds:
+
+| role | condition |
+|---|---|
+| `observation` | no sources, and at least one target is advancing |
+| `event` | advancing |
+| `subject` | at least one source |
+| none | anything else: no entry |
+
+An observation points at events and nothing points at it; an event is timed and points on; a
+subject is pointed at and is not an event. A timed type with no targets is therefore a subject, a
+type with no arc to or from another type after widening has no role, and a revision that adds a
+timed assertion can move a type from `subject` to `event`.
 
 ## The workflow
 
@@ -555,7 +618,7 @@ carry.
 |---|---|
 | `id`, `root_id`, `type_id` | its id, the root id, a concrete (not abstract) node type |
 | `canonical_name` | the name a reader sees; a property, not an identity |
-| `aliases` | other names, a list of strings. Seed only: transactions do not set aliases |
+| `aliases` | other names, a list of strings. A `CreateNode` sets them the same way; no other operation changes them |
 | `type_state` | the lifecycle's `initial` state, or `null` for a type without a lifecycle |
 | `properties` | map property id → non-empty list of values, satisfying the type's definitions (required properties present) |
 
@@ -647,7 +710,7 @@ parses but is **refused** under either profile, with the same code.
 
 | kind | applied | what it does |
 |---|---|---|
-| `CreateNode` | applied | creates a node: `id`, `root_id`, `type_id`, `canonical_name`, `properties` |
+| `CreateNode` | applied | creates a node: `id`, `root_id`, `type_id`, `canonical_name`, `properties`, and optionally `aliases` (a list of strings, the names a typed reference is matched against; absent means none; a non-empty alias another node of the same type holds, or that another `CreateNode` of the transaction gives, is refused) |
 | `UpdateProperty` | applied | sets all values of one property of one node: `node`, `property`, `values` (`[]` clears it) |
 | `CreateEdge` | applied | creates an edge: `id`, `root_id`, `type_id`, `source`, `target`, `properties` |
 | `DeleteEdge` | applied | removes an edge: `!DeleteEdge <edge id>` |
@@ -1586,6 +1649,8 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `assertion-states-its-own-verdict` | validation issue | 0 | an assertion written with a complete assessment other than `Proposed`, such as `!Accepted {validators: [...]}` (a bare `Accepted` is refused earlier, as `ekr.kernel.StructurallyInvalid`) | write `assessment: Proposed` |
 | `identity-already-exists` | validation issue | 0 | a create reuses an id that already exists | `ekr mint` a fresh id |
 | `duplicate-identity` | validation issue | 0 | one transaction creates the same id twice | `ekr mint` one id per created thing |
+| `alias-already-exists` | validation issue | 0 | a `CreateNode` gives a non-empty alias that a node of the same type already holds | resolve the reference and use that node instead of creating one |
+| `duplicate-alias` | validation issue | 0 | two `CreateNode` operations of one transaction give the same non-empty alias to nodes of one type | give each alias to one node |
 | `conflicting-write` | validation issue | 0 | one transaction writes the same property of a node twice with different values, or moves one node's lifecycle twice | one write per property and one state move per node per transaction |
 | `operation-not-declared` | validation issue | 0 | `!Invoke` names no operation **key** of the node's type (an operation's `name` field is not consulted) | use the key under `operations` |
 | `transition-refused` | validation issue | 0 | the node is not in the operation's `from` state | check the node's `type_state` |

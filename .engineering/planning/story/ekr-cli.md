@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:ekr-cli
 kind: story
 status: implemented
@@ -32,6 +32,10 @@ scope:
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
 revision: 16
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-23T00:37:04Z", actor: "agent:claude-579ad7f9-p1-13", revision: 13, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-23T00:37:04Z", actor: "agent:claude-579ad7f9-p1-13", revision: 14, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-23T07:59:19Z", actor: "agent:claude-579ad7f9-p1-13", revision: 15, decided_on: {"recorded":{"test_result":1,"review_outcome":11}}, imported: true}
 ---
 ## Context
 

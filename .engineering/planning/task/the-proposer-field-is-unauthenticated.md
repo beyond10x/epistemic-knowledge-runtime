@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:the-proposer-field-is-unauthenticated
 kind: task
 status: implemented
@@ -7,6 +7,10 @@ title: An agent that names a different proposer can validate its own transaction
 relations:
 - serves: vision:o2
 revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-23T07:59:15Z", actor: "agent:claude-579ad7f9-p1-13", revision: 2, decided_on: {"recorded":{"test_result":1}}, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-23T07:59:15Z", actor: "agent:claude-579ad7f9-p1-13", revision: 3, decided_on: {"recorded":{"test_result":1}}, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-23T07:59:15Z", actor: "agent:claude-579ad7f9-p1-13", revision: 4, decided_on: {"recorded":{"test_result":1}}, imported: true}
 ---
 ## What is wrong
 

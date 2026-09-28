@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:pin-ess-0-32
 kind: story
 status: implemented
@@ -30,6 +30,10 @@ scope:
 - confidence: inferred
   path: systems/ekr/domains/kernel.yaml
 revision: 16
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-25T19:32:09Z", actor: "agent:claude-lazy-sutton-p1-15", revision: 14, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-25T19:32:09Z", actor: "agent:claude-lazy-sutton-p1-15", revision: 15, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-26T00:02:28Z", actor: "agent:claude-lazy-sutton-p1-15", revision: 16, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}, imported: true}
 ---
 ## Context
 

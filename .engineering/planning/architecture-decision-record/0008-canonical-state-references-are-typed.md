@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: architecture-decision-record:0008-canonical-state-references-are-typed
 kind: architecture-decision-record
 status: accepted
@@ -7,6 +7,8 @@ title: ADR 0008 — Canonical state references by a typed reference, not a bare 
 relations:
 - decides: task:canonical-state-references-are-typed
 revision: 4
+transitions:
+- {from: "proposed", to: "accepted", at: "2026-09-21T19:09:57Z", actor: "human:timo", revision: 2, imported: true}
 ---
 ## Status
 

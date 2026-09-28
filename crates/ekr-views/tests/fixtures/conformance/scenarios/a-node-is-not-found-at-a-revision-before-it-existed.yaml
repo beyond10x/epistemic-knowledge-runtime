@@ -1,0 +1,190 @@
+# A read at a past revision sees that revision's state: a node created later is not found there.
+#
+# The store `growth` has two revisions. Its ontology is one node type
+# 00000000-0000-4000-8000-000000400100 with one String property 00000000-0000-4000-8000-000000400101,
+# and one edge type 00000000-0000-4000-8000-000000400102 from that type to itself.
+#   - revision 0, the seed: one node `first` 00000000-0000-4000-8000-000000400001, and no edge
+#     and no assertion;
+#   - revision 1, one committed transaction: it creates node `second`
+#     00000000-0000-4000-8000-000000400002; adds assertion 00000000-0000-4000-8000-000000400011,
+#     subject second, the property, the String "added", no valid time; creates edge
+#     00000000-0000-4000-8000-000000400021 from second to first of the edge type; and adds the
+#     Relation assertion 00000000-0000-4000-8000-000000400012, subject second, the edge type as
+#     predicate, object node first, no valid time.
+# What is held:
+#   - at revision 0, second is not found, by DescribeNode or as a seed. A renderer that reads the
+#     head's nodes answers it;
+#   - at revision 0, first is described with nothing, and expands to itself alone;
+#   - at revision 1, second has both assertions as its own (it is their subject), one edge and one
+#     neighbour; first has no assertion of its own, is referenced by the Relation assertion, and
+#     has one edge and one neighbour; first expands to 2 nodes and 1 edge;
+#   - the overview at revision 1 counts growth from recorded time: first is the subject of no
+#     assertion, so it has no recorded time and is counted from revision 0 (unrecorded_nodes 1),
+#     and revision 0's entry holds 1 node; second and both assertions are recorded at revision 1,
+#     so revision 0's entry holds none of them; the edge takes its recorded time from the
+#     Relation assertion that matches its source, type and target, so revision 0's entry holds
+#     no edge either.
+#     This last count rests on the UNMAPPED edge-timing clause (ekr.views.OverviewRevision); if
+#     the owner removes it, the edge has no recorded time and revision_zero_edges becomes 1.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-node-is-not-found-at-a-revision-before-it-existed
+summary: A node created at revision 1 is not found at revision 0 by describe or expand, is described at revision 1, and the overview counts it from the revision that recorded it.
+
+timeline:
+  - at: 2027-01-15T13:00:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: growth
+      at: 0
+      node: 00000000-0000-4000-8000-000000400002
+    outcome: node-not-found
+    error:
+      name: ekr.views.NodeNotFound
+      fields:
+        node: 00000000-0000-4000-8000-000000400002
+        revision: 0
+    no_events:
+      - ekr.views.NodeDescribed
+
+  - at: 2027-01-15T13:01:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: growth
+      at: 0
+      seeds: [00000000-0000-4000-8000-000000400002]
+      depth: 1
+      limit: 10
+      edge_limit: null
+      after: null
+    outcome: node-not-found
+    error:
+      name: ekr.views.NodeNotFound
+      fields:
+        node: 00000000-0000-4000-8000-000000400002
+        revision: 0
+    no_events:
+      - ekr.views.NeighbourhoodExpanded
+
+  - at: 2027-01-15T13:02:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: growth
+      at: 0
+      node: 00000000-0000-4000-8000-000000400001
+    outcome: described
+    events:
+      - event: ekr.views.NodeDescribed
+        payload:
+          revision: 0
+          head: 1
+          node: 00000000-0000-4000-8000-000000400001
+          assertions: 0
+          referencing: 0
+          edges: 0
+          neighbours: 0
+
+  - at: 2027-01-15T13:03:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: growth
+      at: 0
+      seeds: [00000000-0000-4000-8000-000000400001]
+      depth: 1
+      limit: 10
+      edge_limit: null
+      after: null
+    outcome: expanded
+    events:
+      - event: ekr.views.NeighbourhoodExpanded
+        payload:
+          revision: 0
+          head: 1
+          nodes: 1
+          edges: 0
+          remaining: 0
+
+  - at: 2027-01-15T13:04:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: growth
+      at: null
+      node: 00000000-0000-4000-8000-000000400002
+    outcome: described
+    events:
+      - event: ekr.views.NodeDescribed
+        payload:
+          revision: 1
+          head: 1
+          node: 00000000-0000-4000-8000-000000400002
+          assertions: 2
+          referencing: 0
+          edges: 1
+          neighbours: 1
+
+  - at: 2027-01-15T13:05:00Z
+    command: ekr.views.DescribeNode
+    actor: ekr.views.Reader
+    input:
+      store: growth
+      at: null
+      node: 00000000-0000-4000-8000-000000400001
+    outcome: described
+    events:
+      - event: ekr.views.NodeDescribed
+        payload:
+          revision: 1
+          node: 00000000-0000-4000-8000-000000400001
+          assertions: 0
+          referencing: 1
+          edges: 1
+          neighbours: 1
+
+  - at: 2027-01-15T13:06:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: growth
+      at: null
+      seeds: [00000000-0000-4000-8000-000000400001]
+      depth: 1
+      limit: 10
+      edge_limit: null
+      after: null
+    outcome: expanded
+    events:
+      - event: ekr.views.NeighbourhoodExpanded
+        payload:
+          revision: 1
+          nodes: 2
+          edges: 1
+          remaining: 0
+
+  - at: 2027-01-15T13:07:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: growth
+      at: null
+      limit: null
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          revision: 1
+          head: 1
+          nodes: 2
+          edges: 1
+          assertions: 2
+          revisions: 2
+          unrecorded_nodes: 1
+          unrecorded_edges: 0
+          revision_zero_nodes: 1
+          revision_zero_edges: 0
+          revision_zero_assertions: 0
+          top: 2

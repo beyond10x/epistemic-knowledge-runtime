@@ -1,27 +1,37 @@
-//! The ESS conformance target over `ekr_views::project`, on one native provider.
+//! The ESS conformance target over `ekr_views`' five reads, on one native provider:
+//! `ekr_views::project` for `ProjectGraph`, and an [`ekr_views::Index`] of the requested revision
+//! for `ProjectOverview`, `ExpandNeighbourhood`, `DescribeNode` and `SearchNodes`.
 //!
 //! * **Isolation.** Every scenario gets a fresh directory below the caller's work directory, and
 //!   every store a scenario names is a fresh provider root inside it.
 //! * **Stores.** A `store` input names a [`Fixture`]; the first command naming it in a scenario
 //!   builds it through the real kernel handlers, and every later command reads the same store.
+//! * **Bounds.** A bounded read's request is built from its input before the store is touched,
+//!   so a broken bound is answered by the request type's own refusal and the store is not read.
 //! * **External outcomes.** A control establishes the state its branch declares and never selects
 //!   the reported outcome: `not-found` builds the named store as the seed alone, so the requested
-//!   revision does not exist, and `not-seeded` opens the named store's provider without seeding
-//!   it. The renderer then answers whatever it answers.
-//! * **Observations.** A command reports the `GraphProjected` event built from the summary the
-//!   renderer returned, and every event the provider log gained while it ran, by its logged name —
-//!   so a render that wrote anything is caught by the suite's `expect_no_event` steps.
-//! * **Responses.** None: no admitted views scenario observes a command response, so a projection
-//!   here would be checked by nothing in the suite. The document reaches the suite through
-//!   `projection_hash` and the counts.
+//!   revision does not exist; `not-seeded` opens the named store's provider without seeding it;
+//!   and `node-not-found` builds it as `schema-evolution` — revision 1 exists, and
+//!   [`fixtures::DESCRIBED`], the node the generated scenarios name, does not. An expansion that
+//!   names no seed is given that node as its one seed, which is what makes a seed unknown; the
+//!   generated `ExpandNeighbourhood` scenarios send `seeds: []`. The reads then answer whatever
+//!   they answer.
+//! * **Observations.** A command reports the event built from the summary the read returned, and
+//!   every event the provider log gained while it ran, by its logged name — so a read that wrote
+//!   anything is caught by the suite's `expect_no_event` steps.
+//! * **Responses.** None: no admitted views scenario observes a command response. A document
+//!   reaches the suite through its event's hash and counts.
 
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use ekr_core::RevisionNumber;
+use ekr_core::{NodeId, RevisionNumber};
 use ekr_kernel::Runtime;
-use ekr_views::{GraphProjected, ProjectError};
+use ekr_views::{
+    ExpandRequest, GraphOverviewed, GraphProjected, Index, LimitExceeded, NeighbourhoodExpanded,
+    NodeDescribed, NodesSearched, OverviewRequest, ProjectError, QueryError, SearchRequest,
+};
 use ess_conformance::target::{
     ConformanceTarget, DeclaredErrorValue, EventObservationRequest, ExternalOutcomeControl,
     ImplementationIdentity, ObservedEvent, RedeliveryRequest, ScenarioContext,
@@ -34,11 +44,23 @@ use ess_primitives::node::Node;
 use super::fixtures::{self, Fixture, Provider};
 
 const PROJECT_GRAPH: &str = "ekr.views.ProjectGraph";
+const PROJECT_OVERVIEW: &str = "ekr.views.ProjectOverview";
+const EXPAND_NEIGHBOURHOOD: &str = "ekr.views.ExpandNeighbourhood";
+const DESCRIBE_NODE: &str = "ekr.views.DescribeNode";
+const SEARCH_NODES: &str = "ekr.views.SearchNodes";
+const COMMANDS: [&str; 5] = [
+    PROJECT_GRAPH,
+    PROJECT_OVERVIEW,
+    EXPAND_NEIGHBOURHOOD,
+    DESCRIBE_NODE,
+    SEARCH_NODES,
+];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Control {
     RevisionAbsent,
     Unseeded,
+    NodeAbsent,
 }
 
 struct Scenario {
@@ -63,6 +85,15 @@ pub struct ViewsTarget {
     answered: RefCell<Vec<Answered>>,
 }
 
+/// One command's input, read and — for the bounded reads — bounded.
+enum Read {
+    Graph,
+    Overview(Result<OverviewRequest, LimitExceeded>),
+    Expand(Result<ExpandRequest, LimitExceeded>),
+    Describe(NodeId),
+    Search(Result<SearchRequest, LimitExceeded>),
+}
+
 fn unavailable(operation: &str, detail: impl std::fmt::Display) -> TargetError {
     TargetError::unavailable(operation, detail.to_string())
 }
@@ -73,12 +104,30 @@ fn integer(value: u64) -> Result<Node, TargetError> {
         .map_err(|_| unavailable("projecting an integer", format!("{value} exceeds i64")))
 }
 
-fn event(summary: &GraphProjected) -> Result<ObservedEvent, TargetError> {
-    let name = "ekr.views.GraphProjected"
+fn signed(value: i64) -> Node {
+    Node::Number(Number::from(value))
+}
+
+fn observed(name: &str, fields: Vec<(&str, Node)>) -> Result<ObservedEvent, TargetError> {
+    let name = name
         .parse()
-        .map_err(|e| unavailable("naming GraphProjected", e))?;
-    let mut observed = ObservedEvent::new(name);
-    for (field, value) in [
+        .map_err(|e| unavailable(&format!("naming {name}"), e))?;
+    Ok(fields
+        .into_iter()
+        .fold(ObservedEvent::new(name), |event, (field, value)| {
+            event.with(field, value)
+        }))
+}
+
+fn counts(fields: &[(&'static str, u64)]) -> Result<Vec<(&'static str, Node)>, TargetError> {
+    fields
+        .iter()
+        .map(|(field, value)| integer(*value).map(|node| (*field, node)))
+        .collect()
+}
+
+fn graph_projected(summary: &GraphProjected) -> Result<ObservedEvent, TargetError> {
+    let mut fields = counts(&[
         ("revision", summary.revision),
         ("head", summary.head),
         ("nodes", summary.nodes),
@@ -94,17 +143,99 @@ fn event(summary: &GraphProjected) -> Result<ObservedEvent, TargetError> {
         ("edge_assertions", summary.edge_assertions),
         ("retracted_assertions", summary.retracted_assertions),
         ("retained_evidence", summary.retained_evidence),
-    ] {
-        observed = observed.with(field, integer(value)?);
-    }
-    Ok(observed.with(
+    ])?;
+    fields.push((
         "projection_hash",
         Node::Text(summary.projection_hash.clone()),
-    ))
+    ));
+    observed("ekr.views.GraphProjected", fields)
 }
 
-fn outcome_ref(outcome: &str) -> Result<ess_conformance::scenario::OutcomeRef, TargetError> {
-    serde_json::from_value(serde_json::json!({ "command": PROJECT_GRAPH, "outcome": outcome }))
+fn graph_overviewed(summary: &GraphOverviewed) -> Result<ObservedEvent, TargetError> {
+    let mut fields = counts(&[
+        ("revision", summary.revision),
+        ("head", summary.head),
+        ("nodes", summary.nodes),
+        ("edges", summary.edges),
+        ("assertions", summary.assertions),
+        ("evidence", summary.evidence),
+        ("node_types", summary.node_types),
+        ("edge_types", summary.edge_types),
+        ("schema_versions", summary.schema_versions),
+        ("revisions", summary.revisions),
+        ("added", summary.added),
+        ("removed", summary.removed),
+        ("unrecorded_nodes", summary.unrecorded_nodes),
+        ("unrecorded_edges", summary.unrecorded_edges),
+        ("revision_zero_nodes", summary.revision_zero_nodes),
+        ("revision_zero_edges", summary.revision_zero_edges),
+        ("revision_zero_assertions", summary.revision_zero_assertions),
+        ("event_types", summary.event_types),
+        ("bucket_ms", summary.bucket_ms),
+        ("timeline_buckets", summary.timeline_buckets),
+        ("dated_assertions", summary.dated_assertions),
+        ("undated_assertions", summary.undated_assertions),
+        ("top", summary.top),
+    ])?;
+    if let Some(observation) = summary.observation_type {
+        fields.push(("observation_type", Node::Text(observation.to_string())));
+    }
+    fields.push(("overview_hash", Node::Text(summary.overview_hash.clone())));
+    observed("ekr.views.GraphOverviewed", fields)
+}
+
+fn neighbourhood_expanded(summary: &NeighbourhoodExpanded) -> Result<ObservedEvent, TargetError> {
+    let mut fields = counts(&[
+        ("revision", summary.revision),
+        ("head", summary.head),
+        ("seeds", summary.seeds),
+        ("depth", summary.depth),
+        ("after", summary.after),
+        ("nodes", summary.nodes),
+        ("edges", summary.edges),
+        ("node_total", summary.node_total),
+        ("edge_total", summary.edge_total),
+        ("remaining", summary.remaining),
+    ])?;
+    fields.push(("slice_hash", Node::Text(summary.slice_hash.clone())));
+    observed("ekr.views.NeighbourhoodExpanded", fields)
+}
+
+fn node_described(summary: &NodeDescribed) -> Result<ObservedEvent, TargetError> {
+    let mut fields = counts(&[
+        ("revision", summary.revision),
+        ("head", summary.head),
+        ("assertions", summary.assertions),
+        ("referencing", summary.referencing),
+        ("edges", summary.edges),
+        ("neighbours", summary.neighbours),
+    ])?;
+    fields.push(("node", Node::Text(summary.node.to_string())));
+    fields.push(("detail_hash", Node::Text(summary.detail_hash.clone())));
+    observed("ekr.views.NodeDescribed", fields)
+}
+
+fn nodes_searched(summary: &NodesSearched) -> Result<ObservedEvent, TargetError> {
+    let mut fields = counts(&[
+        ("revision", summary.revision),
+        ("head", summary.head),
+        ("matches", summary.matches),
+        ("total", summary.total),
+        ("exact_total", summary.exact_total),
+    ])?;
+    fields.push(("text", Node::Text(summary.text.clone())));
+    if let Some(first) = summary.first_match {
+        fields.push(("first_match", Node::Text(first.to_string())));
+    }
+    fields.push(("matches_hash", Node::Text(summary.matches_hash.clone())));
+    observed("ekr.views.NodesSearched", fields)
+}
+
+fn outcome_ref(
+    command: &str,
+    outcome: &str,
+) -> Result<ess_conformance::scenario::OutcomeRef, TargetError> {
+    serde_json::from_value(serde_json::json!({ "command": command, "outcome": outcome }))
         .map_err(|e| unavailable("naming a declared outcome", format!("{outcome}: {e}")))
 }
 
@@ -114,18 +245,185 @@ fn error(name: &str) -> Result<DeclaredErrorValue, TargetError> {
         .map_err(|e| unavailable("naming a declared error", format!("{name}: {e}")))
 }
 
-fn revision_input(request: &SemanticCommandRequest) -> Result<Option<RevisionNumber>, TargetError> {
-    match request.input.get("at") {
+/// An optional integer input: `None` when absent or null.
+fn optional_integer(
+    request: &SemanticCommandRequest,
+    field: &str,
+) -> Result<Option<i64>, TargetError> {
+    match request.input.get(field) {
         None | Some(Node::Null) => Ok(None),
-        Some(Node::Number(number)) => number
-            .as_i64()
-            .and_then(|exact| u64::try_from(exact).ok())
-            .map(|exact| Some(RevisionNumber::new(exact)))
-            .ok_or_else(|| unavailable("reading `at`", format!("{number} is not a revision"))),
+        Some(Node::Number(number)) => number.as_i64().map(Some).ok_or_else(|| {
+            unavailable(
+                &format!("reading `{field}`"),
+                format!("{number} is not an integer"),
+            )
+        }),
         Some(other) => Err(unavailable(
-            "reading `at`",
-            format!("{} is not a revision number", other.type_name()),
+            &format!("reading `{field}`"),
+            format!("{} is not an integer", other.type_name()),
         )),
+    }
+}
+
+fn required_integer(request: &SemanticCommandRequest, field: &str) -> Result<i64, TargetError> {
+    optional_integer(request, field)?
+        .ok_or_else(|| unavailable(&format!("reading `{field}`"), "the input is absent"))
+}
+
+fn text(request: &SemanticCommandRequest, field: &str) -> Result<String, TargetError> {
+    match request.input.get(field) {
+        Some(Node::Text(text)) => Ok(text.clone()),
+        _ => Err(unavailable(&format!("reading `{field}`"), "not a text")),
+    }
+}
+
+fn node_id(text: &str, field: &str) -> Result<NodeId, TargetError> {
+    text.parse()
+        .map_err(|e| unavailable(&format!("reading `{field}`"), format!("{text}: {e}")))
+}
+
+fn revision_input(request: &SemanticCommandRequest) -> Result<Option<RevisionNumber>, TargetError> {
+    optional_integer(request, "at")?
+        .map(|at| {
+            u64::try_from(at)
+                .map(RevisionNumber::new)
+                .map_err(|_| unavailable("reading `at`", format!("{at} is not a revision")))
+        })
+        .transpose()
+}
+
+/// Reads `request`'s command input; a bounded read's request is built, and so bounded, here.
+fn read(request: &SemanticCommandRequest, command: &str) -> Result<Read, TargetError> {
+    Ok(match command {
+        PROJECT_OVERVIEW => {
+            Read::Overview(OverviewRequest::new(optional_integer(request, "limit")?))
+        }
+        EXPAND_NEIGHBOURHOOD => {
+            let seeds = match request.input.get("seeds") {
+                Some(Node::Seq(seeds)) => seeds
+                    .iter()
+                    .map(|seed| match seed {
+                        Node::Text(text) => node_id(text, "seeds"),
+                        _ => Err(unavailable("reading `seeds`", "a seed is not a text")),
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+                _ => return Err(unavailable("reading `seeds`", "not a list")),
+            };
+            Read::Expand(ExpandRequest::new(
+                seeds,
+                required_integer(request, "depth")?,
+                required_integer(request, "limit")?,
+                optional_integer(request, "edge_limit")?,
+                optional_integer(request, "after")?,
+            ))
+        }
+        DESCRIBE_NODE => Read::Describe(node_id(&text(request, "node")?, "node")?),
+        SEARCH_NODES => Read::Search(SearchRequest::new(
+            text(request, "text")?,
+            required_integer(request, "limit")?,
+        )),
+        _ => Read::Graph,
+    })
+}
+
+fn limit_exceeded(
+    command: &str,
+    refusal: &LimitExceeded,
+) -> Result<SemanticCommandResult, TargetError> {
+    let mut value = error("ekr.views.LimitExceeded")?
+        .with("parameter", Node::Text(refusal.parameter.to_owned()))
+        .with("requested", signed(refusal.requested))
+        .with("minimum", signed(refusal.minimum));
+    if let Some(maximum) = refusal.maximum {
+        value = value.with("maximum", signed(maximum));
+    }
+    Ok(SemanticCommandResult::took(outcome_ref(command, "limit-exceeded")?).with_error(value))
+}
+
+fn refused(command: &str, refusal: QueryError) -> Result<SemanticCommandResult, TargetError> {
+    match refusal {
+        QueryError::LimitExceeded(refusal) => limit_exceeded(command, &refusal),
+        QueryError::NodeNotFound { node, revision } => Ok(SemanticCommandResult::took(
+            outcome_ref(command, "node-not-found")?,
+        )
+        .with_error(
+            error("ekr.views.NodeNotFound")?
+                .with("node", Node::Text(node.to_string()))
+                .with("revision", integer(revision.get())?),
+        )),
+        QueryError::Project(ProjectError::RevisionNotFound { requested, head }) => Ok(
+            SemanticCommandResult::took(outcome_ref(command, "not-found")?).with_error(
+                error("ekr.views.RevisionNotFound")?
+                    .with("requested", integer(requested.get())?)
+                    .with("head", integer(head.get())?),
+            ),
+        ),
+        QueryError::Project(ProjectError::NotSeeded { requested }) => {
+            let mut refusal = error("ekr.views.NotSeeded")?;
+            if let Some(requested) = requested {
+                refusal = refusal.with("requested", integer(requested.get())?);
+            }
+            Ok(
+                SemanticCommandResult::took(outcome_ref(command, "not-seeded")?)
+                    .with_error(refusal),
+            )
+        }
+        QueryError::Project(other) => Err(unavailable(&format!("answering `{command}`"), other)),
+    }
+}
+
+/// Answers one read against `runtime`, or refuses it as the read refused.
+fn answer(
+    runtime: &Runtime,
+    command: &str,
+    at: Option<RevisionNumber>,
+    read: Read,
+) -> Result<(SemanticCommandResult, Option<GraphProjected>), TargetError> {
+    let took =
+        |outcome: &str, event: ObservedEvent| -> Result<SemanticCommandResult, TargetError> {
+            Ok(SemanticCommandResult::took(outcome_ref(command, outcome)?).emitting(event))
+        };
+    if let Read::Graph = read {
+        return match ekr_views::project(runtime, at) {
+            Ok(rendered) => Ok((
+                took("projected", graph_projected(&rendered.summary)?)?,
+                Some(rendered.summary),
+            )),
+            Err(error) => Ok((refused(command, QueryError::Project(error))?, None)),
+        };
+    }
+    let result = (|| -> Result<Result<SemanticCommandResult, TargetError>, QueryError> {
+        // The bound first: a broken one is refused before the store is read.
+        match read {
+            Read::Graph => unreachable!("answered above"),
+            Read::Overview(request) => {
+                let request = request?;
+                let index = Index::load(runtime, at)?;
+                let answer = index.overview(&request)?;
+                Ok(graph_overviewed(&answer.summary).and_then(|e| took("overviewed", e)))
+            }
+            Read::Expand(request) => {
+                let request = request?;
+                let index = Index::load(runtime, at)?;
+                let answer = index.expand(&request)?;
+                Ok(neighbourhood_expanded(&answer.summary).and_then(|e| took("expanded", e)))
+            }
+            Read::Describe(node) => {
+                let index = Index::load(runtime, at)?;
+                let answer = index.describe(node)?;
+                Ok(node_described(&answer.summary).and_then(|e| took("described", e)))
+            }
+            Read::Search(request) => {
+                let request = request?;
+                let index = Index::load(runtime, at)?;
+                let answer = index.search(&request)?;
+                Ok(nodes_searched(&answer.summary).and_then(|e| took("searched", e)))
+            }
+        }
+    })();
+    match result {
+        Ok(answered) => Ok((answered?, None)),
+        Err(refusal) => Ok((refused(command, refusal)?, None)),
     }
 }
 
@@ -179,17 +477,19 @@ impl ConformanceTarget for ViewsTarget {
         &self,
         request: SemanticCommandRequest,
     ) -> Result<SemanticCommandResult, TargetError> {
-        if request.command.to_string() != PROJECT_GRAPH {
+        let command = request.command.to_string();
+        let Some(command) = COMMANDS.iter().copied().find(|known| *known == command) else {
             return Err(TargetError::unsupported(
                 format!("executing `{}`", request.command),
-                "the views target answers ekr.views.ProjectGraph only",
+                "the views target answers the five ekr.views commands only",
             ));
-        }
+        };
         let store = match request.input.get("store") {
             Some(Node::Text(store)) => store.clone(),
             _ => return Err(unavailable("reading `store`", "not a store location")),
         };
         let at = revision_input(&request)?;
+        let mut read = read(&request, command)?;
         let mut guard = self.scenario.borrow_mut();
         let scenario = guard
             .as_mut()
@@ -200,6 +500,19 @@ impl ConformanceTarget for ViewsTarget {
                 "establishing an external outcome",
                 format!("the store `{store}` is already built in this scenario"),
             ));
+        }
+        if control == Some(Control::NodeAbsent) {
+            if let Read::Expand(Ok(expansion)) = &read {
+                if expansion.seeds().is_empty() {
+                    read = Read::Expand(ExpandRequest::new(
+                        vec![fixtures::id(fixtures::DESCRIBED)],
+                        i64::try_from(expansion.depth()).unwrap_or(i64::MAX),
+                        i64::try_from(expansion.limit()).unwrap_or(i64::MAX),
+                        Some(i64::try_from(expansion.edge_limit()).unwrap_or(i64::MAX)),
+                        Some(i64::try_from(expansion.after()).unwrap_or(i64::MAX)),
+                    ));
+                }
+            }
         }
         if !scenario.stores.contains_key(&store) {
             let fixture = Fixture::named(&store).ok_or_else(|| {
@@ -213,6 +526,7 @@ impl ConformanceTarget for ViewsTarget {
             match control {
                 Some(Control::Unseeded) => {}
                 Some(Control::RevisionAbsent) => Fixture::SeedOnly.build(&runtime),
+                Some(Control::NodeAbsent) => Fixture::SchemaEvolution.build(&runtime),
                 None => fixture.build(&runtime),
             }
             scenario.stores.insert(store.clone(), runtime);
@@ -222,35 +536,16 @@ impl ConformanceTarget for ViewsTarget {
             .published_events()
             .map_err(|e| unavailable("reading the provider log", e))?
             .len();
-        let rendered = ekr_views::project(runtime, at);
+        let (mut result, projected) = answer(runtime, command, at, read)?;
         let gained = runtime
             .published_events()
             .map_err(|e| unavailable("reading the provider log", e))?;
-        let mut result = match rendered {
-            Ok(rendered) => {
-                self.answered.borrow_mut().push(Answered {
-                    store: store.clone(),
-                    summary: rendered.summary.clone(),
-                });
-                SemanticCommandResult::took(outcome_ref("projected")?)
-                    .emitting(event(&rendered.summary)?)
-            }
-            Err(ProjectError::RevisionNotFound { requested, head }) => {
-                SemanticCommandResult::took(outcome_ref("not-found")?).with_error(
-                    error("ekr.views.RevisionNotFound")?
-                        .with("requested", integer(requested.get())?)
-                        .with("head", integer(head.get())?),
-                )
-            }
-            Err(ProjectError::NotSeeded { requested }) => {
-                let mut refusal = error("ekr.views.NotSeeded")?;
-                if let Some(requested) = requested {
-                    refusal = refusal.with("requested", integer(requested.get())?);
-                }
-                SemanticCommandResult::took(outcome_ref("not-seeded")?).with_error(refusal)
-            }
-            Err(other) => return Err(unavailable("projecting the graph", other)),
-        };
+        if let Some(summary) = projected {
+            self.answered.borrow_mut().push(Answered {
+                store: store.clone(),
+                summary,
+            });
+        }
         for written in gained.iter().skip(before) {
             let name = written
                 .name
@@ -289,12 +584,12 @@ impl ConformanceTarget for ViewsTarget {
         &self,
         request: ExternalOutcomeControl,
     ) -> Result<(), TargetError> {
-        let control = match (
-            request.force.command.to_string().as_str(),
-            request.force.outcome.to_string().as_str(),
-        ) {
-            (PROJECT_GRAPH, "not-found") => Control::RevisionAbsent,
-            (PROJECT_GRAPH, "not-seeded") => Control::Unseeded,
+        let command = request.force.command.to_string();
+        let outcome = request.force.outcome.to_string();
+        let control = match (command.as_str(), outcome.as_str()) {
+            (command, "not-found") if COMMANDS.contains(&command) => Control::RevisionAbsent,
+            (command, "not-seeded") if COMMANDS.contains(&command) => Control::Unseeded,
+            (EXPAND_NEIGHBOURHOOD | DESCRIBE_NODE, "node-not-found") => Control::NodeAbsent,
             _ => {
                 return Err(TargetError::unsupported(
                     format!("establishing `{}`", request.force),

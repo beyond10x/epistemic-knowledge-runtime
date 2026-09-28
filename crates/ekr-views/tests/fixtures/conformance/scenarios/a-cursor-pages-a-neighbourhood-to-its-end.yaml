@@ -1,0 +1,110 @@
+# A cursor pages a neighbourhood to its end (ekr.views.GraphSliceV1).
+#
+# The store `hub` is the one an-overview-lists-at-most-its-limit-of-top-nodes describes. The hub
+# 00000000-0000-4000-8000-000000100000 at depth 1 is 601 nodes and 600 edges. Its record sequence
+# is the hub (distance 0) at position 0, then each leaf in id order (distance 1, degree 1) at
+# position 2n - 1 followed by the edge it closes to the hub at 2n: 1,201 records.
+# With limit 250 nodes and the default edge limit:
+#   - page 1 (no cursor): the hub and leaves 1 to 249 with their edges, 250 nodes and 249 edges,
+#     499 records; leaf 250 would be node 251. 702 records remain; next is 499;
+#   - page 2 (after 499): leaves 250 to 499 with their edges, 250 and 250, 500 records; next 999;
+#   - page 3 (after 999): leaves 500 to 600 with their edges, 101 and 101, 202 records; nothing
+#     remains, so there is no next;
+#   - after 1,201, the end itself: an empty page, nothing remaining.
+# node_total and edge_total are the whole neighbourhood's on every page. A renderer that pages by
+# nodes alone and drops the edges a page's nodes close reports 0 edges; one that restarts at the
+# cursor's node count rather than its record position repeats leaves on page 2.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-cursor-pages-a-neighbourhood-to-its-end
+summary: The hub's 1-hop neighbourhood pages as 250+249, 250+250 and 101+101 records at limit 250, the last with nothing remaining, and a cursor at the end answers an empty page.
+
+timeline:
+  - at: 2027-01-15T11:00:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: 0
+      seeds: [00000000-0000-4000-8000-000000100000]
+      depth: 1
+      limit: 250
+      edge_limit: null
+      after: null
+    outcome: expanded
+    events:
+      - event: ekr.views.NeighbourhoodExpanded
+        payload:
+          revision: 0
+          after: 0
+          nodes: 250
+          edges: 249
+          node_total: 601
+          edge_total: 600
+          remaining: 702
+
+  - at: 2027-01-15T11:01:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: 0
+      seeds: [00000000-0000-4000-8000-000000100000]
+      depth: 1
+      limit: 250
+      edge_limit: null
+      after: 499
+    outcome: expanded
+    events:
+      - event: ekr.views.NeighbourhoodExpanded
+        payload:
+          after: 499
+          nodes: 250
+          edges: 250
+          node_total: 601
+          edge_total: 600
+          remaining: 202
+
+  - at: 2027-01-15T11:02:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: 0
+      seeds: [00000000-0000-4000-8000-000000100000]
+      depth: 1
+      limit: 250
+      edge_limit: null
+      after: 999
+    outcome: expanded
+    events:
+      - event: ekr.views.NeighbourhoodExpanded
+        payload:
+          after: 999
+          nodes: 101
+          edges: 101
+          node_total: 601
+          edge_total: 600
+          remaining: 0
+
+  - at: 2027-01-15T11:03:00Z
+    command: ekr.views.ExpandNeighbourhood
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      at: 0
+      seeds: [00000000-0000-4000-8000-000000100000]
+      depth: 1
+      limit: 250
+      edge_limit: null
+      after: 1201
+    outcome: expanded
+    events:
+      - event: ekr.views.NeighbourhoodExpanded
+        payload:
+          after: 1201
+          nodes: 0
+          edges: 0
+          node_total: 601
+          edge_total: 600
+          remaining: 0

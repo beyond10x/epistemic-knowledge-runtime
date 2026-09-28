@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:graph-properties-keyed-by-string
 kind: task
 status: implemented
@@ -7,6 +7,10 @@ title: Node and Edge properties are declared keyed by String, and the crate keys
 relations:
 - serves: vision:o2
 revision: 6
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-23T20:36:55Z", actor: "agent:claude-lazy-sutton-p1-14", revision: 4, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-23T20:36:55Z", actor: "agent:claude-lazy-sutton-p1-14", revision: 5, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-23T20:38:09Z", actor: "agent:claude-lazy-sutton-p1-14", revision: 6, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}, imported: true}
 ---
 ## What is wrong
 

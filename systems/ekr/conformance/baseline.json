@@ -1,7 +1,7 @@
 {
   "format": "ekr.conformance-baseline/1",
   "suite": "systems/ekr/conformance/suite.json",
-  "suite_digest": "sha256:1bcb32ceb2e21131d01eaf33cdc8da1c3d693d903dc334703fe06406613eac3b",
+  "suite_digest": "sha256:e8c7649fc9bcda9c8a11dbef6feae82af69dcd21e512a968e6cf12841c986c12",
   "suite_version": "ess-conformance/13",
   "component": "ekr-kernel",
   "providers": [

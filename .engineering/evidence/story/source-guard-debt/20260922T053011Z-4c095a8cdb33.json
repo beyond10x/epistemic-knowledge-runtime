@@ -1,0 +1,15 @@
+{
+  "at": "2026-09-22T05:30:11Z",
+  "actor": "agent:codex-ekr-completion-20260922",
+  "artifact": "story:source-guard-debt",
+  "kind": "story",
+  "revision": 30,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "Independent re-review found no further defect; coordinator mutation of comment handling made its added case fail, exact restoration passed",
+    "reference": ".engineering/reviews/p1-10-guards-rereview.md",
+    "review": "review-result:p1-10-guards-rereview",
+    "outcome": "no-op"
+  }
+}

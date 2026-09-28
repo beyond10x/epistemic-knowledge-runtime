@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-22T01:54:41Z",
+  "actor": "agent:codex-ekr-completion-20260922",
+  "artifact": "story:p1-transaction-membrane-repair",
+  "kind": "story",
+  "revision": 10,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "task check: fmt, clippy, workspace tests, rustdoc, ESS and planning steps all exit 0",
+    "reference": "a7baf28"
+  }
+}

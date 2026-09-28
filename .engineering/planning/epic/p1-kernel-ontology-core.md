@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: epic:p1-kernel-ontology-core
 kind: epic
 status: implemented
@@ -9,6 +9,10 @@ relations:
 - depends_on: epic:p0-bootstrap
 - serves: vision:o2
 revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-21T10:53:22Z", actor: "agent:claude", revision: 2, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-21T10:53:22Z", actor: "agent:claude", revision: 3, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-23T20:38:18Z", actor: "agent:claude-lazy-sutton-p1-14", revision: 4, imported: true}
 ---
 ## Context
 

@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-22T11:03:27Z",
+  "actor": "agent:codex-ekr-completion-20260922",
+  "artifact": "task:bounded-transaction-document-parser",
+  "kind": "task",
+  "revision": 5,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Independent parser review R2 package and vendor-check executions",
+    "reference": ".engineering/reviews/p1-transaction-parser-adversary-r2.md"
+  }
+}

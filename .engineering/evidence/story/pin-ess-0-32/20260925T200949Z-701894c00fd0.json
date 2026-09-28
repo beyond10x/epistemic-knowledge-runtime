@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-25T20:09:49Z",
+  "actor": "agent:claude-lazy-sutton-p1-15",
+  "artifact": "story:pin-ess-0-32",
+  "kind": "story",
+  "revision": 15,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:p1-15-ess-adversary-r1",
+    "review": "review-result:p1-15-ess-adversary-r1",
+    "outcome": "fixed"
+  }
+}

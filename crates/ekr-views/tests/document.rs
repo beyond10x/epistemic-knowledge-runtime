@@ -43,7 +43,7 @@ fn the_head_projection_opens_with_its_meta_in_declared_order_and_no_whitespace()
     assert!(
         text.starts_with(
             "{\"meta\":{\"format\":\"ekr.graph-projection/1\",\"revision\":5,\"head\":5,\
-             \"node_count\":3,\"edge_count\":1,\"assertion_count\":2,\"evidence_count\":3},\
+             \"node_count\":4,\"edge_count\":1,\"assertion_count\":2,\"evidence_count\":3},\
              \"ontology\":{\"node_types\":["
         ),
         "{text}"
@@ -98,7 +98,10 @@ fn the_ontology_is_the_projected_revisions_sorted_by_id() {
 #[test]
 fn nodes_carry_their_assertions_aliases_in_store_order_and_no_absent_optional() {
     let (text, head) = render(5);
-    assert_eq!(ids(&head["nodes"]), [0x110, 0x111, 0x112].map(uuid));
+    assert_eq!(
+        ids(&head["nodes"]),
+        [0x110, 0x111, 0x112, fixtures::DESCRIBED].map(uuid)
+    );
     let alpha = format!(
         "{{\"id\":\"{}\",\"name\":\"alpha\",\"type\":\"{}\",\
          \"aliases\":[\"alpha-alias-b\",\"alpha-alias-a\"],\"props\":{{\"{}\":\

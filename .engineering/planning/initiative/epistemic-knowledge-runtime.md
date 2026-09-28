@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: initiative:epistemic-knowledge-runtime
 kind: initiative
 status: active
@@ -10,6 +10,9 @@ relations:
 - serves: vision:o5
 - serves: vision:o6
 revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-21T01:48:05Z", actor: "agent:claude", revision: 2, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-21T01:48:32Z", actor: "agent:claude", revision: 3, imported: true}
 ---
 ## Context
 

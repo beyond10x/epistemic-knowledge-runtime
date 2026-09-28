@@ -444,8 +444,8 @@ fn the_typed_reference_example_decodes_and_proposes_the_create_node_example() {
         let world = World::seeded(backend, &text(&["example", "ekr-seed/2"]));
         let file = world.file("reference.yaml", &example);
         assert_eq!(world.ok(&["resolve", &file]), proposed, "{backend}");
-        // Doing what `ProposeNew` says: the node is created, and — a `CreateNode` carrying no
-        // aliases, as the guide and the page say — the same reference proposes it again.
+        // Doing what `ProposeNew` says: the node is created with the reference's aliases, and the
+        // same reference then resolves to it.
         let create = world.file("create.yaml", &transaction);
         let id = world.ok(&["propose", &create])["transaction_id"]
             .as_str()
@@ -457,7 +457,11 @@ fn the_typed_reference_example_decodes_and_proposes_the_create_node_example() {
             "{backend}"
         );
         assert_eq!(world.ok(&["commit", &id])["kind"], "Committed", "{backend}");
-        assert_eq!(world.ok(&["resolve", &file]), proposed, "{backend}");
+        assert_eq!(
+            world.ok(&["resolve", &file])["kind"],
+            "Resolved",
+            "{backend}: the created node carries the aliases the reference names"
+        );
     }
 }
 
@@ -673,7 +677,8 @@ fn guide_says_to_resolve_before_create_node_and_what_propose_new_means() {
         "ProposeNew means no node of that type is known by those aliases: mint an id (ekr mint \
          node) and create it with CreateNode. It does not mean retry with a looser reference.",
         "Ambiguous lists every candidate and chooses none",
-        "Aliases enter a store only through the seed: a CreateNode carries none",
+        "Give the CreateNode the reference's aliases: the created node is then found by ekr resolve \
+         at the next revision.",
     ] {
         assert!(
             prose.contains(sentence),

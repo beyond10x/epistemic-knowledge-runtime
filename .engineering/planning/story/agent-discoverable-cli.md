@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:agent-discoverable-cli
 kind: story
 status: implemented
@@ -19,6 +19,10 @@ scope:
 - confidence: cited
   path: crates/ekr/tests/agent_cli.rs
 revision: 9
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-23T21:30:02Z", actor: "agent:claude-lazy-sutton-p4-01", revision: 7, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-23T21:30:03Z", actor: "agent:claude-lazy-sutton-p4-01", revision: 8, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-25T09:11:43Z", actor: "agent:claude-lazy-sutton-p4-01", revision: 9, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}, imported: true}
 ---
 ## Context
 

@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-21T14:58:40Z",
+  "actor": "human:timo",
+  "artifact": "story:graph-model-and-assertions",
+  "kind": "story",
+  "revision": 20,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "task check",
+    "reference": "wave/p1-04 at bf03b76ac — fmt-check, clippy, test, doc-check, spec-check, plan-check each exit 0; 199 cases, 0 failed, 0 ignored; b10x-gates scan-text over 188 tracked files clean"
+  }
+}

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: story:workspace-crate-skeleton
 kind: story
 status: implemented
@@ -45,6 +45,10 @@ scope:
 - confidence: cited
   path: crates/ekr/tests/story_contract.rs
 revision: 22
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-21T07:37:46Z", actor: "agent:claude", revision: 7, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-21T07:37:47Z", actor: "agent:claude", revision: 8, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-21T08:16:07Z", actor: "agent:claude", revision: 15, decided_on: {"recorded":{"test_result":1,"review_outcome":13}}, imported: true}
 ---
 ## Context
 

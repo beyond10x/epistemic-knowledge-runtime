@@ -4,12 +4,15 @@ summary: >-
   Read-only projections of one committed revision. A view is a deterministic function of a
   snapshot at a revision, a template version and a query scope; every rendered fact carries the id
   of the assertion it came from, and what a view renders is StorageClass Cache (design § 82). The
-  one format declared here is the graph projection ekr.graph-projection/1: one JSON document per
+  full export is the graph projection ekr.graph-projection/1: one JSON document per
   committed revision, scoped to canonical state as of that revision (§ 47), carrying assertion and
   evidence ids for the explain chain (§ 62), the schema version lineage (§ 95) and evidence
   identities without their bytes (§ 86). The format names no domain concept: it is generic over any
   ontology, and every name a viewer shows is taken from the projection's ontology or graph state.
-  This domain writes nothing; its one command reads.
+  Four bounded reads draw from the same revision without exporting it: ekr.graph-overview/1
+  (ProjectOverview), ekr.graph-slice/1 (ExpandNeighbourhood), ekr.node-detail/1 (DescribeNode) and
+  ekr.node-matches/1 (SearchNodes), each generic over any ontology in the same way. This domain
+  writes nothing; its five commands read.
 
   Determinism, which every renderer of ekr.graph-projection/1 holds to so that two renders of one
   revision are byte-identical. (1) Order. By id: every array whose members carry an `id`, and
@@ -32,6 +35,28 @@ summary: >-
   value is always emitted; an empty list or map is emitted empty, never omitted. No field of this
   format is an Optional inside a list or a map. (5) No field carries a wall-clock time, a host, a
   path or anything else that differs between two renders of one revision.
+
+  Determinism of the four bounded formats, so that two answers to one request against one
+  revision are byte-identical. Rules (2) key order, (3) encoding, (4) presence and (5) above hold
+  for each of them as written for ekr.graph-projection/1, with "render" read as "answer to one
+  request"; a ProjectedOntology, ProjectedAssertion, ProjectedEdge or ProjectedValue inside them is
+  ordered as rule (1) orders it; and ids ascend in the lowercase hyphenated text of the UUID. Rule
+  (1), order, is per format, and in each no array appears that is not named:
+  ekr.graph-overview/1 — ontology as rule (1); schema.versions and schema.revisions by number
+  ascending; each version's added and removed by id; node_types, edge_types and roles.types by
+  type id; timeline.buckets by start ascending, then type id; top by degree descending, then id.
+  ekr.graph-slice/1 — nodes and edges in record-sequence order (ekr.views.GraphSliceV1: distance
+  ascending, degree descending, id ascending, each node followed by the edges it closes by id),
+  which is not id order; meta.seeds and each edge's assertions by id.
+  ekr.node-detail/1 — assertions, edges and neighbours by id; referencing by its assertion's id;
+  node.aliases and each props value list in the store's order; props keys ascending by their text.
+  ekr.node-matches/1 — matches by tier (Exact before Folded), then degree descending, then id;
+  never by a name.
+  Bounds and the order of refusals, for the four: a bound over the input (depth, limit,
+  edge_limit, after) is checked before the store is read, and a broken one answers LimitExceeded
+  naming the first broken input in the command's declared input order; then an unseeded store
+  answers NotSeeded; then a revision beyond the head answers RevisionNotFound; then a node the
+  revision does not hold answers NodeNotFound.
 
   UNMAPPED under decision-blocker:evidence-entry-after-seed: evidence without retained bytes. Every
   evidence record the kernel admits today arrives with the seed, and the seed retains its bytes.
@@ -347,10 +372,513 @@ types:
       - name: schema
         type: ekr.views.ProjectedSchema
 
+  # ---------------------------------------------------------------------------------------------
+  # The four bounded reads a viewer draws from instead of the full projection: the overview, a
+  # neighbourhood slice, one node's detail and a name search. Each is its own format, and each is
+  # generic over any ontology: no type, property or edge type is named, and every label is taken
+  # from the document's ontology or graph state. Their determinism rules are in the domain
+  # summary above, one paragraph per format.
+  # ---------------------------------------------------------------------------------------------
+
+  - name: ekr.views.GraphOverviewFormatV1
+    kind: enum
+    variants: [ekr.graph-overview/1]
+
+  - name: ekr.views.GraphSliceFormatV1
+    kind: enum
+    variants: [ekr.graph-slice/1]
+
+  - name: ekr.views.NodeDetailFormatV1
+    kind: enum
+    variants: [ekr.node-detail/1]
+
+  - name: ekr.views.NodeMatchesFormatV1
+    kind: enum
+    variants: [ekr.node-matches/1]
+
+  # The position in a neighbourhood's record sequence (ExpandNeighbourhood): the number of records
+  # the earlier pages delivered. A page's `next` is its own `after` plus the records it delivered.
+  # It names no revision: a reader that pages keeps `at` fixed to the first page's meta.revision,
+  # because a cursor read against another revision addresses another sequence.
+  - name: ekr.views.SliceCursor
+    kind: newtype
+    of: Integer
+
+  # A light node record: what a viewer needs to draw a node and nothing it needs to open one.
+  # `name` is the node's canonical_name, `type` its type id, `degree` the number of the revision's
+  # edges (ekr.graph.Edge) whose source or target is the node, counted over the whole revision,
+  # not the answer; an edge whose source and target are both the node (a self-loop) is not
+  # counted, as the reference viewer's degree did not count it. A Relation assertion with no Edge
+  # is no edge here: UNMAPPED under decision-blocker:relation-assertion-edge-correspondence, which
+  # leaves open whether such an assertion and an Edge with the same source, type and target are
+  # one edge; the reference viewer drew both and counted both.
+  - name: ekr.views.NodeSummary
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: name
+        type: String
+      - name: degree
+        type: Integer
+
+  # What a schema version declares that its neighbour in the lineage does not: a node type, an
+  # edge type or a property definition, by id, with the name the declaring version gives it.
+  - name: ekr.views.SchemaMemberKind
+    kind: enum
+    variants: [NodeType, EdgeType, Property]
+
+  - name: ekr.views.SchemaMember
+    kind: struct
+    fields:
+      - name: id
+        type: Uuid
+      - name: kind
+        type: ekr.views.SchemaMemberKind
+      - name: name
+        type: String
+
+  # One version of the lineage. `revision` is the first revision whose canonical state is valid
+  # against it. `added` is every type and property id it declares and its parent does not (for the
+  # seed's version, every id it declares), named as this version names it; `removed` every id its
+  # parent declares and it does not, named as the parent names it (empty for the seed's version).
+  # A property is compared by its id alone, so a property that moves from one type to another is
+  # in neither list. Only versions whose `revision` is at most the overviewed revision are listed.
+  - name: ekr.views.OverviewSchemaVersion
+    kind: struct
+    fields:
+      - name: number
+        type: Integer
+      - name: id
+        type: ekr.ontology.SchemaVersionId
+      - name: parent
+        type: Optional<ekr.ontology.SchemaVersionId>
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: added
+        type: List<ekr.views.SchemaMember>
+      - name: removed
+        type: List<ekr.views.SchemaMember>
+
+  # One committed revision up to and including the overviewed one, with what the overviewed
+  # revision's canonical state says existed by then. Growth is read from recorded time, never by
+  # loading each revision:
+  #   - `assertions` counts the overviewed state's assertions whose recorded_from is at most this
+  #     revision's committed_at;
+  #   - `nodes` counts its nodes whose recorded time is at most committed_at, where a node's
+  #     recorded time is the least recorded_from among the assertions whose subject is that node.
+  #     A node no assertion has as its subject has no recorded time and is counted at every
+  #     revision from 0; OverviewSchema.unrecorded_nodes says how many there are;
+  #   - `edges` likewise. An edge's recorded time is the least recorded_from among the assertions
+  #     whose subject is that edge and the Relation assertions whose subject, predicate and
+  #     object_ref are the edge's source, type and target; an edge with neither is counted from
+  #     revision 0 (OverviewSchema.unrecorded_edges).
+  #     UNMAPPED under decision-blocker:relation-assertion-edge-correspondence: the second half
+  #     reads a Relation assertion as timing the Edge it matches on source, type and target. It
+  #     is used for this count only and joins no record to another; an owner decision on the
+  #     blocker may remove it, and then most edges are counted from revision 0.
+  # Anything an earlier revision held and the overviewed one does not is in no count, and
+  # recorded_to is not read, so a superseded or retracted assertion counts from the revision that
+  # recorded it onward, as the reference viewer's per-revision reads counted it.
+  - name: ekr.views.OverviewRevision
+    kind: struct
+    fields:
+      - name: number
+        type: ekr.kernel.RevisionNumber
+      - name: committed_at
+        type: ekr.views.EpochMillis
+      - name: transaction_id
+        type: Optional<ekr.kernel.TransactionId>
+      - name: schema_version
+        type: ekr.ontology.SchemaVersionId
+      - name: nodes
+        type: Integer
+      - name: edges
+        type: Integer
+      - name: assertions
+        type: Integer
+
+  - name: ekr.views.OverviewSchema
+    kind: struct
+    fields:
+      - name: versions
+        type: List<ekr.views.OverviewSchemaVersion>
+      - name: revisions
+        type: List<ekr.views.OverviewRevision>
+      - name: unrecorded_nodes
+        type: Integer
+      - name: unrecorded_edges
+        type: Integer
+
+  # How many nodes of a node type, or edges of an edge type, the overviewed revision holds. Every
+  # type the overviewed ontology declares is listed, with zero where it has none.
+  - name: ekr.views.TypeCount
+    kind: struct
+    fields:
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: count
+        type: Integer
+
+  # The layout roles, by the reference viewer's valid-time rule, per node type. The rule, exactly:
+  #   A node's dated facts are the present valid_from of every assertion whose subject is the node
+  #   and of every Relation assertion whose object_ref is the node, of any lifecycle, each counted
+  #   once per assertion.
+  #   A node is timestamped when one of its property values is an Integer v with
+  #   1,000,000,000,000 <= v < 10,000,000,000,000 (the reference viewer's epoch-milliseconds test)
+  #   or a Timestamp. UNMAPPED: the reference viewer's export rendered a Timestamp value as text,
+  #   so a Timestamp never made a node timestamped there; counting it here is a decision for the
+  #   owner. The bench store holds no Timestamp property value, so its roles are the same under
+  #   both readings.
+  #   A timestamped node is judged and instant. Otherwise a node with at least two dated facts is
+  #   judged, and it is also within_hour and instant when its latest dated fact is at most
+  #   3,600,000 ms after its earliest. A node with one dated fact or none is not judged: a single
+  #   instant cannot show whether its facts gather at one moment.
+  #   `neighbour_types` sums, over the type's nodes, the number of distinct node types among the
+  #   nodes an edge (either direction) or a Relation assertion (subject to object_ref, either
+  #   direction) joins it to; a self-loop joins a node to its own type. Distinct neighbour types do
+  #   not depend on the open edge/relation join, so both are read.
+  #   A type is an event type when judged > 0 and 5 × instant >= 3 × judged
+  #   (instant / judged >= 0.6).
+  #   The observation type is, among the event types whose neighbour_types / nodes is at least the
+  #   mean of neighbour_types / nodes over all event types, the one with the most nodes; ties go to
+  #   the lowest type id. The ratios are compared exactly as rationals, never in floating point,
+  #   and the tie rule is this format's: the reference viewer compared in floating point and broke
+  #   ties by the order in which a type first appeared among its nodes.
+  # The reference viewer derived three further roles — subject types, the edge type joining an
+  # observation to what it is about, and a history property. UNMAPPED: this format does not carry
+  # them; whether the overview or the page derives them is open for the owner. The structural
+  # rule the host served as /roles is not carried either.
+  - name: ekr.views.TypeTiming
+    kind: struct
+    fields:
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: nodes
+        type: Integer
+      - name: timestamped
+        type: Integer
+      - name: judged
+        type: Integer
+      - name: within_hour
+        type: Integer
+      - name: instant
+        type: Integer
+      - name: neighbour_types
+        type: Integer
+      - name: event
+        type: Boolean
+
+  - name: ekr.views.OverviewRoles
+    kind: struct
+    fields:
+      - name: types
+        type: List<ekr.views.TypeTiming>
+      - name: observation_type
+        type: Optional<ekr.ontology.TypeId>
+
+  # Assertions per valid-time bucket per node type. The bucketed assertions are the overviewed
+  # state's assertions whose subject is a node and that carry a valid_from, of any lifecycle,
+  # keyed by the subject node's type and bucketed by valid_from alone; `undated` counts the
+  # node-subject assertions with no valid_from. Assertions whose subject is an edge or a type are
+  # in neither. `first` and `last` are the least and greatest bucketed valid_from, omitted when
+  # there is none.
+  # Width, the reference viewer's automatic rule applied to [first, last]: a week (604,800,000 ms)
+  # when last - first > 10,368,000,000 ms (120 days), otherwise a day (86,400,000 ms); a day when
+  # nothing is bucketed. A bucket's `start` is, for a day, floor(t / 86,400,000) × 86,400,000; for
+  # a week, floor((t + 259,200,000) / 604,800,000) × 604,800,000 - 259,200,000, which is Monday
+  # 00:00 UTC (the epoch fell on a Thursday); floor rounds toward negative infinity. Only buckets
+  # holding at least one assertion are listed. The reference viewer bucketed event nodes placed at
+  # their time within one subject's neighbourhood; the per-type assertion count is the approved
+  # plan's, and that per-subject heatmap is the page's to derive from slices.
+  - name: ekr.views.TimelineBucket
+    kind: struct
+    fields:
+      - name: start
+        type: ekr.views.EpochMillis
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: assertions
+        type: Integer
+
+  - name: ekr.views.OverviewTimeline
+    kind: struct
+    fields:
+      - name: bucket_ms
+        type: Integer
+      - name: first
+        type: Optional<ekr.views.EpochMillis>
+      - name: last
+        type: Optional<ekr.views.EpochMillis>
+      - name: undated
+        type: Integer
+      - name: buckets
+        type: List<ekr.views.TimelineBucket>
+
+  # `limit` is the number of top nodes asked for after the default is applied; the four counts are
+  # over the overviewed revision's canonical state, not over this document.
+  - name: ekr.views.OverviewMeta
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.GraphOverviewFormatV1
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: head
+        type: ekr.kernel.RevisionNumber
+      - name: node_count
+        type: Integer
+      - name: edge_count
+        type: Integer
+      - name: assertion_count
+        type: Integer
+      - name: evidence_count
+        type: Integer
+      - name: limit
+        type: Integer
+
+  # ekr.graph-overview/1. `ontology` is ekr.graph-projection/1's, with the type assertions and
+  # their ids. `top` is the min(limit, node_count) nodes of highest degree.
+  # Every fact here that one assertion states carries that assertion's id (the ontology's type
+  # assertions); counts, roles, buckets and degrees are derived from many and carry none.
+  - name: ekr.views.GraphOverviewV1
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.OverviewMeta
+      - name: ontology
+        type: ekr.views.ProjectedOntology
+      - name: schema
+        type: ekr.views.OverviewSchema
+      - name: node_types
+        type: List<ekr.views.TypeCount>
+      - name: edge_types
+        type: List<ekr.views.TypeCount>
+      - name: roles
+        type: ekr.views.OverviewRoles
+      - name: timeline
+        type: ekr.views.OverviewTimeline
+      - name: top
+        type: List<ekr.views.NodeSummary>
+
+  # A node of a neighbourhood: its light record and its hop distance from the nearest seed.
+  - name: ekr.views.SliceNode
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: name
+        type: String
+      - name: degree
+        type: Integer
+      - name: distance
+        type: Integer
+
+  # An ekr.graph.Edge of a neighbourhood, light: no props. `assertions` is the ids of the
+  # assertions whose subject is this edge, so the facts about it can be opened by id.
+  - name: ekr.views.SliceEdge
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.EdgeId
+      - name: source
+        type: ekr.graph.NodeId
+      - name: target
+        type: ekr.graph.NodeId
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: assertions
+        type: List<ekr.graph.AssertionId>
+
+  # `seeds` is the request's seeds as a set; `after` the request's cursor, 0 when it gave none;
+  # `node_total` and `edge_total` count the whole neighbourhood, not this page.
+  - name: ekr.views.SliceMeta
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.GraphSliceFormatV1
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: head
+        type: ekr.kernel.RevisionNumber
+      - name: seeds
+        type: List<ekr.graph.NodeId>
+      - name: depth
+        type: Integer
+      - name: after
+        type: ekr.views.SliceCursor
+      - name: node_total
+        type: Integer
+      - name: edge_total
+        type: Integer
+
+  # ekr.graph-slice/1: one page of a neighbourhood.
+  # The neighbourhood of seeds S at depth d is every node within d hops of a node of S — a hop
+  # crosses one of the revision's edges (ekr.graph.Edge) in either direction and of any type — and
+  # every edge whose source and target are both in it. A node's distance is its hop count from the
+  # nearest seed; seeds are at 0. A Relation assertion with no Edge is not crossed (UNMAPPED, as on
+  # NodeSummary).
+  # The record sequence: the neighbourhood's nodes by distance ascending, then degree descending,
+  # then id ascending; each node followed by the edges it closes — those whose other endpoint comes
+  # earlier in the order or is the node itself — by id ascending. So an edge always follows both
+  # its endpoints. Distance before degree is this format's: a page never holds a node without the
+  # node that led to it; the approved plan said "highest degree first", which it keeps within one
+  # distance.
+  # A page takes the records from position `after` onward, in order, and stops before the first
+  # record that would make it hold more than `limit` nodes or more than `edge_limit` edges, so a
+  # page may end between a node and the edges it closes. `next` is present exactly when records
+  # remain after the page, and is `after` plus the records the page holds. A cursor at or past the
+  # end answers an empty page with no `next`.
+  - name: ekr.views.GraphSliceV1
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.SliceMeta
+      - name: nodes
+        type: List<ekr.views.SliceNode>
+      - name: edges
+        type: List<ekr.views.SliceEdge>
+      - name: next
+        type: Optional<ekr.views.SliceCursor>
+
+  # One node as the store holds it at the revision: ekr.views.ProjectedNode's own fields without
+  # its assertions, which the detail carries beside it, and with its degree.
+  - name: ekr.views.DetailNode
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: name
+        type: String
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: aliases
+        type: List<String>
+      - name: state
+        type: Optional<String>
+      - name: props
+        type: Map<String, List<ekr.views.ProjectedValue>>
+      - name: degree
+        type: Integer
+
+  # An assertion about something else whose object is the described node (object_kind Node,
+  # object_ref the node): the incoming facts, with their subject named, because a ProjectedAssertion
+  # leaves its subject to the list it is in.
+  - name: ekr.views.ReferencingAssertion
+    kind: struct
+    fields:
+      - name: subject_kind
+        type: ekr.graph.SubjectKind
+      - name: subject
+        type: Uuid
+      - name: assertion
+        type: ekr.views.ProjectedAssertion
+
+  - name: ekr.views.DetailMeta
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.NodeDetailFormatV1
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: head
+        type: ekr.kernel.RevisionNumber
+
+  # ekr.node-detail/1: one node. `assertions` is every assertion whose subject is the node, of any
+  # lifecycle, each with its assessment, lifecycle, valid and recorded time and evidence ids;
+  # `referencing` every assertion whose object_ref is the node; `edges` every edge whose source or
+  # target is the node, with its props and the assertions whose subject is that edge; `neighbours`
+  # the light record of every other node an incident edge, one of `assertions`' object_ref or one of
+  # `referencing`' Node subjects names, so a viewer can label them without another read. Evidence
+  # is carried by id only; its record is read by that id. Bound: one node, and every one of its
+  # edges — the detail does not page.
+  - name: ekr.views.NodeDetailV1
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.DetailMeta
+      - name: node
+        type: ekr.views.DetailNode
+      - name: assertions
+        type: List<ekr.views.ProjectedAssertion>
+      - name: referencing
+        type: List<ekr.views.ReferencingAssertion>
+      - name: edges
+        type: List<ekr.views.ProjectedEdge>
+      - name: neighbours
+        type: List<ekr.views.NodeSummary>
+
+  # Which comparison a match passed. Exact: the text is a byte-exact substring of the node's
+  # canonical_name or of one of its aliases. Folded: not Exact, and the text is a substring after
+  # both sides are lowercased by Unicode's Lowercase_Mapping, the full mapping with no locale
+  # (Rust's str::to_lowercase) and no normalization. Folding by lowercase mapping rather than
+  # Unicode case folding is this format's decision.
+  - name: ekr.views.MatchTier
+    kind: enum
+    variants: [Exact, Folded]
+
+  - name: ekr.views.MatchField
+    kind: enum
+    variants: [Name, Alias]
+
+  # One match. `field` is Name when the name passed the match's tier, else Alias, and then `alias`
+  # is the first alias in the node's alias order that passed it.
+  - name: ekr.views.NodeMatch
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.NodeId
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: name
+        type: String
+      - name: degree
+        type: Integer
+      - name: tier
+        type: ekr.views.MatchTier
+      - name: field
+        type: ekr.views.MatchField
+      - name: alias
+        type: Optional<String>
+
+  # `total` counts every matching node and `exact_total` the Exact ones among them, before `limit`.
+  - name: ekr.views.MatchesMeta
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.NodeMatchesFormatV1
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: head
+        type: ekr.kernel.RevisionNumber
+      - name: text
+        type: String
+      - name: total
+        type: Integer
+      - name: exact_total
+        type: Integer
+
+  # ekr.node-matches/1: the first `limit` matching nodes. Empty text matches every node, Exactly.
+  - name: ekr.views.NodeMatchesV1
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.MatchesMeta
+      - name: matches
+        type: List<ekr.views.NodeMatch>
+
 actors:
   - name: ekr.views.Reader
     may:
       - ekr.views.ProjectGraph
+      - ekr.views.ProjectOverview
+      - ekr.views.ExpandNeighbourhood
+      - ekr.views.DescribeNode
+      - ekr.views.SearchNodes
     naming:
       display: Reader
 
@@ -369,6 +897,30 @@ errors:
     fields:
       - name: requested
         type: Optional<ekr.kernel.RevisionNumber>
+
+  # `node` is the requested node or, for ExpandNeighbourhood, the first seed in the order the
+  # request gave them that the revision does not hold; `revision` is the revision that was read.
+  - name: ekr.views.NodeNotFound
+    summary: The revision holds no node with the requested id; nothing was answered.
+    fields:
+      - name: node
+        type: ekr.graph.NodeId
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+
+  # `parameter` is the input's name as the command declares it; `maximum` is omitted for an input
+  # with no upper bound (`after`).
+  - name: ekr.views.LimitExceeded
+    summary: An input is outside its bound; the store was not read and nothing was answered.
+    fields:
+      - name: parameter
+        type: String
+      - name: requested
+        type: Integer
+      - name: minimum
+        type: Integer
+      - name: maximum
+        type: Optional<Integer>
 
 commands:
   # Design § 82. A read of one immutable revision; the default is the newest. Writes no canonical
@@ -423,6 +975,240 @@ commands:
         error: ekr.views.NotSeeded
         summary: Nothing was rendered; the request is echoed and no head is reported, because there is none.
 
+  # The four bounded reads. Each reads one immutable revision, the newest when `at` is absent, and
+  # writes no canonical state. Their bounds are input guards, decided before the store is read;
+  # their not-found, not-seeded and node-not-found outcomes are external for the reason
+  # ProjectGraph's are: what decides them is store state, which no guard reads.
+
+  # `limit` is how many of the highest-degree nodes the overview lists: 1 to 500, 300 when absent.
+  - name: ekr.views.ProjectOverview
+    naming:
+      wire: project-overview
+      display: Overview the graph
+    input:
+      - name: store
+        type: ekr.views.StoreLocation
+      - name: at
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: limit
+        type: Optional<Integer>
+    response:
+      - name: overview
+        type: ekr.views.GraphOverviewV1
+    outcomes:
+      - name: overviewed
+        emits:
+          - ekr.views.GraphOverviewed
+        payload:
+          ekr.views.GraphOverviewed:
+            revision: {generated: true}
+            head: {generated: true}
+            nodes: {generated: true}
+            edges: {generated: true}
+            assertions: {generated: true}
+            evidence: {generated: true}
+            node_types: {generated: true}
+            edge_types: {generated: true}
+            schema_versions: {generated: true}
+            revisions: {generated: true}
+            added: {generated: true}
+            removed: {generated: true}
+            unrecorded_nodes: {generated: true}
+            unrecorded_edges: {generated: true}
+            revision_zero_nodes: {generated: true}
+            revision_zero_edges: {generated: true}
+            revision_zero_assertions: {generated: true}
+            event_types: {generated: true}
+            observation_type: {generated: true}
+            bucket_ms: {generated: true}
+            timeline_buckets: {generated: true}
+            dated_assertions: {generated: true}
+            undated_assertions: {generated: true}
+            top: {generated: true}
+            overview_hash: {generated: true}
+        summary: One ekr.graph-overview/1 document of the requested revision, byte-identical to every other answer to the same request.
+      - name: limit-exceeded
+        when:
+          any:
+            - limit < 1
+            - limit > 500
+        error: ekr.views.LimitExceeded
+        summary: The store was not read; the refusal names `limit`, its value and its bounds 1 and 500.
+      - name: not-found
+        external: the store holds no committed revision with the requested number
+        error: ekr.views.RevisionNotFound
+        summary: Nothing was answered.
+      - name: not-seeded
+        external: the store has never been seeded
+        error: ekr.views.NotSeeded
+        summary: Nothing was answered; no head is reported, because there is none.
+
+  # `seeds` is a set: order and repetition in the request change nothing but which unknown seed a
+  # node-not-found names. Its size is not bounded, and every page is; an empty set answers an
+  # empty page with node_total 0. A lower bound of one seed was tried and dropped: with it, ess
+  # 0.36.0 finds no candidate for the expanded branch among the 64 it tries (ESS-SYNTH-003).
+  # `depth` is 0 to 2 (0 answers the seeds and the edges among them); `limit` 1 to 2,000 nodes
+  # per page; `edge_limit` 1 to 5,000 edges per page, 5,000 when absent; `after` a cursor from an
+  # earlier page's `next`, 0 or more.
+  # `edge_limit` is an input this specification adds to the approved plan's signature, so a store
+  # smaller than 5,000 edges can hold the edge cap to account; the cap itself is the plan's.
+  - name: ekr.views.ExpandNeighbourhood
+    naming:
+      wire: expand-neighbourhood
+      display: Expand a neighbourhood
+    input:
+      - name: store
+        type: ekr.views.StoreLocation
+      - name: at
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: seeds
+        type: List<ekr.graph.NodeId>
+      - name: depth
+        type: Integer
+      - name: limit
+        type: Integer
+      - name: edge_limit
+        type: Optional<Integer>
+      - name: after
+        type: Optional<ekr.views.SliceCursor>
+    response:
+      - name: slice
+        type: ekr.views.GraphSliceV1
+    outcomes:
+      - name: expanded
+        emits:
+          - ekr.views.NeighbourhoodExpanded
+        payload:
+          ekr.views.NeighbourhoodExpanded:
+            revision: {generated: true}
+            head: {generated: true}
+            seeds: {generated: true}
+            depth: input.depth
+            after: {generated: true}
+            nodes: {generated: true}
+            edges: {generated: true}
+            node_total: {generated: true}
+            edge_total: {generated: true}
+            remaining: {generated: true}
+            slice_hash: {generated: true}
+        summary: One ekr.graph-slice/1 page, byte-identical to every other answer to the same request.
+      - name: limit-exceeded
+        when:
+          any:
+            - depth < 0
+            - depth > 2
+            - limit < 1
+            - limit > 2000
+            - edge_limit < 1
+            - edge_limit > 5000
+            - after < 0
+        error: ekr.views.LimitExceeded
+        summary: The store was not read; the refusal names the first broken input of depth, limit, edge_limit and after, its value and its bounds.
+      - name: node-not-found
+        external: a seed names a node the requested revision does not hold
+        error: ekr.views.NodeNotFound
+        summary: Nothing was answered; the refusal names the first such seed in the order the request gave them.
+      - name: not-found
+        external: the store holds no committed revision with the requested number
+        error: ekr.views.RevisionNotFound
+        summary: Nothing was answered.
+      - name: not-seeded
+        external: the store has never been seeded
+        error: ekr.views.NotSeeded
+        summary: Nothing was answered; no head is reported, because there is none.
+
+  # One node. No input bound: the answer is one node, with all of its assertions and edges.
+  - name: ekr.views.DescribeNode
+    naming:
+      wire: describe-node
+      display: Describe a node
+    input:
+      - name: store
+        type: ekr.views.StoreLocation
+      - name: at
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: node
+        type: ekr.graph.NodeId
+    response:
+      - name: detail
+        type: ekr.views.NodeDetailV1
+    outcomes:
+      - name: described
+        emits:
+          - ekr.views.NodeDescribed
+        payload:
+          ekr.views.NodeDescribed:
+            revision: {generated: true}
+            head: {generated: true}
+            node: input.node
+            assertions: {generated: true}
+            referencing: {generated: true}
+            edges: {generated: true}
+            neighbours: {generated: true}
+            detail_hash: {generated: true}
+        summary: One ekr.node-detail/1 document, byte-identical to every other answer to the same request.
+      - name: node-not-found
+        external: the requested revision holds no node with the requested id
+        error: ekr.views.NodeNotFound
+        summary: Nothing was answered; a node created after the requested revision is not found at it.
+      - name: not-found
+        external: the store holds no committed revision with the requested number
+        error: ekr.views.RevisionNotFound
+        summary: Nothing was answered.
+      - name: not-seeded
+        external: the store has never been seeded
+        error: ekr.views.NotSeeded
+        summary: Nothing was answered; no head is reported, because there is none.
+
+  # `text` is matched against canonical names and aliases (ekr.views.MatchTier); it has no length
+  # bound. `limit` is 1 to 100 matches. No match is an answer with no matches, not a refusal.
+  - name: ekr.views.SearchNodes
+    naming:
+      wire: search-nodes
+      display: Search nodes
+    input:
+      - name: store
+        type: ekr.views.StoreLocation
+      - name: at
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: text
+        type: String
+      - name: limit
+        type: Integer
+    response:
+      - name: matches
+        type: ekr.views.NodeMatchesV1
+    outcomes:
+      - name: searched
+        emits:
+          - ekr.views.NodesSearched
+        payload:
+          ekr.views.NodesSearched:
+            revision: {generated: true}
+            head: {generated: true}
+            text: input.text
+            matches: {generated: true}
+            total: {generated: true}
+            exact_total: {generated: true}
+            first_match: {generated: true}
+            matches_hash: {generated: true}
+        summary: One ekr.node-matches/1 document, byte-identical to every other answer to the same request.
+      - name: limit-exceeded
+        when:
+          any:
+            - limit < 1
+            - limit > 100
+        error: ekr.views.LimitExceeded
+        summary: The store was not read; the refusal names `limit`, its value and its bounds 1 and 100.
+      - name: not-found
+        external: the store holds no committed revision with the requested number
+        error: ekr.views.RevisionNotFound
+        summary: Nothing was answered.
+      - name: not-seeded
+        external: the store has never been seeded
+        error: ekr.views.NotSeeded
+        summary: Nothing was answered; no head is reported, because there is none.
+
 events:
   # What one render returned, counted over the document it returned, so a suite can hold a
   # renderer to it without parsing the response. `projection_hash` is the hex SHA-256 of the
@@ -463,4 +1249,138 @@ events:
       - name: retained_evidence
         type: Integer
       - name: projection_hash
+        type: ekr.kernel.ContentHash
+
+  # What one overview returned, every field a function of the document. `nodes`, `edges`,
+  # `assertions` and `evidence` are its meta counts; `node_types` and `edge_types` the lengths of
+  # its two type-count lists; `schema_versions` and `revisions` of schema.versions and
+  # schema.revisions; `added` and `removed` the members summed over every listed version;
+  # `unrecorded_nodes` and `unrecorded_edges` schema's; the three `revision_zero_` counts are
+  # revision 0's entry in schema.revisions; `event_types` counts roles.types with event true, and
+  # `observation_type` is roles.observation_type; `bucket_ms` is timeline.bucket_ms,
+  # `timeline_buckets` the length of timeline.buckets, `dated_assertions` the sum of their
+  # assertions and `undated_assertions` timeline.undated; `top` the length of the top list;
+  # `overview_hash` the hex SHA-256 of the document's exact bytes.
+  - name: ekr.views.GraphOverviewed
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: head
+        type: ekr.kernel.RevisionNumber
+      - name: nodes
+        type: Integer
+      - name: edges
+        type: Integer
+      - name: assertions
+        type: Integer
+      - name: evidence
+        type: Integer
+      - name: node_types
+        type: Integer
+      - name: edge_types
+        type: Integer
+      - name: schema_versions
+        type: Integer
+      - name: revisions
+        type: Integer
+      - name: added
+        type: Integer
+      - name: removed
+        type: Integer
+      - name: unrecorded_nodes
+        type: Integer
+      - name: unrecorded_edges
+        type: Integer
+      - name: revision_zero_nodes
+        type: Integer
+      - name: revision_zero_edges
+        type: Integer
+      - name: revision_zero_assertions
+        type: Integer
+      - name: event_types
+        type: Integer
+      - name: observation_type
+        type: Optional<ekr.ontology.TypeId>
+      - name: bucket_ms
+        type: Integer
+      - name: timeline_buckets
+        type: Integer
+      - name: dated_assertions
+        type: Integer
+      - name: undated_assertions
+        type: Integer
+      - name: top
+        type: Integer
+      - name: overview_hash
+        type: ekr.kernel.ContentHash
+
+  # What one page returned. `seeds` is the size of meta.seeds; `after` is meta.after; `nodes` and
+  # `edges` count this page's records; `node_total` and `edge_total` the whole neighbourhood's;
+  # `remaining` the records of the sequence after this page, 0 exactly when the page has no
+  # `next`; `slice_hash` the hex SHA-256 of the document's exact bytes.
+  - name: ekr.views.NeighbourhoodExpanded
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: head
+        type: ekr.kernel.RevisionNumber
+      - name: seeds
+        type: Integer
+      - name: depth
+        type: Integer
+      - name: after
+        type: Integer
+      - name: nodes
+        type: Integer
+      - name: edges
+        type: Integer
+      - name: node_total
+        type: Integer
+      - name: edge_total
+        type: Integer
+      - name: remaining
+        type: Integer
+      - name: slice_hash
+        type: ekr.kernel.ContentHash
+
+  # What one detail returned: the lengths of its four lists, and the hex SHA-256 of its bytes.
+  - name: ekr.views.NodeDescribed
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: head
+        type: ekr.kernel.RevisionNumber
+      - name: node
+        type: ekr.graph.NodeId
+      - name: assertions
+        type: Integer
+      - name: referencing
+        type: Integer
+      - name: edges
+        type: Integer
+      - name: neighbours
+        type: Integer
+      - name: detail_hash
+        type: ekr.kernel.ContentHash
+
+  # What one search returned. `matches` is the length of the matches list, `total` and
+  # `exact_total` meta's, `first_match` the id of the first match, omitted when there is none;
+  # `matches_hash` the hex SHA-256 of the document's exact bytes.
+  - name: ekr.views.NodesSearched
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: head
+        type: ekr.kernel.RevisionNumber
+      - name: text
+        type: String
+      - name: matches
+        type: Integer
+      - name: total
+        type: Integer
+      - name: exact_total
+        type: Integer
+      - name: first_match
+        type: Optional<ekr.graph.NodeId>
+      - name: matches_hash
         type: ekr.kernel.ContentHash

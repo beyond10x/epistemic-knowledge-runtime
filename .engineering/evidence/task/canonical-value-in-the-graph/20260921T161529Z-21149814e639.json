@@ -1,0 +1,15 @@
+{
+  "at": "2026-09-21T16:15:29Z",
+  "actor": "human:timo",
+  "artifact": "task:canonical-value-in-the-graph",
+  "kind": "task",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:adversary-canonical-value-pass-1",
+    "reference": "the seventh finding of this pass: the domain's TypedValue.kind declares eleven value kinds where a canonical property carries ten. Graded INFEASIBLE by the reviewer, corrected by the coordinator in systems/ekr/domains/graph.yaml rather than by this unit, and no code changed",
+    "review": "review-result:adversary-canonical-value-pass-1",
+    "outcome": "no-op"
+  }
+}

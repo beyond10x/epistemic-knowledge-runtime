@@ -309,6 +309,7 @@ fn canonical_transaction() -> GraphTransaction<CanonicalValue> {
             properties: [(id(0x06), vec![CanonicalValue::String("beta".into())])]
                 .into_iter()
                 .collect(),
+            aliases: Vec::new(),
         })],
         evidence: BTreeSet::from([id(0x13)]),
         schema_version: None,

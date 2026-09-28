@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:canonical-newtype-discriminant
 kind: task
 status: implemented
@@ -10,6 +10,10 @@ relations:
 - informed_by: story:graph-model-and-assertions
 - serves: vision:o2
 revision: 7
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-21T13:49:42Z", actor: "agent:claude", revision: 3, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-21T13:49:42Z", actor: "agent:claude", revision: 4, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-21T14:58:50Z", actor: "human:timo", revision: 7, imported: true}
 ---
 ## Context
 

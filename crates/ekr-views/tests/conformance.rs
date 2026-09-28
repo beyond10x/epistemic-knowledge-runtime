@@ -25,7 +25,7 @@ fn the_sqlite_provider_passes_every_admitted_views_scenario() {
 }
 
 /// The committed suite is the `ekr-views` component's, complete, with nothing refused, and it
-/// selects the three generated outcome scenarios and every authored one.
+/// selects the twenty generated outcome scenarios and every authored one.
 #[test]
 fn the_committed_suite_is_the_complete_views_inventory() {
     let admitted = admitted();
@@ -53,5 +53,5 @@ fn the_committed_suite_is_the_complete_views_inventory() {
         authored,
         "every authored scenario file is selected"
     );
-    assert_eq!(names.len(), authored + 3, "{names:#?}");
+    assert_eq!(names.len(), authored + 20, "{names:#?}");
 }

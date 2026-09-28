@@ -245,6 +245,7 @@ where
                         .into_iter()
                         .map(|(at, values)| (POOL.properties[at], values))
                         .collect(),
+                    aliases: Vec::new(),
                 }
             )
         ),

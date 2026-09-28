@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-22T05:33:17Z",
+  "actor": "agent:codex-ekr-completion-20260922",
+  "artifact": "task:strict-read-only-eventlog-inspection",
+  "kind": "task",
+  "revision": 5,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Published provider strict-inspection production proof plus EKR exact-pin dependency guard and complete integration gate",
+    "reference": ".engineering/waves/wave-2026-09-22-p1-10.md"
+  }
+}

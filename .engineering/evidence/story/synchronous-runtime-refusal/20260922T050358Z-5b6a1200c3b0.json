@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-22T05:03:58Z",
+  "actor": "agent:codex-ekr-completion-20260922",
+  "artifact": "story:synchronous-runtime-refusal",
+  "kind": "story",
+  "revision": 9,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "cargo test -p ekr-store --offline: 71 passed, zero failed/ignored; independent five-case review and restored entry-guard mutation",
+    "reference": ".engineering/waves/p1-runtime-context.md"
+  }
+}

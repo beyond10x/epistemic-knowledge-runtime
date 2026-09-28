@@ -226,6 +226,7 @@ impl World {
             )]
             .into_iter()
             .collect(),
+            aliases: Vec::new(),
         }
     }
 }

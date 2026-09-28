@@ -83,6 +83,7 @@
 //!         type_id: decision,
 //!         canonical_name: "Hash canonical state only".to_owned(),
 //!         properties: BTreeMap::new(),
+//!         aliases: Vec::new(),
 //!     })],
 //!     evidence: BTreeSet::new(),
 //!     schema_version: None,

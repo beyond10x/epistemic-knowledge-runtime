@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: decision-blocker:relation-assertion-edge-correspondence
 kind: decision-blocker
 status: open

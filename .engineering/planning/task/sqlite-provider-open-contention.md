@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:sqlite-provider-open-contention
 kind: task
 status: implemented
@@ -8,6 +8,10 @@ relations:
 - serves: vision:o2
 - derived_from: epic:p4-operator-surface
 revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-26T07:27:53Z", actor: "agent:claude-lazy-sutton-p5-01", revision: 2, decided_on: {"recorded":{"test_result":1}}, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-26T07:27:53Z", actor: "agent:claude-lazy-sutton-p5-01", revision: 3, decided_on: {"recorded":{"test_result":1}}, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-26T07:27:55Z", actor: "agent:claude-lazy-sutton-p5-01", revision: 4, decided_on: {"recorded":{"test_result":1}}, imported: true}
 ---
 ## What is wrong
 

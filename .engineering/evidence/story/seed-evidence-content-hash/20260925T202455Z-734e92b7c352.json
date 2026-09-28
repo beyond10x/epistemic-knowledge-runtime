@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-25T20:24:55Z",
+  "actor": "agent:claude-lazy-sutton-p1-15",
+  "artifact": "story:seed-evidence-content-hash",
+  "kind": "story",
+  "revision": 14,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:p1-15-seed-hash-adversary-r1",
+    "review": "review-result:p1-15-seed-hash-adversary-r1",
+    "outcome": "fixed"
+  }
+}

@@ -1,5 +1,5 @@
 ---
-format: aep.planning-md/2
+format: aep.planning-md/3
 id: task:replay-refusals-have-no-forged-history-case
 kind: task
 status: implemented
@@ -8,6 +8,10 @@ relations:
 - serves: vision:o2
 - derived_from: story:commit-and-revision-lineage
 revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-23T00:17:31Z", actor: "agent:claude-579ad7f9-p1-12", revision: 2, decided_on: {"recorded":{"test_result":1,"review_outcome":5}}, imported: true}
+- {from: "proposed", to: "active", at: "2026-09-23T00:17:31Z", actor: "agent:claude-579ad7f9-p1-12", revision: 3, decided_on: {"recorded":{"test_result":1,"review_outcome":5}}, imported: true}
+- {from: "active", to: "implemented", at: "2026-09-23T00:17:32Z", actor: "agent:claude-579ad7f9-p1-12", revision: 4, decided_on: {"recorded":{"test_result":1,"review_outcome":5}}, imported: true}
 ---
 ## What is missing
 
