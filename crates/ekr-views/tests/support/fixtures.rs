@@ -20,7 +20,7 @@ use ekr_graph::{
 use ekr_kernel::{
     Agent, AuthorityStateV1, BootstrapContext, CommitCommandResult, EdgeDraft, GraphOperation,
     GraphTransaction, NodeDraft, PropertyModification, PropertyMutation, Retraction, Runtime,
-    SeedDocument, ValidationCommandResult, ValidationProfileV1,
+    SeedDocument, Supersession, ValidationCommandResult, ValidationProfileV1,
 };
 use ekr_ontology::{Cardinality, EdgeType, NodeType, PropertyDefinition, Value, ValueType};
 use serde::Serialize;
@@ -197,8 +197,44 @@ pub const SHARED_EDGE_CLAIM: u64 = 0x90_0012;
 pub const SEEDED_EDGE_ID: u64 = SEEDED_EDGE;
 pub const SEEDED_EDGE_CLAIM: u64 = EDGE_CLAIM;
 
-/// The first instant a fixture's host clock reads; each sample adds a millisecond.
-const CLOCK_START_MS: i64 = 1_800_000_000_000;
+// `changes`: the ChangesSince scenarios and `tests/changes.rs`. The seed is `seed(2, true, true,
+// 2)`: alpha and beta, the edge alpha → beta, and two assertions valid from 500 — the claim about
+// alpha citing both statements, the one about the edge citing the first.
+pub const ALPHA_NODE: u64 = ALPHA;
+pub const BETA_NODE: u64 = BETA;
+pub const SEEDED_NODE_CLAIM: u64 = SEEDED_CLAIM;
+pub const SEEDED_LINK: u64 = SEEDED_EDGE;
+pub const SEEDED_LINK_CLAIM: u64 = EDGE_CLAIM;
+/// The seed's node type, `Subject`, and its edge type, `links`.
+pub const SUBJECT_TYPE: u64 = SUBJECT;
+pub const LINKS_TYPE: u64 = LINKS;
+/// Revision 1 creates this node, …
+pub const CHANGED_NODE: u64 = 0xc0_0001;
+/// … this edge from it to alpha, …
+pub const CHANGED_EDGE: u64 = 0xc0_0002;
+/// … an assertion about the node, valid from [`CHANGED_NODE_VALID_MS`], citing statement 1, …
+pub const CHANGED_NODE_CLAIM: u64 = 0xc0_0011;
+/// … and one about the edge, with no valid time, citing statement 0.
+pub const CHANGED_EDGE_CLAIM: u64 = 0xc0_0012;
+/// Revision 2 adds this assertion about alpha, valid from [`REPLACED_AT_MS`], citing statement 1,
+/// and supersedes the seeded claim about alpha by it at that instant.
+pub const REPLACING_CLAIM: u64 = 0xc0_0013;
+/// A later commit adds this assertion about beta, citing statement 0: [`commit_later_change`].
+pub const LATER_CLAIM: u64 = 0xc0_0020;
+pub const CHANGED_NODE_VALID_MS: i64 = 2_000;
+pub const REPLACED_AT_MS: i64 = 3_000;
+/// The seed's assertions are valid from this instant.
+pub const SEEDED_VALID_MS: i64 = 500;
+
+/// The first instant a fixture's host clock reads; each sample adds a millisecond. A seed reads
+/// one sample and every commit three (propose, validate, commit), so a fixture's revision `n > 0`
+/// is committed at `CLOCK_START_MS + 1 + 3n` and its seed at `CLOCK_START_MS + 1`.
+pub const CLOCK_START_MS: i64 = 1_800_000_000_000;
+
+/// The evidence statement `n` of a fixture seed.
+pub fn statement_id(n: u64) -> EvidenceId {
+    evidence_id(n)
+}
 
 // ---- the named stores ---------------------------------------------------------------------------
 
@@ -228,6 +264,10 @@ pub enum Fixture {
     /// A seed only: holders, places, happenings and notices whose edges exercise every rule of
     /// the timeline's walk.
     Subjects,
+    /// Every kind of change once, over three revisions after the seed: a node, an edge and an
+    /// assertion about each at 1; an assertion added and the seeded claim superseded by it at 2;
+    /// the claim added at 1 retracted at 3.
+    Changes,
 }
 
 impl Fixture {
@@ -244,6 +284,7 @@ impl Fixture {
             "timeline" => Self::Timeline,
             "growth" => Self::Growth,
             "subjects" => Self::Subjects,
+            "changes" => Self::Changes,
             _ => return None,
         })
     }
@@ -311,6 +352,29 @@ impl Fixture {
                 writer.commit(growth_second(), None);
             }
             Self::Subjects => writer.seed(subjects_seed()),
+            Self::Changes => {
+                writer.seed(seed(2, true, true, 2));
+                writer.commit(changes_first(), None);
+                writer.commit(
+                    vec![
+                        GraphOperation::AddAssertion(Box::new(fact(
+                            REPLACING_CLAIM,
+                            Subject::Node(id(ALPHA)),
+                            Predicate::Property(id(LABEL)),
+                            Object::Value(Value::String("alpha, renamed".into())),
+                            Some(REPLACED_AT_MS),
+                            evidence_id(1),
+                        ))),
+                        GraphOperation::SupersedeAssertion(Supersession {
+                            assertion: id(SEEDED_CLAIM),
+                            by: id(REPLACING_CLAIM),
+                            effective_from: Timestamp::from_millis(REPLACED_AT_MS),
+                        }),
+                    ],
+                    None,
+                );
+                writer.commit(retraction(CHANGED_NODE_CLAIM), None);
+            }
             Self::Evolved => {
                 let mut document = seed(3, true, false, 2);
                 let described = Node::<Value>::new(
@@ -383,6 +447,67 @@ pub fn commit_unrelated(runtime: &Runtime, n: u64) {
         })],
         None,
     );
+}
+
+/// Commits one more transaction onto a built [`Fixture::Changes`] store: [`LATER_CLAIM`], an
+/// assertion about beta, as revision 4. It changes nothing any revision up to 3 changed, and is
+/// timed after everything the fixture committed.
+pub fn commit_later_change(runtime: &Runtime) {
+    let mut writer = Writer {
+        runtime,
+        clock: CLOCK_START_MS + 1_000_000,
+        transactions: TRANSACTIONS + 0x2000,
+    };
+    writer.commit(
+        vec![GraphOperation::AddAssertion(Box::new(fact(
+            LATER_CLAIM,
+            Subject::Node(id(BETA)),
+            Predicate::Property(id(LABEL)),
+            Object::Value(Value::String("beta, later".into())),
+            None,
+            evidence_id(0),
+        )))],
+        None,
+    );
+}
+
+/// `changes`' revision 1: [`CHANGED_NODE`], [`CHANGED_EDGE`] from it to alpha, and an assertion
+/// about each.
+fn changes_first() -> Vec<GraphOperation> {
+    vec![
+        GraphOperation::CreateNode(NodeDraft {
+            id: id(CHANGED_NODE),
+            root_id: id(2),
+            type_id: id(SUBJECT),
+            canonical_name: "changed".into(),
+            properties: BTreeMap::new(),
+            aliases: Vec::new(),
+        }),
+        GraphOperation::CreateEdge(EdgeDraft {
+            id: id(CHANGED_EDGE),
+            root_id: id(2),
+            type_id: id(LINKS),
+            source: id(CHANGED_NODE),
+            target: id(ALPHA),
+            properties: BTreeMap::new(),
+        }),
+        GraphOperation::AddAssertion(Box::new(fact(
+            CHANGED_NODE_CLAIM,
+            Subject::Node(id(CHANGED_NODE)),
+            Predicate::Property(id(LABEL)),
+            Object::Value(Value::String("changed".into())),
+            Some(CHANGED_NODE_VALID_MS),
+            evidence_id(1),
+        ))),
+        GraphOperation::AddAssertion(Box::new(fact(
+            CHANGED_EDGE_CLAIM,
+            Subject::Edge(id(CHANGED_EDGE)),
+            Predicate::Property(id(WEIGHT)),
+            Object::Value(Value::String("light".into())),
+            None,
+            evidence_id(0),
+        ))),
+    ]
 }
 
 /// The `edge-assertion` seed, then one transaction creating the node [`SHARED`] and a `links`

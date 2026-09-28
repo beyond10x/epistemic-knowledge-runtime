@@ -354,6 +354,7 @@ prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`, then answers:
 | `GET /node/<node id>[?revision=N]` | the `ekr.node-detail/1` document of that node, `application/json` |
 | `GET /search?q=<text>[&limit=L][&revision=N]` | the `ekr.node-matches/1` document of the nodes whose name or an alias contains the text (at most `L`, 1 to 100, 20 when absent), `application/json` |
 | `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | the `ekr.graph-timeline/1` document: one row per node of the row type `type` (the first the document ranks when absent) with the events related to it within `H` hops (1 to 3) counted per time bucket, at most `L` rows (1 to 500), the most active first; `B` is the finest bucket, `day` or `week`; with `subject` the row of that node alone and its events; `application/json` |
+| `GET /changes?since_revision=N\|since_valid=T\|since_recorded=T[&at=R][&limit=L][&after=A]` | the `ekr.graph-changes/1` page of what changed ([below](#changes-since)) after revision `N`, after valid time `T` or after transaction time `T` (milliseconds since the epoch), up to revision `R` (the head when absent): at most `L` changes (1 to 2,000, 500 when absent) from cursor `A`, `application/json` |
 
 Any other method is 405 and any other path 404. A request that announces a body (a
 `Content-Length` above zero or any `Transfer-Encoding`) is 413; the body is never read. A request
@@ -368,16 +369,44 @@ origin. Evidence text is
 never served as HTML. Like every read verb, `ekr view` opens an existing store only (a path holding
 none is `store-not-found`, exit 1) and writes nothing to it.
 
-The query of `/overview`, `/expand`, `/node/<id>`, `/search` and `/timeline` is `name=value`
-pairs joined by `&`, each name one the path takes and at most once, each value percent-decoded
-(`+` is a space) to UTF-8; `seeds` is node ids separated by commas, and `seeds`, `depth` and
-`limit` are required by `/expand`, `q` by `/search`, `hops` and `limit` by `/timeline`. A query
-that breaks this, a `type` or `subject` that is not an id, or a `bucket` other than `day` or
-`week`, is 400 with `{"refusal": "invalid-query", …}`.
-A bound outside its range is 400 `ekr.views.LimitExceeded`, a node or seed the revision does not
-hold 404 `ekr.views.NodeNotFound`, and a revision the store does not hold 404
-`ekr.views.RevisionNotFound` (`ekr.views.NotSeeded` for a store never seeded), each a whole JSON
-refusal decided before any byte of an answer is sent.
+The query of `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and `/changes` is
+`name=value` pairs joined by `&`, each name one the path takes and at most once, each value
+percent-decoded (`+` is a space) to UTF-8; `seeds` is node ids separated by commas, and `seeds`,
+`depth` and `limit` are required by `/expand`, `q` by `/search`, `hops` and `limit` by
+`/timeline`, and exactly one of `since_revision`, `since_valid` and `since_recorded` by
+`/changes`. A query that breaks this, a `type` or `subject` that is not an id, a `bucket` other
+than `day` or `week`, or an `at` that is not a revision number, is 400 with
+`{"refusal": "invalid-query", …}`.
+A `since_revision` below 0 is 400 `ekr.views.SinceMalformed`, and a bound outside its range 400
+`ekr.views.LimitExceeded`, both before the store is read; a node or seed the revision does not
+hold is 404 `ekr.views.NodeNotFound`, and a revision the store does not hold — an `at`, or a
+`since_revision` beyond the head — 404 `ekr.views.RevisionNotFound` (`ekr.views.NotSeeded` for a
+store never seeded), each a whole JSON refusal decided before any byte of an answer is sent.
+
+<a id="changes-since"></a>`/changes` answers what the committed revisions up to `at` changed:
+every node and edge created, and every assertion added, superseded or retracted. Each change
+carries the revision that made it and that revision's `recorded_at`, its `change`
+(`NodeCreated`, `EdgeCreated`, `AssertionAdded`, `AssertionSuperseded` or `AssertionRetracted`),
+the `id` of the node, edge or assertion, the node's `type` and `name`, the edge's `type`, `source`
+and `target`, the assertion's `subject_kind` and `subject` (and `by` for a supersession), its
+`valid_time`, and `evidence`: the evidence ids the assertion cites, or for a node or an edge those
+the same revision's assertions about it cite. The changes are ordered by revision, then change
+kind in that order, then id:
+
+- `since_revision=N` chooses the changes of the revisions after `N`; one at or after `at` chooses
+  none;
+- `since_recorded=T` chooses the changes of the revisions committed after `T`, the seed's
+  included when it was;
+- `since_valid=T` chooses the assertion changes whose valid time is after `T` — an added or
+  retracted assertion's `valid_from`, a supersession's `effective_from` — from every revision up
+  to `at`. A node or an edge has no valid time, and is never chosen by one.
+
+`meta` echoes the since, `revision` (the revision read), `limit`, `after` and `total`; `next`,
+present while changes remain, is the next page's `after`, and `remaining` counts what is left.
+The answer never names the head: the same request naming the same `at` is the same bytes after
+any later commit, and a request without `at` is the one naming the revision `meta.revision`
+reports, so a reader that pages passes that as `at`. A property update, a named operation, an
+edge deletion and a schema change are not changes here.
 
 `/expand` answers `application/x-ndjson` with `Transfer-Encoding: chunked`: one JSON object per
 line, each ending in `\n` and opening with its `kind`, flushed a chunk at a time as it is written:
@@ -396,9 +425,11 @@ the 64 connections; each write waits at most 5 seconds and the whole stream at m
 client that closes the connection ends it and frees its place.
 
 A revision is loaded once. The first request of a revision to `/overview`, `/expand`, `/node`,
-`/search`, `/timeline`, `/projection` or `/roles` loads and indexes it; every later request of
+`/search`, `/timeline`, `/changes`, `/projection` or `/roles` loads and indexes it; every later request of
 that revision, whichever path, reads the store's head and answers from that index, so it costs its
-answer (a revision's first `/timeline` also ranks its row types once). The
+answer (a revision's first `/timeline` also ranks its row types once; `/changes` also reads the
+store's retained transaction records and parses the transactions of the revisions it chooses,
+and replays the seed only when it chooses the seed). The
 indexes of the 3 revisions used most recently are kept. A committed revision never changes and no
 answer names the head, so a commit loads nothing again; a request naming no revision reads the
 new head. `/projection` and `/roles` also keep their rendered answers, byte for byte what the first
@@ -570,15 +601,15 @@ It answers these methods:
   untrusted evidence.
 - `notifications/initialized`, and every other notification — never answered.
 - `ping` — `{}`.
-- `tools/list` — the seven tools below, each with its `inputSchema` (a JSON Schema object that
+- `tools/list` — the eight tools below, each with its `inputSchema` (a JSON Schema object that
   refuses any other argument) and `annotations.readOnlyHint: true`.
 - `tools/call` — `{"name": <tool>, "arguments": {…}}`.
 
 Every tool reads the store as it stands when the call is read, so a transaction another process
 committed is what the next call reads. `revision` is a committed revision, the newest when
-absent; `overview`, `search`, `describe_node`, `expand` and `timeline` read the revision's
-`ekr.views` index, loaded once per revision exactly as [`ekr view`](#ekr-view) keeps it,
-and answer its document byte for byte what the `ekr view` endpoint in the last column serves:
+absent; `overview`, `search`, `describe_node`, `expand`, `timeline` and `changes_since` read the
+revision's `ekr.views` index, loaded once per revision exactly as [`ekr view`](#ekr-view) keeps
+it, and answer its document byte for byte what the `ekr view` endpoint in the last column serves:
 
 | tool | arguments (required in bold) | answers | as |
 |---|---|---|---|
@@ -587,6 +618,7 @@ and answer its document byte for byte what the `ekr view` endpoint in the last c
 | `describe_node` | **`node`** (a node id), `revision` | the `ekr.node-detail/1` document | `GET /node/<node id>` |
 | `expand` | **`seeds`** (a list of node ids; empty answers an empty page), **`depth`** (0 to 2), **`limit`** (1 to 2,000 nodes), `edges` (1 to 5,000, 5,000 when absent), `after` (a cursor, 0 or more), `revision` | the whole `ekr.graph-slice/1` page as one document, `next` naming the next page's `after` | `GET /expand`, as one document rather than NDJSON |
 | `timeline` | `type` (a node type id), **`hops`** (1 to 3), **`limit`** (1 to 500), `bucket` (`day` or `week`), `subject` (a node id), `revision` | the `ekr.graph-timeline/1` document | `GET /timeline` |
+| `changes_since` | exactly one of `since_revision` (a revision), `since_valid` (a valid time) and `since_recorded` (a transaction time), both times in milliseconds since the epoch; `at` (the last revision read, the head when absent), `limit` (1 to 2,000, 500 when absent), `after` (a cursor, 0 or more) | the `ekr.graph-changes/1` page ([what it lists](#changes-since)), `next` naming the next page's `after`; pass the first page's `meta.revision` as `at` for the rest | `GET /changes` |
 | `explain` | **`assertion`** (an assertion id) | what `ekr explain <assertion>` prints, byte for byte | `ekr explain` |
 | `resolve` | **`type_id`** (a string), **`aliases`** (a list of strings) — the [`typed-reference`](#ekr-resolve) document's fields, taken as the JSON strings hold them, every character included — and `at` (a revision) | what `ekr resolve` prints for that reference, byte for byte | `ekr resolve [--at N]` |
 
@@ -601,9 +633,11 @@ parsed as `structuredContent`, and `"isError": false`:
 A refusal is a result too, with `"isError": true` and the document `{"message": <reason>,
 "refusal": <name>}` — the body `ekr view` answers for the same refusal, and the name and reason
 `ekr explain` and `ekr resolve` write to stderr. The server keeps serving after it. The refusals,
-in the order they are decided: a bound outside its range is `ekr.views.LimitExceeded` before the
-store is read; a store never seeded `ekr.views.NotSeeded`; a revision the store does not hold
-`ekr.views.RevisionNotFound` (`ekr.kernel.RevisionNotFound` for `resolve`); a node or seed the
+in the order they are decided: a `since_revision` below 0 is `ekr.views.SinceMalformed` and a
+bound outside its range `ekr.views.LimitExceeded`, both before the store is read; a store never
+seeded `ekr.views.NotSeeded`; a revision the store does not hold — for `changes_since` an `at`,
+then a `since_revision` beyond the head — `ekr.views.RevisionNotFound`
+(`ekr.kernel.RevisionNotFound` for `resolve`); a node or seed the
 revision does not hold, or a `node` that is no node id, `ekr.views.NodeNotFound`; an assertion
 the head does not hold `ekr.kernel.AssertionNotFound`; and for `resolve`,
 `reference-without-identity`, `reference-type-undeclared` and `reference-type-has-subtypes`
@@ -616,7 +650,7 @@ Anything else is a JSON-RPC error response, and the server keeps serving:
 | `-32700` | the line is not JSON (an empty or whitespace-only line is not answered at all); `id` is null |
 | `-32600` | the line is not one JSON object (a batch included), lacks `"jsonrpc": "2.0"`, lacks a method (a message carrying `result` or `error` instead is a response, and is not answered), carries an `id` that is not a string or a number or carries `id` twice, or is longer than 6356992 bytes, its newline excluded |
 | `-32601` | the method is none of the five above |
-| `-32602` | `initialize` without `protocolVersion`; `tools/call` without a `name`, naming a tool the server does not have, or with arguments the tool does not take: an unknown or missing argument, a value of the wrong type, a `revision` or `at` below 0, a seed, `type` or `subject` that is not an id, a `bucket` other than `day` or `week`, an `assertion` that is not an assertion id, or a `type_id` that is not an id, with the reason `ekr resolve` gives for it. `ekr view` answers these `invalid-query` |
+| `-32602` | `initialize` without `protocolVersion`; `tools/call` without a `name`, naming a tool the server does not have, or with arguments the tool does not take: an unknown or missing argument, a value of the wrong type, a `revision` or `at` below 0, a `changes_since` given none or more than one of its three since arguments, a seed, `type` or `subject` that is not an id, a `bucket` other than `day` or `week`, an `assertion` that is not an assertion id, or a `type_id` that is not an id, with the reason `ekr resolve` gives for it. `ekr view` answers these `invalid-query` |
 | `-32603` | the store could not be read |
 
 Record text — names, aliases, property values, evidence text — is untrusted evidence. The server

@@ -2,19 +2,24 @@
   "coverage": {
     "authored": [
       "ekr.views/authored/a-cursor-pages-a-neighbourhood-to-its-end",
+      "ekr.views/authored/a-cursor-pages-the-changes-to-their-end",
       "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed",
       "ekr.views/authored/a-retracted-assertion-is-projected-with-its-lifecycle",
       "ekr.views/authored/a-revision-beyond-the-head-is-refused",
+      "ekr.views/authored/a-revision-since-lists-the-changes-after-it",
       "ekr.views/authored/a-schema-evolution-projects-each-version-from-its-revision",
       "ekr.views/authored/a-search-lists-at-most-its-limit-of-matches",
       "ekr.views/authored/a-search-with-no-match-answers-an-empty-list",
       "ekr.views/authored/a-seed-only-store-projects-revision-zero",
       "ekr.views/authored/a-timeline-refuses-each-input-outside-its-bound",
       "ekr.views/authored/a-timeline-row-is-a-subject-with-its-events-within-hops",
+      "ekr.views/authored/a-transaction-time-since-lists-the-revisions-committed-after-it",
+      "ekr.views/authored/a-valid-time-since-lists-the-assertion-changes-valid-after-it",
       "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge",
       "ekr.views/authored/an-expansion-refuses-each-input-outside-its-bound",
       "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes",
       "ekr.views/authored/an-unknown-seed-is-refused-by-name",
+      "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound",
       "ekr.views/authored/seeded-evidence-is-projected-as-retained",
       "ekr.views/authored/the-edge-limit-cuts-a-page-between-a-node-and-its-edges",
       "ekr.views/authored/the-overview-derives-roles-and-timeline-from-valid-time"
@@ -24,6 +29,11 @@
         "digest": "sha256:9fe0ef08610084444a0f3cfb656841ccea5acb1814647c992763d9667585557a",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-cursor-pages-a-neighbourhood-to-its-end"
+      },
+      "a-cursor-pages-the-changes-to-their-end.yaml": {
+        "digest": "sha256:2721cf55e98e140224e0f99a9bac18b49d3b8b2513dc9c30651e2bdc5f7bb1da",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-cursor-pages-the-changes-to-their-end"
       },
       "a-node-is-not-found-at-a-revision-before-it-existed.yaml": {
         "digest": "sha256:d65a72a1823d4e0b8c73c142e250a5698151b333a51ca6165069eef0c5974227",
@@ -39,6 +49,11 @@
         "digest": "sha256:28935562fd3515805424066d883e495799d4ec861fba65d380e6ac3b530074ad",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-revision-beyond-the-head-is-refused"
+      },
+      "a-revision-since-lists-the-changes-after-it.yaml": {
+        "digest": "sha256:7d43b2a4fba30aca07e8c8a071f278a6c8d23f029bf542fde2b6bf51457e9260",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-revision-since-lists-the-changes-after-it"
       },
       "a-schema-evolution-projects-each-version-from-its-revision.yaml": {
         "digest": "sha256:f0487fa7fb3004b3b99161941e3048a4cbf743d1d1ac76018b5136ee11ef00fb",
@@ -70,6 +85,16 @@
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-timeline-row-is-a-subject-with-its-events-within-hops"
       },
+      "a-transaction-time-since-lists-the-revisions-committed-after-it.yaml": {
+        "digest": "sha256:297912dfb14df62ab603e1a6779155ed340f0c116b761fd66caf087c514a6c9f",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-transaction-time-since-lists-the-revisions-committed-after-it"
+      },
+      "a-valid-time-since-lists-the-assertion-changes-valid-after-it.yaml": {
+        "digest": "sha256:5aa1a17e55d40afc8dfc267e1b96834f1608763730946eacb8e9523cce4eb8ce",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-valid-time-since-lists-the-assertion-changes-valid-after-it"
+      },
       "an-assertion-about-an-edge-is-carried-by-that-edge.yaml": {
         "digest": "sha256:6af4281ad03aa69d90d2f551aa26c2c2cf0d9d3e7d8090262f4a6e2106197aa0",
         "disposition": "accepted",
@@ -90,6 +115,11 @@
         "disposition": "accepted",
         "scenario": "ekr.views/authored/an-unknown-seed-is-refused-by-name"
       },
+      "changes-refuse-a-malformed-since-and-each-bound.yaml": {
+        "digest": "sha256:a6ec46cfd4b13bc11f34c733afbc2e3b7552ea7a1f64b549c92ca1c66bc66d2a",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound"
+      },
       "seeded-evidence-is-projected-as-retained.yaml": {
         "digest": "sha256:3f1ef387e658de1a6a00f02285300327b26238f6369ec2c1eba39200d7eb8a36",
         "disposition": "accepted",
@@ -107,12 +137,17 @@
       }
     },
     "counts": {
-      "authored": 17,
-      "generated": 24,
+      "authored": 22,
+      "generated": 29,
       "outside": 36,
       "refused": 0
     },
     "generated": [
+      "ekr.views.ChangesSince/outcome/limit-exceeded",
+      "ekr.views.ChangesSince/outcome/listed",
+      "ekr.views.ChangesSince/outcome/not-found",
+      "ekr.views.ChangesSince/outcome/not-seeded",
+      "ekr.views.ChangesSince/outcome/since-malformed",
       "ekr.views.DescribeNode/outcome/described",
       "ekr.views.DescribeNode/outcome/node-not-found",
       "ekr.views.DescribeNode/outcome/not-found",
@@ -1091,13 +1126,1297 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "eac8f5b2f68f9af13ff4ff3ddc73b23285953a5bcaeeb8ed2565925ea439356c",
-    "spec_digest": "fc74df41c3579a00ace0b97f0d5cd98950495e8315cf7714d827358a688ea787",
+    "contract_digest": "71190f35cf57e6c465fcb8db819b84fa332dc16df7b9ae28c9fbaa26a65f7e5f",
+    "spec_digest": "4c02de682f81435c994a37545390cc02a64592fe83b2ae30a61514fea78e9750",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
   },
   "scenarios": {
+    "ekr.views.ChangesSince/outcome/limit-exceeded": {
+      "purpose": "`ekr.views.ChangesSince` answers `limit-exceeded` for an input that satisfies that branch's guard",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SinceKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ChangesSince"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "limit-exceeded"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.LimitExceeded"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": -1.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "since": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.ChangesSince/outcome/listed": {
+      "purpose": "`ekr.views.ChangesSince` answers `listed` for an input no other branch's guard claims",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SinceKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ChangesSince"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "since": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "since": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        }
+      ]
+    },
+    "ekr.views.ChangesSince/outcome/not-found": {
+      "purpose": "`ekr.views.ChangesSince` answers `not-found` for the cause it declares as external, injected",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SinceKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ChangesSince"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "not-found"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.RevisionNotFound"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "force": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "not-found"
+          },
+          "step": "configure_external_outcome"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "since": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "not-found"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.RevisionNotFound",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.ChangesSince/outcome/not-seeded": {
+      "purpose": "`ekr.views.ChangesSince` answers `not-seeded` for the cause it declares as external, injected",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SinceKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ChangesSince"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "not-seeded"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.NotSeeded"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "force": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "not-seeded"
+          },
+          "step": "configure_external_outcome"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "since": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "not-seeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.NotSeeded",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.ChangesSince/outcome/since-malformed": {
+      "purpose": "`ekr.views.ChangesSince` answers `since-malformed` for an input that satisfies that branch's guard",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SinceKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ChangesSince"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "since-malformed"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.SinceMalformed"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "since": {
+              "kind": "literal",
+              "value": -1.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "since-malformed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.SinceMalformed",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
     "ekr.views.DescribeNode/outcome/described": {
       "purpose": "`ekr.views.DescribeNode` answers `described` for an input no other branch's guard claims",
       "source": [
@@ -1175,6 +2494,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -1318,6 +2641,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -1412,6 +2739,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -1533,6 +2864,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -1631,6 +2966,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -1752,6 +3091,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -1850,6 +3193,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -1971,6 +3318,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -2077,6 +3428,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -2248,6 +3603,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -2346,6 +3705,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -2476,6 +3839,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -2578,6 +3945,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -2715,6 +4086,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -2817,6 +4192,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -2951,6 +4330,10 @@
         },
         {
           "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
           "step": "expect_no_event"
         },
         {
@@ -3059,6 +4442,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -3193,6 +4580,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -3287,6 +4678,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -3404,6 +4799,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -3498,6 +4897,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -3615,6 +5018,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -3713,6 +5120,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -3881,6 +5292,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -3971,6 +5386,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -4085,6 +5504,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -4179,6 +5602,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -4300,6 +5727,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -4394,6 +5825,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -4515,6 +5950,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -4617,6 +6056,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -4826,6 +6269,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphProjected",
           "step": "expect_no_event"
         },
@@ -4928,6 +6375,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -5058,6 +6509,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -5164,6 +6619,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -5301,6 +6760,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -5407,6 +6870,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -5544,6 +7011,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -5654,6 +7125,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -5847,6 +7322,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -5937,6 +7416,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -6055,6 +7538,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -6149,6 +7636,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -6274,6 +7765,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -6368,6 +7863,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -6493,6 +7992,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -6595,6 +8098,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -6740,6 +8247,10 @@
         },
         {
           "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
           "step": "expect_no_event"
         },
         {
@@ -7201,6 +8712,481 @@
             "slice_hash": {
               "holds": "primitive",
               "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-cursor-pages-the-changes-to-their-end": {
+      "purpose": "The hub's 1,201 seed changes page as 500 nodes, 101 nodes and 399 edges, then 201 edges at the default limit, and a cursor at the end answers an empty page.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SinceKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ChangesSince"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "TransactionTime"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "hub"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "after": 0.0,
+            "changes": 500.0,
+            "edges_created": 0.0,
+            "first_revision": 0.0,
+            "last_revision": 0.0,
+            "nodes_created": 500.0,
+            "remaining": 701.0,
+            "revision": 0.0,
+            "total": 1201.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": 500.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 500.0
+            },
+            "since": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "TransactionTime"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "hub"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "after": 500.0,
+            "changes": 500.0,
+            "edges_created": 399.0,
+            "nodes_created": 101.0,
+            "remaining": 201.0,
+            "total": 1201.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": 1000.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 500.0
+            },
+            "since": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "TransactionTime"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "hub"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "after": 1000.0,
+            "changes": 201.0,
+            "edges_created": 201.0,
+            "nodes_created": 0.0,
+            "remaining": 0.0,
+            "total": 1201.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": 1201.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 500.0
+            },
+            "since": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "TransactionTime"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "hub"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "after": 1201.0,
+            "changes": 0.0,
+            "remaining": 0.0,
+            "total": 1201.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
             }
           },
           "step": "expect_event"
@@ -8437,6 +10423,492 @@
         {
           "event": "ekr.views.GraphProjected",
           "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-revision-since-lists-the-changes-after-it": {
+      "purpose": "Since revision 0 at 3 lists revision 1 to 3's 7 changes by kind, since 2 the one retraction, since 1 at 1 nothing, and since 0 at 2 the 6 changes of revisions 1 and 2.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SinceKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ChangesSince"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "after": 0.0,
+            "assertions_added": 3.0,
+            "assertions_retracted": 1.0,
+            "assertions_superseded": 1.0,
+            "changes": 7.0,
+            "edges_created": 1.0,
+            "first_revision": 1.0,
+            "last_revision": 3.0,
+            "nodes_created": 1.0,
+            "remaining": 0.0,
+            "revision": 3.0,
+            "total": 7.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "assertions_added": 0.0,
+            "assertions_retracted": 1.0,
+            "assertions_superseded": 0.0,
+            "changes": 1.0,
+            "edges_created": 0.0,
+            "first_revision": 3.0,
+            "last_revision": 3.0,
+            "nodes_created": 0.0,
+            "revision": 3.0,
+            "total": 1.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "changes": 0.0,
+            "remaining": 0.0,
+            "revision": 1.0,
+            "total": 0.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "assertions_added": 3.0,
+            "assertions_retracted": 0.0,
+            "assertions_superseded": 1.0,
+            "changes": 6.0,
+            "edges_created": 1.0,
+            "first_revision": 1.0,
+            "last_revision": 2.0,
+            "nodes_created": 1.0,
+            "revision": 2.0,
+            "total": 6.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
         }
       ]
     },
@@ -11192,6 +13664,546 @@
         }
       ]
     },
+    "ekr.views/authored/a-transaction-time-since-lists-the-revisions-committed-after-it": {
+      "purpose": "A transaction time before the seed lists all 12 changes from revision 0, and revision 1's own commit time lists only revisions 2 and 3.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SinceKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ChangesSince"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 1800000000000.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "TransactionTime"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "assertions_added": 5.0,
+            "assertions_retracted": 1.0,
+            "assertions_superseded": 1.0,
+            "changes": 12.0,
+            "edges_created": 2.0,
+            "first_revision": 0.0,
+            "last_revision": 3.0,
+            "nodes_created": 3.0,
+            "revision": 3.0,
+            "total": 12.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 1800000000004.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "TransactionTime"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "assertions_added": 1.0,
+            "assertions_retracted": 1.0,
+            "assertions_superseded": 1.0,
+            "changes": 3.0,
+            "edges_created": 0.0,
+            "first_revision": 2.0,
+            "last_revision": 3.0,
+            "nodes_created": 0.0,
+            "revision": 3.0,
+            "total": 3.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/a-valid-time-since-lists-the-assertion-changes-valid-after-it": {
+      "purpose": "A valid time of 1000 ms lists the 4 assertion changes valid after it and no node or edge, and 0 ms adds the seed's 2 assertions.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SinceKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ChangesSince"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 1000.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "ValidTime"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "assertions_added": 2.0,
+            "assertions_retracted": 1.0,
+            "assertions_superseded": 1.0,
+            "changes": 4.0,
+            "edges_created": 0.0,
+            "first_revision": 1.0,
+            "last_revision": 3.0,
+            "nodes_created": 0.0,
+            "revision": 3.0,
+            "total": 4.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "ValidTime"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "assertions_added": 4.0,
+            "assertions_retracted": 1.0,
+            "assertions_superseded": 1.0,
+            "changes": 6.0,
+            "edges_created": 0.0,
+            "first_revision": 0.0,
+            "last_revision": 3.0,
+            "nodes_created": 0.0,
+            "revision": 3.0,
+            "total": 6.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
     "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge": {
       "purpose": "The one assertion whose subject is an edge is projected under that edge.",
       "source": [
@@ -12913,6 +15925,548 @@
         },
         {
           "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound": {
+      "purpose": "A revision since of -1 is malformed before any bound, limit 0 or 2,001 and after -1 are refused, limit 2,000 and a valid time of -1 are answered, and since revision 9 is not found.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SinceKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ChangesSince"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "limit-exceeded"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "not-found"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "since-malformed"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.LimitExceeded"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.RevisionNotFound"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.SinceMalformed"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since": {
+              "kind": "literal",
+              "value": -1.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "since-malformed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.SinceMalformed",
+          "fields": {
+            "kind": "Revision",
+            "requested": -1.0
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "fields": {
+            "maximum": 2000.0,
+            "minimum": 1.0,
+            "parameter": "limit",
+            "requested": 0.0
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 2001.0
+            },
+            "since": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "fields": {
+            "maximum": 2000.0,
+            "minimum": 1.0,
+            "parameter": "limit",
+            "requested": 2001.0
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": -1.0
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "limit-exceeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.LimitExceeded",
+          "fields": {
+            "minimum": 0.0,
+            "parameter": "after",
+            "requested": -1.0
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": 2000.0
+            },
+            "since": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "revision": 3.0,
+            "total": 7.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": -1.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "ValidTime"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "revision": 3.0,
+            "total": 6.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 9.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "not-found"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.RevisionNotFound",
+          "fields": {
+            "head": 3.0,
+            "requested": 9.0
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
           "step": "expect_no_event"
         }
       ]

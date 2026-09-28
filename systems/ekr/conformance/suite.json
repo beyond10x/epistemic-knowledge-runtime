@@ -31,7 +31,7 @@
     "counts": {
       "authored": 4,
       "generated": 36,
-      "outside": 24,
+      "outside": 29,
       "refused": 0
     },
     "generated": [
@@ -74,6 +74,65 @@
     ],
     "knowledge": "complete_inventory",
     "outside": [
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ChangesSince"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ChangesSince/outcome/limit-exceeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ChangesSince"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.ChangesListed"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ChangesSince/outcome/listed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ChangesSince"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ChangesSince/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ChangesSince"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ChangesSince/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ChangesSince"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ChangesSince/outcome/since-malformed"
+      },
       {
         "needs": [
           {
@@ -377,8 +436,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "eac8f5b2f68f9af13ff4ff3ddc73b23285953a5bcaeeb8ed2565925ea439356c",
-    "spec_digest": "fc74df41c3579a00ace0b97f0d5cd98950495e8315cf7714d827358a688ea787",
+    "contract_digest": "71190f35cf57e6c465fcb8db819b84fa332dc16df7b9ae28c9fbaa26a65f7e5f",
+    "spec_digest": "4c02de682f81435c994a37545390cc02a64592fe83b2ae30a61514fea78e9750",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"
@@ -495,6 +554,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -769,6 +832,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -934,6 +1001,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -2185,6 +2256,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -2317,6 +2392,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -2559,6 +2638,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -2694,6 +2777,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -2794,6 +2881,10 @@
         },
         {
           "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
           "step": "expect_no_event"
         },
         {
@@ -2902,6 +2993,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -3323,6 +3418,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -3413,6 +3512,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -3524,6 +3627,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -3614,6 +3721,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -3724,6 +3835,10 @@
         },
         {
           "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
           "step": "expect_no_event"
         },
         {
@@ -4807,6 +4922,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -5181,6 +5300,10 @@
         },
         {
           "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
           "step": "expect_no_event"
         },
         {
@@ -6032,6 +6155,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -6395,6 +6522,10 @@
         },
         {
           "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
           "step": "expect_no_event"
         },
         {
@@ -6920,6 +7051,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -7304,6 +7439,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -7430,6 +7569,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -7792,6 +7935,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -7939,6 +8086,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -8213,6 +8364,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -8376,6 +8531,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -8575,6 +8734,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -8745,6 +8908,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -8987,6 +9154,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -9150,6 +9321,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -9349,6 +9524,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -9484,6 +9663,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -9594,6 +9777,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -9688,6 +9875,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -9798,6 +9989,10 @@
         },
         {
           "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
           "step": "expect_no_event"
         },
         {
@@ -9915,6 +10110,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -10083,6 +10282,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -10220,6 +10423,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -10330,6 +10537,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -10420,6 +10631,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -10533,6 +10748,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -10634,6 +10853,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -11235,6 +11458,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -11345,6 +11572,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -11522,6 +11753,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -11655,6 +11890,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -11769,6 +12008,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -11863,6 +12106,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -11972,6 +12219,10 @@
         },
         {
           "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
           "step": "expect_no_event"
         },
         {
@@ -12096,6 +12347,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -12295,6 +12550,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -12430,6 +12689,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -12544,6 +12807,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -12634,6 +12901,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -12741,6 +13012,10 @@
         },
         {
           "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
           "step": "expect_no_event"
         },
         {
@@ -12865,6 +13140,10 @@
         {
           "kind": "event",
           "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
         },
         {
           "kind": "event",
@@ -13061,6 +13340,10 @@
         },
         {
           "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
           "step": "expect_no_event"
         },
         {

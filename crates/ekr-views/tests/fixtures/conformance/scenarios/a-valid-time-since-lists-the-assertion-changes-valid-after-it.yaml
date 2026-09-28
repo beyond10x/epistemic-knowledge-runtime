@@ -1,0 +1,67 @@
+# story:changes-since-read: a valid-time since (ekr.views.GraphChangesV1).
+#
+# The store `changes` is the one a-revision-since-lists-the-changes-after-it describes. Valid
+# times: the seed's two assertions are valid from 500 ms; revision 1's assertion about its node
+# from 2000 and its assertion about its edge from no time; revision 2's replacing assertion, and
+# the supersession by it, from 3000; revision 3 retracts the assertion valid from 2000. A node or
+# an edge has no valid time, so a valid-time since chooses assertion changes only, from every
+# revision up to `at`.
+#   - since 1000: the assertion added at 1, the one added and the supersession at 2, and the
+#     retraction at 3: 4 changes. A read that also lists nodes and edges counts 6 more;
+#   - since 0: the seed's two added assertions too, 6 changes, from revision 0. The edge claim with
+#     no valid time is never chosen.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-valid-time-since-lists-the-assertion-changes-valid-after-it
+summary: A valid time of 1000 ms lists the 4 assertion changes valid after it and no node or edge, and 0 ms adds the seed's 2 assertions.
+
+timeline:
+  - at: 2027-01-15T12:20:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: changes
+      since_kind: ValidTime
+      since: 1000
+      at: 3
+      limit: null
+      after: null
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          revision: 3
+          changes: 4
+          total: 4
+          nodes_created: 0
+          edges_created: 0
+          assertions_added: 2
+          assertions_superseded: 1
+          assertions_retracted: 1
+          first_revision: 1
+          last_revision: 3
+
+  - at: 2027-01-15T12:21:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: changes
+      since_kind: ValidTime
+      since: 0
+      at: 3
+      limit: null
+      after: null
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          revision: 3
+          changes: 6
+          total: 6
+          nodes_created: 0
+          edges_created: 0
+          assertions_added: 4
+          assertions_superseded: 1
+          assertions_retracted: 1
+          first_revision: 0
+          last_revision: 3

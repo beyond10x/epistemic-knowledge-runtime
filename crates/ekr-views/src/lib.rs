@@ -30,12 +30,20 @@
 //! [`TimelineRequest`] hold each command's bounds, so a broken one is refused as
 //! [`LimitExceeded`] before a store is read. [`IndexCache`] keeps the most recently used indexes
 //! for a host.
+//!
+//! A sixth, [`Index::changes`] (`ekr.graph-changes/1`), answers what the revisions up to the
+//! indexed one changed after a revision or a time, reading each chosen revision's committed
+//! transaction; [`ChangesRequest`] holds its `since` and bounds.
 
+mod changes;
 mod document;
 mod index;
 mod query;
 mod timeline;
 
+pub use changes::{
+    ChangesError, ChangesListed, ChangesRequest, SinceKind, SinceMalformed, CHANGES_FORMAT,
+};
 pub use index::{Index, IndexCache};
 pub use query::{
     Answer, ExpandRequest, GraphOverviewed, LimitExceeded, NeighbourhoodExpanded, NodeDescribed,

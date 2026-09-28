@@ -3,7 +3,7 @@
 //! The server speaks JSON-RPC 2.0 over stdio, one message per line. Every case drives the built
 //! binary over piped stdin and stdout, on both providers, under the example host and seed:
 //!
-//! * `initialize` then `tools/list` names exactly seven tools, each with a JSON Schema
+//! * `initialize` then `tools/list` names exactly eight tools, each with a JSON Schema
 //!   `inputSchema`, none of which proposes, validates or commits;
 //! * each tool's document is the one its read returns on the same store state: the
 //!   `ekr_views::Index` answer byte for byte for `overview`, `search`, `describe_node`, `expand`
@@ -25,8 +25,8 @@ use ekr::host::CliHostConfigurationV1;
 use ekr_core::{NodeId, RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{
-    BucketWidth, ExpandRequest, Index, OverviewRequest, ProjectError, SearchRequest,
-    TimelineRequest,
+    BucketWidth, ChangesRequest, ExpandRequest, Index, OverviewRequest, ProjectError,
+    SearchRequest, SinceKind, TimelineRequest,
 };
 use serde_json::{json, Value};
 
@@ -43,8 +43,9 @@ const TRANSACTION: &str = "00000000-0000-4000-8000-000000000902";
 const MANY: &str = "00000000-0000-4000-8000-000000000903";
 const UNKNOWN: &str = "00000000-0000-4000-8000-000000000999";
 
-/// The seven tools, and nothing else.
-const TOOLS: [&str; 7] = [
+/// The eight tools, and nothing else.
+const TOOLS: [&str; 8] = [
+    "changes_since",
     "describe_node",
     "expand",
     "explain",
@@ -366,7 +367,7 @@ fn node(id: &str) -> NodeId {
 // 1 --------------------------------------------------------------------------------------------
 
 #[test]
-fn initialize_then_tools_list_names_exactly_the_seven_read_tools_with_input_schemas() {
+fn initialize_then_tools_list_names_exactly_the_eight_read_tools_with_input_schemas() {
     for backend in BACKENDS {
         let world = World::seeded(backend);
         let mut server = Server::start(world.command(&["mcp"]));
@@ -441,6 +442,7 @@ fn initialize_then_tools_list_names_exactly_the_seven_read_tools_with_input_sche
         assert_eq!(required("describe_node"), set(&["node"]));
         assert_eq!(required("expand"), set(&["seeds", "depth", "limit"]));
         assert_eq!(required("timeline"), set(&["hops", "limit"]));
+        assert_eq!(required("changes_since"), set(&[]));
         assert_eq!(required("explain"), set(&["assertion"]));
         assert_eq!(required("resolve"), set(&["type_id", "aliases"]));
         server.close();
@@ -473,6 +475,7 @@ fn no_tool_writes_and_a_call_of_a_tool_the_server_does_not_have_is_an_error() {
         ("describe_node", json!({"node": ALICE})),
         ("expand", json!({"seeds": [ALICE], "depth": 2, "limit": 10})),
         ("timeline", json!({"hops": 1, "limit": 5})),
+        ("changes_since", json!({"since_recorded": 0})),
         ("explain", json!({"assertion": SEEDED_ASSERTION})),
         (
             "resolve",
@@ -970,6 +973,204 @@ fn a_commit_by_another_process_is_read_by_the_next_tool_call() {
             )
         );
         server.close();
+    }
+}
+
+// 5b -------------------------------------------------------------------------------------------
+
+/// A running `ekr view --port 0` over the same store, for comparing a tool with its endpoint.
+struct View {
+    child: Child,
+    address: String,
+}
+
+impl View {
+    fn start(mut command: std::process::Command) -> Self {
+        let mut child = command
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let mut line = String::new();
+        BufReader::new(child.stdout.take().unwrap())
+            .read_line(&mut line)
+            .unwrap();
+        let printed: Value = serde_json::from_str(&line).unwrap();
+        let address = printed["url"]
+            .as_str()
+            .unwrap()
+            .trim_start_matches("http://")
+            .trim_end_matches('/')
+            .to_owned();
+        Self { child, address }
+    }
+
+    /// `GET path`: the status and the whole body.
+    fn get(&self, path: &str) -> (u16, Vec<u8>) {
+        let mut stream = std::net::TcpStream::connect(&self.address).unwrap();
+        stream.set_read_timeout(Some(ANSWER_WITHIN)).unwrap();
+        stream
+            .write_all(
+                format!(
+                    "GET {path} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
+                    self.address
+                )
+                .as_bytes(),
+            )
+            .unwrap();
+        let mut raw = Vec::new();
+        std::io::Read::read_to_end(&mut stream, &mut raw).unwrap();
+        let split = raw
+            .windows(4)
+            .position(|window| window == b"\r\n\r\n")
+            .expect("a whole response head");
+        let head = std::str::from_utf8(&raw[..split]).unwrap();
+        assert!(
+            !head.to_ascii_lowercase().contains("transfer-encoding"),
+            "{head}"
+        );
+        let status = head.split_whitespace().nth(1).unwrap().parse().unwrap();
+        (status, raw[split + 4..].to_vec())
+    }
+}
+
+impl Drop for View {
+    fn drop(&mut self) {
+        self.child.kill().ok();
+        self.child.wait().ok();
+    }
+}
+
+/// `changes_since` answers byte for byte what `GET /changes` serves for the same arguments — the
+/// document `ekr_views::Index::changes` returns — and refuses by the name, and with the body,
+/// that the endpoint refuses with; where the endpoint answers `invalid-query`, the tool answers
+/// the arguments' error.
+#[test]
+fn changes_since_answers_and_refuses_exactly_as_get_changes_does() {
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        world.commit("create.yaml");
+        let mut server = world.server();
+        let view = View::start(world.command(&["view", "--port", "0"]));
+        for (arguments, query) in [
+            (json!({"since_revision": 0}), "since_revision=0"),
+            (
+                json!({"since_revision": 0, "at": 1, "limit": 1}),
+                "since_revision=0&at=1&limit=1",
+            ),
+            (
+                json!({"since_recorded": 0, "at": 0, "limit": 2, "after": 1}),
+                "since_recorded=0&at=0&limit=2&after=1",
+            ),
+            (json!({"since_recorded": 0}), "since_recorded=0"),
+            (
+                json!({"since_valid": 0, "limit": 2000}),
+                "since_valid=0&limit=2000",
+            ),
+            (json!({"since_revision": 1}), "since_revision=1"),
+        ] {
+            let answered = server.document("changes_since", arguments.clone());
+            let (status, served) = view.get(&format!("/changes?{query}"));
+            assert_eq!(status, 200, "{backend} GET /changes?{query}");
+            assert_eq!(
+                answered,
+                utf8(served),
+                "{backend}: changes_since {arguments} is not GET /changes?{query}"
+            );
+        }
+
+        let runtime = world.runtime();
+        let head = Index::load(&runtime, None).unwrap();
+        let expected = head
+            .changes(
+                &runtime,
+                &ChangesRequest::new(SinceKind::Revision, 0, None, None).unwrap(),
+            )
+            .unwrap()
+            .bytes;
+        let answered = server.document("changes_since", json!({"since_revision": 0}));
+        assert_eq!(
+            answered,
+            utf8(expected),
+            "{backend}: the ekr.views document"
+        );
+        let listed: Value = serde_json::from_str(&answered).unwrap();
+        assert_eq!(listed["meta"]["revision"], 1, "{listed}");
+        assert_eq!(listed["changes"][0]["change"], "NodeCreated", "{listed}");
+        assert_eq!(listed["changes"][0]["id"], GLOBEX, "{listed}");
+        assert_eq!(listed["changes"][0]["revision"], 1, "{listed}");
+
+        for (arguments, query, name, status) in [
+            (
+                json!({"since_revision": -1, "limit": 0}),
+                "since_revision=-1&limit=0",
+                "ekr.views.SinceMalformed",
+                400,
+            ),
+            (
+                json!({"since_revision": 0, "limit": 0}),
+                "since_revision=0&limit=0",
+                "ekr.views.LimitExceeded",
+                400,
+            ),
+            (
+                json!({"since_valid": 0, "after": -1}),
+                "since_valid=0&after=-1",
+                "ekr.views.LimitExceeded",
+                400,
+            ),
+            (
+                json!({"since_revision": 9}),
+                "since_revision=9",
+                "ekr.views.RevisionNotFound",
+                404,
+            ),
+            (
+                json!({"since_revision": 0, "at": 9}),
+                "since_revision=0&at=9",
+                "ekr.views.RevisionNotFound",
+                404,
+            ),
+        ] {
+            let refusal = server.refusal("changes_since", arguments.clone());
+            assert_eq!(refusal["refusal"], name, "{backend} {arguments}: {refusal}");
+            let (served_status, served) = view.get(&format!("/changes?{query}"));
+            assert_eq!(served_status, status, "{backend} GET /changes?{query}");
+            let served: Value = serde_json::from_slice(&served).unwrap();
+            assert_eq!(
+                refusal, served,
+                "{backend}: {arguments} and GET /changes?{query}"
+            );
+        }
+        for (arguments, query) in [
+            (json!({}), ""),
+            (
+                json!({"since_revision": 0, "since_valid": 0}),
+                "since_revision=0&since_valid=0",
+            ),
+            (
+                json!({"since_revision": 0, "at": -1}),
+                "since_revision=0&at=-1",
+            ),
+            (
+                json!({"since_revision": 0, "revision": 0}),
+                "since_revision=0&revision=0",
+            ),
+        ] {
+            let refused = server.call("changes_since", arguments.clone());
+            assert_eq!(
+                Server::error_code(&refused),
+                -32602,
+                "{backend} {arguments}"
+            );
+            let (status, served) = view.get(&format!("/changes?{query}"));
+            assert_eq!(status, 400, "{backend} GET /changes?{query}");
+            let served: Value = serde_json::from_slice(&served).unwrap();
+            assert_eq!(served["refusal"], "invalid-query", "{served}");
+        }
+        server.close();
+        drop(view);
     }
 }
 
