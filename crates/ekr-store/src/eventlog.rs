@@ -108,6 +108,18 @@ pub struct EventlogStore<S: EventStore> {
     checkpoints: bool,
     /// Whether it has been offered already: once per handle, on the first head history read.
     checkpoint_offered: std::sync::atomic::AtomicBool,
+    /// Payload addresses of the publication preparations this handle authorized.
+    ///
+    /// What authorizing a preparation reads besides its own bytes is fixed once it is elected —
+    /// the revision-stream prefix and the object-stream prefixes it names, and this handle's
+    /// tenant, authority and ontology — so bytes read back at one of these addresses are that
+    /// authorization's input exactly and are not authorized again. Any other bytes are.
+    authorized: std::sync::Mutex<BTreeSet<ContentHash>>,
+    /// The newest checkpoint pointer and the pointer stream's length after this handle's last
+    /// pointer write, where its next write continues from. Taken by that write, and kept again
+    /// only when the write succeeds: a write that loses to another handle's reads the stream
+    /// afresh.
+    pointer: std::sync::Mutex<Option<(Option<CheckpointWritten>, u64)>>,
 }
 /// One verified object as a handle keeps it: its metadata, and its bytes shared with the process's
 /// registry of verified bytes.
@@ -170,7 +182,7 @@ const CHECKPOINT_STREAM_TYPE: &str = "ekr.checkpoint";
 const CHECKPOINT_STREAM_ID: &str = "canonical";
 const CHECKPOINT_WRITTEN: &str = "ekr.store.CheckpointWritten";
 /// Names the retained replay checkpoint: private cache data, never a canonical object.
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CheckpointWritten {
     /// The retained checkpoint blob's payload address.
@@ -391,6 +403,8 @@ impl<S: EventStore> EventlogStore<S> {
             revisions: std::sync::Mutex::default(),
             checkpoints: true,
             checkpoint_offered: std::sync::atomic::AtomicBool::new(false),
+            authorized: std::sync::Mutex::default(),
+            pointer: std::sync::Mutex::default(),
         }
     }
     /// Replays every history read in full from the seed: the retained replay checkpoint is not
@@ -568,6 +582,15 @@ impl<S: EventStore> EventlogStore<S> {
         stop: &impl Fn(&RecordedEvent) -> bool,
     ) -> Result<(), StoreError> {
         while !read.finished {
+            match read.stream.stream_type() {
+                REVISION_STREAM_TYPE => {
+                    crate::verified::count_stream_read(|reads| reads.revision += 1)
+                }
+                CHECKPOINT_STREAM_TYPE => {
+                    crate::verified::count_stream_read(|reads| reads.checkpoint += 1);
+                }
+                _ => {}
+            }
             let slice =
                 self.runtime()
                     .block_on(self.store.read_stream(read.stream, read.after, limit))?;
@@ -585,11 +608,13 @@ impl<S: EventStore> EventlogStore<S> {
     /// reaches it refuses it again.
     ///
     /// Every read, including one answered wholly from the held prefix, first asks the provider for
-    /// the last held occurrence again ([`Self::still_holds`]). That is the provider call through
-    /// which it refuses a history that diverged from what this handle observed (the file
-    /// provider's own check), so a read at an earlier revision refuses where a head read does. A
-    /// provider that answers with a different occurrence there no longer has the held prefix, and
-    /// the handle drops everything it holds and reads from the start, as a new handle would.
+    /// the last held occurrence again ([`Self::still_holds`]); a read that goes on past the held
+    /// prefix asks for it in the call that reads on ([`Self::still_holds_reading_on`]). That is
+    /// the provider call through which it refuses a history that diverged from what this handle
+    /// observed (the file provider's own check), so a read at an earlier revision refuses where a
+    /// head read does. A provider that answers with a different occurrence there no longer has the
+    /// held prefix, and the handle drops everything it holds and reads from the start, as a new
+    /// handle would.
     fn occurrences(
         &self,
         limit: usize,
@@ -602,21 +627,39 @@ impl<S: EventStore> EventlogStore<S> {
             .lock()
             .map_err(|_| StoreError::Document("held-revisions-poisoned".into()))?;
         let stream = self.revision_stream()?;
-        self.confirm_held(&stream, &mut held)?;
         let found = |held: &HeldRevisions| {
             held.occurrences
                 .iter()
                 .position(|occurrence| selects(&occurrence.event))
         };
+        // When the read goes on past what is held, the provider call that confirms the last held
+        // occurrence also returns what follows it; otherwise it is made on its own.
+        let mut after_held = None;
+        if held.occurrences.is_empty() || found(&held).is_some() {
+            self.confirm_held(&stream, &mut held)?;
+        } else {
+            match self.still_holds_reading_on(&stream, &held, limit)? {
+                Some(rest) => after_held = Some(rest),
+                None => self.forget_everything(&mut held),
+            }
+        }
         if found(&held).is_none() {
             let events = {
-                let mut read =
-                    StreamRead::resumed(&stream, held.occurrences.len() as u64, &held.native_ids);
-                self.read_on(&mut read, limit, &|record: &RecordedEvent| {
+                let stop = |record: &RecordedEvent| {
                     selected.is_some()
                         && serde_json::from_value::<RevisionEvent>(record.data.clone())
                             .is_ok_and(|event| selects(&event))
-                })?;
+                };
+                let mut read =
+                    StreamRead::resumed(&stream, held.occurrences.len() as u64, &held.native_ids);
+                // An empty slice that is not the end of the stream carries no cursor past the
+                // held prefix; the read then goes on from the prefix itself.
+                if let Some(rest) =
+                    after_held.filter(|rest| !rest.events.is_empty() || rest.end_of_stream)
+                {
+                    read.absorb(&self.tenant, rest, &stop)?;
+                }
+                self.read_on(&mut read, limit, &stop)?;
                 read.events
             };
             for recorded in events {
@@ -648,20 +691,54 @@ impl<S: EventStore> EventlogStore<S> {
             return Ok(true);
         }
         let after = held.occurrences.last().map_or(0, |last| last.version - 1);
+        crate::verified::count_stream_read(|reads| reads.revision += 1);
         let slice = self
             .runtime()
             .block_on(self.store.read_stream(stream, after, 1))?;
         let Some(last) = held.occurrences.last() else {
             return Ok(true);
         };
-        Ok(slice.events.first().is_some_and(|event| {
-            !event.is_redacted()
-                && event.version == last.version
-                && event.event_id == last.provider_event_id
-                && event.tenant == self.tenant
-                && event.stream_type == stream.stream_type()
-                && event.stream_id == stream.stream_id()
-        }))
+        Ok(slice
+            .events
+            .first()
+            .is_some_and(|event| self.is_held(stream, last, event)))
+    }
+    /// Whether the provider's `event` is the held occurrence `last`, as it was read.
+    fn is_held(&self, stream: &StreamId, last: &RecordedOccurrence, event: &RecordedEvent) -> bool {
+        !event.is_redacted()
+            && event.version == last.version
+            && event.event_id == last.provider_event_id
+            && event.tenant == self.tenant
+            && event.stream_type == stream.stream_type()
+            && event.stream_id == stream.stream_id()
+    }
+    /// [`Self::still_holds`] for a handle that holds at least one occurrence, in the same provider
+    /// call as the first slice of what follows it: one read from the last held occurrence on,
+    /// `limit` events long. The rest of that slice, after the confirmed occurrence, when the
+    /// provider still has it as it was read; `None` when it does not. A provider refusal is
+    /// returned as it is.
+    fn still_holds_reading_on(
+        &self,
+        stream: &StreamId,
+        held: &HeldRevisions,
+        limit: usize,
+    ) -> Result<Option<StreamSlice>, StoreError> {
+        let Some(last) = held.occurrences.last() else {
+            return Ok(None);
+        };
+        crate::verified::count_stream_read(|reads| reads.revision += 1);
+        let mut slice =
+            self.runtime()
+                .block_on(self.store.read_stream(stream, last.version - 1, limit))?;
+        if !slice
+            .events
+            .first()
+            .is_some_and(|event| self.is_held(stream, last, event))
+        {
+            return Ok(None);
+        }
+        slice.events.remove(0);
+        Ok(Some(slice))
     }
     fn object(&self, hash: ContentHash) -> Result<Option<RetainedObject>, StoreError> {
         Ok(self
@@ -1109,7 +1186,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         let history = self.load_history(1, Some(revision))?;
         if !history.occurrences.is_empty() {
             self.authority()?
-                .replay(&history, self.ontology.as_ref(), Some(revision))?;
+                .verify(&history, self.ontology.as_ref(), Some(revision))?;
         }
         Ok(history)
     }
@@ -1118,7 +1195,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         let history = self.load_history(MAX_READ_LIMIT, None)?;
         if !history.occurrences.is_empty() {
             self.authority()?
-                .replay(&history, self.ontology.as_ref(), None)?;
+                .verify(&history, self.ontology.as_ref(), None)?;
         }
         Ok(history)
     }
@@ -1127,7 +1204,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         for attempt in 0..16 {
             let mut history = self.load_history(MAX_READ_LIMIT, None)?;
             self.authority()?
-                .replay(&history, self.ontology.as_ref(), None)?;
+                .verify(&history, self.ontology.as_ref(), None)?;
             if let Some(prior) = history
                 .occurrences
                 .iter()
@@ -1174,7 +1251,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
             let required = self.authority()?.required_objects(&history)?;
             self.load_objects(&mut history, required)?;
             self.authority()?
-                .replay(&history, self.ontology.as_ref(), None)?;
+                .verify(&history, self.ontology.as_ref(), None)?;
             let mut appends = vec![StreamAppend {
                 stream: self.revision_stream()?,
                 expected: if publication.expected_version == 0 {
@@ -1272,18 +1349,51 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         checkpoint: Option<&[u8]>,
     ) -> Result<(), StoreError> {
         ensure_sync_context()?;
-        let (previous, length) = self.checkpoint_pointer()?;
+        // This handle's own last write names the newest pointer and the stream's length, unless
+        // another handle has written since; its conditional append then loses, and the write is
+        // made again from the stream as read, as a handle without that record makes it.
+        let remembered = self.pointer.lock().ok().and_then(|mut held| held.take());
+        let from_memo = remembered.is_some();
+        let (previous, length) = match remembered {
+            Some(held) => held,
+            None => self.checkpoint_pointer()?,
+        };
+        let after = match self.append_pointer(covered, binding, checkpoint, previous, length)? {
+            None if from_memo => {
+                let (previous, length) = self.checkpoint_pointer()?;
+                self.append_pointer(covered, binding, checkpoint, previous, length)?
+            }
+            after => after,
+        };
+        if let (Some(after), Ok(mut held)) = (after, self.pointer.lock()) {
+            *held = Some(after);
+        }
+        Ok(())
+    }
+}
+impl<S: AtomicBlobEventStore> EventlogStore<S> {
+    /// [`RevisionLog::write_checkpoint`] after `previous`, the newest pointer of a stream `length`
+    /// long. The newest pointer and the length after it, or `None` when the conditional append
+    /// lost to another writer and nothing was written.
+    fn append_pointer(
+        &self,
+        covered: u64,
+        binding: ContentHash,
+        checkpoint: Option<&[u8]>,
+        previous: Option<CheckpointWritten>,
+        length: u64,
+    ) -> Result<Option<(Option<CheckpointWritten>, u64)>, StoreError> {
         let hash = match (checkpoint, &previous) {
             (Some(bytes), _) => ContentHash::of_bytes(bytes),
             (None, Some(previous)) => previous.checkpoint_hash,
-            (None, None) => return Ok(()),
+            (None, None) => return Ok(Some((previous, length))),
         };
         if previous.as_ref().is_some_and(|previous| {
             previous.checkpoint_hash == hash
                 && previous.covered == covered
                 && previous.binding == binding
         }) {
-            return Ok(());
+            return Ok(Some((previous, length)));
         }
         let pointer = CheckpointWritten {
             checkpoint_hash: hash,
@@ -1336,7 +1446,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         };
         match written {
             Ok(()) => {}
-            Err(StoreError::Conflict) => return Ok(()),
+            Err(StoreError::Conflict) => return Ok(None),
             Err(error) => return Err(error),
         }
         if let Some(replaced) = replaced {
@@ -1345,7 +1455,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
                     .delete_blob(&self.tenant, &checkpoint_key(replaced)),
             )?;
         }
-        Ok(())
+        Ok(Some((Some(pointer), length + 1)))
     }
 }
 impl<S: AtomicBlobEventStore> Initialize for EventlogStore<S> {

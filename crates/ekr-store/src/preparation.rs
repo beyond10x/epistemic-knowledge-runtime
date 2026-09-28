@@ -724,6 +724,19 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             key.slot()?,
         )?)
     }
+    /// Whether this handle authorized the preparation whose bytes `hash` addresses. A poisoned
+    /// memo answers no, so the preparation is authorized again.
+    fn authorized_before(&self, hash: ContentHash) -> bool {
+        self.authorized
+            .lock()
+            .is_ok_and(|authorized| authorized.contains(&hash))
+    }
+    /// Records that this handle authorized the preparation whose bytes `hash` addresses.
+    fn remember_authorized(&self, hash: ContentHash) {
+        if let Ok(mut authorized) = self.authorized.lock() {
+            authorized.insert(hash);
+        }
+    }
     fn authorize_preparation(
         &self,
         prepared: &PublicationPreparationV1,
@@ -951,7 +964,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             self.load_objects(&mut history, required)?;
         }
         self.authority()?
-            .replay(&history, self.ontology.as_ref(), None)?;
+            .verify(&history, self.ontology.as_ref(), None)?;
         for (hash, object) in &decision.objects {
             history.objects.insert(
                 *hash,
@@ -975,7 +988,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         let required = self.authority()?.required_objects(&history)?;
         self.load_objects(&mut history, required)?;
         self.authority()?
-            .replay(&history, self.ontology.as_ref(), None)?;
+            .verify(&history, self.ontology.as_ref(), None)?;
         Ok(request)
     }
     fn retention_at(&self, hash: ContentHash, version: u64) -> Result<StorageClass, StoreError> {
@@ -1054,7 +1067,12 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             if let Some(prior) = &selected {
                 check_successor(prior, &prepared)?;
             }
-            self.authorize_preparation(&prepared)?;
+            // `bytes` hash to `selection.preparation_hash`: at an address this handle authorized,
+            // they are the bytes it authorized, and their authorization is not repeated.
+            if !self.authorized_before(selection.preparation_hash) {
+                self.authorize_preparation(&prepared)?;
+                self.remember_authorized(selection.preparation_hash);
+            }
             previous = Some(selection.preparation_hash);
             selected = Some(prepared);
         }
@@ -1153,6 +1171,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         self.authorize_preparation(&prepared)?;
         let bytes = serde_json::to_vec(&prepared).map_err(json_error)?;
         let hash = ContentHash::of_bytes(&bytes);
+        self.remember_authorized(hash);
         let selection = Selection {
             preparation_hash: hash,
             attempt_number,
@@ -1207,7 +1226,10 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         if elected != *prepared {
             return Err(StoreError::Conflict);
         }
-        let request = self.authorize_preparation(prepared)?;
+        // `read_preparation` authorized every attempt of the chain it returned, now or as bytes
+        // this handle authorized before, and `prepared` is its elected attempt: authorizing it
+        // again here would repeat that authorization on the same input.
+        let request = elected.native_request.restore()?;
         let result = self.atomic(&request)?;
         Ok(if result.deduplicated {
             Appended::AlreadyRecorded

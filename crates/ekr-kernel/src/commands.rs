@@ -199,14 +199,14 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         let document = crate::TransactionDocument::read(reader)?;
         self.propose(document.bytes(), actor, now)
     }
-    pub(crate) fn read_state(&self) -> Result<ReplayState, CommitError> {
+    pub(crate) fn read_state(&self) -> Result<std::sync::Arc<ReplayState>, CommitError> {
         let history = self.store.history()?;
         self.authority
             .reconstruct(&history, None, None)?
             .ok_or(CommitError::NotSeeded)
     }
     /// [`Self::read_state`], replayed from the seed so that every revision's graph is held.
-    pub(crate) fn read_state_in_full(&self) -> Result<ReplayState, CommitError> {
+    pub(crate) fn read_state_in_full(&self) -> Result<std::sync::Arc<ReplayState>, CommitError> {
         let history = self.store.history()?;
         self.authority
             .reconstruct_in_full(&history)?
@@ -216,7 +216,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
     /// # Errors
     /// Missing initialization or invalid required history.
     pub fn transactions(&self) -> Result<BTreeMap<TransactionId, TransactionRecord>, CommitError> {
-        Ok(self.read_state()?.transactions)
+        Ok(std::sync::Arc::unwrap_or_clone(self.read_state()?).transactions)
     }
     /// Retains exact input bytes under a trusted registered submitter.
     /// # Errors
