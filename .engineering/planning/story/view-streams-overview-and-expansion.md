@@ -7,7 +7,18 @@ title: ekr view loads an overview and streams expansions instead of the whole pr
 relations:
 - serves: vision:o5
 - depends_on: story:data-free-graph-viewer
-revision: 3
+scope:
+- confidence: cited
+  path: crates/ekr/src/cli/view.rs
+- confidence: cited
+  path: crates/ekr/src/cli/viewer
+- confidence: cited
+  path: crates/ekr/tests/view_page.rs
+- confidence: cited
+  path: crates/ekr/tests/view_stream.rs
+- confidence: cited
+  path: docs/cli.md
+revision: 8
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T02:33:53Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-09-28T02:33:53Z", actor: "human:timo", revision: 3}
