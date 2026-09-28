@@ -57,8 +57,8 @@ jobs:
         env:
           ESS_VERSION: "0.36.0"
           ESS_SHA256: 5e32e277196fe8162ab4baec0debe20c093744ff33969e5cc497c952a20dc717
-          AEP_VERSION: "0.63.0"
-          AEP_SHA256: 9e45b54cb106e948a188ef7057ed90a31a1835ca170a82a11753d0fce9c1a978
+          AEP_VERSION: "0.63.1"
+          AEP_SHA256: b6e73488336508804d7d07efbbf4585290df3e3a4fc1dd54b8469eb27ece3c96
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/tools-bin"
