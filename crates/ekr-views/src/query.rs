@@ -71,7 +71,7 @@ pub enum QueryError {
     Project(#[from] ProjectError),
 }
 
-fn bounded(
+pub(crate) fn bounded(
     parameter: &'static str,
     requested: i64,
     minimum: i64,
@@ -249,11 +249,11 @@ pub struct Answer<S> {
     pub summary: S,
 }
 
-fn hash(bytes: &[u8]) -> String {
+pub(crate) fn hash(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
 }
 
-fn encode(document: &impl Serialize) -> Result<Vec<u8>, ProjectError> {
+pub(crate) fn encode(document: &impl Serialize) -> Result<Vec<u8>, ProjectError> {
     serde_json::to_vec(document)
         .map_err(|error| ProjectError::Inconsistent(format!("encoding the document: {error}")))
 }

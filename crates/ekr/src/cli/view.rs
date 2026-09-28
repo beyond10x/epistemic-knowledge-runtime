@@ -48,8 +48,9 @@
 //! | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | [`ekr_views::Index::page`]'s records, streamed by [`write_stream`] as chunked `application/x-ndjson` |
 //! | `GET /node/<node id>[?revision=N]` | [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes, `application/json` |
 //! | `GET /search?q=<text>[&limit=L][&revision=N]` | [`ekr_views::Index::search`]'s `ekr.node-matches/1` bytes (`L` is [`SEARCH_LIMIT`] when absent), `application/json` |
+//! | `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | [`ekr_views::Index::timeline`]'s `ekr.graph-timeline/1` bytes: one row per subject of the row type with its events within `H` hops (1 to 3; at most `L` rows, 1 to 500; `B` the finest bucket, `day` or `week`), or the named subject's row and events, `application/json` |
 //!
-//! Those four read their query with [`Query`]: `name=value` pairs, each name one the path takes
+//! Those five read their query with [`Query`]: `name=value` pairs, each name one the path takes
 //! and at most once, each value percent-decoded; anything else is 400 `invalid-query`. A bound out
 //! of range is 400 `ekr.views.LimitExceeded` before any store call, an unknown node or seed 404
 //! `ekr.views.NodeNotFound`, an absent revision 404 as `/projection` refuses it — each a whole JSON
@@ -74,11 +75,12 @@ use std::sync::mpsc::{channel, Sender};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use ekr_core::{EvidenceId, NodeId, RevisionNumber};
+use ekr_core::{EvidenceId, NodeId, RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{
-    ExpandRequest, IndexCache, LimitExceeded, OverviewRequest, ProjectError, QueryError,
-    SearchRequest, SliceEdge, SliceMeta, SliceNode, SlicePage, SliceRecord,
+    BucketWidth, ExpandRequest, IndexCache, LimitExceeded, OverviewRequest, ProjectError,
+    QueryError, SearchRequest, SliceEdge, SliceMeta, SliceNode, SlicePage, SliceRecord,
+    TimelineRequest,
 };
 use serde::Serialize;
 
@@ -560,6 +562,7 @@ enum Route<'a> {
     Expand,
     Node(&'a str),
     Search,
+    Timeline,
 }
 
 fn route(path: &str) -> Option<Route<'_>> {
@@ -575,6 +578,7 @@ fn route(path: &str) -> Option<Route<'_>> {
         "/overview" => Some(Route::Overview),
         "/expand" => Some(Route::Expand),
         "/search" => Some(Route::Search),
+        "/timeline" => Some(Route::Timeline),
         _ => named("/evidence/")
             .map(Route::Evidence)
             .or_else(|| named("/node/").map(Route::Node)),
@@ -647,6 +651,7 @@ fn answer(runtime: &Runtime, memory: &mut Memory, port: u16, asked: &Asked) -> A
         Route::Overview => overview(runtime, &mut memory.indexes, query).unwrap_or_else(|r| r),
         Route::Node(id) => node(runtime, &mut memory.indexes, id, query).unwrap_or_else(|r| r),
         Route::Search => search(runtime, &mut memory.indexes, query).unwrap_or_else(|r| r),
+        Route::Timeline => timeline(runtime, &mut memory.indexes, query).unwrap_or_else(|r| r),
         Route::Expand => {
             return match expand(runtime, &mut memory.indexes, query) {
                 Ok(page) => Answered::Stream(Box::new(page)),
@@ -830,6 +835,59 @@ fn search(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<Re
     let answer = index
         .search(&request)
         .map_err(|error| refused("search", error))?;
+    Ok(Reply::ok(JSON, answer.bytes))
+}
+
+/// `/timeline?[type=<id>&]hops=H&limit=L[&bucket=day|week][&subject=<id>][&revision=N]`: the
+/// `ekr.graph-timeline/1` document. `hops` and `limit` are required; a `type` or `subject` that is
+/// not an id, or a `bucket` other than `day` or `week`, is `invalid-query`.
+fn timeline(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<Reply, Reply> {
+    let query = Query::parse(
+        query,
+        &["type", "hops", "limit", "bucket", "subject", "revision"],
+    )
+    .map_err(invalid_query)?;
+    let row_type = query
+        .get("type")
+        .map(|text| {
+            text.parse::<TypeId>()
+                .map_err(|_| invalid_query(format!("the type {text:?} is not a type id")))
+        })
+        .transpose()?;
+    let subject = query
+        .get("subject")
+        .map(|text| {
+            text.parse::<NodeId>()
+                .map_err(|_| invalid_query(format!("the subject {text:?} is not a node id")))
+        })
+        .transpose()?;
+    let bucket = match query.get("bucket") {
+        None => None,
+        Some("day") => Some(BucketWidth::Day),
+        Some("week") => Some(BucketWidth::Week),
+        Some(other) => {
+            return Err(invalid_query(format!(
+                "the bucket {other:?} is not `day` or `week`"
+            )))
+        }
+    };
+    let required = |name: &str| {
+        query
+            .integer(name)
+            .and_then(|value| value.ok_or_else(|| format!("the query names no {name}")))
+            .map_err(invalid_query)
+    };
+    let hops = required("hops")?;
+    let limit = required("limit")?;
+    let at = query.revision().map_err(invalid_query)?;
+    let request = TimelineRequest::new(row_type, hops, limit, bucket, subject)
+        .map_err(|error| limit_exceeded(&error))?;
+    let index = indexes
+        .index(runtime, at)
+        .map_err(|error| refused("timeline", error))?;
+    let answer = index
+        .timeline(&request)
+        .map_err(|error| refused("timeline", error))?;
     Ok(Reply::ok(JSON, answer.bytes))
 }
 
@@ -1221,7 +1279,7 @@ mod tests {
     }
 
     #[test]
-    fn only_the_nine_routes_exist() {
+    fn only_the_ten_routes_exist() {
         assert!(matches!(route("/"), Some(Route::Page)));
         assert!(matches!(route("/alt"), Some(Route::AltPage)));
         assert!(matches!(route("/projection"), Some(Route::Projection)));
@@ -1234,6 +1292,7 @@ mod tests {
         assert!(matches!(route("/expand"), Some(Route::Expand)));
         assert!(matches!(route("/search"), Some(Route::Search)));
         assert!(matches!(route("/node/abc"), Some(Route::Node("abc"))));
+        assert!(matches!(route("/timeline"), Some(Route::Timeline)));
         for path in [
             "",
             "/index.html",
@@ -1247,6 +1306,7 @@ mod tests {
             "/overview/",
             "/expand/",
             "/search/",
+            "/timeline/",
             "/node",
             "/node/",
             "/node/a/b",

@@ -321,13 +321,14 @@
 <script>
 "use strict";
 // =====================================================================================================
-// Data: the only code that talks to the server, through one `get`. It reads the five addresses of the
+// Data: the only code that talks to the server, through one `get`. It reads the six addresses of the
 // `ekr view` data contract and nothing else:
 //   /overview      once per revision: meta, ontology, schema lineage with what each version added and
 //                  removed, growth per revision, type counts, roles, timeline buckets and the top nodes
 //   /expand        a neighbourhood, streamed as NDJSON and handed on in batches as the lines arrive
 //   /node/<id>     one node's detail, when it is opened
 //   /search        nodes whose name or alias holds a text
+//   /timeline      the subjects of a row type with their events per time bucket, or one subject's events
 //   /evidence/<id> the bytes of evidence, and only for an id named by an assertion the page read
 // Every load is numbered: an answer that is no longer the latest of its kind resolves to null and is
 // dropped, and an expansion of a revision no longer shown is cancelled.
@@ -337,7 +338,9 @@ const Data = (() => {
   const EXPAND = "/expand";
   const NODE = "/node/";
   const SEARCH = "/search";
+  const TIMELINE = "/timeline";
   const EVIDENCE = "/evidence/";
+  const ROWS = 500;                    // the most subjects a timeline read asks for
   const STREAM_TYPE = "application/x-ndjson";
 
   function get(path, signal) { return fetch(path, {credentials: "omit", cache: "no-store", signal}); }
@@ -388,6 +391,7 @@ const Data = (() => {
     if (mine !== loads) return null;
     closeAll();
     details.clear();
+    timelines.clear();
     current = adapt(answer);
     return current;
   }
@@ -522,6 +526,22 @@ const Data = (() => {
     return mine === sequence.get(purpose) && load === loads ? d : null;
   }
 
+  // ---- the subjects' timeline: one read per revision and question, the latest of each purpose kept ----
+  //   rows       {type, hops, bucket}: the subjects of a row type (the server's first when absent)
+  //   lanes      {hops, bucket, subject}: one subject's row and its events, for its swimlanes
+  const timelines = new Map();       // the address → the answer's promise, for the life of a revision
+  async function timeline({type, hops, bucket, subject}) {
+    const purpose = subject ? "lanes" : "rows";
+    const mine = (sequence.get(purpose) || 0) + 1, load = loads;
+    sequence.set(purpose, mine);
+    const path = TIMELINE + query({type, hops, limit: ROWS, bucket, subject, revision: revision()});
+    if (!timelines.has(path)) {
+      timelines.set(path, get(path).then(json).catch(error => { timelines.delete(path); throw error; }));
+    }
+    const d = await timelines.get(path);
+    return mine === sequence.get(purpose) && load === loads ? d : null;
+  }
+
   let searches = 0;
   async function search(text) {
     const mine = ++searches, load = loads;
@@ -547,7 +567,7 @@ const Data = (() => {
     return evidenceRead.get(id);
   }
 
-  return {overview, expand, closeAll, node, search, evidenceText, cited: id => cited.has(id), plain, plainProps, ms};
+  return {overview, expand, closeAll, node, search, timeline, evidenceText, cited: id => cited.has(id), plain, plainProps, ms};
 })();
 
 // =====================================================================================================
@@ -2183,16 +2203,20 @@ async function main() {
   }
 
   // =====================================================================================================
-  // ---- Timeline: a heatmap of dated assertions per node type, and swimlanes for one node ----
-  // Nothing here names a type, an edge type or a property, and every order is measured (salience, colour
-  // distance), never listed. The heatmap is the overview's timeline buckets: node-subject assertions per
-  // valid-time bucket per node type. A node's swimlanes come from its detail: one lane per predicate it
-  // states or is stated by, and a history bar for the property whose stated value changes most. Roles come
-  // from the overview, by the valid time of each type's facts:
+  // ---- Timeline: a heatmap over the subjects of a row type, swimlanes for one subject ----
+  // Nothing here names a type, an edge type or a property, and every order is measured (activity, salience,
+  // colour distance), never listed. Rows, cells and events are read from /timeline (ekr.graph-timeline/1):
+  // one row per subject — a node of the chosen row type — with the events its walk reaches within 1–3 hops,
+  // counted per bucket; the row types are the server's ranking of the types that are not events. A
+  // subject's swimlanes are its events from /timeline, one lane per event type, and a history bar for the
+  // property of its detail whose stated value changes most. Roles come from the overview, by the valid time
+  // of each type's facts:
   //   event type        most instances carry a time: an epoch-ms value, or dated facts that cluster at one moment
   //   observation type  the most numerous event type among those linking to more types than the average one
   // =====================================================================================================
-  const DAY = 864e5, HOUR = 36e5;
+  const DAY = 864e5, HOUR = 36e5, WEEK = 7 * DAY;
+  const EVENT_SHARE = 0.6;                    // share of a type's judged instances that must be timed
+  const HOP_W = [1, 1, 0.5, 0.25];            // a link's weight by hop distance: 1-hop counts double a 2-hop
   // sequential blue, 600 → 100 (dataviz reference ramp; ordinal check passes on #1a1a19): near zero recedes
   const SEQ = ["#184f95", "#256abf", "#3987e5", "#6da7ec", "#9ec5f4", "#cde2fb"];
   const PLOT_BG = "#1a1a19", GRID = "#2c2c2a", AXIS = "#383835";
@@ -2253,10 +2277,9 @@ async function main() {
 
   let tlM = null;
   const tlModel = () => tlM ??= tlBuild();
-  // The overview's timeline: node-subject assertions per valid-time bucket per node type, and the roles the
-  // overview gives each type. A bucket start a double cannot hold is left out and counted.
+  // The event types of the overview's roles, and why each is one.
   function tlBuild() {
-    const t0 = performance.now(), T = doc.timeline;
+    const t0 = performance.now();
     const events = [];
     for (const [type, r] of doc.roles.types) {
       if (!r.event) continue;
@@ -2266,17 +2289,6 @@ async function main() {
       events.push({type, n: r.nodes, timed: r.instant, told: r.judged, why, links: r.nodes ? r.neighbour_types / r.nodes : 0});
     }
     const evType = new Set(events.map(e => e.type));
-    const byType = new Map();
-    let lo = Infinity, hi = -Infinity, outside = 0;
-    for (const b of T.buckets) {
-      const t = num(b.start);
-      if (t == null) { outside += b.assertions; continue; }
-      if (!byType.has(b.type)) byType.set(b.type, []);
-      byType.get(b.type).push({t, n: b.assertions});
-      if (t < lo) lo = t;
-      if (t > hi) hi = t;
-    }
-    const totals = new Map([...byType].map(([t, list]) => [t, list.reduce((sm, b) => sm + b.n, 0)]));
     // the edge type that joins an observation to what it is about: of the drawn edges from an observation,
     // the type reaching the most distinct node types
     let mentionEdge = null;
@@ -2290,32 +2302,11 @@ async function main() {
       });
       mentionEdge = [...reach].sort((a, b) => b[1].size - a[1].size)[0]?.[0] || null;
     }
-    const M = {events, evType, obsType: obs, mentionEdge, byType, totals, types: [...byType.keys()],
-      order: stackOrder([...byType.keys()]), lo, hi: lo <= hi ? hi + Number(T.bucket_ms) - 1 : hi, bucket: Number(T.bucket_ms),
-      outside, undated: T.undated, ms: 0};
-    M.ms = performance.now() - t0;
-    return M;
+    return {events, evType, obsType: obs, mentionEdge, order: stackOrder(events.map(e => e.type)), ms: performance.now() - t0};
   }
 
-  // ---- one node's timeline, from its detail (/node/<id>): every dated assertion about it, by it, and about
-  // its edges, one lane per predicate; the property whose stated value changes most over time is its history
+  // ---- a subject's history bar, from its detail (/node/<id>): the property whose stated value changes most ----
   const tlDetail = {id: null, d: null};
-  function tlItems(d) {
-    const me = d.node.id, items = [];
-    const typeOf = id => id === me ? d.node.type : nodeType(id);
-    const add = (c, other, dir) => {
-      const t = num(c.valid_from);
-      if (t == null) return;
-      const to = num(c.valid_to), type = typeOf(other ?? me) ?? d.node.type;
-      const key = `${c.predicate}${dir === "in" ? "|in" : ""}`;
-      items.push({id: c.id, key, predicate: c, dir, t, end: to != null && to > t ? to : t, type, node: other,
-        name: other ? nodeName(other) : valueText(Data.plain(c.object_value)), lifecycle: c.lifecycle.kind});
-    };
-    for (const c of d.assertions) add(c, c.object_kind === "Node" ? c.object_ref : null, "out");
-    for (const r of d.referencing) add(r.assertion, r.subject_kind === "Node" ? r.subject : null, "in");
-    for (const e of d.edges) for (const c of e.assertions) add(c, e.source === me ? e.target : e.source, e.source === me ? "out" : "in");
-    return items;
-  }
   function tlHistory(d) {
     const per = new Map();
     for (const c of d.assertions) {
@@ -2334,12 +2325,18 @@ async function main() {
     : v.record ? `{${Object.entries(v.record).map(([k, x]) => `${k}: ${valueText(x)}`).join(", ")}}` : "") : String(v);
 
   // ---- state; every user override lives in the URL only ----
-  const tl = {bucket: "auto", sort: "activity", off: new Set(), subject: null,
+  const tl = {kind: null, bucket: "auto", sort: "activity", hops: 2, off: new Set(), subject: null,
     lanes: [], pins: [], other: false, view: null, sel: null, stats: {}};
-  const tlRange = () => { const M = tlModel(); return {lo: timeLo ?? M.lo, hi: timeT ?? M.hi, set: timeLo != null || timeT != null}; };
-  // the overview's own bucket, or weeks made of its days; a day cannot be made of the overview's weeks
-  const bucketSize = () => tl.bucket === "week" || tlModel().bucket > DAY ? 7 * DAY : DAY;
-  const bStart = (t, size) => size === DAY ? Math.floor(t / DAY) * DAY : (Math.floor((t / DAY + 3) / 7) * 7 - 3) * DAY;   // weeks from Monday, UTC
+  let tlRows = null, tlLanes = null;   // the /timeline answers the heatmap and the swimlanes are drawn from
+  // the span of the revision's timed events, as /timeline states it; the graph's span until one has answered
+  const tlSpan = () => {
+    const T = tlRows || tlLanes, lo = num(T?.meta.first), hi = num(T?.meta.last);
+    return lo != null && hi != null ? {lo, hi} : {lo: timeRange?.lo ?? 0, hi: timeRange?.hi ?? 0};
+  };
+  const tlRange = () => { const S = tlSpan(); return {lo: timeLo ?? S.lo, hi: timeT ?? S.hi, set: timeLo != null || timeT != null}; };
+  // a bucket's start: a UTC day, or a whole number of weeks from Monday 00:00 UTC (the epoch fell on a Thursday)
+  const bStart = (t, size) => size === DAY ? Math.floor(t / DAY) * DAY : Math.floor((t + 3 * DAY) / size) * size - 3 * DAY;
+  const bucketName = size => size === DAY ? "day" : size === WEEK ? "week" : `${Math.round(size / WEEK)}-week`;
   const tlOn = () => document.body.classList.contains("tl-on");
   const plot = $("tlPlot"), tlTip = $("tlTip");
 
@@ -2382,44 +2379,50 @@ async function main() {
   const roleNote = t => roleOf(t) ? ` · ${roleOf(t)}, by the valid time of its facts` : "";
   function evChips() {
     const M = tlModel();
-    return h("span", {class: "grp"}, "types ", M.order.map(t => { const e = M.events.find(x => x.type === t);
-      return h("span", {class: `evchip ${tl.off.has(t) ? "off" : ""}`, "data-ev": t, title: `${fmt(M.totals.get(t))} dated assertions${e ? ` · event type because ${e.why}` : ""}${roleNote(t)}`},
-        h("span", {class: "sw", style: typeSwatch(t)}), tname(t), h("span", {class: "n"}, fmt(M.totals.get(t)))); }));
+    return h("span", {class: "grp"}, "events ", M.order.map(t => { const e = M.events.find(x => x.type === t);
+      return h("span", {class: `evchip ${tl.off.has(t) ? "off" : ""}`, "data-ev": t, title: `${tname(t)}: event type because ${e.why}${roleNote(t)}`},
+        h("span", {class: "sw", style: typeSwatch(t)}), tname(t), h("span", {class: "n"}, fmt(e.timed))); }));
   }
   function rangeChip() {
     const R = tlRange();
     return R.set ? h("span", {class: "grp"}, "range ", h("b", {style: "color:var(--text-primary)"}, `${dShort(R.lo)} – ${dShort(R.hi)}`),
       h("button", {class: "plain", "data-tlact": "clear-range", title: "Show the whole time span (also in the graph)"}, "clear")) : "";
   }
+  const hopSeg = () => h("span", {class: "grp"}, "hops ", segButtons("hops", [[1, "1"], [2, "2"], [3, "3"]], tl.hops));
 
-  // ---- overview: one row per node type, one column per bucket, from the overview's timeline buckets ----
+  // ---- overview: one row per subject, one column per bucket, from the /timeline rows ----
   const OV = {LABEL: 190, TOT: 92, PAD: 12, ROW: 20, STRIP: 84, AXIS: 24};
   let ov = null;          // geometry and data of the last overview render, for hit-testing
   function ovData() {
-    const M = tlModel(), R = tlRange(), size = bucketSize();
+    const T = tlRows, M = tlModel(), R = tlRange(), size = Number(T.meta.bucket_ms);
     const b0 = bStart(R.lo, size), nCols = Math.max(1, Math.round((bStart(R.hi, size) - b0) / size) + 1);
     const types = M.order.filter(t => !tl.off.has(t)), ti = new Map(types.map((t, i) => [t, i])), K = types.length;
-    const rows = [], strip = new Float64Array(nCols * K);
-    let hidden = 0, events = 0;
-    for (const type of types) {
-      const k = ti.get(type), counts = new Float64Array(nCols * K);
-      let total = 0, last = -Infinity, first = Infinity;
-      for (const b of M.byType.get(type)) {
-        if (b.t < R.lo - size || b.t > R.hi) continue;
-        const c = Math.floor((bStart(b.t, size) - b0) / size);
-        if (c < 0 || c >= nCols) continue;
-        counts[c * K + k] += b.n; strip[c * K + k] += b.n; total += b.n;
-        if (b.t > last) last = b.t;
-        if (b.t < first) first = b.t;
+    // a row's cells in the columns of the range, and its total, first and last bucket there
+    const place = (into, cells) => {
+      let total = 0, first = Infinity, last = -Infinity;
+      for (const c of cells) {
+        const t = num(c.start), k = ti.get(c.type);
+        if (t == null || k == null || t + size <= R.lo || t > R.hi) continue;
+        const col = Math.round((t - b0) / size);
+        if (col < 0 || col >= nCols) continue;
+        into[col * K + k] += c.events; total += c.events;
+        if (t < first) first = t;
+        if (t > last) last = t;
       }
-      const pinnedRow = tl.pins.includes(type);
-      if (!total && !pinnedRow) { hidden++; continue; }
-      events += total;
-      rows.push({id: type, name: tname(type), counts, total, last, first, pinned: pinnedRow});
+      return {total, first, last};
+    };
+    const rows = [];
+    let hidden = Number(T.meta.subjects) - Number(T.meta.active);
+    for (const r of T.rows) {
+      const counts = new Float64Array(nCols * K), s = place(counts, r.cells), pinned = tl.pins.includes(r.id);
+      if (!s.total && !pinned) { hidden++; continue; }
+      rows.push({id: r.id, name: r.name, counts, total: s.total, first: s.first, last: s.last, pinned});
     }
-    // orders are measured, never by a stored name: activity (count), recent (last time), first (first time)
+    // orders are measured, never by a stored name: activity (count), recent (last bucket), first (first bucket);
+    // equal rows keep the server's order, which is by id
     const cmp = tl.sort === "first" ? (a, b) => a.first - b.first : tl.sort === "recent" ? (a, b) => b.last - a.last : (a, b) => b.total - a.total;
     rows.sort((a, b) => (b.pinned - a.pinned) || (a.pinned ? tl.pins.indexOf(a.id) - tl.pins.indexOf(b.id) : 0) || cmp(a, b));
+    const strip = new Float64Array(nCols * K), events = place(strip, T.strip).total;
     let maxCell = 0, maxTot = 0, maxStrip = 0;
     for (const r of rows) {
       if (r.total > maxTot) maxTot = r.total;
@@ -2433,24 +2436,28 @@ async function main() {
     const ranges = [];
     for (let c = 1; c <= max; c++) { const st = seqStep(c, max); if (!ranges[st]) ranges[st] = [c, c]; else ranges[st][1] = c; }
     const txt = r => r[0] === r[1] ? String(r[0]) : `${r[0]}–${r[1]}`;
-    return h("span", null, "assertions per cell ", h("span", {class: "seq"}, ranges.map((r, st) => r ? h("i", {style: `background:${SEQ[st]}`, title: txt(r)}) : "")),
+    return h("span", null, "events per cell ", h("span", {class: "seq"}, ranges.map((r, st) => r ? h("i", {style: `background:${SEQ[st]}`, title: txt(r)}) : "")),
       h("em", null, ranges.filter(Boolean).map(txt).join(" · ")));
   }
   const axisText = (x, y, cls, text) => s("text", {x, y, class: cls || null}, text);
 
   function renderOverview() {
-    const t0 = performance.now(), M = tlModel();
+    const t0 = performance.now(), T = tlRows;
     const d = ovData(), R = d.R;
+    const kinds = T.row_types.map(rt => [rt.type, tname(rt.type),
+      `${tname(rt.type)}: ${(rt.weight / 2 / rt.nodes).toFixed(1)} weighted timed items within 2 hops per instance (${fmt(rt.reached)} of ${fmt(rt.nodes)} reach any)`]);
+    if (tl.kind && !kinds.some(k => k[0] === tl.kind)) kinds.push([tl.kind, tname(tl.kind), `${tname(tl.kind)}: asked for, not ranked`]);
     put($("tlBar"),
+      h("span", {class: "grp"}, "rows ", segButtons("kind", kinds, tl.kind)),
       evChips(),
-      h("span", {class: "grp"}, "bucket ", segButtons("bucket", M.bucket > DAY ? [["auto", "week"]] : [["auto", "day"], ["week", "week"]], tl.bucket)),
-      h("span", {class: "grp"}, "sort ", segButtons("sort", [["activity", "activity"], ["recent", "recent"], ["first", "first"]], tl.sort)), rangeChip());
-    put($("tlHead"), h("h1", null, "Dated assertions by node type"), h("span", {class: "badge"}, `${fmt(d.rows.length)} types with dated facts`),
-      d.hidden ? h("span", {class: "badge"}, `${fmt(d.hidden)} without in this range`) : "",
-      M.undated ? h("span", {class: "badge", title: "assertions about a node that carry no valid time"}, `${fmt(M.undated)} undated`) : "",
-      M.outside ? h("span", {class: "badge", title: "valid times a date cannot hold"}, `${fmt(M.outside)} beyond a date`) : "");
-    $("tlSub").textContent = `${d.size === DAY ? "day" : "week"} buckets, UTC · ${dShort(R.lo)} – ${dShort(R.hi)} · ${fmt(d.events)} assertions about a node, by the valid time they start` +
-      ` · drag across the strip to zoom (the graph follows), double-click it to reset · click a cell to show its bucket in the graph · a node's own timeline opens from its panel`;
+      h("span", {class: "grp"}, "bucket ", segButtons("bucket", [["auto", "auto"], ["day", "day"], ["week", "week"]], tl.bucket)),
+      h("span", {class: "grp"}, "sort ", segButtons("sort", [["activity", "activity"], ["recent", "recent"], ["first", "first"]], tl.sort)),
+      hopSeg(), rangeChip());
+    put($("tlHead"), h("h1", null, tl.kind ? tname(tl.kind) : "no subject type"), h("span", {class: "badge"}, `${fmt(d.rows.length)} with events`),
+      d.hidden ? h("span", {class: "badge"}, `${fmt(d.hidden)} without`) : "",
+      Number(T.meta.active) > T.rows.length ? h("span", {class: "badge", title: "the most active subjects /timeline lists"}, `first ${fmt(T.rows.length)} of ${fmt(T.meta.active)}`) : "");
+    $("tlSub").textContent = `${bucketName(d.size)} buckets, UTC · ${dShort(R.lo)} – ${dShort(R.hi)} · ${fmt(d.events)} distinct events within ${tl.hops} hop${tl.hops > 1 ? "s" : ""}` +
+      ` · drag across the strip to zoom (the graph follows), double-click it to reset · click a row for its swimlanes`;
     put($("tlLegend"), d.types.map(t => h("span", null, h("i", {style: `display:inline-block;width:10px;height:10px;border-radius:2px;${typeSwatch(t)}`}), tname(t))),
       h("span", {style: "color:var(--text-muted)"}, "(strip, stacked bottom → top)"), seqLegend(Math.max(1, d.maxCell)));
     const W = Math.max(520, plot.clientWidth - 2), gx = OV.LABEL, gw = W - OV.LABEL - OV.TOT - OV.PAD, colW = gw / d.nCols;
@@ -2458,16 +2465,16 @@ async function main() {
     const axis = s("svg", {class: "tlaxis", id: "tlAxis", width: W, height: OV.AXIS});
     put(plot,
       h("div", {class: "tlsticky"}, h("canvas", {id: "tlStrip"}), axis,
-        h("div", {class: "tlcap", style: "left:10px;top:6px"}, `assertions per ${d.size === DAY ? "day" : "week"}`),
+        h("div", {class: "tlcap", style: "left:10px;top:6px"}, `events per ${bucketName(d.size)}`),
         h("div", {class: "tlcap", style: `left:${gx - 8}px;top:${OV.STRIP - 70 - 6}px;transform:translateX(-100%)`}, fmt(d.maxStrip)),
         h("div", {class: "tlcap", style: `left:${gx + gw + 8}px;top:6px`}, "row total")),
       h("div", {class: "tlrows", style: `height:${H}px`}, h("canvas", {id: "tlCells", style: "position:absolute;left:0;top:0"}),
         d.rows.map((r, i) => [
-          h("div", {class: "tlrow", style: `top:${i * OV.ROW}px;width:${gx}px;height:${OV.ROW}px`, title: `${r.name}${roleNote(r.id)}`},
-            h("span", {class: "sw", style: typeSwatch(r.id)}), h("span", {class: "nm"}, r.name),
+          h("div", {class: "tlrow", "data-tlsub": r.id, style: `top:${i * OV.ROW}px;width:${gx}px;height:${OV.ROW}px`, title: r.name},
+            h("span", {class: "nm"}, r.name),
             h("span", {class: `pin ${r.pinned ? "on" : ""}`, "data-pin": r.id, title: r.pinned ? "Unpin" : "Pin to the top"}, PIN())),
           h("div", {class: "tltot", style: `top:${i * OV.ROW + 3}px;left:${gx + gw + 14 + Math.max(2, (OV.TOT - 46) * r.total / d.maxTot)}px`}, fmt(r.total))]),
-        d.rows.length ? "" : h("div", {id: "tlEmpty"}, "No type has dated assertions in this range with these filters.")));
+        d.rows.length ? "" : h("div", {id: "tlEmpty"}, `No ${tl.kind ? tname(tl.kind) : "subject"} has events in this range with these filters.`)));
     ov = {...d, W, gx, gw, colW, H};
     drawStrip(); drawCells();
     // axis: a label every k columns, so labels keep 46 px apart
@@ -2528,22 +2535,22 @@ async function main() {
       ctx.strokeRect(d.gx + cellHover.c * d.colW + 0.75, cellHover.r * OV.ROW + 0.75, d.colW - 1.5, OV.ROW - 1.5);
     }
   }
-  const bucketLabel = (t, size) => size === DAY ? dShort(t) : `week of ${dShort(t)}`;
+  const bucketLabel = (t, size) => size === DAY ? dShort(t) : size === WEEK ? `week of ${dShort(t)}` : `${bucketName(size)} from ${dShort(t)}`;
   function cellTip(r, c, ev) {
     const d = ov, row = d.rows[r], pairs = [];
     let sm = 0;
     for (let k = d.K - 1; k >= 0; k--) { const n = row.counts[c * d.K + k]; if (n) { pairs.push([d.types[k], n]); sm += n; } }
-    showTip([h("span", {class: "v"}, fmt(sm)), ` assertion${sm === 1 ? "" : "s"}`, h("div", {class: "t"}, `${row.name} · ${bucketLabel(d.b0 + c * d.size, d.size)}`), kindRows(pairs)], ev);
+    showTip([h("span", {class: "v"}, fmt(sm)), ` event${sm === 1 ? "" : "s"}`, h("div", {class: "t"}, `${row.name} · ${bucketLabel(d.b0 + c * d.size, d.size)}`), kindRows(pairs)], ev);
   }
   function stripTip(c, ev) {
     const d = ov, pairs = [];
     let sm = 0;
     for (let k = d.K - 1; k >= 0; k--) { const n = d.strip[c * d.K + k]; if (n) { pairs.push([d.types[k], n]); sm += n; } }
-    showTip([h("span", {class: "v"}, fmt(sm)), ` assertion${sm === 1 ? "" : "s"}`, h("div", {class: "t"}, bucketLabel(d.b0 + c * d.size, d.size)), kindRows(pairs)], ev);
+    showTip([h("span", {class: "v"}, fmt(sm)), ` distinct event${sm === 1 ? "" : "s"}`, h("div", {class: "t"}, bucketLabel(d.b0 + c * d.size, d.size)), kindRows(pairs)], ev);
   }
   const colAt = x => { const c = Math.floor((x - ov.gx) / ov.colW); return c >= 0 && c < ov.nCols ? c : -1; };
   plot.addEventListener("pointermove", ev => {
-    if (!tlOn() || tl.subject) return;
+    if (!tlOn() || tl.subject || !ov) return;
     const cv = ev.target.closest("canvas");
     if (!cv) { if (cellHover) { cellHover = null; drawCells(); } if (stripHover >= 0 && !brush) { stripHover = -1; drawStrip(); } if (!ev.target.closest(".tlrow")) tlHideTip(); return; }
     const b = cv.getBoundingClientRect(), x = ev.clientX - b.left, y = ev.clientY - b.top;
@@ -2561,9 +2568,9 @@ async function main() {
       if (hit) cellTip(r, c, ev); else tlHideTip();
     }
   });
-  plot.addEventListener("pointerleave", () => { if (tl.subject) return; tlHideTip(); if (cellHover) { cellHover = null; drawCells(); } if (stripHover >= 0) { stripHover = -1; drawStrip(); } });
+  plot.addEventListener("pointerleave", () => { if (tl.subject || !ov) return; tlHideTip(); if (cellHover) { cellHover = null; drawCells(); } if (stripHover >= 0) { stripHover = -1; drawStrip(); } });
   plot.addEventListener("pointerdown", ev => {
-    if (tl.subject || ev.target.id !== "tlStrip" || ev.button !== 0) return;
+    if (tl.subject || !ov || ev.target.id !== "tlStrip" || ev.button !== 0) return;
     const b = ev.target.getBoundingClientRect(), x = Math.max(ov.gx, Math.min(ov.gx + ov.gw, ev.clientX - b.left));
     brush = {a: x, b: x}; ev.target.setPointerCapture(ev.pointerId); tlHideTip();
   });
@@ -2581,42 +2588,38 @@ async function main() {
   plot.addEventListener("click", ev => {
     const pin = ev.target.closest("[data-pin]");
     if (pin) { const id = pin.dataset.pin; tl.pins = tl.pins.includes(id) ? tl.pins.filter(x => x !== id) : [...tl.pins, id]; renderOverview(); pushState(); return; }
-    // a cell shows its bucket in the graph's time range
-    if (ev.target.id === "tlCells" && cellHover) { const t = ov.b0 + cellHover.c * ov.size; setRange(t, t + ov.size - 1, true); }
+    const row = ev.target.closest("[data-tlsub]");
+    if (row) { tlOpen(row.dataset.tlsub); return; }
+    if (ev.target.id === "tlCells" && cellHover && ov) tlOpen(ov.rows[cellHover.r].id);
   });
 
-  // ---- swimlanes of one node: one lane per predicate it states or is stated by, ordered by salience; a
-  // history bar for the property whose value changes most over time ----
+  // ---- swimlanes of one subject: one lane per event type, ordered by salience; a history bar for the
+  // property of its detail whose value changes most over time ----
   const LN = {LABEL: 178, PAD: 8, ROW: 13, AXIS: 26, MAXROWS: 6, STATUS: 40};
   let ln = null;
-  const laneName = l => {
-    const c = l.items[0].predicate, name = predicateName(c);
-    return l.key.endsWith("|in") ? `← ${name}` : name;
-  };
   function laneData() {
-    const R = tlRange(), sid = tl.subject, d = tlDetail.d, size = bucketSize();
-    const byKey = new Map();
-    for (const it of tlItems(d)) {
-      if (tl.off.has(it.type) || it.end < R.lo || it.t > R.hi) continue;
-      if (!byKey.has(it.key)) byKey.set(it.key, []);
-      byKey.get(it.key).push(it);
+    const R = tlRange(), T = tlLanes, size = Number(T.meta.bucket_ms);
+    const byType = new Map();
+    for (const e of T.events) {
+      const t = num(e.start), end = num(e.end) ?? t;
+      if (t == null || tl.off.has(e.type) || end < R.lo || t > R.hi) continue;
+      if (!byType.has(e.type)) byType.set(e.type, []);
+      byType.get(e.type).push({id: e.id, type: e.type, t, end, d: e.distance, name: e.name, path: e.path});
     }
-    // salience = links × recency × burstiness, normalised to the top lane
+    // salience = weighted links × recency × burstiness, normalised to the top lane
     const tau = Math.max(DAY, (R.hi - R.lo) / 3), b0 = bStart(R.lo, size), nb = Math.max(1, Math.round((bStart(R.hi, size) - b0) / size) + 1);
     const lanes = [];
-    for (const [key, items] of byKey) {
+    for (const [type, items] of byType) {
       items.sort((a, b) => a.t - b.t);
-      let rec = 0;
-      const per = new Float64Array(nb), kinds = new Map();
-      for (const it of items) { rec += Math.exp(-(R.hi - it.t) / tau);
-        per[Math.min(nb - 1, Math.max(0, Math.floor((it.t - b0) / size)))]++;
-        kinds.set(it.type, (kinds.get(it.type) || 0) + 1); }
+      let w = 0, rec = 0, w1 = 0;
+      const per = new Float64Array(nb);
+      for (const it of items) { w += HOP_W[it.d] ?? 0; if (it.d === 1) w1++; rec += Math.exp(-(R.hi - it.t) / tau);
+        per[Math.min(nb - 1, Math.max(0, Math.floor((it.t - b0) / size)))]++; }
       rec /= items.length;
       const mean = items.length / nb;
       let v = 0; for (const x of per) v += (x - mean) ** 2;
-      const cv = mean ? Math.sqrt(v / nb) / mean : 0, w = items.length;
-      const type = [...kinds].sort((a, b) => b[1] - a[1])[0][0];
-      lanes.push({key, type, types: [type], items, w, w1: w, rec, burst: 1 + cv, s: w * rec * (1 + cv)});
+      const cv = mean ? Math.sqrt(v / nb) / mean : 0;
+      lanes.push({key: type, types: [type], items, w, w1, rec, burst: 1 + cv, s: w * rec * (1 + cv)});
     }
     const top = Math.max(1e-9, ...lanes.map(l => l.s));
     lanes.forEach(l => { l.sal = l.s / top; });
@@ -2635,12 +2638,13 @@ async function main() {
       const items = rest.flatMap(l => l.items).sort((a, b) => a.t - b.t);
       order = [...order.slice(0, n - 1), {key: "*other", types: rest.map(l => l.key), items, folded: rest, w: 0, s: 0}];
     }
-    const node = {id: sid, name: d.node.name, type: d.node.type};
-    const hist = tlHistory(d);
+    const row = T.rows[0];
+    const node = {id: tl.subject, name: row?.name ?? nodeName(tl.subject), type: T.meta.row_type ?? nodeType(tl.subject)};
+    const hist = tlDetail.id === tl.subject && tlDetail.d ? tlHistory(tlDetail.d) : null;
     let status = null;
     if (hist) {
       const as = hist.list.slice().sort((a, b) => num(a.valid_from) - num(b.valid_from));
-      const last = Math.max(tlModel().hi, ...as.map(a => num(a.valid_from)));
+      const last = Math.max(tlSpan().hi, ...as.map(a => num(a.valid_from)));
       status = as.map((a, i) => ({value: valueText(Data.plain(a.object_value)), lifecycle: a.lifecycle.kind, t: num(a.valid_from),
         open: num(a.valid_to) == null && !as[i + 1], end: num(a.valid_to) ?? num(as[i + 1]?.valid_from) ?? last}));
     }
@@ -2671,17 +2675,19 @@ async function main() {
   function renderLanes() {
     const t0 = performance.now(), d = laneData(), node = d.node;
     const hist = d.hist;
-    put($("tlBar"), h("span", {class: "grp"}, h("button", {class: "plain", "data-tlact": "back"}, "← every type")),
-      evChips(),
+    const back = tl.kind ?? node.type;
+    put($("tlBar"), h("span", {class: "grp"}, h("button", {class: "plain", "data-tlact": "back"}, `← all ${back ? tname(back) : "subjects"}`)),
+      hopSeg(), evChips(),
       h("span", {class: "grp"}, h("button", {class: "plain", "data-tlact": "fit", title: "Fit the time axis (F)"}, "fit"),
         h("button", {class: "plain", "data-tlact": "graph"}, "show in graph")), rangeChip());
     const count = d.lanes.reduce((sm, l) => sm + l.items.length, 0);
-    put($("tlHead"), h("h1", {title: node.name}, node.name), typeChip(node.type), h("span", {class: "badge"}, `${fmt(count)} dated assertions`),
+    put($("tlHead"), h("h1", {title: node.name}, node.name), node.type ? typeChip(node.type) : "",
+      h("span", {class: "badge"}, `${fmt(count)} events within ${tl.hops} hop${tl.hops > 1 ? "s" : ""}`),
       hist ? h("span", {class: "badge", title: `${fmt(hist.values)} values stated over time`}, `${pname(hist.prop)} history`) : "");
-    $("tlSub").textContent = `one lane per predicate, from its detail; lanes ordered by salience (assertions × recency × burstiness; hover a lane name for why) · ` +
-      `drag a lane name to reorder · wheel zooms, drag pans, double-click fits · click an item to open what it links`;
+    $("tlSub").textContent = `lanes ordered by salience (weighted links × recency × burstiness; hover a lane name for why) · drag a lane name to reorder · ` +
+      `wheel zooms, drag pans, double-click fits · click an item for its details`;
     put($("tlLegend"), d.hiddenLanes.length ? [h("span", {style: "color:var(--text-muted)"}, "hidden:"),
-      d.hiddenLanes.map(l => h("span", {class: "evchip", "data-unhide": l.key, title: "Show this lane again"}, `${laneName(l)} · ${fmt(l.items.length)} ↺`))] : "");
+      d.hiddenLanes.map(l => h("span", {class: "evchip", "data-unhide": l.key, title: "Show this lane again"}, `${tname(l.key)} · ${fmt(l.items.length)} ↺`))] : "");
     const W = Math.max(520, plot.clientWidth - 2), cw = W - LN.LABEL - 16;
     if (!tl.view) tl.view = fitView(d);
     // lane geometry
@@ -2703,11 +2709,11 @@ async function main() {
             pname(hist.prop), h("span", {class: "n"}, `${fmt(d.status.length)} stated value${d.status.length === 1 ? "" : "s"}`));
           const l = g.lane, other = l.key === "*other";
           return h("div", {class: "tllane", draggable: other ? null : "true", "data-lane": other ? null : l.key, "data-why": l.key, style: `top:${g.top}px;width:${LN.LABEL}px;height:${g.h}px`},
-            other ? h("a", {class: "link", "data-tlact": "other"}, `other · ${l.types.length} predicates ▸`) :
-              [h("span", {class: "lk", style: typeSwatch(l.type)}), laneName(l), h("span", {class: "pin", "data-hide": l.key, title: "Hide this lane", style: "float:right;cursor:pointer;color:var(--text-muted)"}, "×")],
-            h("span", {class: "n"}, fmt(l.items.length), other ? "" : ` · salience ${l.sal.toFixed(2)}`));
+            other ? h("a", {class: "link", "data-tlact": "other"}, `other · ${l.types.length} types ▸`) :
+              [h("span", {class: "lk", style: typeSwatch(l.key)}), tname(l.key), h("span", {class: "pin", "data-hide": l.key, title: "Hide this lane", style: "float:right;cursor:pointer;color:var(--text-muted)"}, "×")],
+            h("span", {class: "n"}, fmt(l.items.length), other ? "" : ` · ${fmt(l.w1)} direct · salience ${l.sal.toFixed(2)}`));
         }),
-        geo.length ? "" : h("div", {id: "tlEmpty"}, `No assertion of ${node.name} carries a valid time in this range.`)));
+        geo.length ? "" : h("div", {id: "tlEmpty"}, `Nothing linked to ${node.name} within ${tl.hops} hop${tl.hops > 1 ? "s" : ""} in this range.`)));
     ln = {d, geo, W, cw, H, marks: []};
     drawLanes();
     tl.stats.lanesMs = performance.now() - t0;
@@ -2794,6 +2800,15 @@ async function main() {
     }
     return best;
   }
+  // the path that linked an item, for its tooltip: every step of the walk from the subject
+  function viaText(it) {
+    const steps = it.path || [];
+    const edge = st => st.forward ? `—${ename(st.edge_type)}→` : `←${ename(st.edge_type)}—`;
+    if (!steps.length) return "";
+    if (steps.length === 1) return `direct: subject ${edge(steps[0])} ${tname(it.type)}`;
+    return `via ` + steps.slice(0, -1).map(st => `${tname(st.type)} ${short(st.name)} (${ename(st.edge_type)})`).join(" › ") +
+      ` · ${steps.length} hops, last ${edge(steps[steps.length - 1])}`;
+  }
   function itemTip(m, ev) {
     if (m.seg) {
       const st = m.seg;
@@ -2802,9 +2817,8 @@ async function main() {
       return;
     }
     const it = m.it;
-    showTip([h("b", null, it.name), h("div", {class: "t"}, `${predicateName(it.predicate)} · ${dLong(it.t)} UTC${it.end - it.t >= HOUR ? ` → ${dLong(it.end)} (${dur(it.end - it.t)})` : ""} · ${it.lifecycle}`,
-      it.node ? ` · ${tname(it.type)}` : "", roleBadge(it.type)),
-      h("div", {class: "via"}, `${it.dir === "in" ? "stated about" : "stated by"} ${ln.d.node.name} · assertion ${shortId(it.id)}`)], ev);
+    showTip([h("b", null, it.name), h("div", {class: "t"}, `${tname(it.type)} · ${dLong(it.t)} UTC${it.end - it.t >= HOUR ? ` → ${dLong(it.end)} (${dur(it.end - it.t)})` : ""}`, roleBadge(it.type)),
+      h("div", {class: "via"}, viaText(it))], ev);
   }
   function laneWhy(key, ev) {
     if (key === "*status") {
@@ -2812,25 +2826,26 @@ async function main() {
       showTip([h("b", null, pname(hs.prop)), h("div", {class: "t", style: "white-space:normal"}, `${fmt(hs.values)} values stated over time: the property of this node whose value changes most`)], ev);
       return;
     }
-    const l = ln.d.lanes.find(x => x.key === key);
+    const l = ln.d.lanes.find(x => x.key === key), e = tlModel().events.find(x => x.type === key);
     if (!l || l.key === "*other") return;
-    showTip([h("b", null, laneName(l)), " · salience ", h("span", {class: "v"}, l.sal.toFixed(2)), ` (rank ${l.rank} of ${ln.d.all.length})`,
-      h("div", {class: "t", style: "white-space:normal"}, `${fmt(l.w)} dated assertions × ${l.rec.toFixed(2)} recency × ${l.burst.toFixed(2)} burstiness (1 + CV of per-bucket counts)`)], ev);
+    showTip([h("b", null, tname(key)), " · salience ", h("span", {class: "v"}, l.sal.toFixed(2)), ` (rank ${l.rank} of ${ln.d.all.length})`,
+      h("div", {class: "t", style: "white-space:normal"}, `${l.w.toFixed(1)} weighted links (1-hop ×1, 2-hop ×½, 3-hop ×¼) × ${l.rec.toFixed(2)} recency × ${l.burst.toFixed(2)} burstiness (1 + CV of per-bucket counts)`),
+      e ? h("div", {class: "via", style: "color:var(--text-secondary)"}, `event type because ${e.why}`) : ""], ev);
   }
   // zoom (wheel, around the pointer), pan (drag), fit (double-click)
   let drag = null, frame = 0;
   const redraw = () => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; drawLanes(); }); };
   plot.addEventListener("wheel", ev => {
-    if (!tl.subject || ev.target.id !== "tlLanes") return;
+    if (!tl.subject || !ln || ev.target.id !== "tlLanes") return;
     ev.preventDefault();
     const b = ev.target.getBoundingClientRect(), f = (ev.clientX - b.left) / ln.cw, v = tl.view, span = v.hi - v.lo;
-    const M = tlModel(), k = Math.exp(Math.max(-60, Math.min(60, ev.deltaY)) * 0.004);
-    const next = Math.max(10 * 6e4, Math.min(4 * Math.max(DAY, M.hi - M.lo), span * k)), at = v.lo + f * span;
+    const S = tlSpan(), k = Math.exp(Math.max(-60, Math.min(60, ev.deltaY)) * 0.004);
+    const next = Math.max(10 * 6e4, Math.min(4 * Math.max(DAY, S.hi - S.lo), span * k)), at = v.lo + f * span;
     tl.view = {lo: at - f * next, hi: at - f * next + next};
     tlHideTip(); redraw();
   }, {passive: false});
   plot.addEventListener("pointerdown", ev => {
-    if (!tl.subject || ev.target.id !== "tlLanes" || ev.button !== 0) return;
+    if (!tl.subject || !ln || ev.target.id !== "tlLanes" || ev.button !== 0) return;
     drag = {x: ev.clientX, y: ev.clientY, v: {...tl.view}, moved: false};
     ev.target.setPointerCapture(ev.pointerId); ev.target.style.cursor = "grabbing";
   });
@@ -2856,7 +2871,7 @@ async function main() {
     drag = null; ev.target.style.cursor = "grab";
     if (moved || ev.target.id !== "tlLanes") return;
     const b = ev.target.getBoundingClientRect(), m = markAt(ev.clientX - b.left, ev.clientY - b.top);
-    if (m?.it) { tl.sel = m.it.id; drawLanes(); if (m.it.node) openNode(m.it.node); }
+    if (m?.it) { tl.sel = m.it.id; drawLanes(); openNode(m.it.id); }
   });
   plot.addEventListener("dblclick", ev => { if (tl.subject && ev.target.id === "tlLanes") tlFit(); });
   plot.addEventListener("click", ev => {
@@ -2883,7 +2898,9 @@ async function main() {
     const seg = ev.target.closest("[data-seg] button");
     if (seg) {
       const name = seg.closest("[data-seg]").dataset.seg, v = seg.dataset.v;
-      tl[name] = v;
+      if (name === "kind") { tl.kind = v; tl.pins = []; }
+      else if (name === "hops") { tl.hops = +v; tl.view = null; }
+      else tl[name] = v;
       tlRender(); pushState(); return;
     }
     const chip = ev.target.closest("[data-ev]");
@@ -2897,15 +2914,33 @@ async function main() {
     else if (act === "clear-range") setRange(null, null, true);
     else if (act === "other") { tl.other = true; renderLanes(); pushState(); }
   });
-  // A node's timeline is drawn from its detail, read once per revision.
-  async function tlSubject(id) {
-    if (tlDetail.id === id && tlDetail.d) return true;
-    tlDetail.id = id; tlDetail.d = null;
+  // What the view asks /timeline: the rows of the chosen type, or one subject with its events.
+  const tlQuery = () => tl.subject ? {hops: tl.hops, bucket: tl.bucket === "auto" ? null : tl.bucket, subject: tl.subject}
+    : {type: tl.kind ?? null, hops: tl.hops, bucket: tl.bucket === "auto" ? null : tl.bucket};
+  const tlKey = q => JSON.stringify(q);
+  // Reads what the view needs and keeps it; false when a later read superseded this one or it failed.
+  async function tlLoad(want) {
     let d;
-    try { d = await Data.node(id, "timeline"); } catch (err) { if (tlDetail.id === id) tlEmpty(`the detail of ${nodeName(id)} did not load: ${err.message}`); return false; }
-    if (!d || tlDetail.id !== id) return false;
-    tlDetail.d = d;
-    learn(d);
+    try { d = await Data.timeline(want); } catch (err) { tlEmpty(`the timeline did not load: ${err.message}`); return false; }
+    if (!d) return false;
+    if (want.subject) {
+      if (tl.subject !== want.subject) return false;
+      for (const e of d.events) {
+        known.set(e.id, {name: e.name, type: e.type});
+        for (const st of e.path) known.set(st.node, {name: st.name, type: st.type});
+      }
+      if (d.rows[0]) known.set(d.rows[0].id, {name: d.rows[0].name, type: d.meta.row_type});
+      // the history bar reads the subject's detail, as the panel does
+      if (tlDetail.id !== want.subject) {
+        tlDetail.id = want.subject; tlDetail.d = null;
+        try { const detail = await Data.node(want.subject, "timeline"); if (detail && tlDetail.id === want.subject) { tlDetail.d = detail; learn(detail); } } catch (err) { /* no history bar */ }
+      }
+      if (tl.subject !== want.subject) return false;
+      tlLanes = {...d, key: tlKey(want)};
+    } else {
+      if (!tl.kind && d.meta.row_type) tl.kind = d.meta.row_type;
+      tlRows = {...d, key: tlKey({type: want.type ?? d.meta.row_type ?? null, hops: want.hops, bucket: want.bucket})};
+    }
     return true;
   }
   function tlOpen(id) {
@@ -2922,27 +2957,25 @@ async function main() {
   function tlRender() {
     if (!tlOn()) return;
     tlHideTip(); brush = null; cellHover = null; stripHover = -1;
-    if (tl.subject) {
-      const id = tl.subject;
-      if (tlDetail.id !== id || !tlDetail.d) {
-        tlEmpty(`reading the detail of ${nodeName(id)}…`);
-        tlSubject(id).then(ok => { if (ok && tl.subject === id && tlOn()) tlRender(); });
-        return;
-      }
-      renderLanes();
+    if (!doc.meta.counts.nodes) { tlEmpty("This revision holds no nodes yet."); return; }
+    const M = tlModel();
+    if (!M.events.length) { tlEmpty(`No node type carries a time on at least ${pct(EVENT_SHARE)} of its instances, so there is nothing to put on a time axis.`); return; }
+    const want = tlQuery(), held = tl.subject ? tlLanes : tlRows;
+    if (!held || held.key !== tlKey(want)) {
+      ln = null; ov = null;
+      tlEmpty(tl.subject ? `reading the timeline of ${nodeName(tl.subject)}…` : "reading the timeline…");
+      tlLoad(want).then(ok => { if (ok && tlOn()) tlRender(); });
       return;
     }
-    ln = null;
-    const M = tlModel();
-    if (!doc.meta.counts.nodes) { tlEmpty("This revision holds no nodes yet."); return; }
-    if (!M.types.length) { tlEmpty(`No assertion about a node carries a valid time a date can hold${M.undated ? ` (${fmt(M.undated)} carry none)` : ""}, so there is nothing to put on a time axis.`); return; }
-    renderOverview();
+    if (tl.subject) { ov = null; renderLanes(); } else { ln = null; renderOverview(); }
   }
-  function tlOnTime() { if (!tlM) return; tl.view = null; if (tlOn()) tlRender(); }
+  function tlOnTime() { tl.view = null; if (tlOn() && (tlRows || tlLanes)) tlRender(); }
   function tlToParams(p) {
     if (tl.subject) p.set("subject", tl.subject);
+    if (tl.kind && tl.kind !== tlRows?.row_types[0]?.type) p.set("kind", tl.kind);
     if (tl.bucket !== "auto") p.set("bucket", tl.bucket);
     if (tl.sort !== "activity") p.set("sort", tl.sort);
+    if (tl.hops !== 2) p.set("thops", String(tl.hops));
     if (tl.off.size) p.set("off", [...tl.off].join(","));
     if (tl.lanes.length) p.set("lanes", tl.lanes.join(","));
     if (tl.pins.length) p.set("pins", tl.pins.join(","));
@@ -2950,10 +2983,12 @@ async function main() {
   }
   function tlFromParams(p) {
     const M = tlModel(), list = k => (p.get(k) || "").split(",").filter(Boolean);
-    tl.bucket = p.get("bucket") === "week" ? "week" : "auto";
+    tl.kind = p.get("kind") || tlRows?.row_types[0]?.type || null;
+    tl.bucket = ["day", "week"].includes(p.get("bucket")) ? p.get("bucket") : "auto";
     tl.sort = ["recent", "first"].includes(p.get("sort")) ? p.get("sort") : "activity";
-    tl.off = new Set(list("off").filter(t => M.byType.has(t)));
-    tl.lanes = list("lanes"); tl.pins = list("pins").filter(t => M.byType.has(t)); tl.other = p.get("other") === "1";
+    tl.hops = Math.min(3, Math.max(1, Number(p.get("thops")) || 2));
+    tl.off = new Set(list("off").filter(t => M.evType.has(t)));
+    tl.lanes = list("lanes"); tl.pins = list("pins"); tl.other = p.get("other") === "1";
     const sb = p.get("subject");
     if (sb !== tl.subject) { tl.view = null; tl.sel = null; }
     tl.subject = sb || null;
@@ -2961,7 +2996,7 @@ async function main() {
   let tlResize = 0;
   window.addEventListener("resize", () => { if (tlOn()) { clearTimeout(tlResize); tlResize = setTimeout(tlRender, 120); } });
   window.__tl = {get model() { return tlModel(); }, state: tl, get stats() { return tl.stats; }, tlOpen,
-    get lanes() { return ln?.d; }, get overview() { return ov; }};
+    get lanes() { return ln?.d; }, get overview() { return ov; }, get rows() { return tlRows; }, get subject() { return tlLanes; }};
 
   // ---- a revision's overview: its top nodes are drawn, and the edges among them streamed in; of what earlier
   // expansions drew, what the new top holds keeps its place ----
@@ -2970,6 +3005,7 @@ async function main() {
     if (fromData) {
       tlM = null;                     // the timeline is rebuilt from the new overview when next needed
       tlDetail.id = null; tlDetail.d = null;
+      tlRows = null; tlLanes = null;  // and its rows and lanes are read again from the revision shown
       details.clear();
       if (!typeSlot.size) seedSlots();
       const first = graph.order === 0;

@@ -1,5 +1,5 @@
-//! `ekr view`'s bounded reads: `/overview`, `/node/<id>`, `/search` and the streamed `/expand`,
-//! driven end to end through the real binary.
+//! `ekr view`'s bounded reads: `/overview`, `/node/<id>`, `/search`, `/timeline` and the
+//! streamed `/expand`, driven end to end through the real binary.
 //!
 //! Each answer is compared with what the `ekr-views` engine returns for the same request through
 //! the public kernel `Runtime` opened on the same store: the JSON endpoints byte for byte, the
@@ -16,7 +16,9 @@ use std::time::{Duration, Instant};
 use ekr::host::CliHostConfigurationV1;
 use ekr_core::{NodeId, RevisionNumber};
 use ekr_kernel::Runtime;
-use ekr_views::{ExpandRequest, Index, OverviewRequest, SearchRequest, SliceRecord};
+use ekr_views::{
+    BucketWidth, ExpandRequest, Index, OverviewRequest, SearchRequest, SliceRecord, TimelineRequest,
+};
 use serde_json::Value;
 
 const BACKENDS: [&str; 2] = ["file", "sqlite"];
@@ -756,6 +758,110 @@ fn the_bounded_reads_refuse_as_whole_json_before_any_byte() {
         let missing = server.get(path);
         assert_eq!(missing.status, 404, "GET {path}");
         missing.assert_plain(path);
+    }
+}
+
+/// `/timeline` answers the engine's `ekr.graph-timeline/1` bytes as `application/json` for every
+/// parameter it takes, on both providers, and refuses before any byte as the other bounded reads
+/// do: a bound outside its range is 400 `ekr.views.LimitExceeded` naming the first broken input,
+/// an absent revision 404, and a query it cannot read 400 `invalid-query`.
+#[test]
+fn timeline_answers_the_engines_bytes_and_refuses_as_whole_json() {
+    const PERSON: &str = "00000000-0000-4000-8000-000000000201";
+    for backend in BACKENDS {
+        let world = World::seeded_with_two_revisions(backend);
+        let (head, zero) = (world.index(None), world.index(Some(0)));
+        let timeline =
+            |index: &Index, row_type: Option<&str>, hops, limit, bucket, subject: Option<&str>| {
+                let request = TimelineRequest::new(
+                    row_type.map(|id| id.parse().unwrap()),
+                    hops,
+                    limit,
+                    bucket,
+                    subject.map(|id| id.parse().unwrap()),
+                )
+                .unwrap();
+                index.timeline(&request).unwrap().bytes
+            };
+        let server = world.serve();
+        for (path, expected) in [
+            (
+                "/timeline?hops=2&limit=500".to_owned(),
+                timeline(&head, None, 2, 500, None, None),
+            ),
+            (
+                format!("/timeline?type={PERSON}&hops=1&limit=1"),
+                timeline(&head, Some(PERSON), 1, 1, None, None),
+            ),
+            (
+                format!("/timeline?type={PERSON}&hops=3&limit=10&bucket=week&revision=0"),
+                timeline(&zero, Some(PERSON), 3, 10, Some(BucketWidth::Week), None),
+            ),
+            (
+                format!("/timeline?hops=2&limit=10&bucket=day&subject={ALICE}"),
+                timeline(&head, None, 2, 10, Some(BucketWidth::Day), Some(ALICE)),
+            ),
+            (
+                format!("/timeline?hops=2&limit=10&subject={UNKNOWN_NODE}"),
+                timeline(&head, None, 2, 10, None, Some(UNKNOWN_NODE)),
+            ),
+        ] {
+            let answered = server.get(&path);
+            assert_eq!(answered.status, 200, "{backend} GET {path}");
+            assert!(!answered.chunked, "{backend} GET {path}");
+            assert_eq!(
+                answered.header("content-type"),
+                Some("application/json"),
+                "{backend} GET {path}"
+            );
+            answered.assert_plain(&path);
+            assert_eq!(
+                String::from_utf8_lossy(&answered.body()),
+                String::from_utf8_lossy(&expected),
+                "{backend} GET {path}: the engine's bytes"
+            );
+        }
+        for (path, status, name) in [
+            ("/timeline?hops=0&limit=10", 400, "ekr.views.LimitExceeded"),
+            ("/timeline?hops=4&limit=0", 400, "ekr.views.LimitExceeded"),
+            ("/timeline?hops=1&limit=501", 400, "ekr.views.LimitExceeded"),
+            (
+                "/timeline?hops=1&limit=10&revision=9",
+                404,
+                "ekr.views.RevisionNotFound",
+            ),
+            ("/timeline?limit=10", 400, "invalid-query"),
+            ("/timeline?hops=1", 400, "invalid-query"),
+            ("/timeline?hops=1&limit=10&type=x", 400, "invalid-query"),
+            ("/timeline?hops=1&limit=10&subject=x", 400, "invalid-query"),
+            (
+                "/timeline?hops=1&limit=10&bucket=month",
+                400,
+                "invalid-query",
+            ),
+            ("/timeline?hops=1&limit=10&hops=1", 400, "invalid-query"),
+            ("/timeline?hops=1&limit=10&depth=1", 400, "invalid-query"),
+        ] {
+            let refused = server.get(path);
+            refused.assert_refused(&format!("{backend} GET {path}"), status, name);
+            if name == "ekr.views.LimitExceeded" {
+                let named = if path.contains("hops=1&") {
+                    "limit"
+                } else {
+                    "hops"
+                };
+                assert!(
+                    refused.json()["message"]
+                        .as_str()
+                        .is_some_and(|message| message.starts_with(named)),
+                    "{path}: {}",
+                    refused.json()
+                );
+            }
+        }
+        let posted = server.request("POST", "/timeline");
+        assert_eq!(posted.status, 405, "POST /timeline");
+        assert_eq!(server.get("/timeline/").status, 404);
     }
 }
 

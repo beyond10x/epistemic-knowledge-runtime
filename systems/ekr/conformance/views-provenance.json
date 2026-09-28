@@ -33,6 +33,8 @@
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-search-lists-at-most-its-limit-of-matches.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-search-with-no-match-answers-an-empty-list.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-seed-only-store-projects-revision-zero.yaml",
+    "crates/ekr-views/tests/fixtures/conformance/scenarios/a-timeline-refuses-each-input-outside-its-bound.yaml",
+    "crates/ekr-views/tests/fixtures/conformance/scenarios/a-timeline-row-is-a-subject-with-its-events-within-hops.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/an-assertion-about-an-edge-is-carried-by-that-edge.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/an-expansion-refuses-each-input-outside-its-bound.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/an-overview-lists-at-most-its-limit-of-top-nodes.yaml",

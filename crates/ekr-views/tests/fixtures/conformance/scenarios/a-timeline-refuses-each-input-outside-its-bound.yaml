@@ -1,0 +1,187 @@
+# ProjectTimeline's bounds: `hops` 1 to 3 and `limit` 1 to 500, checked before the store is read;
+# a subject the revision does not hold is no refusal, and answers no row.
+#
+# The store `subjects` is the one a-timeline-row-is-a-subject-with-its-events-within-hops
+# describes, a seed only at revision 0. Hops 1 and 3 and limits 1 and 500 are answered; hops 0 and
+# 4 and limits 0 and 501 are refused, naming the input, its value and its bounds. Hops 4 with limit
+# 0 names hops, the first broken input in the command's declared order. The subject
+# 00000000-0000-4000-8000-000000a09999 is no node of the store: the answer lists no row and no
+# event, and its row type is the first listed, holder, whose three active subjects reach five
+# distinct events within 2 hops.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-timeline-refuses-each-input-outside-its-bound
+summary: Hops 1 and 3 and limits 1 and 500 are answered; hops 0 or 4 and limit 0 or 501 are refused naming the first broken input, and an unknown subject answers no row.
+
+timeline:
+  - at: 2027-03-02T11:00:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: subjects
+      at: null
+      row_type: null
+      hops: 1
+      limit: 1
+      bucket: null
+      subject: null
+    outcome: timelined
+    events:
+      - event: ekr.views.SubjectsTimelined
+        payload:
+          hops: 1
+          rows: 1
+          first_row: 00000000-0000-4000-8000-000000a00101
+
+  - at: 2027-03-02T11:01:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: subjects
+      at: null
+      row_type: null
+      hops: 3
+      limit: 500
+      bucket: null
+      subject: null
+    outcome: timelined
+    events:
+      - event: ekr.views.SubjectsTimelined
+        payload:
+          hops: 3
+          rows: 3
+
+  - at: 2027-03-02T11:02:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: subjects
+      at: null
+      row_type: null
+      hops: 0
+      limit: 10
+      bucket: null
+      subject: null
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: hops
+        requested: 0
+        minimum: 1
+        maximum: 3
+    no_events:
+      - ekr.views.SubjectsTimelined
+
+  - at: 2027-03-02T11:03:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: subjects
+      at: null
+      row_type: null
+      hops: 4
+      limit: 10
+      bucket: null
+      subject: null
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: hops
+        requested: 4
+        minimum: 1
+        maximum: 3
+    no_events:
+      - ekr.views.SubjectsTimelined
+
+  - at: 2027-03-02T11:04:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: subjects
+      at: null
+      row_type: null
+      hops: 2
+      limit: 0
+      bucket: null
+      subject: null
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: limit
+        requested: 0
+        minimum: 1
+        maximum: 500
+    no_events:
+      - ekr.views.SubjectsTimelined
+
+  - at: 2027-03-02T11:05:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: subjects
+      at: null
+      row_type: null
+      hops: 2
+      limit: 501
+      bucket: null
+      subject: null
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: limit
+        requested: 501
+        minimum: 1
+        maximum: 500
+    no_events:
+      - ekr.views.SubjectsTimelined
+
+  - at: 2027-03-02T11:06:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: subjects
+      at: null
+      row_type: null
+      hops: 4
+      limit: 0
+      bucket: null
+      subject: null
+    outcome: limit-exceeded
+    error:
+      name: ekr.views.LimitExceeded
+      fields:
+        parameter: hops
+        requested: 4
+        minimum: 1
+        maximum: 3
+    no_events:
+      - ekr.views.SubjectsTimelined
+
+  - at: 2027-03-02T11:07:00Z
+    command: ekr.views.ProjectTimeline
+    actor: ekr.views.Reader
+    input:
+      store: subjects
+      at: null
+      row_type: null
+      hops: 2
+      limit: 10
+      bucket: null
+      subject: 00000000-0000-4000-8000-000000a09999
+    outcome: timelined
+    events:
+      - event: ekr.views.SubjectsTimelined
+        payload:
+          row_type: 00000000-0000-4000-8000-000000a00001
+          subjects: 3
+          active: 3
+          rows: 0
+          events: 5
+          row_events: 0
+          cells: 0
+          strip: 5
+          listed_events: 0
