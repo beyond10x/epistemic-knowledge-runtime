@@ -15,10 +15,13 @@
 //! occurrence's position and event, which binds every record address — and only by an authority
 //! with the same host context and anchor. Its head graph must reproduce the knowledge and
 //! evidence roots the head's retained receipt records, and each schema version must reproduce
-//! the ontology root of every revision it is in force at. What it takes on trust is that the
-//! prefix was replayed and every retained decision re-derived when the checkpoint was written:
-//! a checkpoint records that verification, it does not repeat it. A store opened for full
-//! replay ignores checkpoints and repeats it.
+//! the ontology root of every revision it is in force at. What no revision root binds — the
+//! head graph's root and the evidence payloads the seed requires — must equal what the seed
+//! envelope the prefix binds says, so that a changed cache can neither become the root the
+//! kernel's next decisions record nor drop bytes a verified read holds. What it takes on trust
+//! is that the prefix was replayed and every retained decision re-derived when the checkpoint
+//! was written: a checkpoint records that verification, it does not repeat it. A store opened
+//! for full replay ignores checkpoints and repeats it.
 //!
 //! A checkpoint that fails any check is not an error of the store. It is ignored, and the
 //! history is replayed in full as if it were absent.
@@ -247,6 +250,20 @@ impl KernelAuthority {
             RevisionPayload::Seeded { seed_hash, .. } => seed_hash,
             _ => return Err(StoreError::NotSeeded),
         };
+        // The graph root and the seed's evidence payloads are the seed's, not the replay's: no
+        // revision root binds them, so they are read from the seed envelope the prefix binds.
+        let envelope = crate::seed::envelope(history.content(seed_hash, StorageClass::Canonical)?)?;
+        require(
+            checkpoint.graph.root == envelope.input.graph.root,
+            "checkpoint-graph-root-identity",
+        )?;
+        require(
+            checkpoint
+                .seed_payloads
+                .iter()
+                .eq(envelope.input.evidence_payloads.keys()),
+            "checkpoint-seed-payloads",
+        )?;
         let payloads = checkpoint.seed_payloads.clone();
         let state = restored(history, covered, checkpoint)?;
         let mut cache = self
