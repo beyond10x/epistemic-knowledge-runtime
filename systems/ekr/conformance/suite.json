@@ -377,8 +377,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "965c39895cbf972dc505b122d5d081c0c8373d1aa607ac5fd2910b981b396af1",
-    "spec_digest": "bebbc3dfa734e645fa2838eba3700babe945965208420d73b517eeaa0425672b",
+    "contract_digest": "eac8f5b2f68f9af13ff4ff3ddc73b23285953a5bcaeeb8ed2565925ea439356c",
+    "spec_digest": "fc74df41c3579a00ace0b97f0d5cd98950495e8315cf7714d827358a688ea787",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"
@@ -2523,24 +2523,6 @@
           "step": "expect_event"
         },
         {
-          "event": "ekr.store.CheckpointWritten",
-          "shape": {
-            "binding": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "checkpoint_hash": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "covered": {
-              "holds": "primitive",
-              "kind": "integer"
-            }
-          },
-          "step": "expect_event"
-        },
-        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -2566,6 +2548,10 @@
         },
         {
           "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
           "step": "expect_no_event"
         },
         {
@@ -8553,24 +8539,6 @@
           "step": "expect_event"
         },
         {
-          "event": "ekr.store.CheckpointWritten",
-          "shape": {
-            "binding": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "checkpoint_hash": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "covered": {
-              "holds": "primitive",
-              "kind": "integer"
-            }
-          },
-          "step": "expect_event"
-        },
-        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -8596,6 +8564,10 @@
         },
         {
           "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
           "step": "expect_no_event"
         },
         {
@@ -8979,24 +8951,6 @@
           "step": "expect_event"
         },
         {
-          "event": "ekr.store.CheckpointWritten",
-          "shape": {
-            "binding": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "checkpoint_hash": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "covered": {
-              "holds": "primitive",
-              "kind": "integer"
-            }
-          },
-          "step": "expect_event"
-        },
-        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -9022,6 +8976,10 @@
         },
         {
           "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
           "step": "expect_no_event"
         },
         {
@@ -9355,24 +9313,6 @@
           "step": "expect_event"
         },
         {
-          "event": "ekr.store.CheckpointWritten",
-          "shape": {
-            "binding": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "checkpoint_hash": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "covered": {
-              "holds": "primitive",
-              "kind": "integer"
-            }
-          },
-          "step": "expect_event"
-        },
-        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -9398,6 +9338,10 @@
         },
         {
           "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
           "step": "expect_no_event"
         },
         {
@@ -10103,24 +10047,6 @@
           "step": "expect_event"
         },
         {
-          "event": "ekr.store.CheckpointWritten",
-          "shape": {
-            "binding": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "checkpoint_hash": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "covered": {
-              "holds": "primitive",
-              "kind": "integer"
-            }
-          },
-          "step": "expect_event"
-        },
-        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -10146,6 +10072,10 @@
         },
         {
           "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
           "step": "expect_no_event"
         },
         {
@@ -12329,24 +12259,6 @@
           "step": "expect_event"
         },
         {
-          "event": "ekr.store.CheckpointWritten",
-          "shape": {
-            "binding": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "checkpoint_hash": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "covered": {
-              "holds": "primitive",
-              "kind": "integer"
-            }
-          },
-          "step": "expect_event"
-        },
-        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -12372,6 +12284,10 @@
         },
         {
           "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
           "step": "expect_no_event"
         },
         {
@@ -13112,24 +13028,6 @@
           "step": "expect_event"
         },
         {
-          "event": "ekr.store.CheckpointWritten",
-          "shape": {
-            "binding": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "checkpoint_hash": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "covered": {
-              "holds": "primitive",
-              "kind": "integer"
-            }
-          },
-          "step": "expect_event"
-        },
-        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -13155,6 +13053,10 @@
         },
         {
           "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
           "step": "expect_no_event"
         },
         {

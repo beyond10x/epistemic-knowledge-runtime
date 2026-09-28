@@ -594,6 +594,75 @@ fn ekr_view_answers_busy_over_64_connections_and_serves_again_after_their_deadli
     server.stop();
 }
 
+/// `task:historical-projection-carries-the-head`: a commit made by another process while
+/// `ekr view` serves moves `/head` and nothing any revision already answered. Revision 0's
+/// projection, roles and overview are byte for byte what they were, and what the engine renders;
+/// a request naming no revision reads the new head.
+#[test]
+fn ekr_view_serves_the_head_at_head_and_a_past_revision_unchanged_across_a_commit() {
+    for backend in BACKENDS {
+        let world = World::new(backend);
+        let seed = fixture("seed.yaml").display().to_string();
+        assert_eq!(world.ok(&["seed", &seed])["result"]["revision"], 0);
+        let server = world.serve();
+        let head = |server: &Server| {
+            let answer = server.get("/head");
+            assert_eq!(answer.status, 200, "{backend}");
+            assert_eq!(answer.header("content-type"), Some("application/json"));
+            answer.body
+        };
+        assert_eq!(
+            head(&server),
+            b"{\"format\":\"ekr.view-head/1\",\"head\":0}"
+        );
+        let past = [
+            "/projection?revision=0",
+            "/roles?revision=0",
+            "/overview?revision=0",
+        ];
+        let before: Vec<Vec<u8>> = past.iter().map(|path| server.get(path).body).collect();
+        assert_eq!(
+            before[0],
+            ekr_views::project(&world.runtime(), Some(RevisionNumber::new(0)))
+                .unwrap()
+                .bytes,
+            "{backend}"
+        );
+
+        let propose = fixture("propose-alice.yaml").display().to_string();
+        assert_eq!(world.ok(&["propose", &propose])["transaction_id"], T_ALICE);
+        assert_eq!(
+            world.ok(&["validate", T_ALICE, "--against", "0"])["kind"],
+            "Validated"
+        );
+        assert_eq!(world.ok(&["commit", T_ALICE])["result"]["revision"], 1);
+
+        assert_eq!(
+            head(&server),
+            b"{\"format\":\"ekr.view-head/1\",\"head\":1}"
+        );
+        for (path, before) in past.iter().zip(&before) {
+            let after = server.get(path);
+            assert_eq!(after.status, 200, "{backend} GET {path}");
+            assert!(
+                &after.body == before,
+                "{backend} GET {path}: the bytes changed after a commit\nbefore {}\nafter  {}",
+                String::from_utf8_lossy(before),
+                String::from_utf8_lossy(&after.body)
+            );
+        }
+        let newest: Value = serde_json::from_slice(&server.get("/projection").body).unwrap();
+        assert_eq!(newest["meta"]["revision"], 1, "{backend}");
+        assert!(newest["meta"].get("head").is_none(), "{backend}");
+        for query in ["?revision=0", "?x=1", "?"] {
+            let refused = server.get(&format!("/head{query}"));
+            let expected = if query == "?" { 200 } else { 400 };
+            assert_eq!(refused.status, expected, "{backend} GET /head{query}");
+        }
+        server.stop();
+    }
+}
+
 #[test]
 fn ekr_view_opens_an_existing_store_only() {
     for backend in BACKENDS {

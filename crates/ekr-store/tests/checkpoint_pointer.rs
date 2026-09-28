@@ -149,3 +149,48 @@ fn a_pointer_another_handle_wrote_since_is_kept_and_the_next_write_still_lands()
     }
     assert!(wrong.is_empty(), "\n{}", wrong.join("\n"));
 }
+
+/// Design § 99: a write says whether its pointer stands afterwards, so that a writer takes its
+/// checkpoint for the retained one only when it is: appended, or already the newest pointer, is
+/// `true`; a pointer with no retained checkpoint to name writes nothing and is `false`.
+#[test]
+fn a_write_says_whether_its_pointer_stands() {
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let store = open(directory.path(), file);
+        assert_eq!(
+            store.write_checkpoint(1, binding("nothing to name"), None),
+            Ok(false),
+            "file={file}"
+        );
+        assert_eq!(
+            store.write_checkpoint(1, binding("first"), Some(b"a first checkpoint")),
+            Ok(true),
+            "file={file}: appended"
+        );
+        assert_eq!(
+            store.write_checkpoint(1, binding("first"), Some(b"a first checkpoint")),
+            Ok(true),
+            "file={file}: already the newest"
+        );
+        assert_eq!(
+            open(directory.path(), file).write_checkpoint(2, binding("second"), None),
+            Ok(true),
+            "file={file}: a pointer naming the retained checkpoint, by another handle"
+        );
+        assert_eq!(
+            store.write_checkpoint(3, binding("third"), Some(b"a third checkpoint")),
+            Ok(true),
+            "file={file}: appended after the other handle's, its own record having lost"
+        );
+        assert_eq!(
+            pointers(directory.path(), file),
+            vec![
+                (1, binding("first").to_hex()),
+                (2, binding("second").to_hex()),
+                (3, binding("third").to_hex()),
+            ],
+            "file={file}"
+        );
+    }
+}

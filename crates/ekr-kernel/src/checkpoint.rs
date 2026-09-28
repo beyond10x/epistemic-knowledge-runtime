@@ -30,6 +30,15 @@
 //!
 //! A checkpoint that fails any check is not an error of the store. It is ignored, and the
 //! history is replayed in full as if it were absent.
+//!
+//! # When one is written
+//!
+//! A seed writes one. A commit writes one when it is due (design § 99): when the authority knows
+//! of no retained checkpoint, or the head is [`REPLAY_CHECKPOINT_COMMITS`] revisions past the
+//! retained one's, or the commits since it hold [`REPLAY_CHECKPOINT_OPERATIONS`] operations, or
+//! a validation since it was made against a revision before its head. Any other commit appends only a pointer that names the retained checkpoint with the new
+//! coverage. A proposal, a validation or a stale decision appends nothing: an open replays what
+//! follows the checkpoint, and it answers the same wherever the checkpoint lies.
 use crate::replay::{prefix_digests, refuse, require, ReplayState, Revision};
 use crate::seed::{narrow_assertion, narrow_edge, narrow_node, SeedOutline};
 use crate::validate::HeldIdentities;
@@ -49,6 +58,17 @@ use std::sync::Arc;
 
 /// The checkpoint format this kernel writes and reads.
 pub(crate) const FORMAT: &str = "ekr.replay-checkpoint/1";
+
+/// A commit writes a replay checkpoint when its revision is at least this many revisions past
+/// the head of the retained checkpoint this authority knows of (design § 99). Between two, a
+/// commit appends only a pointer, and an open replays at most this many commits less one after
+/// the checkpoint it restores.
+pub const REPLAY_CHECKPOINT_COMMITS: u64 = 4;
+
+/// A commit also writes a replay checkpoint when the transactions committed after the retained
+/// checkpoint this authority knows of hold at least this many operations together, so that a few
+/// large commits are not replayed by every open (design § 99).
+pub const REPLAY_CHECKPOINT_OPERATIONS: u64 = 512;
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -297,6 +317,7 @@ impl KernelAuthority {
         )?;
         let payloads = checkpoint.seed_payloads.clone();
         let claimed = std::mem::take(&mut checkpoint.held);
+        let retained = (checkpoint.covered, checkpoint.revision);
         let mut state = restored(history, covered, checkpoint)?;
         // The identities the lineage held are what the seed's graph holds and what each commit
         // the prefix binds created, read from their retained proposals: the checkpoint's list
@@ -314,7 +335,56 @@ impl KernelAuthority {
             .map_err(|_| refuse("replay-cache-poisoned"))?;
         cache.insert(covered, digests[covered], Arc::new(state));
         cache.seed = Some((seed_hash, payloads));
+        cache.retained = Some(retained);
         Ok(())
+    }
+
+    /// Whether a commit that reached `state` writes a replay checkpoint, rather than only a
+    /// pointer to the retained one (design § 99): when this authority knows of no retained
+    /// checkpoint — it admitted none and wrote none — or when the head is at least
+    /// [`REPLAY_CHECKPOINT_COMMITS`] revisions past the retained one's, or the transactions
+    /// committed after it hold at least [`REPLAY_CHECKPOINT_OPERATIONS`] operations, or a
+    /// validation or rejection after it was made against a revision before its head, which every
+    /// open continuing from it would replay from the seed to re-derive.
+    pub(crate) fn checkpoint_due(&self, state: &ReplayState) -> bool {
+        let Some((covered, revision)) = self.cache.lock().ok().and_then(|cache| cache.retained)
+        else {
+            return true;
+        };
+        let head = state.head().root.revision.get();
+        if covered > state.version || head < revision.get() {
+            return true;
+        }
+        if head - revision.get() >= REPLAY_CHECKPOINT_COMMITS {
+            return true;
+        }
+        if state
+            .earlier_bases
+            .iter()
+            .any(|(version, basis)| *version > covered && *basis < revision)
+        {
+            return true;
+        }
+        let operations: u64 = state
+            .transactions
+            .values()
+            .filter(|record| {
+                record
+                    .committed
+                    .as_ref()
+                    .is_some_and(|receipt| receipt.result.revision > revision)
+            })
+            .map(|record| record.proposal.operation_count)
+            .sum();
+        operations >= REPLAY_CHECKPOINT_OPERATIONS
+    }
+
+    /// Records that the checkpoint of the state covering `covered` occurrences at `revision` is
+    /// the retained one, after this authority wrote it.
+    pub(crate) fn checkpoint_retained(&self, covered: u64, revision: RevisionNumber) {
+        if let Ok(mut cache) = self.cache.lock() {
+            cache.retained = Some((covered, revision));
+        }
     }
 }
 
@@ -325,6 +395,22 @@ fn held(
     transactions
         .get_mut(&id)
         .ok_or_else(|| refuse("checkpoint-transaction-absent"))
+}
+
+/// [`ReplayState::note_basis`] for a state being restored, whose head so far is the newest of
+/// `coordinates`.
+fn note_basis(
+    earlier: &mut Vec<(u64, RevisionNumber)>,
+    coordinates: &BTreeMap<RevisionNumber, Coordinates>,
+    version: u64,
+    basis: RevisionNumber,
+) {
+    if coordinates
+        .last_key_value()
+        .is_some_and(|(head, _)| basis < *head)
+    {
+        earlier.push((version, basis));
+    }
 }
 
 /// The coordinates of one revision, read from its retained record.
@@ -370,6 +456,7 @@ fn restored(
     let mut event_ids = BTreeSet::from([first.event.event_id]);
     let mut issue_ids = BTreeSet::new();
     let mut version = first.version;
+    let mut earlier_bases = Vec::new();
     for occurrence in &occurrences[1..] {
         let event = &occurrence.event;
         require(
@@ -399,14 +486,21 @@ fn restored(
                     },
                 );
             }
-            RevisionPayload::TransactionValidated { transaction_id, .. } => {
+            RevisionPayload::TransactionValidated {
+                transaction_id,
+                against,
+                ..
+            } => {
                 let record = ValidationReceiptV1::from_bytes(bytes)?;
+                note_basis(&mut earlier_bases, &coordinates, version, against);
                 let held = held(&mut transactions, transaction_id)?;
                 held.validation = Some(record);
                 held.validation_record_hash = Some(event.record_hash);
             }
             RevisionPayload::TransactionRejected { transaction_id, .. } => {
                 let record = RejectionRecordV1::from_bytes(bytes)?;
+                let basis = record.requested_basis.previous_root.revision;
+                note_basis(&mut earlier_bases, &coordinates, version, basis);
                 issue_ids.extend(record.issues.iter().map(|issue| issue.id));
                 held(&mut transactions, transaction_id)?.rejection = Some(record);
             }
@@ -531,6 +625,7 @@ fn restored(
         event_ids,
         issue_ids,
         held: HeldIdentities::default(),
+        earlier_bases,
     })
 }
 
@@ -557,11 +652,12 @@ fn held_by(seed: &GraphDocument, state: &ReplayState) -> Result<HeldIdentities, 
 #[cfg(test)]
 mod tests {
     //! What a fresh open does with a checkpoint, seen from inside the kernel: the state it reaches
-    //! holds only the head's graph, which a replay from the seed never produces, and so the
-    //! lineage the checkpoint covers was not replayed again.
+    //! holds the graph of the checkpoint's head and of each revision committed after it, and no
+    //! earlier one, which a replay from the seed never produces, and so the lineage the
+    //! checkpoint covers was not replayed again.
     use crate::{
         Agent, AuthorityStateV1, BootstrapContext, Commit, GraphOperation, GraphTransaction,
-        NodeDraft, SeedDocument, ValidationProfileV1,
+        NodeDraft, SeedDocument, ValidationProfileV1, REPLAY_CHECKPOINT_COMMITS,
     };
     use ekr_core::{NodeId, RevisionNumber, Timestamp, TransactionId};
     use ekr_ontology::NodeType;
@@ -650,7 +746,11 @@ mod tests {
         open(path, false)
             .seed(seed.clone(), || Timestamp::from_millis(10))
             .unwrap();
-        for n in 1..=3_u64 {
+        // The commit of revision `REPLAY_CHECKPOINT_COMMITS` writes a checkpoint (design § 99);
+        // the one after it appends only a pointer.
+        let checkpointed = REPLAY_CHECKPOINT_COMMITS;
+        let head = checkpointed + 1;
+        for n in 1..=head {
             let at = i64::try_from(n * 100).unwrap();
             let (tx, bytes) = document(&seed, n);
             let operator = context().operator;
@@ -677,13 +777,13 @@ mod tests {
         let restored = open(path, false).read_state().unwrap();
         assert_eq!(
             held(&restored),
-            [3],
-            "only the head's graph, from the checkpoint"
+            [checkpointed, head],
+            "the checkpoint's head graph, and the graph of the one commit replayed after it"
         );
         let replayed = open(path, true).read_state().unwrap();
         assert_eq!(
             held(&replayed),
-            [0, 1, 2, 3],
+            (0..=head).collect::<Vec<_>>(),
             "a full replay holds every graph"
         );
         assert_eq!(restored.head().root, replayed.head().root);

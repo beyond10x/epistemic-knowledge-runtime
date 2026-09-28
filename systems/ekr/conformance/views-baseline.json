@@ -61,19 +61,19 @@
     },
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed": {
       "file": "a-node-is-not-found-at-a-revision-before-it-existed.yaml",
-      "digest": "sha256:a48a7237aca346fdb4ea96476b131b5661a5fcd6226f9a18ae21bd65d262270e"
+      "digest": "sha256:d65a72a1823d4e0b8c73c142e250a5698151b333a51ca6165069eef0c5974227"
     },
     "ekr.views/authored/a-retracted-assertion-is-projected-with-its-lifecycle": {
       "file": "a-retracted-assertion-is-projected-with-its-lifecycle.yaml",
-      "digest": "sha256:1dd0cad3136d0bc8d2f00fad3986f0a6a51c6192e454174e7c0300fa3722e01d"
+      "digest": "sha256:a1774726b0c6b2993d106d85e71669ee4cd9f1c0f6dbf16e3fe6bda27eee1ff5"
     },
     "ekr.views/authored/a-revision-beyond-the-head-is-refused": {
       "file": "a-revision-beyond-the-head-is-refused.yaml",
-      "digest": "sha256:1fdbc7e6abd2e0a4464743348e669f381517fdc855e8ec77791678aee1b815a4"
+      "digest": "sha256:28935562fd3515805424066d883e495799d4ec861fba65d380e6ac3b530074ad"
     },
     "ekr.views/authored/a-schema-evolution-projects-each-version-from-its-revision": {
       "file": "a-schema-evolution-projects-each-version-from-its-revision.yaml",
-      "digest": "sha256:da23133c88281059ad8b1a17bcdc4d14c5830d9678541c52f7e265cee464bdce"
+      "digest": "sha256:f0487fa7fb3004b3b99161941e3048a4cbf743d1d1ac76018b5136ee11ef00fb"
     },
     "ekr.views/authored/a-search-lists-at-most-its-limit-of-matches": {
       "file": "a-search-lists-at-most-its-limit-of-matches.yaml",
@@ -85,7 +85,7 @@
     },
     "ekr.views/authored/a-seed-only-store-projects-revision-zero": {
       "file": "a-seed-only-store-projects-revision-zero.yaml",
-      "digest": "sha256:b11743b6f327a0237a79b6a6594fcef3067b6b58ba81a33527705c699990c639"
+      "digest": "sha256:99f21721bb0d66622a9db4b94999edd19ab3ebf40936d9052d24d8e1c174d760"
     },
     "ekr.views/authored/a-timeline-refuses-each-input-outside-its-bound": {
       "file": "a-timeline-refuses-each-input-outside-its-bound.yaml",
@@ -93,7 +93,7 @@
     },
     "ekr.views/authored/a-timeline-row-is-a-subject-with-its-events-within-hops": {
       "file": "a-timeline-row-is-a-subject-with-its-events-within-hops.yaml",
-      "digest": "sha256:c72bc7358889f9d7d079d3de3502feab99b3923697dfab5987764e0147a11022"
+      "digest": "sha256:20243123f149eb97f505dd4e6b1ea5af3be55463be405d05d6d9a6e826a3a631"
     },
     "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge": {
       "file": "an-assertion-about-an-edge-is-carried-by-that-edge.yaml",
@@ -105,7 +105,7 @@
     },
     "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes": {
       "file": "an-overview-lists-at-most-its-limit-of-top-nodes.yaml",
-      "digest": "sha256:13031029b5e9d5e0f44ae2cbcbb9193c2344f0ed8d3bdff69f664fd13bb8e8c3"
+      "digest": "sha256:b47fe99058aa5390735a8bb046b762bac04c29c17e7d1e1415fefacaddb8eaf6"
     },
     "ekr.views/authored/an-unknown-seed-is-refused-by-name": {
       "file": "an-unknown-seed-is-refused-by-name.yaml",
@@ -121,7 +121,7 @@
     },
     "ekr.views/authored/the-overview-derives-roles-and-timeline-from-valid-time": {
       "file": "the-overview-derives-roles-and-timeline-from-valid-time.yaml",
-      "digest": "sha256:aa00e48148530e3b65fb9fb558c95c44c9eb4f09bef5954d130ccf105ca30e8a"
+      "digest": "sha256:716b6d89bc6c60e53f33df251a0e0b7446ead66d0e2d9221ec1736237640b720"
     }
   },
   "step_floors": {

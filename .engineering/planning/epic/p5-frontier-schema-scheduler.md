@@ -2,13 +2,16 @@
 format: aep.planning-md/3
 id: epic:p5-frontier-schema-scheduler
 kind: epic
-status: draft
+status: active
 title: P5 — Frontier, schema evolution, scheduler
 relations:
 - decomposes: initiative:epistemic-knowledge-runtime
 - depends_on: epic:p3-incubation-integration
 - serves: vision:o6
-revision: 2
+revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-28T18:16:21Z", actor: "agent:claude-coordinator", revision: 3}
+- {from: "proposed", to: "active", at: "2026-09-28T18:16:21Z", actor: "agent:claude-coordinator", revision: 4}
 ---
 ## Context
 

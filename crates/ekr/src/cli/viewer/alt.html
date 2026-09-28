@@ -104,7 +104,8 @@ dialog li.active { background: var(--accent); color: var(--ground); }
 <script>
 "use strict";
 (function () {
-  // The only three addresses this page reads. Every label it shows comes from what they return.
+  // The only four addresses this page reads. Every label it shows comes from what they return.
+  const HEAD = "/head";
   const PROJECTION = "/projection";
   const ROLES = "/roles";
   const EVIDENCE = "/evidence/";
@@ -127,6 +128,7 @@ dialog li.active { background: var(--accent); color: var(--ground); }
 
   const state = {
     projection: null,
+    head: null,
     roles: new Map(),
     rolesNote: "",
     revision: null,
@@ -200,8 +202,12 @@ dialog li.active { background: var(--accent); color: var(--ground); }
     loads += 1;
     const mine = loads;
     status("loading revision " + (state.revision === null ? "head" : state.revision));
+    // The head is read after the projection, so it is never older than the revision projected.
     Promise.all([get(PROJECTION + query()).then(json), readRoles()])
-      .then(function (both) { if (mine === loads) { accept(both[0], both[1]); } })
+      .then(function (both) {
+        return get(HEAD).then(json).then(function (newest) { return both.concat([newest.head]); });
+      })
+      .then(function (all) { if (mine === loads) { accept(all[0], all[1], all[2]); } })
       .catch(function (error) {
         if (mine !== loads) { return; }
         status("the projection did not load: " + error.message);
@@ -213,8 +219,10 @@ dialog li.active { background: var(--accent); color: var(--ground); }
 
   function byId(a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; }
 
-  function accept(projection, roles) {
+  function accept(projection, roles, head) {
     state.projection = projection;
+    // No projection names the head; /head does, and it is never below the revision shown.
+    state.head = typeof head === "number" && head > projection.meta.revision ? head : projection.meta.revision;
     state.typeName = new Map();
     state.typeColor = new Map();
     state.edgeTypeName = new Map();
@@ -276,7 +284,7 @@ dialog li.active { background: var(--accent); color: var(--ground); }
     fillSchema();
     showDetail();
     status(
-      "revision " + projection.meta.revision + " of " + projection.meta.head + " · " +
+      "revision " + projection.meta.revision + " of " + state.head + " · " +
       projection.meta.node_count + " node · " + projection.meta.edge_count + " edge · " +
       projection.meta.assertion_count + " assertion · " + projection.meta.evidence_count + " evidence · " +
       state.rolesNote
@@ -1156,13 +1164,13 @@ dialog li.active { background: var(--accent); color: var(--ground); }
     const select = clear($("revision"));
     const strip = clear($("revisions"));
     const committed = new Map(projection.schema.revisions.map(function (revision) { return [revision.number, revision]; }));
-    for (let number = projection.meta.head; number >= 0; number -= 1) {
-      const option = text("option", number === projection.meta.head ? number + " (head)" : number);
+    for (let number = state.head; number >= 0; number -= 1) {
+      const option = text("option", number === state.head ? number + " (head)" : number);
       option.value = String(number);
       option.selected = number === projection.meta.revision;
       select.appendChild(option);
     }
-    for (let number = 0; number <= projection.meta.head; number += 1) {
+    for (let number = 0; number <= state.head; number += 1) {
       const button = text("button", number);
       button.type = "button";
       const known = committed.get(number);
@@ -1225,7 +1233,7 @@ dialog li.active { background: var(--accent); color: var(--ground); }
   $("valid-all").addEventListener("change", readSlider);
 
   function goRevision(number) {
-    const head = state.projection ? state.projection.meta.head : null;
+    const head = state.projection ? state.head : null;
     state.revision = number === head ? null : number;
     load();
   }

@@ -1032,12 +1032,7 @@ commands:
           - ekr.kernel.TransactionProposed
           - ekr.store.PublicationPrepared
           - ekr.store.ObjectStored
-          - ekr.store.CheckpointWritten
         payload:
-          ekr.store.CheckpointWritten:
-            checkpoint_hash: {generated: true}
-            covered: {generated: true}
-            binding: {generated: true}
           ekr.store.PublicationPrepared:
             preparation_hash: {generated: true}
             attempt_number: {generated: true}
@@ -1085,12 +1080,7 @@ commands:
           - ekr.kernel.TransactionValidated
           - ekr.store.PublicationPrepared
           - ekr.store.ObjectStored
-          - ekr.store.CheckpointWritten
         payload:
-          ekr.store.CheckpointWritten:
-            checkpoint_hash: {generated: true}
-            covered: {generated: true}
-            binding: {generated: true}
           ekr.store.PublicationPrepared:
             preparation_hash: {generated: true}
             attempt_number: {generated: true}
@@ -1117,12 +1107,7 @@ commands:
           - ekr.kernel.TransactionRejected
           - ekr.store.PublicationPrepared
           - ekr.store.ObjectStored
-          - ekr.store.CheckpointWritten
         payload:
-          ekr.store.CheckpointWritten:
-            checkpoint_hash: {generated: true}
-            covered: {generated: true}
-            binding: {generated: true}
           ekr.store.PublicationPrepared:
             preparation_hash: {generated: true}
             attempt_number: {generated: true}
@@ -1203,12 +1188,7 @@ commands:
           - ekr.kernel.TransactionStale
           - ekr.store.PublicationPrepared
           - ekr.store.ObjectStored
-          - ekr.store.CheckpointWritten
         payload:
-          ekr.store.CheckpointWritten:
-            checkpoint_hash: {generated: true}
-            covered: {generated: true}
-            binding: {generated: true}
           ekr.store.PublicationPrepared:
             preparation_hash: {generated: true}
             attempt_number: {generated: true}

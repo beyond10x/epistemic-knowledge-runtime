@@ -13,7 +13,7 @@ use ekr::cli::{execute, serve, serve_mcp, system_time, Cli, Command};
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let mut stdin = std::io::stdin().lock();
-    if matches!(cli.command, Command::Session | Command::Mcp) {
+    if matches!(cli.command, Command::Session { .. } | Command::Mcp) {
         // A session and an MCP server answer each message as it is read, so they write to stdout
         // themselves.
         let mut stdout = std::io::stdout().lock();

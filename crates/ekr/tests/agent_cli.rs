@@ -742,7 +742,14 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         ),
         (
             "session",
-            &["\"argv\"", "\"stdin\"", "session-verb-refused", store],
+            &[
+                "\"argv\"",
+                "\"stdin\"",
+                "session-verb-refused",
+                "--create",
+                "store-not-found",
+                store,
+            ],
         ),
         (
             "mcp",

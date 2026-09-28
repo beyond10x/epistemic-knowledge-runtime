@@ -6,7 +6,7 @@
 //! * the record sequence and its paging (`ekr.views.GraphSliceV1`) against an oracle written from
 //!   the specification's own words, over generated graphs with self-loops, parallel edges,
 //!   isolated nodes and repeated seeds;
-//! * the same revision answered under two heads gives the same bytes but for `meta.head`;
+//! * the same revision answered under two heads gives the same bytes;
 //! * `ekr.node-detail/1` carries every assertion about, and every assertion pointing at, the node;
 //! * `ekr.node-matches/1`'s tiers and lowercase folding;
 
@@ -316,20 +316,17 @@ fn every_page_of_generated_graphs_is_the_page_views_yaml_describes() {
 
 // ---- one revision under two heads ---------------------------------------------------------------
 
-/// The first `"head":<n>` — `meta.head`, which every format writes second after its revision —
-/// replaced by `"head":_`, since `task:historical-projection-carries-the-head` covers it.
-fn without_head(bytes: &[u8]) -> String {
-    let text = String::from_utf8(bytes.to_vec()).unwrap();
-    let at = text.find("\"head\":").expect("meta.head");
-    let digits = text[at + 7..].find(|c: char| !c.is_ascii_digit()).unwrap();
-    format!("{}\"head\":_{}", &text[..at], &text[at + 7 + digits..])
+/// An answer's exact text: since `task:historical-projection-carries-the-head` no format names
+/// the head, so nothing is masked.
+fn text(bytes: Vec<u8>) -> String {
+    String::from_utf8(bytes).unwrap()
 }
 
 fn four_answers(index: &Index) -> Vec<(String, String)> {
     let mut answers = vec![(
         "overview".to_owned(),
-        without_head(
-            &index
+        text(
+            index
                 .overview(&OverviewRequest::new(None).unwrap())
                 .unwrap()
                 .bytes,
@@ -338,13 +335,13 @@ fn four_answers(index: &Index) -> Vec<(String, String)> {
     for node in [0x110_u64, 0x111] {
         answers.push((
             format!("describe {node:x}"),
-            without_head(&index.describe(id(node)).unwrap().bytes),
+            text(index.describe(id(node)).unwrap().bytes),
         ));
         for depth in 0..=2 {
             answers.push((
                 format!("expand {node:x} {depth}"),
-                without_head(
-                    &index
+                text(
+                    index
                         .expand(&ExpandRequest::new(vec![id(node)], depth, 10, None, None).unwrap())
                         .unwrap()
                         .bytes,
@@ -352,12 +349,12 @@ fn four_answers(index: &Index) -> Vec<(String, String)> {
             ));
         }
     }
-    for text in ["", "a", "ALPHA", "-alias-"] {
+    for query in ["", "a", "ALPHA", "-alias-"] {
         answers.push((
-            format!("search {text:?}"),
-            without_head(
-                &index
-                    .search(&SearchRequest::new(text.to_owned(), 100).unwrap())
+            format!("search {query:?}"),
+            text(
+                index
+                    .search(&SearchRequest::new(query.to_owned(), 100).unwrap())
                     .unwrap()
                     .bytes,
             ),
@@ -367,9 +364,9 @@ fn four_answers(index: &Index) -> Vec<(String, String)> {
 }
 
 /// A store at head 1 and the same store three unrelated commits later answer revisions 0 and 1
-/// with the same bytes, `meta.head` aside.
+/// with the same bytes.
 #[test]
-fn a_revision_answers_the_same_bytes_after_unrelated_commits_but_for_meta_head() {
+fn a_revision_answers_the_same_bytes_after_unrelated_commits() {
     let (short_dir, long_dir) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
     let short = fixtures::open(short_dir.path(), Provider::File);
     fixtures::build_long(&short, 0);
@@ -378,7 +375,8 @@ fn a_revision_answers_the_same_bytes_after_unrelated_commits_but_for_meta_head()
     for at in [0_u64, 1] {
         let before = Index::load(&short, Some(RevisionNumber::new(at))).unwrap();
         let after = Index::load(&long, Some(RevisionNumber::new(at))).unwrap();
-        assert_eq!((before.head().get(), after.head().get()), (1, 4));
+        let head = |runtime: &Runtime| runtime.head().unwrap().unwrap().revision.get();
+        assert_eq!((head(&short), head(&long)), (1, 4));
         for ((what, one), (_, other)) in four_answers(&before).iter().zip(four_answers(&after)) {
             assert_eq!(one, &other, "revision {at}: {what}");
         }

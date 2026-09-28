@@ -37,7 +37,7 @@ Repository utility: `xtask`.
 | `ekr session`: one long-lived process serves the store verbs (`resolve`, `propose`, `validate`, `commit`, `snapshot`, `head` and others) as JSON lines over one opened store, each answer the one-shot verb's document; see [`ekr session`](docs/cli.md#ekr-session) | a request cost that does not grow with retained evidence: 20–34 ms per resolve on a store seeded with 11 MB of evidence |
 | `ekr mcp`: a read-only MCP server over stdio for agents, with the tools `overview`, `search`, `describe_node`, `expand`, `timeline`, `explain` and `resolve`, each answering the `ekr.views` or one-shot document; see [`ekr mcp`](docs/cli.md#ekr-mcp) | a tool for what changed since a revision or time (`story:changes-since-read`), and any write tool |
 
-A command continues from the replay checkpoint the last write left rather than replaying the whole
+A command continues from the store's replay checkpoint rather than replaying the whole
 history (`--full-replay` replays it). Each process verifies a retained blob and decodes the seed
 envelope once; a one-shot command still pays that once, so it grows with the store's size: on a
 store seeded with 11 MB of evidence one `ekr resolve` takes 1.47 s (file) or 0.77 s (SQLite), and

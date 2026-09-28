@@ -16,7 +16,6 @@ fn a_loaded_revision_renders_the_same_bytes_every_time_and_the_same_as_project()
     let at = Some(RevisionNumber::new(3));
 
     let loaded: ekr_views::LoadedRevision = ekr_views::load(&runtime, at).expect("load");
-    assert_eq!(loaded.head.get(), 5);
     assert_eq!(loaded.graph.revision.get(), 3);
     assert_eq!(loaded.revisions.len(), 4);
     for (n, entry) in loaded.revisions.iter().enumerate() {

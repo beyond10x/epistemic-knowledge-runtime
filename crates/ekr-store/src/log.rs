@@ -120,6 +120,22 @@ pub trait CommitAuthority {
     ) -> Result<(), StoreError> {
         self.replay(history, ontology, revision).map(|_| ())
     }
+    /// [`Self::replay`] for a caller that needs only the admitted revision's root, such as a head
+    /// read no checkpoint pointer answers: the root exactly where `replay` admits a revision,
+    /// `None` where it finds the history empty, and `replay`'s refusal otherwise. An authority
+    /// may answer it without building the admitted head graph.
+    /// # Errors
+    /// Whatever [`Self::replay`] refuses.
+    fn replay_root(
+        &self,
+        history: &RetainedHistory,
+        ontology: Option<&ekr_ontology::Ontology>,
+        revision: Option<RevisionNumber>,
+    ) -> Result<Option<Root>, StoreError> {
+        Ok(self
+            .replay(history, ontology, revision)?
+            .map(|admitted| admitted.root))
+    }
     /// Offers the retained replay checkpoint for `history`, which the authority may admit as the
     /// state its next replay of that history continues from. An authority that keeps none
     /// ignores it.
@@ -232,6 +248,11 @@ pub trait RevisionLog {
     /// replacing an older one. Without `checkpoint` the retained checkpoint is kept and only the
     /// record of verification advances. Private cache data: it confers no authority and may be
     /// lost at any time. A log that keeps none ignores it.
+    ///
+    /// `true` when the newest pointer is this one afterwards — appended now, or already the newest
+    /// — so that `checkpoint`, when given, is the retained one; `false` when nothing was written:
+    /// the append lost to another writer, there is no retained checkpoint for a pointer without
+    /// one to name, or the log keeps none (design § 99).
     /// # Errors
     /// Provider failure.
     fn write_checkpoint(
@@ -239,9 +260,9 @@ pub trait RevisionLog {
         covered: u64,
         binding: ContentHash,
         checkpoint: Option<&[u8]>,
-    ) -> Result<(), StoreError> {
+    ) -> Result<bool, StoreError> {
         let _ = (covered, binding, checkpoint);
-        Ok(())
+        Ok(false)
     }
 }
 /// Initialization requires the same complete atomic publication path with no existing stream.

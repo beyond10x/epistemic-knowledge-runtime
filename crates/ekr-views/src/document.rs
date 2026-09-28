@@ -42,7 +42,6 @@ struct GraphProjectionV1 {
 struct ProjectionMeta {
     format: &'static str,
     revision: u64,
-    head: u64,
     node_count: u64,
     edge_count: u64,
     assertion_count: u64,
@@ -546,7 +545,6 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
         meta: ProjectionMeta {
             format: FORMAT,
             revision: graph.revision.get(),
-            head: loaded.head.get(),
             node_count: nodes.len() as u64,
             edge_count: edges.len() as u64,
             assertion_count,
@@ -569,7 +567,6 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
         .map_err(|error| ProjectError::Inconsistent(format!("encoding the document: {error}")))?;
     let summary = GraphProjected {
         revision: document.meta.revision,
-        head: document.meta.head,
         nodes: document.meta.node_count,
         edges: document.meta.edge_count,
         assertions: document.meta.assertion_count,

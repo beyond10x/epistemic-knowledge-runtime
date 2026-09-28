@@ -65,10 +65,11 @@ parents, the SQLite provider creates the database file but not its directory. `g
 export EKR_HOST=host.json EKR_STORE=./store EKR_BACKEND=file
 ```
 
-Every commit also leaves a replay checkpoint in the store: the verified head state, from which
-the next verb continues instead of replaying every transaction since the seed. `--full-replay`
-ignores it and replays the whole history from the seed, re-deriving every retained decision; a
-verb answers the same either way.
+The store keeps a replay checkpoint: the verified head state, written by the seed, by every fourth
+commit and by a commit that brings the operations committed since the last one to 512. The next
+verb continues from it, replaying only the few commits after it, instead of every transaction since
+the seed. `--full-replay` ignores it and replays the whole history from the seed, re-deriving every
+retained decision; a verb answers the same either way.
 
 ### The host document (`ekr.cli-host/1`)
 
@@ -134,7 +135,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr hash` | none | a payload file, or `-` | the payload's `content_hash` and its `payload_yaml` |
 | `ekr schema` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2`, `ekr.cli-host/1` or `typed-reference` (aliases `transaction` for `/2`, `seed`, `host`) | the format's JSON Schema (draft 2020-12) |
 | `ekr view` | reads | `--port <port>` (`0`, the default, picks a free one) | `{"url": "http://127.0.0.1:<port>/"}` as one line, then serves a read-only viewer until interrupted |
-| `ekr session` | reads and writes | one JSON request per line on stdin, `{"argv": [...]}`, until it ends | one JSON answer per request, `{"exit", "stdout", "stderr"}`: what the verb exits with and prints |
+| `ekr session` | reads and writes | one JSON request per line on stdin, `{"argv": [...]}`, until it ends; `--create` also serves `seed` | one JSON answer per request, `{"exit", "stdout", "stderr"}`: what the verb exits with and prints |
 | `ekr mcp` | reads | JSON-RPC 2.0 messages, one per line on stdin, until it ends | one JSON-RPC response per request: read-only MCP tools over the store (below) |
 
 Every verb has `--help`.
@@ -344,6 +345,7 @@ prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`, then answers:
 |---|---|
 | `GET /` | the viewer page, built into the binary: the graph in 2D and 3D, a timeline with a heatmap and swimlanes, property history, the schema history, a command palette (Ctrl+K), navigation between committed revisions, and the state in the URL after `#` |
 | `GET /alt` | the earlier viewer page, built into the binary, kept while the new one is accepted |
+| `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision as it stands at the request, `application/json`. No `ekr.views` document carries the head, so a render of a revision is the same bytes before and after any later commit; the pages read the head here. It takes no query (any is 400 `invalid-query`) |
 | `GET /projection` | the `ekr.graph-projection/1` document at the head, `application/json`, byte for byte what the projection renders |
 | `GET /projection?revision=N` | the same as of revision `N`; a revision the store does not hold is 404 with `{"refusal": "ekr.views.RevisionNotFound", …}` |
 | `GET /evidence/<evidence id>` | that evidence's retained bytes: `text/plain; charset=utf-8` when they are UTF-8, otherwise `application/octet-stream`; 404 for an id the head does not hold or bytes the store did not retain |
@@ -380,8 +382,8 @@ refusal decided before any byte of an answer is sent.
 `/expand` answers `application/x-ndjson` with `Transfer-Encoding: chunked`: one JSON object per
 line, each ending in `\n` and opening with its `kind`, flushed a chunk at a time as it is written:
 
-1. `{"kind":"meta", …}` — the page's `ekr.graph-slice/1` meta (`format`, `revision`, `head`,
-   `seeds`, `depth`, `after`, `node_total`, `edge_total`), alone in the first chunk;
+1. `{"kind":"meta", …}` — the page's `ekr.graph-slice/1` meta (`format`, `revision`, `seeds`,
+   `depth`, `after`, `node_total`, `edge_total`), alone in the first chunk;
 2. the records in the slice's order: `{"kind":"node", …}` with a node's fields and
    `{"kind":"edge", …}` with an edge's, a node always before the edges it closes;
 3. after every 256 records, `{"kind":"progress","sent":<records so far>}`, which ends its chunk;
@@ -397,18 +399,18 @@ A revision is loaded once. The first request of a revision to `/overview`, `/exp
 `/search`, `/timeline`, `/projection` or `/roles` loads and indexes it; every later request of
 that revision, whichever path, reads the store's head and answers from that index, so it costs its
 answer (a revision's first `/timeline` also ranks its row types once). The
-indexes of the 3 revisions used most recently are kept, each under the head it was loaded under,
-so a new head loads again. `/projection` and `/roles` also keep their rendered answers, byte for
-byte what the first answer was, for at most 8 revisions under one head, the one used longest ago
-going first.
+indexes of the 3 revisions used most recently are kept. A committed revision never changes and no
+answer names the head, so a commit loads nothing again; a request naming no revision reads the
+new head. `/projection` and `/roles` also keep their rendered answers, byte for byte what the first
+answer was, for at most 8 revisions, the one used longest ago going first.
 
-The page reads `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and
-`/evidence/<id>` and nothing else, never `/projection`: the overview once per revision, a
-neighbourhood as it streams in, a node's detail when it is opened, and the timeline's rows — one
-per subject of the chosen row type, with its events within the chosen hops — and a subject's
-swimlanes from `/timeline`. It fetches evidence only by an id an assertion it has read cites, and
-writes everything a store holds as text. The earlier page at `/alt` reads `/projection`, `/roles`
-and `/evidence/<id>`.
+The page reads `/head`, `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and
+`/evidence/<id>` and nothing else, never `/projection`: the overview once per revision and the
+head after it, a neighbourhood as it streams in, a node's detail when it is opened, and the
+timeline's rows — one per subject of the chosen row type, with its events within the chosen
+hops — and a subject's swimlanes from `/timeline`. It fetches evidence only by an id an assertion
+it has read cites, and writes everything a store holds as text. The earlier page at `/alt` reads
+`/projection`, `/roles`, `/head` and `/evidence/<id>`.
 
 #### Roles
 
@@ -464,8 +466,8 @@ Serves the verbs that print one JSON document through one process that opens the
 host that makes many calls — resolve, mint, propose, validate, commit, over and over — pays for
 opening and verifying the store once instead of once per call. The session reads the
 configuration (`--host`, `--store`, `--backend`, `--full-replay` or their variables) and opens the
-store when it starts, then reads standard input one line at a time until it ends. Each line is one
-request:
+store when it starts — or starts without one where there is none yet, as below — then reads
+standard input one line at a time until it ends. Each line is one request:
 
 ```console
 {"argv": ["resolve", "reference.yaml"]}
@@ -498,19 +500,40 @@ request commits is what the next `head`, `snapshot` or `resolve` reads, and so i
 process committed. A write goes through `propose`, `validate` and `commit` exactly as it does one
 verb at a time. The session exits 0 when its input ends. A request never ends it: a request the
 verb refuses, and a line that is not a request, are answered and the next line is read. If the
-configuration or the store does not open, the session answers nothing and exits as a store verb
-does (`store-not-found`, exit 1, for a path holding no store).
+configuration does not resolve, or an existing store does not open, the session answers nothing
+and exits as a store verb does. A path holding no store is not such a failure:
+
+**Before a store exists.** A session also starts on a `--store` that holds no store yet, and
+creates nothing there by starting. It serves `mint`, `hash` and `schema` exactly as the one-shot
+verbs do, and answers each store verb as the one-shot verb answers on that path —
+`store-not-found`, `"exit": 1` — then reads the next line. Started as `ekr session --create`, it
+also serves `seed`, with the arguments and document `ekr seed` takes: `--evidence <file>`,
+repeatable, and `-` reading the request's `"stdin"`. The seed that creates the store leaves the
+session holding it, opened once as a session opens an existing store when it starts, and every
+verb after it is served over that store. A seed on a store that exists — a second seed in the
+same session, or one in a `--create` session started on an existing store — answers what
+`ekr seed` answers there: the original result for the same document, `ekr.kernel.AlreadySeeded`
+for another. So a host building a store sends every `hash` and `mint`, the `seed` and the first
+writes through one process instead of one each:
+
+```console
+{"argv": ["hash", "corpus/a.md"]}
+{"argv": ["mint", "node"]}
+{"argv": ["seed", "-", "--evidence", "corpus/a.md"], "stdin": "format: ekr-seed/2\n..."}
+{"argv": ["propose", "first.yaml"]}
+```
 
 A session serves `propose`, `validate`, `commit`, `snapshot`, `explain`, `resolve`, `head`,
-`transactions`, `ontology`, `mint`, `hash` and `schema`. It refuses these, each answered with
-`"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"stderr"`:
+`transactions`, `ontology`, `mint`, `hash` and `schema`, and `seed` when it was started with
+`--create`. It refuses these, each answered with `"exit": 2`, `"stdout": null` and
+`ekr: <refusal>: <reason>` as `"stderr"`:
 
 | refusal | exit | what it means | what to fix |
 |---|---|---|---|
 | `session-request-malformed` | 2 | the line is not a JSON object with `argv`, a list of strings, and at most `stdin`, a string; an empty line included | send `{"argv": [...]}` on one line |
 | `session-request-too-large` | 2 | the line is longer than 25231360 bytes, its newline excluded: three times the 8388608-byte `ekr.transaction-document/2` cap, the most JSON escaping can make of it, and 65536 bytes for `argv` and the framing. The session holds no more of the line than that; it reads the rest up to the newline, drops it and serves the next line | send the document as a file (`["propose", "doc.yaml"]`), or a smaller one |
 | `session-verb-unknown` | 2 | `argv` is empty, or its first word is not a verb of `ekr` | a verb from the list above |
-| `session-verb-refused` | 2 | the verb is `seed`, `view`, `session`, `mcp`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, or print text | run it as its own `ekr` process |
+| `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
 | `session-option-refused` | 2 | the request sets `--host`, `--store`, `--backend` or `--full-replay` | the session's store is fixed when it starts; start another session for another store |
 
 Any other `argv` the verbs' definitions do not accept — an unknown flag
@@ -554,9 +577,8 @@ It answers these methods:
 Every tool reads the store as it stands when the call is read, so a transaction another process
 committed is what the next call reads. `revision` is a committed revision, the newest when
 absent; `overview`, `search`, `describe_node`, `expand` and `timeline` read the revision's
-`ekr.views` index, loaded once per revision and head exactly as [`ekr view`](#ekr-view) keeps
-it, and answer its document byte for byte what the `ekr view` endpoint in the last column
-serves:
+`ekr.views` index, loaded once per revision exactly as [`ekr view`](#ekr-view) keeps it,
+and answer its document byte for byte what the `ekr view` endpoint in the last column serves:
 
 | tool | arguments (required in bold) | answers | as |
 |---|---|---|---|

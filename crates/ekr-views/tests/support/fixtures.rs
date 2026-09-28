@@ -366,6 +366,25 @@ pub fn build_long(runtime: &Runtime, extra: u64) {
     }
 }
 
+/// Commits one more transaction onto a built [`Fixture::Evolved`] store, updating `beta`'s note
+/// to `note {n}`: a commit unrelated to any earlier revision, which moves only the head. Each `n`
+/// is a distinct transaction, timed after everything the fixture itself committed.
+pub fn commit_unrelated(runtime: &Runtime, n: u64) {
+    let mut writer = Writer {
+        runtime,
+        clock: CLOCK_START_MS + 1_000_000 + 10 * i64::try_from(n).expect("a small n"),
+        transactions: TRANSACTIONS + 0x1000 + n,
+    };
+    writer.commit(
+        vec![GraphOperation::UpdateProperty(PropertyMutation {
+            node: id(BETA),
+            property: id(NOTE),
+            values: vec![Value::String(format!("note {n}"))],
+        })],
+        None,
+    );
+}
+
 /// The `edge-assertion` seed, then one transaction creating the node [`SHARED`] and a `links`
 /// edge from it to `alpha` whose id is the same UUID, with one assertion about each: a node and
 /// an edge that share an id, which the kernel admits because it keeps node and edge identities

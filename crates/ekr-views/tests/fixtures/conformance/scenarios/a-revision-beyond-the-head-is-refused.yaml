@@ -22,7 +22,6 @@ timeline:
       - event: ekr.views.GraphProjected
         payload:
           revision: 0
-          head: 0
 
   - at: 2027-01-15T08:00:00Z
     command: ekr.views.ProjectGraph

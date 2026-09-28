@@ -62,8 +62,6 @@ pub const FORMAT: &str = "ekr.graph-projection/1";
 pub struct GraphProjected {
     /// `meta.revision`.
     pub revision: u64,
-    /// `meta.head`.
-    pub head: u64,
     /// `meta.node_count`.
     pub nodes: u64,
     /// `meta.edge_count`.
@@ -159,13 +157,13 @@ pub struct LoadedRevisionEntry {
     pub schema_version: SchemaVersionId,
 }
 
-/// Everything [`render`] reads, already loaded: the pure function's whole input.
+/// Everything [`render`] reads, already loaded: the pure function's whole input. It holds
+/// nothing about the store beyond the projected revision — not the head it was loaded under — so
+/// a later commit does not change what a revision loads to.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LoadedRevision {
     /// Canonical state as of the projected revision.
     pub graph: CanonicalGraph,
-    /// The store's newest committed revision when this was loaded.
-    pub head: RevisionNumber,
     /// Every revision from the seed through the projected one, ascending.
     pub revisions: Vec<LoadedRevisionEntry>,
     /// The ontology of every schema version some listed revision is valid against, with the
@@ -253,7 +251,6 @@ pub fn load(runtime: &Runtime, at: Option<RevisionNumber>) -> Result<LoadedRevis
     }
     Ok(LoadedRevision {
         graph: read.graph,
-        head,
         revisions,
         schemas,
         retained,
