@@ -59,6 +59,9 @@ WORKFLOW
      ekr snapshot [--at N] [--valid-at YYYY-MM-DD]  read the result back
      ekr explain <assertion_id>                    why an assertion is what it is
      ekr view [--port N]                           a read-only viewer on 127.0.0.1, until interrupted
+     ekr mcp                                       read-only MCP tools over stdio for an agent's
+                                                   client: overview, search, describe_node,
+                                                   expand, timeline, explain, resolve
 
 DOCUMENT LIMITS (fixed by the format version; write ekr.transaction-document/2)
   An ekr.transaction-document/2 holds 1 to 10000 operations and at most 10000 evidence entries
