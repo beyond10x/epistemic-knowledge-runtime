@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-28T09:30:23Z",
+  "actor": "agent:claude-coordinator",
+  "artifact": "story:seed-envelope-v3-references-payloads",
+  "kind": "story",
+  "revision": 6,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:roadmap-2026-09-28-acceptance-r1",
+    "review": "review-result:roadmap-2026-09-28-acceptance-r1",
+    "outcome": "fixed"
+  }
+}

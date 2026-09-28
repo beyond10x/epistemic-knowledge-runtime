@@ -8,6 +8,8 @@
 //! `Runtime::sqlite_existing` and refuses a path holding none as `store-not-found`. The
 //! agent verbs — `guide`, `operations`, `example`, `schema`, `mint`, `hash` — print static, tested
 //! text, a generated JSON Schema, a fresh id or a payload's content hash, and open no provider.
+//! `session` opens the store once and runs each request line through the same dispatch as the
+//! one-shot verbs (`session.rs`), against the runtime it holds.
 
 mod agent;
 mod commit;
@@ -20,6 +22,7 @@ mod propose;
 mod resolve;
 mod schema;
 mod seed;
+mod session;
 mod snapshot;
 mod transactions;
 mod validate;
@@ -36,6 +39,7 @@ use ekr_kernel::{PersistenceError, Runtime, SeedDocument};
 use serde::Serialize;
 
 pub use agent::{ExampleDocument, ExampleFormat, IdKind, OperationKind};
+pub use session::serve;
 pub use transactions::StateFilter;
 
 use crate::exit::Failure;
@@ -253,6 +257,18 @@ pub enum Command {
         #[arg(long, default_value_t = 0)]
         port: u16,
     },
+    /// Serve the JSON verbs over one opened store: one JSON request per line on stdin, one JSON
+    /// answer per line on stdout, until end of input.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST), which opens the store
+    /// once. A request is `{"argv": ["resolve", "reference.yaml"]}`: a verb and its arguments as
+    /// `ekr` takes them, with an optional `"stdin"` text that `-` reads. Its answer is
+    /// `{"exit": <status>, "stdout": <the verb's JSON document, or null>, "stderr": <its message,
+    /// or "">}`, what the verb exits with and prints. `seed`, `view`, `session`, `guide`,
+    /// `operations` and `example` are refused (`session-verb-refused`), and so are
+    /// --host/--store/--backend/--full-replay in a request (`session-option-refused`).
+    #[command(after_help = SEE)]
+    Session,
 }
 
 /// The system clock in milliseconds since the Unix epoch, for a new decision only.
@@ -307,7 +323,8 @@ fn required<T>(value: Option<T>, flag: &str, var: &str, verb: &str) -> Result<T,
     })
 }
 
-/// Executes one parsed command and renders its actual result.
+/// Executes one parsed command and renders its actual result. `session` answers every request
+/// line `stdin` holds and returns the answers, as [`serve`] writes them.
 ///
 /// # Errors
 ///
@@ -317,22 +334,131 @@ pub fn execute(
     now: &dyn Fn() -> Timestamp,
     stdin: &mut dyn Read,
 ) -> Result<String, Failure> {
-    let configured = Configured {
-        host: cli.host,
-        store: cli.store,
-        backend: cli.backend,
-        full_replay: cli.full_replay,
-    };
-    match cli.command {
-        Command::Guide => Ok(agent::GUIDE.to_owned()),
-        Command::Operations { kind: None } => Ok(agent::operation_list()),
-        Command::Operations { kind: Some(kind) } => Ok(agent::operation(kind)),
-        Command::Example { format } => Ok(agent::example(format)),
-        Command::Schema { format } => schema::run(format),
+    if matches!(cli.command, Command::Session) {
+        let mut answers = Vec::new();
+        serve(cli, now, &mut std::io::BufReader::new(stdin), &mut answers)?;
+        return String::from_utf8(answers).map_err(Failure::fault);
+    }
+    let (configured, command) = Configured::split(cli);
+    dispatch(command, Source::Configured(configured), now, stdin)?.text()
+}
+
+/// What a verb prints on stdout.
+enum Printed {
+    /// One JSON document, printed pretty with a newline.
+    Document(serde_json::Value),
+    /// Text, printed as it is: `guide`, `operations`, `example`, and `view`'s end.
+    Text(String),
+}
+
+impl Printed {
+    /// The exact bytes the verb writes to stdout.
+    fn text(self) -> Result<String, Failure> {
+        match self {
+            Self::Document(document) => {
+                let mut text = serde_json::to_string_pretty(&document).map_err(Failure::fault)?;
+                text.push('\n');
+                Ok(text)
+            }
+            Self::Text(text) => Ok(text),
+        }
+    }
+}
+
+/// Where a store verb's runtime comes from.
+enum Source<'a> {
+    /// A one-shot verb: the configuration it resolves and the store it opens itself.
+    Configured(Configured),
+    /// A session request: the runtime the session opened once, for every request.
+    Held(&'a Held),
+}
+
+/// The runtime a session holds and the host operator it was opened under.
+struct Held {
+    runtime: Runtime,
+    operator: ekr_core::AgentId,
+}
+
+/// A store verb's source, resolved: a checked configuration, or the session's runtime.
+enum Resolved<'a> {
+    Fresh(Box<Store>),
+    Held(&'a Held),
+}
+
+/// A runtime a verb reads or writes through: its own, or the session's.
+enum Opened<'a> {
+    Owned(Runtime),
+    Borrowed(&'a Runtime),
+}
+
+impl std::ops::Deref for Opened<'_> {
+    type Target = Runtime;
+
+    fn deref(&self) -> &Runtime {
+        match self {
+            Self::Owned(runtime) => runtime,
+            Self::Borrowed(runtime) => runtime,
+        }
+    }
+}
+
+impl<'a> Source<'a> {
+    /// The verb's store: a one-shot verb's configuration, read and checked, or the session's.
+    fn resolve(self, verb: &str) -> Result<Resolved<'a>, Failure> {
+        match self {
+            Self::Configured(configured) => configured
+                .resolve(verb)
+                .map(|store| Resolved::Fresh(Box::new(store))),
+            Self::Held(held) => Ok(Resolved::Held(held)),
+        }
+    }
+
+    /// The configuration of a verb that opens its own store in its own way — `seed`, `view` —
+    /// which a session does not serve.
+    fn configured(self, verb: &'static str) -> Result<Store, Failure> {
+        match self {
+            Self::Configured(configured) => configured.resolve(verb),
+            Self::Held(_) => Err(session::verb_refused(verb)),
+        }
+    }
+}
+
+impl<'a> Resolved<'a> {
+    /// The trusted host operator every write is submitted as.
+    fn operator(&self) -> ekr_core::AgentId {
+        match self {
+            Self::Fresh(store) => store.host.context.operator,
+            Self::Held(held) => held.operator,
+        }
+    }
+
+    /// A one-shot verb opens the existing store; a session request uses the one it holds.
+    fn open(&self) -> Result<Opened<'a>, Failure> {
+        match self {
+            Self::Fresh(store) => store.open().map(Opened::Owned),
+            Self::Held(held) => Ok(Opened::Borrowed(&held.runtime)),
+        }
+    }
+}
+
+/// Runs one verb against its source. The one path from a parsed verb to its result, for a
+/// one-shot process and for each request of a session alike.
+fn dispatch(
+    command: Command,
+    source: Source<'_>,
+    now: &dyn Fn() -> Timestamp,
+    stdin: &mut dyn Read,
+) -> Result<Printed, Failure> {
+    match command {
+        Command::Guide => Ok(Printed::Text(agent::GUIDE.to_owned())),
+        Command::Operations { kind: None } => Ok(Printed::Text(agent::operation_list())),
+        Command::Operations { kind: Some(kind) } => Ok(Printed::Text(agent::operation(kind))),
+        Command::Example { format } => Ok(Printed::Text(agent::example(format))),
+        Command::Schema { format } => schema::run(format).map(Printed::Document),
         Command::Mint { kind } => render(&agent::mint(kind)),
         Command::Hash { payload } => render(&hash::run(&payload, stdin)?),
         Command::Seed { document, evidence } => {
-            let store = configured.resolve("seed")?;
+            let store = source.configured("seed")?;
             render(&seed::run(
                 &document,
                 &evidence,
@@ -342,13 +468,12 @@ pub fn execute(
             )?)
         }
         Command::Propose { document } => {
-            let store = configured.resolve("propose")?;
-            let operator = store.host.context.operator;
+            let store = source.resolve("propose")?;
             render(&propose::run(
                 &document,
                 stdin,
                 || store.open(),
-                operator,
+                store.operator(),
                 now,
             )?)
         }
@@ -356,41 +481,53 @@ pub fn execute(
             transaction_id,
             against,
         } => {
-            let runtime = configured.resolve("validate")?.open()?;
+            let runtime = source.resolve("validate")?.open()?;
             let against = match against {
                 Some(against) => against,
                 None => head::root(&runtime)?.revision.get(),
             };
-            render(&validate::run(runtime, transaction_id, against, now)?)
+            render(&validate::run(&runtime, transaction_id, against, now)?)
         }
         Command::Commit { transaction_id } => {
-            let store = configured.resolve("commit")?;
-            let operator = store.host.context.operator;
-            render(&commit::run(store.open()?, transaction_id, operator, now)?)
+            let store = source.resolve("commit")?;
+            let runtime = store.open()?;
+            render(&commit::run(
+                &runtime,
+                transaction_id,
+                store.operator(),
+                now,
+            )?)
         }
         Command::Snapshot { at, valid_at } => {
-            let runtime = configured.resolve("snapshot")?.open()?;
-            render(&snapshot::run(runtime, at, valid_at)?)
+            let runtime = source.resolve("snapshot")?.open()?;
+            render(&snapshot::run(&runtime, at, valid_at)?)
         }
         Command::Explain { assertion_id } => {
-            let runtime = configured.resolve("explain")?.open()?;
+            let runtime = source.resolve("explain")?.open()?;
             render(&explain::run(&runtime, assertion_id)?)
         }
         Command::Resolve { reference, at } => {
-            let store = configured.resolve("resolve")?;
+            let store = source.resolve("resolve")?;
             let reference = resolve::read(&reference, stdin)?;
-            render(&resolve::run(&store.open()?, &reference, at)?)
+            let runtime = store.open()?;
+            render(&resolve::run(&runtime, &reference, at)?)
         }
-        Command::Head => render(&head::run(&configured.resolve("head")?.open()?)?),
+        Command::Head => {
+            let runtime = source.resolve("head")?.open()?;
+            render(&head::run(&runtime)?)
+        }
         Command::Transactions { state } => {
-            let runtime = configured.resolve("transactions")?.open()?;
+            let runtime = source.resolve("transactions")?.open()?;
             render(&transactions::run(&runtime, state)?)
         }
-        Command::Ontology { at } => render(&ontology::run(
-            &configured.resolve("ontology")?.open()?,
-            at,
-        )?),
-        Command::View { port } => view::run(&configured.resolve("view")?.open()?, port),
+        Command::Ontology { at } => {
+            let runtime = source.resolve("ontology")?.open()?;
+            render(&ontology::run(&runtime, at)?)
+        }
+        Command::View { port } => {
+            view::run(&source.configured("view")?.open()?, port).map(Printed::Text)
+        }
+        Command::Session => Err(session::verb_refused("session")),
     }
 }
 
@@ -400,6 +537,28 @@ struct Configured {
     store: Option<PathBuf>,
     backend: Option<Backend>,
     full_replay: bool,
+}
+
+impl Configured {
+    /// The global options of `cli`, and its verb.
+    fn split(cli: Cli) -> (Self, Command) {
+        let Cli {
+            host,
+            store,
+            backend,
+            full_replay,
+            command,
+        } = cli;
+        (
+            Self {
+                host,
+                store,
+                backend,
+                full_replay,
+            },
+            command,
+        )
+    }
 }
 
 /// A store verb's resolved configuration: the trusted host document, read and checked.
@@ -564,12 +723,10 @@ fn opening(error: impl std::fmt::Display) -> Failure {
 /// One JSON document. The kernel's byte strings serialise as number arrays; the CLI prints each
 /// as one standard padded base64 string instead, and the guide says so. Kernel types are not
 /// changed; `crates/ekr/tests/agent_cli.rs` holds every verb's output free of number arrays.
-fn render(result: &impl Serialize) -> Result<String, Failure> {
+fn render(result: &impl Serialize) -> Result<Printed, Failure> {
     let mut value = serde_json::to_value(result).map_err(Failure::fault)?;
     bytes_as_base64(&mut value);
-    let mut text = serde_json::to_string_pretty(&value).map_err(Failure::fault)?;
-    text.push('\n');
-    Ok(text)
+    Ok(Printed::Document(value))
 }
 
 /// The one byte-string field any verb's result carries: `ProposalRecordV1.document_bytes`,

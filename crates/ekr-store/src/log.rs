@@ -52,6 +52,10 @@ pub struct RetainedHistory {
 }
 impl RetainedHistory {
     /// Reads verified bytes at a minimum retention strength.
+    ///
+    /// The bytes are checked against `hash` on every call. Bytes equal to a copy this process
+    /// already hashed to `hash` are compared rather than hashed again, which gives the same
+    /// answer (`crate::verified`); any other bytes are hashed.
     /// # Errors
     /// Missing, corrupt or insufficiently retained objects refuse replay.
     pub fn content(&self, hash: ContentHash, class: StorageClass) -> Result<&[u8], StoreError> {
@@ -62,7 +66,7 @@ impl RetainedHistory {
         if held.metadata.content_hash != hash
             || held.metadata.byte_len != held.bytes.len() as u64
             || held.metadata.storage_class.retention_rank() < class.retention_rank()
-            || ContentHash::of_bytes(&held.bytes) != hash
+            || !crate::verified::addresses(hash, &held.bytes)
         {
             return Err(StoreError::Document("required-object-integrity".into()));
         }

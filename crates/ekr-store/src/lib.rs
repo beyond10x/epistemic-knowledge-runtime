@@ -53,6 +53,7 @@ pub mod eventlog;
 pub mod log;
 pub mod objects;
 pub mod snapshot;
+mod verified;
 
 pub use eventlog::{EventlogStore, FileStore, PublishedEvent, SqliteStore};
 pub use eventlog::{
@@ -67,6 +68,8 @@ pub use log::{
 };
 pub use objects::{ObjectStore, StorageClass, StoredObject};
 pub use snapshot::{Entity, GraphDocument, MembraneError};
+#[doc(hidden)]
+pub use verified::{read_work, ReadWork};
 
 use ekr_core::{ContentHash, RevisionNumber, TransactionId};
 

@@ -31,7 +31,7 @@
 //! A checkpoint that fails any check is not an error of the store. It is ignored, and the
 //! history is replayed in full as if it were absent.
 use crate::replay::{prefix_digests, refuse, require, ReplayState, Revision};
-use crate::seed::{narrow_assertion, narrow_edge, narrow_node};
+use crate::seed::{narrow_assertion, narrow_edge, narrow_node, SeedOutline};
 use crate::validate::HeldIdentities;
 use crate::{
     CommitReceiptV1, KernelAuthority, ProposalRecordV1, RejectionRecordV1, SeedResultV1,
@@ -280,16 +280,19 @@ impl KernelAuthority {
         };
         // The graph root and the seed's evidence payloads are the seed's, not the replay's: no
         // revision root binds them, so they are read from the seed envelope the prefix binds.
-        let envelope = crate::seed::envelope(history.content(seed_hash, StorageClass::Canonical)?)?;
+        // Neither needs the payloads' bytes, so unless this authority already holds the complete
+        // envelope, its bytes are read without decoding them.
+        let bytes = history.content(seed_hash, StorageClass::Canonical)?;
+        let envelope = match self.held_envelope(seed_hash)? {
+            Some(envelope) => SeedOutline::Full(envelope),
+            None => SeedOutline::View(Box::new(crate::seed::envelope_view(bytes)?)),
+        };
         require(
-            checkpoint.graph.root == envelope.input.graph.root,
+            checkpoint.graph.root == envelope.graph().root,
             "checkpoint-graph-root-identity",
         )?;
         require(
-            checkpoint
-                .seed_payloads
-                .iter()
-                .eq(envelope.input.evidence_payloads.keys()),
+            envelope.payloads_are(&checkpoint.seed_payloads),
             "checkpoint-seed-payloads",
         )?;
         let payloads = checkpoint.seed_payloads.clone();
@@ -299,7 +302,7 @@ impl KernelAuthority {
         // the prefix binds created, read from their retained proposals: the checkpoint's list
         // must be exactly that, so that a changed cache cannot free an id for a new record.
         let derived = if self.anchor.validation_profile.keeps_identities() {
-            held_by(&envelope.input.graph, &state)?
+            held_by(envelope.graph(), &state)?
         } else {
             HeldIdentities::default()
         };

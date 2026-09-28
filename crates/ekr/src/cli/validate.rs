@@ -7,7 +7,7 @@ use crate::exit::Failure;
 
 /// A recorded rejection is a declared outcome and returns `Ok` like a validation does.
 pub(super) fn run(
-    runtime: Runtime,
+    runtime: &Runtime,
     transaction: TransactionId,
     against: u64,
     now: &dyn Fn() -> Timestamp,
