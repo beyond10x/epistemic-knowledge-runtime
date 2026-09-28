@@ -8,7 +8,7 @@ use crate::exit::Failure;
 /// Captures the requested (or newest) revision once and projects it; a missing revision is
 /// the kernel's `RevisionNotFound`.
 pub(super) fn run(
-    runtime: Runtime,
+    runtime: &Runtime,
     at: Option<u64>,
     valid_at: Option<Timestamp>,
 ) -> Result<SnapshotResult, Failure> {
