@@ -90,6 +90,38 @@ fn a_handle_continues_from_the_pointer_it_last_wrote() {
     assert!(wrong.is_empty(), "\n{}", wrong.join("\n"));
 }
 
+/// A write the handle's record says has nothing to append — the pointer it last wrote is the one
+/// asked for — is decided from the stream when another handle has written since, as a handle
+/// without the record decides it: the newest pointer is then the other handle's, and this one is
+/// written after it. The other member of the class `adversary_write_path_pointer.rs` holds.
+#[test]
+fn a_repeat_of_the_handles_own_pointer_after_another_handles_is_written() {
+    let mut wrong = Vec::new();
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let store = open(directory.path(), file);
+        store
+            .write_checkpoint(1, binding("mine"), Some(b"my checkpoint"))
+            .unwrap();
+        open(directory.path(), file)
+            .write_checkpoint(2, binding("theirs"), Some(b"their checkpoint"))
+            .unwrap();
+        store
+            .write_checkpoint(1, binding("mine"), Some(b"my checkpoint"))
+            .unwrap();
+        let written = pointers(directory.path(), file);
+        let expected = vec![
+            (1, binding("mine").to_hex()),
+            (2, binding("theirs").to_hex()),
+            (1, binding("mine").to_hex()),
+        ];
+        if written != expected {
+            wrong.push(format!("file={file}: the log holds {written:?}"));
+        }
+    }
+    assert!(wrong.is_empty(), "\n{}", wrong.join("\n"));
+}
+
 #[test]
 fn a_pointer_another_handle_wrote_since_is_kept_and_the_next_write_still_lands() {
     let mut wrong = Vec::new();

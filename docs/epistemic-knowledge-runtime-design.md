@@ -4502,8 +4502,10 @@ atomic groups (the preparation, the publication, the checkpoint pointer), 8 to 1
 5. **A pointer write continues from the handle's own last one.** A handle that wrote the newest
    checkpoint pointer knows the stream's length and newest pointer without reading them; when
    another handle has written since, its conditional append loses, and the write reads the stream
-   and is made again, as a handle without that record makes it. Executed by
-   `crates/ekr-store/tests/checkpoint_pointer.rs`.
+   and is made again, as a handle without that record makes it. Only an append proves the record:
+   a write the record says has nothing to append is decided again from the stream too, and a
+   write that appends nothing leaves no record. Executed by
+   `crates/ekr-store/tests/checkpoint_pointer.rs` and `adversary_write_path_pointer.rs`.
 
 ## 98.2 Result, and what is not changed
 

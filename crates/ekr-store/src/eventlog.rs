@@ -116,9 +116,8 @@ pub struct EventlogStore<S: EventStore> {
     /// authorization's input exactly and are not authorized again. Any other bytes are.
     authorized: std::sync::Mutex<BTreeSet<ContentHash>>,
     /// The newest checkpoint pointer and the pointer stream's length after this handle's last
-    /// pointer write, where its next write continues from. Taken by that write, and kept again
-    /// only when the write succeeds: a write that loses to another handle's reads the stream
-    /// afresh.
+    /// pointer append, where its next write continues from. Taken by that write, and kept again
+    /// only when the write appends: a write that appends nothing from it reads the stream afresh.
     pointer: std::sync::Mutex<Option<(Option<CheckpointWritten>, u64)>>,
 }
 /// One verified object as a handle keeps it: its metadata, and its bytes shared with the process's
@@ -1349,32 +1348,39 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         checkpoint: Option<&[u8]>,
     ) -> Result<(), StoreError> {
         ensure_sync_context()?;
-        // This handle's own last write names the newest pointer and the stream's length, unless
-        // another handle has written since; its conditional append then loses, and the write is
-        // made again from the stream as read, as a handle without that record makes it.
+        // This handle's own last append names the newest pointer and the stream's length, unless
+        // another handle has written since. Only an append at that length proves the record still
+        // holds: the conditional append succeeds. Any other outcome from the record — a lost
+        // append, or nothing to write, which is what the record says and may not be what the
+        // stream holds — is decided again from the stream as read, as a handle without the record
+        // decides it.
         let remembered = self.pointer.lock().ok().and_then(|mut held| held.take());
-        let from_memo = remembered.is_some();
-        let (previous, length) = match remembered {
-            Some(held) => held,
-            None => self.checkpoint_pointer()?,
-        };
-        let after = match self.append_pointer(covered, binding, checkpoint, previous, length)? {
-            None if from_memo => {
+        let appended = match remembered {
+            Some((previous, length)) => {
+                match self.append_pointer(covered, binding, checkpoint, previous, length)? {
+                    Some(appended) => Some(appended),
+                    None => {
+                        let (previous, length) = self.checkpoint_pointer()?;
+                        self.append_pointer(covered, binding, checkpoint, previous, length)?
+                    }
+                }
+            }
+            None => {
                 let (previous, length) = self.checkpoint_pointer()?;
                 self.append_pointer(covered, binding, checkpoint, previous, length)?
             }
-            after => after,
         };
-        if let (Some(after), Ok(mut held)) = (after, self.pointer.lock()) {
-            *held = Some(after);
+        if let (Some(appended), Ok(mut held)) = (appended, self.pointer.lock()) {
+            *held = Some(appended);
         }
         Ok(())
     }
 }
 impl<S: AtomicBlobEventStore> EventlogStore<S> {
     /// [`RevisionLog::write_checkpoint`] after `previous`, the newest pointer of a stream `length`
-    /// long. The newest pointer and the length after it, or `None` when the conditional append
-    /// lost to another writer and nothing was written.
+    /// long. The pointer it appended and the stream's length after it; `None` when it appended
+    /// nothing, because there was nothing to write after `previous` or because the conditional
+    /// append lost to another writer.
     fn append_pointer(
         &self,
         covered: u64,
@@ -1386,14 +1392,14 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         let hash = match (checkpoint, &previous) {
             (Some(bytes), _) => ContentHash::of_bytes(bytes),
             (None, Some(previous)) => previous.checkpoint_hash,
-            (None, None) => return Ok(Some((previous, length))),
+            (None, None) => return Ok(None),
         };
         if previous.as_ref().is_some_and(|previous| {
             previous.checkpoint_hash == hash
                 && previous.covered == covered
                 && previous.binding == binding
         }) {
-            return Ok(Some((previous, length)));
+            return Ok(None);
         }
         let pointer = CheckpointWritten {
             checkpoint_hash: hash,
