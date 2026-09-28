@@ -205,9 +205,9 @@ pub(crate) struct ReplayCache {
     entries: Vec<(usize, ContentHash, Arc<ReplayState>)>,
     /// The seed envelope this authority admitted, and the evidence payloads it requires.
     pub(crate) seed: Option<(ContentHash, BTreeSet<ContentHash>)>,
-    /// The seed envelope this authority decoded in full, or wrote, by its content address. It is
-    /// a function of that address, so every path that verified the retained bytes at the same
-    /// address takes it instead of decoding them again.
+    /// The seed envelope this authority decoded in full from verified retained bytes, by their
+    /// address. It is a function of that address, so every path that verified the retained bytes
+    /// at the same address takes it instead of decoding them again.
     pub(crate) envelope: Option<(ContentHash, Arc<crate::seed::SeedEnvelope>)>,
     /// How many replays this authority began at the seed rather than at a state it had reached.
     pub(crate) seed_replays: u64,

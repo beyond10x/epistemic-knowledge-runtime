@@ -84,15 +84,6 @@ impl KernelAuthority {
             .filter(|(held, _)| *held == seed_hash)
             .map(|(_, envelope)| Arc::clone(envelope)))
     }
-    /// Holds `envelope` as the one whose serialized bytes have the address `seed_hash`.
-    fn hold_envelope(
-        &self,
-        seed_hash: ContentHash,
-        envelope: Arc<SeedEnvelope>,
-    ) -> Result<(), StoreError> {
-        self.cache()?.envelope = Some((seed_hash, envelope));
-        Ok(())
-    }
     /// The seed envelope `history` retains at `seed_hash`, decoded in full at most once by this
     /// authority. The retained bytes are read and verified on every call, exactly as before, so a
     /// history that does not hold them refuses as it did; only the decode of verified bytes at an
@@ -107,9 +98,11 @@ impl KernelAuthority {
             return Ok(held);
         }
         let decoded = seed::envelope(bytes);
-        self.cache()?.envelope_decodes += 1;
+        let mut cache = self.cache()?;
+        cache.envelope_decodes += 1;
         let envelope = Arc::new(decoded?);
-        self.hold_envelope(seed_hash, Arc::clone(&envelope))?;
+        // Only an envelope decoded from verified retained bytes is ever held.
+        cache.envelope = Some((seed_hash, Arc::clone(&envelope)));
         Ok(envelope)
     }
     fn seed_requirements(
@@ -358,11 +351,8 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
         };
         let bytes = serde_json::to_vec(&envelope).map_err(|e| SeedError::Invalid(e.to_string()))?;
         let seed_hash = ContentHash::of_bytes(&bytes);
-        // These bytes decode to exactly this envelope, so the replay that admits the publication
-        // takes it rather than decoding them; it still reads and verifies the retained bytes.
-        let envelope = Arc::new(envelope);
-        self.authority
-            .hold_envelope(seed_hash, Arc::clone(&envelope))?;
+        // Nothing is held for `seed_hash` here: the replay that admits the publication decodes
+        // the staged bytes themselves (invariant 1), and only that decode is then held.
         let root = seed_root(&graph, seed_hash, &self.authority.anchor);
         let record = SeedResultV1 {
             format: SeedResultV1::FORMAT.into(),

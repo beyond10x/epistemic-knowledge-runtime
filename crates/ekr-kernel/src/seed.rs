@@ -125,9 +125,32 @@ fn payload_mismatch<T>(expected: ContentHash, found: ContentHash) -> Result<T, S
     )))
 }
 
+/// A payload value checked to be what `Vec<u8>` decodes — a sequence of integers each fitting a
+/// byte — without allocating the bytes.
+struct CheckedBytes;
+impl<'de> Deserialize<'de> for CheckedBytes {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Visitor;
+        impl<'de> serde::de::Visitor<'de> for Visitor {
+            type Value = CheckedBytes;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formatter.write_str("a sequence")
+            }
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut sequence: A,
+            ) -> Result<CheckedBytes, A::Error> {
+                while sequence.next_element::<u8>()?.is_some() {}
+                Ok(CheckedBytes)
+            }
+        }
+        deserializer.deserialize_seq(Visitor)
+    }
+}
+
 /// What a replay checkpoint's restore reads of a retained seed envelope: the seed graph and the
-/// addresses of the evidence payloads, every other field decoded as in [`SeedEnvelope`] but each
-/// payload's bytes only skipped over.
+/// addresses of the evidence payloads, every other field decoded as in [`SeedEnvelope`] and each
+/// payload's bytes checked as `Vec<u8>` would decode them, but not kept.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct SeedEnvelopeView {
@@ -149,7 +172,7 @@ struct SeedDocumentView {
     _ontology: OntologyDocument,
     graph: GraphDocument,
     #[serde(deserialize_with = "ekr_core::decode::unique_map")]
-    evidence_payloads: BTreeMap<ContentHash, serde::de::IgnoredAny>,
+    evidence_payloads: BTreeMap<ContentHash, CheckedBytes>,
 }
 
 /// The parts of a retained seed envelope a checkpoint restore reads: the envelope this authority
@@ -210,8 +233,8 @@ pub(crate) fn envelope(bytes: &[u8]) -> Result<SeedEnvelope, StoreError> {
     Ok(envelope)
 }
 
-/// Decodes a retained seed envelope without its payload bytes, refusing exactly what
-/// [`envelope`] refuses except payload values that are not bytes.
+/// Decodes a retained seed envelope without keeping its payload bytes, refusing what
+/// [`envelope`] refuses, payload values that are not bytes included.
 pub(crate) fn envelope_view(bytes: &[u8]) -> Result<SeedEnvelopeView, StoreError> {
     let view: SeedEnvelopeView = decoded(bytes)?;
     supported(&view.format)?;

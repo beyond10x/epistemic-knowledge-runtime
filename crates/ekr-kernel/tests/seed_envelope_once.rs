@@ -4,9 +4,10 @@
 //! One `ekr` invocation opens one runtime. Across a checkpoint restore, verified reads at the head
 //! and at an earlier revision, and a complete propose, validate and commit, that runtime decodes
 //! the envelope's full bytes once: every later path takes the envelope it already holds for the
-//! same `seed_hash`, and the checkpoint restore reads only the payload keys and the seed graph.
-//! A full replay decodes it once too, and a runtime that wrote the seed holds the envelope it
-//! wrote. The count is the kernel's own, [`Runtime::seed_envelope_decodes`].
+//! same `seed_hash`, and the checkpoint restore keeps only the payload keys and the seed graph.
+//! A full replay decodes it once too, and a runtime that writes the seed decodes the staged bytes
+//! once, in the replay that admits the publication. The count is the kernel's own,
+//! [`Runtime::seed_envelope_decodes`].
 use ekr_core::*;
 use ekr_graph::*;
 use ekr_kernel::*;
@@ -224,7 +225,7 @@ fn a_full_replay_also_decodes_the_seed_envelope_once() {
 }
 
 #[test]
-fn a_runtime_that_writes_the_seed_holds_the_envelope_it_wrote() {
+fn a_runtime_that_writes_the_seed_decodes_the_staged_envelope_once() {
     for file in [true, false] {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path();
@@ -235,6 +236,8 @@ fn a_runtime_that_writes_the_seed_holds_the_envelope_it_wrote() {
             .unwrap();
         commit(&runtime, &seed, 1);
         assert_eq!(runtime.read(None).unwrap().seed_input, seed);
-        assert_eq!(runtime.seed_envelope_decodes(), 0, "file={file}");
+        // The replay that admits the publication decodes the staged bytes, not the envelope
+        // the handle built in memory (invariant 1); every later path takes that decode.
+        assert_eq!(runtime.seed_envelope_decodes(), 1, "file={file}");
     }
 }
