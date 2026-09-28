@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:seed-envelope-decoded-once
 kind: story
-status: active
+status: implemented
 title: The seed envelope is decoded once per process
 relations:
 - serves: vision:o5
@@ -20,10 +20,11 @@ scope:
   path: crates/ekr-kernel/src/seed.rs
 - confidence: cited
   path: crates/ekr-kernel/tests/seed_envelope_once.rs
-revision: 9
+revision: 10
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T09:14:10Z", actor: "agent:claude-coordinator", revision: 8}
 - {from: "proposed", to: "active", at: "2026-09-28T09:14:10Z", actor: "agent:claude-coordinator", revision: 9}
+- {from: "active", to: "implemented", at: "2026-09-28T12:03:50Z", actor: "agent:claude-coordinator", revision: 10, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}}
 ---
 ## Context
 
