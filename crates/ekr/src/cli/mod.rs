@@ -9,9 +9,10 @@
 //! agent verbs — `guide`, `operations`, `example`, `schema`, `mint`, `hash` — print static, tested
 //! text, a generated JSON Schema, a fresh id or a payload's content hash, and open no provider.
 //! `session` opens the store once and runs each request line through the same dispatch as the
-//! one-shot verbs (`session.rs`), against the runtime it holds. `mcp` opens the store once and
-//! answers MCP tool calls with the `ekr.views` reads and the `explain` and `resolve` verbs'
-//! documents (`mcp.rs`); it writes nothing.
+//! one-shot verbs (`session.rs`), against the runtime it holds; on a path holding no store it
+//! starts without one, and with `--create` its `seed` creates the store it then holds. `mcp`
+//! opens the store once and answers MCP tool calls with the `ekr.views` reads and the `explain`
+//! and `resolve` verbs' documents (`mcp.rs`); it writes nothing.
 
 mod agent;
 mod commit;
@@ -32,6 +33,7 @@ mod validate;
 mod view;
 mod view_roles;
 
+use std::borrow::Cow;
 use std::ffi::OsString;
 use std::io::Read;
 use std::path::PathBuf;
@@ -268,11 +270,20 @@ pub enum Command {
     /// once. A request is `{"argv": ["resolve", "reference.yaml"]}`: a verb and its arguments as
     /// `ekr` takes them, with an optional `"stdin"` text that `-` reads. Its answer is
     /// `{"exit": <status>, "stdout": <the verb's JSON document, or null>, "stderr": <its message,
-    /// or "">}`, what the verb exits with and prints. `seed`, `view`, `session`, `guide`,
-    /// `operations` and `example` are refused (`session-verb-refused`), and so are
-    /// --host/--store/--backend/--full-replay in a request (`session-option-refused`).
+    /// or "">}`, what the verb exits with and prints. On a --store holding no store yet the
+    /// session starts anyway: `mint`, `hash` and `schema` are served, and a store verb answers
+    /// `store-not-found` until a seed creates the store. `seed` is served with --create only;
+    /// `view`, `session`, `mcp`, `guide`, `operations` and `example` are refused
+    /// (`session-verb-refused`), and so are --host/--store/--backend/--full-replay in a request
+    /// (`session-option-refused`).
     #[command(after_help = SEE)]
-    Session,
+    Session {
+        /// Serve `seed` too, with the arguments `ekr seed` takes: the seed that creates the store
+        /// leaves the session holding it, serving every store verb; on an existing store a seed
+        /// answers as `ekr seed` does there.
+        #[arg(long)]
+        create: bool,
+    },
     /// Serve read-only MCP tools to an agent over stdio: JSON-RPC 2.0, one message per line on
     /// stdin and stdout, until end of input.
     ///
@@ -349,7 +360,7 @@ pub fn execute(
     now: &dyn Fn() -> Timestamp,
     stdin: &mut dyn Read,
 ) -> Result<String, Failure> {
-    if matches!(cli.command, Command::Session) {
+    if matches!(cli.command, Command::Session { .. }) {
         let mut answers = Vec::new();
         serve(cli, now, &mut std::io::BufReader::new(stdin), &mut answers)?;
         return String::from_utf8(answers).map_err(Failure::fault);
@@ -389,20 +400,26 @@ impl Printed {
 enum Source<'a> {
     /// A one-shot verb: the configuration it resolves and the store it opens itself.
     Configured(Configured),
-    /// A session request: the runtime the session opened once, for every request.
-    Held(&'a Held),
+    /// A session request: the session's configuration and the runtime it holds, once it has one.
+    Session(&'a Session),
 }
 
-/// The runtime a session holds and the host operator it was opened under.
-struct Held {
-    runtime: Runtime,
-    operator: ekr_core::AgentId,
+/// What a session holds: its configuration, resolved and checked once when it started, the
+/// store's runtime once the store exists — opened once, at the start or after the seed that
+/// created it — and whether it serves `seed`.
+struct Session {
+    store: Store,
+    runtime: Option<Runtime>,
+    create: bool,
 }
 
-/// A store verb's source, resolved: a checked configuration, or the session's runtime.
+/// A store verb's source, resolved: a checked configuration, or the session's.
 enum Resolved<'a> {
     Fresh(Box<Store>),
-    Held(&'a Held),
+    /// A session that holds no store yet: its configuration, which opens as a one-shot verb's.
+    Unopened(&'a Store),
+    /// The runtime a session holds and the host operator it was opened under.
+    Held(&'a Runtime, ekr_core::AgentId),
 }
 
 /// A runtime a verb reads or writes through: its own, or the session's.
@@ -429,16 +446,22 @@ impl<'a> Source<'a> {
             Self::Configured(configured) => configured
                 .resolve(verb)
                 .map(|store| Resolved::Fresh(Box::new(store))),
-            Self::Held(held) => Ok(Resolved::Held(held)),
+            Self::Session(session) => Ok(match &session.runtime {
+                Some(runtime) => Resolved::Held(runtime, session.store.host.context.operator),
+                None => Resolved::Unopened(&session.store),
+            }),
         }
     }
 
-    /// The configuration of a verb that opens its own store in its own way — `seed`, `view` —
-    /// which a session does not serve.
-    fn configured(self, verb: &'static str) -> Result<Store, Failure> {
+    /// The configuration of a verb that opens its own store in its own way — `seed`, `view`.
+    /// A session serves only `seed`, and only when started with `--create`.
+    fn configured(self, verb: &'static str) -> Result<Cow<'a, Store>, Failure> {
         match self {
-            Self::Configured(configured) => configured.resolve(verb),
-            Self::Held(_) => Err(session::verb_refused(verb)),
+            Self::Configured(configured) => configured.resolve(verb).map(Cow::Owned),
+            Self::Session(session) if verb == "seed" && session.create => {
+                Ok(Cow::Borrowed(&session.store))
+            }
+            Self::Session(_) => Err(session::verb_refused(verb)),
         }
     }
 }
@@ -448,15 +471,18 @@ impl<'a> Resolved<'a> {
     fn operator(&self) -> ekr_core::AgentId {
         match self {
             Self::Fresh(store) => store.host.context.operator,
-            Self::Held(held) => held.operator,
+            Self::Unopened(store) => store.host.context.operator,
+            Self::Held(_, operator) => *operator,
         }
     }
 
-    /// A one-shot verb opens the existing store; a session request uses the one it holds.
+    /// A one-shot verb, or a session without a store yet, opens the existing store; a session
+    /// request uses the one it holds.
     fn open(&self) -> Result<Opened<'a>, Failure> {
         match self {
             Self::Fresh(store) => store.open().map(Opened::Owned),
-            Self::Held(held) => Ok(Opened::Borrowed(&held.runtime)),
+            Self::Unopened(store) => store.open().map(Opened::Owned),
+            Self::Held(runtime, _) => Ok(Opened::Borrowed(runtime)),
         }
     }
 }
@@ -547,7 +573,7 @@ fn dispatch(
         Command::View { port } => {
             view::run(&source.configured("view")?.open()?, port).map(Printed::Text)
         }
-        Command::Session => Err(session::verb_refused("session")),
+        Command::Session { .. } => Err(session::verb_refused("session")),
         Command::Mcp => Err(session::verb_refused("mcp")),
     }
 }
@@ -583,6 +609,7 @@ impl Configured {
 }
 
 /// A store verb's resolved configuration: the trusted host document, read and checked.
+#[derive(Clone)]
 struct Store {
     host: CliHostConfigurationV1,
     store: PathBuf,
@@ -699,6 +726,16 @@ impl Store {
             )),
             error => opening(error),
         })
+    }
+
+    /// Opens the store as [`Store::open`] does, or nothing where the path holds no store: a
+    /// session starts before its store exists, and holds it once a seed has created it.
+    fn open_if_any(&self) -> Result<Option<Runtime>, Failure> {
+        match self.open_existing() {
+            Ok(runtime) => Ok(Some(runtime)),
+            Err(PersistenceError::NoStore(_)) => Ok(None),
+            Err(error) => Err(opening(error)),
+        }
     }
 
     /// Opens the store `seed` publishes into. The host anchor is checked first, as every open
