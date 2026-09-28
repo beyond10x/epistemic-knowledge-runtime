@@ -11,7 +11,7 @@ tags:
 relations:
 - serves: vision:o5
 - derived_from: story:transaction-and-validators
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T02:51:38Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-09-28T02:51:38Z", actor: "human:timo", revision: 3}
@@ -56,3 +56,10 @@ named structural issue, on both providers, and a store that already contains suc
 replays (the rule applies to new transactions under a validation profile that says so, as the
 v1/v2 split in `structural.rs` does). A test that creates, deletes and re-creates one edge id
 fails before the fix and passes after it.
+
+
+## State, 2026-09-28
+
+- The validator is built and tested on branch `impl/deleted-edge-id` at `e26ff875` (pushed, not merged): `identity-previously-held`, node and edge ids in one space; 4 validator cases, red first; ekr-kernel 352 passed. No validation profile selects it yet.
+- Held on a design point: the drafted wiring (`~/.local/state/ekr-offside/deleted-edge-id-profile-v3-wiring.patch`, a v3 profile `ekr.p3-deterministic/1` + `ekr.p2-apply/1`) makes v3 stores skip checkpoint restore and replay from the seed, because a checkpoint holds only the head's graph. That would undo the one-pass load (first `/overview` 0.8 s). Next: carry the held-id set in the checkpoint, after `task:checkpoint-graph-root-is-unbound` merges, then wire the profile.
+- The review's bug is reproduced on both providers by the unit's end-to-end case under v2. Nodes have no delete gap (only DeleteEdge removes), but v1/v2 accept a node minted over an edge's id, live or deleted.
