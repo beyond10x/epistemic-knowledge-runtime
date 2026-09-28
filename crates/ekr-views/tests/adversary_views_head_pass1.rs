@@ -21,8 +21,7 @@ use std::path::Path;
 use ekr_core::RevisionNumber;
 use ekr_kernel::Runtime;
 use ekr_views::{
-    BucketWidth, ExpandRequest, Index, IndexCache, OverviewRequest, SearchRequest,
-    TimelineRequest,
+    BucketWidth, ExpandRequest, Index, IndexCache, OverviewRequest, SearchRequest, TimelineRequest,
 };
 
 use support::fixtures::{self, Fixture, Provider};
@@ -98,11 +97,7 @@ fn every_answer(runtime: &Runtime, at: Option<u64>) -> Vec<(String, Vec<u8>)> {
     answers
 }
 
-fn differences(
-    before: &[(String, Vec<u8>)],
-    after: &[(String, Vec<u8>)],
-    at: u64,
-) -> Vec<String> {
+fn differences(before: &[(String, Vec<u8>)], after: &[(String, Vec<u8>)], at: u64) -> Vec<String> {
     let mut changed = Vec::new();
     if before.len() != after.len() {
         changed.push(format!(
@@ -193,7 +188,11 @@ fn a_held_index_is_what_a_fresh_handle_loads_after_commits(provider: Provider) {
     let held_head = cache.index(&runtime, None).unwrap();
     assert_eq!(held_head.revision().get(), head);
     let held: Vec<_> = (0..head)
-        .map(|at| cache.index(&runtime, Some(RevisionNumber::new(at))).unwrap())
+        .map(|at| {
+            cache
+                .index(&runtime, Some(RevisionNumber::new(at)))
+                .unwrap()
+        })
         .collect();
     for n in 0..3 {
         fixtures::commit_unrelated(&runtime, n);
