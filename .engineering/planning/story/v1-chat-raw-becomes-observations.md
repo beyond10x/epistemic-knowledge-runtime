@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:v1-chat-raw-becomes-observations
 kind: story
-status: draft
+status: archived
 title: v1 raw chat files become observations, twice-safe, reconciled against source counts
 relations:
 - serves: vision:o5
@@ -17,7 +17,9 @@ scope:
   path: crates/ekr/tests/import.rs
 - confidence: inferred
   path: docs/cli.md
-revision: 6
+revision: 7
+transitions:
+- {from: "draft", to: "archived", at: "2026-09-28T23:00:43Z", actor: "agent:claude-coordinator", revision: 7, decided_on: {"recorded":{"review_outcome":1}}}
 ---
 ## Context
 

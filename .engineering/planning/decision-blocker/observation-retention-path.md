@@ -7,6 +7,7 @@ title: Nobody has decided where an observation is retained, or whether it depend
 relations:
 - blocks: epic:p2-observation-layer
 - blocks: story:observations-are-retained
+- blocks: story:source-adapter-contract
 revision: 2
 ---
 ## Question

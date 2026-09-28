@@ -69,7 +69,7 @@ crate under `systems/ekr/` (the v2 convention; `ess specify validate` runs in th
 | `ekr-graph` | § 13–14, § 17, § 21–23, § 36 | assertions (bitemporal), validation state, canonical graph, transient graph, `CanonicalRef`/`TransientRef` |
 | `ekr-store` | § 34, § 37, § 57 | eventlog-backed persistence, storage classes, content addressing |
 | `ekr-observe` | § 15–16, § 54–56 | observations, evidence, `SourceAdapter`, checkpoints, idempotency, poll health (A8), blobs (A12), credential redaction (A6) |
-| `ekr-adapters` | § 54 | Slack, GitLab, Jira, Confluence, GitHub through connectors; adapter declarations lifted from v2 `adapters/*.yaml` |
+| ~~`ekr-adapters`~~ | § 54 | removed 2026-09-29 by ADR 0012 (`architecture-decision-record:0012-source-adapters-are-a-contract`): the engine specifies the source-adapter contract in `ekr-observe`; connectors to third-party systems live in consumers |
 | `ekr-import` | § 15, § 22 | v1 and v2 importers (raw in P2, curated in P7) |
 | `ekr-incubate` | § 22–25, § 40, § 53 | incubation forest, transient roots with local schemas, root utility metadata |
 | `ekr-interpret` | § 18, § 24, § 48–49 | agent contract, interpretation session protocol (A5), trust profiles, consensus |
@@ -155,7 +155,7 @@ Outcome: sources enter as immutable, content-addressed observations, twice-safe,
   the rule that a successful poll proves only its window (A8).
 - Credential redaction before any model input, PII/secret gates (A6); `Blob(ContentHash)` for
   attachments (A12).
-- Adapters: Slack, GitLab, Jira, Confluence, GitHub, lifted from v2 `adapters/*.yaml`.
+- Adapters (changed 2026-09-29, ADR 0012): the engine specifies the source-adapter contract and ships one fixture adapter; connectors to Slack, GitLab, Jira, Confluence and GitHub live in consumers, implemented against it.
 - Raw importers: v1 `knowledge/raw/**/*.jsonl` and v2 `raw/` become observations.
 
 Carries: A6, A8, A12.
