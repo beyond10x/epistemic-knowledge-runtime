@@ -1943,7 +1943,7 @@ fn no_text_a_reader_meets_says_only_the_p1_profile_is_accepted() {
     );
 }
 
-/// `README.md` is true of the latest release, 0.0.13: its status table is headed by it, lists schema
+/// `README.md` is true of the latest release, 0.0.14: its status table is headed by it, lists schema
 /// evolution under validation profile v2 as working and links the page's § Evolve the schema, and
 /// keeps `MergeEntity` and a v1 store's fixed schema as not in it. Schema evolution is no longer
 /// called a later phase or unreleased.
@@ -1963,6 +1963,7 @@ fn readme_says_the_schema_evolves_under_profile_v2() {
         "works in 0.0.10",
         "works in 0.0.11",
         "works in 0.0.12",
+        "works in 0.0.13",
         "not yet released",
         "the incubation forest, schema evolution and maintenance",
     ] {
@@ -1972,7 +1973,7 @@ fn readme_says_the_schema_evolves_under_profile_v2() {
         .lines()
         .find(|line| line.starts_with("| works in "))
         .expect("README.md has a status table");
-    assert!(header.starts_with("| works in 0.0.13 |"), "{header}");
+    assert!(header.starts_with("| works in 0.0.14 |"), "{header}");
     let prefixed = format!("\n{readme}");
     let released = section(&prefixed, "## Status");
     let table: String = released
@@ -1990,7 +1991,7 @@ fn readme_says_the_schema_evolves_under_profile_v2() {
     ] {
         assert!(
             table.contains(needle),
-            "the 0.0.13 table lacks {needle:?}: {table}"
+            "the 0.0.14 table lacks {needle:?}: {table}"
         );
     }
     // The link lands: the page has that heading.

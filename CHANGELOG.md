@@ -4,6 +4,40 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.14] — 2026-09-29
+
+Past revisions keep their view bytes; a session can seed; replay checkpoints are written when due.
+
+### Added
+
+- `ekr view` serves `GET /head`, `{"format":"ekr.view-head/1","head":N}`; the viewer pages read the
+  head from it.
+- `ekr session` starts when the configured store does not exist: it answers `mint`, `hash` and
+  `schema` as the one-shot verbs do, and a store verb answers `store-not-found` inside the
+  response while the session keeps serving. `ekr session --create` also serves `seed`, then holds
+  the store it created. A small store is built in one process where one-shot calls took nine.
+
+### Changed
+
+- **Breaking for readers of `meta.head`:** the six `ekr.views` formats and their events no longer
+  carry `head`, so a render of a past revision is byte-identical before and after later commits
+  (views rule 5). The `RevisionNotFound` refusal keeps its `head` field. `ekr mcp` answers the same
+  documents. The view caches are keyed on the revision alone.
+- Replay checkpoints (design § 99): a seed writes one; a commit writes one only when the handle
+  knows of none, the head is 4 revisions past it, the commits since hold 512 operations, or a
+  validation since was made against a revision before its head; otherwise it appends a pointer.
+  Propose, validate and a stale commit append nothing. Inside `ekr session` on a ~20 MB file store,
+  the median commit went from 145 ms to 91 ms; one-shot use is unchanged.
+- The kernel conformance scenarios for Propose, Validate and a stale Commit no longer expect
+  `ekr.store.CheckpointWritten`.
+
+### Known limits
+
+- The eventlog file provider still re-hashes its log after a write and syncs 28 times per write
+  verb (`task:eventlog-rehash-and-fsync-per-write`).
+- A session request still costs 20–34 ms on a store seeded with 11 MB of evidence
+  (`task:session-request-cost-grows-with-evidence`).
+
 ## [0.0.13] — 2026-09-28
 
 Agents read the store through MCP; write verbs cost less inside a session.
