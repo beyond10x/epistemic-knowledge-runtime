@@ -92,9 +92,11 @@ types:
     kind: newtype
     of: String
 
-  # Required literal: "ekr.p1-deterministic/1" (validation profile v1) or "ekr.p2-deterministic/1"
-  # (profile v2, which admits schema changes), paired with the matching application. Runtime version
-  # dispatch enforces it; a store keeps the profile its authority anchor named at seed.
+  # Required literal: "ekr.p1-deterministic/1" (validation profile v1), "ekr.p2-deterministic/1"
+  # (profile v2, which admits schema changes) or "ekr.p3-deterministic/1" (profile v3: v2, and a
+  # node or edge id any revision held is never created again), paired with the matching
+  # application. Runtime version dispatch enforces it; a store keeps the profile its authority
+  # anchor named at seed.
   - name: ekr.kernel.RulesetV1
     kind: newtype
     of: String
@@ -109,9 +111,9 @@ types:
     kind: newtype
     of: String
 
-  # Required literal: "ekr.p1-apply/1" (profile v1) or "ekr.p2-apply/1" (profile v2, under which a
-  # committed schema change replaces the ontology with the version it names). Runtime version
-  # dispatch enforces it.
+  # Required literal: "ekr.p1-apply/1" (profile v1) or "ekr.p2-apply/1" (profiles v2 and v3, under
+  # which a committed schema change replaces the ontology with the version it names). Runtime
+  # version dispatch enforces it.
   - name: ekr.kernel.ApplicationProfileV1
     kind: newtype
     of: String

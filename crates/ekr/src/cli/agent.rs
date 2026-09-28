@@ -107,7 +107,10 @@ SCHEMA CHANGES: DefineNodeType, DefineEdgeType, ModifyProperty
      profile v1 validation rejects DefineNodeType, DefineEdgeType and ModifyProperty with the
      issue code unsupported-operation, and no mechanism moves a store from v1 to v2. To seed a
      store under v2, write `ekr example ekr.cli-host/1` to a file, replace those two values,
-     and run `ekr seed` with that host into a new --store.
+     and run `ekr seed` with that host into a new --store. Profile v3, \"ruleset\":
+     \"ekr.p3-deterministic/1\" with \"application\": \"ekr.p2-apply/1\", admits them as v2
+     does, and also refuses a CreateNode or CreateEdge whose id an earlier revision held, such
+     as a deleted edge's (identity-previously-held).
   2. The transaction holds only schema changes (mixed-schema-transaction otherwise).
   3. It names the version it produces in transaction.schema_version, a fresh id from
      `ekr mint schema-version` (schema-version-missing without one;
@@ -511,13 +514,14 @@ pub(super) fn operation_list() -> String {
 /// What a page says about a schema kind.
 const SCHEMA_CHANGE: &str = "A schema change: applied only under validation profile v2 (a store \
 seeded under a host whose authority.validation_profile has ruleset ekr.p2-deterministic/1 and \
-application ekr.p2-apply/1), in a transaction that holds only schema changes and names the version \
+application ekr.p2-apply/1) or v3 (ruleset ekr.p3-deterministic/1, the same application), in a \
+transaction that holds only schema changes and names the version \
 it produces in transaction.schema_version (ekr mint schema-version). Under profile v1 validation \
 rejects it with the issue code unsupported-operation. `ekr example schema-change` prints a complete \
 schema change; `ekr guide` says more under SCHEMA CHANGES.";
 
 /// What a page says about a kind the kernel applies under no profile.
-const NOT_APPLIED: &str = "This kind is not applied under either validation profile: validation \
+const NOT_APPLIED: &str = "This kind is not applied under any validation profile: validation \
 rejects every proposal of this kind with the issue code unsupported-operation. The example shows \
 the shape only and is not accepted today.";
 

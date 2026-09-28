@@ -24,9 +24,10 @@
 //!
 //! Canonical state is one revision, and `DeleteEdge` leaves no trace of the id it removes, so
 //! "already holds" does not cover an id an earlier revision held. [`HeldIdentities`] carries that
-//! history, and the structural validator of [`Pipeline::identity_keeping`](super::Pipeline) holds
-//! node and edge ids against it in one space (`identity-previously-held`). Profiles v1 and v2 do
-//! not, and keep answering as they did, so a store that already committed such a reuse replays.
+//! history, and the structural validator of [`Pipeline::identity_keeping`](super::Pipeline) —
+//! validation profile v3, `ekr.p3-deterministic/1` — holds node and edge ids against it in one
+//! space (`identity-previously-held`). Profiles v1 and v2 do not, and keep answering as they did,
+//! so a store that already committed such a reuse replays.
 //!
 //! # The class is five, and it was written here as three
 //!
@@ -56,9 +57,10 @@
 //! `operation_count`, which is equally derivable and equally declared.
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
-use ekr_core::{EdgeId, EvidenceId, NodeId, TypeId};
-use ekr_graph::{CanonicalGraph, GraphSnapshot};
+use ekr_core::{EdgeId, EvidenceId, NodeId, RevisionNumber, TypeId};
+use ekr_graph::{CanonicalGraph, GraphSnapshot, ValueSpace};
 
 use super::{finish, issue, node_types, Validator};
 use crate::issue::{ValidationIssue, ValidatorName};
@@ -301,14 +303,49 @@ fn schema_shape(tx: &GraphTransaction, admits_schema: bool, issues: &mut Vec<Val
 ///
 /// `NodeId` and `EdgeId` are two types over one UUID space — a transaction document writes both
 /// as the same text — so the set is keyed by the UUID and remembers which kind held it.
+///
+/// Each identity also remembers the revision that first held it, so that one set carried forward
+/// through a lineage answers for every revision of it: the identities held at revision N are the
+/// ones first held at N or before. [`HeldIdentities::at`] reads the set at one revision without
+/// copying it, and a replay extends it by the identities each committed revision creates
+/// ([`HeldIdentities::hold`]) rather than rescanning every revision's graph.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct HeldIdentities(BTreeMap<u128, Held>);
+pub struct HeldIdentities {
+    /// Each identity, the revision that first held it, and the record it named there.
+    ids: Arc<BTreeMap<u128, (RevisionNumber, Record)>>,
+    /// The revision the set is read at, or every revision when `None`: an identity first held
+    /// after it is not held yet.
+    at: Option<RevisionNumber>,
+}
 
 /// Which kind of record an identity named.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Held {
     Node,
     Edge,
+}
+
+/// The record an identity named, with its typed id.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Record {
+    Node(NodeId),
+    Edge(EdgeId),
+}
+
+impl Record {
+    const fn uuid(self) -> u128 {
+        match self {
+            Self::Node(id) => id.as_u128(),
+            Self::Edge(id) => id.as_u128(),
+        }
+    }
+
+    const fn kind(self) -> Held {
+        match self {
+            Self::Node(_) => Held::Node,
+            Self::Edge(_) => Held::Edge,
+        }
+    }
 }
 
 impl Held {
@@ -321,19 +358,103 @@ impl Held {
 }
 
 impl HeldIdentities {
-    /// The identities `graphs` hold between them.
+    /// The identities `graphs` hold between them, each from the earliest of their revisions
+    /// that holds it.
     #[must_use]
     pub fn of<'a>(graphs: impl IntoIterator<Item = &'a CanonicalGraph>) -> Self {
         let mut held = Self::default();
         for graph in graphs {
-            for id in graph.nodes.keys() {
-                held.0.insert(id.to_uuid().as_u128(), Held::Node);
-            }
-            for id in graph.edges.keys() {
-                held.0.insert(id.to_uuid().as_u128(), Held::Edge);
-            }
+            held.record(
+                graph.revision,
+                graph.nodes.keys().copied(),
+                graph.edges.keys().copied(),
+            );
         }
         held
+    }
+
+    /// Records the nodes and edges `revision` holds, unless an earlier revision already held them.
+    /// An id held as a node and as an edge at one revision is recorded as the node's.
+    pub(crate) fn record(
+        &mut self,
+        revision: RevisionNumber,
+        nodes: impl IntoIterator<Item = NodeId>,
+        edges: impl IntoIterator<Item = EdgeId>,
+    ) {
+        let ids = Arc::make_mut(&mut self.ids);
+        let found = nodes
+            .into_iter()
+            .map(Record::Node)
+            .chain(edges.into_iter().map(Record::Edge));
+        for record in found {
+            match ids.get(&record.uuid()) {
+                Some((from, _)) if *from <= revision => {}
+                _ => {
+                    ids.insert(record.uuid(), (revision, record));
+                }
+            }
+        }
+    }
+
+    /// Records the nodes and edges `tx` creates as first held at `revision`, the revision that
+    /// committing it produces. What a committed transaction creates is everything a revision
+    /// holds that its predecessor did not, because applying one removes edges and adds nothing
+    /// else.
+    pub(crate) fn hold<V: ValueSpace>(
+        &mut self,
+        revision: RevisionNumber,
+        tx: &GraphTransaction<V>,
+    ) {
+        let mut nodes = Vec::new();
+        let mut edges = Vec::new();
+        for operation in &tx.operations {
+            match operation {
+                GraphOperation::CreateNode(draft) => nodes.push(draft.id),
+                GraphOperation::CreateEdge(draft) => edges.push(draft.id),
+                _ => {}
+            }
+        }
+        if !nodes.is_empty() || !edges.is_empty() {
+            self.record(revision, nodes, edges);
+        }
+    }
+
+    /// The same identities, read at `revision`: only those first held at it or before.
+    #[must_use]
+    pub(crate) fn at(&self, revision: RevisionNumber) -> Self {
+        Self {
+            ids: Arc::clone(&self.ids),
+            at: Some(revision),
+        }
+    }
+
+    /// The kind of record that held `uuid` at the revision this set is read at, if any did.
+    fn get(&self, uuid: u128) -> Option<Held> {
+        self.ids
+            .get(&uuid)
+            .filter(|(from, _)| self.at.is_none_or(|at| *from <= at))
+            .map(|(_, record)| record.kind())
+    }
+
+    /// Every identity of every revision, grouped by the revision that first held it, in revision
+    /// order: `(revision, nodes, edges)`.
+    pub(crate) fn by_revision(
+        &self,
+    ) -> BTreeMap<RevisionNumber, (BTreeSet<NodeId>, BTreeSet<EdgeId>)> {
+        let mut grouped: BTreeMap<RevisionNumber, (BTreeSet<NodeId>, BTreeSet<EdgeId>)> =
+            BTreeMap::new();
+        for (from, record) in self.ids.values() {
+            let (nodes, edges) = grouped.entry(*from).or_default();
+            match record {
+                Record::Node(id) => {
+                    nodes.insert(*id);
+                }
+                Record::Edge(id) => {
+                    edges.insert(*id);
+                }
+            }
+        }
+        grouped
     }
 }
 
@@ -426,7 +547,7 @@ fn once_held(
                 ),
             )),
             None => {
-                if let Some(held) = history.0.get(&uuid.as_u128()) {
+                if let Some(held) = history.get(uuid.as_u128()) {
                     issues.push(issue(
                         tx,
                         ValidatorName::Structural,
