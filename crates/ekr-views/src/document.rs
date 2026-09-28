@@ -11,8 +11,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use ekr_core::{PropertyId, TypeId};
 use ekr_graph::{
-    Assertion, AssertionLifecycle, Assessment, CanonicalDependency, CanonicalValue, EvidenceKind,
-    Object, Predicate, Subject,
+    Assertion, AssertionLifecycle, Assessment, CanonicalDependency, CanonicalValue, Edge,
+    EvidenceKind, Object, Predicate, Subject,
 };
 use ekr_ontology::{Ontology, PropertyDefinition};
 use serde::Serialize;
@@ -21,7 +21,7 @@ use sha2::{Digest, Sha256};
 use crate::{GraphProjected, LoadedRevision, ProjectError, Rendered, FORMAT};
 
 /// Ascending by the text of each id, which rule (1) orders by.
-fn sorted<T: ToString>(ids: impl IntoIterator<Item = T>) -> Vec<String> {
+pub(crate) fn sorted<T: ToString>(ids: impl IntoIterator<Item = T>) -> Vec<String> {
     let mut texts: Vec<String> = ids.into_iter().map(|id| id.to_string()).collect();
     texts.sort();
     texts.dedup();
@@ -51,7 +51,7 @@ struct ProjectionMeta {
 
 #[derive(Serialize)]
 #[serde(tag = "kind", content = "value")]
-enum ProjectedValue {
+pub(crate) enum ProjectedValue {
     String(String),
     Boolean(bool),
     Integer(i64),
@@ -116,7 +116,7 @@ struct ProjectedLifecycle {
 }
 
 #[derive(Serialize)]
-struct ProjectedAssertion {
+pub(crate) struct ProjectedAssertion {
     id: String,
     predicate_kind: &'static str,
     predicate: String,
@@ -163,7 +163,7 @@ struct ProjectedEdgeType {
 }
 
 #[derive(Serialize)]
-struct ProjectedOntology {
+pub(crate) struct ProjectedOntology {
     node_types: Vec<ProjectedNodeType>,
     edge_types: Vec<ProjectedEdgeType>,
     properties: Vec<ProjectedProperty>,
@@ -183,14 +183,39 @@ struct ProjectedNode {
 }
 
 #[derive(Serialize)]
-struct ProjectedEdge {
-    id: String,
-    source: String,
-    target: String,
+pub(crate) struct ProjectedEdge {
+    pub(crate) id: String,
+    pub(crate) source: String,
+    pub(crate) target: String,
     #[serde(rename = "type")]
-    type_id: String,
-    props: BTreeMap<String, Vec<ProjectedValue>>,
-    assertions: Vec<ProjectedAssertion>,
+    pub(crate) type_id: String,
+    pub(crate) props: BTreeMap<String, Vec<ProjectedValue>>,
+    pub(crate) assertions: Vec<ProjectedAssertion>,
+}
+
+impl ProjectedEdge {
+    /// `edge` with the assertions `about` it, which rule (1) orders by id.
+    pub(crate) fn of(edge: &Edge, about: Option<&Vec<&Assertion>>) -> Self {
+        Self {
+            id: edge.id.to_string(),
+            source: edge.source.id().to_string(),
+            target: edge.target.id().to_string(),
+            type_id: edge.type_id.to_string(),
+            props: props(&edge.properties),
+            assertions: listed_under(about),
+        }
+    }
+}
+
+/// The projected assertions `claims`, ascending by id.
+pub(crate) fn listed_under(claims: Option<&Vec<&Assertion>>) -> Vec<ProjectedAssertion> {
+    let mut projected: Vec<ProjectedAssertion> = claims
+        .into_iter()
+        .flatten()
+        .map(|claim| assertion(claim))
+        .collect();
+    projected.sort_by(|a, b| a.id.cmp(&b.id));
+    projected
 }
 
 #[derive(Serialize)]
@@ -317,7 +342,7 @@ fn lifecycle(lifecycle: &AssertionLifecycle) -> ProjectedLifecycle {
     projected
 }
 
-fn assertion(assertion: &Assertion) -> ProjectedAssertion {
+pub(crate) fn assertion(assertion: &Assertion) -> ProjectedAssertion {
     let (predicate_kind, predicate) = match assertion.predicate {
         Predicate::Property(property) => ("Property", property.to_string()),
         Predicate::Relation(type_id) => ("Relation", type_id.to_string()),
@@ -344,7 +369,7 @@ fn assertion(assertion: &Assertion) -> ProjectedAssertion {
     }
 }
 
-fn props(
+pub(crate) fn props(
     properties: &BTreeMap<PropertyId, Vec<CanonicalValue>>,
 ) -> BTreeMap<String, Vec<ProjectedValue>> {
     properties
@@ -382,7 +407,6 @@ enum Place {
 
 pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> {
     let graph = &loaded.graph;
-    let ontology = graph.ontology.to_document();
 
     let mut by_subject: BTreeMap<String, Vec<&Assertion>> = BTreeMap::new();
     let mut by_type: BTreeMap<TypeId, Vec<&Assertion>> = BTreeMap::new();
@@ -417,82 +441,11 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
         }
         listed += 1;
     }
-    let listed_under = |claims: Option<&Vec<&Assertion>>| -> Vec<ProjectedAssertion> {
-        let mut projected: Vec<ProjectedAssertion> = claims
-            .into_iter()
-            .flatten()
-            .map(|claim| assertion(claim))
-            .collect();
-        projected.sort_by(|a, b| a.id.cmp(&b.id));
-        projected
-    };
-
-    let mut node_types: Vec<ProjectedNodeType> = ontology
-        .node_types
-        .iter()
-        .map(|declared| ProjectedNodeType {
-            id: declared.id.to_string(),
-            name: declared.name.clone(),
-            properties: sorted(declared.properties.keys()),
-            assertions: listed_under(by_type.get(&declared.id)),
-        })
-        .collect();
-    node_types.sort_by(|a, b| a.id.cmp(&b.id));
-    let mut edge_types: Vec<ProjectedEdgeType> = ontology
-        .edge_types
-        .iter()
-        .map(|declared| ProjectedEdgeType {
-            id: declared.id.to_string(),
-            name: declared.name.clone(),
-            source_types: sorted(&declared.source_types),
-            target_types: sorted(&declared.target_types),
-            properties: sorted(declared.properties.keys()),
-            assertions: listed_under(by_type.get(&declared.id)),
-        })
-        .collect();
-    edge_types.sort_by(|a, b| a.id.cmp(&b.id));
-    // `ontology.properties` holds one entry per property id, carrying its name and value kind and
-    // nothing else of the definition. Each declaring type's entry is built exactly as it is
-    // projected, and the entries are compared: two types whose declarations of one id agree on
-    // name and value kind project it once, whatever else of their definitions differs, because
-    // the format carries nothing else. Entries that differ in either cannot both be projected, and
-    // keeping one would tell a reader of the other type the wrong name or kind; the render refuses
-    // instead, until the format carries each type's own definition
-    // (task:projection-carries-per-type-property-definitions).
-    let mut definitions: BTreeMap<String, (ProjectedProperty, TypeId)> = BTreeMap::new();
-    for (owner, property) in ontology
-        .node_types
-        .iter()
-        .flat_map(|declared| {
-            declared
-                .properties
-                .values()
-                .map(move |property| (declared.id, property))
-        })
-        .chain(ontology.edge_types.iter().flat_map(|declared| {
-            declared
-                .properties
-                .values()
-                .map(move |property| (declared.id, property))
-        }))
-    {
-        let entry = projected_property(property);
-        let (held, first) = definitions
-            .entry(entry.id.clone())
-            .or_insert_with(|| (projected_property(property), owner));
-        if *held != entry {
-            return Err(ProjectError::Inconsistent(format!(
-                "property {} is declared by type {first} as {:?} of kind {} and by type {owner} \
-                 as {:?} of kind {}, and ekr.graph-projection/1 carries one name and value kind \
-                 per property id (task:projection-carries-per-type-property-definitions)",
-                entry.id, held.name, held.value_kind, entry.name, entry.value_kind
-            )));
-        }
-    }
-    let properties: Vec<ProjectedProperty> = definitions
-        .into_values()
-        .map(|(property, _)| property)
-        .collect();
+    let ProjectedOntology {
+        node_types,
+        edge_types,
+        properties,
+    } = project_ontology(&graph.ontology, &by_type)?;
 
     let mut nodes: Vec<ProjectedNode> = graph
         .nodes
@@ -654,4 +607,88 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
         projection_hash: hex::encode(Sha256::digest(&bytes)),
     };
     Ok(Rendered { bytes, summary })
+}
+
+/// `ontology` as `ekr.graph-projection/1` projects it, with the type assertions `by_type`.
+///
+/// # Errors
+///
+/// [`ProjectError::Inconsistent`] for a property id two types declare with a different name or
+/// value kind.
+pub(crate) fn project_ontology(
+    ontology: &Ontology,
+    by_type: &BTreeMap<TypeId, Vec<&Assertion>>,
+) -> Result<ProjectedOntology, ProjectError> {
+    let ontology = ontology.to_document();
+    let mut node_types: Vec<ProjectedNodeType> = ontology
+        .node_types
+        .iter()
+        .map(|declared| ProjectedNodeType {
+            id: declared.id.to_string(),
+            name: declared.name.clone(),
+            properties: sorted(declared.properties.keys()),
+            assertions: listed_under(by_type.get(&declared.id)),
+        })
+        .collect();
+    node_types.sort_by(|a, b| a.id.cmp(&b.id));
+    let mut edge_types: Vec<ProjectedEdgeType> = ontology
+        .edge_types
+        .iter()
+        .map(|declared| ProjectedEdgeType {
+            id: declared.id.to_string(),
+            name: declared.name.clone(),
+            source_types: sorted(&declared.source_types),
+            target_types: sorted(&declared.target_types),
+            properties: sorted(declared.properties.keys()),
+            assertions: listed_under(by_type.get(&declared.id)),
+        })
+        .collect();
+    edge_types.sort_by(|a, b| a.id.cmp(&b.id));
+    // `ontology.properties` holds one entry per property id, carrying its name and value kind and
+    // nothing else of the definition. Each declaring type's entry is built exactly as it is
+    // projected, and the entries are compared: two types whose declarations of one id agree on
+    // name and value kind project it once, whatever else of their definitions differs, because
+    // the format carries nothing else. Entries that differ in either cannot both be projected, and
+    // keeping one would tell a reader of the other type the wrong name or kind; the render refuses
+    // instead, until the format carries each type's own definition
+    // (task:projection-carries-per-type-property-definitions).
+    let mut definitions: BTreeMap<String, (ProjectedProperty, TypeId)> = BTreeMap::new();
+    for (owner, property) in ontology
+        .node_types
+        .iter()
+        .flat_map(|declared| {
+            declared
+                .properties
+                .values()
+                .map(move |property| (declared.id, property))
+        })
+        .chain(ontology.edge_types.iter().flat_map(|declared| {
+            declared
+                .properties
+                .values()
+                .map(move |property| (declared.id, property))
+        }))
+    {
+        let entry = projected_property(property);
+        let (held, first) = definitions
+            .entry(entry.id.clone())
+            .or_insert_with(|| (projected_property(property), owner));
+        if *held != entry {
+            return Err(ProjectError::Inconsistent(format!(
+                "property {} is declared by type {first} as {:?} of kind {} and by type {owner} \
+                 as {:?} of kind {}, and ekr.graph-projection/1 carries one name and value kind \
+                 per property id (task:projection-carries-per-type-property-definitions)",
+                entry.id, held.name, held.value_kind, entry.name, entry.value_kind
+            )));
+        }
+    }
+    let properties: Vec<ProjectedProperty> = definitions
+        .into_values()
+        .map(|(property, _)| property)
+        .collect();
+    Ok(ProjectedOntology {
+        node_types,
+        edge_types,
+        properties,
+    })
 }

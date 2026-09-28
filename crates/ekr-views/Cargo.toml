@@ -31,5 +31,9 @@ bench = []
 name = "render_time"
 required-features = ["bench"]
 
+[[test]]
+name = "index_time"
+required-features = ["bench"]
+
 [lints]
 workspace = true

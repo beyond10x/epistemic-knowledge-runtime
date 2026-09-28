@@ -19,8 +19,27 @@
 //!
 //! The format names no domain concept: every name in it comes from the projected ontology or the
 //! graph state (AGENTS.md invariant 8).
+//!
+//! Four bounded reads draw from the same loaded revision without exporting it. [`Index::build`]
+//! indexes a [`LoadedRevision`] once; [`Index::overview`] (`ekr.graph-overview/1`),
+//! [`Index::expand`] (`ekr.graph-slice/1`, with [`Index::page`] for a host that streams the
+//! records), [`Index::describe`] (`ekr.node-detail/1`) and [`Index::search`]
+//! (`ekr.node-matches/1`) then answer from it, each costing its answer. [`OverviewRequest`],
+//! [`ExpandRequest`] and [`SearchRequest`] hold each command's bounds, so a broken one is refused
+//! as [`LimitExceeded`] before a store is read. [`IndexCache`] keeps the most recently used
+//! indexes for a host.
 
 mod document;
+mod index;
+mod query;
+
+pub use index::{Index, IndexCache};
+pub use query::{
+    Answer, ExpandRequest, GraphOverviewed, LimitExceeded, NeighbourhoodExpanded, NodeDescribed,
+    NodeSummary, NodesSearched, OverviewRequest, QueryError, SearchRequest, SliceEdge, SliceMeta,
+    SliceNode, SlicePage, SliceRecord, DETAIL_FORMAT, MATCHES_FORMAT, OVERVIEW_FORMAT,
+    SLICE_FORMAT,
+};
 
 use std::collections::{BTreeMap, BTreeSet};
 

@@ -6,7 +6,7 @@ status: active
 title: A node committed from ProposeNew carries the reference's aliases
 relations:
 - serves: vision:o5
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-27T18:34:36Z", actor: "human:timo", revision: 2, imported: true}
 - {from: "proposed", to: "active", at: "2026-09-27T18:34:52Z", actor: "human:timo", revision: 3, imported: true}
@@ -33,3 +33,9 @@ proposes a new node on every call: duplicate nodes for one real-world entity, wh
 
 A node committed from a `ProposeNew` outcome carries the reference's aliases, and resolving the same
 reference against the next revision returns `Resolved` with that node.
+
+
+## State, 2026-09-28 (held off-side while the store was stopped, written with AEP 0.62.0)
+
+- Merged on the integration branch `wave/p2p3p4-04` at `80be6335`, with the conformance suites regenerated at `2dc91c3c`; not on `main`.
+- Adversary pass 2 was stopped by the operator before it reported; its unfinished case stays untracked in the `ekr-wave-d-a` worktree. No test_result is recorded: no gate has run on the merged branch.
