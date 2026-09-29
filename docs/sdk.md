@@ -129,6 +129,139 @@ printed (`None` for nothing) and its stderr. `reply.answer()` returns an `Answer
 
 A refusal or a fault is still a reply. An `Err` from `request` means no reply was read.
 
+## Resolve before you create
+
+A `Resolver` answers a typed reference from a cache, and asks
+[`ekr resolve`](cli.md#ekr-resolve) only when the cache cannot answer. A consumer that names the
+same organization in 5,000 messages sends one resolve for it, not 5,000.
+
+```rust
+use ekr_sdk::document::TypedReference;
+use ekr_sdk::resolve::{Resolution, Resolver};
+
+let mut resolver = Resolver::new(root_id, operator);
+let reference = TypedReference::new(organization_type, ["acme"]);
+match resolver.resolve(&mut session, &reference)? {
+    Resolution::Resolved(node) | Resolution::Queued(node) => { /* use node */ }
+    Resolution::Ambiguous(candidates) => { /* read them and decide */ }
+}
+let flushed = resolver.flush(&mut session)?;
+```
+
+The cache key is the reference's exact type id and its aliases, sorted and deduplicated, with the
+empty alias removed. So `["b", "a", "a"]` and `["a", "b"]` are one key. A reference to a supertype
+and one to its subtype are different keys.
+
+| answer | what the resolver does | returns |
+|---|---|---|
+| `Resolved` | caches the node | `Resolution::Resolved(node)` |
+| `ProposeNew` | mints a node id, queues a `CreateNode` of the reference's type carrying the aliases `ekr resolve` named, and caches the id | `Resolution::Queued(node)` |
+| `Ambiguous` | caches nothing | `Resolution::Ambiguous(candidates)`, in id order |
+| a refusal, a fault | nothing | `CallError::Unanswered`, with the answer |
+
+`resolve` names a queued node by the reference's first non-empty alias and gives it no values.
+`resolve_with(transport, reference, || draft)` takes the node from `draft` instead. The resolver
+sets its id, type and aliases; the draft supplies the root, the name and the values.
+
+`flush` commits every queued node through a [`Batcher`](#batches), one group per node. It returns a
+`Flushed`: the `BatchReport` of that commit and of every flush since the last call, and `replaced`
+(below). Flush before committing anything that names a queued node. A queued id does not exist in
+the store until its flush commits it.
+
+The cache stays correct in three ways:
+
+- **Queued nodes are flushed before any resolve that shares an alias with them.** When a resolve
+  the cache cannot answer shares an alias with a queued node of the same type, the queue is
+  flushed first, so `ekr resolve` finds that node rather than proposing a second one with the same
+  alias.
+- **Invalidation is per alias.** `invalidate(type_id, alias)` drops every cached key of that type
+  that holds the alias. `observe(&report, &groups)` records a consumer's own `Batcher` commits.
+  Their revisions count as the SDK's, and every alias that a committed `CreateNode` or `AddAlias`
+  gives is invalidated. An `AddAlias` invalidates the alias under every type, because the resolver
+  does not know the node's type.
+- **The cache is dropped when `head` shows a commit the SDK did not make.** Each flush reads
+  `ekr head` first. If any revision since the last check is not one the resolver committed or
+  observed, the resolver drops its cache and resolves every queued reference again. If another
+  process has meanwhile committed a node with one of those aliases, that node replaces the queued
+  one. The queued id is never created, and `Flushed::replaced` maps it to the new resolution. So a
+  second process's node produces no duplicate and no `alias-already-exists`. The same happens if
+  the commit itself is rejected with `alias-already-exists` because such a node arrived between
+  the head check and the commit. That rejection stays in the report.
+
+When a flush fails, nothing queued is lost:
+
+- A node whose commit reply was lost stays queued. The next flush sees a revision the resolver
+  does not know, and resolves the reference again. If it finds the queued id itself, the SDK's own
+  commit landed: the node is cached as resolved, and it is neither committed again nor listed in
+  `replaced`.
+- A node refused with `alias-already-exists` by a flush that then failed is resolved again by the
+  next flush, before anything is proposed. It ends up in `replaced` or queued again.
+- A stopped batch (`report.refused`, such as a resolver whose proposer is not the host operator)
+  leaves its nodes queued.
+
+## Batches
+
+A `Batcher` commits a consumer's operations, given as atomic dependency groups (`Vec<Operation>`
+each). A group is never split. Put operations that depend on each other, such as a `CreateNode`
+and the `AddAlias` or `CreateEdge` that names it, in one group.
+
+```rust
+use ekr_sdk::batch::Batcher;
+
+let report = Batcher::new(operator).commit(&mut session, &groups)?;
+for rejected in &report.rejected {
+    // rejected.operation, rejected.rejection, rejected.batch, rejected.group
+}
+```
+
+- **Batches respect the caps.** Groups are packed in order into batches of at most 10,000
+  operations and 8 MiB of YAML, the `ekr.transaction-document/2` limits. A schema change never
+  shares a batch with data, and an empty group is skipped. `with_limits(operations, bytes)` sets
+  lower caps, each held between 1 and the kernel's.
+- **`Stale` is retried.** A commit that finds the head moved is proposed again under a newly
+  minted transaction id, then validated against the new head and committed, up to eight times in
+  a row.
+- **A rejection is bisected.** Each batch is proposed, validated and committed as one transaction.
+  If it is rejected, or refused by `ekr propose` for its document (`ekr.kernel.StructurallyInvalid`,
+  `ekr.kernel.ProposalAttribution`), it is split in two and each half is submitted again, down to
+  the single group that is refused. Every other group is committed.
+- **A refusal of the transaction as a whole stops the run.** Some refusals are about the
+  transaction rather than an operation in it, so every transaction of the run would be refused the
+  same way. These are `ekr.kernel.ProposalAttribution` naming a registered submitter other than
+  the batcher's proposer (the proposer is not the host operator), and a rejection with a
+  `proposer-is-validator` issue. Such a refusal is not bisected. The run stops after that one
+  proposal and validation, and `report.refused` names the refusal once, for every group not
+  committed. A `ProposalAttribution` naming the batcher's own proposer is about one operation's
+  attribution (an assertion's `proposed_by` or an evidence entry's `extracted_by`), and is
+  bisected like a rejection.
+
+A `BatchReport` holds:
+
+| field | what it lists |
+|---|---|
+| `committed` | every committed transaction, as `CommittedTransaction`: `transaction` (its id), `revision`, `batch`, the `groups` it carried (by index in the input), and the `stale` ids it was proposed under before |
+| `rejected` | every operation of every refused group, as `RejectedOperation`: `batch`, `group`, `index` within the group, the `operation` itself, and the `rejection` |
+| `refused` | `None`, or the `RefusedBatch` that stopped the run: the `batch`, every `groups` index it did not commit (that batch's and every later batch's), and the `rejection` |
+
+A `Rejection` is `Rejected { transaction, issues }` (each `Issue` has `validator`, `code` and
+`message`, as `ekr validate` prints them), `Refused(refusal)` for a propose refusal, or
+`Document(reason)` when the SDK could not write the group alone within the limits. Groups are
+atomic, so every operation of a refused group is listed with the group's rejection. An issue's
+message names the operation it is about.
+
+If a request gets no answer the SDK can act on, `commit` returns a boxed `BatchError`. Its `report`
+lists what was committed and rejected until then, and its `cause` is a boxed `CallError`: `Transport`,
+`Unanswered` (a refusal not about the document, a usage message or a fault), `Unexpected` (a
+document the SDK cannot read), `Document`, or `StaleRetries`.
+
+**An unanswered commit's outcome is unknown.** Sometimes a `commit` request is sent and no outcome
+comes back: the reply is lost to a timeout, a cancel or a dead session, or the verb answers a
+fault, or the receipt cannot be read. `ekr` may have applied that commit. `BatchError::outcome_unknown` then names it as
+an `UnknownOutcome`: the `transaction` id, its `batch`, and the `groups` it carried. It is not in
+`report.committed`. Settle it before sending those groups again. Read `ekr transactions --state
+Committed` (from a new session if this one failed): if the id is listed, its groups were committed
+and must not be sent again. If it is not listed, send them again.
+
 ## Recording and replay
 
 `RecordingTransport::record(inner)` passes each request to `inner` and records every request that
