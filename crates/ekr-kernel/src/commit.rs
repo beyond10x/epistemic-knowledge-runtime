@@ -45,7 +45,13 @@ impl CommitAuthority for KernelAuthority {
             return Err(StoreError::NotSeeded);
         };
         let (payloads, named) = self.seed_payloads(history, seed_hash)?;
-        Ok(if named { payloads } else { BTreeSet::new() })
+        let mut wanted = if named { payloads } else { BTreeSet::new() };
+        // Until this authority has seen the store settled, the markers of a preserving migration
+        // (design § 100.3) are read where held, so an unfinished one is refused by name.
+        if !self.cache()?.migration_settled {
+            wanted.extend(crate::migrate::markers());
+        }
+        Ok(wanted)
     }
     fn replay(
         &self,
@@ -97,7 +103,9 @@ impl CommitAuthority for KernelAuthority {
     }
 }
 impl KernelAuthority {
-    fn cache(&self) -> Result<std::sync::MutexGuard<'_, crate::replay::ReplayCache>, StoreError> {
+    pub(crate) fn cache(
+        &self,
+    ) -> Result<std::sync::MutexGuard<'_, crate::replay::ReplayCache>, StoreError> {
         self.cache
             .lock()
             .map_err(|_| StoreError::Document("replay-cache-poisoned".into()))

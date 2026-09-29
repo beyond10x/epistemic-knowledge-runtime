@@ -4756,6 +4756,20 @@ payloads and every transaction's state — and a disagreement refuses
 record to its destination record and lists the objects carried and the legacy objects converted; it
 is retained in the destination as a Canonical object at its `map_hash`.
 
+An interrupted migration leaves no store that answers as the migrated one. Before its first write
+the migration retains the fixed Canonical object `{"format":"ekr.migration-started/1"}` in the
+destination, and after its last — the report included — `{"format":"ekr.migration-finished/1"}`.
+The kernel reads both where held (`CommitAuthority::objects_if_held`) and every replay of a store
+holding the first without the second refuses `migrate-incomplete`, except the migrating handle's
+own; a handle that has once seen its store with a history and no unfinished migration stops asking,
+since such a store never gains one. The destination's store is written in place rather than at a
+staging path renamed into place: the kernel migrates into a store handle, not a path, and a marker
+holds for every caller of `Runtime::migrate_into` alike. `ekr migrate` also refuses a `--to` that
+is the source (through a symbolic link or, for SQLite, a side file too), lies inside it or contains
+it — `migrate-destination-is-source`, `migrate-destination-inside-source`,
+`migrate-destination-contains-source` — resolving `--to` through its nearest existing directory
+before anything is created, so no byte is written into the source.
+
 ## 100.4 What is not changed
 
 A `/2` store opens, replays, answers and accepts new transactions exactly as before; its seed stays

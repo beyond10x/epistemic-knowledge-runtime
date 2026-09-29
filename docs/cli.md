@@ -699,11 +699,20 @@ the graph, the evidence and every transaction's state — before the report is p
 The report is also kept in the new store, at `map_hash`. Nothing is ever written to `--store`.
 Its refusals are faults (exit 1). These are refused before any event is written to `--to`, so a
 later `ekr migrate` can still write there: `migrate-destination-not-empty` for a `--to` that holds
-a store, `migrate-destination-is-source` for a `--to` that is `--store`,
-`migrate-unresolved-preparation` for a decision a command elected and never published — run that
-command again first — and a `--store` that does not replay. `migrate-verification-disagrees`, a
-new store that does not replay to the old one's state, is refused after it is written, and it is
-left as it is. `ekr migrate` is not served in `ekr session`.
+a store; `migrate-destination-is-source`, `migrate-destination-inside-source` and
+`migrate-destination-contains-source` for a `--to` that is `--store` (a symbolic link to it or,
+for `sqlite`, one of its side files included), lies inside it, or contains it — `--to` is resolved
+through its nearest existing directory, and nothing is created; `migrate-unresolved-preparation`
+for a decision a command elected and never published — run that command again first — and a
+`--store` that does not replay.
+
+A migration that stops after it began writing — `migrate-verification-disagrees`, a new store
+that does not replay to the old one's state, a full disk, an interrupted process — leaves the store
+at `--to` as it is, and that store is not the migrated one: the migration marks it as begun before
+its first write and as finished after its last, the report included, and every verb refuses a
+store marked begun and not finished as `migrate-incomplete` (exit 1). A second `ekr migrate` to
+the same path refuses it as `migrate-destination-not-empty`: remove it, then migrate again.
+`ekr migrate` is not served in `ekr session`.
 
 ## The workflow
 

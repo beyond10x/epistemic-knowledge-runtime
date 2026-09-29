@@ -86,6 +86,47 @@ fn migration(code: &str, detail: impl std::fmt::Display) -> StoreError {
     StoreError::Document(format!("{code}: {detail}"))
 }
 
+/// The two markers a migration writes into its destination as Canonical objects (design §
+/// 100.3): the first before anything else, the second after everything else, the report included.
+/// Their content is fixed, so any reader finds them at their fixed addresses.
+const MARKERS: [&[u8]; 2] = [
+    br#"{"format":"ekr.migration-started/1"}"#,
+    br#"{"format":"ekr.migration-finished/1"}"#,
+];
+
+/// The addresses of the two migration markers.
+pub(crate) fn markers() -> [ContentHash; 2] {
+    MARKERS.map(ContentHash::of_bytes)
+}
+
+/// Refuses `history` as `migrate-incomplete` where it holds a migration's started marker without
+/// its finished one, unless `authority` is the one publishing that migration. A store with a
+/// history and no unfinished migration never gains one, so once this authority has seen such a
+/// history it stops asking for the markers.
+pub(crate) fn finished(
+    authority: &crate::KernelAuthority,
+    history: &RetainedHistory,
+) -> Result<(), StoreError> {
+    let [started, finished] = markers();
+    let unfinished =
+        history.objects.contains_key(&started) && !history.objects.contains_key(&finished);
+    let mut cache = authority.cache()?;
+    if unfinished {
+        if cache.migrating {
+            return Ok(());
+        }
+        return Err(migration(
+            "migrate-incomplete",
+            "a migration into this store began and did not finish; it is not the migrated store. \
+             Remove it and migrate again",
+        ));
+    }
+    if !history.occurrences.is_empty() {
+        cache.migration_settled = true;
+    }
+    Ok(())
+}
+
 impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
     /// Migrates this store into `destination`, a store that holds nothing yet, opened under the
     /// same host anchor. This store is only read.
@@ -144,6 +185,38 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
             .reconstruct_in_full(&history)?
             .ok_or(CommitError::NotSeeded)?;
 
+        // From here the destination holds the unfinished marker until the finished one is written
+        // last: every read of it but this handle's refuses `migrate-incomplete` meanwhile, so a
+        // migration interrupted at any point leaves no store that answers as the migrated one.
+        destination.authority.cache()?.migrating = true;
+        let outcome = (|| {
+            let [started, finished] = MARKERS;
+            let _ = destination.store.put(
+                StorageClass::Canonical,
+                started,
+                source.seed.committed_at,
+            )?;
+            let report = self.publish_into(destination, &history, &inventory, &source)?;
+            let _ = destination.store.put(
+                StorageClass::Canonical,
+                finished,
+                source.head().committed_at,
+            )?;
+            Ok(report)
+        })();
+        destination.authority.cache()?.migrating = false;
+        outcome
+    }
+
+    /// Publishes the verified `source` history, `inventory` and `history` of this store into
+    /// `destination`, verifies it there and retains the report.
+    fn publish_into<D: RevisionLog + ObjectStore + Initialize + Inventory>(
+        &self,
+        destination: &Commit<D>,
+        history: &RetainedHistory,
+        inventory: &ekr_store::StoreInventory,
+        source: &ReplayState,
+    ) -> Result<StoreMigrationV1, CommitError> {
         let mut occurrences = Vec::with_capacity(history.occurrences.len());
         let mut replaced = BTreeMap::new();
         for (position, occurrence) in history.occurrences.iter().enumerate() {
@@ -160,7 +233,7 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
             };
             let publication = if let RevisionPayload::Seeded { seed_hash, .. } = event.payload {
                 let (publication, envelope_hash) =
-                    self.migrated_seed(&history, &inventory, occurrence, seed_hash, stored_at)?;
+                    self.migrated_seed(history, inventory, occurrence, seed_hash, stored_at)?;
                 if envelope_hash != seed_hash {
                     replaced.insert(seed_hash, envelope_hash);
                 }
@@ -202,7 +275,12 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
             if held.legacy {
                 legacy_objects.push(*hash);
             }
-            if replaced.contains_key(hash) {
+            // The markers are the migration's own, written by it in their order.
+            if replaced.contains_key(hash)
+                || MARKERS
+                    .iter()
+                    .any(|marker| *hash == ContentHash::of_bytes(marker))
+            {
                 continue;
             }
             let at = held.object.metadata.stored_at;
@@ -231,7 +309,7 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
             .authority
             .reconstruct_in_full(&destination.store.history()?)?
             .ok_or(CommitError::NotSeeded)?;
-        agrees(&source, &migrated)?;
+        agrees(source, &migrated)?;
         destination.retain_checkpoint();
 
         let destination_seed_hash = migrated.seed.seed_hash;

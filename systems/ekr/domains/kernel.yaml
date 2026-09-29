@@ -299,7 +299,12 @@ types:
   # legacy ObjectStored/schema1 inline object is verified under its frozen shape and carried as
   # ObjectStored/schema2 metadata and a provider blob. The destination is published only through
   # the real kernel authority and is replayed in full before the report is returned; the report is
-  # also retained in it, as a Canonical object at map_hash.
+  # also retained in it, as a Canonical object at map_hash. Before its first write the migration
+  # retains the fixed Canonical object {"format":"ekr.migration-started/1"} in the destination, and
+  # after its last, the report included, {"format":"ekr.migration-finished/1"}; every replay of a
+  # store holding the first without the second refuses `migrate-incomplete`, except the migrating
+  # handle's own. The CLI refuses a destination that is, lies inside or contains the source
+  # (`migrate-destination-is-source`, `-inside-source`, `-contains-source`) before creating it.
   - name: ekr.kernel.MigratedOccurrence
     kind: struct
     fields:

@@ -230,6 +230,12 @@ pub(crate) struct ReplayCache {
     pub(crate) seed_replays: u64,
     /// How many times this authority decoded a retained seed envelope's complete bytes.
     pub(crate) envelope_decodes: u64,
+    /// Whether this authority is the one publishing a preserving migration into its store, which
+    /// alone reads that store before the migration finished (design § 100.3).
+    pub(crate) migrating: bool,
+    /// Whether this authority has seen its store's history with no unfinished migration, after
+    /// which it stops asking for the migration markers: a store with a history never gains one.
+    pub(crate) migration_settled: bool,
 }
 impl ReplayCache {
     const CAPACITY: usize = 4;
@@ -452,6 +458,7 @@ impl KernelAuthority {
         selected: Option<RevisionNumber>,
         reuse: bool,
     ) -> Result<Option<Arc<ReplayState>>, StoreError> {
+        crate::migrate::finished(self, history)?;
         // Only the ordinary head replay is shared: a replay under a caller's ontology or to a
         // selected revision is computed in full, as before.
         let shared = ontology.is_none() && selected.is_none();
