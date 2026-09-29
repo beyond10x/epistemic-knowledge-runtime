@@ -7,7 +7,7 @@
 
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 
@@ -250,6 +250,79 @@ impl EkrBinary {
     }
 }
 
+/// The waits before each retry of a start refused as busy: 630 ms in all.
+const BUSY_RETRY_WAITS: [Duration; 6] = [
+    Duration::from_millis(10),
+    Duration::from_millis(20),
+    Duration::from_millis(40),
+    Duration::from_millis(80),
+    Duration::from_millis(160),
+    Duration::from_millis(320),
+];
+
+/// How often a busy wait looks at its deadline and stop check.
+const BUSY_TICK: Duration = Duration::from_millis(10);
+
+/// Why [`spawn_within`] started no process.
+#[derive(Debug)]
+pub(crate) enum SpawnRefused {
+    /// The operating system refused: at once, or still busy after the last wait.
+    Io(std::io::Error),
+    /// The deadline passed during a busy wait.
+    Expired,
+    /// The stop check turned true during a busy wait.
+    Stopped,
+}
+
+/// Start `command`, retrying while the binary is busy being written; see [`spawn_within`].
+pub(crate) fn spawn(command: &mut Command) -> std::io::Result<Child> {
+    spawn_within(command, None, &|| false).map_err(|refused| match refused {
+        SpawnRefused::Io(error) => error,
+        SpawnRefused::Expired | SpawnRefused::Stopped => {
+            unreachable!("a spawn with no deadline and no stop check only fails with an error")
+        }
+    })
+}
+
+/// Start `command`, retrying while the binary is busy being written.
+///
+/// Linux refuses to execute a file that any process holds open for writing (`ETXTBSY`). A binary
+/// just written is busy for as long as that descriptor lives, including in a child another thread
+/// of the consumer forked before it execs. That refusal is retried after each of
+/// [`BUSY_RETRY_WAITS`]; any other error, and the busy refusal after the last wait, is returned.
+/// A wait ends early, every [`BUSY_TICK`], once `deadline` has passed or `stopped` is true.
+pub(crate) fn spawn_within(
+    command: &mut Command,
+    deadline: Option<Instant>,
+    stopped: &dyn Fn() -> bool,
+) -> Result<Child, SpawnRefused> {
+    let mut waits = BUSY_RETRY_WAITS.iter();
+    loop {
+        let error = match command.spawn() {
+            Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy => error,
+            started => return started.map_err(SpawnRefused::Io),
+        };
+        let Some(wait) = waits.next() else {
+            return Err(SpawnRefused::Io(error));
+        };
+        let retry_at = Instant::now() + *wait;
+        loop {
+            if stopped() {
+                return Err(SpawnRefused::Stopped);
+            }
+            let now = Instant::now();
+            if deadline.is_some_and(|deadline| now >= deadline) {
+                return Err(SpawnRefused::Expired);
+            }
+            if now >= retry_at {
+                break;
+            }
+            let until = deadline.map_or(retry_at, |deadline| deadline.min(retry_at));
+            std::thread::sleep(until.saturating_duration_since(now).min(BUSY_TICK));
+        }
+    }
+}
+
 /// `path args…` with an empty environment and nothing on stdin: its stdout, on exit 0. A process
 /// still running after `timeout` is killed and refused.
 fn run(path: &Path, args: &[&str], timeout: Duration) -> Result<String, BinaryError> {
@@ -264,14 +337,20 @@ fn run(path: &Path, args: &[&str], timeout: Duration) -> Result<String, BinaryEr
         what: what.clone(),
         timeout,
     };
-    let mut child = Command::new(path)
+    let mut command = Command::new(path);
+    command
         .args(args)
         .env_clear()
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(run_error)?;
+        .stderr(Stdio::piped());
+    // The timeout covers waiting for a busy binary as well as the probe itself.
+    let deadline = Instant::now() + timeout;
+    let mut child = match spawn_within(&mut command, Some(deadline), &|| false) {
+        Ok(child) => child,
+        Err(SpawnRefused::Io(source)) => return Err(run_error(source)),
+        Err(SpawnRefused::Expired | SpawnRefused::Stopped) => return Err(timed_out()),
+    };
     let read_all = |mut pipe: Box<dyn std::io::Read + Send>| {
         let (sent, received) = std::sync::mpsc::channel();
         std::thread::spawn(move || {
@@ -283,7 +362,6 @@ fn run(path: &Path, args: &[&str], timeout: Duration) -> Result<String, BinaryEr
     };
     let stdout = read_all(Box::new(child.stdout.take().expect("stdout is piped")));
     let stderr = read_all(Box::new(child.stderr.take().expect("stderr is piped")));
-    let deadline = Instant::now() + timeout;
     let status = loop {
         match child.try_wait() {
             Ok(Some(status)) => break status,

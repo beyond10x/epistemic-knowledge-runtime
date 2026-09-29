@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use serde::Deserialize;
 
-use crate::binary::EkrBinary;
+use crate::binary::{spawn, EkrBinary};
 use crate::session::{command, SessionOptions, StderrTail, StoreConfig, STDERR_TAIL_BYTES};
 
 /// How long a viewer may take to print its URL: it opens the store first.
@@ -49,12 +49,13 @@ struct UrlLine {
 impl Viewer {
     /// Start `ekr view --port <port>` over `store`; `0` lets the viewer pick a free port.
     pub fn spawn(binary: &EkrBinary, store: &StoreConfig, port: u16) -> Result<Self, ViewerError> {
-        let mut child = command(binary, store, &SessionOptions::default())
+        let mut command = command(binary, store, &SessionOptions::default());
+        command
             .args(["view", "--port", &port.to_string()])
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()?;
+            .stderr(Stdio::piped());
+        let mut child = spawn(&mut command)?;
         let stderr = StderrTail::collect(
             child.stderr.take().expect("stderr is piped"),
             STDERR_TAIL_BYTES,

@@ -48,6 +48,18 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   against every document the `ekr-views` conformance fixtures render, so a field added to a views
   format without an SDK update fails there.
 
+### Fixed
+
+- **`ekr-sdk` retries starting a binary that is busy being written.** Linux refuses to execute a
+  file that any process holds open for writing (`ETXTBSY`), and in a multithreaded consumer a
+  child forked by another thread holds a freshly written binary's descriptor until it execs. The
+  `--version` and `operations` probes, `ProcessSession::start`, one-shot requests and
+  `Viewer::spawn` now retry that refusal for up to 630 ms; any other start error is still
+  returned at once, and the refusal after the last retry is the same `BinaryError::Run`,
+  `TransportError::Io` or `ViewerError::Spawn` as before. The wait counts against the probe
+  timeout and a one-shot request's timeout (`TimedOut`), and a cancel ends a one-shot's wait as
+  `Cancelled`.
+
 ## [0.0.19] — 2026-09-29
 
 A Rust SDK drives a store through one child `ekr session`; nodes gain aliases; `ekr mcp` serves

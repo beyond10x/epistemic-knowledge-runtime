@@ -63,6 +63,13 @@ hashing, minting, seeding and the first writes all go through one process.
 The child is started with an absolute path and holds no `PATH` unless `Exact` gives it one. It
 therefore starts when the consumer's own `PATH` is empty.
 
+A binary that Linux refuses to start as busy (`ETXTBSY`: some process, possibly a child another
+thread forked, still holds it open for writing) is retried for up to 630 ms before the refusal is
+returned. This applies to the `--version` and `operations` probes, the session, one-shot
+requests and `Viewer::spawn`. Every other start error is returned at once. The wait counts
+against the probe timeout and a one-shot request's `timeout`, which end it as `TimedOut`, and a
+cancel ends a one-shot's wait within 20 ms as `Cancelled`.
+
 ### Requests over the line cap
 
 A session refuses a request line longer than 25,231,360 bytes (`LINE_CAP`,
