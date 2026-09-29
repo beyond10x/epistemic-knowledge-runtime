@@ -1,0 +1,86 @@
+# story:store-quality-report: every figure of ekr.store-quality/1 equals the fixture's count
+# (ekr.views.StoreQualityV1).
+#
+# The store `quality` (crates/ekr-views/tests/support/fixtures.rs, `Fixture::Quality`):
+#   - ontology: node types item, other and guarded, and the edge type relates. item declares
+#     title and rank, other declares note, guarded declares code with one constraint, relates
+#     declares weight with one constraint: 5 property declarations, 2 constrained (4000 bp).
+#     guarded has no node and relates no edge, so the kernel never evaluates either constraint.
+#   - seed nodes: item i1 "Ada" (alias "A. Lovelace"), i2 "Ada" (alias "Countess"), i3
+#     "Lovelace" (aliases "A. Lovelace" and "Lovelace"), i4 "Countess", i5 "Babbage" (alias
+#     ""); other o1 "Ada", o2 "Byron" (alias "byron"), o3 "byron". Names two or more nodes of one
+#     type hold: item "A. Lovelace" (i1, i3), item "Ada" (i1, i2), item "Countess" (i2, i4),
+#     other "byron" (o2, o3) — 4 names, 6 nodes. o1's "Ada" is another type's; o2's "Byron" is
+#     not "byron"; i3's "Lovelace" is one node's; "" is no name.
+#   - seed evidence E0 and E1; seed assertions a1 (E0), a2 (E0, E1), a3 (E1).
+#   - revision 1: AddEvidence X0; a4 citing X0, a5 citing X0 and E0; the item i6 "Babbage"
+#     (alias ""), which shares "Babbage" with i5.
+#   - revision 2: a1 retracted.
+#   - revision 3: AddEvidence X1; a6 citing X1, and a2 superseded by it.
+# So, active assertions / with evidence / citing evidence added after the seed:
+#   revision 0: 3 / 3 / 0 — a1, a2, a3;
+#   revision 1: 5 / 5 / 2 — and a4, a5;
+#   revision 3, the head: 4 / 4 / 3 — a3, a4, a5, a6 (a1 retracted, a2 superseded).
+# Shared names: 4 over 6 nodes at revision 0, 5 over 8 from revision 1.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-quality-report-counts-evidence-constraints-and-shared-names
+summary: The quality of revisions 0, 1 and the head counts exactly the fixture's evidenced assertions, constrained properties and names shared within a type.
+
+timeline:
+  - at: 2027-01-15T13:00:00Z
+    command: ekr.views.ReportStoreQuality
+    actor: ekr.views.Reader
+    input:
+      store: quality
+      at: 0
+    outcome: reported
+    events:
+      - event: ekr.views.StoreQualityReported
+        payload:
+          revision: 0
+          active_assertions: 3
+          with_evidence: 3
+          with_item_evidence: 0
+          properties: 5
+          constrained_properties: 2
+          shared_names: 4
+          sharing_nodes: 6
+
+  - at: 2027-01-15T13:01:00Z
+    command: ekr.views.ReportStoreQuality
+    actor: ekr.views.Reader
+    input:
+      store: quality
+      at: 1
+    outcome: reported
+    events:
+      - event: ekr.views.StoreQualityReported
+        payload:
+          revision: 1
+          active_assertions: 5
+          with_evidence: 5
+          with_item_evidence: 2
+          properties: 5
+          constrained_properties: 2
+          shared_names: 5
+          sharing_nodes: 8
+
+  - at: 2027-01-15T13:02:00Z
+    command: ekr.views.ReportStoreQuality
+    actor: ekr.views.Reader
+    input:
+      store: quality
+      at: null
+    outcome: reported
+    events:
+      - event: ekr.views.StoreQualityReported
+        payload:
+          revision: 3
+          active_assertions: 4
+          with_evidence: 4
+          with_item_evidence: 3
+          properties: 5
+          constrained_properties: 2
+          shared_names: 5
+          sharing_nodes: 8

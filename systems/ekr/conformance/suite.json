@@ -322,43 +322,6 @@
         "needs": [
           {
             "kind": "command",
-            "name": "ekr.views.FindCodeNames"
-          },
-          {
-            "kind": "event",
-            "name": "ekr.views.CodeNamesFound"
-          }
-        ],
-        "origin": "generated",
-        "reason": "other_component",
-        "scenario": "ekr.views.FindCodeNames/outcome/found"
-      },
-      {
-        "needs": [
-          {
-            "kind": "command",
-            "name": "ekr.views.FindCodeNames"
-          }
-        ],
-        "origin": "generated",
-        "reason": "other_component",
-        "scenario": "ekr.views.FindCodeNames/outcome/not-found"
-      },
-      {
-        "needs": [
-          {
-            "kind": "command",
-            "name": "ekr.views.FindCodeNames"
-          }
-        ],
-        "origin": "generated",
-        "reason": "other_component",
-        "scenario": "ekr.views.FindCodeNames/outcome/not-seeded"
-      },
-      {
-        "needs": [
-          {
-            "kind": "command",
             "name": "ekr.views.ProjectGraph"
           }
         ],
@@ -492,6 +455,43 @@
         "needs": [
           {
             "kind": "command",
+            "name": "ekr.views.ReportStoreQuality"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ReportStoreQuality/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ReportStoreQuality"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ReportStoreQuality/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ReportStoreQuality"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.StoreQualityReported"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ReportStoreQuality/outcome/reported"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
             "name": "ekr.views.SearchNodes"
           }
         ],
@@ -551,8 +551,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "8c1aa97b38c0712a1c48e738584712eef060b8bf449503feb4f501314ee9eab7",
-    "spec_digest": "a43c698a4b253f49a01190721be04df786a27fdee9373d5f2a5ed700d7cb1f99",
+    "contract_digest": "a1e768cff506084827411723ae806a5f1393657743a12ddfb905cb402972e463",
+    "spec_digest": "b8c397c9b3b7606a79758a25a263f7fa5bc296e91bd2e3294491ed9909bce764",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"
@@ -676,10 +676,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -697,6 +693,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -955,10 +955,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -976,6 +972,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -1131,10 +1131,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -1152,6 +1148,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -2437,10 +2437,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -2458,6 +2454,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -2580,10 +2580,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -2601,6 +2597,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -2827,10 +2827,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -2848,6 +2844,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -2970,10 +2970,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -2991,6 +2987,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -3081,10 +3081,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -3102,6 +3098,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -3197,10 +3197,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -3218,6 +3214,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -3623,10 +3623,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -3644,6 +3640,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -3724,10 +3724,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -3745,6 +3741,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -3840,10 +3840,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -3861,6 +3857,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -3941,10 +3941,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -3962,6 +3958,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -4059,10 +4059,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -4080,6 +4076,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -5171,10 +5171,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -5192,6 +5188,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -5556,10 +5556,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -5577,6 +5573,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -6412,10 +6412,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -6433,6 +6429,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -6786,10 +6786,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -6807,6 +6803,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -7316,10 +7316,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -7337,6 +7333,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -7708,10 +7708,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -7729,6 +7725,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -7845,10 +7845,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -7866,6 +7862,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -8212,10 +8212,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -8233,6 +8229,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -8370,10 +8370,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -8391,6 +8387,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -8649,10 +8649,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -8670,6 +8666,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -8823,10 +8823,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -8844,6 +8840,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -9027,10 +9027,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -9048,6 +9044,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -9208,10 +9208,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -9229,6 +9225,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -9455,10 +9455,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -9476,6 +9472,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -9629,10 +9629,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -9650,6 +9646,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -9833,10 +9833,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -9854,6 +9850,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -9976,10 +9976,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -9997,6 +9993,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -10094,10 +10094,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -10115,6 +10111,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -10199,10 +10199,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -10220,6 +10216,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -10317,10 +10317,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -10338,6 +10334,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -10442,10 +10442,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -10463,6 +10459,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -10615,10 +10615,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -10636,6 +10632,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -10760,10 +10760,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -10781,6 +10777,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -10878,10 +10878,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -10899,6 +10895,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -10979,10 +10979,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -11000,6 +10996,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -11097,10 +11097,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -11118,6 +11114,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -11209,10 +11209,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -11230,6 +11226,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -11815,10 +11815,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -11836,6 +11832,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -11936,10 +11936,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -11957,6 +11953,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -12118,10 +12118,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -12139,6 +12135,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -12259,10 +12259,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -12280,6 +12276,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -12381,10 +12381,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -12402,6 +12398,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -12486,10 +12486,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -12507,6 +12503,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -12603,10 +12603,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -12624,6 +12620,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -12735,10 +12735,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -12756,6 +12752,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -12939,10 +12939,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -12960,6 +12956,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -13082,10 +13082,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -13103,6 +13099,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -13204,10 +13204,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -13225,6 +13221,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -13305,10 +13305,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -13326,6 +13322,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -13420,10 +13420,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -13441,6 +13437,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {
@@ -13552,10 +13552,6 @@
         },
         {
           "kind": "event",
-          "name": "ekr.views.CodeNamesFound"
-        },
-        {
-          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -13573,6 +13569,10 @@
         {
           "kind": "event",
           "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
         },
         {
           "kind": "event",
@@ -13756,10 +13756,6 @@
           "step": "expect_no_event"
         },
         {
-          "event": "ekr.views.CodeNamesFound",
-          "step": "expect_no_event"
-        },
-        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -13777,6 +13773,10 @@
         },
         {
           "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
           "step": "expect_no_event"
         },
         {

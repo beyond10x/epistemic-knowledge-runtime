@@ -241,6 +241,7 @@ fn guide_prints_the_workflow_roles_exit_codes_and_where_ids_come_from() {
         "ekr operations",
         "ekr example",
         "ekr transactions",
+        "ekr rejections",
         "EKR_HOST",
         // Correction round 1: what the kernel does not apply, how bytes print, relations,
         // acceptance, and how to read what is valid now.
@@ -719,6 +720,10 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         ("head", &["revision", store]),
         ("transactions", &["Proposed", "Committed", store]),
         (
+            "rejections",
+            &["ekr.rejections/1", "ekr validate", "ekr head", store],
+        ),
+        (
             "ontology",
             &["ekr ontology", "schema version", "ekr head", store],
         ),
@@ -771,6 +776,10 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
                 "must hold no store",
                 store,
             ],
+        ),
+        (
+            "quality",
+            &["ekr.store-quality/1", "evidence", "ekr head", store],
         ),
         (
             "resolve",

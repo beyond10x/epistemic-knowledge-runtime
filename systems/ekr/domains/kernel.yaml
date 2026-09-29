@@ -926,6 +926,52 @@ types:
       - name: links
         type: List<ekr.kernel.ExplanationLink>
 
+  # `ekr rejections` (story:validation-findings-read): each rejected transaction whose retained
+  # rejection was validated against a revision in a range, with the issues that rejection record
+  # holds. A read of retained records; it adds no record format. A rejection has no revision of
+  # its own, so it is keyed on its basis: `against` is the number of the revision its
+  # requested_basis names (ValidationBasisV1.previous_root). Committed transactions carry no
+  # findings — a transaction is sealed only when no validator raised an issue — and never appear;
+  # neither does a Proposed, Validated or Stale one.
+  # Determinism, so that two answers to one range are byte-identical: `rejections` by `against`
+  # ascending, then transaction_id ascending in the lowercase hyphenated text of the UUID; each
+  # transaction's `issues` in the order its rejection record retains them. Every object's keys
+  # ascend by their text, as in every document `ekr` prints. `from` and `to` echo the request:
+  # each is omitted when it was not given, never emitted as null, and `rejections` is emitted
+  # empty, never omitted. No field carries a wall-clock time, the store's head or a path;
+  # `rejected_at` is the retained decision's time. An answer changes only when a rejection in its
+  # range is recorded, so a commit leaves every answer as it was. `from` greater than `to` selects
+  # nothing and is not refused. ekr.kernel.Rejections below is this document one row per issue.
+  - name: ekr.kernel.RejectionsFormatV1
+    kind: enum
+    variants: [ekr.rejections/1]
+
+  - name: ekr.kernel.RejectedTransactionV1
+    kind: struct
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: against
+        type: ekr.kernel.RevisionNumber
+      - name: proposer
+        type: ekr.kernel.AgentId
+      - name: rejected_at
+        type: Timestamp
+      - name: issues
+        type: List<ekr.kernel.ValidationIssueRecord>
+
+  - name: ekr.kernel.RejectionsV1
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.kernel.RejectionsFormatV1
+      - name: from
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: to
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: rejections
+        type: List<ekr.kernel.RejectedTransactionV1>
+
 entities:
   # Design § 18. TrustProfile (§ 48) is a P5 concern and is not typed here yet.
   - name: ekr.kernel.Agent
@@ -1012,6 +1058,11 @@ entities:
     fields:
       - name: transaction_id
         type: ekr.kernel.TransactionId
+      # The revision the rejection that records this issue was validated against: its
+      # requested_basis (ValidationBasisV1.previous_root.revision). An issue is recorded only in a
+      # rejection, so every issue has one; it keys ekr.kernel.Rejections.
+      - name: against
+        type: ekr.kernel.RevisionNumber
       - name: validator
         type: ekr.kernel.ValidatorName
       - name: code
@@ -1573,6 +1624,43 @@ views:
         type: Optional<ekr.kernel.ContentHash>
       - name: state
         type: ekr.kernel.GraphTransaction.State
+
+  # The rows of ekr.kernel.RejectionsV1 (`ekr rejections`, `ekr session`), one per issue: each
+  # issue of each rejected transaction whose rejection's basis revision, `against`, lies in the
+  # range `from`..`to`, both inclusive, an absent bound unbounded. Read from the real rejection
+  # records, as ValidationIssues is; a committed transaction has none and never has a row.
+  - name: ekr.kernel.Rejections
+    source: ekr.kernel.ValidationIssue
+    consistency: read_your_writes
+    params:
+      - name: from
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: to
+        type: Optional<ekr.kernel.RevisionNumber>
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: against
+        type: ekr.kernel.RevisionNumber
+      - name: issue_id
+        type: ekr.kernel.IssueId
+      - name: validator
+        type: ekr.kernel.ValidatorName
+      - name: code
+        type: String
+      - name: message
+        type: String
+    filter:
+      all:
+        - any:
+            - not defined(param.from)
+            - against >= param.from
+        - any:
+            - not defined(param.to)
+            - against <= param.to
+    naming:
+      wire: rejections
+      display: Rejections
 
   # Complete immutable revisions, including the original seed after later commits.
   # Replay observation selects the original emitted identity; this adds no CLI verb.

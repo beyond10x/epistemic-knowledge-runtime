@@ -127,8 +127,10 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr resolve` | reads | a `typed-reference` file, or `-`; `--at <revision>` | the resolution: `kind` is `Resolved` (with `node_id`), `ProposeNew` (with `type_id` and `aliases`) or `Ambiguous` (with `candidates`) |
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
+| `ekr rejections` | reads | `--from <revision>`, `--to <revision>` | the `ekr.rejections/1` document: each rejected transaction with its validation issues, by the revision it was validated against |
 | `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent` |
 | `ekr code-names` | reads | one or more source files; `--at <revision>` | the `ekr.code-names/1` document: every literal in the files that equals one of the store's names, with file, line and what it names; exits 0 however many it finds |
+| `ekr quality` | reads | `--revision <revision>` | the `ekr.store-quality/1` document: evidenced assertions, constrained properties, names shared within a type |
 | `ekr guide` | none | none | the workflow, as text |
 | `ekr operations` | none | an operation kind, optionally | the kinds, or one kind's fields and example |
 | `ekr example` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `schema-change`, `ekr-seed/2`, `ekr.cli-host/1` or `typed-reference` (aliases `transaction` for `/2`, `seed`, `host`) | a complete example document |
@@ -272,6 +274,23 @@ Lists every retained transaction with `transaction_id`, `state`, `proposer`, `op
 `submitted_at`. `--state` filters by one of `Proposed`, `Validated`, `Committed`, `Rejected` or
 `Stale`.
 
+### `ekr rejections`
+
+Lists each rejected transaction with the validation issues its rejection recorded, keyed on the
+revision it was validated against: the `ekr.rejections/1` document (`ekr.kernel.RejectionsV1` in
+`systems/ekr/domains/kernel.yaml`). `--from N` and `--to M` select the basis revisions `N` to `M`,
+both included; either may be left out, and a range with `N` above `M` selects nothing. Each entry
+of `rejections` carries `transaction_id`, `against` (the revision `ekr validate --against` named),
+`proposer`, `rejected_at` and `issues`: every issue exactly as `ekr validate` printed it in its
+`Rejected` result — `id`, `transaction_id`, `validator`, `code` and `message`, in the order the
+rejection recorded them. Entries are ordered by `against`, then `transaction_id`; `from` and `to`
+echo the request and are left out when it gave none.
+
+Only rejections appear. A committed transaction has no issues: the kernel commits a transaction
+only when no validator raised one. The document names neither the head nor the time of the read,
+so two reads of one range print the same bytes, and a later commit changes nothing already
+printed; only a new rejection in the range does.
+
 ### `ekr ontology`
 
 Prints the schema in force at the head, or at `--at N` as of that committed revision:
@@ -327,6 +346,66 @@ revision print the same document in any argument order.
 on a finding, test that count. Exit 1 is a fault — a file that does not read or is not UTF-8 text
 (the message names it), or no store at `--store`. A revision the store does not hold is refused as
 `ekr.views.RevisionNotFound`, exit 2. `ekr session` serves the verb too.
+
+### `ekr quality`
+
+Prints how good the store's knowledge is at the head, or at `--revision N` as of that committed
+revision, beyond how much of it there is: the `ekr.store-quality/1` document
+(`ekr.views.ReportStoreQuality`). It counts that revision's canonical state only, so two reads of
+one revision print the same bytes, before and after any later commit. Refused transactions are not
+in it; `ekr transactions --state Rejected` lists them.
+
+```console
+ekr quality --revision 1
+```
+
+```json
+{
+  "assertions": {
+    "active": 4,
+    "with_evidence": 4,
+    "with_evidence_share": 10000,
+    "with_item_evidence": 1,
+    "with_item_evidence_share": 2500
+  },
+  "meta": {
+    "format": "ekr.store-quality/1",
+    "revision": 1
+  },
+  "properties": {
+    "constrained": 0,
+    "constrained_share": 0,
+    "declared": 1
+  },
+  "shared_names": [
+    {
+      "name": "Alice",
+      "nodes": [
+        "00000000-0000-4000-8000-000000000301",
+        "00000000-0000-4000-8000-000000000901"
+      ],
+      "type": "00000000-0000-4000-8000-000000000201"
+    }
+  ],
+  "sharing_nodes": 2
+}
+```
+
+| field | what it counts |
+|---|---|
+| `assertions.active` | the revision's assertions whose lifecycle is `Active`; a retracted or superseded one is not counted |
+| `assertions.with_evidence` | of those, the ones citing at least one evidence entry the store holds with its bytes. Every assertion the kernel admits cites evidence, so this equals `active` in a store `ekr` wrote |
+| `assertions.with_item_evidence` | of those, the ones citing at least one evidence entry added after the seed by an `AddEvidence` ([Evidence after the seed](#evidence-after-the-seed)): the figure counts when evidence entered, not how finely it was cut: a seed that carries one evidence entry per assertion still reports `0` here |
+| `properties.declared` | the property declarations of the revision's schema: each property each node type and edge type declares itself |
+| `properties.constrained` | of those, the ones declaring at least one entry in `constraints` |
+| `shared_names` | every name — a canonical name or an alias, compared exactly as text — that two or more nodes of one type hold: the `type`, the `name` and the `nodes`, by id. Ordered by type id, then name; the empty name is never listed |
+| `sharing_nodes` | the distinct nodes `shared_names` lists |
+
+A `_share` is basis points: 10000 times the count divided by its whole, rounded down, so `10000` is
+all of it; it is left out when the whole is `0`. The document is printed as every verb prints its
+JSON, keys in alphabetical order; `ekr session` answers it as `"stdout"`. A store never seeded is
+refused as `ekr.views.NotSeeded` and a revision it does not hold as `ekr.views.RevisionNotFound`,
+exit 2, as the `ekr.views` reads refuse them.
 
 ### `ekr guide`
 
@@ -621,7 +700,7 @@ writes through one process instead of one each:
 ```
 
 A session serves `propose`, `validate`, `commit`, `snapshot`, `explain`, `resolve`, `head`,
-`transactions`, `ontology`, `mint`, `hash` and `schema`, the `ekr.views` reads
+`transactions`, `rejections`, `ontology`, `quality`, `mint`, `hash` and `schema`, the `ekr.views` reads
 ([below](#session-views)), and `seed` when it was started with `--create`. It refuses these, each
 answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"stderr"`:
 

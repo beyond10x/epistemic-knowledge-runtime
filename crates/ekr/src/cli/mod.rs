@@ -13,6 +13,8 @@
 //! store it creates at `--to` to `Runtime::migrate_into`.
 //! `code-names` reads the source files it is given, then opens the store as those verbs do and
 //! reads it only (`code_names.rs`).
+//! `quality` opens the store as those verbs do and reads one revision through
+//! `ekr_views::report_quality` (`quality.rs`).
 //! `session` opens the store once and runs each request line through the same dispatch as the
 //! one-shot verbs (`session.rs`), against the runtime it holds; on a path holding no store it
 //! starts without one, and with `--create` its `seed` creates the store it then holds. It also
@@ -34,6 +36,8 @@ mod mcp;
 mod migrate;
 mod ontology;
 mod propose;
+mod quality;
+pub(crate) mod rejections;
 mod resolve;
 mod schema;
 mod seed;
@@ -247,6 +251,21 @@ pub enum Command {
         #[arg(long, value_enum, ignore_case = true)]
         state: Option<StateFilter>,
     },
+    /// List rejected transactions with their validation issues, keyed on the revision each was
+    /// validated against: the `ekr.rejections/1` document.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST). Reads the rejections
+    /// `ekr validate` recorded, each with the issues it printed; a committed transaction has no
+    /// issues and never appears. Two reads of one range print the same bytes.
+    #[command(after_help = SEE)]
+    Rejections {
+        /// The lowest basis revision to include (`ekr head` numbers them); unbounded when absent.
+        #[arg(long)]
+        from: Option<u64>,
+        /// The highest basis revision to include; unbounded when absent.
+        #[arg(long)]
+        to: Option<u64>,
+    },
     /// Print node types, edge types and properties, by name and id, and the schema version in
     /// force (id, number, parent), at the head or at a past revision.
     ///
@@ -275,6 +294,19 @@ pub enum Command {
         /// The committed revision whose names to read; the newest (`ekr head`) when absent.
         #[arg(long)]
         at: Option<u64>,
+    },
+    /// Print the store's quality at one revision as the `ekr.store-quality/1` document
+    /// (`ekr.views.ReportStoreQuality`): active assertions with evidence and with evidence added
+    /// after the seed, property declarations under a constraint, and names two or more nodes of
+    /// one type share.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST); it reads only. A
+    /// share is basis points (10000 is all). Two reads of one revision print the same bytes.
+    #[command(after_help = SEE)]
+    Quality {
+        /// The committed revision to report; the newest (`ekr head`) when absent.
+        #[arg(long)]
+        revision: Option<u64>,
     },
     /// Serve a read-only viewer of the store on 127.0.0.1 until interrupted: the page, the
     /// `ekr.graph-projection/1` at the head or at a revision, its bounded reads, and retained
@@ -615,6 +647,10 @@ fn dispatch(
             let runtime = source.resolve("transactions")?.open()?;
             render(&transactions::run(&runtime, state)?)
         }
+        Command::Rejections { from, to } => {
+            let runtime = source.resolve("rejections")?.open()?;
+            render(&rejections::run(&runtime, from, to)?)
+        }
         Command::Ontology { at } => {
             let runtime = source.resolve("ontology")?.open()?;
             render(&ontology::run(&runtime, at)?)
@@ -624,6 +660,10 @@ fn dispatch(
             let sources = code_names::read(&files)?;
             let runtime = store.open()?;
             code_names::run(&runtime, at, &sources).map(Printed::Document)
+        }
+        Command::Quality { revision } => {
+            let runtime = source.resolve("quality")?.open()?;
+            quality::run(&runtime, revision).map(Printed::Document)
         }
         Command::View { port } => {
             let store = source.configured("view")?;

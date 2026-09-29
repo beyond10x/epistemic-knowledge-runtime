@@ -28,6 +28,7 @@
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-cursor-pages-a-neighbourhood-to-its-end.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-cursor-pages-the-changes-to-their-end.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-node-is-not-found-at-a-revision-before-it-existed.yaml",
+    "crates/ekr-views/tests/fixtures/conformance/scenarios/a-quality-report-counts-evidence-constraints-and-shared-names.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-retracted-assertion-is-projected-with-its-lifecycle.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-revision-beyond-the-head-is-refused.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-revision-since-lists-the-changes-after-it.yaml",
