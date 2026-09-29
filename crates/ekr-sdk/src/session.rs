@@ -2,10 +2,11 @@
 //!
 //! [`ProcessSession`] starts `ekr session --create` from the [`EkrBinary`] the consumer chose, with
 //! a cleared environment, and sends each request as one JSON line, reading one reply line back
-//! (`docs/cli.md` § `ekr session`). A request whose line would exceed [`LINE_CAP`] runs as its own
-//! one-shot `ekr` process instead. Any failure — the child ending, a timeout, a line that is not a
-//! reply, a cancel — stops the child and latches the session: that call and every later one fail,
-//! and the session is never restarted.
+//! (`docs/cli.md` § `ekr session`). A request whose line would exceed [`LINE_CAP`] reads its `-`
+//! text from a private temporary file inside the session, or runs as its own one-shot `ekr`
+//! process when its argv reads no `-`. Any failure — the child ending, a timeout, a line that is
+//! not a reply, a cancel — stops the child and latches the session: that call and every later one
+//! fail, and the session is never restarted.
 
 use std::collections::VecDeque;
 use std::ffi::OsString;
@@ -136,7 +137,7 @@ enum Event {
     WriteFailed,
 }
 
-/// The last [`STDERR_TAIL_BYTES`] a process wrote to stderr, collected by a thread of its own.
+/// The last `limit` bytes a process wrote to stderr, collected by a thread of its own.
 #[derive(Debug)]
 pub(crate) struct StderrTail {
     bytes: Arc<Mutex<VecDeque<u8>>>,
@@ -144,7 +145,7 @@ pub(crate) struct StderrTail {
 }
 
 impl StderrTail {
-    pub(crate) fn collect(mut stderr: impl Read + Send + 'static) -> Self {
+    pub(crate) fn collect(mut stderr: impl Read + Send + 'static, limit: usize) -> Self {
         let bytes = Arc::new(Mutex::new(VecDeque::new()));
         let collected = Arc::clone(&bytes);
         let reader = std::thread::spawn(move || {
@@ -152,7 +153,7 @@ impl StderrTail {
             while let Ok(read @ 1..) = stderr.read(&mut chunk) {
                 let mut tail = collected.lock().unwrap_or_else(|e| e.into_inner());
                 tail.extend(&chunk[..read]);
-                let over = tail.len().saturating_sub(STDERR_TAIL_BYTES);
+                let over = tail.len().saturating_sub(limit);
                 tail.drain(..over);
             }
         });
@@ -168,6 +169,15 @@ impl StderrTail {
         let tail = self.bytes.lock().unwrap_or_else(|e| e.into_inner());
         String::from_utf8_lossy(&tail.iter().copied().collect::<Vec<u8>>()).into_owned()
     }
+}
+
+/// The last [`STDERR_TAIL_BYTES`] of `text`, cut at a character boundary.
+fn tail(text: &str) -> String {
+    let mut start = text.len().saturating_sub(STDERR_TAIL_BYTES);
+    while !text.is_char_boundary(start) {
+        start += 1;
+    }
+    text[start..].to_owned()
 }
 
 /// The child and the flags its watcher thread reads.
@@ -252,7 +262,10 @@ impl ProcessSession {
         let pid = child.id();
         let stdin = child.stdin.take().expect("stdin is piped");
         let stdout = child.stdout.take().expect("stdout is piped");
-        let stderr = StderrTail::collect(child.stderr.take().expect("stderr is piped"));
+        let stderr = StderrTail::collect(
+            child.stderr.take().expect("stderr is piped"),
+            STDERR_TAIL_BYTES,
+        );
 
         let (events_to, events) = mpsc::channel();
         let (requests, requests_from) = mpsc::channel::<Vec<u8>>();
@@ -322,7 +335,10 @@ impl ProcessSession {
             };
             match status {
                 Ok(Some(status)) => return Some(status),
-                Ok(None) if Instant::now() < deadline => std::thread::sleep(TICK),
+                // The watcher has stopped; a cancel while closing is honoured here instead.
+                Ok(None) if Instant::now() < deadline && !self.cancelled() => {
+                    std::thread::sleep(TICK)
+                }
                 _ => return self.shared.kill(),
             }
         }
@@ -381,7 +397,8 @@ impl ProcessSession {
             let mut bytes = Vec::new();
             stdout.read_to_end(&mut bytes).map(|_| bytes)
         });
-        let stderr = StderrTail::collect(child.stderr.take().expect("stderr is piped"));
+        // The reply carries the whole of stderr, as the one-shot verb wrote it; errors show its tail.
+        let stderr = StderrTail::collect(child.stderr.take().expect("stderr is piped"), usize::MAX);
         let deadline = Instant::now() + self.options.timeout;
         let status = loop {
             match child.try_wait() {
@@ -403,7 +420,7 @@ impl ProcessSession {
                 return Err(TransportError::TimedOut {
                     verb,
                     timeout: self.options.timeout,
-                    stderr_tail: stderr.settled(),
+                    stderr_tail: tail(&stderr.settled()),
                 });
             }
             std::thread::sleep(TICK);
@@ -418,7 +435,7 @@ impl ProcessSession {
             return Err(TransportError::Died {
                 verb,
                 status: status.to_string(),
-                stderr_tail: stderr_text,
+                stderr_tail: tail(&stderr_text),
             });
         };
         let document = if stdout.iter().all(u8::is_ascii_whitespace) {
@@ -428,7 +445,7 @@ impl ProcessSession {
                 serde_json::from_slice(&stdout).map_err(|error| TransportError::Protocol {
                     verb,
                     detail: format!("a one-shot ekr printed something that is not JSON: {error}"),
-                    stderr_tail: stderr_text.clone(),
+                    stderr_tail: tail(&stderr_text),
                 })?,
             )
         };
@@ -452,14 +469,60 @@ impl Transport for ProcessSession {
         if self.cancelled() {
             return Err(self.fail(TransportError::Cancelled { verb }));
         }
-        let mut line = serde_json::to_vec(&WireRequest {
+        let line = serde_json::to_vec(&WireRequest {
             argv: &request.argv,
             stdin: request.stdin.as_deref(),
         })
         .expect("a request is JSON");
-        if line.len() > LINE_CAP {
-            return self.one_shot(request, verb);
+        if line.len() <= LINE_CAP {
+            return self.exchange(line, verb);
         }
+        // Over the cap, a `-` argument reads the text from a private file instead, inside the
+        // session, so a `seed -` leaves the session holding the store it creates.
+        let reads_stdin = request.argv.iter().skip(1).any(|argument| argument == "-");
+        if let (true, Some(text)) = (reads_stdin, &request.stdin) {
+            let file = spill(text).map_err(|source| TransportError::Io {
+                verb: verb.clone(),
+                what: "writing the request's stdin to a temporary file".to_owned(),
+                source,
+            })?;
+            if let Some(path) = file.path().to_str() {
+                let argv: Vec<String> = request
+                    .argv
+                    .iter()
+                    .enumerate()
+                    .map(|(at, argument)| match argument.as_str() {
+                        "-" if at > 0 => path.to_owned(),
+                        _ => argument.clone(),
+                    })
+                    .collect();
+                let line = serde_json::to_vec(&WireRequest {
+                    argv: &argv,
+                    stdin: None,
+                })
+                .expect("a request is JSON");
+                if line.len() <= LINE_CAP {
+                    return self.exchange(line, verb);
+                }
+            }
+        }
+        self.one_shot(request, verb)
+    }
+}
+
+/// `text` in a new temporary file only this user can read (mode 0600), deleted when dropped.
+fn spill(text: &str) -> std::io::Result<tempfile::NamedTempFile> {
+    let mut file = tempfile::Builder::new()
+        .prefix("ekr-sdk-stdin-")
+        .tempfile()?;
+    file.write_all(text.as_bytes())?;
+    file.flush()?;
+    Ok(file)
+}
+
+impl ProcessSession {
+    /// Send one request line to the child and read its reply.
+    fn exchange(&mut self, mut line: Vec<u8>, verb: String) -> Result<Reply, TransportError> {
         line.push(b'\n');
         let sent = self
             .requests

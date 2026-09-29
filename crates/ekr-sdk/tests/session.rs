@@ -450,11 +450,56 @@ fn a_request_over_the_line_cap_returns_the_document_of_the_one_shot_verb() {
 
     assert_eq!(
         session.processes_started(),
+        1,
+        "a `-` over the cap is read from a file inside the session"
+    );
+
+    // An argv with no `-` leaves the text unread; its line is over the cap only because of it,
+    // so it runs as a one-shot process and answers as the session does.
+    world.file("payload.txt", "Alice is CEO of Acme.\n");
+    let in_session = ok(&mut session, &["hash", "payload.txt"], None);
+    let one_shot = ok(
+        &mut session,
+        &["hash", "payload.txt"],
+        Some(&"x".repeat(LINE_CAP_PLUS)),
+    );
+    assert_eq!(one_shot, in_session);
+    assert_eq!(
+        session.processes_started(),
         2,
         "the session and one one-shot"
     );
     ok(&mut session, &["mint", "node"], None);
     assert_eq!(session.processes_started(), 2, "the session still serves");
+}
+
+/// One byte more than the session's line cap.
+const LINE_CAP_PLUS: usize = 25_231_361;
+
+#[test]
+fn a_binary_that_never_answers_its_probe_is_killed_and_refused() {
+    let directory = tempfile::tempdir().unwrap();
+    let hangs = directory.path().join("ekr");
+    std::fs::write(&hangs, "#!/bin/sh\nexec sleep 30\n").unwrap();
+    std::fs::set_permissions(
+        &hangs,
+        <std::fs::Permissions as std::os::unix::fs::PermissionsExt>::from_mode(0o755),
+    )
+    .unwrap();
+    assert_eq!(ekr_sdk::binary::PROBE_TIMEOUT, Duration::from_secs(5));
+    let started = Instant::now();
+    let refused = EkrBinary::open_with(&hangs, Version::new(0, 0, 1), Duration::from_millis(300))
+        .unwrap_err();
+    assert!(
+        started.elapsed() < Duration::from_secs(3),
+        "{:?}",
+        started.elapsed()
+    );
+    assert!(
+        matches!(&refused, BinaryError::TimedOut { what, .. } if what == "--version"),
+        "{refused:?}"
+    );
+    assert!(refused.to_string().contains("--version"), "{refused}");
 }
 
 #[test]

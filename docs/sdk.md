@@ -28,10 +28,13 @@ binary.require_operations(&["CreateNode", "AddAssertion"])?;
 | `BinaryError::BareName` | the path is a bare name such as `ekr`, which starting a process would look up on `PATH` |
 | `BinaryError::TooOld` | the binary's version is below `MINIMUM_VERSION` (0.0.14, the first release whose `ekr session --create` serves `seed`); the message names both versions |
 | `BinaryError::Run`, `BinaryError::Unexpected` | the binary does not run, or does not answer `--version` as `ekr <version>` |
+| `BinaryError::TimedOut` | the binary has not answered within `PROBE_TIMEOUT` (5 s); it is killed |
 
-`EkrBinary::open_with_minimum(path, minimum)` sets a higher minimum. `operations()` lists the
-operation kinds that `ekr operations` prints. `require_operations` refuses a binary that lacks any
-of the given kinds (`BinaryError::MissingOperations`).
+`EkrBinary::open_with_minimum(path, minimum)` sets a higher minimum.
+`EkrBinary::open_with(path, minimum, probe_timeout)` also sets the time limit, which then applies
+to `--version` and to every later `operations` probe. `operations()` lists the operation kinds
+that `ekr operations` prints. `require_operations` refuses a binary that lacks any of the given
+kinds (`BinaryError::MissingOperations`).
 
 ## A session
 
@@ -63,10 +66,20 @@ therefore starts when the consumer's own `PATH` is empty.
 ### Requests over the line cap
 
 A session refuses a request line longer than 25,231,360 bytes (`LINE_CAP`,
-`session-request-too-large`). The SDK sends such a request to a one-shot `ekr <argv>` process
-instead, using the same binary, environment, flags and working directory, with `stdin` on its
-standard input. It returns that process's exit status, document and stderr as the reply. The
-session stays open and serves the next request.
+`session-request-too-large`). The SDK handles such a request in one of two ways.
+
+- **The argv reads `-`** (`seed -`, `propose -`, `resolve -`, `hash -`) and the request carries
+  `stdin`. The SDK writes the text to a new temporary file that only the consumer's user can read
+  (mode 0600, under the consumer's temporary directory). It replaces `-` with that file's path and
+  sends the request inside the session, then deletes the file after the reply. So a `seed -` over
+  the cap still leaves the session holding the store it created. A refusal that names its input
+  names the temporary path instead of `-`.
+- **Otherwise** (the argv reads no `-`, or even the rewritten line is over the cap), the SDK sends
+  the request to a one-shot `ekr <argv>` process, using the same binary, environment, flags and
+  working directory, with `stdin` on its standard input. It returns that process's exit status,
+  its document and the whole of its stderr as the reply.
+
+Either way, the session stays open and serves the next request.
 
 ### Failure, the latch and cancellation
 
@@ -82,7 +95,8 @@ later call return an error, and the session is never restarted. To continue, sta
 | `TransportError::Latched` | a call made after any of the above. It names this call's verb and the original failure |
 
 A one-shot process that times out, ends on a signal, or prints something other than JSON fails
-only its own call. The session is not latched.
+only its own call. The error carries the last 4096 bytes of its stderr, and the session is not
+latched.
 
 `cancel_handle()` returns a `CancelHandle`. `cancel()` only stores `true` in an atomic flag, which
 is async-signal-safe, so a signal handler can call it. A thread in the session checks the flag
@@ -95,8 +109,9 @@ signal_hook::flag::register(signal_hook::consts::SIGTERM, session.cancel_handle(
 ```
 
 `close()` closes the child's input and waits up to `timeout` for it to exit. Before exiting, the
-child writes the store's replay checkpoint. Dropping a healthy session does the same. Dropping a
-failed or cancelled session kills the child.
+child writes the store's replay checkpoint. Dropping a healthy session does the same. A cancel
+while closing kills the child within 20 ms instead of waiting out the timeout. Dropping a failed
+or cancelled session kills the child.
 
 ## Replies
 

@@ -9,9 +9,14 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::str::FromStr;
+use std::time::{Duration, Instant};
 
 /// The oldest `ekr` this SDK drives: 0.0.14 is the first whose `ekr session --create` serves `seed`.
 pub const MINIMUM_VERSION: Version = Version::new(0, 0, 14);
+
+/// How long `ekr --version` and `ekr operations` may take before the binary is killed and
+/// refused, unless [`EkrBinary::open_with`] sets another bound.
+pub const PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// A release version, `major.minor.patch`. A pre-release or build suffix (`-rc.1`, `+abc`) is
 /// read past and not compared.
@@ -92,6 +97,16 @@ pub enum BinaryError {
         /// The operating system's error.
         source: std::io::Error,
     },
+    /// The binary did not answer within the probe timeout; it was killed.
+    #[error("{path} {what} did not answer within {timeout:?}, so it was killed")]
+    TimedOut {
+        /// The binary.
+        path: PathBuf,
+        /// The arguments it was run with.
+        what: String,
+        /// The probe timeout.
+        timeout: Duration,
+    },
     /// The binary ran and failed, or printed what `ekr` does not.
     #[error("{path} {what} did not answer as ekr does: {detail}")]
     Unexpected {
@@ -129,6 +144,7 @@ pub enum BinaryError {
 pub struct EkrBinary {
     path: PathBuf,
     version: Version,
+    probe_timeout: Duration,
 }
 
 impl EkrBinary {
@@ -146,6 +162,16 @@ impl EkrBinary {
         path: impl AsRef<Path>,
         minimum: Version,
     ) -> Result<Self, BinaryError> {
+        Self::open_with(path, minimum, PROBE_TIMEOUT)
+    }
+
+    /// [`EkrBinary::open_with_minimum`], with `probe_timeout` bounding `--version` and every
+    /// later `operations` probe: a binary that has not answered by then is killed and refused.
+    pub fn open_with(
+        path: impl AsRef<Path>,
+        minimum: Version,
+        probe_timeout: Duration,
+    ) -> Result<Self, BinaryError> {
         let path = path.as_ref();
         if path.as_os_str().is_empty() {
             return Err(BinaryError::NoPath);
@@ -160,7 +186,7 @@ impl EkrBinary {
             what: "--version".to_owned(),
             source,
         })?;
-        let printed = run(&path, &["--version"])?;
+        let printed = run(&path, &["--version"], probe_timeout)?;
         let found = printed
             .trim()
             .strip_prefix("ekr ")
@@ -180,6 +206,7 @@ impl EkrBinary {
         Ok(Self {
             path,
             version: found,
+            probe_timeout,
         })
     }
 
@@ -195,7 +222,7 @@ impl EkrBinary {
 
     /// The operation kinds `ekr operations` lists, in its order.
     pub fn operations(&self) -> Result<Vec<String>, BinaryError> {
-        let printed = run(&self.path, &["operations"])?;
+        let printed = run(&self.path, &["operations"], self.probe_timeout)?;
         Ok(printed
             .lines()
             .filter_map(|line| line.split_whitespace().next())
@@ -223,31 +250,71 @@ impl EkrBinary {
     }
 }
 
-/// `path args…` with an empty environment and nothing on stdin: its stdout, on exit 0.
-fn run(path: &Path, args: &[&str]) -> Result<String, BinaryError> {
+/// `path args…` with an empty environment and nothing on stdin: its stdout, on exit 0. A process
+/// still running after `timeout` is killed and refused.
+fn run(path: &Path, args: &[&str], timeout: Duration) -> Result<String, BinaryError> {
     let what = args.join(" ");
-    let output = Command::new(path)
+    let run_error = |source| BinaryError::Run {
+        path: path.to_path_buf(),
+        what: what.clone(),
+        source,
+    };
+    let timed_out = || BinaryError::TimedOut {
+        path: path.to_path_buf(),
+        what: what.clone(),
+        timeout,
+    };
+    let mut child = Command::new(path)
         .args(args)
         .env_clear()
         .stdin(Stdio::null())
-        .output()
-        .map_err(|source| BinaryError::Run {
-            path: path.to_path_buf(),
-            what: what.clone(),
-            source,
-        })?;
-    if !output.status.success() {
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(run_error)?;
+    let read_all = |mut pipe: Box<dyn std::io::Read + Send>| {
+        let (sent, received) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut bytes = Vec::new();
+            let _ = pipe.read_to_end(&mut bytes);
+            let _ = sent.send(bytes);
+        });
+        received
+    };
+    let stdout = read_all(Box::new(child.stdout.take().expect("stdout is piped")));
+    let stderr = read_all(Box::new(child.stderr.take().expect("stderr is piped")));
+    let deadline = Instant::now() + timeout;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(10)),
+            Ok(None) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(timed_out());
+            }
+            Err(source) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(run_error(source));
+            }
+        }
+    };
+    let remaining = || {
+        deadline
+            .saturating_duration_since(Instant::now())
+            .max(Duration::from_secs(1))
+    };
+    let stdout = stdout.recv_timeout(remaining()).map_err(|_| timed_out())?;
+    if !status.success() {
+        let stderr = stderr.recv_timeout(remaining()).unwrap_or_default();
         return Err(BinaryError::Unexpected {
             path: path.to_path_buf(),
             what,
-            detail: format!(
-                "{}; stderr {:?}",
-                output.status,
-                String::from_utf8_lossy(&output.stderr)
-            ),
+            detail: format!("{status}; stderr {:?}", String::from_utf8_lossy(&stderr)),
         });
     }
-    String::from_utf8(output.stdout).map_err(|_| BinaryError::Unexpected {
+    String::from_utf8(stdout).map_err(|_| BinaryError::Unexpected {
         path: path.to_path_buf(),
         what,
         detail: "printed text that is not UTF-8".to_owned(),

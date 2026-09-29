@@ -12,7 +12,7 @@ use std::time::Duration;
 use serde::Deserialize;
 
 use crate::binary::EkrBinary;
-use crate::session::{command, SessionOptions, StderrTail, StoreConfig};
+use crate::session::{command, SessionOptions, StderrTail, StoreConfig, STDERR_TAIL_BYTES};
 
 /// How long a viewer may take to print its URL: it opens the store first.
 const URL_TIMEOUT: Duration = Duration::from_secs(120);
@@ -55,7 +55,10 @@ impl Viewer {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()?;
-        let stderr = StderrTail::collect(child.stderr.take().expect("stderr is piped"));
+        let stderr = StderrTail::collect(
+            child.stderr.take().expect("stderr is piped"),
+            STDERR_TAIL_BYTES,
+        );
         let stdout = child.stdout.take().expect("stdout is piped");
         let (first, line) = mpsc::channel();
         std::thread::spawn(move || {
