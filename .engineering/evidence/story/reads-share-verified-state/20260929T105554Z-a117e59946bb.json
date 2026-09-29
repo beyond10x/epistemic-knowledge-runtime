@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-29T10:55:54Z",
+  "actor": "human:timo",
+  "artifact": "story:reads-share-verified-state",
+  "kind": "story",
+  "revision": 5,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Correctness run on PR #49 head 8725c065, success",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/36557277717"
+  }
+}

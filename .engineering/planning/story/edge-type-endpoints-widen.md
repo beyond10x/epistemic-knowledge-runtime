@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:edge-type-endpoints-widen
 kind: story
-status: draft
+status: active
 title: A schema change widens an edge type's source and target types
 relations:
 - serves: vision:o5
@@ -16,7 +16,10 @@ scope:
   path: systems/ekr/domains/kernel.yaml
 - confidence: inferred
   path: systems/ekr/domains/ontology.yaml
-revision: 5
+revision: 7
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-29T11:07:35Z", actor: "human:timo", revision: 6}
+- {from: "proposed", to: "active", at: "2026-09-29T11:07:36Z", actor: "human:timo", revision: 7}
 ---
 ## Context
 
