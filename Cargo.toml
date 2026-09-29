@@ -11,11 +11,12 @@ members = [
     "crates/ekr-views",
     "crates/ekr-observe",
     "crates/ekr-integrate",
+    "crates/ekr-sdk",
     "xtask",
 ]
 
 [workspace.package]
-version = "0.0.18"
+version = "0.0.19"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/beyond10x/epistemic-knowledge-runtime"
@@ -31,6 +32,7 @@ ekr-ontology = { path = "crates/ekr-ontology" }
 ekr-store = { path = "crates/ekr-store" }
 ekr-views = { path = "crates/ekr-views" }
 ekr-observe = { path = "crates/ekr-observe" }
+ekr-sdk = { path = "crates/ekr-sdk" }
 ekr-integrate = { path = "crates/ekr-integrate" }
 ess-conformance = { git = "https://github.com/beyond10x/ess", rev = "be44a3365eb273cb3d447b74cd5b0e75181d284e" }
 ess-primitives = { git = "https://github.com/beyond10x/ess", rev = "be44a3365eb273cb3d447b74cd5b0e75181d284e" }

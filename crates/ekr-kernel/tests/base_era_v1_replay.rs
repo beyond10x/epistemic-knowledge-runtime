@@ -261,11 +261,13 @@ fn every_operation_kind_in_its_base_era_shape_re_derives_its_retained_hashes() {
             // Later than the base era: the fixture cannot carry it, and the count stays twelve.
             GraphOperation::AddEvidence(_) => "AddEvidence",
             GraphOperation::WidenEdgeType(_) => "WidenEdgeType",
+            GraphOperation::AddAlias(_) => "AddAlias",
         })
         .collect();
     assert_eq!(kinds.len(), 12, "{kinds:?}");
     assert!(!kinds.contains("AddEvidence"), "{kinds:?}");
     assert!(!kinds.contains("WidenEdgeType"), "{kinds:?}");
+    assert!(!kinds.contains("AddAlias"), "{kinds:?}");
     let canonical =
         GraphTransaction::<CanonicalValue>::try_from(parsed.transaction().clone()).unwrap();
     assert_eq!(

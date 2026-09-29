@@ -168,6 +168,31 @@ impl Canonical for EdgeWidening {
     }
 }
 
+/// One more alias for a node that exists: the payload of [`GraphOperation::AddAlias`], and
+/// `ekr.kernel.AliasAdditionProjection` (`story:node-gains-an-alias`).
+///
+/// A node's aliases were set only by the `CreateNode` that made it, so a node created without the
+/// key a later import finds it by could never gain that key. The alias is appended to the node's
+/// [`aliases`](ekr_graph::Node::aliases); nothing removes one.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct AliasAddition {
+    /// The node that gains the alias: one canonical state holds, or one a `CreateNode` of the
+    /// same transaction creates.
+    pub node: NodeId,
+    /// The alias: not empty, and held by no node of the node's type, the node itself included.
+    pub alias: String,
+}
+
+impl Canonical for AliasAddition {
+    /// The two fields in declaration order.
+    fn encode(&self, out: &mut Encoder) {
+        self.node.encode(out);
+        self.alias.encode(out);
+    }
+}
+
 /// A property added to, or redeclared on, a type the ontology declares: the payload of
 /// [`GraphOperation::ModifyProperty`], and `ekr.ontology.PropertyModification`.
 ///
@@ -421,9 +446,10 @@ impl Canonical for Supersession {
 }
 
 /// One change a transaction proposes: design § 19, plus `Invoke` from amendment 87,
-/// `SupersedeAssertion` from amendment 88, `AddEvidence` and `WidenEdgeType` (amendment 101).
+/// `SupersedeAssertion` from amendment 88, `AddEvidence`, `WidenEdgeType` (amendment 101) and
+/// `AddAlias` (`story:node-gains-an-alias`).
 ///
-/// Fourteen variants, which are the fourteen `ekr.kernel.OperationKind` names of
+/// Fifteen variants, which are the fifteen `ekr.kernel.OperationKind` names of
 /// `systems/ekr/domains/kernel.yaml`, in that order. The order is the encoding's contract: the
 /// variant number is what separates two operations carrying the same payload shape, and moving a
 /// number moves every `validation_hash` that contains the variant.
@@ -495,6 +521,9 @@ pub enum GraphOperation<V: ValueSpace = Value> {
     /// `DefineEdgeType` and `ModifyProperty` are.
     #[cfg_attr(feature = "schema", schemars(rename = "!WidenEdgeType"))]
     WidenEdgeType(EdgeWidening),
+    /// Give a node that exists one more alias, which the next head's typed references resolve by.
+    #[cfg_attr(feature = "schema", schemars(rename = "!AddAlias"))]
+    AddAlias(AliasAddition),
 }
 
 /// What an agent proposes: design § 19, and `ekr.kernel.GraphTransaction`.
@@ -722,6 +751,10 @@ impl<V: ValueSpace + Canonical> Canonical for GraphOperation<V> {
                 out.variant(13);
                 widening.encode(out);
             }
+            Self::AddAlias(addition) => {
+                out.variant(14);
+                addition.encode(out);
+            }
         }
     }
 }
@@ -848,6 +881,7 @@ fn canonical_operation(
         GraphOperation::DefineEdgeType(declared) => GraphOperation::DefineEdgeType(declared),
         GraphOperation::ModifyProperty(declared) => GraphOperation::ModifyProperty(declared),
         GraphOperation::WidenEdgeType(widening) => GraphOperation::WidenEdgeType(widening),
+        GraphOperation::AddAlias(addition) => GraphOperation::AddAlias(addition),
         GraphOperation::MergeEntity(merge) => GraphOperation::MergeEntity(merge),
         GraphOperation::Invoke {
             node,

@@ -3,7 +3,7 @@
 //! The server speaks JSON-RPC 2.0 over stdio, one message per line. Every case drives the built
 //! binary over piped stdin and stdout, on both providers, under the example host and seed:
 //!
-//! * `initialize` then `tools/list` names exactly eight tools, each with a JSON Schema
+//! * `initialize` then `tools/list` names exactly nine tools, each with a JSON Schema
 //!   `inputSchema`, none of which proposes, validates or commits;
 //! * each tool's document is the one its read returns on the same store state: the
 //!   `ekr_views::Index` answer byte for byte for `overview`, `search`, `describe_node`, `expand`
@@ -43,12 +43,13 @@ const TRANSACTION: &str = "00000000-0000-4000-8000-000000000902";
 const MANY: &str = "00000000-0000-4000-8000-000000000903";
 const UNKNOWN: &str = "00000000-0000-4000-8000-000000000999";
 
-/// The eight tools, and nothing else.
-const TOOLS: [&str; 8] = [
+/// The nine tools, and nothing else.
+const TOOLS: [&str; 9] = [
     "changes_since",
     "describe_node",
     "expand",
     "explain",
+    "head",
     "overview",
     "resolve",
     "search",
@@ -367,7 +368,7 @@ fn node(id: &str) -> NodeId {
 // 1 --------------------------------------------------------------------------------------------
 
 #[test]
-fn initialize_then_tools_list_names_exactly_the_eight_read_tools_with_input_schemas() {
+fn initialize_then_tools_list_names_exactly_the_nine_read_tools_with_input_schemas() {
     for backend in BACKENDS {
         let world = World::seeded(backend);
         let mut server = Server::start(world.command(&["mcp"]));
@@ -445,6 +446,12 @@ fn initialize_then_tools_list_names_exactly_the_eight_read_tools_with_input_sche
         assert_eq!(required("changes_since"), set(&[]));
         assert_eq!(required("explain"), set(&["assertion"]));
         assert_eq!(required("resolve"), set(&["type_id", "aliases"]));
+        let head = tools.iter().find(|tool| tool["name"] == "head").unwrap();
+        assert_eq!(
+            head["inputSchema"],
+            json!({"type": "object", "properties": {}, "required": [], "additionalProperties": false}),
+            "the head tool takes no argument: {head}"
+        );
         server.close();
     }
 }
@@ -476,6 +483,7 @@ fn no_tool_writes_and_a_call_of_a_tool_the_server_does_not_have_is_an_error() {
         ("expand", json!({"seeds": [ALICE], "depth": 2, "limit": 10})),
         ("timeline", json!({"hops": 1, "limit": 5})),
         ("changes_since", json!({"since_recorded": 0})),
+        ("head", json!({})),
         ("explain", json!({"assertion": SEEDED_ASSERTION})),
         (
             "resolve",
@@ -972,6 +980,185 @@ fn a_commit_by_another_process_is_read_by_the_next_tool_call() {
                     .bytes
             )
         );
+        server.close();
+    }
+}
+
+// head -----------------------------------------------------------------------------------------
+
+/// `task:mcp-serves-the-head`: `tools/call head` answers the `ekr.view-head/1` document
+/// `GET /head` serves for the same store, byte for byte, before and after a commit another
+/// process makes; any argument is -32602.
+#[test]
+fn head_answers_what_get_head_serves_before_and_after_a_commit_by_another_process() {
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        let mut server = world.server();
+        let view = View::start(world.command(&["view", "--port", "0"]));
+        let mut compare = |revision: u64| {
+            let answered = server.document("head", json!({}));
+            let (status, served) = view.get("/head");
+            assert_eq!(status, 200, "{backend} GET /head");
+            assert_eq!(answered, utf8(served), "{backend}: head is not GET /head");
+            let parsed: Value = serde_json::from_str(&answered).unwrap();
+            assert_eq!(
+                parsed,
+                json!({"format": "ekr.view-head/1", "head": revision}),
+                "{backend}"
+            );
+            let no_arguments = server.request("tools/call", Some(json!({"name": "head"})));
+            assert_eq!(
+                document_text(&no_arguments["result"]),
+                answered,
+                "{backend}: head without an arguments member"
+            );
+        };
+        compare(0);
+        world.commit("create.yaml");
+        compare(1);
+        for arguments in [
+            json!({"revision": 0}),
+            json!({"x": 1}),
+            json!([]),
+            json!("head"),
+        ] {
+            let refused = server.call("head", arguments.clone());
+            assert_eq!(
+                Server::error_code(&refused),
+                -32602,
+                "{backend} head {arguments}: {refused}"
+            );
+        }
+        server.close();
+        drop(view);
+    }
+}
+
+// replaced -------------------------------------------------------------------------------------
+
+/// Another organization, created in a replacement store only.
+const INITECH: &str = "00000000-0000-4000-8000-000000000904";
+/// A second one, so the replacement's head is past the replaced store's.
+const HOOLI: &str = "00000000-0000-4000-8000-000000000905";
+/// The transactions that create them.
+const INITECH_TRANSACTION: &str = "00000000-0000-4000-8000-000000000906";
+const HOOLI_TRANSACTION: &str = "00000000-0000-4000-8000-000000000907";
+
+/// `path` with `suffix` appended to its last component.
+fn suffixed(path: &std::path::Path, suffix: &str) -> PathBuf {
+    let mut text = path.as_os_str().to_owned();
+    text.push(suffix);
+    PathBuf::from(text)
+}
+
+/// Moves what is at `store` to `aside` and `from` into its place, each by rename, as a host
+/// promoting a new store does. A SQLite database moves with its `-wal` and `-shm` files.
+fn replace(store: &std::path::Path, aside: &std::path::Path, from: &std::path::Path) {
+    for suffix in ["", "-wal", "-shm"] {
+        let at = suffixed(store, suffix);
+        if std::fs::symlink_metadata(&at).is_ok() {
+            std::fs::rename(&at, suffixed(aside, suffix)).unwrap();
+        }
+    }
+    for suffix in ["", "-wal", "-shm"] {
+        let at = suffixed(from, suffix);
+        if std::fs::symlink_metadata(&at).is_ok() {
+            std::fs::rename(&at, suffixed(store, suffix)).unwrap();
+        }
+    }
+}
+
+/// `task:readers-reopen-a-replaced-store`: a running `ekr mcp` whose store is replaced by rename
+/// answers the next call from the store now at its path, with no restart — the head, a node the
+/// replaced store held and the replacement does not, and a revision both hold with different
+/// content, so an index kept from the replaced store would show. A file that is not a store,
+/// renamed into the path, is refused by name on every later call, never answered from the store
+/// the server had open; a store renamed back in is answered from again.
+#[test]
+fn a_running_server_answers_from_a_store_replaced_by_rename() {
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        world.commit("create.yaml");
+        let mut server = world.server();
+        let head = |server: &mut Server| -> Value {
+            serde_json::from_str(&server.document("head", json!({}))).unwrap()
+        };
+        assert_eq!(head(&mut server)["head"], 1, "{backend}");
+        server.document("describe_node", json!({"node": GLOBEX}));
+        let replaced_revision_one = server.document("overview", json!({"revision": 1}));
+
+        let replacement = World::seeded(backend);
+        replacement.file(
+            "initech.yaml",
+            &create(
+                INITECH_TRANSACTION,
+                ORGANIZATION,
+                &[(INITECH.to_owned(), "Initech".to_owned())],
+            ),
+        );
+        replacement.file(
+            "hooli.yaml",
+            &create(
+                HOOLI_TRANSACTION,
+                ORGANIZATION,
+                &[(HOOLI.to_owned(), "Hooli".to_owned())],
+            ),
+        );
+        replacement.commit("initech.yaml");
+        replacement.commit("hooli.yaml");
+        let aside = world.directory.path().join("replaced");
+        replace(&world.store(), &aside, &replacement.store());
+
+        assert_eq!(
+            head(&mut server),
+            json!({"format": "ekr.view-head/1", "head": 2}),
+            "{backend}: the head of the store now at the path"
+        );
+        let gone = server.refusal("describe_node", json!({"node": GLOBEX}));
+        assert_eq!(gone["refusal"], "ekr.views.NodeNotFound", "{backend}");
+        let revision_one = server.document("overview", json!({"revision": 1}));
+        assert_ne!(revision_one, replaced_revision_one, "{backend}");
+        assert_eq!(
+            revision_one,
+            utf8(
+                world
+                    .index(Some(1))
+                    .overview(&OverviewRequest::new(None).unwrap())
+                    .unwrap()
+                    .bytes
+            ),
+            "{backend}: revision 1 of the replacement, not the index of the replaced store"
+        );
+        assert_eq!(
+            server.document("describe_node", json!({"node": INITECH})),
+            utf8(world.index(None).describe(node(INITECH)).unwrap().bytes),
+            "{backend}"
+        );
+
+        // A file that is not a store: refused by name, call after call, whatever the tool.
+        let second = world.directory.path().join("second");
+        let junk = world.directory.path().join("junk");
+        std::fs::write(&junk, "not a store\n").unwrap();
+        replace(&world.store(), &second, &junk);
+        for _ in 0..2 {
+            for (tool, arguments) in [
+                ("head", json!({})),
+                ("describe_node", json!({"node": INITECH})),
+                ("overview", json!({})),
+            ] {
+                let refusal = server.refusal(tool, arguments);
+                assert_eq!(refusal["refusal"], "store-replaced", "{backend} {tool}");
+                let message = refusal["message"].as_str().unwrap();
+                assert!(
+                    message.contains(&world.store().display().to_string()),
+                    "{backend} {tool}: the refusal names the path: {message}"
+                );
+            }
+        }
+
+        // The replacement renamed back in is answered from again.
+        replace(&world.store(), &junk, &second);
+        assert_eq!(head(&mut server)["head"], 2, "{backend}");
         server.close();
     }
 }

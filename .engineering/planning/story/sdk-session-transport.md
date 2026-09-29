@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:sdk-session-transport
 kind: story
-status: draft
+status: active
 title: The SDK drives one child ekr session with typed replies and a binary handshake
 relations:
 - depends_on: story:ekr-session
@@ -28,7 +28,10 @@ scope:
   path: crates/ekr-sdk/src/viewer.rs
 - confidence: inferred
   path: docs/sdk.md
-revision: 11
+revision: 14
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-29T15:13:55Z", actor: "human:timo", revision: 12}
+- {from: "proposed", to: "active", at: "2026-09-29T15:13:55Z", actor: "human:timo", revision: 13}
 ---
 ## Context
 
@@ -83,3 +86,7 @@ root `Cargo.toml` members, `docs/sdk.md`.
 The reviewed consumer instance pins one `ekr` per run and picks which installed version reads an
 older run, so the binary path is the consumer's choice. Its runtime has no async dependency. It
 asks for replay so its tests stop needing three built `ekr` versions in CI.
+
+## Acceptance amendment
+
+Amended 2026-09-29 by the coordinator: `cargo tree -p ekr-sdk --all-features` includes dev-dependencies, and the SDK's dev-dependency on `ekr-kernel` brings in tokio on the base branch already. The acceptance line reads: `cargo tree -p ekr-sdk --all-features -e normal,build` lists no tokio. `env!("CARGO_BIN_EXE_ekr")` is not set across packages, so the tests build `ekr` from the same tree at run time.

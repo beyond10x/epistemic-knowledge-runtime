@@ -380,6 +380,7 @@ fn ekr_view_serves_the_page_the_projection_and_evidence_and_writes_nothing_on_bo
             "/evidence/not-an-id".to_owned(),
             "/elsewhere".to_owned(),
             "/projection/extra".to_owned(),
+            "/alt".to_owned(),
         ] {
             let missing = server.get(&path);
             assert_eq!(missing.status, 404, "{backend} GET {path}");
@@ -751,6 +752,121 @@ fn ekr_view_serves_the_changes_since_as_ekr_views_reads_them_across_a_commit() {
         assert!(
             !newest["changes"].as_array().unwrap().is_empty(),
             "{newest}"
+        );
+        server.stop();
+    }
+}
+
+/// `path` with `suffix` appended to its last component.
+fn suffixed(path: &std::path::Path, suffix: &str) -> PathBuf {
+    let mut text = path.as_os_str().to_owned();
+    text.push(suffix);
+    PathBuf::from(text)
+}
+
+/// Moves what is at `store` to `aside` and `from` into its place, each by rename, as a host
+/// promoting a new store does. A SQLite database moves with its `-wal` and `-shm` files.
+fn replace(store: &std::path::Path, aside: &std::path::Path, from: &std::path::Path) {
+    for suffix in ["", "-wal", "-shm"] {
+        let at = suffixed(store, suffix);
+        if std::fs::symlink_metadata(&at).is_ok() {
+            std::fs::rename(&at, suffixed(aside, suffix)).unwrap();
+        }
+    }
+    for suffix in ["", "-wal", "-shm"] {
+        let at = suffixed(from, suffix);
+        if std::fs::symlink_metadata(&at).is_ok() {
+            std::fs::rename(&at, suffixed(store, suffix)).unwrap();
+        }
+    }
+}
+
+/// `task:readers-reopen-a-replaced-store`: a running `ekr view` whose store is replaced by rename
+/// answers the next request from the store now at its path — `GET /head`, and a revision both
+/// stores hold with different content, so an index or a rendered answer kept from the replaced
+/// store would show. A file that is not a store is refused by name, 503 `store-replaced`, on
+/// every later request that reads the store; the page is still served.
+#[test]
+fn ekr_view_answers_from_a_store_replaced_by_rename() {
+    for backend in BACKENDS {
+        let world = World::seeded_with_two_revisions(backend);
+        let server = world.serve();
+        let head = |server: &Server| {
+            let answer = server.get("/head");
+            assert_eq!(answer.status, 200, "{backend}");
+            answer.body
+        };
+        assert_eq!(
+            head(&server),
+            b"{\"format\":\"ekr.view-head/1\",\"head\":1}"
+        );
+        let paths = ["/overview?revision=0", "/projection?revision=0"];
+        let replaced: Vec<Vec<u8>> = paths.iter().map(|path| server.get(path).body).collect();
+
+        let replacement = World::new(backend);
+        let seed = fixture("seed-different.yaml").display().to_string();
+        assert_eq!(replacement.ok(&["seed", &seed])["result"]["revision"], 0);
+        let aside = world.directory.path().join("replaced");
+        replace(&world.store(), &aside, &replacement.store());
+
+        assert_eq!(
+            head(&server),
+            b"{\"format\":\"ekr.view-head/1\",\"head\":0}",
+            "{backend}: the head of the store now at the path"
+        );
+        let runtime = world.runtime();
+        let expected = [
+            Index::load(&runtime, Some(RevisionNumber::new(0)))
+                .unwrap()
+                .overview(&ekr_views::OverviewRequest::new(None).unwrap())
+                .unwrap()
+                .bytes,
+            ekr_views::project(&runtime, Some(RevisionNumber::new(0)))
+                .unwrap()
+                .bytes,
+        ];
+        drop(runtime);
+        for ((path, before), expected) in paths.iter().zip(&replaced).zip(&expected) {
+            let after = server.get(path);
+            assert_eq!(after.status, 200, "{backend} GET {path}");
+            assert!(
+                &after.body != before,
+                "{backend} GET {path}: the replaced store's answer"
+            );
+            assert!(
+                &after.body == expected,
+                "{backend} GET {path}: not the replacement's revision 0"
+            );
+        }
+
+        let junk = world.directory.path().join("junk");
+        std::fs::write(&junk, "not a store\n").unwrap();
+        let second = world.directory.path().join("second");
+        replace(&world.store(), &second, &junk);
+        for _ in 0..2 {
+            for path in ["/head", "/overview", "/projection?revision=0"] {
+                let refused = server.get(path);
+                assert_eq!(refused.status, 503, "{backend} GET {path}");
+                let body: Value = serde_json::from_slice(&refused.body).unwrap();
+                assert_eq!(body["refusal"], "store-replaced", "{backend} GET {path}");
+                assert!(
+                    body["message"]
+                        .as_str()
+                        .unwrap()
+                        .contains(&world.store().display().to_string()),
+                    "{backend} GET {path}: {body}"
+                );
+            }
+        }
+        assert_eq!(
+            server.get("/").status,
+            200,
+            "{backend}: the page reads no store"
+        );
+        replace(&world.store(), &junk, &second);
+        assert_eq!(
+            head(&server),
+            b"{\"format\":\"ekr.view-head/1\",\"head\":0}"
         );
         server.stop();
     }

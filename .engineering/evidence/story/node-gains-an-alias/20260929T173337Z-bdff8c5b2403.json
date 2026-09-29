@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-29T17:33:37Z",
+  "actor": "human:timo",
+  "artifact": "story:node-gains-an-alias",
+  "kind": "story",
+  "revision": 7,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:adversary-sdk-01-l-pass-1",
+    "review": "review-result:adversary-sdk-01-l-pass-1",
+    "outcome": "escalated"
+  }
+}

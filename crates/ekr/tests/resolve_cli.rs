@@ -686,3 +686,69 @@ fn guide_says_to_resolve_before_create_node_and_what_propose_new_means() {
         );
     }
 }
+
+// 9 --------------------------------------------------------------------------------------------
+
+/// `story:node-gains-an-alias`: Bob, whom the example seed creates without an alias, gains one in
+/// a later transaction (`!AddAlias`), and `ekr resolve` on that alias then answers Bob, where the
+/// revision before still proposes a new node; a full replay from the seed prints the same head and
+/// the same answer. On both providers, each step a fresh process.
+#[test]
+fn a_node_that_gains_an_alias_is_what_resolve_answers_for_it_at_the_next_head() {
+    let host: Value = serde_json::from_str(&text(&["example", "ekr.cli-host/1"])).unwrap();
+    let operator = host["context"]["operator"].as_str().unwrap().to_owned();
+    for backend in BACKENDS {
+        let world = World::seeded(backend, &text(&["example", "ekr-seed/2"]));
+        let key = world.file("key.yaml", &reference(PERSON, &["people:7"]));
+        let proposes = json!({"kind": "ProposeNew", "type_id": PERSON, "aliases": ["people:7"]});
+        assert_eq!(world.ok(&["resolve", &key]), proposes, "{backend}");
+
+        let minted: Value = serde_json::from_str(&text(&["mint", "transaction"])).unwrap();
+        let document = world.file(
+            "add-alias.yaml",
+            &format!(
+                "format: ekr.transaction-document/2\ntransaction:\n  id: {}\n  proposer: \
+                 {operator}\n  operations:\n  - !AddAlias\n    node: {BOB}\n    alias: \
+                 \"people:7\"\n  evidence: []\n",
+                minted["id"].as_str().unwrap()
+            ),
+        );
+        let id = world.ok(&["propose", &document])["transaction_id"]
+            .as_str()
+            .unwrap()
+            .to_owned();
+        assert_eq!(
+            world.ok(&["validate", &id])["kind"],
+            "Validated",
+            "{backend}"
+        );
+        let committed = world.ok(&["commit", &id]);
+        assert_eq!(committed["kind"], "Committed", "{backend}: {committed}");
+        assert_eq!(committed["result"]["revision"], 1, "{backend}");
+        assert_eq!(
+            world.ok(&["snapshot"])["graph"]["graph"]["nodes"][BOB]["aliases"],
+            json!(["people:7"]),
+            "{backend}"
+        );
+
+        let resolved = json!({"kind": "Resolved", "node_id": BOB});
+        assert_eq!(world.ok(&["resolve", &key]), resolved, "{backend}");
+        assert_eq!(
+            world.ok(&["resolve", &key, "--at", "0"]),
+            proposes,
+            "{backend}: the seed revision still holds no such person"
+        );
+
+        let head = world.ok(&["head"]);
+        assert_eq!(
+            world.ok(&["resolve", &key, "--full-replay"]),
+            resolved,
+            "{backend}: full replay"
+        );
+        assert_eq!(
+            world.ok(&["head", "--full-replay"]),
+            head,
+            "{backend}: a full replay reproduces the head's roots"
+        );
+    }
+}

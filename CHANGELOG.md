@@ -4,6 +4,80 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.19] — 2026-09-29
+
+A Rust SDK drives a store through one child `ekr session`; nodes gain aliases; `ekr mcp` serves
+the head, and long-running readers follow a store replaced at their path; the 3D view draws a
+frame in 2 calls instead of 25,386.
+
+### Added
+
+- **The `ekr-sdk` crate: a consumer's client for an EKR store** (`docs/sdk.md`). It runs one child
+  `ekr session --create` and exchanges one JSON line per request, so a consumer links neither the
+  kernel nor the store; a test in `crates/ekr/tests/story_contract.rs` refuses a kernel, store or
+  graph dependency, and the API is blocking with no async runtime.
+  - `EkrBinary::open(path)` takes an explicit path only (a bare name is refused, `PATH` is never
+    searched), runs `--version` in an empty environment, refuses a binary below 0.0.14 as
+    `TooOld`, and probes `operations`; probes time out after 5 s.
+  - `ProcessSession` passes the child exactly `EKR_HOST`, `EKR_STORE` and `EKR_BACKEND` (or an
+    exact list), times out a request after 300 s, kills the child on any failure and refuses every
+    later call. A request over the 25,231,360-byte line cap runs inside the session through a
+    private temporary file (0600) that is deleted after the reply.
+  - `Reply::answer()` types a reply as an outcome (`Validated`, `Rejected`, `Committed`, `Stale`),
+    a refusal with its code, a usage message or a fault. `CancelHandle` is safe to set from a
+    signal handler and ends the child within 20 ms. `Viewer::spawn` starts `ekr view` and reads
+    its URL. `RecordingTransport` and `ReplayTransport` (`ekr-sdk.recording/1`) test a consumer
+    without an `ekr` binary.
+  - Builders for `ekr.transaction-document/2` (all 15 operation kinds), `ekr-seed/2` and typed
+    references; `build()` derives the evidence list, refuses an empty transaction and a
+    schema/data mix, and checks the kernel's ten transaction limits under the kernel's names.
+    Identities are minted and payloads hashed locally with `ekr-core`'s functions.
+  - `OntologySpec` names types, properties and edge ends; `Ontology::ensure` compares it with a
+    store's `ekr ontology` and emits only the missing `DefineNodeType`, `DefineEdgeType`,
+    `ModifyProperty` and `WidenEdgeType`, and refuses by name what no schema operation can change.
+    A drift test reads every builder's output with the kernel's reader and `ekr schema`.
+- **`AddAlias`: a transaction gives a node that exists one more alias.** `!AddAlias {node,
+  alias}`, operation 14, is data rather than a schema change and is applied under every
+  validation profile. The alias is appended to the node's `aliases`, so `ekr resolve` answers the
+  node for it from the next revision on; nothing removes an alias. Refused by name: an alias the
+  node or another node of its type already holds (`alias-already-exists`), one alias given twice
+  for a type in one transaction (`duplicate-alias`), the empty alias (`empty-alias`, new) and a
+  node that does not exist (`unresolved-node`). A consumer's import keys nodes by an alias and
+  could not give that key to a node created earlier without it. `ekr operations`, `ekr guide` and
+  `docs/cli.md` describe it; four new kernel conformance scenarios, 53 in all, pass on both
+  providers.
+- **`ekr mcp` has a `head` tool.** It takes no arguments and answers
+  `{"format":"ekr.view-head/1","head":N}` as `GET /head` does; an argument is error -32602.
+
+### Changed
+
+- **`ekr mcp`, `ekr view` and `ekr session` follow a store replaced at their path.** Before each
+  request that reads the store they compare its identity at the configured path (device and inode
+  of the file store root or the SQLite file) with the one they opened; on a change they reopen at
+  the path and answer from the new store. A read through a file-store handle that fails as
+  diverged reopens once and retries, which covers a replacement under the same inode. Refused by
+  name: `store-replaced` when the store at the path does not open (session exit 1, MCP tool error,
+  view 503) and `store-replaced-proposals-open` (exit 2, naming the transactions) while a session
+  still has proposals open. Without a replacement a request costs one identity check.
+- **The 3D view of `ekr view` draws in batches and rests when idle.** Nodes are one instanced mesh
+  per glyph, edges one line-segments buffer, arrows and particles one instanced mesh each;
+  3d-force-graph lays the graph out and builds no object per node or edge. The render loop pauses
+  once the layout has stopped and no control, drag, camera flight or particle moves, and the next
+  interaction wakes it. A generated store of 4,127 nodes with 3,490 nodes and 12,083 edges drawn,
+  headless Brave on a GPU: 25,386 → 2 draw calls per frame while the camera moves, 133.4 → 16.7 ms
+  median frame, 0 calls while idle. Hover, click, double-click, node drag and, up to 5,000 edges,
+  edge hover and click work as before; arrows keep the same 5,000-edge threshold.
+- **The hops slider streams the neighbourhood it names.** Setting it to N (1 or 2, the most
+  `/expand` answers) on a neighbourhood focus streams `/expand` with `depth=N` from the focus, once
+  per focus and depth once its read has succeeded, and the focus is walked again when the stream
+  ends; an address carrying `hops` does the same. With no focus, the crumb bar says how to get one.
+
+### Removed
+
+- **`ekr view` no longer serves the earlier viewer page at `GET /alt`.** The streamed page at `/`
+  is the only page the binary embeds; `/alt` answers 404 like any other unknown path, and the
+  binary is 65,297 bytes of HTML lighter. `/projection` and `/roles` are still served.
+
 ## [0.0.18] — 2026-09-29
 
 A commit hashes once; checkpoints fall due by size; a session holds one graph; edge types widen.

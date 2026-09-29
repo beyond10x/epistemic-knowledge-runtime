@@ -314,6 +314,12 @@ where
                     target_types: targets.into_iter().map(|at| POOL.types[at]).collect(),
                 }
             )),
+        (0usize..3, "(|one|two)").prop_map(|(at, alias)| GraphOperation::AddAlias(
+            ekr_kernel::AliasAddition {
+                node: POOL.nodes[at],
+                alias,
+            }
+        )),
         // The second index steps past the first, so `absorbed != into` always. Drawing the two
         // independently from a pool of three produced a node merged into itself about one
         // proposal in three — a shape the structural validator now refuses, so a generator that
@@ -540,6 +546,7 @@ fn operation_carries_a_float(operation: &GraphOperation) -> bool {
         | GraphOperation::DefineEdgeType(_)
         | GraphOperation::ModifyProperty(_)
         | GraphOperation::WidenEdgeType(_)
+        | GraphOperation::AddAlias(_)
         | GraphOperation::MergeEntity(_)
         | GraphOperation::AddEvidence(_) => false,
     }

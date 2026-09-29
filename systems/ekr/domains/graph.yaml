@@ -420,6 +420,9 @@ entities:
   # list is nonempty; duplicates count. A List value inside it is still one member (§89).
   # Design § 10 and amendment 87. `state` is the per-type lifecycle state the ontology declares for
   # this node's type; the ontology-constraint validator, not ESS, checks its transitions.
+  # `aliases` are the names a typed reference is matched against, within the node's exact type: the
+  # seed or the node's CreateNode sets them, and a later ekr.kernel AddAlias appends one; no
+  # operation removes one (story:node-gains-an-alias).
   - name: ekr.graph.Node
     identity:
       name: node_id

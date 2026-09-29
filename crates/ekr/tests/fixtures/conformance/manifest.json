@@ -64,6 +64,18 @@
     },
     "ekr.kernel/authored/a-widening-that-adds-no-type-is-rejected-by-name": {
       "widening": "widen-without-effect.yaml"
+    },
+    "ekr.kernel/authored/a-node-created-without-an-alias-gains-one-and-commits": {
+      "addition": "add-alias.yaml"
+    },
+    "ekr.kernel/authored/an-alias-a-node-of-the-type-holds-is-rejected-by-name": {
+      "addition": "add-alias-held.yaml"
+    },
+    "ekr.kernel/authored/one-alias-added-twice-in-a-transaction-is-rejected-by-name": {
+      "addition": "add-alias-twice.yaml"
+    },
+    "ekr.kernel/authored/an-alias-for-a-node-no-revision-holds-is-rejected-by-name": {
+      "addition": "add-alias-unknown-node.yaml"
     }
   },
   "setups": {
@@ -91,6 +103,11 @@
       "host": "host-v2.json",
       "seed": "seed-authored.yaml",
       "revision_1": "revision-1-authored.yaml"
+    },
+    "ekr.kernel/authored/an-alias-a-node-of-the-type-holds-is-rejected-by-name": {
+      "host": "host.json",
+      "seed": "seed.yaml",
+      "revision_1": "revision-1-alias.yaml"
     }
   },
   "proposals": {

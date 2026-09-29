@@ -246,7 +246,9 @@ answer:
 
 Give the `!CreateNode` the reference's aliases: the created node is then a candidate at the next
 revision. A `!CreateNode` naming an alias a node of its type already holds is `Rejected`
-(`alias-already-exists`); resolve again and use the node it returns.
+(`alias-already-exists`); resolve again and use the node it returns. A node that exists but lacks
+the alias gains it with `!AddAlias` ([operation kinds](#operation-kinds)), and is a candidate for it
+from the next revision on.
 
 A document that is not a typed reference exits 1, `ekr: typed reference <file>: <reason>`, before
 the store is opened. That includes a document over 1048576 bytes, a YAML alias (`*name`), a tag,
@@ -286,7 +288,7 @@ how to add evidence after the seed and to a seed, and how to change the schema.
 
 ### `ekr operations`
 
-Without an argument, lists the fourteen operation kinds, one per line, marking the four schema
+Without an argument, lists the fifteen operation kinds, one per line, marking the four schema
 changes (`[schema change: …]`) and the one kind that is not applied (`[not applied: …]`). With a
 kind (`ekr operations AddAssertion`), prints its fields and an example operation.
 
@@ -345,8 +347,7 @@ prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`, then answers:
 | request | answer |
 |---|---|
 | `GET /` | the viewer page, built into the binary: the graph in 2D and 3D, a timeline with a heatmap and swimlanes, property history, the schema history, a command palette (Ctrl+K), navigation between committed revisions, and the state in the URL after `#` |
-| `GET /alt` | the earlier viewer page, built into the binary, kept while the new one is accepted |
-| `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision as it stands at the request, `application/json`. No `ekr.views` document carries the head, so a render of a revision is the same bytes before and after any later commit; the pages read the head here. It takes no query (any is 400 `invalid-query`) |
+| `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision as it stands at the request, `application/json`. No `ekr.views` document carries the head, so a render of a revision is the same bytes before and after any later commit; the page reads the head here. It takes no query (any is 400 `invalid-query`) |
 | `GET /projection` | the `ekr.graph-projection/1` document at the head, `application/json`, byte for byte what the projection renders |
 | `GET /projection?revision=N` | the same as of revision `N`; a revision the store does not hold is 404 with `{"refusal": "ekr.views.RevisionNotFound", …}` |
 | `GET /evidence/<evidence id>` | that evidence's retained bytes: `text/plain; charset=utf-8` when they are UTF-8, otherwise `application/octet-stream`; 404 for an id the head does not hold or bytes the store did not retain |
@@ -369,6 +370,22 @@ rebinding reads nothing. Every response carries `X-Content-Type-Options: nosniff
 origin. Evidence text is
 never served as HTML. Like every read verb, `ekr view` opens an existing store only (a path holding
 none is `store-not-found`, exit 1) and writes nothing to it.
+
+<a id="replaced-store"></a>**A store replaced at its path.** `ekr view`, `ekr mcp` and
+`ekr session` open the store when they start and keep it open. Before each request that reads
+the store, each compares what is at `--store` now with the store it opened — the device and
+inode of the file store's directory or of the SQLite database file, one `stat` of the path and no
+read of the store. When a host has replaced the store there, by renaming another one into place,
+the next request is answered from the store now at the path, with no restart, and nothing kept
+from the replaced store — no loaded revision, no rendered answer — is used again. If what is at
+the path does not open as a store (nothing, or a file that is not one), the request is refused
+with `store-replaced`, naming the path and why it does not open, and is never answered from the
+replaced store; each later request tries again. A file store replaced under the same device and
+inode — deleted and created again, or its files replaced inside the directory — passes that
+comparison, but the reader's next read finds the history there diverged from the one it holds;
+it then opens the store at the path once and answers the request from it. `ekr view` answers
+`store-replaced` 503 with `{"refusal": "store-replaced", …}`; `GET /` reads no store and is
+served throughout. Move a SQLite database together with its `-wal` and `-shm` files.
 
 The query of `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and `/changes` is
 `name=value` pairs joined by `&`, each name one the path takes and at most once, each value
@@ -441,8 +458,7 @@ The page reads `/head`, `/overview`, `/expand`, `/node/<id>`, `/search`, `/timel
 head after it, a neighbourhood as it streams in, a node's detail when it is opened, and the
 timeline's rows — one per subject of the chosen row type, with its events within the chosen
 hops — and a subject's swimlanes from `/timeline`. It fetches evidence only by an id an assertion
-it has read cites, and writes everything a store holds as text. The earlier page at `/alt` reads
-`/projection`, `/roles`, `/head` and `/evidence/<id>`.
+it has read cites, and writes everything a store holds as text.
 
 #### Roles
 
@@ -577,11 +593,24 @@ Any other `argv` the verbs' definitions do not accept — an unknown flag
 message `ekr <argv>` prints with the store configured through `EKR_HOST`, `EKR_STORE` and
 `EKR_BACKEND`, since clap's usage line repeats the global options an argv gives.
 
+**A store replaced at its path** ([as for `ekr view`](#replaced-store)) is followed before each
+store verb; `mint`, `hash` and `schema` read no store and are served throughout. A store now at
+the path that does not open is answered `"exit": 1` with `ekr: store-replaced: <reason>`, a fault
+as `store-not-found` is. A session holding a transaction it proposed that is neither committed
+nor rejected — as the store it holds records them, so one another process committed is not open —
+does not follow a replacement: every store verb is answered `"exit": 2` with
+`ekr: store-replaced-proposals-open: <reason>`, naming those transactions, which stay in the
+store the session opened, until that store is back at the path. End the session to work on the
+store now there. While it holds such a transaction, each store verb also reads the store's
+transactions once to see whether it is still open; a session holding none reads nothing more.
+At the end of its input a session writes its replay checkpoint only into the store it holds, and
+only while that store is still the one at the path.
+
 ### `ekr mcp`
 
 Serves the store's canonical state to an agent as read-only [MCP](https://modelcontextprotocol.io)
 tools over stdio. It reads the configuration (`--host`, `--store`, `--backend`, `--full-replay` or
-their variables) and opens the existing store once when it starts, then reads JSON-RPC 2.0
+their variables) and opens the existing store when it starts, then reads JSON-RPC 2.0
 messages from standard input, one per line, and writes each response as one line on standard
 output, flushed, until its input ends; then it exits 0. It writes nothing to the store and nothing
 to stderr. If the configuration or the store does not open, it answers nothing and exits as a
@@ -604,7 +633,7 @@ It answers these methods:
   untrusted evidence.
 - `notifications/initialized`, and every other notification — never answered.
 - `ping` — `{}`.
-- `tools/list` — the eight tools below, each with its `inputSchema` (a JSON Schema object that
+- `tools/list` — the nine tools below, each with its `inputSchema` (a JSON Schema object that
   refuses any other argument) and `annotations.readOnlyHint: true`.
 - `tools/call` — `{"name": <tool>, "arguments": {…}}`.
 
@@ -624,6 +653,7 @@ it, and answer its document byte for byte what the `ekr view` endpoint in the la
 | `changes_since` | exactly one of `since_revision` (a revision), `since_valid` (a valid time) and `since_recorded` (a transaction time), both times in milliseconds since the epoch; `at` (the last revision read, the head when absent), `limit` (1 to 2,000, 500 when absent), `after` (a cursor, 0 or more) | the `ekr.graph-changes/1` page ([what it lists](#changes-since)), `next` naming the next page's `after`; pass the first page's `meta.revision` as `at` for the rest | `GET /changes` |
 | `explain` | **`assertion`** (an assertion id) | what `ekr explain <assertion>` prints, byte for byte | `ekr explain` |
 | `resolve` | **`type_id`** (a string), **`aliases`** (a list of strings) — the [`typed-reference`](#ekr-resolve) document's fields, taken as the JSON strings hold them, every character included — and `at` (a revision) | what `ekr resolve` prints for that reference, byte for byte | `ekr resolve [--at N]` |
+| `head` | none: any argument is -32602 | `{"format":"ekr.view-head/1","head":N}`, the newest committed revision as it stands at the call, byte for byte what `GET /head` serves; `ekr.views.NotSeeded` for a store never seeded | `GET /head` |
 
 A tool's answer is a result with one text content item holding the document, the same document
 parsed as `structuredContent`, and `"isError": false`:
@@ -637,9 +667,10 @@ A refusal is a result too, with `"isError": true` and the document `{"message": 
 "refusal": <name>}` — the body `ekr view` answers for the same refusal, and the name and reason
 `ekr explain` and `ekr resolve` write to stderr. The server keeps serving after it. The refusals,
 in the order they are decided: a `since_revision` below 0 is `ekr.views.SinceMalformed` and a
-bound outside its range `ekr.views.LimitExceeded`, both before the store is read; a store never
-seeded `ekr.views.NotSeeded`; a revision the store does not hold — for `changes_since` an `at`,
-then a `since_revision` beyond the head — `ekr.views.RevisionNotFound`
+bound outside its range `ekr.views.LimitExceeded`, both before the store is read; a store
+replaced at the path by one that does not open `store-replaced` ([as for `ekr view`](#replaced-store));
+a store never seeded `ekr.views.NotSeeded`; a revision the store does not hold — for
+`changes_since` an `at`, then a `since_revision` beyond the head — `ekr.views.RevisionNotFound`
 (`ekr.kernel.RevisionNotFound` for `resolve`); a node or seed the
 revision does not hold, or a `node` that is no node id, `ekr.views.NodeNotFound`; an assertion
 the head does not hold `ekr.kernel.AssertionNotFound`; and for `resolve`,
@@ -653,13 +684,18 @@ Anything else is a JSON-RPC error response, and the server keeps serving:
 | `-32700` | the line is not JSON (an empty or whitespace-only line is not answered at all); `id` is null |
 | `-32600` | the line is not one JSON object (a batch included), lacks `"jsonrpc": "2.0"`, lacks a method (a message carrying `result` or `error` instead is a response, and is not answered), carries an `id` that is not a string or a number or carries `id` twice, or is longer than 6356992 bytes, its newline excluded |
 | `-32601` | the method is none of the five above |
-| `-32602` | `initialize` without `protocolVersion`; `tools/call` without a `name`, naming a tool the server does not have, or with arguments the tool does not take: an unknown or missing argument, a value of the wrong type, a `revision` or `at` below 0, a `changes_since` given none or more than one of its three since arguments, a seed, `type` or `subject` that is not an id, a `bucket` other than `day` or `week`, an `assertion` that is not an assertion id, or a `type_id` that is not an id, with the reason `ekr resolve` gives for it. `ekr view` answers these `invalid-query` |
+| `-32602` | `initialize` without `protocolVersion`; `tools/call` without a `name`, naming a tool the server does not have, or with arguments the tool does not take: an unknown or missing argument, a value of the wrong type, a `revision` or `at` below 0, a `changes_since` given none or more than one of its three since arguments, a seed, `type` or `subject` that is not an id, a `bucket` other than `day` or `week`, an `assertion` that is not an assertion id, a `type_id` that is not an id, with the reason `ekr resolve` gives for it, or any argument to `head`. `ekr view` answers these `invalid-query` |
 | `-32603` | the store could not be read |
 
 Record text — names, aliases, property values, evidence text — is untrusted evidence. The server
 returns it as JSON string data, and its instructions and every tool's description tell the agent
 to treat it as data, never as instructions. No tool proposes, validates or commits: an agent
 records knowledge only through [`ekr propose`, `ekr validate` and `ekr commit`](#the-workflow).
+
+A store replaced at `--store` while the server runs — a new store renamed into place — is what
+the next call reads, with no restart ([as for `ekr view`](#replaced-store)); a call that reads
+the store while what is at the path does not open is the tool refusal `store-replaced`, never an
+answer from the replaced store. `initialize`, `ping` and `tools/list` read no store.
 
 ### `ekr migrate`
 
@@ -915,7 +951,7 @@ carry.
 |---|---|
 | `id`, `root_id`, `type_id` | its id, the root id, a concrete (not abstract) node type |
 | `canonical_name` | the name a reader sees; a property, not an identity |
-| `aliases` | other names, a list of strings. A `CreateNode` sets them the same way; no other operation changes them |
+| `aliases` | other names, a list of strings. A `CreateNode` sets them the same way, and a later `AddAlias` appends one; no operation removes one |
 | `type_state` | the lifecycle's `initial` state, or `null` for a type without a lifecycle |
 | `properties` | map property id → non-empty list of values, satisfying the type's definitions (required properties present) |
 
@@ -1002,7 +1038,7 @@ on such a line is held to the `/1` cap.
 
 ### Operation kinds
 
-There are fourteen kinds. Nine are applied under every validation profile. Four are **schema
+There are fifteen kinds. Ten are applied under every validation profile. Four are **schema
 changes**, applied only under profile v2 and only in a transaction of their own that names its
 `schema_version` ([Evolve the schema](#evolve-the-schema)); under profile v1 validation rejects them
 with the issue code `unsupported-operation`, so the schema is fixed at seeding. One, `MergeEntity`,
@@ -1019,6 +1055,7 @@ parses but is **refused** under either profile, with the same code.
 | `Invoke` | applied | calls an operation of the node's type: `node`, `operation` (the operation's key under the type's `operations`, not its `name` field), `arguments` (map name → value) |
 | `SupersedeAssertion` | applied | replaces an accepted, active assertion from an instant on: `assertion`, `by` (the replacement, which may be added in the same transaction), `effective_from`. [Rules below](#supersession) |
 | `AddEvidence` | applied | adds one evidence entry and the bytes it rests on: `evidence` (an entry as in the seed) and `payload` (its bytes). [Rules below](#evidence-after-the-seed) |
+| `AddAlias` | applied | appends one alias to a node that exists, so that [`ekr resolve`](#ekr-resolve) finds it by that alias from the next revision on: `node` (a node id from `ekr snapshot`, or one a `CreateNode` of the same transaction creates) and `alias` (a non-empty string). Refused: an alias that node or another node of its type already holds (`alias-already-exists`), one alias given twice for a type in one transaction (`duplicate-alias`), the empty alias (`empty-alias`), a node that does not exist (`unresolved-node`). No operation removes an alias |
 | `DefineNodeType` | schema change | declares a node type: `id`, `name`, `parents`, `properties`, `abstract_type`, `lifecycle`, `operations`, as in the seed |
 | `DefineEdgeType` | schema change | declares an edge type: `id`, `name`, `source_types`, `target_types`, `cardinality`, `properties`, `inverse`, `symmetric`, `transitive`, as in the seed |
 | `ModifyProperty` | schema change | adds a property to a type or redeclares one it declares: `owner` (the node or edge type) and `property` (a [property definition](#property-definitions)) |
@@ -2082,8 +2119,9 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `identity-already-exists` | validation issue | 0 | a create or an `!AddEvidence` reuses an id that already exists | `ekr mint` a fresh id |
 | `identity-previously-held` | validation issue | 0 | under profile v3, a `CreateNode` or `CreateEdge` takes an id an earlier revision held for a node or an edge, such as a deleted edge's | `ekr mint` a fresh id |
 | `duplicate-identity` | validation issue | 0 | one transaction creates or adds the same id twice | `ekr mint` one id per created thing |
-| `alias-already-exists` | validation issue | 0 | a `CreateNode` gives a non-empty alias that a node of the same type already holds | resolve the reference and use that node instead of creating one |
-| `duplicate-alias` | validation issue | 0 | two `CreateNode` operations of one transaction give the same non-empty alias to nodes of one type | give each alias to one node |
+| `alias-already-exists` | validation issue | 0 | a `CreateNode` gives a non-empty alias that a node of the same type already holds, or an `AddAlias` gives a node an alias that it or another node of its type already holds | resolve the reference and use that node instead of creating one or aliasing another |
+| `duplicate-alias` | validation issue | 0 | two `CreateNode` or `AddAlias` operations of one transaction give the same non-empty alias to nodes of one type | give each alias to one node, once |
+| `empty-alias` | validation issue | 0 | an `AddAlias` gives the empty alias, which identifies nothing | give the alias a typed reference names |
 | `conflicting-write` | validation issue | 0 | one transaction writes the same property of a node twice with different values, moves one node's lifecycle twice, declares one property of one type in two `ModifyProperty`, or widens one edge type in two `WidenEdgeType` | one write per property, one state move per node, one declaration per property and one widening per edge type per transaction |
 | `operation-not-declared` | validation issue | 0 | `!Invoke` names no operation **key** of the node's type (an operation's `name` field is not consulted) | use the key under `operations` |
 | `transition-refused` | validation issue | 0 | the node is not in the operation's `from` state | check the node's `type_state` |

@@ -31,8 +31,8 @@ use ekr_core::canonical::{Canonical, Encoder};
 use ekr_core::{EdgeId, GraphRootId, NodeId, PropertyId, TypeId};
 use ekr_graph::CanonicalValue;
 use ekr_kernel::{
-    EdgeDraft, EdgeWidening, EntityMerge, GraphOperation, NodeDraft, PropertyModification,
-    PropertyMutation,
+    AliasAddition, EdgeDraft, EdgeWidening, EntityMerge, GraphOperation, NodeDraft,
+    PropertyModification, PropertyMutation,
 };
 use ekr_ontology::{Cardinality, EdgeType, NodeType, PropertyDefinition, ValueType};
 
@@ -282,6 +282,26 @@ fn every_field_of_the_kernels_encodings_is_written_in_declaration_order() {
                     })
                 }),
             ),
+        ],
+    );
+
+    // `AliasAddition`: one id and one string, so only this probe locates the alias.
+    let addition = move |node, alias: &str| {
+        GraphOperation::<CanonicalValue>::AddAlias(AliasAddition {
+            node,
+            alias: alias.to_owned(),
+        })
+    };
+    fields_ascend(
+        "AliasAddition: node, alias",
+        &addition(node, "one"),
+        vec![
+            (
+                "node",
+                Box::new(move || addition(other_node, "one"))
+                    as Box<dyn Fn() -> GraphOperation<CanonicalValue>>,
+            ),
+            ("alias", Box::new(move || addition(node, "two"))),
         ],
     );
 
