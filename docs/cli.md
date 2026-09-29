@@ -286,7 +286,7 @@ how to add evidence after the seed and to a seed, and how to change the schema.
 
 ### `ekr operations`
 
-Without an argument, lists the thirteen operation kinds, one per line, marking the three schema
+Without an argument, lists the fourteen operation kinds, one per line, marking the four schema
 changes (`[schema change: …]`) and the one kind that is not applied (`[not applied: …]`). With a
 kind (`ekr operations AddAssertion`), prints its fields and an example operation.
 
@@ -1000,7 +1000,7 @@ on such a line is held to the `/1` cap.
 
 ### Operation kinds
 
-There are thirteen kinds. Nine are applied under every validation profile. Three are **schema
+There are fourteen kinds. Nine are applied under every validation profile. Four are **schema
 changes**, applied only under profile v2 and only in a transaction of their own that names its
 `schema_version` ([Evolve the schema](#evolve-the-schema)); under profile v1 validation rejects them
 with the issue code `unsupported-operation`, so the schema is fixed at seeding. One, `MergeEntity`,
@@ -1020,6 +1020,7 @@ parses but is **refused** under either profile, with the same code.
 | `DefineNodeType` | schema change | declares a node type: `id`, `name`, `parents`, `properties`, `abstract_type`, `lifecycle`, `operations`, as in the seed |
 | `DefineEdgeType` | schema change | declares an edge type: `id`, `name`, `source_types`, `target_types`, `cardinality`, `properties`, `inverse`, `symmetric`, `transitive`, as in the seed |
 | `ModifyProperty` | schema change | adds a property to a type or redeclares one it declares: `owner` (the node or edge type) and `property` (a [property definition](#property-definitions)) |
+| `WidenEdgeType` | schema change | adds declared node types to an edge type's ends: `edge_type`, and `source_types` and `target_types` written whole, each holding every type it holds now plus the ones added ([below](#4-widen-an-edge-type)) |
 | `MergeEntity` | refused | would merge two nodes |
 
 ### Assertions
@@ -1666,11 +1667,13 @@ propose a `!CreateNode` of type `…0103`. Neither run changes the store. A refe
 ## Evolve the schema
 
 A store seeded under **validation profile v2** can change its schema after seeding: a committed
-transaction adds a node type (`!DefineNodeType`), adds an edge type (`!DefineEdgeType`), or adds a
-property to a type or redeclares one it declares (`!ModifyProperty`). Each committed change produces
-the next schema version, numbered one more than the last and naming it as its parent. Nothing
-already committed changes: every earlier revision keeps the schema it was committed under, and
-`ekr ontology --at <revision>` prints it. No operation removes a type or a property.
+transaction adds a node type (`!DefineNodeType`), adds an edge type (`!DefineEdgeType`), adds a
+property to a type or redeclares one it declares (`!ModifyProperty`), or adds node types to an edge
+type's source and target types (`!WidenEdgeType`). Each committed change produces the next schema
+version, numbered one more than the last and naming it as its parent. Nothing already committed
+changes: every earlier revision keeps the schema it was committed under, and
+`ekr ontology --at <revision>` prints it. No operation removes a type or a property, or narrows an
+edge type's ends.
 
 Three rules decide whether a schema change is applied:
 
@@ -1832,7 +1835,76 @@ transaction:
 It commits as revision 2. The schema version is still `…0003`: only a schema change makes a new
 one.
 
-### 4. What the state refuses
+### 4. Widen an edge type
+
+Journals have authors too, but `WROTE` runs from `Author` to `Book`, so an edge from an author to
+the journal is refused (`edge-endpoint-type`). Do not define a second edge type for it: widen
+`WROTE`. `!WidenEdgeType` names the edge type and writes both ends whole, as they are to be. Each
+end keeps every type it has; here `target_types` adds `Journal` and `source_types` stays as it is:
+
+```yaml ekr.transaction-document/2 evolve=widen.yaml outcome=Committed
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-a000-000000000714
+  proposer: 00000000-0000-4000-a000-000000000011
+  operations:
+  - !WidenEdgeType
+    edge_type: 00000000-0000-4000-a000-000000000104
+    source_types:
+    - 00000000-0000-4000-a000-000000000103
+    target_types:
+    - 00000000-0000-4000-a000-000000000102
+    - 00000000-0000-4000-a000-000000000105
+  evidence: []
+  schema_version: 00000000-0000-4000-a000-000000000004
+```
+
+It commits as revision 3 and schema version `…0004`, whose parent is `…0003`. The seeded `WROTE`
+edge from the author to the book is unchanged and still valid: a widening only adds, so every edge
+the type held still fits it. The next transaction links the author to the journal:
+
+```yaml ekr.transaction-document/2 evolve=wrote-journal.yaml outcome=Committed
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-a000-000000000715
+  proposer: 00000000-0000-4000-a000-000000000011
+  operations:
+  - !CreateEdge
+    id: 00000000-0000-4000-a000-000000000603
+    root_id: 00000000-0000-4000-a000-000000000002
+    type_id: 00000000-0000-4000-a000-000000000104
+    source: 00000000-0000-4000-a000-000000000301
+    target: 00000000-0000-4000-a000-000000000304
+    properties: {}
+  evidence: []
+```
+
+It commits as revision 4. An end never shrinks: writing `target_types` as `Journal` alone, which
+leaves out `Book`, is refused.
+
+```yaml ekr.transaction-document/2 evolve=narrow.yaml outcome=Rejected:edge-endpoint-removed
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-a000-000000000716
+  proposer: 00000000-0000-4000-a000-000000000011
+  operations:
+  - !WidenEdgeType
+    edge_type: 00000000-0000-4000-a000-000000000104
+    source_types:
+    - 00000000-0000-4000-a000-000000000103
+    target_types:
+    - 00000000-0000-4000-a000-000000000105
+  evidence: []
+  schema_version: 00000000-0000-4000-a000-000000000005
+```
+
+`ekr validate` exits 0 with `"kind": "Rejected"` and the issue `edge-endpoint-removed` from the
+`OntologyConstraint` validator, naming the end, the edge type and the type it would lose. A widening
+that names an edge type or a node type the schema does not declare is `unknown-edge-type` or
+`unknown-endpoint-type`, and one that names exactly the ends the type has is
+`schema-change-without-effect`.
+
+### 5. What the state refuses
 
 Making `translation_of` required on `Book` would leave the seeded book, which has no translation
 source, invalid:
@@ -1857,18 +1929,20 @@ transaction:
       required: true
       constraints: []
   evidence: []
-  schema_version: 00000000-0000-4000-a000-000000000004
+  schema_version: 00000000-0000-4000-a000-000000000005
 ```
 
 `ekr validate` exits 0 with `"kind": "Rejected"` and the issue `required-property-missing` from the
 `OntologyConstraint` validator, naming the property, the type and how many instances it has.
-The head stays at revision 2 and schema version `…0003`.
+The head stays at revision 4 and schema version `…0004`. A rejected transaction does not put its
+version on the lineage, so `…0005` is still free after `narrow.yaml` was refused.
 
-### 5. Read each version back
+### 6. Read each version back
 
 ```console
 ekr ontology --at 0      # schema_version …0001, schema_version_number 0, parent null: no Journal
-ekr ontology             # revision 2: schema_version …0003, number 1, parent …0001, with Journal and EDITED
+ekr ontology --at 2      # schema_version …0003, number 1, parent …0001: Journal and EDITED; WROTE to Book
+ekr ontology             # revision 4: schema_version …0004, number 2, parent …0003: WROTE to Book and Journal
 ```
 
 `ekr snapshot --at 0` reads the graph as seeded, and `ekr snapshot` shows the journal at the head.
@@ -1896,9 +1970,11 @@ is refused. Either way most of the work is in the seed. What holds up:
   (`!Property` for an attribute, `!Relation` for a relationship). The worked example records the
   publication date both ways to show each.
 - **Relationships are edge types.** Declare an edge type for each kind of relationship, with the
-  narrowest source and target types that are true. Use `cardinality: One` only when a second edge
-  from the same source would be an error. Record the claim as a `!Relation` assertion, and add an
-  edge when readers of the graph's edges should see it.
+  narrowest source and target types that are true. When the same relationship later holds between
+  more types, widen the edge type under profile v2 ([`!WidenEdgeType`](#4-widen-an-edge-type))
+  rather than declaring a second one for the new pair. Use `cardinality: One` only when a second
+  edge from the same source would be an error. Record the claim as a `!Relation` assertion, and add
+  an edge when readers of the graph's edges should see it.
 - **Pick value kinds that can be committed.** No `Float` values; use `Integer` in a stated unit
   (`weight_grams`, `reading_time_ms`) or `Decimal`. Use `Timestamp` for instants, `NodeRef` for
   references to other nodes (not a string holding a name), `Enum` for closed sets, `List` for an
@@ -1960,7 +2036,7 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `ekr.kernel.TransactionNotFound` | validate, commit | 2 | no transaction has that id | take the id `ekr propose` printed, or `ekr transactions` |
 | `ekr.kernel.TransactionStateConflict` | validate, commit | 2 | the transaction is not in the state the verb needs: validating one that is already validated, committing one that is only proposed or was rejected | propose a corrected document under a new id |
 | `ekr.kernel.AssertionNotFound` | explain | 2 | no assertion has that id at the head | take the id from `ekr snapshot` |
-| `unsupported-operation` | validation issue | 0 | a `MergeEntity` operation under either profile, or a `DefineNodeType`, `DefineEdgeType` or `ModifyProperty` operation under validation profile v1 | none for `MergeEntity`; a schema change needs a store seeded under [profile v2](#evolve-the-schema) |
+| `unsupported-operation` | validation issue | 0 | a `MergeEntity` operation under either profile, or a `DefineNodeType`, `DefineEdgeType`, `ModifyProperty` or `WidenEdgeType` operation under validation profile v1 | none for `MergeEntity`; a schema change needs a store seeded under [profile v2](#evolve-the-schema) |
 | `merge-into-itself` | validation issue | 0 | a `MergeEntity` whose `absorbed` and `into` are the same node | none: `MergeEntity` is not applied under either profile |
 | `schema-version-missing` | validation issue | 0 | a schema change without `schema_version` (profile v2) | add `schema_version: <ekr mint schema-version>` |
 | `schema-version-without-schema-change` | validation issue | 0 | a `schema_version` on a transaction none of whose operations changes the schema | remove it |
@@ -1969,7 +2045,10 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `schema-version-reused` | validation issue | 0 | a `schema_version` that is already a version of this store's lineage, such as the seed's | `ekr mint schema-version` |
 | `unknown-property-owner` | validation issue | 0 | a `ModifyProperty` whose `owner` is not a declared node or edge type, nor one defined earlier in the same transaction | take the type id from `ekr ontology` |
 | `incoherent-schema` | validation issue | 0 | the evolved schema does not cohere, for example an edge type whose endpoint type is not declared; it names the rule | the rule it names ([the ontology section](#the-ontology-section)) |
-| `schema-change-without-effect` | validation issue | 0 | the changes leave the schema exactly as it was, such as a property redeclared unchanged | drop the transaction, or change something |
+| `schema-change-without-effect` | validation issue | 0 | the changes leave the schema exactly as it was, such as a property redeclared unchanged or an edge type widened to the ends it has | drop the transaction, or change something |
+| `unknown-edge-type` | validation issue | 0 | a `WidenEdgeType` whose `edge_type` is not a declared edge type, nor one defined earlier in the same transaction | take the id from `ekr ontology` `edge_types` |
+| `unknown-endpoint-type` | validation issue | 0 | a `WidenEdgeType` whose `source_types` or `target_types` names a type that is not a declared node type, nor one defined earlier in the same transaction | take node type ids from `ekr ontology` `node_types`, or define the type first |
+| `edge-endpoint-removed` | validation issue | 0 | a `WidenEdgeType` whose `source_types` or `target_types` leaves out a type that end already has; an end only grows | write every type the end has, plus the ones to add |
 | `required-property-missing` | validation issue | 0 | a property made `required` on a type one of whose nodes or edges has no value of it | give every instance a value first, or leave it optional |
 | `cardinality-narrowed` | validation issue | 0 | a property made `One` where an instance holds several values | reduce the values first, or keep `Many` |
 | `value-kind-not-admitted` | validation issue | 0 | a property's value type changed to one that does not admit a kind of value instances hold, including the objects of active property assertions | keep a value type that admits what is held |
@@ -2003,7 +2082,7 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `duplicate-identity` | validation issue | 0 | one transaction creates or adds the same id twice | `ekr mint` one id per created thing |
 | `alias-already-exists` | validation issue | 0 | a `CreateNode` gives a non-empty alias that a node of the same type already holds | resolve the reference and use that node instead of creating one |
 | `duplicate-alias` | validation issue | 0 | two `CreateNode` operations of one transaction give the same non-empty alias to nodes of one type | give each alias to one node |
-| `conflicting-write` | validation issue | 0 | one transaction writes the same property of a node twice with different values, or moves one node's lifecycle twice | one write per property and one state move per node per transaction |
+| `conflicting-write` | validation issue | 0 | one transaction writes the same property of a node twice with different values, moves one node's lifecycle twice, declares one property of one type in two `ModifyProperty`, or widens one edge type in two `WidenEdgeType` | one write per property, one state move per node, one declaration per property and one widening per edge type per transaction |
 | `operation-not-declared` | validation issue | 0 | `!Invoke` names no operation **key** of the node's type (an operation's `name` field is not consulted) | use the key under `operations` |
 | `transition-refused` | validation issue | 0 | the node is not in the operation's `from` state | check the node's `type_state` |
 | `missing-argument` | validation issue | 0 | `!Invoke` omits a declared argument | pass every declared argument |

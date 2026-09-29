@@ -48,6 +48,49 @@
     },
     "ekr.kernel/authored/an-assertion-citing-evidence-no-revision-holds-is-rejected-by-name": {
       "transaction_document": "add-evidence-absent-citation.yaml"
+    },
+    "ekr.kernel/authored/an-edge-type-widened-to-a-new-target-type-takes-edges-to-it": {
+      "widening": "widen-authored.yaml",
+      "authoring": "authored-work-items.yaml"
+    },
+    "ekr.kernel/authored/an-edge-type-widening-that-removes-an-end-is-rejected-by-name": {
+      "widening": "widen-removing-an-end.yaml"
+    },
+    "ekr.kernel/authored/a-widening-of-an-edge-type-no-version-declares-is-rejected-by-name": {
+      "widening": "widen-unknown-edge-type.yaml"
+    },
+    "ekr.kernel/authored/a-widening-to-a-type-no-version-declares-is-rejected-by-name": {
+      "widening": "widen-unknown-endpoint-type.yaml"
+    },
+    "ekr.kernel/authored/a-widening-that-adds-no-type-is-rejected-by-name": {
+      "widening": "widen-without-effect.yaml"
+    }
+  },
+  "setups": {
+    "ekr.kernel/authored/an-edge-type-widened-to-a-new-target-type-takes-edges-to-it": {
+      "host": "host-v2.json",
+      "seed": "seed-authored.yaml",
+      "revision_1": "revision-1-authored.yaml"
+    },
+    "ekr.kernel/authored/an-edge-type-widening-that-removes-an-end-is-rejected-by-name": {
+      "host": "host-v2.json",
+      "seed": "seed-authored.yaml",
+      "revision_1": "revision-1-authored.yaml"
+    },
+    "ekr.kernel/authored/a-widening-of-an-edge-type-no-version-declares-is-rejected-by-name": {
+      "host": "host-v2.json",
+      "seed": "seed-authored.yaml",
+      "revision_1": "revision-1-authored.yaml"
+    },
+    "ekr.kernel/authored/a-widening-to-a-type-no-version-declares-is-rejected-by-name": {
+      "host": "host-v2.json",
+      "seed": "seed-authored.yaml",
+      "revision_1": "revision-1-authored.yaml"
+    },
+    "ekr.kernel/authored/a-widening-that-adds-no-type-is-rejected-by-name": {
+      "host": "host-v2.json",
+      "seed": "seed-authored.yaml",
+      "revision_1": "revision-1-authored.yaml"
     }
   },
   "proposals": {

@@ -4,6 +4,20 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- **`WidenEdgeType`: a schema change adds node types to an edge type's ends.** Under validation
+  profiles v2 and v3, `!WidenEdgeType {edge_type, source_types, target_types}` writes both ends
+  whole, each keeping every type it has; it is a schema-only transaction naming its
+  `schema_version`, and commits as the next schema version with the prior one as its parent. Edges
+  the type already holds stay valid, and the next transaction may create edges to the added types.
+  Refused by name: `unknown-edge-type`, `unknown-endpoint-type`, `edge-endpoint-removed` (an end
+  never shrinks) and `schema-change-without-effect`; two widenings of one edge type in one
+  transaction are `conflicting-write`; profile v1 refuses it as `unsupported-operation`. A
+  consumer's delta ingest had skipped 1,768 of 2,312 facts for want of it. `ekr operations`,
+  `ekr example schema-change`, `ekr guide`, `docs/cli.md` and `docs/schema-evolution.md` describe
+  it; design § 101; five new kernel conformance scenarios, 49 in all, pass on both providers.
+
 ## [0.0.17] — 2026-09-29
 
 Reads share state instead of copying it; requests copy no retained bytes; validation scans nothing

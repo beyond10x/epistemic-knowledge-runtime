@@ -43,9 +43,9 @@ fn names<E: ValueEnum>() -> Vec<String> {
         .collect()
 }
 
-/// `GraphOperation` has thirteen variants (the eleven of design § 19 and amendment 87, plus
-/// `SupersedeAssertion` and `AddEvidence`).
-const KIND_COUNT: usize = 13;
+/// `GraphOperation` has fourteen variants (the eleven of design § 19 and amendment 87, plus
+/// `SupersedeAssertion`, `AddEvidence` and `WidenEdgeType`).
+const KIND_COUNT: usize = 14;
 
 /// A fresh `ekr` process with no inherited `EKR_*` configuration.
 fn ekr() -> std::process::Command {
@@ -276,7 +276,7 @@ fn guide_prints_the_workflow_roles_exit_codes_and_where_ids_come_from() {
         serde_json::from_str::<Value>(&guide).is_err(),
         "guide is text"
     );
-    // The P1 marking is gone: the three schema kinds are applied under profile v2.
+    // The P1 marking is gone: the four schema kinds are applied under profile v2.
     assert!(
         !guide.contains("NOT APPLIED IN P1"),
         "guide still marks the schema kinds as not applied:\n{guide}"
@@ -1119,9 +1119,14 @@ fn the_retraction_example_runs_from_printed_strings_only_on_both_providers() {
 /// The one kind the kernel applies under no profile, refused as `unsupported-operation`.
 const NOT_APPLIED: [&str; 1] = ["MergeEntity"];
 
-/// The three schema kinds: applied under validation profile v2 in a schema-only transaction that
+/// The four schema kinds: applied under validation profile v2 in a schema-only transaction that
 /// names its `schema_version`, and refused as `unsupported-operation` under v1 (design § 95).
-const SCHEMA_KINDS: [&str; 3] = ["DefineNodeType", "DefineEdgeType", "ModifyProperty"];
+const SCHEMA_KINDS: [&str; 4] = [
+    "DefineNodeType",
+    "DefineEdgeType",
+    "ModifyProperty",
+    "WidenEdgeType",
+];
 
 /// What an `ekr operations` line says of its kind: applied, a schema change, or not applied.
 fn marking(line: &str) -> &'static str {
@@ -1167,7 +1172,7 @@ fn issue_codes(value: &Value) -> BTreeSet<String> {
 
 /// Every example the kernel applies under the example host (profile v1) commits, in the order
 /// `ekr operations` lists them, one transaction each, against a store seeded from
-/// `ekr example ekr-seed/2`. `MergeEntity` is marked not applied, the three schema kinds are
+/// `ekr example ekr-seed/2`. `MergeEntity` is marked not applied, the four schema kinds are
 /// marked as schema changes, each on its list line and page, and under v1 validation refuses
 /// exactly those four with the code the marks name.
 #[test]
@@ -1986,7 +1991,7 @@ fn every_schema_example_commits_alone_under_validation_profile_v2() {
 }
 
 /// `ekr example schema-change` is one schema-only `ekr.transaction-document/2` naming its
-/// `schema_version`, holding the three schema kinds' `ekr operations` examples in listed order
+/// `schema_version`, holding the four schema kinds' `ekr operations` examples in listed order
 /// (so `ModifyProperty` carries its `owner`). It commits against a store seeded from the example
 /// seed under profile v2, and under the example host (v1) it is rejected as
 /// `unsupported-operation`.
@@ -2007,7 +2012,7 @@ fn the_schema_change_example_commits_under_profile_v2_and_is_refused_under_v1() 
         .collect();
     assert_eq!(
         transaction.operations, pages,
-        "the schema-change example is not the three `ekr operations` examples"
+        "the schema-change example is not the four `ekr operations` examples"
     );
     assert!(example.contains("owner:"), "{example}");
     assert!(transaction.evidence.is_empty(), "{example}");
@@ -2038,6 +2043,31 @@ fn the_schema_change_example_commits_under_profile_v2_and_is_refused_under_v1() 
         assert!(type_named(&ontology, "edge_types", "WORKS_FOR")
             .parse::<ekr_core::TypeId>()
             .is_ok());
+        // The widening, last, lets the seed's CEO_OF start at an organization too.
+        let ceo_of = ontology["edge_types"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["name"] == "CEO_OF")
+            .unwrap();
+        let ends = |end: &str| -> BTreeSet<&str> {
+            ceo_of[end]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|t| t["name"].as_str().unwrap())
+                .collect()
+        };
+        assert_eq!(
+            ends("source_types"),
+            BTreeSet::from(["Person", "Organization"]),
+            "{backend}: {ceo_of}"
+        );
+        assert_eq!(
+            ends("target_types"),
+            BTreeSet::from(["Organization"]),
+            "{backend}: {ceo_of}"
+        );
     }
 }
 
@@ -2120,8 +2150,8 @@ fn guide_says_how_to_change_the_schema() {
         "holds only schema changes",
         "ekr example schema-change",
         "ekr ontology --at <revision>",
-        "Under profile v1 validation rejects DefineNodeType, DefineEdgeType and ModifyProperty \
-         with the issue code unsupported-operation",
+        "Under profile v1 validation rejects DefineNodeType, DefineEdgeType, ModifyProperty and \
+         WidenEdgeType with the issue code unsupported-operation",
         "MergeEntity is not applied under either profile",
         "No operation removes a type or a property",
     ] {

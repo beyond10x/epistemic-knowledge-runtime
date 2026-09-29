@@ -1,7 +1,8 @@
 # Schema evolution
 
 A store's schema is not fixed forever. Under **validation profile v2**, a committed transaction can
-add a node type, add an edge type, or add or redeclare a property. Each such commit makes a new
+add a node type, add an edge type, add or redeclare a property, or add node types to an edge type's
+ends ([section 5](#5-widen-an-edge-type)). Each such commit makes a new
 **schema version**, numbered one more than the last and naming it as its parent. Nothing already
 committed changes. Every earlier revision keeps the schema it was committed under, and
 `ekr ontology --at <revision>` prints it.
@@ -18,7 +19,7 @@ in its larger [limits](cli.md#document-limits).
 
 ```mermaid
 flowchart TD
-  T["a transaction holding DefineNodeType, DefineEdgeType or ModifyProperty"] --> P{"the store's profile"}
+  T["a transaction holding DefineNodeType, DefineEdgeType, ModifyProperty or WidenEdgeType"] --> P{"the store's profile"}
   P -- "v1: ekr.p1-deterministic/1" --> R1["Rejected: unsupported-operation<br/>the schema stays the seed's"]
   P -- "v2: ekr.p2-deterministic/1" --> M{"only schema changes<br/>in this transaction?"}
   M -- no --> R2["Rejected: mixed-schema-transaction"]
@@ -38,8 +39,9 @@ flowchart TD
 | no transaction names a version without changing the schema | a version id means a new version | `schema-version-without-schema-change` |
 | existing canonical state stays valid under the new schema | a change may not strand a node or an assertion | `required-property-missing`, `cardinality-narrowed`, `value-type-narrowed`, `value-kind-not-admitted`, `constraint-changed` |
 | the change has an effect and the result coheres | an unchanged redeclaration or a broken reference is a mistake | `schema-change-without-effect`, `incoherent-schema`, `unknown-property-owner` |
+| a widening names a declared edge type and declared node types, and only adds | an edge the type holds must still fit it | `unknown-edge-type`, `unknown-endpoint-type`, `edge-endpoint-removed` |
 
-No operation **removes** a type or a property.
+No operation **removes** a type or a property, or **narrows** an edge type's ends.
 
 ## 1. Add a type, an edge type and properties
 
@@ -344,12 +346,57 @@ ekr: ekr.kernel.RevisionNotFound: revision 99 does not exist
 
 The last command exits 2. The `node types` lines are `jq '[.node_types[].name]'` of the same output.
 
+## 5. Widen an edge type
+
+*Added with `WidenEdgeType` (design § 101), after 0.0.17. The files below continue this page's store
+at revision 7, but unlike sections 1 to 4 they were not run against it, so no output is shown. The
+same operation, its use and its refusal run on both providers against the CLI reference's catalogue
+in [Evolve the schema, step 4](cli.md#4-widen-an-edge-type), which `crates/ekr/tests/docs_cli.rs`
+executes as written.*
+
+An incident can affect a release as well as a service, but `AFFECTS` runs from `Incident` to
+`Service` only. Defining a second edge type, `AFFECTS_RELEASE`, would split one relation in two:
+every reader asking what an incident affects would have to know both. Widen `AFFECTS` instead.
+`!WidenEdgeType` names the edge type and writes both ends whole, as they are to be; each keeps every
+type it has, and `target_types` gains `Release`:
+
+```yaml
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-c000-000000000719
+  proposer: 00000000-0000-4000-c000-000000000011
+  operations:
+  - !WidenEdgeType
+    edge_type: 00000000-0000-4000-c000-000000000103
+    source_types: [00000000-0000-4000-c000-000000000102]
+    target_types: [00000000-0000-4000-c000-000000000101, 00000000-0000-4000-c000-000000000104]
+  evidence: []
+  schema_version: 00000000-0000-4000-c000-000000000007
+```
+
+It is a schema change like the others: alone in its transaction, naming its version, and under
+profile v1 refused as `unsupported-operation`. Committed, it makes schema version `…0007`, number 3,
+whose parent is `…0004`, and `ekr ontology --at` reads each version back as section 4 shows. Any
+`AFFECTS` edge a store holds is untouched and still valid: every end still holds every type it
+held, so the change is compatible with such edges however many there are, and the next ordinary
+transaction may create an `AFFECTS` edge from the incident to `checkout-api 4.12.0`.
+
+What is refused, each as one `OntologyConstraint` issue:
+
+| the widening | refusal |
+|---|---|
+| an end that leaves out a type it has, such as `target_types: [<Release>]` alone | `edge-endpoint-removed` |
+| an `edge_type` that no version declares as an edge type | `unknown-edge-type` |
+| a type in an end that no version declares as a node type | `unknown-endpoint-type` |
+| both ends exactly as they are | `schema-change-without-effect` |
+| two `WidenEdgeType` of one edge type in one transaction (`Structural`) | `conflicting-write` |
+
 ## What is not possible in 0.0.6
 
 | you want to | in 0.0.6 | where it is planned |
 |---|---|---|
 | change the schema of a store seeded under profile v1 | not possible: seed a new store under v2 | "a later milestone" (design § 95) |
 | change the schema and write data in one transaction | refused, `mixed-schema-transaction` | "a later milestone" (design § 95) |
-| remove a type or a property | no operation does it | not planned |
+| remove a type or a property, or narrow an edge type's ends | no operation does it | not planned |
 | set non-empty property `constraints`, or change them once a type has instances | a write touching a type with constraints is refused (`unsupported-constraint`); changing them on a type with instances is `constraint-changed` | not scheduled |
 | have the runtime propose schema changes from evidence, with risk classes and approval gates | not implemented | P5 ([roadmap](roadmap.md)), design § 25–26, § 50 |

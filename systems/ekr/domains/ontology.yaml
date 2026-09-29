@@ -187,7 +187,7 @@ types:
 
   # Design § 26. `Ontology::evolve` in crates/ekr-ontology/src/evolve.rs. The kernel's operations
   # carry these; their canonical encoding is the kernel's, not this domain's. No change removes a
-  # type or a property.
+  # type or a property, and none narrows an edge type's ends.
   - name: ekr.ontology.PropertyModification
     kind: struct
     fields:
@@ -196,6 +196,23 @@ types:
       - name: property
         type: ekr.ontology.PropertyDeclaration
 
+  # Design § 101 (story:edge-type-endpoints-widen). The edge type's ends as they are to be: each
+  # list holds every node type that end already holds, plus declared node types added to it. An
+  # end that leaves one out is refused (edge-endpoint-removed), an edge type or a node type the
+  # version does not declare is refused (unknown-edge-type, unknown-endpoint-type), and a widening
+  # to the ends the edge type already has is schema-change-without-effect. Every other part of the
+  # edge type's declaration is unchanged, so every edge that was valid stays valid, and the next
+  # version replaces the prior one whatever edges the type has.
+  - name: ekr.ontology.EdgeWidening
+    kind: struct
+    fields:
+      - name: edge_type
+        type: ekr.ontology.TypeId
+      - name: source_types
+        type: List<ekr.ontology.TypeId>
+      - name: target_types
+        type: List<ekr.ontology.TypeId>
+
   - name: ekr.ontology.SchemaChange
     kind: union
     tag: kind
@@ -203,6 +220,7 @@ types:
       DefineNodeType: ekr.ontology.NodeTypeDeclaration
       DefineEdgeType: ekr.ontology.EdgeTypeDeclaration
       ModifyProperty: ekr.ontology.PropertyModification
+      WidenEdgeType: ekr.ontology.EdgeWidening
 
   # Why a next version is not derived. Held equal to `EvolveError::code` by
   # crates/ekr-ontology/tests/schema_evolution.rs.
@@ -216,9 +234,14 @@ types:
       - unknown-property-owner
       - incoherent-schema
       - schema-change-without-effect
+      - unknown-edge-type
+      - unknown-endpoint-type
+      - edge-endpoint-removed
 
   # Why a derived version cannot replace the prior one over current canonical state. Held equal
   # to `Incompatibility::code` by crates/ekr-ontology/tests/schema_evolution.rs.
+  # type-declaration-changed is a change to a type with instances in anything other than its
+  # properties; for an edge type, ends that only gained node types are not such a change.
   - name: ekr.ontology.IncompatibilityCode
     kind: enum
     variants:

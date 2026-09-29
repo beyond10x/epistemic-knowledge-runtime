@@ -1,0 +1,107 @@
+# story:edge-type-endpoints-widen, acceptance 1 and 2.
+#
+# The target runs validation profile v2 (`host-v2.json`), is seeded from `seed-authored.yaml` —
+# AUTHORED from Person to Document, and one AUTHORED edge, Ada to the design note — and has
+# committed revision 1 (`revision-1-authored.yaml`, a second work item) before the first act.
+#
+# The first transaction (`widen-authored.yaml`) is one WidenEdgeType: AUTHORED keeps its source
+# types and runs to Document or WorkItem. It is a schema change alone, naming the version it
+# produces, and it commits as revision 2. The second (`authored-work-items.yaml`) creates two
+# AUTHORED edges from a person to a work item, which the seed's schema refuses as
+# edge-endpoint-type; validated against revision 2 it commits as revision 3. The edge the seed
+# holds stays valid across the change: a target that judged the widening a declaration change
+# under edges would reject the first transaction as type-declaration-changed.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: an-edge-type-widened-to-a-new-target-type-takes-edges-to-it
+summary: A schema-only transaction widens an edge type's target types to another declared node type and commits, and the next transaction commits edges to that type.
+
+arrange:
+  - instance: widening
+    entity: ekr.kernel.GraphTransaction
+  - instance: authoring
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: widening
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: widening, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: widening}
+      against: 1
+    outcome: validated
+    events:
+      - event: ekr.kernel.TransactionValidated
+        payload:
+          against: 1
+
+  - at: 2027-01-15T08:00:02Z
+    command: ekr.kernel.Commit
+    actor: ekr.kernel.Committer
+    input:
+      transaction_id: {$instance: widening}
+    outcome: committed
+    events:
+      - event: ekr.kernel.RevisionCommitted
+        payload:
+          number: 2
+
+  - at: 2027-01-15T08:00:03Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: authoring
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: authoring, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:04Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: authoring}
+      against: 2
+    outcome: validated
+    events:
+      - event: ekr.kernel.TransactionValidated
+        payload:
+          against: 2
+
+  - at: 2027-01-15T08:00:05Z
+    command: ekr.kernel.Commit
+    actor: ekr.kernel.Committer
+    input:
+      transaction_id: {$instance: authoring}
+    outcome: committed
+    events:
+      - event: ekr.kernel.RevisionCommitted
+        payload:
+          number: 3
+
+assert:
+  - view: ekr.kernel.Transactions
+    contains:
+      transaction_id: {$instance: widening}
+      state: Committed
+      validated_against: 1
+
+  - view: ekr.kernel.Transactions
+    contains:
+      transaction_id: {$instance: authoring}
+      state: Committed
+      validated_against: 2
+
+  - view: ekr.kernel.CurrentRevision
+    contains:
+      number: 3

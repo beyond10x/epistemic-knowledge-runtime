@@ -39,7 +39,10 @@ types:
   # transactions. Legacy verification retains the original eleven variants and scalar retraction.
   # AddEvidence is index 12 (decision-blocker:evidence-entry-after-seed, option 1): it carries one
   # ekr.graph.Evidence and the payload bytes its content_hash addresses, and is applied under every
-  # validation profile. Design §19 plus amendments87–91.
+  # validation profile. Design §19 plus amendments87–91. WidenEdgeType is index 13 (design §101,
+  # story:edge-type-endpoints-widen): a schema change, as DefineNodeType, DefineEdgeType and
+  # ModifyProperty are, admitted only under validation profiles v2 and v3 in a schema-only
+  # transaction naming its schema_version, and refused under v1 as unsupported-operation.
   - name: ekr.kernel.OperationKind
     kind: enum
     variants:
@@ -56,6 +59,7 @@ types:
       - Invoke
       - SupersedeAssertion
       - AddEvidence
+      - WidenEdgeType
 
   # Design § 20 items 1–7. Items 8–10 (contradiction, temporal consistency, policy) arrive with the
   # subsystems that need them and are added here together with the outcome that runs them.
@@ -601,6 +605,26 @@ types:
       - name: property
         type: ekr.ontology.PropertyDeclaration
 
+  # `WidenEdgeType` in the canonical operation: the edge type, then each end written whole, as it
+  # is to be — every node type it holds and the declared node types added. Encoded as the three
+  # fields in this order, each end as a set. Validation, as named issues of a Rejected
+  # transaction raised by OntologyConstraint under the ontology's own codes: an edge type the
+  # schema does not declare (unknown-edge-type), a node type it does not declare
+  # (unknown-endpoint-type), an end that leaves out a type it holds (edge-endpoint-removed), and
+  # ends exactly as they are (schema-change-without-effect); by Structural, two widenings of one
+  # edge type in one transaction (conflicting-write). Commit makes the next schema version, with
+  # the prior version as its parent; every edge the type holds stays valid, and no node, edge or
+  # assertion changes.
+  - name: ekr.kernel.EdgeWideningProjection
+    kind: struct
+    fields:
+      - name: edge_type
+        type: ekr.ontology.TypeId
+      - name: source_types
+        type: List<ekr.ontology.TypeId>
+      - name: target_types
+        type: List<ekr.ontology.TypeId>
+
   - name: ekr.kernel.InvocationProjection
     kind: struct
     fields:
@@ -648,6 +672,7 @@ types:
       Invoke: ekr.kernel.InvocationProjection
       SupersedeAssertion: ekr.kernel.Supersession
       AddEvidence: ekr.kernel.EvidenceAdditionProjection
+      WidenEdgeType: ekr.kernel.EdgeWideningProjection
 
   - name: ekr.kernel.CanonicalTransactionProjection
     kind: struct

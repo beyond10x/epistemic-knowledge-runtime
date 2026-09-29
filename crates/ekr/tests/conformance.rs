@@ -220,7 +220,8 @@ fn the_committed_suite_is_the_complete_inventory_the_baseline_counts() {
     println!("{} admitted scenarios: {names:#?}", names.len());
 }
 
-/// Every scenario the fixture manifest stages documents for is one the admitted suite selects.
+/// Every scenario the fixture manifest stages documents for, or gives a setup of its own, is one
+/// the admitted suite selects; and every scenario with a setup of its own stages its documents.
 #[test]
 fn the_fixture_manifest_names_only_admitted_scenarios() {
     let manifest: serde_json::Value =
@@ -233,8 +234,18 @@ fn the_fixture_manifest_names_only_admitted_scenarios() {
         .keys()
         .collect();
     assert!(!staged.is_empty());
-    for scenario in staged {
+    for scenario in &staged {
+        assert!(names.contains(*scenario), "{scenario} is not admitted");
+    }
+    let own: Vec<&String> = manifest["setups"]
+        .as_object()
+        .expect("setups")
+        .keys()
+        .collect();
+    assert!(!own.is_empty());
+    for scenario in own {
         assert!(names.contains(scenario), "{scenario} is not admitted");
+        assert!(staged.contains(&scenario), "{scenario} stages no document");
     }
 }
 
@@ -664,6 +675,7 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
                 "ekr.kernel.GraphTransaction/transition/commit/by/ekr.kernel.Commit/committed",
                 "ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names",
                 "ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it",
+                "ekr.kernel/authored/an-edge-type-widened-to-a-new-target-type-takes-edges-to-it",
             ],
         ),
         (
@@ -672,6 +684,10 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
                 "ekr.kernel/authored/a-reused-evidence-id-is-rejected-by-name",
                 "ekr.kernel/authored/an-assertion-citing-evidence-no-revision-holds-is-rejected-by-name",
                 "ekr.kernel/authored/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name",
+                "ekr.kernel/authored/an-edge-type-widening-that-removes-an-end-is-rejected-by-name",
+                "ekr.kernel/authored/a-widening-of-an-edge-type-no-version-declares-is-rejected-by-name",
+                "ekr.kernel/authored/a-widening-to-a-type-no-version-declares-is-rejected-by-name",
+                "ekr.kernel/authored/a-widening-that-adds-no-type-is-rejected-by-name",
             ],
         ),
         (

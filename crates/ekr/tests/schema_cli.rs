@@ -233,13 +233,13 @@ fn every_example_document_validates_against_its_printed_schema() {
 }
 
 /// Every `ekr operations <Kind>` example, in a transaction document, is accepted by the reader
-/// and validates against the transaction-document schema — the four kinds P1 does not apply too,
+/// and validates against the transaction-document schema — the five kinds P1 does not apply too,
 /// since they parse.
 #[test]
 fn every_operation_example_validates_against_the_transaction_document_schema() {
     let validator = validator(TRANSACTION);
     let kinds = listed_kinds();
-    assert_eq!(kinds.len(), 13, "{kinds:?}");
+    assert_eq!(kinds.len(), 14, "{kinds:?}");
     for kind in kinds {
         let document = document_around(&example_operation(&kind));
         read(TRANSACTION, &document)
