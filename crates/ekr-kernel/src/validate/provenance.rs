@@ -87,6 +87,9 @@ const EVIDENCE_UNSUPPORTED_SOURCE: &str = "evidence-unsupported-source";
 /// Validator 6: provenance.
 pub struct Provenance;
 
+/// Reads no candidate view: provenance is a question about the operations and retained evidence.
+impl super::Check for Provenance {}
+
 impl Validator for Provenance {
     fn name(&self) -> ValidatorName {
         ValidatorName::Provenance

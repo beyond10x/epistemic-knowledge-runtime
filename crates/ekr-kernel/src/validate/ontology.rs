@@ -27,7 +27,7 @@
 use ekr_graph::{GraphSnapshot, Predicate, Subject};
 use ekr_ontology::NodeTypes;
 
-use super::{candidate::Candidate, finish, issue, Validator};
+use super::{candidate::Candidate, finish, issue, Check, Validator};
 use crate::issue::{ValidationIssue, ValidatorName};
 use crate::transaction::{GraphOperation, GraphTransaction};
 
@@ -53,8 +53,18 @@ impl Validator for OntologyConstraint {
         graph: &GraphSnapshot<'_>,
         tx: &GraphTransaction,
     ) -> Result<(), Vec<ValidationIssue>> {
+        self.check(graph, tx, &Candidate::of(graph, tx))
+    }
+}
+
+impl Check for OntologyConstraint {
+    fn check<'g>(
+        &self,
+        graph: &GraphSnapshot<'g>,
+        tx: &GraphTransaction,
+        candidate: &Candidate<'g>,
+    ) -> Result<(), Vec<ValidationIssue>> {
         let ontology = &graph.graph().ontology;
-        let candidate = Candidate::of(graph, tx);
         let nodes = &candidate.nodes;
         let mut issues = Vec::new();
 

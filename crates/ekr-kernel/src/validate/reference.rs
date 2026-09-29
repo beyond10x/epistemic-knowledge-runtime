@@ -44,7 +44,7 @@ use ekr_graph::{CanonicalGraph, GraphSnapshot, Object, Subject};
 use ekr_ontology::Value;
 
 use super::candidate::Candidate;
-use super::{finish, issue, Validator};
+use super::{finish, issue, Check, Validator};
 use crate::issue::{ValidationIssue, ValidatorName};
 use crate::transaction::{GraphOperation, GraphTransaction};
 
@@ -77,8 +77,18 @@ impl Validator for Reference {
         graph: &GraphSnapshot<'_>,
         tx: &GraphTransaction,
     ) -> Result<(), Vec<ValidationIssue>> {
-        let candidate = Candidate::of(graph, tx);
-        let known = Known::of(graph, tx, &candidate);
+        self.check(graph, tx, &Candidate::of(graph, tx))
+    }
+}
+
+impl Check for Reference {
+    fn check<'g>(
+        &self,
+        graph: &GraphSnapshot<'g>,
+        tx: &GraphTransaction,
+        candidate: &Candidate<'g>,
+    ) -> Result<(), Vec<ValidationIssue>> {
+        let known = Known::of(graph, tx, candidate);
         let mut issues = Vec::new();
 
         for operation in &tx.operations {
@@ -182,10 +192,17 @@ impl Validator for Reference {
         }
 
         // Retraction retains an assertion and its provenance; it does not erase its references.
-        for assertion in graph.graph().assertions.values() {
-            if let Subject::Edge(edge) = assertion.subject {
-                known.edge(tx, edge.id(), &mut issues);
-            }
+        // Only an assertion about an edge the candidate does not hold is refused, so only those
+        // edges' assertions are read, and they are refused in the order canonical state holds them.
+        let mut unresolved: Vec<(AssertionId, EdgeId)> = candidate
+            .asserted_edges()
+            .iter()
+            .filter(|(edge, _)| !candidate.edges.contains_key(edge))
+            .flat_map(|(edge, assertions)| assertions.iter().map(|assertion| (*assertion, *edge)))
+            .collect();
+        unresolved.sort_unstable();
+        for (_, edge) in unresolved {
+            known.edge(tx, edge, &mut issues);
         }
 
         finish(issues)

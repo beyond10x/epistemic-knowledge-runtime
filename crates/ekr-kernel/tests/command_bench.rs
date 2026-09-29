@@ -114,6 +114,7 @@ fn document(seed: &SeedDocument, n: u64) -> (TransactionId, Vec<u8>) {
                 type_id: ty.id,
                 canonical_name: format!("subject {n}"),
                 properties: BTreeMap::new(),
+                aliases: Vec::new(),
             }),
             GraphOperation::AddAssertion(Box::new(Assertion {
                 id: AssertionId::mint(),

@@ -40,13 +40,14 @@ pub(crate) mod schema;
 pub mod structural;
 pub mod types;
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
-use ekr_core::{AgentId, NodeId, SchemaVersionId, TypeId};
+use ekr_core::{AgentId, SchemaVersionId};
 use ekr_graph::GraphSnapshot;
 
 use crate::issue::{ValidationIssue, ValidatorName};
 use crate::transaction::{GraphTransaction, ValidatedTransaction};
+use candidate::Candidate;
 
 pub use authorization::Authorization;
 pub use cardinality::Cardinality;
@@ -86,7 +87,7 @@ pub trait Validator {
 /// `Copy` and not free to build: it holds its validators as trait objects, so the order they run
 /// in is data rather than a sequence of calls someone can reorder by accident.
 pub struct Pipeline {
-    validators: Vec<Box<dyn Validator>>,
+    validators: Vec<Box<dyn Check>>,
 }
 
 impl Pipeline {
@@ -97,12 +98,13 @@ impl Pipeline {
         snapshot: &GraphSnapshot<'_>,
         proposal: &GraphTransaction,
     ) -> Result<(), Vec<ValidationIssue>> {
+        let candidate = Candidate::of(snapshot, proposal);
         let mut issues = Vec::new();
         for validator in &self.validators {
             if proposal.operations.is_empty() && validator.name() == ValidatorName::Structural {
                 continue;
             }
-            if let Err(raised) = validator.validate(snapshot, proposal) {
+            if let Err(raised) = validator.check(snapshot, proposal, &candidate) {
                 issues.extend(raised);
             }
         }
@@ -212,9 +214,11 @@ impl Pipeline {
         // is a refusal.
         let canonical = GraphTransaction::try_from(proposal.clone());
 
+        // One candidate view for every validator: building it copies every node and edge.
+        let candidate = Candidate::of(snapshot, proposal);
         let mut issues = Vec::new();
         for validator in &self.validators {
-            if let Err(raised) = validator.validate(snapshot, proposal) {
+            if let Err(raised) = validator.check(snapshot, proposal, &candidate) {
                 issues.extend(raised);
             }
         }
@@ -226,6 +230,18 @@ impl Pipeline {
             _ => Err(issues),
         }
     }
+}
+
+/// How many candidate views — canonical state's node and edge index with an operation set applied,
+/// which copies every node and edge — the calling thread has built.
+///
+/// Test instrumentation, as `ekr_store::knowledge_roots_hashed` is: it lets a test show that a
+/// validation builds its candidate view once. Counted per thread because validation runs on its
+/// caller's thread, and tests in one binary run on several.
+#[doc(hidden)]
+#[must_use]
+pub fn candidates_built() -> u64 {
+    candidate::built()
 }
 
 /// `Ok` when nothing was raised, and the issues otherwise: the shape every validator ends with.
@@ -252,15 +268,20 @@ pub(crate) fn issue(
     }
 }
 
-/// The type of every node the proposal may name: canonical state's, plus the ones it creates.
+/// A validator the pipeline runs, handed the one candidate view the validation built.
 ///
-/// A `BTreeMap<NodeId, TypeId>` because that is what `ekr_ontology::NodeTypes` is implemented for,
-/// so the type checker can be handed it directly. A node the transaction creates is in it: a
-/// transaction that creates a node and then refers to it is ordinary, and a reference validator
-/// that only read canonical state would refuse every multi-operation proposal.
-pub(crate) fn node_types(
-    snapshot: &GraphSnapshot<'_>,
-    proposal: &GraphTransaction,
-) -> BTreeMap<NodeId, TypeId> {
-    candidate::Candidate::of(snapshot, proposal).nodes
+/// Every validator of the pipeline is one. Those that resolve an identity read `candidate` rather
+/// than building their own, which copies every node and edge; the rest ignore it and answer as
+/// [`Validator::validate`] does. A validator's [`Validator::validate`] builds the view itself and
+/// answers exactly what this does.
+trait Check: Validator {
+    fn check<'g>(
+        &self,
+        snapshot: &GraphSnapshot<'g>,
+        tx: &GraphTransaction,
+        candidate: &Candidate<'g>,
+    ) -> Result<(), Vec<ValidationIssue>> {
+        let _ = candidate;
+        self.validate(snapshot, tx)
+    }
 }
