@@ -48,6 +48,16 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   against every document the `ekr-views` conformance fixtures render, so a field added to a views
   format without an SDK update fails there.
 
+### Fixed
+
+- **`docs/sdk.md` covers the document builders** ("Documents"), which the 0.0.19 `README.md`
+  said it did: `TransactionBuilder`, `OntologySpec::seed` and `SeedBuilder`, local minting and
+  hashing, the ten transaction limits and `DocumentError::Limit`, and `OntologySpec` with
+  `Ontology::ensure`, including what it emits, what it refuses by name and profile v1.
+  `crates/ekr-sdk/tests/docs_examples.rs` holds each Rust block of the section to code it
+  compiles and runs, three of them on a real `ekr session`, and every API name the section uses
+  to code the compiler checks.
+
 ## [0.0.19] — 2026-09-29
 
 A Rust SDK drives a store through one child `ekr session`; nodes gain aliases; `ekr mcp` serves
