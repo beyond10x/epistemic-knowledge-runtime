@@ -116,19 +116,20 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
     /// [`CommitError::NotSeeded`], [`CommitError::RevisionNotFound`] beyond the head, or any
     /// required history/object verification failure.
     pub fn schema_history(&self, revision: RevisionNumber) -> Result<SchemaHistory, CommitError> {
+        // The replay that verifies the history keeps the chosen revision's graph where it passes
+        // it, so that a replay from the seed is not followed by another one to that revision.
+        let keeping = self.authority.keeping(revision);
         let history = self.store.history()?;
         let state = self
             .authority
             .reconstruct(&history, None, None)?
             .ok_or(CommitError::NotSeeded)?;
+        drop(keeping);
         let chosen = state
             .revisions
             .get(&revision)
             .ok_or(CommitError::RevisionNotFound { against: revision })?;
-        let graph = match &chosen.graph {
-            Some(graph) => Arc::clone(graph),
-            None => Arc::new(self.store.replay(revision)?),
-        };
+        let graph = self.authority.graph_at(&history, &state, revision)?;
         if graph.revision != revision
             || ContentHash::of(&graph.ontology) != chosen.root.ontology_root
         {

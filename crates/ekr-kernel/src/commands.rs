@@ -205,13 +205,6 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             .reconstruct(&history, None, None)?
             .ok_or(CommitError::NotSeeded)
     }
-    /// [`Self::read_state`], replayed from the seed so that every revision's graph is held.
-    pub(crate) fn read_state_in_full(&self) -> Result<std::sync::Arc<ReplayState>, CommitError> {
-        let history = self.store.history()?;
-        self.authority
-            .reconstruct_in_full(&history)?
-            .ok_or(CommitError::NotSeeded)
-    }
     /// Captures all actual retained transaction records, including terminal decisions: the
     /// records the verified state holds, shared rather than copied.
     /// # Errors
@@ -293,16 +286,11 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         against: RevisionNumber,
         now: impl FnOnce() -> Timestamp,
     ) -> Result<ValidationCommandResult, CommitError> {
-        let mut state = self.read_state()?;
-        // Validating against an earlier revision needs that revision's graph, which a state
-        // restored from a checkpoint does not hold; the history is then replayed in full.
-        if state
-            .revisions
-            .get(&against)
-            .is_some_and(|revision| revision.graph.is_none())
-        {
-            state = self.read_state_in_full()?;
-        }
+        let history = self.store.history()?;
+        let state = self
+            .authority
+            .reconstruct(&history, None, None)?
+            .ok_or(CommitError::NotSeeded)?;
         let tx = target(&state, id)?;
         require_state(tx, TransactionState::Proposed)?;
         let key = PublicationCommandKey {
@@ -322,14 +310,19 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         let prepared = if let Some(pending) = self.pending(&key, input)? {
             pending
         } else {
-            let prior = state
+            // Validating against an earlier revision needs that revision's graph, which a state
+            // keeps only for its head and the retained checkpoint's; any other is reconstructed.
+            let holding =
+                self.authority
+                    .holding(&history, std::sync::Arc::clone(&state), against)?;
+            let prior = holding
                 .revisions
                 .get(&against)
                 .ok_or(CommitError::RevisionNotFound { against })?;
             let basis = replay::basis(prior, state.seed.seed_hash, &self.authority.anchor);
             let verdict = replay::validate(
                 &*state.document(&tx.proposal)?,
-                &state.revisions,
+                &holding.revisions,
                 &state.held,
                 prior,
                 &self.authority.anchor,

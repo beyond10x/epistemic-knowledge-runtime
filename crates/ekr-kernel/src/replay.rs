@@ -102,8 +102,13 @@ pub(crate) struct ReplayState {
 /// a verdict about the history: whoever meets it replays that history in full instead.
 pub(crate) const GRAPH_NOT_HELD: &str = "replay-graph-not-held";
 
-/// One committed revision as replay holds it: its verified coordinates always, its graph when the
-/// state reached it by replay. A state restored from a checkpoint holds only the head's graph.
+/// One committed revision as replay holds it: its verified coordinates always, its graph only
+/// while the state keeps it. A state keeps the graph of its head and of the retained checkpoint's
+/// head, the graph of a revision a later occurrence of the same replay is validated or rejected
+/// against until that occurrence is replayed, and the graph of the revision a running read names
+/// ([`KernelAuthority::keeping`]); every other graph is released when the head moves past it, and
+/// reconstructed by a replay to its revision when a command or read asks for it
+/// ([`KernelAuthority::graph_at`]). A state restored from a checkpoint holds only the head's graph.
 #[derive(Clone, Debug)]
 pub(crate) struct Revision {
     pub(crate) root: ekr_graph::Root,
@@ -163,6 +168,24 @@ impl ReplayState {
             .last_key_value()
             .expect("state is constructed with verified seed")
             .1
+    }
+    /// Releases the graph of revision `number` unless it is the head's or `kept` keeps it.
+    fn release(&mut self, number: RevisionNumber, kept: impl Fn(RevisionNumber) -> bool) {
+        if number == self.head().root.revision || kept(number) {
+            return;
+        }
+        if let Some(revision) = self.revisions.get_mut(&number) {
+            revision.graph = None;
+        }
+    }
+    /// Releases every graph but the head's and those `kept` keeps.
+    fn release_all(&mut self, kept: impl Fn(RevisionNumber) -> bool) {
+        let head = self.head().root.revision;
+        for (number, revision) in &mut self.revisions {
+            if *number != head && revision.graph.is_some() && !kept(*number) {
+                revision.graph = None;
+            }
+        }
     }
     /// The retained records to change, copied first only if another state still shares them.
     pub(crate) fn transactions_mut(&mut self) -> &mut BTreeMap<TransactionId, TransactionRecord> {
@@ -235,6 +258,10 @@ pub(crate) struct ReplayCache {
     /// it wrote — as the occurrences it covers and its head revision; `None` before either. What
     /// decides whether a commit writes the next one (design § 99).
     pub(crate) retained: Option<(u64, RevisionNumber)>,
+    /// The revision whose graph every replay keeps too while a read that asked for it runs
+    /// ([`KernelAuthority::keeping`]), so that the replay verifying its history holds that graph
+    /// rather than a second replay reconstructing it.
+    keep: Option<RevisionNumber>,
     /// How many replays this authority began at the seed rather than at a state it had reached.
     pub(crate) seed_replays: u64,
     /// How many times this authority decoded a retained seed envelope's complete bytes.
@@ -245,6 +272,16 @@ pub(crate) struct ReplayCache {
     /// Whether this authority has seen its store's history with no unfinished migration, after
     /// which it stops asking for the migration markers: a store with a history never gains one.
     pub(crate) migration_settled: bool,
+}
+/// While held, every replay of the authority that returned it keeps one more revision's graph
+/// ([`KernelAuthority::keeping`]).
+pub(crate) struct Keeping<'a>(&'a KernelAuthority);
+impl Drop for Keeping<'_> {
+    fn drop(&mut self) {
+        if let Ok(mut cache) = self.0.cache.lock() {
+            cache.keep = None;
+        }
+    }
 }
 /// Where one head's [`AliasIndex`] is built, by the first read that asks for it.
 pub(crate) type AliasCell = Arc<OnceLock<Arc<AliasIndex>>>;
@@ -280,6 +317,43 @@ impl ReplayCache {
             .iter()
             .max_by_key(|(covered, _, _)| *covered)
             .map(|(_, _, state)| Arc::clone(state))
+    }
+    /// Replaces the held state whose prefix digest is `digest` with `state`, which covers the same
+    /// prefix, if one is held.
+    fn replace(&mut self, digest: ContentHash, state: Arc<ReplayState>) {
+        if let Some(entry) = self
+            .entries
+            .iter_mut()
+            .find(|(_, found, _)| *found == digest)
+        {
+            entry.2 = state;
+        }
+    }
+    /// [`Self::insert`] of `state`, which covers the whole history whose prefix digests are
+    /// `digests`, dropping every held state that covers a shorter prefix of that history than the
+    /// longest one held.
+    ///
+    /// Revision streams only grow, and a state is reached over a verified history or over one
+    /// with a single candidate occurrence after it. The longest held prefix of `state`'s history
+    /// is therefore a prefix of a verified history, which every later history extends, so a
+    /// shorter one is never again the longest a replay continues from. Each held state that a
+    /// replay extended holds its own copy of the retained records, so a chain of them would hold
+    /// that many copies.
+    fn insert_extending(&mut self, digests: &[ContentHash], state: Arc<ReplayState>) {
+        let covered = digests.len() - 1;
+        let prefix =
+            |held: usize, found: &ContentHash| held < covered && digests.get(held) == Some(found);
+        if let Some(longest) = self
+            .entries
+            .iter()
+            .filter(|(held, found, _)| prefix(*held, found))
+            .map(|(held, _, _)| *held)
+            .max()
+        {
+            self.entries
+                .retain(|(held, found, _)| !prefix(*held, found) || *held == longest);
+        }
+        self.insert(covered, digests[covered], state);
     }
     pub(crate) fn insert(&mut self, covered: usize, digest: ContentHash, state: Arc<ReplayState>) {
         self.entries
@@ -460,8 +534,10 @@ fn read_proposed(
 impl KernelAuthority {
     /// Replays `history`, continuing from the longest prefix this authority already reached.
     ///
-    /// A reached state restored from a checkpoint holds only its head's graph. Should the rest of
-    /// the history need an earlier graph, the whole history is replayed from the seed instead.
+    /// A reached state holds only the graphs it keeps (see [`Revision`]), and one restored from a
+    /// checkpoint only its head's. Should the rest of the history need another earlier graph, the
+    /// whole history is replayed from the seed instead, keeping each graph a later occurrence
+    /// needs until that occurrence.
     pub(crate) fn reconstruct(
         &self,
         history: &RetainedHistory,
@@ -481,6 +557,106 @@ impl KernelAuthority {
         history: &RetainedHistory,
     ) -> Result<Option<Arc<ReplayState>>, StoreError> {
         self.replay_from(history, None, None, false)
+    }
+    /// Has every replay keep the graph of revision `number` too, where it passes it, until the
+    /// returned guard is dropped. A state a replay continues from that no longer holds the graph
+    /// does not regain it. Only the last of two overlapping requests is kept: the other's read
+    /// reconstructs its graph instead, which costs a replay and changes no answer.
+    pub(crate) fn keeping(&self, number: RevisionNumber) -> Keeping<'_> {
+        if let Ok(mut cache) = self.cache.lock() {
+            cache.keep = Some(number);
+        }
+        Keeping(self)
+    }
+    /// The graph of revision `number` of `state`, the state this authority reached over
+    /// `history`: the state's own when it holds it, and otherwise reconstructed by a verified
+    /// replay of `history` to that revision, which this authority does not keep.
+    /// # Errors
+    /// A revision `state` does not hold, or any refusal of the replay to it.
+    pub(crate) fn graph_at(
+        &self,
+        history: &RetainedHistory,
+        state: &ReplayState,
+        number: RevisionNumber,
+    ) -> Result<Arc<ekr_graph::CanonicalGraph>, StoreError> {
+        let revision = state
+            .revisions
+            .get(&number)
+            .ok_or(StoreError::NoMaterialisedState { requested: number })?;
+        if let Some(graph) = &revision.graph {
+            return Ok(Arc::clone(graph));
+        }
+        let reached = self
+            .reconstruct(history, None, Some(number))?
+            .ok_or(StoreError::NotSeeded)?;
+        let head = reached.head();
+        require(
+            head.root == revision.root,
+            "reconstructed-revision-disagrees",
+        )?;
+        Ok(Arc::clone(
+            head.graph.as_ref().ok_or_else(|| refuse(GRAPH_NOT_HELD))?,
+        ))
+    }
+    /// `state`, the state this authority reached over `history`, holding the graph of revision
+    /// `number` too ([`Self::graph_at`]).
+    ///
+    /// The state holding it replaces `state` in this authority's cache, so that the replay
+    /// verifying a command's publication against that revision continues from it rather than
+    /// from the seed; that replay releases the graph again once no later occurrence needs it. A
+    /// revision `state` does not hold, or whose graph it holds, returns `state` itself.
+    /// # Errors
+    /// Any refusal of the replay to `number`.
+    pub(crate) fn holding(
+        &self,
+        history: &RetainedHistory,
+        state: Arc<ReplayState>,
+        number: RevisionNumber,
+    ) -> Result<Arc<ReplayState>, StoreError> {
+        if !state
+            .revisions
+            .get(&number)
+            .is_some_and(|revision| revision.graph.is_none())
+        {
+            return Ok(state);
+        }
+        let graph = self.graph_at(history, &state, number)?;
+        let mut holding = (*state).clone();
+        holding
+            .revisions
+            .get_mut(&number)
+            .expect("revision checked above")
+            .graph = Some(graph);
+        let holding = Arc::new(holding);
+        if let Some(digest) = state.digest {
+            self.cache
+                .lock()
+                .map_err(|_| refuse("replay-cache-poisoned"))?
+                .replace(digest, Arc::clone(&holding));
+        }
+        Ok(holding)
+    }
+    /// The last stream position, among the occurrences of `history` after the first `start`, at
+    /// which each revision is the basis of a validation or rejection: until replay reaches it,
+    /// that revision's graph is kept. A record that does not read names nothing here; replay
+    /// refuses it by its own name.
+    fn bases(history: &RetainedHistory, start: usize) -> BTreeMap<RevisionNumber, u64> {
+        let mut bases = BTreeMap::new();
+        for occurrence in history.occurrences.iter().skip(start) {
+            let basis = match occurrence.event.payload {
+                RevisionPayload::TransactionValidated { against, .. } => Some(against),
+                RevisionPayload::TransactionRejected { .. } => history
+                    .content(occurrence.event.record_hash, StorageClass::Canonical)
+                    .ok()
+                    .and_then(|bytes| RejectionRecordV1::from_bytes(bytes).ok())
+                    .map(|record| record.requested_basis.previous_root.revision),
+                _ => None,
+            };
+            if let Some(basis) = basis {
+                bases.insert(basis, occurrence.version);
+            }
+        }
+        bases
     }
     fn replay_from(
         &self,
@@ -555,6 +731,24 @@ impl KernelAuthority {
             }
             (state, 1)
         };
+        // The graphs this replay keeps besides the head's: the one a running read asked to keep,
+        // the retained checkpoint's, and each revision's a later occurrence is validated against,
+        // until that occurrence.
+        let (keep, checkpointed) = {
+            let cache = self
+                .cache
+                .lock()
+                .map_err(|_| refuse("replay-cache-poisoned"))?;
+            (cache.keep, cache.retained.map(|(_, revision)| revision))
+        };
+        let bases = Self::bases(history, start);
+        let kept = |number: RevisionNumber, version: u64| {
+            Some(number) == keep
+                || Some(number) == checkpointed
+                || bases.get(&number).is_some_and(|last| *last > version)
+        };
+        let version = state.version;
+        state.release_all(|number| kept(number, version));
         for occurrence in history.occurrences.iter().skip(start) {
             require(
                 occurrence.version == state.version + 1
@@ -644,6 +838,7 @@ impl KernelAuthority {
                     )?;
                     state.validated.insert(transaction_id, Arc::new(validated));
                     state.note_basis(occurrence.version, against);
+                    state.release(against, |number| kept(number, occurrence.version));
                     let tx = state
                         .transactions_mut()
                         .get_mut(&transaction_id)
@@ -700,6 +895,7 @@ impl KernelAuthority {
                     }
                     let basis = record.requested_basis.previous_root.revision;
                     state.note_basis(occurrence.version, basis);
+                    state.release(basis, |number| kept(number, occurrence.version));
                     state
                         .transactions_mut()
                         .get_mut(&transaction_id)
@@ -806,6 +1002,7 @@ impl KernelAuthority {
                         Arc::new(graph.ontology.clone())
                     };
                     let graph_root = prior.graph_root;
+                    let superseded = prior.root.revision;
                     if self.anchor.validation_profile.keeps_identities() {
                         state.held.hold(number, validated.transaction());
                     }
@@ -823,6 +1020,7 @@ impl KernelAuthority {
                             graph: Some(Arc::new(graph)),
                         },
                     );
+                    state.release(superseded, |number| kept(number, occurrence.version));
                     state.validated.remove(&transaction_id);
                     state.documents.remove(&transaction_id);
                     state
@@ -886,12 +1084,293 @@ impl KernelAuthority {
                 self.cache
                     .lock()
                     .map_err(|_| refuse("replay-cache-poisoned"))?
-                    .insert(covered, digests[covered], Arc::clone(&state));
+                    .insert_extending(&digests, Arc::clone(&state));
             }
             state
         } else {
             Arc::new(state)
         };
         Ok(Some(state))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! One handle serving every command, as `ekr session` does: the graphs its replay cache
+    //! holds, and the reads and validations that need a graph it no longer holds.
+    use super::ReplayState;
+    use crate::{
+        Agent, AuthorityStateV1, BootstrapContext, Commit, CommitCommandResult, GraphOperation,
+        GraphTransaction, NodeDraft, SeedDocument, ValidationCommandResult, ValidationProfileV1,
+    };
+    use ekr_core::{NodeId, RevisionNumber, Timestamp, TransactionId, TypeId};
+    use ekr_ontology::NodeType;
+    use ekr_store::{FileStore, Initialize, Inventory, ObjectStore, RevisionLog, SqliteStore};
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::path::Path;
+
+    fn context() -> BootstrapContext {
+        BootstrapContext {
+            operator: "00000000-0000-4000-8000-000000000003".parse().unwrap(),
+            validator: "00000000-0000-4000-8000-000000000004".parse().unwrap(),
+        }
+    }
+    fn anchor() -> AuthorityStateV1 {
+        let c = context();
+        AuthorityStateV1 {
+            format: "ekr.authority-state/1".into(),
+            agents: [(c.operator, "operator"), (c.validator, "validator")]
+                .into_iter()
+                .map(|(id, name)| {
+                    let agent = Agent {
+                        id,
+                        name: name.into(),
+                        capabilities: BTreeSet::new(),
+                    };
+                    (id, agent)
+                })
+                .collect(),
+            validation_profile: ValidationProfileV1::deterministic(c.validator),
+        }
+    }
+    fn file(path: &Path, full: bool) -> Commit<FileStore> {
+        Commit::over_with_authority(context(), anchor(), |authority| {
+            let mut store = FileStore::file(path, "session", None)?.under(authority);
+            store.set_full_replay(full);
+            Ok(store)
+        })
+        .unwrap()
+    }
+    fn sqlite(path: &Path, full: bool) -> Commit<SqliteStore> {
+        Commit::over_with_authority(context(), anchor(), |authority| {
+            let mut store =
+                SqliteStore::sqlite(&path.join("state.db"), "session", None)?.under(authority);
+            store.set_full_replay(full);
+            Ok(store)
+        })
+        .unwrap()
+    }
+    fn seed() -> SeedDocument {
+        let mut seed =
+            SeedDocument::from_yaml(include_str!("../tests/fixtures/seed-minimal-v2.yaml"))
+                .unwrap();
+        let type_id = "00000000-0000-4000-8000-000000000005".parse().unwrap();
+        seed.ontology
+            .node_types
+            .push(NodeType::new(type_id, "Subject"));
+        seed
+    }
+    /// A transaction creating one node of `type_id`.
+    fn document(seed: &SeedDocument, n: u64, type_id: TypeId) -> (TransactionId, Vec<u8>) {
+        #[derive(serde::Serialize)]
+        struct Wire<'a> {
+            format: &'static str,
+            transaction: &'a GraphTransaction,
+        }
+        let tx = GraphTransaction {
+            id: TransactionId::mint(),
+            proposer: context().operator,
+            operations: vec![GraphOperation::CreateNode(NodeDraft {
+                id: NodeId::mint(),
+                root_id: seed.graph.root.id,
+                type_id,
+                canonical_name: format!("subject {n}"),
+                properties: BTreeMap::new(),
+                aliases: Vec::new(),
+            })],
+            evidence: BTreeSet::new(),
+            schema_version: None,
+        };
+        let wire = Wire {
+            format: "ekr.transaction-document/1",
+            transaction: &tx,
+        };
+        (tx.id, serde_yaml_ng::to_string(&wire).unwrap().into_bytes())
+    }
+    fn at(n: u64, step: i64) -> Timestamp {
+        Timestamp::from_millis(i64::try_from(n * 100).unwrap() + step)
+    }
+    /// Proposes transaction `n` and validates it against `against`, through `kernel`.
+    fn validated<S: RevisionLog + ObjectStore>(
+        kernel: &Commit<S>,
+        seed: &SeedDocument,
+        n: u64,
+        type_id: TypeId,
+        against: u64,
+    ) -> (TransactionId, ValidationCommandResult) {
+        let (tx, bytes) = document(seed, n, type_id);
+        kernel
+            .propose(&bytes, context().operator, || at(n, 0))
+            .unwrap();
+        let verdict = kernel
+            .validate(tx, RevisionNumber::new(against), || at(n, 1))
+            .unwrap();
+        (tx, verdict)
+    }
+    /// Commits revision `n`, validated against the head, through `kernel`.
+    fn commit<S: RevisionLog + ObjectStore>(kernel: &Commit<S>, seed: &SeedDocument, n: u64) {
+        let (tx, verdict) = validated(kernel, seed, n, seed.ontology.node_types[0].id, n - 1);
+        assert!(matches!(verdict, ValidationCommandResult::Validated(_)));
+        let result = kernel.commit(tx, context().operator, || at(n, 2)).unwrap();
+        assert!(matches!(result, CommitCommandResult::Committed(_)));
+    }
+    /// The revisions whose graph `state` holds.
+    fn held(state: &ReplayState) -> Vec<u64> {
+        state
+            .revisions
+            .iter()
+            .filter(|(_, revision)| revision.graph.is_some())
+            .map(|(number, _)| number.get())
+            .collect()
+    }
+    /// The head of the checkpoint `kernel` knows is retained.
+    fn retained<S: RevisionLog + ObjectStore>(kernel: &Commit<S>) -> Option<u64> {
+        let retained = kernel.authority.cache.lock().unwrap().retained;
+        retained.map(|(_, revision)| revision.get())
+    }
+    /// What a state `kernel` reached during a command may hold a graph of: its head, and the head
+    /// of the checkpoint retained while the command ran, `before` it or after it.
+    fn kept<S: RevisionLog + ObjectStore>(
+        kernel: &Commit<S>,
+        state: &ReplayState,
+        before: Option<u64>,
+    ) -> Vec<u64> {
+        let mut kept: Vec<u64> = [before, retained(kernel)]
+            .into_iter()
+            .flatten()
+            .chain([state.head().root.revision.get()])
+            .collect();
+        kept.sort_unstable();
+        kept.dedup();
+        kept
+    }
+    /// How many distinct graphs every state of `kernel`'s replay cache holds together.
+    fn graphs<S: RevisionLog + ObjectStore>(kernel: &Commit<S>) -> usize {
+        let cache = kernel.authority.cache.lock().unwrap();
+        cache
+            .entries
+            .iter()
+            .flat_map(|(_, _, state)| state.revisions.values())
+            .filter_map(|revision| revision.graph.as_ref())
+            .map(|graph| std::sync::Arc::as_ptr(graph) as usize)
+            .collect::<BTreeSet<_>>()
+            .len()
+    }
+
+    fn holds_the_head_graph<S: RevisionLog + ObjectStore + Initialize>(
+        kernel: &Commit<S>,
+        how: &str,
+    ) {
+        let seed = seed();
+        kernel
+            .seed(seed.clone(), || Timestamp::from_millis(10))
+            .unwrap();
+        for n in 1..=10 {
+            let before = retained(kernel);
+            commit(kernel, &seed, n);
+            let state = kernel.read_state().unwrap();
+            let held = held(&state);
+            assert!(
+                held.contains(&n),
+                "{how}: after commit {n} the head graph: {held:?}"
+            );
+            let kept = kept(kernel, &state, before);
+            assert!(
+                held.iter().all(|number| kept.contains(number)),
+                "{how}: after commit {n} graphs held {held:?}, only {kept:?} kept"
+            );
+            let graphs = graphs(kernel);
+            assert!(
+                graphs <= 3,
+                "{how}: after commit {n} the replay cache holds {graphs} graphs"
+            );
+        }
+    }
+
+    #[test]
+    fn one_handle_holds_the_head_graph_and_not_one_graph_per_revision() {
+        let directory = tempfile::tempdir().unwrap();
+        holds_the_head_graph(&file(directory.path(), false), "file");
+        let directory = tempfile::tempdir().unwrap();
+        holds_the_head_graph(&sqlite(directory.path(), false), "sqlite");
+    }
+
+    /// Seeds and commits six revisions through one handle, then validates one transaction against
+    /// revision 2 and rejects another against revision 1, both earlier than the head, and commits
+    /// the first, which is stale. Every decision equals what a full replay from the seed derives,
+    /// the handle again holds only the graphs it keeps, and the store migrates.
+    fn validates_against_an_earlier_revision<S, D>(
+        kernel: &Commit<S>,
+        in_full: impl Fn() -> Commit<S>,
+        destination: impl FnOnce() -> Commit<D>,
+        how: &str,
+    ) where
+        S: RevisionLog + ObjectStore + Initialize + Inventory,
+        D: RevisionLog + ObjectStore + Initialize + Inventory,
+    {
+        let seed = seed();
+        kernel
+            .seed(seed.clone(), || Timestamp::from_millis(10))
+            .unwrap();
+        for n in 1..=6 {
+            commit(kernel, &seed, n);
+        }
+        let subject = seed.ontology.node_types[0].id;
+        let (tx, verdict) = validated(kernel, &seed, 7, subject, 2);
+        let ValidationCommandResult::Validated(receipt) = verdict else {
+            panic!("{how}: {verdict:?}");
+        };
+        assert_eq!(receipt.basis.previous_root.revision, RevisionNumber::new(2));
+        let unknown = "00000000-0000-4000-8000-0000000000ff".parse().unwrap();
+        let (_, verdict) = validated(kernel, &seed, 8, unknown, 1);
+        let ValidationCommandResult::Rejected(rejection) = verdict else {
+            panic!("{how}: {verdict:?}");
+        };
+        assert_eq!(
+            rejection.requested_basis.previous_root.revision,
+            RevisionNumber::new(1)
+        );
+        let result = kernel.commit(tx, context().operator, || at(9, 0)).unwrap();
+        assert!(matches!(result, CommitCommandResult::Stale(_)), "{how}");
+
+        let state = kernel.read_state().unwrap();
+        let (held, kept) = (held(&state), kept(kernel, &state, retained(kernel)));
+        assert!(
+            held.iter().all(|number| kept.contains(number)),
+            "{how}: graphs held {held:?}, only {kept:?} kept"
+        );
+        let in_full = in_full();
+        let replayed = in_full.read_state().unwrap();
+        assert_eq!(state.transactions, replayed.transactions, "{how}");
+        assert_eq!(state.head().root, replayed.head().root, "{how}");
+        for number in 0..=6 {
+            let number = RevisionNumber::new(number);
+            assert_eq!(
+                kernel.schema_history(number).unwrap(),
+                in_full.schema_history(number).unwrap(),
+                "{how}: revision {number}"
+            );
+        }
+        kernel.migrate_into(&destination()).unwrap();
+    }
+
+    #[test]
+    fn one_handle_validates_against_an_earlier_revision_whose_graph_it_released() {
+        let directory = tempfile::tempdir().unwrap();
+        let (path, into) = (directory.path(), tempfile::tempdir().unwrap());
+        validates_against_an_earlier_revision(
+            &file(path, false),
+            || file(path, true),
+            || file(into.path(), false),
+            "file",
+        );
+        let directory = tempfile::tempdir().unwrap();
+        let (path, into) = (directory.path(), tempfile::tempdir().unwrap());
+        validates_against_an_earlier_revision(
+            &sqlite(path, false),
+            || sqlite(path, true),
+            || sqlite(into.path(), false),
+            "sqlite",
+        );
     }
 }

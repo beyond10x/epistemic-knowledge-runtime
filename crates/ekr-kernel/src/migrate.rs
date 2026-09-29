@@ -239,10 +239,19 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
                 }
                 publication
             } else {
+                let held = destination.store.history()?;
                 let state = destination
                     .authority
-                    .reconstruct(&destination.store.history()?, None, None)?
+                    .reconstruct(&held, None, None)?
                     .ok_or(CommitError::NotSeeded)?;
+                // A validation against an earlier revision is derived again against that
+                // revision's graph, which the destination's state may no longer hold.
+                let state = match event.payload {
+                    RevisionPayload::TransactionValidated { against, .. } => {
+                        destination.authority.holding(&held, state, against)?
+                    }
+                    _ => state,
+                };
                 let bytes = history.content(event.record_hash, StorageClass::Canonical)?;
                 let (event, bytes) = destination.migrated_decision(&state, event, bytes)?;
                 Publication {

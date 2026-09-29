@@ -195,23 +195,28 @@ pub struct LoadedRevision {
 /// [`ProjectError::NotSeeded`], [`ProjectError::RevisionNotFound`], or the kernel's refusal of
 /// the store's history as [`ProjectError::Read`].
 pub fn load(runtime: &Runtime, at: Option<RevisionNumber>) -> Result<LoadedRevision, ProjectError> {
-    let head = runtime
-        .head()?
-        .ok_or(ProjectError::NotSeeded { requested: at })?
-        .revision;
-    let revision = at.unwrap_or(head);
-    if revision > head {
-        return Err(ProjectError::RevisionNotFound {
-            requested: revision,
-            head,
-        });
-    }
+    let head = || -> Result<RevisionNumber, ProjectError> {
+        Ok(runtime
+            .head()?
+            .ok_or(ProjectError::NotSeeded { requested: at })?
+            .revision)
+    };
+    // A requested revision is read before the head is: the kernel keeps only a few revisions'
+    // graphs, and the replay that verifies the history keeps the requested one's only while that
+    // read runs, so reading the head first could cost a second replay.
+    let revision = match at {
+        Some(revision) => revision,
+        None => head()?,
+    };
     let mut read = runtime
         .schema_history(revision)
         .map_err(|error| match error {
-            CommitError::RevisionNotFound { against } => ProjectError::RevisionNotFound {
-                requested: against,
-                head,
+            CommitError::RevisionNotFound { against } => match head() {
+                Ok(head) => ProjectError::RevisionNotFound {
+                    requested: against,
+                    head,
+                },
+                Err(error) => error,
             },
             CommitError::NotSeeded => ProjectError::NotSeeded { requested: at },
             other => other.into(),
