@@ -263,6 +263,8 @@ fn schema_shape(tx: &GraphTransaction, admits_schema: bool, issues: &mut Vec<Val
         .filter(|operation| super::schema::is_schema_change(operation))
         .count();
     match (tx.schema_version, changes) {
+        // The message names the three kinds of wave p5-01 and not `WidenEdgeType`, and stays so:
+        // replay compares every retained rejection's message with what this ruleset says now.
         (Some(version), 0) => issues.push(issue(
             tx,
             ValidatorName::Structural,
@@ -304,6 +306,26 @@ fn schema_shape(tx: &GraphTransaction, admits_schema: bool, issues: &mut Vec<Val
                             ),
                         ));
                     }
+                }
+            }
+        }
+        // Two widenings of one edge type compete the same way: applied in one order the second
+        // may drop a type the first added, and in the other it may not, so the transaction's
+        // meaning would hang on an order it does not have.
+        let mut widened = BTreeSet::new();
+        for operation in &tx.operations {
+            if let GraphOperation::WidenEdgeType(widening) = operation {
+                if !widened.insert(widening.edge_type) {
+                    issues.push(issue(
+                        tx,
+                        ValidatorName::Structural,
+                        CONFLICTING_WRITE,
+                        format!(
+                            "edge type {} is widened by more than one WidenEdgeType in an \
+                             unordered transaction; write its ends once",
+                            widening.edge_type
+                        ),
+                    ));
                 }
             }
         }
@@ -712,6 +734,9 @@ fn check(
             // above is the *alternative* to. Whether the redeclaration is a compatible one is
             // the ontology-constraint validator's question under profile v2 (design § 26).
             GraphOperation::ModifyProperty(_) => (None, None),
+            // Brings none either: it adds node types to the ends of an edge type that exists.
+            // Whether both do exist is `Ontology::evolve`'s question, under profile v2.
+            GraphOperation::WidenEdgeType(_) => (None, None),
             // Name an identity and create none: each is refused by `Reference` if what it
             // names is not there.
             GraphOperation::UpdateProperty(_)
@@ -812,6 +837,7 @@ fn check(
                 GraphOperation::DefineNodeType(_) if !admits_schema => "DefineNodeType",
                 GraphOperation::DefineEdgeType(_) if !admits_schema => "DefineEdgeType",
                 GraphOperation::ModifyProperty(_) if !admits_schema => "ModifyProperty",
+                GraphOperation::WidenEdgeType(_) if !admits_schema => "WidenEdgeType",
                 GraphOperation::MergeEntity(merge)
                     if node_types.contains_key(&merge.absorbed)
                         && node_types.contains_key(&merge.into) =>

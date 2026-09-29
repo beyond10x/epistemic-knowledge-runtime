@@ -4,6 +4,55 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.18] — 2026-09-29
+
+A commit hashes once; checkpoints fall due by size; a session holds one graph; edge types widen.
+At a consumer's size (4,127 nodes, 57 commits, SQLite) a 1,561-operation batch takes 0.94 s (0.0.17:
+1.64 s; 0.0.15: 3.5 s), commit 1,186 → 362 ms.
+
+### Added
+
+- **`WidenEdgeType`: a schema change adds node types to an edge type's ends.** Under validation
+  profiles v2 and v3, `!WidenEdgeType {edge_type, source_types, target_types}` writes both ends
+  whole, each keeping every type it has; it is a schema-only transaction naming its
+  `schema_version`, and commits as the next schema version with the prior one as its parent. Edges
+  the type already holds stay valid, and the next transaction may create edges to the added types.
+  Refused by name: `unknown-edge-type`, `unknown-endpoint-type`, `edge-endpoint-removed` (an end
+  never shrinks) and `schema-change-without-effect`; two widenings of one edge type in one
+  transaction are `conflicting-write`; profile v1 refuses it as `unsupported-operation`. A
+  consumer's delta ingest had skipped 1,768 of 2,312 facts for want of it. `ekr operations`,
+  `ekr example schema-change`, `ekr guide`, `docs/cli.md` and `docs/schema-evolution.md` describe
+  it; design § 101; five new kernel conformance scenarios, 49 in all, pass on both providers.
+
+### Changed
+
+- **A checkpoint is due by commits and document bytes, not by operations** (design § 99.5). A commit
+  writes a replay checkpoint when it is the fifth past the retained one
+  (`REPLAY_CHECKPOINT_COMMITS` = 5) or when the transaction documents committed since hold 16 MiB
+  (`REPLAY_CHECKPOINT_BYTES`, which replaces `REPLAY_CHECKPOINT_OPERATIONS`). A consumer batch of
+  1,561 operations no longer writes a checkpoint every time: 57 batches in one session wrote 13
+  checkpoints instead of 58.
+- **`ekr session` leaves a checkpoint of its head when its input ends**, if that head is past the
+  last checkpoint (`Runtime::retain_checkpoint_at_rest`), so the next verb replays nothing the
+  session committed. A cold `ekr transactions` on a 57-batch store under profile v3: 5.07 → 2.33 s
+  of CPU (medians).
+- **New commit receipts name the identities they created.** `ekr.commit-receipt/3` is `/2` with
+  `created`, the node and edge ids of the transaction's `CreateNode` and `CreateEdge` operations
+  (`CommitReceiptV1::created`, `CreatedIdentitiesV1`); `/1` and `/2` receipts are read as before and
+  keep their bytes. Under validation profile v3 an open that admits a checkpoint reads them from the
+  receipt instead of parsing every committed proposal. A `/3` receipt whose list is not what its
+  transaction creates is refused on replay as `commit-created-identities`. A session that comes to
+  rest does not write its checkpoint when the store already holds a newer one.
+- **A commit hashes the graph once, as a stream.** The verify step reuses the root the kernel
+  computed for the decision instead of hashing the whole graph again, and `ContentHash::of` hashes
+  as it encodes, holding at most a 64 KiB window. Roots are byte-identical to 0.0.17's. A hashing
+  encoder refuses `Encoder::as_bytes` and `Encoder::finish` by name.
+- **A session keeps the head graph, not one graph per revision.** An older revision's graph is
+  rebuilt by a verified replay when a read or `validate --against` asks for it, and released when
+  that read returns. At 3× a consumer's size, a session's memory after 20 commits is 1.24× its
+  memory after one (was 2.39×; peak 4.3 → 2.2 GB); `validate --against` an early revision on a
+  20-batch store 8.5 → 2.8 s.
+
 ## [0.0.17] — 2026-09-29
 
 Reads share state instead of copying it; requests copy no retained bytes; validation scans nothing

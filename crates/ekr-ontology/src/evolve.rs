@@ -13,7 +13,9 @@
 //!
 //! Nothing here removes a type or a property: no schema change does (wave p5-01, decision 6).
 //! [`incompatibilities`] still refuses a removal, because it compares any two ontologies and a
-//! second route to `next` must not pass one as compatible.
+//! second route to `next` must not pass one as compatible. Nothing here narrows an edge type's
+//! ends either: [`SchemaChange::WidenEdgeType`] only adds node types to them
+//! (`story:edge-type-endpoints-widen`), and an edge that was valid stays valid.
 //!
 //! The encoding of a [`SchemaChange`] is not this module's. The kernel encodes operations
 //! (`crates/ekr-kernel/src/transaction.rs`), and a change reaches it as one.
@@ -26,7 +28,7 @@ use crate::schema::{Ontology, OntologyDocument, OntologyError, SchemaVersion};
 use crate::types::{EdgeType, NodeType, PropertyDefinition};
 use crate::value::{Cardinality, ValueKind, ValueType};
 
-/// One schema change, as the three kernel operations carry it.
+/// One schema change, as the four kernel operations carry it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SchemaChange {
     /// Declare a node type no version before has declared.
@@ -39,6 +41,16 @@ pub enum SchemaChange {
         owner: TypeId,
         /// The whole new declaration, filed under its own id.
         property: PropertyDefinition,
+    },
+    /// Give `edge_type` the ends named, each of which holds every node type the edge type's end
+    /// already holds: an end only grows. Every other part of the declaration stays as it is.
+    WidenEdgeType {
+        /// The edge type whose ends grow.
+        edge_type: TypeId,
+        /// Its `source_types` afterwards: what it has now, and the declared node types added.
+        source_types: BTreeSet<TypeId>,
+        /// Its `target_types` afterwards: what it has now, and the declared node types added.
+        target_types: BTreeSet<TypeId>,
     },
 }
 
@@ -113,6 +125,11 @@ impl Ontology {
                     };
                     properties.insert(property.id, property.clone());
                 }
+                SchemaChange::WidenEdgeType {
+                    edge_type,
+                    source_types,
+                    target_types,
+                } => widen(&mut document, *edge_type, source_types, target_types)?,
             }
         }
 
@@ -137,6 +154,50 @@ fn refuse_declared(document: &OntologyDocument, type_id: TypeId) -> Result<(), E
     } else {
         Ok(())
     }
+}
+
+/// Gives the edge type `edge_type` of the version under construction the ends named.
+///
+/// Each end is checked in turn, `source_types` first: a type the end holds and the new end does not
+/// is [`EvolveError::EndpointRemoved`]; then a type the new end holds that is not a node type of the
+/// version — the prior one's or one an earlier change defined — is
+/// [`EvolveError::UnknownEndpointType`]. `load` would refuse the second as well, as
+/// `incoherent-schema`; it is named here because it is the mistake a widening invites.
+fn widen(
+    document: &mut OntologyDocument,
+    edge_type: TypeId,
+    source_types: &BTreeSet<TypeId>,
+    target_types: &BTreeSet<TypeId>,
+) -> Result<(), EvolveError> {
+    let node_types: BTreeSet<TypeId> = document.node_types.iter().map(|at| at.id).collect();
+    let Some(declared) = document
+        .edge_types
+        .iter_mut()
+        .find(|declared| declared.id == edge_type)
+    else {
+        return Err(EvolveError::UnknownEdgeType { edge_type });
+    };
+    for (endpoint, held, widened) in [
+        ("source_types", &declared.source_types, source_types),
+        ("target_types", &declared.target_types, target_types),
+    ] {
+        if let Some(type_id) = held.difference(widened).next() {
+            return Err(EvolveError::EndpointRemoved {
+                edge_type,
+                endpoint: endpoint.to_owned(),
+                type_id: *type_id,
+            });
+        }
+        if let Some(type_id) = widened.iter().find(|at| !node_types.contains(at)) {
+            return Err(EvolveError::UnknownEndpointType {
+                edge_type,
+                type_id: *type_id,
+            });
+        }
+    }
+    declared.source_types.clone_from(source_types);
+    declared.target_types.clone_from(target_types);
+    Ok(())
 }
 
 /// Why [`Ontology::evolve`] produced no next version.
@@ -180,14 +241,47 @@ pub enum EvolveError {
     #[error("incoherent-schema: {0}")]
     Incoherent(OntologyError),
     /// The changes, applied in order, leave every declaration as the prior version has it: an
-    /// identical redeclaration, or changes that cancel.
+    /// identical redeclaration, a widening to the ends an edge type already has, or changes that
+    /// cancel.
     #[error("schema-change-without-effect: the changes leave every declaration as it was")]
     WithoutEffect,
+    /// A `WidenEdgeType` whose edge type the version does not declare as an edge type — the prior
+    /// version, or an earlier change of the same list.
+    #[error("unknown-edge-type: {edge_type} is not an edge type of this version")]
+    UnknownEdgeType {
+        /// The edge type named.
+        edge_type: TypeId,
+    },
+    /// A `WidenEdgeType` naming, in an end, a type that is not a node type of the version.
+    #[error(
+        "unknown-endpoint-type: {type_id} is not a node type of this version, so no edge of \
+         {edge_type} can start or end at it"
+    )]
+    UnknownEndpointType {
+        /// The edge type being widened.
+        edge_type: TypeId,
+        /// The type named that no node type of the version is.
+        type_id: TypeId,
+    },
+    /// A `WidenEdgeType` whose end leaves out a type the edge type's end already holds. An end
+    /// only grows: an edge that was valid must stay valid.
+    #[error(
+        "edge-endpoint-removed: the {endpoint} of edge type {edge_type} would lose {type_id}; a \
+         widening keeps every type an end has and adds to it"
+    )]
+    EndpointRemoved {
+        /// The edge type being widened.
+        edge_type: TypeId,
+        /// `source_types` or `target_types`.
+        endpoint: String,
+        /// A type the end holds and the widening leaves out.
+        type_id: TypeId,
+    },
 }
 
 impl EvolveError {
     /// Every code [`EvolveError::code`] can return.
-    pub const CODES: [&'static str; 7] = [
+    pub const CODES: [&'static str; 10] = [
         "empty-schema-change",
         "schema-version-reused",
         "schema-version-exhausted",
@@ -195,6 +289,9 @@ impl EvolveError {
         "unknown-property-owner",
         "incoherent-schema",
         "schema-change-without-effect",
+        "unknown-edge-type",
+        "unknown-endpoint-type",
+        "edge-endpoint-removed",
     ];
 
     /// The stable kebab-case code of this refusal.
@@ -208,6 +305,9 @@ impl EvolveError {
             Self::UnknownOwner { .. } => Self::CODES[4],
             Self::Incoherent(_) => Self::CODES[5],
             Self::WithoutEffect => Self::CODES[6],
+            Self::UnknownEdgeType { .. } => Self::CODES[7],
+            Self::UnknownEndpointType { .. } => Self::CODES[8],
+            Self::EndpointRemoved { .. } => Self::CODES[9],
         }
     }
 }
@@ -262,7 +362,8 @@ pub trait InstanceState {
 /// Then, for each type `prior` declares: a type `next` no longer declares is refused if it has
 /// instances; a type whose declaration moved in anything other than its properties is refused if
 /// it, or any type conforming to it in either version, has instances, because `state` cannot say
-/// whether they still conform; and every property whose resolved declaration moved is checked
+/// whether they still conform — except an edge type whose ends only gained types, whose edges all
+/// still conform; and every property whose resolved declaration moved is checked
 /// against what instances hold. A changed constraint is refused under any instance: nothing can
 /// evaluate one yet, so whether instances satisfy it cannot be shown.
 #[must_use]
@@ -336,7 +437,7 @@ pub fn incompatibilities(
             }
             continue;
         };
-        if instances > 0 && !same_apart_from_properties_edge(before, after) {
+        if instances > 0 && !same_apart_from_properties_and_widened_ends(before, after) {
             found.push(Incompatibility::DeclarationChanged { type_id, instances });
         }
         compare_properties(
@@ -364,12 +465,21 @@ fn same_apart_from_properties_node(before: &NodeType, after: &NodeType) -> bool 
     strip(before) == strip(after)
 }
 
-fn same_apart_from_properties_edge(before: &EdgeType, after: &EdgeType) -> bool {
+/// Whether `after` differs from `before` only in its properties and in ends that gained types.
+///
+/// An end that holds every type it held admits every edge it admitted: an edge's endpoint is
+/// checked by conformance to one of the end's types, and no change moves an existing node type's
+/// parents. So a widening strands no edge, and the edges a type holds do not refuse it.
+fn same_apart_from_properties_and_widened_ends(before: &EdgeType, after: &EdgeType) -> bool {
     let strip = |declared: &EdgeType| EdgeType {
         properties: BTreeMap::new(),
+        source_types: BTreeSet::new(),
+        target_types: BTreeSet::new(),
         ..declared.clone()
     };
-    strip(before) == strip(after)
+    before.source_types.is_subset(&after.source_types)
+        && before.target_types.is_subset(&after.target_types)
+        && strip(before) == strip(after)
 }
 
 /// The type whose instances a property comparison is about.
@@ -616,7 +726,8 @@ pub enum Incompatibility {
         instances: u64,
     },
     /// A type that has instances changed in something other than its properties — parents,
-    /// abstractness, lifecycle, operations, endpoints — which instance state cannot check.
+    /// abstractness, lifecycle, operations, an edge type's ends narrowed or replaced — which
+    /// instance state cannot check. Ends that only gained types are not such a change.
     #[error(
         "type-declaration-changed: {type_id} changed in more than its properties and has \
          {instances} instances"

@@ -65,6 +65,8 @@ pub use eventlog::{
     PublicationCommandKey, PublicationCommandKind, PublicationPreparationV1,
     StagedPublicationObject,
 };
+#[doc(hidden)]
+pub use log::knowledge_roots_hashed;
 pub use log::{
     evidence_root, knowledge_root, AdmittedRevision, Appended, CommitAuthority, Initialize,
     Publication, PublicationObject, RecordedOccurrence, RetainedHistory, RetainedObject,

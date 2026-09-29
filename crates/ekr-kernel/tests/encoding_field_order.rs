@@ -31,7 +31,8 @@ use ekr_core::canonical::{Canonical, Encoder};
 use ekr_core::{EdgeId, GraphRootId, NodeId, PropertyId, TypeId};
 use ekr_graph::CanonicalValue;
 use ekr_kernel::{
-    EdgeDraft, EntityMerge, GraphOperation, NodeDraft, PropertyModification, PropertyMutation,
+    EdgeDraft, EdgeWidening, EntityMerge, GraphOperation, NodeDraft, PropertyModification,
+    PropertyMutation,
 };
 use ekr_ontology::{Cardinality, EdgeType, NodeType, PropertyDefinition, ValueType};
 
@@ -280,6 +281,35 @@ fn every_field_of_the_kernels_encodings_is_written_in_declaration_order() {
                         into: target,
                     })
                 }),
+            ),
+        ],
+    );
+
+    // `EdgeWidening`: the two ends are sets of one id type, so a swap of them is exactly the defect
+    // `DeclaredEdgeType` once carried while every other case stayed green.
+    let widening = move |edge_type, source_types, target_types| {
+        GraphOperation::<CanonicalValue>::WidenEdgeType(EdgeWidening {
+            edge_type,
+            source_types: [source_types].into_iter().collect(),
+            target_types: [target_types].into_iter().collect(),
+        })
+    };
+    fields_ascend(
+        "EdgeWidening: edge_type, source_types, target_types",
+        &widening(type_id, type_id, type_id),
+        vec![
+            (
+                "edge_type",
+                Box::new(move || widening(other_type, type_id, type_id))
+                    as Box<dyn Fn() -> GraphOperation<CanonicalValue>>,
+            ),
+            (
+                "source_types",
+                Box::new(move || widening(type_id, other_type, type_id)),
+            ),
+            (
+                "target_types",
+                Box::new(move || widening(type_id, type_id, other_type)),
             ),
         ],
     );

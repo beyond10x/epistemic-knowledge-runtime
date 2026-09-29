@@ -205,13 +205,6 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             .reconstruct(&history, None, None)?
             .ok_or(CommitError::NotSeeded)
     }
-    /// [`Self::read_state`], replayed from the seed so that every revision's graph is held.
-    pub(crate) fn read_state_in_full(&self) -> Result<std::sync::Arc<ReplayState>, CommitError> {
-        let history = self.store.history()?;
-        self.authority
-            .reconstruct_in_full(&history)?
-            .ok_or(CommitError::NotSeeded)
-    }
     /// Captures all actual retained transaction records, including terminal decisions: the
     /// records the verified state holds, shared rather than copied.
     /// # Errors
@@ -293,16 +286,11 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         against: RevisionNumber,
         now: impl FnOnce() -> Timestamp,
     ) -> Result<ValidationCommandResult, CommitError> {
-        let mut state = self.read_state()?;
-        // Validating against an earlier revision needs that revision's graph, which a state
-        // restored from a checkpoint does not hold; the history is then replayed in full.
-        if state
-            .revisions
-            .get(&against)
-            .is_some_and(|revision| revision.graph.is_none())
-        {
-            state = self.read_state_in_full()?;
-        }
+        let history = self.store.history()?;
+        let state = self
+            .authority
+            .reconstruct(&history, None, None)?
+            .ok_or(CommitError::NotSeeded)?;
         let tx = target(&state, id)?;
         require_state(tx, TransactionState::Proposed)?;
         let key = PublicationCommandKey {
@@ -322,14 +310,19 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         let prepared = if let Some(pending) = self.pending(&key, input)? {
             pending
         } else {
-            let prior = state
+            // Validating against an earlier revision needs that revision's graph, which a state
+            // keeps only for its head and the retained checkpoint's; any other is reconstructed.
+            let holding =
+                self.authority
+                    .holding(&history, std::sync::Arc::clone(&state), against)?;
+            let prior = holding
                 .revisions
                 .get(&against)
                 .ok_or(CommitError::RevisionNotFound { against })?;
             let basis = replay::basis(prior, state.seed.seed_hash, &self.authority.anchor);
             let verdict = replay::validate(
                 &*state.document(&tx.proposal)?,
-                &state.revisions,
+                &holding.revisions,
                 &state.held,
                 prior,
                 &self.authority.anchor,
@@ -513,6 +506,27 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             let _ = self.store.write_checkpoint(covered, binding, None);
         }
     }
+    /// At rest — a session at the end of its input: the replay checkpoint of the newest head this
+    /// handle reached, when that head is past the retained checkpoint (design § 99.5), so that
+    /// every later open continues from it rather than replaying the commits since the last one.
+    /// A handle that has read nothing, or whose newest head is the retained checkpoint's, writes
+    /// nothing; nor does one when the store's newest pointer, read now, covers more occurrences
+    /// than its state: another writer verified further, and a checkpoint of this handle's older
+    /// state would replace that writer's newer one. Best effort, as every checkpoint write
+    /// is: one that is not written costs a later open time, never an answer.
+    pub fn retain_checkpoint_at_rest(&self) {
+        let Some(state) = self.published_state() else {
+            return;
+        };
+        if !self.authority.checkpoint_behind(&state) {
+            return;
+        }
+        match self.store.checkpoint_covered() {
+            Ok(Some(covered)) if covered > state.version => {}
+            Ok(_) => self.write_checkpoint_of(&state),
+            Err(_) => {}
+        }
+    }
     /// The state the publication just made reached: the newest this authority verified, which
     /// is the published candidate it admitted before writing it. Whatever it is, what is written
     /// from it is bound to the prefix it covers and is admitted only for exactly that prefix.
@@ -584,6 +598,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 committed_at: at,
                 result: root,
                 result_hash: ContentHash::of(&root),
+                created: Some(crate::CreatedIdentitiesV1::of(validated.transaction())),
             };
             (
                 RevisionPayload::RevisionCommitted {

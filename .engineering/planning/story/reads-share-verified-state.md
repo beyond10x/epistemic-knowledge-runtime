@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:reads-share-verified-state
 kind: story
-status: active
+status: implemented
 title: Read verbs share the verified state instead of copying it
 relations:
 - serves: vision:o5
@@ -18,10 +18,11 @@ scope:
   path: crates/ekr-views/src/lib.rs
 - confidence: cited
   path: crates/ekr/src/cli/resolve.rs
-revision: 5
+revision: 6
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-29T07:27:54Z", actor: "human:timo", revision: 4}
 - {from: "proposed", to: "active", at: "2026-09-29T07:27:54Z", actor: "human:timo", revision: 5}
+- {from: "active", to: "implemented", at: "2026-09-29T11:07:35Z", actor: "human:timo", revision: 6, decided_on: {"recorded":{"test_result":1,"review_outcome":3}}}
 ---
 ## Context
 

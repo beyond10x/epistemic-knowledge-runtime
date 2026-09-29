@@ -225,8 +225,10 @@ fn declared_entry_points() -> BTreeSet<String> {
 /// hold that a reread and a reopen return the identical log, so the read itself adds nothing.
 /// `sqlite_existing` and `file_existing` (`story:store-open-semantics`) open the same provider as
 /// `sqlite` and `file` and create nothing where no store is. `set_full_replay` sets a flag.
-const NOT_WRITERS: [&str; 15] = [
+/// `checkpoint_covered` (design § 99.5) reads the newest checkpoint pointer.
+const NOT_WRITERS: [&str; 16] = [
     "set_full_replay",
+    "checkpoint_covered",
     "preparation",
     "published_events",
     "history",

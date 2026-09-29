@@ -120,7 +120,7 @@ pub mod transaction;
 pub mod validate;
 
 pub use authority::{Agent, AuthorityStateV1, ValidationProfileV1};
-pub use checkpoint::{REPLAY_CHECKPOINT_COMMITS, REPLAY_CHECKPOINT_OPERATIONS};
+pub use checkpoint::{REPLAY_CHECKPOINT_BYTES, REPLAY_CHECKPOINT_COMMITS};
 pub use commands::{CommitCommandResult, ValidationCommandResult};
 pub use commit::{Commit, CommitError, KernelAuthority};
 pub use document::{
@@ -137,15 +137,17 @@ pub use issue::{ValidationIssue, ValidatorName};
 pub use migrate::{MigratedOccurrence, StoreMigrationV1};
 pub use read::{SchemaHistory, VerifiedRead, VerifiedRevision};
 pub use records::{
-    CommitReceiptV1, ProposalRecordV1, RecordedValidationIssue, RejectionRecordV1, SeedResultV1,
-    StaleRecordV1, ValidationBasisV1, ValidationMaterialV1, ValidationReceiptV1,
+    CommitReceiptV1, CreatedIdentitiesV1, ProposalRecordV1, RecordedValidationIssue,
+    RejectionRecordV1, SeedResultV1, StaleRecordV1, ValidationBasisV1, ValidationMaterialV1,
+    ValidationReceiptV1,
 };
 pub use replay::{TransactionRecord, TransactionState};
 pub use runtime::Runtime;
 pub use seed::{BootstrapContext, SeedDocument, SeedError};
 pub use transaction::{
-    EdgeDraft, EntityMerge, EvidenceAddition, GraphOperation, GraphTransaction, NodeDraft,
-    PropertyModification, PropertyMutation, Retraction, Supersession, ValidatedTransaction,
+    EdgeDraft, EdgeWidening, EntityMerge, EvidenceAddition, GraphOperation, GraphTransaction,
+    NodeDraft, PropertyModification, PropertyMutation, Retraction, Supersession,
+    ValidatedTransaction,
 };
 pub use validate::{
     Authorization, Cardinality, OntologyConstraint, Pipeline, Provenance, Reference, Structural,

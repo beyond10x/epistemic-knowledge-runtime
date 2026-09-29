@@ -21,9 +21,10 @@
 //! head graph's root and the evidence payloads the seed requires — must equal what the seed
 //! envelope the prefix binds says, so that a changed cache can neither become the root the
 //! kernel's next decisions record nor drop bytes a verified read holds. Nor does a revision root
-//! bind the identities a v3 lineage held, so they must equal what the seed envelope and the
-//! retained proposal of every commit the prefix binds say were created, so that a changed cache
-//! cannot free a deleted edge's id for a different record. What it takes on trust
+//! bind the identities a v3 lineage held, so they must equal what the seed envelope and every
+//! commit the prefix binds say were created — its `ekr.commit-receipt/3`, or the retained
+//! proposal of a receipt retained before it — so that a changed cache cannot free a deleted
+//! edge's id for a different record. What it takes on trust
 //! is that the prefix was replayed and every retained decision re-derived when the checkpoint
 //! was written: a checkpoint records that verification, it does not repeat it. A store opened
 //! for full replay ignores checkpoints and repeats it.
@@ -33,11 +34,12 @@
 //!
 //! # When one is written
 //!
-//! A seed writes one. A commit writes one when it is due (design § 99): when the authority knows
-//! of no retained checkpoint, or the head is [`REPLAY_CHECKPOINT_COMMITS`] revisions past the
-//! retained one's, or the commits since it hold [`REPLAY_CHECKPOINT_OPERATIONS`] operations, or
-//! a validation since it was made against a revision before its head. Any other commit appends only a pointer that names the retained checkpoint with the new
-//! coverage. A proposal, a validation or a stale decision appends nothing: an open replays what
+//! A seed writes one. A commit writes one when it is due (design §§ 99, 99.5): when the authority
+//! knows of no retained checkpoint, or the head is [`REPLAY_CHECKPOINT_COMMITS`] revisions past
+//! the retained one's, or the documents of the transactions committed since it hold
+//! [`REPLAY_CHECKPOINT_BYTES`] bytes, or a validation since it was made against a revision before
+//! its head. Any other commit appends only a pointer that names the retained checkpoint with the
+//! new coverage. A proposal, a validation or a stale decision appends nothing: an open replays what
 //! follows the checkpoint, and it answers the same wherever the checkpoint lies.
 use crate::replay::{prefix_digests, refuse, require, ReplayState, Revision};
 use crate::seed::{narrow_assertion, narrow_edge, narrow_node, SeedOutline};
@@ -63,12 +65,14 @@ pub(crate) const FORMAT: &str = "ekr.replay-checkpoint/1";
 /// the head of the retained checkpoint this authority knows of (design § 99). Between two, a
 /// commit appends only a pointer, and an open replays at most this many commits less one after
 /// the checkpoint it restores.
-pub const REPLAY_CHECKPOINT_COMMITS: u64 = 4;
+pub const REPLAY_CHECKPOINT_COMMITS: u64 = 5;
 
-/// A commit also writes a replay checkpoint when the transactions committed after the retained
-/// checkpoint this authority knows of hold at least this many operations together, so that a few
-/// large commits are not replayed by every open (design § 99).
-pub const REPLAY_CHECKPOINT_OPERATIONS: u64 = 512;
+/// A commit also writes a replay checkpoint when the retained transaction documents of the
+/// transactions committed after the retained checkpoint this authority knows of hold at least
+/// this many bytes together, so that a few large commits are not replayed by every open (design
+/// § 99.5). Operations are not counted: a consumer batch of many small ones costs an open what
+/// its bytes cost to parse and apply.
+pub const REPLAY_CHECKPOINT_BYTES: u64 = 16 * 1024 * 1024;
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -320,7 +324,7 @@ impl KernelAuthority {
         let retained = (checkpoint.covered, checkpoint.revision);
         let mut state = restored(history, covered, checkpoint)?;
         // The identities the lineage held are what the seed's graph holds and what each commit
-        // the prefix binds created, read from their retained proposals: the checkpoint's list
+        // the prefix binds created, read from their receipts (§ 99.5): the checkpoint's list
         // must be exactly that, so that a changed cache cannot free an id for a new record.
         let derived = if self.anchor.validation_profile.keeps_identities() {
             held_by(envelope.graph(), &state)?
@@ -340,11 +344,11 @@ impl KernelAuthority {
     }
 
     /// Whether a commit that reached `state` writes a replay checkpoint, rather than only a
-    /// pointer to the retained one (design § 99): when this authority knows of no retained
+    /// pointer to the retained one (design §§ 99, 99.5): when this authority knows of no retained
     /// checkpoint — it admitted none and wrote none — or when the head is at least
-    /// [`REPLAY_CHECKPOINT_COMMITS`] revisions past the retained one's, or the transactions
-    /// committed after it hold at least [`REPLAY_CHECKPOINT_OPERATIONS`] operations, or a
-    /// validation or rejection after it was made against a revision before its head, which every
+    /// [`REPLAY_CHECKPOINT_COMMITS`] revisions past the retained one's, or the retained documents
+    /// of the transactions committed after it hold at least [`REPLAY_CHECKPOINT_BYTES`] bytes, or
+    /// a validation or rejection after it was made against a revision before its head, which every
     /// open continuing from it would replay from the seed to re-derive.
     pub(crate) fn checkpoint_due(&self, state: &ReplayState) -> bool {
         let Some((covered, revision)) = self.cache.lock().ok().and_then(|cache| cache.retained)
@@ -365,7 +369,7 @@ impl KernelAuthority {
         {
             return true;
         }
-        let operations: u64 = state
+        let bytes: u64 = state
             .transactions
             .values()
             .filter(|record| {
@@ -374,9 +378,29 @@ impl KernelAuthority {
                     .as_ref()
                     .is_some_and(|receipt| receipt.result.revision > revision)
             })
-            .map(|record| record.proposal.operation_count)
+            .map(|record| record.proposal.document_bytes.len() as u64)
             .sum();
-        operations >= REPLAY_CHECKPOINT_OPERATIONS
+        bytes >= REPLAY_CHECKPOINT_BYTES
+    }
+
+    /// Whether a handle at rest writes the checkpoint of `state` (design § 99.5): when this
+    /// authority knows of no retained checkpoint, or `state`'s head is past the retained one's,
+    /// or a validation or rejection after it was made against a revision before its head. It
+    /// writes none at the retained checkpoint's own head, whatever proposals and validations
+    /// follow it: an open replays those without replaying a commit.
+    pub(crate) fn checkpoint_behind(&self, state: &ReplayState) -> bool {
+        let Some((covered, revision)) = self.cache.lock().ok().and_then(|cache| cache.retained)
+        else {
+            return true;
+        };
+        if covered > state.version {
+            return false;
+        }
+        state.head().root.revision > revision
+            || state
+                .earlier_bases
+                .iter()
+                .any(|(version, basis)| *version > covered && *basis < revision)
     }
 
     /// Records that the checkpoint of the state covering `covered` occurrences at `revision` is
@@ -630,9 +654,14 @@ fn restored(
 }
 
 /// The node and edge identities the lineage of `state` held: those of the seed graph at the seed
-/// revision, and those each committed transaction created at the revision it produced, read from
-/// its retained proposal. Under profile v3 that is every identity any of its revisions held,
-/// because a v3 commit never creates an id an earlier revision held.
+/// revision, and those each committed transaction created at the revision it produced. Under
+/// profile v3 that is every identity any of its revisions held, because a v3 commit never creates
+/// an id an earlier revision held.
+///
+/// What a commit created is read from its `ekr.commit-receipt/3`, which names it (design § 99.5),
+/// and only for a receipt retained before `/3` from its retained proposal, which is parsed. The
+/// receipt is the record the commit's event names by digest, so the list is bound into the
+/// prefix digest the checkpoint is admitted for, as the proposal is.
 fn held_by(seed: &GraphDocument, state: &ReplayState) -> Result<HeldIdentities, StoreError> {
     let mut held = HeldIdentities::default();
     held.record(
@@ -641,9 +670,19 @@ fn held_by(seed: &GraphDocument, state: &ReplayState) -> Result<HeldIdentities, 
         seed.edges.keys().copied(),
     );
     for record in state.transactions.values() {
-        if let Some(committed) = &record.committed {
+        let Some(committed) = &record.committed else {
+            continue;
+        };
+        let revision = committed.result.revision;
+        if let Some(created) = &committed.created {
+            held.record(
+                revision,
+                created.nodes.iter().copied(),
+                created.edges.iter().copied(),
+            );
+        } else {
             let document = state.document(&record.proposal)?;
-            held.hold(committed.result.revision, document.transaction());
+            held.hold(revision, document.transaction());
         }
     }
     Ok(held)
@@ -652,9 +691,9 @@ fn held_by(seed: &GraphDocument, state: &ReplayState) -> Result<HeldIdentities, 
 #[cfg(test)]
 mod tests {
     //! What a fresh open does with a checkpoint, seen from inside the kernel: the state it reaches
-    //! holds the graph of the checkpoint's head and of each revision committed after it, and no
-    //! earlier one, which a replay from the seed never produces, and so the lineage the
-    //! checkpoint covers was not replayed again.
+    //! holds the graph of the checkpoint's head and of its own head and no other, and it begins no
+    //! replay at the seed, so the lineage the checkpoint covers was not replayed again. A full
+    //! replay reaches the same state holding only its head's graph.
     use crate::{
         Agent, AuthorityStateV1, BootstrapContext, Commit, GraphOperation, GraphTransaction,
         NodeDraft, SeedDocument, ValidationProfileV1, REPLAY_CHECKPOINT_COMMITS,
@@ -774,17 +813,19 @@ mod tests {
                 .map(|(number, _)| number.get())
                 .collect::<Vec<_>>()
         };
-        let restored = open(path, false).read_state().unwrap();
+        let reopened = open(path, false);
+        let restored = reopened.read_state().unwrap();
         assert_eq!(
             held(&restored),
             [checkpointed, head],
             "the checkpoint's head graph, and the graph of the one commit replayed after it"
         );
+        assert_eq!(reopened.seed_replays(), 0, "no replay began at the seed");
         let replayed = open(path, true).read_state().unwrap();
         assert_eq!(
             held(&replayed),
-            (0..=head).collect::<Vec<_>>(),
-            "a full replay holds every graph"
+            [head],
+            "a full replay keeps only its head's graph"
         );
         assert_eq!(restored.head().root, replayed.head().root);
         assert_eq!(restored.transactions, replayed.transactions);
@@ -819,5 +860,85 @@ mod tests {
         assert_eq!(restored.event_ids, replayed.event_ids);
         assert_eq!(restored.issue_ids, replayed.issue_ids);
         assert_eq!(restored.held, replayed.held);
+    }
+
+    /// Under profile v3, what admitting a checkpoint derives the lineage's identities from is
+    /// each commit's `/3` receipt (design § 99.5): with every retained proposal's bytes made
+    /// unparseable, the derivation still reaches the identities a full replay held. A receipt
+    /// that names none, as one retained before `/3`, sends it back to parsing the proposal.
+    #[test]
+    fn held_identities_are_read_from_each_receipt_without_parsing_its_proposal() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path();
+        let seed = seed();
+        let v3 = |path: &Path| {
+            let mut anchor = anchor();
+            anchor.validation_profile = ValidationProfileV1::identity_keeping(context().validator);
+            Commit::over_with_authority(context(), anchor, |authority| {
+                let mut store = FileStore::file(path, "unit", None)?.under(authority);
+                store.set_full_replay(true);
+                Ok(store)
+            })
+            .unwrap()
+        };
+        v3(path)
+            .seed(seed.clone(), || Timestamp::from_millis(10))
+            .unwrap();
+        for n in 1..=2 {
+            let at = i64::try_from(n * 100).unwrap();
+            let (tx, bytes) = document(&seed, n);
+            let operator = context().operator;
+            let kernel = v3(path);
+            kernel
+                .propose(&bytes, operator, || Timestamp::from_millis(at))
+                .unwrap();
+            kernel
+                .validate(tx, RevisionNumber::new(n - 1), || {
+                    Timestamp::from_millis(at + 1)
+                })
+                .unwrap();
+            kernel
+                .commit(tx, operator, || Timestamp::from_millis(at + 2))
+                .unwrap();
+        }
+        let kernel = v3(path);
+        let replayed = kernel.read_state().unwrap();
+        // A replayed state holds the head's graph, not the seed's (a session keeps the head graph
+        // only): the seed graph is rebuilt by a verified replay up to it.
+        let history = ekr_store::RevisionLog::history(&kernel.store).unwrap();
+        let seed_graph = kernel
+            .authority
+            .graph_at(&history, &replayed, RevisionNumber::SEED)
+            .unwrap();
+        let seeded = ekr_store::GraphDocument::of(&seed_graph);
+        let truth = super::held_at(&replayed.held);
+        assert_eq!(
+            truth
+                .iter()
+                .map(|at| at.from.get())
+                .filter(|from| *from > 0)
+                .collect::<Vec<_>>(),
+            [1, 2],
+            "each commit's identities"
+        );
+
+        let mut unparseable = (*replayed).clone();
+        unparseable.documents.clear();
+        for record in unparseable.transactions_mut().values_mut() {
+            record.proposal.document_bytes = b"\x00 not a transaction document".to_vec();
+        }
+        let derived = super::held_by(&seeded, &unparseable).unwrap();
+        assert_eq!(super::held_at(&derived), truth);
+
+        let mut previous = unparseable.clone();
+        for record in previous.transactions_mut().values_mut() {
+            if let Some(receipt) = &mut record.committed {
+                receipt.created = None;
+            }
+        }
+        assert!(
+            super::held_by(&seeded, &previous).is_err(),
+            "a receipt that names no identities has its proposal parsed"
+        );
     }
 }

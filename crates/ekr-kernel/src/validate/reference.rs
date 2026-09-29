@@ -175,7 +175,8 @@ impl Validator for Reference {
                 GraphOperation::AddEvidence(_)
                 | GraphOperation::DefineNodeType(_)
                 | GraphOperation::DefineEdgeType(_)
-                | GraphOperation::ModifyProperty(_) => {}
+                | GraphOperation::ModifyProperty(_)
+                | GraphOperation::WidenEdgeType(_) => {}
             }
         }
 

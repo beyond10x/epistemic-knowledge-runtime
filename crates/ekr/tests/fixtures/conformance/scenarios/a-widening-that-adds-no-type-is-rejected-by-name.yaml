@@ -1,0 +1,45 @@
+# story:edge-type-endpoints-widen, acceptance 3, the widening without effect.
+#
+# The target runs validation profile v2 (`host-v2.json`), is seeded from `seed-authored.yaml` and
+# has committed revision 1 before the first act. The fixture `widen-without-effect.yaml` names
+# exactly the ends AUTHORED already has. A schema version that declares what the prior one did is
+# no next version: validation rejects it with exactly one issue, which the OntologyConstraint
+# validator raises under the name schema-change-without-effect.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: a-widening-that-adds-no-type-is-rejected-by-name
+summary: A widening that names exactly the ends an edge type already has is rejected with one issue, schema-change-without-effect, raised by OntologyConstraint.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: widening
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 1
+    outcome: rejected
+    events:
+      - event: ekr.kernel.TransactionRejected
+        payload:
+          issues: 1
+
+assert:
+  - view: ekr.kernel.ValidationIssues
+    contains:
+      transaction_id: {$instance: proposal}
+      validator: OntologyConstraint
+      code: schema-change-without-effect

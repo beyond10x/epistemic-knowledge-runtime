@@ -127,8 +127,8 @@ impl Pipeline {
     /// The seven validators of validation profile v2 (`ekr.p2-deterministic/1`), run by `actor`.
     ///
     /// The same seven names, in the same order, as [`Pipeline::deterministic`]. Two of them read
-    /// more: the structural validator admits `DefineNodeType`, `DefineEdgeType` and
-    /// `ModifyProperty` as schema-only transactions naming the version they produce, and the
+    /// more: the structural validator admits `DefineNodeType`, `DefineEdgeType`, `ModifyProperty`
+    /// and `WidenEdgeType` as schema-only transactions naming the version they produce, and the
     /// ontology-constraint validator builds that version with `Ontology::evolve` and holds it to
     /// canonical state with `ekr_ontology::incompatibilities`.
     ///

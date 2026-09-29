@@ -14,9 +14,12 @@
 //!   non-files, then opens the staged file and hands it to the real parser.
 //! * **Preconditions.** Transaction commands need a seeded lineage holding the revision the suite
 //!   validates against, so the target establishes revision 0 and revision 1 through the same
-//!   handlers before the first such command. An external control establishes the state its
-//!   branch declares — an intervening canonical commit, a different retained seed, an absent
-//!   revision, transaction or assertion — and never selects the reported outcome.
+//!   handlers before the first such command. A scenario the manifest gives a setup of its own
+//!   runs under that setup's host, seed and revision 1 instead — the authored schema-change
+//!   scenarios, which need a validation profile that admits schema changes. An external control
+//!   establishes the state its branch declares — an intervening canonical commit, a different
+//!   retained seed, an absent revision, transaction or assertion — and never selects the reported
+//!   outcome.
 //! * **Observations.** Events are everything the scenario's provider log gained during a command,
 //!   in log order, read through [`Runtime::published_events`]: a kernel occurrence is answered by
 //!   its retained record read back from the verified history, and a store event
@@ -74,6 +77,8 @@ pub struct KernelTarget {
     fixtures: PathBuf,
     manifest: Manifest,
     host: CliHostConfigurationV1,
+    /// The host documents scenario setups name, by file name.
+    hosts: BTreeMap<String, CliHostConfigurationV1>,
     work: PathBuf,
     opened: Cell<u64>,
     clock: Cell<i64>,
@@ -88,6 +93,10 @@ struct Manifest {
     setup: Setup,
     documents: BTreeMap<String, String>,
     scenarios: BTreeMap<String, BTreeMap<String, String>>,
+    /// Scenarios that run against a lineage of their own rather than [`Setup`]'s: another host
+    /// (a validation profile that admits schema changes), seed and revision 1.
+    #[serde(default)]
+    setups: BTreeMap<String, ScenarioSetup>,
     proposals: BTreeMap<TransactionId, String>,
 }
 
@@ -100,11 +109,23 @@ struct Setup {
     intervening: String,
 }
 
+/// One scenario's own host, seed and revision 1, which replace the manifest's for that scenario.
+#[derive(Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ScenarioSetup {
+    host: String,
+    seed: String,
+    revision_1: String,
+}
+
 struct Scenario {
     id: String,
     directory: PathBuf,
     prepared: bool,
     control: Option<Control>,
+    /// The host the scenario runs under, and its own setup when it has one.
+    host: CliHostConfigurationV1,
+    setup: Option<ScenarioSetup>,
 }
 
 /// An external branch whose declared state the target establishes before the real handler runs.
@@ -188,23 +209,40 @@ impl KernelTarget {
         if manifest.format != "ekr.conformance-fixtures/1" {
             return Err(format!("unsupported fixture manifest {}", manifest.format));
         }
-        let host_path = fixtures.join(simple(&manifest.host)?);
-        let host = std::fs::read(&host_path)
-            .map_err(|e| format!("reading {}: {e}", host_path.display()))
-            .and_then(|bytes| {
-                CliHostConfigurationV1::from_json(&bytes)
-                    .map_err(|e| format!("{}: {e}", host_path.display()))
-            })?;
+        let read_host = |name: &str| {
+            let host_path = fixtures.join(simple(name)?);
+            std::fs::read(&host_path)
+                .map_err(|e| format!("reading {}: {e}", host_path.display()))
+                .and_then(|bytes| {
+                    CliHostConfigurationV1::from_json(&bytes)
+                        .map_err(|e| format!("{}: {e}", host_path.display()))
+                })
+        };
+        let host = read_host(&manifest.host)?;
+        let hosts = manifest
+            .setups
+            .values()
+            .map(|setup| Ok((setup.host.clone(), read_host(&setup.host)?)))
+            .collect::<Result<BTreeMap<_, _>, String>>()?;
         Ok(Self {
             provider,
             fixtures: fixtures.to_path_buf(),
             manifest,
             host,
+            hosts,
             work: work.to_path_buf(),
             opened: Cell::new(0),
             clock: Cell::new(CLOCK_START_MS),
             scenario: RefCell::new(None),
         })
+    }
+
+    /// The trusted host of the open scenario: its setup's, or the manifest's.
+    fn host(&self) -> CliHostConfigurationV1 {
+        self.scenario
+            .borrow()
+            .as_ref()
+            .map_or_else(|| self.host.clone(), |scenario| scenario.host.clone())
     }
 
     /// The kernel's host clock for new decisions: a strictly increasing target-owned instant.
@@ -230,7 +268,7 @@ impl KernelTarget {
             context,
             authority,
             ..
-        } = self.host.clone();
+        } = self.host();
         match self.provider {
             Provider::File => Runtime::file(&directory.join("store"), &tenant, context, authority),
             Provider::Sqlite => {
@@ -316,7 +354,7 @@ impl KernelTarget {
         let text = String::from_utf8(bytes)
             .map_err(|_| SeedError::Invalid("seed-decode: the document is not UTF-8".to_owned()))?;
         let document = SeedDocument::from_yaml(&text)?;
-        Runtime::admit_seed(&document, self.host.context)?;
+        Runtime::admit_seed(&document, self.host().context)?;
         runtime.seed(document, || self.tick())
     }
 
@@ -332,7 +370,7 @@ impl KernelTarget {
     /// Establishes one committed revision from a fixture through propose, validate and commit.
     fn establish_commit(&self, fixture: &str) -> Result<(), TargetError> {
         let bytes = self.fixture(fixture)?;
-        let operator = self.host.context.operator;
+        let operator = self.host().context.operator;
         let runtime = self.runtime()?;
         let head = runtime
             .head()
@@ -363,7 +401,7 @@ impl KernelTarget {
 
     /// Establishes the lineage the scenario's first command acts on, once.
     fn prepare(&self, command: &str) -> Result<(), TargetError> {
-        let control = {
+        let (control, own) = {
             let mut scenario = self.scenario.borrow_mut();
             let scenario = scenario
                 .as_mut()
@@ -372,7 +410,7 @@ impl KernelTarget {
                 return Ok(());
             }
             scenario.prepared = true;
-            scenario.control
+            (scenario.control, scenario.setup.clone())
         };
         let setup = &self.manifest.setup;
         if command == SEED {
@@ -381,9 +419,14 @@ impl KernelTarget {
             }
             return Ok(());
         }
-        self.establish_seed(&setup.seed)?;
+        let (seed, revision_1) = own
+            .as_ref()
+            .map_or((setup.seed.as_str(), setup.revision_1.as_str()), |own| {
+                (own.seed.as_str(), own.revision_1.as_str())
+            });
+        self.establish_seed(seed)?;
         if !control.is_some_and(Control::seed_only) {
-            self.establish_commit(&setup.revision_1)?;
+            self.establish_commit(revision_1)?;
         }
         Ok(())
     }
@@ -524,7 +567,9 @@ impl KernelTarget {
                 })?;
                 let bytes = self.fixture(fixture)?;
                 let record = runtime
-                    .propose_reader(bytes.as_slice(), self.host.context.operator, || self.tick())
+                    .propose_reader(bytes.as_slice(), self.host().context.operator, || {
+                        self.tick()
+                    })
                     .map_err(|e| unavailable("establishing a proposal", e))?;
                 if record.transaction_id != id {
                     return Err(unavailable(
@@ -646,7 +691,7 @@ impl KernelTarget {
         let file = std::fs::File::open(&path)
             .map_err(|e| unavailable("opening the transaction document", e))?;
         Ok(
-            match runtime.propose_reader(file, self.host.context.operator, || self.tick()) {
+            match runtime.propose_reader(file, self.host().context.operator, || self.tick()) {
                 Ok(record) => Answer {
                     outcome: Some("proposed"),
                     published: Some(record.event_id),
@@ -710,7 +755,7 @@ impl KernelTarget {
     ) -> Result<Answer, TargetError> {
         let id = transaction_input(request)?;
         Ok(
-            match runtime.commit(id, self.host.context.operator, || self.tick()) {
+            match runtime.commit(id, self.host().context.operator, || self.tick()) {
                 Ok(CommitCommandResult::Committed(receipt)) => {
                     let retained = before.events.contains_key(&receipt.event_id);
                     Answer {
@@ -981,11 +1026,24 @@ impl ConformanceTarget for KernelTarget {
         std::fs::create_dir_all(directory.join("store"))
             .map_err(|e| unavailable("opening an isolated scenario", e))?;
         self.clock.set(CLOCK_START_MS);
+        let id = scenario.scenario.to_string();
+        let setup = self.manifest.setups.get(&id).cloned();
+        let host = match &setup {
+            Some(setup) => self.hosts.get(&setup.host).cloned().ok_or_else(|| {
+                unavailable(
+                    "opening an isolated scenario",
+                    format!("the host {} was not read", setup.host),
+                )
+            })?,
+            None => self.host.clone(),
+        };
         *self.scenario.borrow_mut() = Some(Scenario {
-            id: scenario.scenario.to_string(),
+            id,
             directory,
             prepared: false,
             control: None,
+            host,
+            setup,
         });
         Ok(())
     }
@@ -1784,6 +1842,15 @@ fn commit_receipt(value: &CommitReceiptV1) -> Result<Node, TargetError> {
         ("committed_at", instant(value.committed_at)?),
         ("result", root(&value.result)?),
         ("result_hash", text(value.result_hash)),
+        (
+            "created",
+            optional(value.created.as_ref().map(|created| {
+                record(vec![
+                    ("nodes", Node::Seq(created.nodes.iter().map(text).collect())),
+                    ("edges", Node::Seq(created.edges.iter().map(text).collect())),
+                ])
+            })),
+        ),
     ]))
 }
 
@@ -1934,4 +2001,73 @@ fn contained(relative: &str) -> Result<PathBuf, String> {
         return Err(format!("{relative:?} is not a contained relative path"));
     }
     Ok(path.to_path_buf())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{commit_receipt, Node};
+    use ekr_kernel::CommitReceiptV1;
+    use serde_json::json;
+
+    /// A retained commit receipt of `format`, with `created` when it is given.
+    fn receipt(format: &str, created: Option<serde_json::Value>) -> CommitReceiptV1 {
+        let hash = "e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0";
+        let id = "00000000-0000-4000-8000-000000000050";
+        let root = json!({"revision":1,"parent":null,"ontology_root":hash,"knowledge_root":hash,
+            "evidence_root":hash,"agent_root":hash,"transaction":hash});
+        let basis = json!({"format":"ekr.validation-basis/1","graph_root_id":id,
+            "previous_revision_id":id,"previous_event_id":id,"previous_record_hash":hash,
+            "previous_root":root,"previous_root_hash":hash,"seed_hash":hash,"ontology_root":hash,
+            "authority_root":hash,"validation_profile_hash":hash});
+        let mut value = json!({"format":format,"event_id":id,"revision_id":id,
+            "proposal":{"format":"ekr.proposal-record/2","event_id":id,"submitted_at":0,
+                "submitter":id,"document_hash":hash,"document_bytes":"AQID","transaction_id":id,
+                "operation_count":1,"evidence_hash":hash,"canonical_transaction_hash":null,
+                "canonical_operations_hash":null},
+            "validation":{"format":"ekr.validation-receipt/1","event_id":id,
+                "proposed_event_id":id,"proposal_record_hash":hash,"transaction_hash":hash,
+                "operations_hash":hash,"evidence_hash":hash,"operation_count":1,"basis":basis,
+                "validators":[id],"validated_at":0,"validation_hash":hash},
+            "validation_record_hash":hash,"committer":id,"committed_at":0,"result":root,
+            "result_hash":hash});
+        if let Some(created) = created {
+            value["created"] = created;
+        }
+        CommitReceiptV1::from_bytes(&serde_json::to_vec(&value).unwrap()).unwrap()
+    }
+
+    fn created(node: &Node) -> &Node {
+        let Node::Map(fields) = node else {
+            panic!("a receipt projects as a record: {node:?}")
+        };
+        fields
+            .get("created")
+            .expect("the receipt projects `created`")
+    }
+
+    /// `CommitReceiptV1` declares `created` (design § 99.5): a `/3` receipt projects the ids it
+    /// names, and a `/2` receipt, which names none, projects the field as absent.
+    #[test]
+    fn a_commit_receipt_projects_the_identities_it_created() {
+        let node = "00000000-0000-4000-8000-000000000060";
+        let edge = "00000000-0000-4000-8000-000000000061";
+        let current = receipt(
+            CommitReceiptV1::FORMAT,
+            Some(json!({"nodes":[node],"edges":[edge]})),
+        );
+        let text = |value: &str| Node::Text(value.to_owned());
+        assert_eq!(
+            created(&commit_receipt(&current).unwrap()),
+            &Node::Map(
+                [
+                    ("nodes".to_owned(), Node::Seq(vec![text(node)])),
+                    ("edges".to_owned(), Node::Seq(vec![text(edge)])),
+                ]
+                .into_iter()
+                .collect()
+            )
+        );
+        let previous = receipt(CommitReceiptV1::FORMAT_V2, None);
+        assert_eq!(created(&commit_receipt(&previous).unwrap()), &Node::Null);
+    }
 }

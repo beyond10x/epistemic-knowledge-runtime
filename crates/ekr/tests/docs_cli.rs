@@ -647,7 +647,7 @@ fn binary_kinds() -> BTreeMap<String, &'static str> {
         .collect()
 }
 
-const KIND_PREFIXES: [&str; 10] = [
+const KIND_PREFIXES: [&str; 11] = [
     "Create",
     "Update",
     "Delete",
@@ -658,13 +658,14 @@ const KIND_PREFIXES: [&str; 10] = [
     "Merge",
     "Invoke",
     "Supersede",
+    "Widen",
 ];
 
 #[test]
 fn the_operation_kind_table_and_its_applied_split_match_ekr_operations() {
     let page = page();
     let binary = binary_kinds();
-    assert_eq!(binary.len(), 13, "ekr operations: {binary:?}");
+    assert_eq!(binary.len(), 14, "ekr operations: {binary:?}");
 
     let table: BTreeMap<String, &'static str> = rows(section(&page, "### Operation kinds"))
         .iter()
@@ -683,8 +684,8 @@ fn the_operation_kind_table_and_its_applied_split_match_ekr_operations() {
         .collect();
     assert_eq!(
         table.values().filter(|s| **s == "schema change").count(),
-        3,
-        "three kinds change the schema: {table:?}"
+        4,
+        "four kinds change the schema: {table:?}"
     );
     assert_eq!(
         table, binary,
@@ -1629,7 +1630,8 @@ const UNREACHABLE_SCHEMA_CODES: [(&str, &str); 7] = [
     ("property-removed", "no operation removes a property"),
     (
         "type-declaration-changed",
-        "ModifyProperty changes only a type's properties, and a type is defined only once",
+        "ModifyProperty changes only a type's properties, WidenEdgeType only adds to an edge type's \
+         ends, which the edges it holds still fit, and a type is defined only once",
     ),
     (
         "not-a-successor",
@@ -1654,6 +1656,22 @@ fn modify(owner: &str, property: &str, name: &str, value_type: &str, rest: &str)
     format!(
         "\n  - !ModifyProperty\n    owner: 00000000-0000-4000-a000-000000000{owner}\n    property:\n      \
          id: 00000000-0000-4000-a000-000000000{property}\n      name: {name}\n      value_type:\n{value_type}{rest}"
+    )
+}
+
+/// A `WidenEdgeType` of `edge` in the worked seed, with the two ends written whole.
+fn widen(edge: &str, sources: &[&str], targets: &[&str]) -> String {
+    let end = |types: &[&str]| -> String {
+        types
+            .iter()
+            .map(|at| format!("\n    - 00000000-0000-4000-a000-000000000{at}"))
+            .collect()
+    };
+    format!(
+        "\n  - !WidenEdgeType\n    edge_type: 00000000-0000-4000-a000-000000000{edge}\n    \
+         source_types:{}\n    target_types:{}",
+        end(sources),
+        end(targets)
     )
 }
 
@@ -1750,6 +1768,16 @@ fn schema_trigger(code: &str) -> Option<String> {
                 "\n      cardinality: One\n      required: false\n      constraints: [reviewed]",
             ),
         ),
+        // `WROTE` (…0104) runs from `Author` (…0103) to `Book` (…0102) in the worked seed.
+        "unknown-edge-type" => schema_tx(17, Some(VERSION), &widen("199", &["103"], &["102"])),
+        "unknown-endpoint-type" => schema_tx(
+            18,
+            Some(VERSION),
+            &widen("104", &["103"], &["102", "199"]),
+        ),
+        "edge-endpoint-removed" => {
+            schema_tx(19, Some(VERSION), &widen("104", &["103"], &["103"]))
+        }
         _ => return None,
     })
 }
@@ -1943,7 +1971,7 @@ fn no_text_a_reader_meets_says_only_the_p1_profile_is_accepted() {
     );
 }
 
-/// `README.md` is true of the latest release, 0.0.17: its status table is headed by it, lists schema
+/// `README.md` is true of the latest release, 0.0.18: its status table is headed by it, lists schema
 /// evolution under validation profile v2 as working and links the page's § Evolve the schema, and
 /// keeps `MergeEntity` and a v1 store's fixed schema as not in it. Schema evolution is no longer
 /// called a later phase or unreleased.
@@ -1973,7 +2001,7 @@ fn readme_says_the_schema_evolves_under_profile_v2() {
         .lines()
         .find(|line| line.starts_with("| works in "))
         .expect("README.md has a status table");
-    assert!(header.starts_with("| works in 0.0.17 |"), "{header}");
+    assert!(header.starts_with("| works in 0.0.18 |"), "{header}");
     let prefixed = format!("\n{readme}");
     let released = section(&prefixed, "## Status");
     let table: String = released
@@ -1991,7 +2019,7 @@ fn readme_says_the_schema_evolves_under_profile_v2() {
     ] {
         assert!(
             table.contains(needle),
-            "the 0.0.17 table lacks {needle:?}: {table}"
+            "the 0.0.18 table lacks {needle:?}: {table}"
         );
     }
     // The link lands: the page has that heading.

@@ -1,10 +1,10 @@
 //! Schema changes under validation profile v2: design § 26, and wave p5-01's decisions 1–6.
 //!
-//! Profile v1 (`ekr.p1-deterministic/1`) refuses the three schema kinds with the retained P1
-//! issue, `unsupported-operation`, byte for byte, because replay compares every retained
-//! rejection's code and message to what the ruleset says now (`replay.rs`,
-//! `rejection-issue-disagrees`): a v1 store holding such a rejection keeps reopening only while the
-//! ruleset that wrote it still says the same thing.
+//! Profile v1 (`ekr.p1-deterministic/1`) refuses the schema kinds — the three of wave p5-01 and
+//! `WidenEdgeType` (design § 101) — with the retained P1 issue, `unsupported-operation`, byte for
+//! byte, because replay compares every retained rejection's code and message to what the ruleset
+//! says now (`replay.rs`, `rejection-issue-disagrees`): a v1 store holding such a rejection keeps
+//! reopening only while the ruleset that wrote it still says the same thing.
 //!
 //! Profile v2 (`ekr.p2-deterministic/1`) admits them. The structural half — the transaction names
 //! the version it produces, and a schema change travels alone — is the structural validator's, as
@@ -16,9 +16,11 @@
 //!
 //! **Silent where another validator has spoken.** This stage runs only on a transaction the
 //! structural validator has nothing to say about in this respect: schema-only, carrying a version,
-//! and declaring no type id twice or over one the ontology holds. Otherwise the structural refusal
-//! is the one a proposer reads, and `Ontology::evolve` repeating it as `type-already-declared`
-//! would be the same defect reported by two validators.
+//! declaring no type id twice or over one the ontology holds, and widening no edge type twice.
+//! Otherwise the structural refusal is the one a proposer reads, and `Ontology::evolve` repeating
+//! it — as `type-already-declared`, or as the `edge-endpoint-removed` one of two competing
+//! widenings reads as when applied after the other — would be the same defect reported by two
+//! validators.
 
 use std::collections::BTreeSet;
 
@@ -35,13 +37,14 @@ use super::{finish, issue, OntologyConstraint, Validator};
 use crate::issue::{ValidationIssue, ValidatorName};
 use crate::transaction::{GraphOperation, GraphTransaction};
 
-/// Whether an operation is one of the three schema kinds.
+/// Whether an operation is one of the four schema kinds.
 pub(crate) const fn is_schema_change<V: ValueSpace>(operation: &GraphOperation<V>) -> bool {
     matches!(
         operation,
         GraphOperation::DefineNodeType(_)
             | GraphOperation::DefineEdgeType(_)
             | GraphOperation::ModifyProperty(_)
+            | GraphOperation::WidenEdgeType(_)
     )
 }
 
@@ -67,6 +70,11 @@ pub(crate) fn changes<V: ValueSpace>(tx: &GraphTransaction<V>) -> Option<Vec<Sch
                         property: modification.property.clone(),
                     })
             }
+            GraphOperation::WidenEdgeType(widening) => Some(SchemaChange::WidenEdgeType {
+                edge_type: widening.edge_type,
+                source_types: widening.source_types.clone(),
+                target_types: widening.target_types.clone(),
+            }),
             _ => None,
         })
         .collect()
@@ -124,12 +132,19 @@ fn admission(
         return Vec::new();
     };
     let prior = &graph.ontology;
-    let mut defined = BTreeSet::new();
+    let (mut defined, mut widened) = (BTreeSet::new(), BTreeSet::new());
     for change in &changes {
         let type_id = match change {
             SchemaChange::DefineNodeType(declared) => declared.id,
             SchemaChange::DefineEdgeType(declared) => declared.id,
             SchemaChange::ModifyProperty { .. } => continue,
+            // Two widenings of one edge type are the structural validator's `conflicting-write`.
+            SchemaChange::WidenEdgeType { edge_type, .. } => {
+                if !widened.insert(*edge_type) {
+                    return Vec::new();
+                }
+                continue;
+            }
         };
         let held = prior.node_type(type_id).is_some() || prior.edge_type(type_id).is_some();
         if held || !defined.insert(type_id) {

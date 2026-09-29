@@ -1,8 +1,8 @@
 //! Strict retained records. Payload addresses and canonical value addresses are separate domains.
 use crate::{GraphTransaction, ValidatorName};
 use ekr_core::{
-    AgentId, Canonical, ContentHash, Encoder, EventId, GraphRootId, IssueId, RevisionId, Timestamp,
-    TransactionId,
+    AgentId, Canonical, ContentHash, EdgeId, Encoder, EventId, GraphRootId, IssueId, NodeId,
+    RevisionId, Timestamp, TransactionId,
 };
 use ekr_graph::{CanonicalValue, Root};
 use ekr_store::StoreError;
@@ -289,15 +289,48 @@ impl ValidationReceiptV1 {
     }
 }
 
-/// Complete retained `ekr.commit-receipt/1` or `/2` fields, in normative declaration order.
+/// The node and edge ids one committed transaction created, as its `ekr.commit-receipt/3` names
+/// them (design § 99.5): each `CreateNode` draft's id and each `CreateEdge` draft's id, ascending.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreatedIdentitiesV1 {
+    /// Each created node's id.
+    #[serde(deserialize_with = "ekr_core::decode::unique_set")]
+    pub nodes: BTreeSet<NodeId>,
+    /// Each created edge's id.
+    #[serde(deserialize_with = "ekr_core::decode::unique_set")]
+    pub edges: BTreeSet<EdgeId>,
+}
+impl CreatedIdentitiesV1 {
+    /// The ids `tx` creates.
+    #[must_use]
+    pub fn of<V: ekr_graph::ValueSpace>(tx: &GraphTransaction<V>) -> Self {
+        let mut created = Self::default();
+        for operation in &tx.operations {
+            match operation {
+                crate::GraphOperation::CreateNode(draft) => {
+                    created.nodes.insert(draft.id);
+                }
+                crate::GraphOperation::CreateEdge(draft) => {
+                    created.edges.insert(draft.id);
+                }
+                _ => {}
+            }
+        }
+        created
+    }
+}
+
+/// Complete retained `ekr.commit-receipt/1`, `/2` or `/3` fields, in normative declaration order.
 ///
-/// The fields are the same in both. A `/1` receipt embeds an `ekr.proposal-record/1`; a `/2`
-/// receipt embeds the transaction's retained proposal in whichever of the two formats it was
-/// retained in, which is what lets it carry the compact `/2` proposal.
+/// A `/1` receipt embeds an `ekr.proposal-record/1`; a `/2` receipt embeds the transaction's
+/// retained proposal in whichever of the two formats it was retained in, which is what lets it
+/// carry the compact `/2` proposal. A `/3` receipt is a `/2` receipt that also names the ids its
+/// transaction created, in `created` (design § 99.5); `/1` and `/2` have no such field.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CommitReceiptV1 {
-    /// `ekr.commit-receipt/2`, or `ekr.commit-receipt/1` for a receipt retained before it.
+    /// `ekr.commit-receipt/3`, or `/2` or `/1` for a receipt retained before it.
     pub format: String,
     /// Retained `event_id`.
     pub event_id: EventId,
@@ -317,10 +350,16 @@ pub struct CommitReceiptV1 {
     pub result: Root,
     /// Retained `result_hash`.
     pub result_hash: ContentHash,
+    /// Retained `created`: present in a `/3` receipt and absent from `/1` and `/2`, so that
+    /// those keep their bytes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created: Option<CreatedIdentitiesV1>,
 }
 impl CommitReceiptV1 {
     /// The record format new commit receipts are retained in.
-    pub const FORMAT: &'static str = "ekr.commit-receipt/2";
+    pub const FORMAT: &'static str = "ekr.commit-receipt/3";
+    /// The previous format, still read; it names no created identities.
+    pub const FORMAT_V2: &'static str = "ekr.commit-receipt/2";
     /// The original format, still read; it embeds only an `ekr.proposal-record/1`.
     pub const FORMAT_V1: &'static str = "ekr.commit-receipt/1";
     /// Encodes current record bytes. This is a codec, not admission authority.
@@ -341,8 +380,11 @@ impl CommitReceiptV1 {
     }
     pub(crate) fn check_format(&self) -> Result<(), StoreError> {
         let embeds = match self.format.as_str() {
-            Self::FORMAT => true,
-            Self::FORMAT_V1 => self.proposal.format == ProposalRecordV1::FORMAT_V1,
+            Self::FORMAT => self.created.is_some(),
+            Self::FORMAT_V2 => self.created.is_none(),
+            Self::FORMAT_V1 => {
+                self.proposal.format == ProposalRecordV1::FORMAT_V1 && self.created.is_none()
+            }
             _ => false,
         };
         if !embeds {

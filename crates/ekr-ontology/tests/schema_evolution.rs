@@ -927,8 +927,10 @@ fn a_type_changed_in_more_than_its_properties_is_incompatible_while_it_has_insta
             declared.abstract_type = true;
         }
     }
+    // Not an end widened: that is compatible under edges
+    // (`a_widened_edge_type_replaces_the_prior_one_over_the_edges_it_holds`).
     for declared in &mut document.edge_types {
-        declared.target_types.insert(seed.topic);
+        declared.transitive = !declared.transitive;
     }
     let next = Ontology::load(document).expect("coheres");
     let found = incompatibilities(
@@ -1251,6 +1253,211 @@ fn a_reference_narrowing_is_judged_by_the_concrete_types_it_admits() {
 }
 
 // ---------------------------------------------------------------------------------------------
+// WidenEdgeType: an edge type's ends grow and never shrink (story:edge-type-endpoints-widen)
+
+/// `cites` with the ends given, as one change.
+fn widen(seed: &Seed, source_types: &[TypeId], target_types: &[TypeId]) -> SchemaChange {
+    SchemaChange::WidenEdgeType {
+        edge_type: seed.cites,
+        source_types: source_types.iter().copied().collect(),
+        target_types: target_types.iter().copied().collect(),
+    }
+}
+
+#[test]
+fn widening_an_edge_type_adds_a_declared_node_type_to_its_ends_as_the_next_version() {
+    let seed = seed();
+    let next = evolve(
+        &seed.ontology,
+        &[widen(&seed, &[seed.note], &[seed.note, seed.topic])],
+    )
+    .expect("adding a declared node type to an end coheres");
+    let held = next.edge_type(seed.cites).expect("still declared");
+    assert_eq!(held.source_types, BTreeSet::from([seed.note]));
+    assert_eq!(held.target_types, BTreeSet::from([seed.note, seed.topic]));
+    assert_eq!(next.version().number, 1);
+    assert_eq!(next.version().parent, Some(seed.ontology.version().id));
+
+    // Both ends at once, and the rest of the declaration untouched.
+    let both = evolve(
+        &seed.ontology,
+        &[widen(
+            &seed,
+            &[seed.note, seed.topic],
+            &[seed.note, seed.topic],
+        )],
+    )
+    .expect("both ends widen");
+    let (before, after) = (
+        seed.ontology.edge_type(seed.cites).unwrap(),
+        both.edge_type(seed.cites).unwrap(),
+    );
+    assert_eq!(after.source_types, BTreeSet::from([seed.note, seed.topic]));
+    assert_eq!(
+        (
+            &after.name,
+            after.cardinality,
+            &after.properties,
+            after.inverse
+        ),
+        (
+            &before.name,
+            before.cardinality,
+            &before.properties,
+            before.inverse
+        )
+    );
+}
+
+#[test]
+fn a_widening_may_name_a_node_type_defined_earlier_in_the_list() {
+    let seed = seed();
+    let source = TypeId::mint();
+    let next = evolve(
+        &seed.ontology,
+        &[
+            SchemaChange::DefineNodeType(NodeType::new(source, "Source")),
+            widen(&seed, &[seed.note], &[seed.note, source]),
+        ],
+    )
+    .expect("a type defined earlier in the list is declared");
+    assert!(next
+        .edge_type(seed.cites)
+        .unwrap()
+        .target_types
+        .contains(&source));
+    // The reverse order names a type the version does not declare yet.
+    let refused = evolve(
+        &seed.ontology,
+        &[
+            widen(&seed, &[seed.note], &[seed.note, source]),
+            SchemaChange::DefineNodeType(NodeType::new(source, "Source")),
+        ],
+    )
+    .expect_err("order matters");
+    assert_eq!(
+        refused,
+        EvolveError::UnknownEndpointType {
+            edge_type: seed.cites,
+            type_id: source,
+        }
+    );
+}
+
+#[test]
+fn widening_an_edge_type_the_version_does_not_declare_is_refused() {
+    let seed = seed();
+    let nowhere = TypeId::mint();
+    // An id nothing declares, and a node type's id, which is not an edge type.
+    for edge_type in [nowhere, seed.note] {
+        let refused = evolve(
+            &seed.ontology,
+            &[SchemaChange::WidenEdgeType {
+                edge_type,
+                source_types: BTreeSet::from([seed.note]),
+                target_types: BTreeSet::from([seed.note, seed.topic]),
+            }],
+        )
+        .expect_err("no such edge type");
+        assert_eq!(refused, EvolveError::UnknownEdgeType { edge_type });
+        assert_eq!(refused.code(), "unknown-edge-type");
+    }
+}
+
+#[test]
+fn widening_to_a_type_that_is_not_a_declared_node_type_is_refused() {
+    let seed = seed();
+    let nowhere = TypeId::mint();
+    // An id nothing declares, and an edge type's id, which no edge can start or end at.
+    for (source_types, target_types, type_id) in [
+        (vec![seed.note], vec![seed.note, nowhere], nowhere),
+        (vec![seed.note, nowhere], vec![seed.note], nowhere),
+        (vec![seed.note], vec![seed.note, seed.cites], seed.cites),
+    ] {
+        let refused = evolve(
+            &seed.ontology,
+            &[widen(&seed, &source_types, &target_types)],
+        )
+        .expect_err("not a node type");
+        assert_eq!(
+            refused,
+            EvolveError::UnknownEndpointType {
+                edge_type: seed.cites,
+                type_id,
+            }
+        );
+        assert_eq!(refused.code(), "unknown-endpoint-type");
+    }
+}
+
+#[test]
+fn a_widening_that_drops_a_type_from_either_end_is_refused() {
+    let seed = seed();
+    for (source_types, target_types, endpoint) in [
+        // Replaced by another type.
+        (vec![seed.note], vec![seed.topic], "target_types"),
+        (vec![seed.topic], vec![seed.note], "source_types"),
+        // Emptied.
+        (vec![], vec![seed.note], "source_types"),
+        (vec![seed.note], vec![], "target_types"),
+    ] {
+        let refused = evolve(
+            &seed.ontology,
+            &[widen(&seed, &source_types, &target_types)],
+        )
+        .expect_err("an end loses a type");
+        assert_eq!(
+            refused,
+            EvolveError::EndpointRemoved {
+                edge_type: seed.cites,
+                endpoint: endpoint.to_owned(),
+                type_id: seed.note,
+            }
+        );
+        assert_eq!(refused.code(), "edge-endpoint-removed");
+    }
+}
+
+#[test]
+fn a_widening_that_adds_nothing_is_without_effect() {
+    let seed = seed();
+    let refused = evolve(&seed.ontology, &[widen(&seed, &[seed.note], &[seed.note])])
+        .expect_err("the ends it already has");
+    assert_eq!(refused, EvolveError::WithoutEffect);
+    assert_eq!(refused.code(), "schema-change-without-effect");
+}
+
+#[test]
+fn a_widened_edge_type_replaces_the_prior_one_over_the_edges_it_holds() {
+    let seed = seed();
+    let next = evolve(
+        &seed.ontology,
+        &[widen(&seed, &[seed.note], &[seed.note, seed.topic])],
+    )
+    .expect("coheres");
+    let state = State::default()
+        .nodes(seed.note, 4)
+        .nodes(seed.topic, 2)
+        .edges(seed.cites, 3);
+    assert_eq!(incompatibilities(&seed.ontology, &next, &state), vec![]);
+
+    // The same ends reached by a route other than a widening — one end replaced — is still a
+    // declaration change under edges.
+    let mut document = successor_document(&seed.ontology);
+    for declared in &mut document.edge_types {
+        declared.target_types = BTreeSet::from([seed.topic]);
+    }
+    let replaced = Ontology::load(document).expect("coheres");
+    assert_eq!(
+        incompatibilities(&seed.ontology, &replaced, &state),
+        vec![Incompatibility::DeclarationChanged {
+            type_id: seed.cites,
+            instances: 3,
+        }]
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
 // codes
 
 /// One of every refusal either enumeration can produce. A variant added to either enum without a
@@ -1270,6 +1477,16 @@ fn every_evolve_error() -> Vec<EvolveError> {
         },
         EvolveError::Incoherent(OntologyError::UnknownType { type_id }),
         EvolveError::WithoutEffect,
+        EvolveError::UnknownEdgeType { edge_type: type_id },
+        EvolveError::UnknownEndpointType {
+            edge_type: type_id,
+            type_id: TypeId::mint(),
+        },
+        EvolveError::EndpointRemoved {
+            edge_type: type_id,
+            endpoint: "target_types".to_owned(),
+            type_id: TypeId::mint(),
+        },
     ]
 }
 
@@ -1424,6 +1641,11 @@ fn the_domain_states_the_lineage_rule_and_declares_the_schema_change() {
         .collect();
     assert_eq!(
         variants,
-        BTreeSet::from(["DefineNodeType", "DefineEdgeType", "ModifyProperty"])
+        BTreeSet::from([
+            "DefineNodeType",
+            "DefineEdgeType",
+            "ModifyProperty",
+            "WidenEdgeType"
+        ])
     );
 }

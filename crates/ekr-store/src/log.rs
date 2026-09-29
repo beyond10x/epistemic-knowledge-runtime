@@ -6,6 +6,19 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+thread_local! {
+    static KNOWLEDGE_ROOTS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+/// How many knowledge roots, each a hash of a whole graph, the calling thread has computed.
+///
+/// Test instrumentation, as [`crate::ReadWork`] is: it lets a test show that a commit hashes the
+/// graph once. Counted per thread because every store and kernel call runs on its caller's
+/// thread, and tests in one binary run on several.
+#[doc(hidden)]
+#[must_use]
+pub fn knowledge_roots_hashed() -> u64 {
+    KNOWLEDGE_ROOTS.with(std::cell::Cell::get)
+}
 /// Value-domain address of complete node, edge and assertion collections, in that order.
 #[must_use]
 pub fn knowledge_root(graph: &CanonicalGraph) -> ContentHash {
@@ -17,6 +30,7 @@ pub fn knowledge_root(graph: &CanonicalGraph) -> ContentHash {
             self.0.assertions.encode(out);
         }
     }
+    KNOWLEDGE_ROOTS.with(|count| count.set(count.get() + 1));
     ContentHash::of(&Knowledge(graph))
 }
 /// Value-domain address of the complete evidence collection.
@@ -263,6 +277,14 @@ pub trait RevisionLog {
     /// # Errors
     /// Missing revision or invalid history through that revision.
     fn replay(&self, revision: RevisionNumber) -> Result<CanonicalGraph, StoreError>;
+    /// How many revision-stream occurrences the newest checkpoint pointer the log holds now says
+    /// were verified, read from the log rather than from anything this handle remembers; `None`
+    /// when it holds none, or keeps none (design § 99.5).
+    /// # Errors
+    /// Provider failure.
+    fn checkpoint_covered(&self) -> Result<Option<u64>, StoreError> {
+        Ok(None)
+    }
     /// Records that the authority verified the first `covered` occurrences of the revision stream,
     /// under its own `binding` of that prefix, and retains `checkpoint` as their replay checkpoint,
     /// replacing an older one. Without `checkpoint` the retained checkpoint is kept and only the

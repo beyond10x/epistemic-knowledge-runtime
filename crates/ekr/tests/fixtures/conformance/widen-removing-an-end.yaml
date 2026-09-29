@@ -1,0 +1,13 @@
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-8000-000000000714
+  proposer: 00000000-0000-4000-8000-000000000101
+  operations:
+  - !WidenEdgeType
+    edge_type: 00000000-0000-4000-8000-000000000214
+    source_types:
+    - 00000000-0000-4000-8000-000000000211
+    target_types:
+    - 00000000-0000-4000-8000-000000000213
+  evidence: []
+  schema_version: 00000000-0000-4000-8000-000000000012

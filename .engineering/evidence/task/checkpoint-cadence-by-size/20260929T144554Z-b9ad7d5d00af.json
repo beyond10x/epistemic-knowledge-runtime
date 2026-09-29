@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-29T14:45:54Z",
+  "actor": "human:timo",
+  "artifact": "task:checkpoint-cadence-by-size",
+  "kind": "task",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:adversary-perf-02-k-pass-1",
+    "review": "review-result:adversary-perf-02-k-pass-1",
+    "outcome": "no-op"
+  }
+}

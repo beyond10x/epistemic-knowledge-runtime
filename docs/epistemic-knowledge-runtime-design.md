@@ -4663,6 +4663,117 @@ alike and the newest checkpoint is within the bound — crash-like pointer state
 pointer answers asks for the root alone; `crates/ekr-store/tests/checkpoint_pointer.rs`'s
 `a_write_says_whether_its_pointer_stands` holds what `write_checkpoint` answers.
 
+## 99.5 Amendment of 2026-09-29: due by commits and document bytes, and created ids in the receipt
+
+*Added 2026-09-29 by wave perf-02 (`task:checkpoint-cadence-by-size`). Amends the bounds of
+§ 99.1 item 2 and the § 96.3 derivation of the identities a profile-v3 lineage held, and adds a
+write at a session's end. It adds one commit-receipt format beside the originals. No canonical
+root, validation rule, refusal, checkpoint format or pointer format changes; every retained `/1`
+and `/2` receipt is read as before and keeps its bytes.*
+
+**What was measured.** A consumer's ingest: 57 batches, each one `/2` document of 1,561
+operations (879 KB) at 1× or 4,669 operations (2.63 MB) at 3×, validation profile v3, SQLite, one
+`ekr session`, release build, on a shared machine (load average 18–58 on 20 cores; each
+comparison below alternates before and after). Every batch holds more than 512 operations, so
+under § 99.1 every commit wrote a full checkpoint: 58 checkpoints for the seed and 57 batches at
+1×. Measured with commit and byte bounds that never fired in the range read:
+
+| | 1× | 3× |
+|---|---|---|
+| commit, pointer only | 0.75–1.4 s | 1.5–3.3 s |
+| commit writing a checkpoint | 2.2 s | 7.4–8.8 s |
+| cold `ekr transactions` per commit replayed after the checkpoint | +0.44–0.55 s | +1.1 s |
+
+A checkpoint therefore costs about as much as replaying 2.5 batches at 1× and 5 at 3×; § 99.3
+measured 2 for commits of 25 nodes. A cold open also re-derived what every commit created by
+parsing its proposal document (§ 96.3): YAML parsing was 35–40 % of the CPU samples of a cold
+`ekr transactions` at 1×, whose CPU was 5.3–9.3 s.
+
+### 99.5.1 The cadence
+
+1. A commit's checkpoint is due when its revision is at least `REPLAY_CHECKPOINT_COMMITS` (5)
+   revisions past the retained checkpoint's head, or when the retained documents of the
+   transactions committed after that head — their proposals' `document_bytes` — hold together at
+   least `REPLAY_CHECKPOINT_BYTES` (16 MiB, 16,777,216 bytes). Operations are not counted, and
+   `REPLAY_CHECKPOINT_OPERATIONS` is gone. The other two conditions of § 99.1 item 2 — an
+   authority that knows of no retained checkpoint, and a validation or rejection after it against
+   a revision before its head — are unchanged: nothing measured bears on them.
+2. **At rest.** When an `ekr session` reaches the end of its input it writes the checkpoint of the
+   newest head its handle reached, if that head is past the retained checkpoint's or one of those
+   two conditions holds (`Runtime::retain_checkpoint_at_rest`). A handle that has read nothing, or
+   whose newest head is the retained checkpoint's, writes nothing; proposals and validations after
+   that head are replayed by an open without replaying a commit. Best effort, as every checkpoint
+   write is (§ 96.3).
+
+**Why these bounds.** Every fifth commit is the smallest commit bound under which a consumer's
+ingest writes fewer checkpoints than one per four batches; four would write exactly one per four.
+It keeps a session's checkpoint cost to a fifth of one per commit and an open's replay to at most
+four commits: about 2 s at 1× and 4.4 s at 3× at the end of the ingest, and about 84 ms for the
+25-node commits of § 99 (21 ms each). Eight would leave up to seven, about 3.5 s at 1× and 7.7 s
+at 3×. The byte bound is for documents large for their graph, where a checkpoint is cheap and
+replay is mostly parsing: 16 MiB is two of the largest `/2` documents, and above what five
+consumer batches hold at 1× (4.4 MB) and 3× (13.2 MB), so there the commit bound governs, since a
+checkpoint costs more than the replay it saves; a 10× batch (8.8 MB) writes one every second
+commit. The write at rest is for the ingest itself: a session ends where its commits stop, and
+without it every later open would replay the up to four commits made since the last checkpoint.
+
+### 99.5.2 Created identities in the commit receipt
+
+`ekr.commit-receipt/3` holds the fields of `/2` and `created`: the ids of the transaction's
+`CreateNode` drafts (`nodes`) and `CreateEdge` drafts (`edges`), each ascending and unique
+(`CreatedIdentitiesV1`). New commits retain `/3`; `/1` and `/2` receipts are read, admit no
+`created` and re-encode to their bytes. The ESS kernel domain declares the field and its type, and
+its conformance suite is regenerated from it.
+
+Admitting a checkpoint under profile v3 (§ 96.3) derives the identities the lineage held from the
+seed envelope and, for each commit the prefix binds, the `created` of its `/3` receipt; only a
+receipt retained before `/3` has its proposal parsed. The receipt is the record the commit's event
+names by digest, so the list is bound into the prefix digest the checkpoint is admitted for, as
+the proposal is, and a checkpoint whose held identities differ from it is still ignored. Replay
+holds the list to exactly what the replayed transaction creates and refuses a receipt that names
+anything else as `commit-created-identities`.
+
+### 99.5.3 Result, and what is not changed
+
+At 1×, one session of 57 batches wrote 58 checkpoints before and 13 after: the seed's, one at
+each fifth revision from 5 to 55, and one at the session's end at 57. Each comparison alternates
+before and after, three rounds, CPU from `perf stat`:
+
+| at 1× | before | after |
+|---|---|---|
+| cold `ekr transactions`, checkpoint at the head | 4.97–6.36 s (median 5.07) | 2.29–2.66 s (median 2.33) |
+| cold `ekr snapshot`, the same | 5.86–6.64 s (median 5.87) | 3.17–4.32 s (median 3.32) |
+| the whole 57-batch session | 63.2–88.0 s (median 68.3) | 58.2–68.6 s (median 59.4) |
+
+Wall time spent in `commit` over 25 batches fell from 32.7 to 12.7 s on SQLite and from 38.2 to
+23.5 s on the file provider. Two commits past the checkpoint — the end of the same session without
+the write at rest — a cold `ekr transactions` took 2.84–3.25 s. A store written before this
+section keeps `/2` receipts and the parse: it opened in 5.14–5.44 s against 5.32–5.80 s.
+
+What remains of a cold open after this section is mostly hashing: in its CPU samples at 1×,
+SHA-256 is about two thirds — the SQLite provider verifying each blob it returns (29 %) and the
+store hashing each object again (19 %) — then decoding every retained proposal and receipt, each
+receipt embedding its proposal again, and the knowledge root that admitting the checkpoint
+recomputes.
+
+Executed by `crates/ekr-kernel/tests/replay_checkpoint.rs`, on both providers:
+`commits_of_many_small_operations_write_a_checkpoint_only_at_the_commit_bound` (six commits of 600
+operations write a checkpoint at the seed and the fifth only),
+`a_commit_that_reaches_the_byte_bound_writes_a_checkpoint`, which replaces § 99.4's
+`a_commit_that_reaches_the_operation_bound_writes_a_checkpoint`,
+`a_handle_at_rest_writes_the_checkpoint_of_a_head_past_the_retained_one` and
+`a_commit_receipt_names_the_identities_its_transaction_created`, beside the cadence, forgery and
+reopen cases of §§ 96.3 and 99.4, which run unchanged against the new bounds;
+`crates/ekr-kernel/src/checkpoint.rs`'s
+`held_identities_are_read_from_each_receipt_without_parsing_its_proposal` (with every proposal's
+bytes made unparseable the derivation reaches a full replay's identities, and a receipt without
+`created` sends it back to the parse); `crates/ekr-kernel/tests/current_records.rs`'s
+`only_a_current_commit_receipt_names_the_identities_it_created` and the `commit/3` pin of
+`current_vectors.rs` beside the unchanged `commit/2` pin; `crates/ekr-kernel/tests/
+replay_forgery.rs`'s `a_commit_receipt_whose_created_identities_are_not_its_transactions_is_refused`;
+and `crates/ekr/tests/session.rs`'s
+`a_session_leaves_the_checkpoint_of_its_head_when_its_input_ends`.
+
 ---
 
 # 100. Seed Envelope 3: Evidence Payloads Retained Once
@@ -4796,3 +4907,79 @@ once and reads them back; a decision without one stays `/2`; an absent staged pa
 by name), `crates/ekr-store/tests/store_inventory.rs` (the inventory reads a legacy inline object
 under its frozen shape and writes nothing) and `crates/ekr/tests/migrate_cli.rs` (the verb, over
 a store the binary writes), all on both providers.
+
+---
+
+# 101. Widening an Edge Type's Ends
+
+*Added 2026-09-29 by `story:edge-type-endpoints-widen` (wave perf-02). Extends §§ 12, 19, 26 and 95.
+It adds one operation and one schema change; it moves no retained encoding, no refusal a store
+already retains and no root of an existing revision.*
+
+**What was measured.** A consumer's delta ingest, bringing a second source into a store built from
+a first, skipped 1,768 of 2,312 facts on 0.0.16. They reused existing edge types with new endpoint
+types — an `AUTHORED` from a person to a work item where `AUTHORED` ran from `Person` to `Document`
+— and no schema change could widen an edge type's ends: `DefineEdgeType` over a declared id is
+refused (`type-already-declared`, or `identity-already-exists` from the structural validator), and
+`ModifyProperty` reaches properties only. The alternative left to the consumer was a parallel edge
+type per new pair, which splits one relation across several.
+
+## 101.1 The operation
+
+`WidenEdgeType` is `ekr.kernel.OperationKind` index 13, after `AddEvidence`. Its payload is
+`{edge_type, source_types, target_types}` (`ekr.kernel.EdgeWideningProjection`), encoded as those
+three fields in that order, each end as a set. Both ends are written whole, as they are to be, and
+not as the types to add: a proposer who writes an end without one of its types has written a
+narrowing, and is told so by name rather than having it read as an addition.
+
+It is a schema change under the rules of § 95 unchanged: admitted under validation profiles v2 and
+v3 only, alone in its transaction, naming the version it produces; under v1 it is refused as
+`unsupported-operation` with the P1 message form, `WidenEdgeType is not supported in P1`. The
+message of `schema-version-without-schema-change` still names only the three kinds of § 95, because
+replay compares every retained rejection's message with what the ruleset says now.
+
+## 101.2 What evolve decides
+
+`Ontology::evolve` applies `SchemaChange::WidenEdgeType` in order with the other changes, so the
+node types of an end may be defined earlier in the same transaction. For each end, `source_types`
+first, it refuses:
+
+| case | code |
+|---|---|
+| the edge type is not an edge type of the version under construction | `unknown-edge-type` |
+| the end leaves out a type the edge type's end holds | `edge-endpoint-removed` |
+| the end names a type that is not a node type of the version | `unknown-endpoint-type` |
+
+Otherwise the edge type's ends are replaced by the ones written, and nothing else of its declaration
+moves. A widening to the ends the type already has, alone, derives a version equal to the prior one
+and is `schema-change-without-effect`. Two widenings of one edge type in one transaction are the
+structural validator's `conflicting-write`, as two declarations of one property are, and the
+ontology stage then says nothing.
+
+## 101.3 Why existing edges stay valid
+
+An edge's endpoint is checked by conformance of its node's own type to one of the end's types. A
+widened end holds every type it held, and no schema change moves an existing node type's parents, so
+every edge the type holds still fits. `incompatibilities` therefore treats an edge type whose
+declaration differs only in its properties and in ends that gained types as unchanged at the type
+level: `type-declaration-changed` is raised for an edge type with edges only when an end lost a type
+or something other than the ends and properties moved.
+
+## 101.4 Result, and what is not changed
+
+A store with `AUTHORED` from `Person` to `Document`, holding such an edge, widens it to `Person` to
+`Document` or `WorkItem` in one schema-only transaction, which commits as the next schema version
+with the prior one as its parent; the next ordinary transaction creates `Person → WorkItem` edges;
+replay from the seed reproduces every root. No retained transaction, rejection or root moves: the
+new variant appears only in transactions that carry it.
+
+Executed by `crates/ekr-ontology/tests/schema_evolution.rs` (the widening, each refusal, a type
+defined earlier in the list, and compatibility over held edges beside a replaced end that is not),
+`crates/ekr-kernel/tests/edge_type_widening.rs` (the acceptance above under profiles v2 and v3 on
+both providers, the refusals by name, and the schema-change rules), the kernel conformance
+scenarios `an-edge-type-widened-to-a-new-target-type-takes-edges-to-it`,
+`an-edge-type-widening-that-removes-an-end-is-rejected-by-name`,
+`a-widening-of-an-edge-type-no-version-declares-is-rejected-by-name`,
+`a-widening-to-a-type-no-version-declares-is-rejected-by-name` and
+`a-widening-that-adds-no-type-is-rejected-by-name` on both providers, and
+`crates/ekr/tests/docs_cli.rs`, which runs `docs/cli.md` § Evolve the schema, step 4, as written.
