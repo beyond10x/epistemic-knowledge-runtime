@@ -1791,6 +1791,144 @@ fn a_neighbourhood_beyond_one_page_offers_to_load_more() {
     reads_no_projection(&requests, "star");
 }
 
+/// The first page of `seed`'s neighbourhood of `depth` hops, as the page asks for it.
+fn expanded_page(index: &Index, seed: &str, depth: i64) -> SlicePage {
+    let request = ExpandRequest::new(vec![seed.parse().unwrap()], depth, 500, None, None).unwrap();
+    index.page(&request).unwrap()
+}
+
+/// `task:hops-slider-streams-the-neighbourhood`: a hops depth of 2 on a focus whose 2-hop
+/// neighbourhood the page has not loaded streams that neighbourhood with one `/expand` of depth 2,
+/// and the focus then holds exactly it. The address carries the slider's value, and the slider and
+/// the address set it through the same function, so an address stands in for the slider here: a
+/// headless browser under `--dump-dom` cannot move one.
+#[test]
+fn a_hops_depth_on_a_focus_streams_the_neighbourhood_it_names_once() {
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let (_, _, nodes, _, _) = GENERATED;
+    let fixture = tempfile::tempdir().unwrap();
+    generated_fixture(fixture.path(), GENERATED, false);
+    let seeded = Seeded::new(fixture.path());
+    let index = double_index(&seeded, 0);
+    let top = top_ids(&index);
+    let projection = seeded.projection();
+    let chosen = projection["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|node| node["id"].as_str().unwrap())
+        .find(|id| {
+            let near = page_nodes(&expanded_page(&index, id, 1));
+            let far = page_nodes(&expanded_page(&index, id, 2));
+            !top.contains(*id)
+                && near.len() > 1
+                && far.iter().any(|n| !top.contains(n) && !near.contains(n))
+        })
+        .unwrap()
+        .to_owned();
+    let two = expanded_page(&index, &chosen, 2);
+    assert!(
+        two.next().is_none(),
+        "{chosen}: its 2-hop neighbourhood is one page"
+    );
+    let neighbourhood = page_nodes(&two);
+    let mut expected = top.clone();
+    expected.extend(page_nodes(&expanded_page(&index, &chosen, 1)));
+    expected.extend(neighbourhood.iter().cloned());
+
+    let double = seeded.double(Duration::ZERO);
+    let dom = rendered(
+        &browser,
+        &format!("{}#node={chosen}&focus={chosen}&hops=2", double.url),
+    );
+    let requests = double.requests();
+    let focused: Vec<&String> = requests
+        .iter()
+        .filter(|target| {
+            target.starts_with("/expand?") && target.contains(&format!("seeds={chosen}&"))
+        })
+        .collect();
+    let deep = focused
+        .iter()
+        .filter(|target| target.contains("&depth=2&"))
+        .count();
+    assert_eq!(deep, 1, "one expansion of depth 2: {focused:?}");
+    assert!(
+        dom.contains(&format!(
+            "<span class=\"n\">{} nodes</span>",
+            grouped(neighbourhood.len() as u64)
+        )),
+        "the focus holds the {} nodes of the 2-hop neighbourhood: {dom}",
+        neighbourhood.len()
+    );
+    assert!(
+        dom.contains(&drawn(expected.len(), nodes as u64)),
+        "{} nodes drawn: {dom}",
+        expected.len()
+    );
+    reads_no_projection(&requests, "hops");
+}
+
+/// What the crumb bar says with no neighbourhood focus: how to get one, and with it the hops slider.
+const HOPS_HINT: &str =
+    "Double-click a node, or choose Neighbourhood in its panel, for a hops slider";
+
+/// `task:hops-slider-streams-the-neighbourhood`: with nothing focused, the page says how to reach
+/// the depth control.
+#[test]
+fn with_nothing_focused_the_crumb_bar_says_how_to_reach_the_hops_slider() {
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/view-page/sounding"));
+    let double = seeded.double(Duration::ZERO);
+    let dom = rendered(&browser, &double.url);
+    let crumbs = dom
+        .split("id=\"crumbs\"")
+        .nth(1)
+        .and_then(|rest| rest.split("</div>").next())
+        .expect("the page has a crumb bar");
+    assert!(crumbs.contains(HOPS_HINT), "the crumb bar: {crumbs}");
+}
+
+/// `story:viewer-3d-draws-in-batches`: the 3D view starts on a generated store and draws the
+/// overview without an error. Its draw calls and frame times are measured in a real-time browser
+/// with a GPU, not here.
+#[test]
+fn the_3d_view_draws_a_generated_store_without_an_error() {
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let (_, _, nodes, _, _) = GENERATED;
+    let fixture = tempfile::tempdir().unwrap();
+    generated_fixture(fixture.path(), GENERATED, false);
+    let seeded = Seeded::new(fixture.path());
+    let top = top_ids(&double_index(&seeded, 0));
+    let double = seeded.double(Duration::ZERO);
+    let dom = rendered(&browser, &format!("{}#view=3d", double.url));
+    assert!(dom.contains("<div id=\"error\"></div>"), "no error: {dom}");
+    assert!(
+        dom.contains(&drawn(top.len(), nodes as u64)),
+        "the overview's {} top nodes: {dom}",
+        top.len()
+    );
+    let stage = dom.split("id=\"graph3d\"").nth(1).unwrap_or_default();
+    assert!(
+        stage
+            .split('>')
+            .next()
+            .unwrap_or_default()
+            .contains("display: block")
+            && stage.contains("<canvas"),
+        "the 3D view is shown and draws on a canvas: {stage}"
+    );
+}
+
 /// A store of one hub joined to 800 others, and one relation assertion.
 const STAR: (usize, usize, usize, usize, usize) = (2, 1, 801, 800, 1);
 
@@ -1885,5 +2023,518 @@ fn screenshots_for_the_operator() {
         &into.join("expanding.png"),
         3000,
         true,
+    );
+}
+
+/// The text of the element `id` in a dumped DOM, up to its first closing `</div>`.
+fn element<'a>(dom: &'a str, id: &str) -> &'a str {
+    dom.split(&format!("id=\"{id}\""))
+        .nth(1)
+        .and_then(|rest| rest.split("</div>").next())
+        .unwrap_or_default()
+}
+
+/// `task:hops-slider-streams-the-neighbourhood`: the slider runs from 1 to 3 hops, and a depth
+/// names a neighbourhood to stream. `/expand` answers a depth of at most 2 (`ExpandRequest::new`
+/// refuses 3 with `LimitExceeded`, as `ekr view` does: "depth is 3, and it must be at least 0 and
+/// at most 2"). A focus at 3 hops must not end in an expansion the server refuses.
+#[test]
+fn a_focus_at_three_hops_streams_nothing_the_server_refuses() {
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/view-page/sounding"));
+    let projection = seeded.projection();
+    let id = busiest(&projection)["id"].as_str().unwrap().to_owned();
+    assert!(
+        ExpandRequest::new(vec![id.parse().unwrap()], 3, 500, None, None).is_err(),
+        "the read contract refuses a depth of 3"
+    );
+    let double = seeded.double(Duration::ZERO);
+    let dom = rendered(
+        &browser,
+        &format!("{}#node={id}&focus={id}&hops=3", double.url),
+    );
+    let refused: Vec<String> = double
+        .requests()
+        .into_iter()
+        .filter(|target| target.starts_with("/expand?") && target.contains("&depth=3&"))
+        .collect();
+    let stream = element(&dom, "stream");
+    assert!(
+        !stream.contains("the expansion failed"),
+        "the stream line after a focus at 3 hops: {stream}; the refused reads: {refused:?}"
+    );
+    assert!(refused.is_empty(), "reads of depth 3: {refused:?}");
+}
+
+// ---- a page driven over the DevTools protocol ------------------------------------------------------
+//
+// `--dump-dom` loads one address and cannot press, drag or move a slider. `Driven` starts the same
+// headless browser with a DevTools port, speaks the protocol over one WebSocket (text frames only)
+// and evaluates expressions in the page, so a case can act as a reader does.
+
+struct Driven {
+    child: Child,
+    socket: TcpStream,
+    reader: BufReader<TcpStream>,
+    next: u64,
+    _profile: tempfile::TempDir,
+    _one: std::sync::MutexGuard<'static, ()>,
+}
+
+impl Driven {
+    fn launch(browser: &Path, url: &str) -> Self {
+        let one = one_browser();
+        let profile = tempfile::tempdir().unwrap();
+        let mut child = Command::new(browser)
+            .args([
+                "--headless",
+                "--use-angle=swiftshader",
+                "--enable-unsafe-swiftshader",
+                "--no-sandbox",
+                "--no-first-run",
+                "--disable-extensions",
+                "--window-size=1600,1000",
+                "--remote-debugging-port=0",
+                &format!("--user-data-dir={}", profile.path().display()),
+                "about:blank",
+            ])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let mut lines = BufReader::new(child.stderr.take().unwrap());
+        let port: u16 = loop {
+            let mut line = String::new();
+            assert!(
+                lines.read_line(&mut line).unwrap() > 0,
+                "the browser printed no DevTools address"
+            );
+            if let Some(rest) = line
+                .trim()
+                .strip_prefix("DevTools listening on ws://127.0.0.1:")
+            {
+                break rest.split('/').next().unwrap().parse().unwrap();
+            }
+        };
+        std::thread::spawn(move || std::io::copy(&mut lines, &mut std::io::sink()).ok());
+        let mut list = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        write!(
+            list,
+            "GET /json/list HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n"
+        )
+        .unwrap();
+        // the DevTools server keeps the connection open: the body is read by its length
+        let mut listed = BufReader::new(list);
+        let mut length = 0;
+        loop {
+            let mut line = String::new();
+            listed.read_line(&mut line).unwrap();
+            if line == "\r\n" || line.is_empty() {
+                break;
+            }
+            if let Some((name, value)) = line.split_once(':') {
+                if name.eq_ignore_ascii_case("content-length") {
+                    length = value.trim().parse().unwrap();
+                }
+            }
+        }
+        let mut body = vec![0_u8; length];
+        listed.read_exact(&mut body).unwrap();
+        let targets: Value = serde_json::from_slice(&body).unwrap();
+        let page = targets
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|target| target["type"] == "page")
+            .expect("a page target");
+        let address = page["webSocketDebuggerUrl"].as_str().unwrap();
+        let path = &address[address.find("/devtools/").unwrap()..];
+        let mut socket = TcpStream::connect(("127.0.0.1", port)).unwrap();
+        write!(
+            socket,
+            "GET {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nUpgrade: websocket\r\n\
+             Connection: Upgrade\r\nSec-WebSocket-Key: AAAAAAAAAAAAAAAAAAAAAA==\r\n\
+             Sec-WebSocket-Version: 13\r\n\r\n"
+        )
+        .unwrap();
+        let mut reader = BufReader::new(socket.try_clone().unwrap());
+        let mut status = String::new();
+        reader.read_line(&mut status).unwrap();
+        assert!(status.contains(" 101 "), "the DevTools socket: {status}");
+        loop {
+            let mut line = String::new();
+            reader.read_line(&mut line).unwrap();
+            if line == "\r\n" {
+                break;
+            }
+        }
+        let mut driven = Self {
+            child,
+            socket,
+            reader,
+            next: 0,
+            _profile: profile,
+            _one: one,
+        };
+        driven.call("Page.navigate", serde_json::json!({ "url": url }));
+        driven
+    }
+
+    /// One masked text frame, its mask all zeros so the payload goes as it stands.
+    fn send(&mut self, text: &str) {
+        let bytes = text.as_bytes();
+        let mut frame = vec![0x81_u8];
+        if bytes.len() < 126 {
+            frame.push(0x80 | u8::try_from(bytes.len()).unwrap());
+        } else if let Ok(medium) = u16::try_from(bytes.len()) {
+            frame.push(0x80 | 126);
+            frame.extend(medium.to_be_bytes());
+        } else {
+            frame.push(0x80 | 127);
+            frame.extend(u64::try_from(bytes.len()).unwrap().to_be_bytes());
+        }
+        frame.extend([0_u8; 4]);
+        frame.extend(bytes);
+        self.socket.write_all(&frame).unwrap();
+    }
+
+    /// The next whole message: frames joined up to the final one, pings answered.
+    fn receive(&mut self) -> String {
+        let mut message = Vec::new();
+        loop {
+            let mut head = [0_u8; 2];
+            self.reader.read_exact(&mut head).unwrap();
+            let (last, opcode) = (head[0] & 0x80 != 0, head[0] & 0x0f);
+            let mut length = u64::from(head[1] & 0x7f);
+            if length == 126 {
+                let mut more = [0_u8; 2];
+                self.reader.read_exact(&mut more).unwrap();
+                length = u64::from(u16::from_be_bytes(more));
+            } else if length == 127 {
+                let mut more = [0_u8; 8];
+                self.reader.read_exact(&mut more).unwrap();
+                length = u64::from_be_bytes(more);
+            }
+            let mut payload = vec![0_u8; usize::try_from(length).unwrap()];
+            self.reader.read_exact(&mut payload).unwrap();
+            match opcode {
+                0x8 => panic!("the browser closed the DevTools socket"),
+                0x9 => {
+                    let mut pong = vec![0x8a_u8, 0x80 | u8::try_from(payload.len()).unwrap()];
+                    pong.extend([0_u8; 4]);
+                    pong.extend(&payload);
+                    self.socket.write_all(&pong).unwrap();
+                }
+                _ => {
+                    message.extend(payload);
+                    if last {
+                        return String::from_utf8(message).unwrap();
+                    }
+                }
+            }
+        }
+    }
+
+    fn call(&mut self, method: &str, params: Value) -> Value {
+        self.next += 1;
+        let id = self.next;
+        self.send(&serde_json::json!({"id": id, "method": method, "params": params}).to_string());
+        loop {
+            let reply: Value = serde_json::from_str(&self.receive()).unwrap();
+            if reply["id"] == id {
+                return reply;
+            }
+        }
+    }
+
+    /// The value of `expression` in the page, awaited.
+    fn eval(&mut self, expression: &str) -> Value {
+        let reply = self.call(
+            "Runtime.evaluate",
+            serde_json::json!({"expression": expression, "awaitPromise": true, "returnByValue": true}),
+        );
+        assert!(
+            reply["result"].get("exceptionDetails").is_none(),
+            "{expression}: {reply}"
+        );
+        reply["result"]["result"]["value"].clone()
+    }
+
+    /// Waits up to `seconds` for `expression` to be `true`.
+    fn wait_for(&mut self, expression: &str, seconds: u64) -> bool {
+        for _ in 0..seconds * 5 {
+            if self.eval(&format!(
+                "(() => {{ try {{ return {expression}; }} catch {{ return false; }} }})()"
+            )) == Value::Bool(true)
+            {
+                return true;
+            }
+            std::thread::sleep(Duration::from_millis(200));
+        }
+        false
+    }
+
+    fn mouse(&mut self, kind: &str, x: f64, y: f64, pressed: bool) {
+        let button = if kind == "mouseMoved" && !pressed {
+            "none"
+        } else {
+            "left"
+        };
+        self.call(
+            "Input.dispatchMouseEvent",
+            serde_json::json!({"type": kind, "x": x, "y": y, "button": button,
+                "buttons": u8::from(pressed), "clickCount": u8::from(kind != "mouseMoved")}),
+        );
+    }
+}
+
+impl Drop for Driven {
+    fn drop(&mut self) {
+        self.child.kill().ok();
+        self.child.wait().ok();
+    }
+}
+
+/// `story:viewer-3d-draws-in-batches`, acceptance: at rest the 3D view draws at most 20 calls per
+/// frame, and none while idle. `the_3d_view_draws_a_generated_store_without_an_error` asserts the
+/// error line, the 2D count and a canvas, which a page that adds no batch to the scene also passes.
+/// This case reads what one frame draws: every shown node in the node batches, every shown edge in
+/// the line batch, in at least two calls and at most 20; and no frame while the view is idle.
+#[test]
+fn the_3d_view_draws_every_shown_node_and_edge_in_a_few_calls_and_none_at_rest() {
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/view-page/sounding"));
+    let double = seeded.double(Duration::ZERO);
+    let mut driven = Driven::launch(&browser, &format!("{}#view=3d", double.url));
+    assert!(
+        driven.wait_for(&format!("{SETTLED} && !!window.__viewer.fg"), 90),
+        "the 3D view settled"
+    );
+    std::thread::sleep(Duration::from_secs(1));
+    let frame = driven.eval(
+        "(() => { const fg = __viewer.fg, g = __viewer.graph, gl = fg.renderer().getContext();
+          const iso = document.getElementById('showIsolated').checked;
+          const superseded = document.getElementById('showSuperseded').checked;
+          let nodes = 0; g.forEachNode((id, a) => { if (iso || a.deg !== 0) nodes++; });
+          let edges = 0; g.forEachEdge((id, a) => {
+            if (superseded || a.lifecycle == null || a.lifecycle === 'Active' || a.lifecycle === 'unasserted') edges++; });
+          window.__calls = 0;
+          for (const f of ['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced']) {
+            const own = gl[f].bind(gl); gl[f] = (...a) => { window.__calls++; return own(...a); }; }
+          fg.renderer().render(fg.scene(), fg.camera());
+          const drawn = fg.scene().children.filter(o => o.visible);
+          const glyphs = drawn.filter(o => o.isInstancedMesh && o.geometry.type === 'SphereGeometry' && o.geometry.parameters.radius >= 1);
+          const lines = drawn.filter(o => o.isLineSegments);
+          return {calls: window.__calls, nodes, edges,
+            drawnNodes: glyphs.reduce((s, o) => s + o.count, 0),
+            drawnEdges: lines.reduce((s, o) => s + o.geometry.drawRange.count / 2, 0)}; })()",
+    );
+    assert_eq!(
+        frame["drawnNodes"], frame["nodes"],
+        "every shown node drawn: {frame}"
+    );
+    assert_eq!(
+        frame["drawnEdges"], frame["edges"],
+        "every shown edge drawn: {frame}"
+    );
+    let calls = frame["calls"].as_u64().unwrap();
+    assert!(
+        (2..=20).contains(&calls),
+        "draw calls in one frame: {frame}"
+    );
+    let idle = driven.eval(
+        "new Promise(done => { const at = window.__calls; setTimeout(() => done(window.__calls - at), 1000); })",
+    );
+    assert_eq!(idle, 0, "draw calls in one idle second");
+}
+
+/// The page has drawn its first view and nothing is streaming or laying out.
+const SETTLED: &str = "!!window.__viewer && !window.__viewer.layoutRunning \
+     && !document.querySelector('[data-act=stream-stop]')";
+
+/// The `/expand` reads of `seed` at `depth` the stand-in has answered.
+fn expansions(double: &Double, seed: &str, depth: u8) -> Vec<String> {
+    double
+        .requests()
+        .into_iter()
+        .filter(|target| {
+            target.starts_with(&format!("/expand?seeds={seed}&"))
+                && target.contains(&format!("&depth={depth}&"))
+        })
+        .collect()
+}
+
+/// Moves the hops slider through `values`, each as a reader lets go of it there.
+fn slide_hops(driven: &mut Driven, values: &[u8]) {
+    let values: Vec<String> = values.iter().map(u8::to_string).collect();
+    driven.eval(&format!(
+        "(() => {{ const r = document.getElementById('hopsR'); for (const v of [{}]) {{ r.value = v; \
+         r.dispatchEvent(new Event('input', {{bubbles: true}})); \
+         r.dispatchEvent(new Event('change', {{bubbles: true}})); }} }})()",
+        values.join(",")
+    ));
+}
+
+/// `task:hops-slider-streams-the-neighbourhood`, acceptance: "moving the slider to 2 issues one
+/// `/expand` with `depth=2`". A reader who drags past 2 to 3 and back lets go at 3 and then at 2;
+/// the page notes depth 3 as streamed before its read is answered (and refused, see
+/// `a_focus_at_three_hops_streams_nothing_the_server_refuses`), so 2 is never streamed.
+#[test]
+fn moving_the_slider_to_three_and_back_to_two_streams_two_hops() {
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/view-page/sounding"));
+    let projection = seeded.projection();
+    let id = busiest(&projection)["id"].as_str().unwrap().to_owned();
+    let double = seeded.double(Duration::ZERO);
+    let mut driven = Driven::launch(
+        &browser,
+        &format!("{}#node={id}&focus={id}&hops=1", double.url),
+    );
+    assert!(
+        driven.wait_for(
+            &format!("{SETTLED} && !!document.getElementById('hopsR')"),
+            60
+        ),
+        "the page settled on a focus"
+    );
+    slide_hops(&mut driven, &[3, 2]);
+    std::thread::sleep(Duration::from_secs(2));
+    assert!(driven.wait_for(SETTLED, 60), "the page settled");
+    let two = expansions(&double, &id, 2);
+    assert_eq!(
+        two.len(),
+        1,
+        "one read of the 2-hop neighbourhood: {two:?}; every read: {:?}",
+        double.requests()
+    );
+}
+
+/// `task:hops-slider-streams-the-neighbourhood`: the page's own note says "a depth already
+/// streamed, or one inside it, is not streamed again", and the CHANGELOG says `/expand` is
+/// streamed "once per focus and depth". "Expand 2 hops" streams the 2-hop neighbourhood, and the
+/// slider set to 2 on the same focus streams it a second time.
+#[test]
+fn a_neighbourhood_expanded_two_hops_is_not_streamed_again_by_the_slider() {
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/view-page/sounding"));
+    let projection = seeded.projection();
+    let id = busiest(&projection)["id"].as_str().unwrap().to_owned();
+    let double = seeded.double(Duration::ZERO);
+    let mut driven = Driven::launch(&browser, &format!("{}#node={id}", double.url));
+    assert!(
+        driven.wait_for(
+            &format!("{SETTLED} && !!document.querySelector('[data-act=expand]')"),
+            60
+        ),
+        "the page settled on the node"
+    );
+    driven.eval("document.querySelector('[data-act=expand]').click()");
+    assert!(
+        driven.wait_for(SETTLED, 60) && expansions(&double, &id, 2).len() == 1,
+        "Expand 2 hops streamed: {:?}",
+        double.requests()
+    );
+    driven.eval("document.querySelector('[data-act=scope]').click()");
+    assert!(
+        driven.wait_for("!!document.getElementById('hopsR')", 30),
+        "a slider"
+    );
+    slide_hops(&mut driven, &[2]);
+    std::thread::sleep(Duration::from_secs(2));
+    assert!(driven.wait_for(SETTLED, 60), "the page settled");
+    let two = expansions(&double, &id, 2);
+    assert_eq!(two.len(), 1, "the 2-hop neighbourhood read once: {two:?}");
+}
+
+/// `story:viewer-3d-draws-in-batches`: the CHANGELOG says node drag works "as before". Before, the
+/// drag was 3d-force-graph's, which reheats the layout while a node is held, so its neighbours
+/// follow it. Measured with the base page (0ab728e9) and this one, served over the `sounding` store
+/// and dragged the same way in headless Brave on SwiftShader: the dragged node moved 199 and 189
+/// units, its neighbour 256 and 0.
+#[test]
+fn a_node_dragged_in_3d_pulls_its_neighbours_along_as_before() {
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/view-page/sounding"));
+    let double = seeded.double(Duration::ZERO);
+    let mut driven = Driven::launch(&browser, &format!("{}#view=3d", double.url));
+    assert!(
+        driven.wait_for(&format!("{SETTLED} && !!window.__viewer.fg"), 90),
+        "the 3D view settled"
+    );
+    std::thread::sleep(Duration::from_millis(500));
+    let chosen = driven.eval(
+        "(() => { const fg = __viewer.fg, g = __viewer.graph, box = document.getElementById('graph3d').getBoundingClientRect();
+          const drawn = new Map(fg.graphData().nodes.filter(n => n.x != null).map(n => [n.id, n]));
+          for (const n of [...drawn.values()].sort((a, b) => g.degree(b.id) - g.degree(a.id))) {
+            const near = g.neighbors(n.id).find(o => o !== n.id && drawn.has(o));
+            const p = fg.graph2ScreenCoords(n.x, n.y, n.z);
+            if (near && p.x > 200 && p.y > 200 && p.x < box.width - 200 && p.y < box.height - 200)
+              return {id: n.id, near, x: box.left + p.x, y: box.top + p.y}; }
+          return null; })()",
+    );
+    assert!(
+        chosen.is_object(),
+        "a node on screen with a drawn neighbour"
+    );
+    let at = |driven: &mut Driven, id: &Value| -> Vec<f64> {
+        driven
+            .eval(&format!(
+                "(() => {{ const n = __viewer.fg.graphData().nodes.find(n => n.id === {id}); return [n.x, n.y, n.z]; }})()"
+            ))
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_f64().unwrap())
+            .collect()
+    };
+    let apart = |a: &[f64], b: &[f64]| {
+        a.iter()
+            .zip(b)
+            .map(|(p, q)| (p - q).powi(2))
+            .sum::<f64>()
+            .sqrt()
+    };
+    let (node, near) = (chosen["id"].clone(), chosen["near"].clone());
+    let (x, y) = (chosen["x"].as_f64().unwrap(), chosen["y"].as_f64().unwrap());
+    let (node_before, near_before) = (at(&mut driven, &node), at(&mut driven, &near));
+    driven.mouse("mouseMoved", x, y, false);
+    driven.mouse("mousePressed", x, y, true);
+    for step in 1..=20 {
+        driven.mouse(
+            "mouseMoved",
+            x + 8.0 * f64::from(step),
+            y + 4.0 * f64::from(step),
+            true,
+        );
+        std::thread::sleep(Duration::from_millis(40));
+    }
+    std::thread::sleep(Duration::from_millis(600));
+    let (node_held, near_held) = (at(&mut driven, &node), at(&mut driven, &near));
+    driven.mouse("mouseReleased", x + 160.0, y + 80.0, false);
+    let dragged = apart(&node_before, &node_held);
+    let pulled = apart(&near_before, &near_held);
+    assert!(
+        dragged > 10.0,
+        "the node was dragged: it moved {dragged:.1}"
+    );
+    assert!(
+        pulled > 1.0,
+        "the dragged node moved {dragged:.1} and its neighbour {pulled:.1}"
     );
 }
