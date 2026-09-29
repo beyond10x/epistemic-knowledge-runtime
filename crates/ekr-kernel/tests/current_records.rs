@@ -1,7 +1,7 @@
 //! Current record codecs remain strict; successful decoding alone never grants authority.
 use ekr_core::{
-    AgentId, ContentHash, EventId, GraphRootId, RevisionId, RevisionNumber, Timestamp,
-    TransactionId,
+    AgentId, ContentHash, EdgeId, EventId, GraphRootId, NodeId, RevisionId, RevisionNumber,
+    Timestamp, TransactionId,
 };
 use ekr_graph::{RevisionEvent, RevisionPayload, Root};
 use ekr_kernel::{
@@ -36,7 +36,8 @@ fn records() -> [Value; 7] {
         "validators":[agent],"validated_at":0,"validation_hash":hash});
     let commit = json!({"format":CommitReceiptV1::FORMAT,"event_id":event,"revision_id":RevisionId::mint(),
         "proposal":proposal,"validation":validation,"validation_record_hash":hash,
-        "committer":agent,"committed_at":0,"result":root,"result_hash":hash});
+        "committer":agent,"committed_at":0,"result":root,"result_hash":hash,
+        "created":{"nodes":[NodeId::mint()],"edges":[EdgeId::mint()]}});
     let seed = json!({"format":SeedResultV1::FORMAT,"event_id":event,"revision_id":RevisionId::mint(),
         "seed_hash":hash,"authority_root":hash,"committed_at":0,"result":root,"result_hash":hash});
     let rejection = json!({"format":RejectionRecordV1::FORMAT,"event_id":event,"proposed_event_id":event,
@@ -135,6 +136,7 @@ fn each_proposal_format_admits_only_its_own_document_spelling() {
 
     let mut legacy_receipt = values[3].clone();
     legacy_receipt["format"] = CommitReceiptV1::FORMAT_V1.into();
+    legacy_receipt.as_object_mut().unwrap().remove("created");
     assert!(
         CommitReceiptV1::from_bytes(&serde_json::to_vec(&legacy_receipt).unwrap()).is_err(),
         "a /1 receipt cannot embed a /2 proposal"
@@ -154,6 +156,64 @@ fn each_proposal_format_admits_only_its_own_document_spelling() {
     let mut current_receipt = values[3].clone();
     current_receipt["proposal"] = legacy;
     assert!(CommitReceiptV1::from_bytes(&serde_json::to_vec(&current_receipt).unwrap()).is_ok());
+}
+
+/// `ekr.commit-receipt/3` carries `created`, the ids its transaction created, and `/1` and `/2`
+/// carry none: each format admits only its own field set, a `/2` receipt keeps its bytes, and a
+/// `/3` list that names one id twice is refused (design § 99.5).
+#[test]
+fn only_a_current_commit_receipt_names_the_identities_it_created() {
+    assert_eq!(CommitReceiptV1::FORMAT, "ekr.commit-receipt/3");
+    assert_eq!(CommitReceiptV1::FORMAT_V2, "ekr.commit-receipt/2");
+    let current = records()[3].clone();
+    let read = CommitReceiptV1::from_bytes(&serde_json::to_vec(&current).unwrap()).unwrap();
+    let created = read
+        .created
+        .as_ref()
+        .expect("a /3 receipt names what it created");
+    assert_eq!((created.nodes.len(), created.edges.len()), (1, 1));
+
+    let mut without = current.clone();
+    without.as_object_mut().unwrap().remove("created");
+    assert!(
+        CommitReceiptV1::from_bytes(&serde_json::to_vec(&without).unwrap()).is_err(),
+        "a /3 receipt without created"
+    );
+    let mut twice = current.clone();
+    let node = twice["created"]["nodes"][0].clone();
+    twice["created"]["nodes"] = json!([node, node]);
+    assert!(
+        CommitReceiptV1::from_bytes(&serde_json::to_vec(&twice).unwrap()).is_err(),
+        "a /3 receipt naming one id twice"
+    );
+    let mut unknown = current.clone();
+    unknown["created"]["assertions"] = json!([]);
+    assert!(
+        CommitReceiptV1::from_bytes(&serde_json::to_vec(&unknown).unwrap()).is_err(),
+        "a created list with an unknown field"
+    );
+
+    let mut previous = current.clone();
+    previous["format"] = CommitReceiptV1::FORMAT_V2.into();
+    assert!(
+        CommitReceiptV1::from_bytes(&serde_json::to_vec(&previous).unwrap()).is_err(),
+        "a /2 receipt with created"
+    );
+    previous.as_object_mut().unwrap().remove("created");
+    let receipt = CommitReceiptV1::from_bytes(&serde_json::to_vec(&previous).unwrap()).unwrap();
+    assert_eq!(receipt.created, None);
+    let original = receipt.to_bytes().unwrap();
+    assert!(!String::from_utf8(original.clone())
+        .unwrap()
+        .contains("created"));
+    assert_eq!(
+        CommitReceiptV1::from_bytes(&original)
+            .unwrap()
+            .to_bytes()
+            .unwrap(),
+        original,
+        "a /2 receipt keeps its bytes"
+    );
 }
 
 #[test]

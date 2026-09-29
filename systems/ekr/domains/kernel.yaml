@@ -445,6 +445,22 @@ types:
         type: ekr.graph.RevisionRoot
       - name: result_hash
         type: ekr.kernel.ContentHash
+      # Design § 99.5: present in an "ekr.commit-receipt/3", the format new commits retain, and
+      # absent from "/2" and "/1", which are still read and keep their bytes.
+      - name: created
+        type: Optional<ekr.kernel.CreatedIdentitiesV1>
+
+  # The node and edge ids one committed transaction created, ascending: each CreateNode draft's
+  # id and each CreateEdge draft's id. Admitting a replay checkpoint under validation profile v3
+  # reads them from the receipt, which the commit's event names by digest, instead of parsing the
+  # committed proposal; a receipt retained before "/3" names none and its proposal is parsed.
+  - name: ekr.kernel.CreatedIdentitiesV1
+    kind: struct
+    fields:
+      - name: nodes
+        type: List<ekr.graph.NodeId>
+      - name: edges
+        type: List<ekr.graph.EdgeId>
 
   - name: ekr.kernel.SeedResultV1
     kind: struct

@@ -277,6 +277,14 @@ pub trait RevisionLog {
     /// # Errors
     /// Missing revision or invalid history through that revision.
     fn replay(&self, revision: RevisionNumber) -> Result<CanonicalGraph, StoreError>;
+    /// How many revision-stream occurrences the newest checkpoint pointer the log holds now says
+    /// were verified, read from the log rather than from anything this handle remembers; `None`
+    /// when it holds none, or keeps none (design § 99.5).
+    /// # Errors
+    /// Provider failure.
+    fn checkpoint_covered(&self) -> Result<Option<u64>, StoreError> {
+        Ok(None)
+    }
     /// Records that the authority verified the first `covered` occurrences of the revision stream,
     /// under its own `binding` of that prefix, and retains `checkpoint` as their replay checkpoint,
     /// replacing an older one. Without `checkpoint` the retained checkpoint is kept and only the

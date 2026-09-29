@@ -373,7 +373,7 @@ fn pick_who(rng: &mut Lcg) -> Who {
 /// After every step of a mixed history, a fresh open, both session handles and a full replay
 /// answer alike; after every commit the newest checkpoint is within § 99.2's bound of the head
 /// (fewer than `REPLAY_CHECKPOINT_COMMITS` commits and fewer than
-/// `REPLAY_CHECKPOINT_OPERATIONS` operations after it); and where no validation after the
+/// `REPLAY_CHECKPOINT_BYTES` bytes of documents after it, design § 99.5); and where no validation after the
 /// checkpoint names a revision before it, a fresh open replays nothing from the seed.
 fn mixed_history(file: bool, profile: Profile, seed_value: u64) {
     let directory = tempfile::tempdir().unwrap();
@@ -546,7 +546,7 @@ fn mixed_history(file: bool, profile: Profile, seed_value: u64) {
                 "{how}: head {head} is {} commits past the newest checkpoint {checkpoint_at}",
                 head - checkpoint_at
             );
-            let operations: u64 = truth
+            let bytes: u64 = truth
                 .2
                 .values()
                 .filter_map(|record| {
@@ -554,12 +554,12 @@ fn mixed_history(file: bool, profile: Profile, seed_value: u64) {
                         .committed
                         .as_ref()
                         .filter(|receipt| receipt.result.revision.get() > checkpoint_at)
-                        .map(|_| record.proposal.operation_count)
+                        .map(|_| record.proposal.document_bytes.len() as u64)
                 })
                 .sum();
             assert!(
-                operations < REPLAY_CHECKPOINT_OPERATIONS,
-                "{how}: {operations} operations after the newest checkpoint {checkpoint_at}"
+                bytes < REPLAY_CHECKPOINT_BYTES,
+                "{how}: {bytes} bytes of documents after the newest checkpoint {checkpoint_at}"
             );
         }
     }

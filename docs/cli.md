@@ -65,11 +65,11 @@ parents, the SQLite provider creates the database file but not its directory. `g
 export EKR_HOST=host.json EKR_STORE=./store EKR_BACKEND=file
 ```
 
-The store keeps a replay checkpoint: the verified head state, written by the seed, by every fourth
-commit and by a commit that brings the operations committed since the last one to 512. The next
-verb continues from it, replaying only the few commits after it, instead of every transaction since
-the seed. `--full-replay` ignores it and replays the whole history from the seed, re-deriving every
-retained decision; a verb answers the same either way.
+The store keeps a replay checkpoint: the verified head state, written by the seed, by every fifth
+commit and by a commit that brings the transaction documents committed since the last one to
+16 MiB. The next verb continues from it, replaying only the few commits after it, instead of every
+transaction since the seed. `--full-replay` ignores it and replays the whole history from the seed,
+re-deriving every retained decision; a verb answers the same either way.
 
 ### The host document (`ekr.cli-host/1`)
 
@@ -530,7 +530,9 @@ request is read, in request order:
 Every verb runs against the store as it stands when the request is read, so a transaction a
 request commits is what the next `head`, `snapshot` or `resolve` reads, and so is one another
 process committed. A write goes through `propose`, `validate` and `commit` exactly as it does one
-verb at a time. The session exits 0 when its input ends. A request never ends it: a request the
+verb at a time. The session exits 0 when its input ends, after writing the store's replay
+checkpoint of the newest head it reached if that head is past the last checkpoint, so that the
+next verb does not replay the commits made since. A request never ends it: a request the
 verb refuses, and a line that is not a request, are answered and the next line is read. If the
 configuration does not resolve, or an existing store does not open, the session answers nothing
 and exits as a store verb does. A path holding no store is not such a failure:

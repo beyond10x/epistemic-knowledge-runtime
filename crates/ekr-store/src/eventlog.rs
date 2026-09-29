@@ -1419,6 +1419,10 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
     /// dropped, which leaves the store as it was and is not an error: a checkpoint is a cache.
     /// Whether the pointer stands afterwards is the answer, so that a writer knows whether its
     /// checkpoint is the retained one.
+    fn checkpoint_covered(&self) -> Result<Option<u64>, StoreError> {
+        ensure_sync_context()?;
+        Ok(self.checkpoint_pointer()?.0.map(|pointer| pointer.covered))
+    }
     fn write_checkpoint(
         &self,
         covered: u64,

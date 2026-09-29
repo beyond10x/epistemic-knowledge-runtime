@@ -4663,6 +4663,117 @@ alike and the newest checkpoint is within the bound — crash-like pointer state
 pointer answers asks for the root alone; `crates/ekr-store/tests/checkpoint_pointer.rs`'s
 `a_write_says_whether_its_pointer_stands` holds what `write_checkpoint` answers.
 
+## 99.5 Amendment of 2026-09-29: due by commits and document bytes, and created ids in the receipt
+
+*Added 2026-09-29 by wave perf-02 (`task:checkpoint-cadence-by-size`). Amends the bounds of
+§ 99.1 item 2 and the § 96.3 derivation of the identities a profile-v3 lineage held, and adds a
+write at a session's end. It adds one commit-receipt format beside the originals. No canonical
+root, validation rule, refusal, checkpoint format or pointer format changes; every retained `/1`
+and `/2` receipt is read as before and keeps its bytes.*
+
+**What was measured.** A consumer's ingest: 57 batches, each one `/2` document of 1,561
+operations (879 KB) at 1× or 4,669 operations (2.63 MB) at 3×, validation profile v3, SQLite, one
+`ekr session`, release build, on a shared machine (load average 18–58 on 20 cores; each
+comparison below alternates before and after). Every batch holds more than 512 operations, so
+under § 99.1 every commit wrote a full checkpoint: 58 checkpoints for the seed and 57 batches at
+1×. Measured with commit and byte bounds that never fired in the range read:
+
+| | 1× | 3× |
+|---|---|---|
+| commit, pointer only | 0.75–1.4 s | 1.5–3.3 s |
+| commit writing a checkpoint | 2.2 s | 7.4–8.8 s |
+| cold `ekr transactions` per commit replayed after the checkpoint | +0.44–0.55 s | +1.1 s |
+
+A checkpoint therefore costs about as much as replaying 2.5 batches at 1× and 5 at 3×; § 99.3
+measured 2 for commits of 25 nodes. A cold open also re-derived what every commit created by
+parsing its proposal document (§ 96.3): YAML parsing was 35–40 % of the CPU samples of a cold
+`ekr transactions` at 1×, whose CPU was 5.3–9.3 s.
+
+### 99.5.1 The cadence
+
+1. A commit's checkpoint is due when its revision is at least `REPLAY_CHECKPOINT_COMMITS` (5)
+   revisions past the retained checkpoint's head, or when the retained documents of the
+   transactions committed after that head — their proposals' `document_bytes` — hold together at
+   least `REPLAY_CHECKPOINT_BYTES` (16 MiB, 16,777,216 bytes). Operations are not counted, and
+   `REPLAY_CHECKPOINT_OPERATIONS` is gone. The other two conditions of § 99.1 item 2 — an
+   authority that knows of no retained checkpoint, and a validation or rejection after it against
+   a revision before its head — are unchanged: nothing measured bears on them.
+2. **At rest.** When an `ekr session` reaches the end of its input it writes the checkpoint of the
+   newest head its handle reached, if that head is past the retained checkpoint's or one of those
+   two conditions holds (`Runtime::retain_checkpoint_at_rest`). A handle that has read nothing, or
+   whose newest head is the retained checkpoint's, writes nothing; proposals and validations after
+   that head are replayed by an open without replaying a commit. Best effort, as every checkpoint
+   write is (§ 96.3).
+
+**Why these bounds.** Every fifth commit is the smallest commit bound under which a consumer's
+ingest writes fewer checkpoints than one per four batches; four would write exactly one per four.
+It keeps a session's checkpoint cost to a fifth of one per commit and an open's replay to at most
+four commits: about 2 s at 1× and 4.4 s at 3× at the end of the ingest, and about 84 ms for the
+25-node commits of § 99 (21 ms each). Eight would leave up to seven, about 3.5 s at 1× and 7.7 s
+at 3×. The byte bound is for documents large for their graph, where a checkpoint is cheap and
+replay is mostly parsing: 16 MiB is two of the largest `/2` documents, and above what five
+consumer batches hold at 1× (4.4 MB) and 3× (13.2 MB), so there the commit bound governs, since a
+checkpoint costs more than the replay it saves; a 10× batch (8.8 MB) writes one every second
+commit. The write at rest is for the ingest itself: a session ends where its commits stop, and
+without it every later open would replay the up to four commits made since the last checkpoint.
+
+### 99.5.2 Created identities in the commit receipt
+
+`ekr.commit-receipt/3` holds the fields of `/2` and `created`: the ids of the transaction's
+`CreateNode` drafts (`nodes`) and `CreateEdge` drafts (`edges`), each ascending and unique
+(`CreatedIdentitiesV1`). New commits retain `/3`; `/1` and `/2` receipts are read, admit no
+`created` and re-encode to their bytes. The ESS kernel domain declares the field and its type, and
+its conformance suite is regenerated from it.
+
+Admitting a checkpoint under profile v3 (§ 96.3) derives the identities the lineage held from the
+seed envelope and, for each commit the prefix binds, the `created` of its `/3` receipt; only a
+receipt retained before `/3` has its proposal parsed. The receipt is the record the commit's event
+names by digest, so the list is bound into the prefix digest the checkpoint is admitted for, as
+the proposal is, and a checkpoint whose held identities differ from it is still ignored. Replay
+holds the list to exactly what the replayed transaction creates and refuses a receipt that names
+anything else as `commit-created-identities`.
+
+### 99.5.3 Result, and what is not changed
+
+At 1×, one session of 57 batches wrote 58 checkpoints before and 13 after: the seed's, one at
+each fifth revision from 5 to 55, and one at the session's end at 57. Each comparison alternates
+before and after, three rounds, CPU from `perf stat`:
+
+| at 1× | before | after |
+|---|---|---|
+| cold `ekr transactions`, checkpoint at the head | 4.97–6.36 s (median 5.07) | 2.29–2.66 s (median 2.33) |
+| cold `ekr snapshot`, the same | 5.86–6.64 s (median 5.87) | 3.17–4.32 s (median 3.32) |
+| the whole 57-batch session | 63.2–88.0 s (median 68.3) | 58.2–68.6 s (median 59.4) |
+
+Wall time spent in `commit` over 25 batches fell from 32.7 to 12.7 s on SQLite and from 38.2 to
+23.5 s on the file provider. Two commits past the checkpoint — the end of the same session without
+the write at rest — a cold `ekr transactions` took 2.84–3.25 s. A store written before this
+section keeps `/2` receipts and the parse: it opened in 5.14–5.44 s against 5.32–5.80 s.
+
+What remains of a cold open after this section is mostly hashing: in its CPU samples at 1×,
+SHA-256 is about two thirds — the SQLite provider verifying each blob it returns (29 %) and the
+store hashing each object again (19 %) — then decoding every retained proposal and receipt, each
+receipt embedding its proposal again, and the knowledge root that admitting the checkpoint
+recomputes.
+
+Executed by `crates/ekr-kernel/tests/replay_checkpoint.rs`, on both providers:
+`commits_of_many_small_operations_write_a_checkpoint_only_at_the_commit_bound` (six commits of 600
+operations write a checkpoint at the seed and the fifth only),
+`a_commit_that_reaches_the_byte_bound_writes_a_checkpoint`, which replaces § 99.4's
+`a_commit_that_reaches_the_operation_bound_writes_a_checkpoint`,
+`a_handle_at_rest_writes_the_checkpoint_of_a_head_past_the_retained_one` and
+`a_commit_receipt_names_the_identities_its_transaction_created`, beside the cadence, forgery and
+reopen cases of §§ 96.3 and 99.4, which run unchanged against the new bounds;
+`crates/ekr-kernel/src/checkpoint.rs`'s
+`held_identities_are_read_from_each_receipt_without_parsing_its_proposal` (with every proposal's
+bytes made unparseable the derivation reaches a full replay's identities, and a receipt without
+`created` sends it back to the parse); `crates/ekr-kernel/tests/current_records.rs`'s
+`only_a_current_commit_receipt_names_the_identities_it_created` and the `commit/3` pin of
+`current_vectors.rs` beside the unchanged `commit/2` pin; `crates/ekr-kernel/tests/
+replay_forgery.rs`'s `a_commit_receipt_whose_created_identities_are_not_its_transactions_is_refused`;
+and `crates/ekr/tests/session.rs`'s
+`a_session_leaves_the_checkpoint_of_its_head_when_its_input_ends`.
+
 ---
 
 # 100. Seed Envelope 3: Evidence Payloads Retained Once

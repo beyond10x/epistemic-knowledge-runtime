@@ -1,15 +1,16 @@
 //! Replay checkpoints and compact records, design §§ 96 and 99, on both providers.
 //!
 //! The seed and every `REPLAY_CHECKPOINT_COMMITS`-th commit leave a checkpoint of the head they
-//! published, and so does a commit that brings the operations committed since the retained one
-//! to `REPLAY_CHECKPOINT_OPERATIONS`, or one made by a handle that restored none or whose last
-//! checkpoint write the store did not keep; every other
-//! commit appends only a pointer, and a verb that moves no head appends nothing. After any number
-//! of commits a fresh open continues from the checkpoint and answers exactly as a full replay from
-//! the seed does; a checkpoint that does not verify in any field it carries is ignored, and a
-//! commit made after one replays in full; a validation against an earlier revision, whose graph a
-//! checkpoint does not hold, replays in full; and every record and preparation a command retains
-//! spells its byte strings as base64 and holds each staged object once.
+//! published, and so does a commit that brings the bytes of the documents committed since the
+//! retained one to `REPLAY_CHECKPOINT_BYTES`, or one made by a handle that restored none or whose
+//! last checkpoint write the store did not keep; every other commit appends only a pointer, and a
+//! verb that moves no head appends nothing. Every new commit receipt names the identities its
+//! transaction created. After any number of commits a fresh open continues from the checkpoint and
+//! answers exactly as a full replay from the seed does; a checkpoint that does not verify in any
+//! field it carries is ignored, and a commit made after one replays in full; a validation against
+//! an earlier revision, whose graph a checkpoint does not hold, replays in full; and every record
+//! and preparation a command retains spells its byte strings as base64 and holds each staged
+//! object once.
 //!
 //! The forgery cases run under validation profile v1 and again under v3, whose checkpoint also
 //! carries every node and edge identity the lineage held (`task:deleted-edge-id-is-reusable`).
@@ -628,37 +629,154 @@ fn a_verb_that_moves_no_head_appends_no_pointer() {
     }
 }
 
-/// A commit whose operations, with those committed since the retained checkpoint, reach
-/// [`REPLAY_CHECKPOINT_OPERATIONS`] writes a checkpoint however few commits came before it.
+/// Revision `n`, a `/2` document of about `bytes` bytes, validated against `n - 1`: nodes filed
+/// under the seed's root, each named with 60,000 characters, so that few operations hold many
+/// bytes.
+fn commit_bytes(runtime: &Runtime, seed: &SeedDocument, n: u64, bytes: u64) {
+    #[derive(Serialize)]
+    struct Wire<'a> {
+        format: &'static str,
+        transaction: &'a GraphTransaction,
+    }
+    const NAME: usize = 60_000;
+    let operations = (1..=bytes.div_ceil(NAME as u64 + 200))
+        .map(|k| {
+            GraphOperation::CreateNode(NodeDraft {
+                id: NodeId::mint(),
+                root_id: seed.graph.root.id,
+                type_id: seed.ontology.node_types[0].id,
+                canonical_name: format!("{n}.{k} {}", "x".repeat(NAME)),
+                properties: BTreeMap::new(),
+                aliases: Vec::new(),
+            })
+        })
+        .collect();
+    let tx = GraphTransaction {
+        id: TransactionId::mint(),
+        proposer: context().operator,
+        operations,
+        evidence: BTreeSet::new(),
+        schema_version: None,
+    };
+    let bytes = serde_yaml_ng::to_string(&Wire {
+        format: "ekr.transaction-document/2",
+        transaction: &tx,
+    })
+    .unwrap()
+    .into_bytes();
+    let at = i64::try_from(n * 100).unwrap();
+    runtime
+        .propose(&bytes, context().operator, || Timestamp::from_millis(at))
+        .unwrap();
+    let verdict = runtime
+        .validate(tx.id, RevisionNumber::new(n - 1), || {
+            Timestamp::from_millis(at + 1)
+        })
+        .unwrap();
+    assert!(
+        matches!(verdict, ValidationCommandResult::Validated(_)),
+        "{verdict:?}"
+    );
+    let result = runtime
+        .commit(tx.id, context().operator, || Timestamp::from_millis(at + 2))
+        .unwrap();
+    assert!(matches!(result, CommitCommandResult::Committed(_)));
+}
+/// The bytes of the retained documents of every transaction committed after revision `after`.
+fn document_bytes_after(path: &Path, file: bool, after: u64) -> u64 {
+    open(path, file)
+        .transactions()
+        .unwrap()
+        .values()
+        .filter(|record| {
+            record
+                .committed
+                .as_ref()
+                .is_some_and(|receipt| receipt.result.revision.get() > after)
+        })
+        .map(|record| record.proposal.document_bytes.len() as u64)
+        .sum()
+}
+
+/// A commit whose retained document, with those committed since the retained checkpoint, reaches
+/// [`REPLAY_CHECKPOINT_BYTES`] writes a checkpoint however few commits came before it (design
+/// § 99.5).
 #[test]
-fn a_commit_that_reaches_the_operation_bound_writes_a_checkpoint() {
-    const { assert!(ekr_kernel::REPLAY_CHECKPOINT_COMMITS > 3) };
+fn a_commit_that_reaches_the_byte_bound_writes_a_checkpoint() {
+    const { assert!(ekr_kernel::REPLAY_CHECKPOINT_COMMITS > 4) };
+    let bound = ekr_kernel::REPLAY_CHECKPOINT_BYTES;
     for file in [false, true] {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path();
-        let seed = build(path, file, 1);
+        let seed = build(path, file, 0);
         let seeded = pointers(&open(path, file)).pop().unwrap();
         assert_eq!(checkpoint_revision(path, file, &seeded), 0);
-        // Each node is two operations, its creation and its assertion; revision 1 committed six.
-        let nodes = (ekr_kernel::REPLAY_CHECKPOINT_OPERATIONS - 6).div_ceil(2);
-        let under = nodes - 1;
-        let result = commit_by(|| open(path, file), &seed, seed.graph.root.id, 2, 1, under);
-        assert!(matches!(result, CommitCommandResult::Committed(_)));
+        // One handle, as a session: revisions 1 to 3 bring the documents since the seed's
+        // checkpoint to just under the bound, each under the `/2` input cap.
+        let runtime = open(path, file);
+        let third = (bound - 300_000) / 3;
+        for revision in 1..=3 {
+            commit_bytes(&runtime, &seed, revision, third);
+        }
+        let under = document_bytes_after(path, file, 0);
+        assert!(under < bound, "file={file}: {under} bytes");
         let newest = pointers(&open(path, file)).pop().unwrap();
         assert_eq!(
-            newest["checkpoint_hash"],
-            seeded["checkpoint_hash"],
-            "file={file}: {} operations since the checkpoint write none",
-            6 + 2 * under
+            newest["checkpoint_hash"], seeded["checkpoint_hash"],
+            "file={file}: {under} bytes of documents since the checkpoint write none"
         );
-        let result = commit_by(|| open(path, file), &seed, seed.graph.root.id, 3, 2, 1);
-        assert!(matches!(result, CommitCommandResult::Committed(_)));
+        commit_bytes(&runtime, &seed, 4, 300_000);
+        drop(runtime);
+        let over = document_bytes_after(path, file, 0);
+        assert!(over >= bound, "file={file}: {over} bytes");
         let newest = pointers(&open(path, file)).pop().unwrap();
         assert_eq!(
             checkpoint_revision(path, file, &newest),
-            3,
-            "file={file}: {} operations since the checkpoint write one",
-            6 + 2 * under + 2
+            4,
+            "file={file}: {over} bytes of documents since the checkpoint write one"
+        );
+        assert_eq!(
+            answers(&open(path, file)),
+            answers(&open_in_full(path, file)),
+            "file={file}"
+        );
+    }
+}
+
+/// A consumer's batch holds many small operations: more than the 512 that design § 99.1 once
+/// counted, so that every batch wrote a full checkpoint. A checkpoint is due by the commits and
+/// the document bytes since the retained one (§ 99.5), not by operations: one session committing
+/// transactions of 600 operations each writes one at the seed and at the commit bound only.
+#[test]
+fn commits_of_many_small_operations_write_a_checkpoint_only_at_the_commit_bound() {
+    let n = ekr_kernel::REPLAY_CHECKPOINT_COMMITS;
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path();
+        let seed = build(path, file, 0);
+        let runtime = open(path, file);
+        for revision in 1..=n + 1 {
+            let result = commit_by(
+                || &runtime,
+                &seed,
+                seed.graph.root.id,
+                revision,
+                revision - 1,
+                300,
+            );
+            assert!(matches!(result, CommitCommandResult::Committed(_)));
+        }
+        drop(runtime);
+        let transactions = open(path, file).transactions().unwrap();
+        assert!(transactions
+            .values()
+            .all(|record| record.proposal.operation_count == 600));
+        let written = pointers(&open(path, file));
+        assert_eq!(written.len() as u64, 1 + n + 1, "file={file}");
+        assert_eq!(
+            checkpoints_written(&written),
+            [0, n],
+            "file={file}: commits of 600 operations write a checkpoint at the commit bound only"
         );
         assert_eq!(
             answers(&open(path, file)),
@@ -1102,8 +1220,9 @@ fn retained_records_and_preparations_hold_each_payload_once_as_base64() {
         *formats.entry(format.to_owned()).or_default() += 1;
         match format {
             "ekr.proposal-record/2" => assert!(value["document_bytes"].is_string()),
-            "ekr.commit-receipt/2" => {
+            "ekr.commit-receipt/3" => {
                 assert!(value["proposal"]["document_bytes"].is_string());
+                assert!(value["created"]["nodes"].is_array());
             }
             "ekr.publication-preparation/2" => {
                 assert!(value["native_request"].get("blobs").is_none());
@@ -1123,7 +1242,7 @@ fn retained_records_and_preparations_hold_each_payload_once_as_base64() {
     }
     for format in [
         "ekr.proposal-record/2",
-        "ekr.commit-receipt/2",
+        "ekr.commit-receipt/3",
         "ekr.publication-preparation/2",
     ] {
         assert!(formats.contains_key(format), "{format} in {formats:?}");
@@ -1131,6 +1250,7 @@ fn retained_records_and_preparations_hold_each_payload_once_as_base64() {
     for format in [
         "ekr.proposal-record/1",
         "ekr.commit-receipt/1",
+        "ekr.commit-receipt/2",
         "ekr.publication-preparation/1",
     ] {
         assert!(!formats.contains_key(format), "{format} in {formats:?}");
@@ -1306,5 +1426,125 @@ fn a_checkpoint_the_store_did_not_write_is_written_at_the_next_commit() {
             answers(&open_in_full(path, file)),
             "file={file}"
         );
+    }
+}
+
+/// The node and edge ids `tx` creates.
+fn created_by(tx: &GraphTransaction) -> (BTreeSet<NodeId>, BTreeSet<EdgeId>) {
+    let mut nodes = BTreeSet::new();
+    let mut edges = BTreeSet::new();
+    for operation in &tx.operations {
+        match operation {
+            GraphOperation::CreateNode(draft) => {
+                nodes.insert(draft.id);
+            }
+            GraphOperation::CreateEdge(draft) => {
+                edges.insert(draft.id);
+            }
+            _ => {}
+        }
+    }
+    (nodes, edges)
+}
+
+/// Every commit receipt a new store retains is an `ekr.commit-receipt/3` naming the node and edge
+/// ids its transaction created (design § 99.5): the list an open that admits a profile-v3
+/// checkpoint reads instead of parsing each committed proposal. It is carried by the receipt the
+/// commit's event names by digest, so it is bound into every prefix digest that covers the
+/// commit.
+#[test]
+fn a_commit_receipt_names_the_identities_its_transaction_created() {
+    KEEPS_IDENTITIES.set(true);
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path();
+        let (_, deleted) = build_with_a_deleted_edge(path, file);
+        let transactions = open(path, file).transactions().unwrap();
+        let mut receipts = 0;
+        let mut edges_created = BTreeSet::new();
+        for record in transactions.values() {
+            let Some(receipt) = &record.committed else {
+                continue;
+            };
+            receipts += 1;
+            assert_eq!(receipt.format, CommitReceiptV1::FORMAT, "file={file}");
+            assert_eq!(CommitReceiptV1::FORMAT, "ekr.commit-receipt/3");
+            let document = TransactionDocument::parse(&record.proposal.document_bytes).unwrap();
+            let (nodes, edges) = created_by(document.transaction());
+            edges_created.extend(edges.iter().copied());
+            assert_eq!(
+                receipt.created,
+                Some(CreatedIdentitiesV1 { nodes, edges }),
+                "file={file}: revision {}",
+                receipt.result.revision
+            );
+            let bytes = receipt.to_bytes().unwrap();
+            assert_eq!(&CommitReceiptV1::from_bytes(&bytes).unwrap(), receipt);
+        }
+        assert_eq!(receipts, 4, "file={file}");
+        assert!(
+            edges_created.contains(&deleted),
+            "file={file}: the deleted edge's id is named by the receipt of the commit that created it"
+        );
+    }
+}
+
+/// A handle at rest — a session at the end of its input — writes the checkpoint of the newest
+/// head it reached when that head is past the retained checkpoint (design § 99.5), so that every
+/// later open continues from that head instead of replaying the commits made since the last
+/// checkpoint. At the retained checkpoint's head it writes nothing, and nor does a handle that
+/// has read nothing.
+#[test]
+fn a_handle_at_rest_writes_the_checkpoint_of_a_head_past_the_retained_one() {
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path();
+        let seed = build(path, file, 0);
+        let runtime = open(path, file);
+        for revision in 1..=2 {
+            let result = commit_by(
+                || &runtime,
+                &seed,
+                seed.graph.root.id,
+                revision,
+                revision - 1,
+                3,
+            );
+            assert!(matches!(result, CommitCommandResult::Committed(_)));
+        }
+        let before = pointers(&open(path, file));
+        assert_eq!(checkpoints_written(&before), [0], "file={file}");
+        let unread = open(path, file);
+        unread.retain_checkpoint_at_rest();
+        assert_eq!(
+            pointers(&open(path, file)).len(),
+            before.len(),
+            "file={file}: a handle that has read nothing writes nothing"
+        );
+
+        runtime.retain_checkpoint_at_rest();
+        let after = pointers(&open(path, file));
+        assert_eq!(after.len(), before.len() + 1, "file={file}");
+        assert_eq!(
+            checkpoint_revision(path, file, after.last().unwrap()),
+            2,
+            "file={file}: the head the handle reached"
+        );
+        assert_eq!(
+            after.last().unwrap()["covered"].as_u64(),
+            Some(revision_occurrences(&open(path, file))),
+            "file={file}"
+        );
+        runtime.retain_checkpoint_at_rest();
+        let fresh = open(path, file);
+        let answered = answers(&fresh);
+        fresh.retain_checkpoint_at_rest();
+        assert_eq!(
+            pointers(&open(path, file)).len(),
+            after.len(),
+            "file={file}: at the retained checkpoint's head a handle writes nothing"
+        );
+        assert_eq!(fresh.seed_replays(), 0, "file={file}");
+        assert_eq!(answered, answers(&open_in_full(path, file)), "file={file}");
     }
 }
