@@ -17,7 +17,7 @@ What they proved necessary and how their data enters this runtime is written dow
 
 ## Status
 
-0.0.17 is the latest release: the kernel, the typed graph and ontology, the store and the `ekr`
+0.0.18 is the latest release: the kernel, the typed graph and ontology, the store and the `ekr`
 binary, with the user documentation and schema evolution, and the executable specifications of the
 graph projection, observation and integration domains. Product crates: `ekr-core`,
 `ekr-kernel`, `ekr-ontology`, `ekr-graph`, `ekr-store`, `ekr-views`, `ekr-observe`,
@@ -25,7 +25,7 @@ graph projection, observation and integration domains. Product crates: `ekr-core
 
 Repository utility: `xtask`.
 
-| works in 0.0.17 | not in 0.0.17 |
+| works in 0.0.18 | not in 0.0.18 |
 |---|---|
 | a schema of node types, edge types, typed properties, lifecycles and named operations, declared in the seed | `MergeEntity`, refused as `unsupported-operation` |
 | in a store seeded under validation profile v2, the schema grows after seeding: a committed transaction adds a node or edge type, or adds or redeclares a property, and each change is a new schema version; see [Evolve the schema](docs/cli.md#evolve-the-schema) | moving a store seeded under profile v1, the example host's, to v2: it keeps the seed's schema |
@@ -75,7 +75,7 @@ ekr explain 00000000-0000-4000-8000-000000000501            # the assertion, its
 
 | read | for |
 |---|---|
-| [`docs/overview.md`](docs/overview.md) | new to EKR: the pipeline from seed to explained assertion in diagrams, the transaction lifecycle, and what 0.0.17 has versus what is planned |
+| [`docs/overview.md`](docs/overview.md) | new to EKR: the pipeline from seed to explained assertion in diagrams, the transaction lifecycle, and what 0.0.18 has versus what is planned |
 | [`docs/guide.md`](docs/guide.md) | a task-oriented walk through a real store: record, change and explain claims, handle `Stale` and `Rejected`, exit codes, reading output, scripting |
 | [`docs/schema-evolution.md`](docs/schema-evolution.md) | growing the schema under validation profile v2, schema versions, `ekr ontology --at`, and every refusal on the way |
 | [`docs/cli.md`](docs/cli.md) | the CLI reference: configuration, every verb, the seed and transaction formats, how to design a schema, a worked example from schema to committed assertion, and the common refusals |
