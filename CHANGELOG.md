@@ -4,6 +4,10 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.16] — 2026-09-29
+
+Evidence after the seed; seed payloads out of the envelope; `ekr migrate`.
+
 ### Added
 
 - **Evidence after the seed.** `AddEvidence` (operation 12) in `ekr.transaction-document/1` and
@@ -37,6 +41,15 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 - The `ekr.views` reads work out which evidence is retained in one pass over the verified history
   instead of one history read per evidence entry: rendering a store with 400 added evidence
   entries took 13.66 s on SQLite and takes 57.2 ms. The documents are unchanged.
+
+### Known limits
+
+- `AddEvidence` accepts human statements only; evidence from observations waits on
+  `decision-blocker:observation-retention-path`.
+- `GET /changes` and `changes_since` do not list added evidence yet
+  (`task:changes-since-lists-added-evidence`).
+- Still open from 0.0.15: no MCP `head` tool, and long-running readers keep a store replaced at
+  their path.
 
 ## [0.0.15] — 2026-09-29
 
