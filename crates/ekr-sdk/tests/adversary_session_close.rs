@@ -96,7 +96,6 @@ fn a_session_failed_by_a_non_reply_closes_as_latched() {
 /// tests `status.success()` before the latch, so a failed session whose child had exited 0
 /// closes as `Ok(())`: `session.close()?` reports a clean close of a session that failed.
 #[test]
-#[ignore = "defect: close() returns Ok(()) for a latched session whose child exited 0; the latch is checked only after success"]
 fn a_failed_session_whose_child_exited_zero_still_closes_as_latched() {
     let directory = tempfile::tempdir().unwrap();
     let mut session = start(directory.path(), "exit 0\n");
@@ -147,7 +146,6 @@ fn a_long_stderr_is_cut_to_its_last_bytes() {
 /// wrote". The collector cuts at a byte, and `from_utf8_lossy` turns the half character left at
 /// the front into U+FFFD, three bytes the child never wrote, so the tail is 4098 bytes.
 #[test]
-#[ignore = "defect: a tail cut inside a UTF-8 character is 4098 bytes and starts with U+FFFD the child never wrote"]
 fn a_tail_cut_inside_a_character_stays_within_the_bound() {
     let directory = tempfile::tempdir().unwrap();
     // 3000 two-byte characters, then one byte: the last 4096 bytes start on a continuation byte.

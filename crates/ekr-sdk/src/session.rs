@@ -142,6 +142,7 @@ enum Event {
 pub(crate) struct StderrTail {
     bytes: Arc<Mutex<VecDeque<u8>>>,
     reader: JoinHandle<()>,
+    limit: usize,
 }
 
 impl StderrTail {
@@ -157,27 +158,50 @@ impl StderrTail {
                 tail.drain(..over);
             }
         });
-        Self { bytes, reader }
+        Self {
+            bytes,
+            reader,
+            limit,
+        }
     }
 
-    /// The tail as text, after waiting up to one second for the process's stderr to close.
+    /// The tail as text, at most `limit` bytes, after waiting up to one second for the
+    /// process's stderr to close.
     pub(crate) fn settled(&self) -> String {
         let waited = Instant::now();
         while !self.reader.is_finished() && waited.elapsed() < Duration::from_secs(1) {
             std::thread::sleep(Duration::from_millis(5));
         }
-        let tail = self.bytes.lock().unwrap_or_else(|e| e.into_inner());
-        String::from_utf8_lossy(&tail.iter().copied().collect::<Vec<u8>>()).into_owned()
+        let mut bytes: Vec<u8> = {
+            let tail = self.bytes.lock().unwrap_or_else(|e| e.into_inner());
+            tail.iter().copied().collect()
+        };
+        if bytes.len() >= self.limit {
+            // The collector cut at a byte: drop what it left of a character cut in two.
+            let partial = bytes
+                .iter()
+                .take(3)
+                .take_while(|&&byte| byte & 0xC0 == 0x80)
+                .count();
+            bytes.drain(..partial);
+        }
+        // A byte that is not UTF-8 becomes U+FFFD, three bytes: cut the text to the bound again.
+        within(&String::from_utf8_lossy(&bytes), self.limit)
     }
 }
 
-/// The last [`STDERR_TAIL_BYTES`] of `text`, cut at a character boundary.
-fn tail(text: &str) -> String {
-    let mut start = text.len().saturating_sub(STDERR_TAIL_BYTES);
+/// The last `limit` bytes of `text`, cut forward to a character boundary.
+fn within(text: &str, limit: usize) -> String {
+    let mut start = text.len().saturating_sub(limit);
     while !text.is_char_boundary(start) {
         start += 1;
     }
     text[start..].to_owned()
+}
+
+/// The last [`STDERR_TAIL_BYTES`] of `text`, cut at a character boundary.
+fn tail(text: &str) -> String {
+    within(text, STDERR_TAIL_BYTES)
 }
 
 /// The child and the flags its watcher thread reads.
@@ -317,23 +341,15 @@ impl ProcessSession {
     /// End the session: close its input and wait, up to the request timeout, for it to exit —
     /// it writes the store's replay checkpoint first. A child still running then is killed.
     ///
-    /// `Ok(())` means the child exited 0. A child that exited with any other status, or was
-    /// killed at the timeout, is [`TransportError::CloseFailed`], carrying the status and the
-    /// last [`STDERR_TAIL_BYTES`] it wrote to stderr. A cancelled session is
-    /// [`TransportError::Cancelled`] and a failed one [`TransportError::Latched`]: the SDK
-    /// stopped that child itself.
+    /// A cancelled session is [`TransportError::Cancelled`] and a failed one
+    /// [`TransportError::Latched`], whatever its child's status. Otherwise `Ok(())` means the
+    /// child exited 0, and a child that exited with any other status, or was killed at the
+    /// timeout, is [`TransportError::CloseFailed`], carrying the status and the last
+    /// [`STDERR_TAIL_BYTES`] it wrote to stderr.
     pub fn close(mut self) -> Result<(), TransportError> {
-        let Some((status, killed)) = self.shutdown() else {
-            return Err(TransportError::Io {
-                verb: "session".to_owned(),
-                what: "waiting for the session to exit".to_owned(),
-                source: std::io::Error::other("the child's status could not be read"),
-            });
-        };
-        if status.success() {
-            return Ok(());
-        }
-        // The child of a cancelled or failed session was stopped by the SDK, not by its exit.
+        let ended = self.shutdown();
+        // A cancelled or failed session never closes cleanly, whatever its child's status:
+        // the SDK stopped that child, or the child ended before a request was answered.
         if self.cancelled() {
             return Err(TransportError::Cancelled {
                 verb: "session".to_owned(),
@@ -344,6 +360,16 @@ impl ProcessSession {
                 verb: "session".to_owned(),
                 cause,
             });
+        }
+        let Some((status, killed)) = ended else {
+            return Err(TransportError::Io {
+                verb: "session".to_owned(),
+                what: "waiting for the session to exit".to_owned(),
+                source: std::io::Error::other("the child's status could not be read"),
+            });
+        };
+        if status.success() {
+            return Ok(());
         }
         Err(TransportError::CloseFailed {
             status,

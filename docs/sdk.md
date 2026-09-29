@@ -123,9 +123,9 @@ child writes the store's replay checkpoint. It returns `Result<(), TransportErro
 | result | when |
 |---|---|
 | `Ok(())` | the child exited 0 |
-| `TransportError::CloseFailed { status, killed, stderr_tail }` | the child exited with another status (`killed` is `false`), or was still running at `timeout` and was killed (`killed` is `true`, `status` is the signal). `stderr_tail` is the last 4096 bytes it wrote to stderr (`STDERR_TAIL_BYTES`), for example why it could not write the checkpoint |
-| `TransportError::Cancelled` | the session was cancelled, before or while closing |
-| `TransportError::Latched` | an earlier call failed the session, which stopped the child |
+| `TransportError::CloseFailed { status, killed, stderr_tail }` | the child exited with another status (`killed` is `false`), or was still running at `timeout` and was killed (`killed` is `true`, `status` is the signal). `stderr_tail` is the last 4096 bytes it wrote to stderr (`STDERR_TAIL_BYTES`), cut forward to a character boundary, for example why it could not write the checkpoint |
+| `TransportError::Cancelled` | the session was cancelled, before or while closing, whatever its child's status |
+| `TransportError::Latched` | an earlier call failed the session, whatever its child's status |
 
 An unclean exit is an error rather than a value beside the status, so `session.close()?`
 propagates a checkpoint the child could not write instead of dropping it. Up to 0.0.20, `close()`
