@@ -1015,6 +1015,13 @@ that an assertion can cite one statement rather than a whole seeded file. The en
 exactly as a seed's [evidence entry](#evidence-and-evidence_payloads); `payload` is its bytes as a
 list of byte values, the `payload_yaml` that `ekr hash` prints.
 
+One byte is one element of that list, so the document's `sequence_elements` limit
+([Document limits](#document-limits)) is the payload's ceiling: at most 16,384 bytes in an
+`ekr.transaction-document/2` and 4,096 in an `ekr.transaction-document/1`. One byte more and
+`ekr propose` refuses the document as `transaction document limit: sequence_elements`, exit 2,
+recording nothing. A larger statement goes into the seed with `ekr seed --evidence <file>`, or is
+split into several evidence entries of at most that size.
+
 ```yaml ekr.transaction-document/2
 format: ekr.transaction-document/2
 transaction:

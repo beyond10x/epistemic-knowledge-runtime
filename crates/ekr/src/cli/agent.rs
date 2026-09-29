@@ -503,6 +503,10 @@ impl OperationKind {
     confidence    basis points, 0 to 10000
   payload       [byte]       the exact bytes, as ekr hash prints payload_yaml; they must hash
                              to content_hash (evidence-payload-mismatch). The commit stores them.
+                             At most 16384 bytes in ekr.transaction-document/2 and 4096 in /1
+                             (one byte per element: the sequence_elements limit; propose refuses
+                             one byte more). Put a larger statement in the seed with
+                             ekr seed --evidence <file>, or split it into several entries.
   An AddAssertion in the same or a later transaction may cite the id; list it in
   transaction.evidence only when an assertion of that transaction cites it.",
                 "- !AddEvidence

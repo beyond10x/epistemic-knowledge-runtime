@@ -251,17 +251,13 @@ pub fn load(runtime: &Runtime, at: Option<RevisionNumber>) -> Result<LoadedRevis
         });
     }
 
-    let mut retained = BTreeSet::new();
-    for evidence in read.graph.evidence.values() {
-        if runtime.content(&evidence.content_hash)?.is_some() {
-            retained.insert(evidence.content_hash);
-        }
-    }
+    // Retention comes from the same verified read, in one pass: asking the runtime per entry
+    // reloaded the whole history each time, which made a render quadratic in evidence entries.
     Ok(LoadedRevision {
         graph: read.graph,
         revisions,
         schemas,
-        retained,
+        retained: read.retained_evidence,
     })
 }
 
