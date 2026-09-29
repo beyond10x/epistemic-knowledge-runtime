@@ -4,6 +4,27 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- **`ekr-sdk` resolves through a cache and commits in bisected batches** (`docs/sdk.md`,
+  "Resolve before you create" and "Batches").
+  - `Resolver` caches `ekr resolve` answers by exact type id and sorted aliases, so a fixture
+    that names 31 distinct references in 480 resolves sends 31 resolve requests. A `ProposeNew`
+    answer mints an id and queues a `CreateNode` carrying the aliases. `flush` commits the queue,
+    and a resolve that shares an alias with a queued node flushes it first. `invalidate` works
+    per alias, and `observe` records the consumer's own commits. `Ambiguous` is returned as a
+    value.
+  - Each flush reads `ekr head`. A commit the SDK did not make drops the cache, and the queued
+    references are resolved again, so a node another process committed meanwhile replaces the
+    queued one (`Flushed::replaced`) instead of a duplicate or an `alias-already-exists`
+    rejection.
+  - `Batcher` packs atomic dependency groups into batches under the 10,000-operation and 8 MiB
+    caps, retries a `Stale` commit under a newly minted transaction id, and bisects a rejected
+    batch down to the single group. Its `BatchReport` lists every committed transaction with its
+    id, revision, batch and groups, and every rejected operation with its issues, batch and
+    group. With one invalid operation planted among 2,000, that operation is the only rejection
+    and the other 1,799 groups commit.
+
 ## [0.0.19] — 2026-09-29
 
 A Rust SDK drives a store through one child `ekr session`; nodes gain aliases; `ekr mcp` serves
