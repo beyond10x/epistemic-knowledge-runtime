@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-29T18:41:24Z",
+  "actor": "human:timo",
+  "artifact": "story:edge-type-endpoints-widen",
+  "kind": "story",
+  "revision": 7,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Repository correctness run on PR #50 head 24a9bddf, success",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/36591991936"
+  }
+}

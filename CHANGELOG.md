@@ -4,6 +4,74 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.20] — 2026-09-29
+
+The SDK resolves through a cache, commits in bisected batches and types the views reads, which
+`ekr session` now serves; it retries starting a binary that is busy being written.
+
+### Added
+
+- **`ekr-sdk` resolves through a cache and commits in bisected batches** (`docs/sdk.md`,
+  "Resolve before you create" and "Batches").
+  - `Resolver` caches `ekr resolve` answers by exact type id and sorted aliases, so a fixture
+    that names 31 distinct references in 480 resolves sends 31 resolve requests. A `ProposeNew`
+    answer mints an id and queues a `CreateNode` carrying the aliases. `flush` commits the queue,
+    and a resolve that shares an alias with a queued node flushes it first. `invalidate` works
+    per alias, and `observe` records the consumer's own commits. `Ambiguous` is returned as a
+    value.
+  - Each flush reads `ekr head`. A commit the SDK did not make drops the cache, and the queued
+    references are resolved again, so a node another process committed meanwhile replaces the
+    queued one (`Flushed::replaced`) instead of a duplicate or an `alias-already-exists`
+    rejection.
+  - `Batcher` packs atomic dependency groups into batches under the 10,000-operation and 8 MiB
+    caps, retries a `Stale` commit under a newly minted transaction id, and bisects a rejected
+    batch down to the single group. Its `BatchReport` lists every committed transaction with its
+    id, revision, batch and groups, and every rejected operation with its issues, batch and
+    group. With one invalid operation planted among 2,000, that operation is the only rejection
+    and the other 1,799 groups commit.
+  - A refusal of the transaction as a whole, such as a proposer that is not the host operator,
+    stops the run after one proposal instead of bisecting it. `BatchReport::refused` names that
+    refusal once, for every group not committed.
+  - A `commit` sent without an answered outcome, such as a lost reply, is named by
+    `BatchError::outcome_unknown` with its id, batch and groups. `docs/sdk.md` says how to settle
+    it from `ekr transactions`. The resolver keeps such nodes queued, and recognises its own
+    landed commit on the next flush.
+- **`ekr session` serves the `ekr.views` reads** (`docs/cli.md`, § `ekr session`, "The
+  `ekr.views` reads"). Six session verbs, `overview`, `search`, `describe`, `expand`, `timeline`
+  and `changes`, answer the document that `ekr view` serves on the matching route for the same
+  query and revision. They refuse what that route refuses, with the same name and message, as
+  `"exit": 2`. The session loads each revision's index once, keeps the three used most recently,
+  and drops them when it follows a replaced store. A reader no longer has to fetch a whole
+  snapshot to count or find things. `ekr` has no one-shot verb of these names.
+- **Typed reads in `ekr-sdk`** (`docs/sdk.md`, "Typed reads"). `read::Reader` works over any
+  transport and returns `Overview`, `NodeMatches`, `NodeDetail`, `Timeline` and `Changes`. Its
+  `ExpandPages` iterator reads a neighbourhood page by page, pinned to the first page's
+  revision. It also returns `Head`, `Snapshot`, `Ontology`, `Transactions` and `Explanation`,
+  which `OneShotReader` reads with no session open, one `ekr` process per read. A read that
+  answers no value is a `ReadError` naming the verb and, for a refusal, its code. Every value
+  writes back exactly the document it was read from. `crates/ekr-sdk/tests/read.rs` checks this
+  against every document the `ekr-views` conformance fixtures render, so a field added to a views
+  format without an SDK update fails there.
+
+### Fixed
+
+- **`ekr-sdk` retries starting a binary that is busy being written.** Linux refuses to execute a
+  file that any process holds open for writing (`ETXTBSY`), and in a multithreaded consumer a
+  child forked by another thread holds a freshly written binary's descriptor until it execs. The
+  `--version` and `operations` probes, `ProcessSession::start`, one-shot requests and
+  `Viewer::spawn` now retry that refusal for up to 630 ms; any other start error is still
+  returned at once, and the refusal after the last retry is the same `BinaryError::Run`,
+  `TransportError::Io` or `ViewerError::Spawn` as before. The wait counts against the probe
+  timeout and a one-shot request's timeout (`TimedOut`), and a cancel ends a one-shot's wait as
+  `Cancelled`.
+- **`docs/sdk.md` covers the document builders** ("Documents"), which the 0.0.19 `README.md`
+  said it did: `TransactionBuilder`, `OntologySpec::seed` and `SeedBuilder`, local minting and
+  hashing, the ten transaction limits and `DocumentError::Limit`, and `OntologySpec` with
+  `Ontology::ensure`, including what it emits, what it refuses by name and profile v1.
+  `crates/ekr-sdk/tests/docs_examples.rs` holds each Rust block of the section to code it
+  compiles and runs, three of them on a real `ekr session`, and every API name the section uses
+  to code the compiler checks.
+
 ## [0.0.19] — 2026-09-29
 
 A Rust SDK drives a store through one child `ekr session`; nodes gain aliases; `ekr mcp` serves

@@ -2,9 +2,10 @@
 
 `ekr-sdk` is a Rust library for driving an EKR store from a program. It runs a child
 [`ekr session`](cli.md#ekr-session) and exchanges one JSON line per request with it, so a consumer
-links neither the kernel nor the store. This page covers the transport: how the child is started,
-how requests and replies are typed, how failures are handled, and how to test without an `ekr`
-binary.
+links neither the kernel nor the store. This page covers how the child is started, how requests
+and replies are typed, how failures are handled, building the documents a consumer writes,
+resolving references through a cache, committing in batches, typed reads, and how to test without
+an `ekr` binary.
 
 The API is blocking and depends on no async runtime in any feature. A Tokio program calls it inside
 `spawn_blocking`.
@@ -49,7 +50,8 @@ let reply = session.request(&Request::new(["seed", "-"]).with_stdin(seed_yaml))?
 
 `ProcessSession::start` runs `ekr --host … --store … --backend … session --create`. The child
 serves `seed` as well as every other verb a session serves, whether or not the store exists yet. So
-hashing, minting, seeding and the first writes all go through one process.
+seeding and the first writes go through one process. Ids and hashes need no process: the SDK
+computes them itself ([Documents](#documents)).
 `processes_started()` reports how many `ekr` processes the session has started.
 
 `SessionOptions` controls how the child runs:
@@ -62,6 +64,13 @@ hashing, minting, seeding and the first writes all go through one process.
 
 The child is started with an absolute path and holds no `PATH` unless `Exact` gives it one. It
 therefore starts when the consumer's own `PATH` is empty.
+
+A binary that Linux refuses to start as busy (`ETXTBSY`: some process, possibly a child another
+thread forked, still holds it open for writing) is retried for up to 630 ms before the refusal is
+returned. This applies to the `--version` and `operations` probes, the session, one-shot
+requests and `Viewer::spawn`. Every other start error is returned at once. The wait counts
+against the probe timeout and a one-shot request's `timeout`, which end it as `TimedOut`, and a
+cancel ends a one-shot's wait within 20 ms as `Cancelled`.
 
 ### Requests over the line cap
 
@@ -128,6 +137,461 @@ printed (`None` for nothing) and its stderr. `reply.answer()` returns an `Answer
 | `Fault(Fault { exit, message })` | 1, or any other status | a provider, verification, input or configuration failure |
 
 A refusal or a fault is still a reply. An `Err` from `request` means no reply was read.
+
+## Documents
+
+`ekr_sdk::document` builds every document a consumer writes. It runs in process and sends no
+request, so a document can be built before a session exists, or with none.
+
+| builder | document | read by |
+|---|---|---|
+| `TransactionBuilder` | `TransactionDocument`, `ekr.transaction-document/2` | [`ekr propose`](cli.md#ekr-propose) |
+| `SeedBuilder`, from `OntologySpec::seed` | `SeedDocument`, `ekr-seed/2` | [`ekr seed`](cli.md#ekr-seed) |
+| `TypedReference::new` | a typed reference | [`ekr resolve`](cli.md#ekr-resolve) |
+| `OntologySpec` with `Ontology::ensure` | the schema operations a store lacks | `ekr propose`, as one transaction |
+
+`TransactionDocument::to_yaml`, `SeedDocument::to_yaml` and `TypedReference::to_yaml` write the
+three documents as YAML, with every variant as a tag (`!CreateNode`, `!Node <id>`,
+`!HumanStatement`). A `SchemaChange` is not a document: `SchemaChange::transaction` builds its
+`TransactionDocument`. The readers refuse the one-key JSON form of a tag, so a document is never
+written with `serde_json`.
+
+In the examples below, `session` is a `ProcessSession` on a store that does not exist yet
+([A session](#a-session)), and `operator` is the host document's `context.operator`, an `AgentId`.
+
+### Ids and hashes are local
+
+Every builder that creates something mints its id: `NodeDraft::new`, `EdgeDraft::new`,
+`Assertion::new`, `Evidence::for_payload`, `TransactionBuilder::new`, and `OntologySpec::seed` for
+every type, property, the schema version and the graph root. A minted id is `ekr-core`'s
+`NodeId::mint()` (`TypeId::mint()`, `TransactionId::mint()`, …), which `ekr_sdk::document`
+re-exports and which is the function [`ekr mint`](cli.md#ekr-mint) runs. `NodeDraft::with_id`
+and the other `with_id` methods set a given id instead, which a test replaying a recording needs
+([Recording and replay](#recording-and-replay)).
+
+`payload_hash(bytes)` is the `ekr.payload.v1` hash that [`ekr hash`](cli.md#ekr-hash) prints as
+`content_hash`, trailing newline included. `EvidenceAddition::new` hashes its payload and mints
+its evidence id, so an entry and its bytes cannot disagree. `crates/ekr-sdk/tests/document_drift.rs`
+holds both to the verbs.
+
+### The ontology by name and the seed
+
+A consumer names types and properties; a store knows them by id. `OntologySpec` declares node types
+(`NodeTypeSpec`), edge types (`EdgeTypeSpec`) and their properties (`PropertySpec`, of a
+`ValueSpec`) by name. `Ontology` maps each name to the id a store holds: `Ontology::node_type`,
+`Ontology::edge_type`, `Ontology::edge_property`, and `Ontology::property`, which finds a property
+on the type or on its nearest ancestor that declares it.
+
+`OntologySpec::seed(created_at)` returns a `SeedBuilder` declaring the spec, with an empty graph,
+and the `Ontology` of what it declares. `SeedBuilder::node` adds a `NodeDraft` in the lifecycle
+state its caller passes, stored as given and not looked up. An `OntologySpec` declares no
+lifecycle, so a node of one of its types takes `None`. `SeedBuilder::edge`,
+`SeedBuilder::assertion` and `SeedBuilder::evidence` add the rest; the last files the payload under
+its hash in `evidence_payloads`. Every entity names `SeedBuilder::root_id`. `SeedBuilder::build`
+cannot fail.
+
+```rust
+use ekr_sdk::document::{
+    Cardinality, EdgeTypeSpec, NodeDraft, NodeTypeSpec, OntologySpec, PropertySpec, Timestamp,
+    ValueSpec,
+};
+use ekr_sdk::transport::{Request, Transport};
+
+let spec = OntologySpec::new()
+    .with_node_type(NodeTypeSpec::new("Author"))
+    .with_node_type(
+        NodeTypeSpec::new("Book")
+            .with_property(PropertySpec::new("title", ValueSpec::String).as_required()),
+    )
+    .with_edge_type(
+        EdgeTypeSpec::new("WROTE", ["Author"], ["Book"]).with_cardinality(Cardinality::Many),
+    );
+let (seed, names) = spec.seed(Timestamp::from_millis(1_790_000_000_000))?;
+let root = seed.root_id();
+let author_type = names.node_type("Author").ok_or("no Author type")?;
+let author =
+    NodeDraft::new(root, author_type, "The Field Naturalist").with_alias("field-naturalist");
+let seed = seed.node(author, None).build();
+let seeded = session.request(&Request::new(["seed", "-"]).with_stdin(seed.to_yaml()?))?;
+```
+
+### Building a transaction
+
+`TransactionBuilder::new(proposer)` starts a transaction under a minted id, and
+`TransactionBuilder::push` appends an operation. Every payload type converts into its
+`Operation` (`NodeDraft` into `!CreateNode`, `EvidenceAddition` into `!AddEvidence`,
+`AliasAddition` into `!AddAlias`, …), so a push reads `.push(draft.into())`. `!DeleteEdge` carries
+only an `EdgeId`, which has no such conversion: push `Operation::DeleteEdge(edge_id)`. The
+proposer is the host's `context.operator`.
+
+`TransactionBuilder::build` fills in what the kernel checks against the operations: the `evidence`
+list is exactly the set the `!AddAssertion`s cite, and a schema change names a minted
+`schema_version` (`TransactionBuilder::with_schema_version` sets a given one). It refuses:
+
+| refusal | when |
+|---|---|
+| `DocumentError::EmptyTransaction` | the transaction has no operation |
+| `DocumentError::MixedSchemaTransaction` | it mixes schema changes and data operations, which every profile refuses |
+| `DocumentError::Limit` | the document is past one of the ten limits ([below](#the-ten-limits)) |
+| `DocumentError::Yaml` | the YAML writer refused a value |
+
+The document is sent as `propose -`, then `validate <id>` and `commit <id>`, three ordinary
+requests whose replies read as in [Replies](#replies). A commit answered `Outcome::Stale` applied
+nothing: propose it again under a new transaction id, which building the document again mints.
+A `Batcher` sends all three for operations given as groups, and handles `Stale` and rejections
+itself ([Batches](#batches)).
+
+```rust
+use ekr_sdk::document::{
+    payload_hash, Assertion, Confidence, EvidenceAddition, EvidenceSource, Object, Predicate,
+    Subject, TransactionBuilder, Value,
+};
+
+let book_type = names.node_type("Book").ok_or("no Book type")?;
+let title = names.property("Book", "title").ok_or("no Book.title")?;
+let name = Value::String("A Field Guide to Lichens".into());
+let book = NodeDraft::new(root, book_type, "A Field Guide to Lichens")
+    .with_property(title, name.clone())
+    .with_alias("lichen-guide");
+let statement = b"The title page reads: A Field Guide to Lichens.\n".to_vec();
+let hash = payload_hash(&statement); // what `ekr hash` prints for the same bytes
+let evidence = EvidenceAddition::new(
+    EvidenceSource::human("Catalogue desk"),
+    operator,
+    Timestamp::from_millis(1_790_000_000_000),
+    Confidence::CERTAIN,
+    statement,
+);
+let claim = Assertion::new(
+    root,
+    Subject::Node(book.id),
+    Predicate::Property(title),
+    Object::Value(name),
+    operator,
+)
+.citing(evidence.evidence.id);
+let document = TransactionBuilder::new(operator)
+    .push(book.into())
+    .push(evidence.into())
+    .push(claim.into())
+    .build()?;
+
+let id = document.transaction.id.to_string();
+let proposed =
+    session.request(&Request::new(["propose", "-"]).with_stdin(document.to_yaml()?))?;
+let validated = session.request(&Request::new(["validate", id.as_str()]))?;
+let committed_book = session.request(&Request::new(["commit", id.as_str()]))?;
+```
+
+### Ensuring an ontology
+
+`Ontology::read(printed)` reads the document [`ekr ontology`](cli.md#ekr-ontology) prints, as
+JSON text. `Ontology::ensure(&spec, profile)` compares it with a spec and returns a
+`SchemaChange`: the schema operations that make the store declare everything the spec declares,
+and `SchemaChange::ontology`, the name-to-id map once they commit, holding the ids minted for what
+they add. It sends nothing.
+
+| the store | `ensure` emits |
+|---|---|
+| lacks a node type | `!DefineNodeType`, with the properties the spec declares on it |
+| lacks an edge type | `!DefineEdgeType`, with its properties |
+| holds the type and lacks one of its properties | `!ModifyProperty` on that type |
+| declares the property differently on that type | `!ModifyProperty` redeclaring it under the id the store holds. The kernel decides whether the store's data admits it |
+| holds an edge type without one of the spec's ends | `!WidenEdgeType`, writing each end whole |
+| declares everything the spec declares | nothing: `SchemaChange::is_empty` |
+
+What the store holds beyond the spec is left alone. `SchemaChange::operations` lists node types,
+then edge types, then properties, then widenings. `SchemaChange::transaction(proposer)` builds them
+into one schema-change transaction, `None` when nothing is missing. A `Batcher` given them as one
+group does the same, never puts them in a batch with data, and skips the group when it is empty.
+
+| `OntologyError` | when |
+|---|---|
+| `SchemaFixed { missing }` | the store runs profile v1 (below) and the spec needs `missing` schema operations |
+| `Conflict { kind, name, reason }` | the store declares what no schema operation changes: a node type's parents or abstractness, an edge type's cardinality, a property an ancestor declares differently. Also a spec whose parents form a cycle |
+| `UnknownName { kind, name }` | the spec names a node type it does not declare and the store does not hold |
+| `DuplicateName { kind, name }` | two node types, two edge types or two properties of one type share a name, in the spec or in the store |
+| `Read` | the text is not a document `ekr ontology` prints |
+
+**Profile v1 fixes the schema.** `ensure` takes the store's validation profile, which it does not
+read from the store: `ValidationProfile::V1` for a host whose `authority.validation_profile.ruleset`
+is `ekr.p1-deterministic/1`, `ValidationProfile::V2` for `ekr.p2-deterministic/1` and
+`ValidationProfile::V3` for `ekr.p3-deterministic/1`. Under v1 a spec the store already declares
+gives an empty change, so `ensure` still checks a v1 store against a spec. A spec that needs any
+operation is `SchemaFixed`, and no operation moves a store from v1 to v2: seed a new store under
+v2 or v3 ([Evolve the schema](cli.md#evolve-the-schema)).
+
+```rust
+use ekr_sdk::batch::Batcher;
+use ekr_sdk::document::{Ontology, ValidationProfile};
+
+let printed = session.request(&Request::new(["ontology"]))?;
+let held = Ontology::read(&printed.document.unwrap_or_default().to_string())?;
+let grown = spec.with_node_type(
+    NodeTypeSpec::new("Journal").with_property(PropertySpec::new("issn", ValueSpec::String)),
+);
+let change = held.ensure(&grown, ValidationProfile::V2)?;
+let report = Batcher::new(operator).commit(&mut session, &[change.operations().to_vec()])?;
+let names = change.ontology();
+let journal_type = names.node_type("Journal").ok_or("no Journal type")?;
+```
+
+### The ten limits
+
+`ekr.transaction-document/2` freezes ten limits ([Document limits](cli.md#document-limits)), and
+`ekr propose` refuses a document past any of them. `TransactionBuilder::build` checks the document
+it writes against the same limits first, counting what the kernel's reader counts, so such a
+document is refused before any request. `TransactionDocument::check_limits` checks a document
+assembled by hand. `TRANSACTION_LIMITS` holds the bounds. `DocumentLimit::ALL` lists the ten, each
+with `DocumentLimit::name` and `DocumentLimit::bound`.
+
+| `DocumentLimit` | name | at most |
+|---|---|---|
+| `InputBytes` | `input_bytes` | 8,388,608 bytes of YAML (8 MiB) |
+| `Operations` | `operations` | 10,000 operations |
+| `Evidence` | `evidence_elements` | 10,000 ids in the transaction's `evidence` |
+| `Depth` | `container_depth` | 32 levels of nesting, a tag counting as one |
+| `Nodes` | `expanded_nodes` | 1,048,576 values, keys and tags |
+| `MappingEntries` | `mapping_entries` | 4,096 entries in one mapping |
+| `SequenceElements` | `sequence_elements` | 16,384 elements in any other sequence |
+| `StringBytes` | `string_bytes` | 65,536 bytes in one string or tag name |
+| `KeyBytes` | `key_bytes` | 4,096 bytes in one mapping key |
+| `TotalStringBytes` | `total_string_bytes` | 33,554,432 bytes of strings, keys and tag names in all |
+
+The refusal is `DocumentError::Limit { limit, bound, value }`: the first limit the document is
+past, its bound and the document's count. Its message names the limit as `ekr propose` would. Split
+the change into several transactions, or let a `Batcher` pack groups under the caps.
+
+An `!AddEvidence` payload is written one list element per byte, so a payload over 16,384 bytes is
+refused as `sequence_elements`. Put a larger statement into the seed, or split it into several
+evidence entries.
+
+```rust
+use ekr_sdk::document::{
+    AliasAddition, DocumentError, DocumentLimit, NodeId, TransactionBuilder,
+};
+
+let node = NodeId::mint();
+let too_many = (0..10_001).fold(TransactionBuilder::new(operator), |builder, n| {
+    builder.push(AliasAddition::new(node, format!("alias-{n}")).into())
+});
+let refused = too_many.build().unwrap_err();
+assert!(matches!(
+    refused,
+    DocumentError::Limit {
+        limit: DocumentLimit::Operations,
+        bound: 10_000,
+        value: 10_001
+    }
+));
+assert_eq!(
+    refused.to_string(),
+    "transaction document limit: operations (at most 10000): this document has 10001"
+);
+```
+
+## Resolve before you create
+
+A `Resolver` answers a typed reference from a cache, and asks
+[`ekr resolve`](cli.md#ekr-resolve) only when the cache cannot answer. A consumer that names the
+same organization in 5,000 messages sends one resolve for it, not 5,000.
+
+```rust
+use ekr_sdk::document::TypedReference;
+use ekr_sdk::resolve::{Resolution, Resolver};
+
+let mut resolver = Resolver::new(root_id, operator);
+let reference = TypedReference::new(organization_type, ["acme"]);
+match resolver.resolve(&mut session, &reference)? {
+    Resolution::Resolved(node) | Resolution::Queued(node) => { /* use node */ }
+    Resolution::Ambiguous(candidates) => { /* read them and decide */ }
+}
+let flushed = resolver.flush(&mut session)?;
+```
+
+The cache key is the reference's exact type id and its aliases, sorted and deduplicated, with the
+empty alias removed. So `["b", "a", "a"]` and `["a", "b"]` are one key. A reference to a supertype
+and one to its subtype are different keys.
+
+| answer | what the resolver does | returns |
+|---|---|---|
+| `Resolved` | caches the node | `Resolution::Resolved(node)` |
+| `ProposeNew` | mints a node id, queues a `CreateNode` of the reference's type carrying the aliases `ekr resolve` named, and caches the id | `Resolution::Queued(node)` |
+| `Ambiguous` | caches nothing | `Resolution::Ambiguous(candidates)`, in id order |
+| a refusal, a fault | nothing | `CallError::Unanswered`, with the answer |
+
+`resolve` names a queued node by the reference's first non-empty alias and gives it no values.
+`resolve_with(transport, reference, || draft)` takes the node from `draft` instead. The resolver
+sets its id, type and aliases; the draft supplies the root, the name and the values.
+
+`flush` commits every queued node through a [`Batcher`](#batches), one group per node. It returns a
+`Flushed`: the `BatchReport` of that commit and of every flush since the last call, and `replaced`
+(below). Flush before committing anything that names a queued node. A queued id does not exist in
+the store until its flush commits it.
+
+The cache stays correct in three ways:
+
+- **Queued nodes are flushed before any resolve that shares an alias with them.** When a resolve
+  the cache cannot answer shares an alias with a queued node of the same type, the queue is
+  flushed first, so `ekr resolve` finds that node rather than proposing a second one with the same
+  alias.
+- **Invalidation is per alias.** `invalidate(type_id, alias)` drops every cached key of that type
+  that holds the alias. `observe(&report, &groups)` records a consumer's own `Batcher` commits.
+  Their revisions count as the SDK's, and every alias that a committed `CreateNode` or `AddAlias`
+  gives is invalidated. An `AddAlias` invalidates the alias under every type, because the resolver
+  does not know the node's type.
+- **The cache is dropped when `head` shows a commit the SDK did not make.** Each flush reads
+  `ekr head` first. If any revision since the last check is not one the resolver committed or
+  observed, the resolver drops its cache and resolves every queued reference again. If another
+  process has meanwhile committed a node with one of those aliases, that node replaces the queued
+  one. The queued id is never created, and `Flushed::replaced` maps it to the new resolution. So a
+  second process's node produces no duplicate and no `alias-already-exists`. The same happens if
+  the commit itself is rejected with `alias-already-exists` because such a node arrived between
+  the head check and the commit. That rejection stays in the report.
+
+When a flush fails, nothing queued is lost:
+
+- A node whose commit reply was lost stays queued. The next flush sees a revision the resolver
+  does not know, and resolves the reference again. If it finds the queued id itself, the SDK's own
+  commit landed: the node is cached as resolved, and it is neither committed again nor listed in
+  `replaced`.
+- A node refused with `alias-already-exists` by a flush that then failed is resolved again by the
+  next flush, before anything is proposed. It ends up in `replaced` or queued again.
+- A stopped batch (`report.refused`, such as a resolver whose proposer is not the host operator)
+  leaves its nodes queued.
+
+## Batches
+
+A `Batcher` commits a consumer's operations, given as atomic dependency groups (`Vec<Operation>`
+each). A group is never split. Put operations that depend on each other, such as a `CreateNode`
+and the `AddAlias` or `CreateEdge` that names it, in one group.
+
+```rust
+use ekr_sdk::batch::Batcher;
+
+let report = Batcher::new(operator).commit(&mut session, &groups)?;
+for rejected in &report.rejected {
+    // rejected.operation, rejected.rejection, rejected.batch, rejected.group
+}
+```
+
+- **Batches respect the caps.** Groups are packed in order into batches of at most 10,000
+  operations and 8 MiB of YAML, the `ekr.transaction-document/2` limits. A schema change never
+  shares a batch with data, and an empty group is skipped. `with_limits(operations, bytes)` sets
+  lower caps, each held between 1 and the kernel's.
+- **`Stale` is retried.** A commit that finds the head moved is proposed again under a newly
+  minted transaction id, then validated against the new head and committed, up to eight times in
+  a row.
+- **A rejection is bisected.** Each batch is proposed, validated and committed as one transaction.
+  If it is rejected, or refused by `ekr propose` for its document (`ekr.kernel.StructurallyInvalid`,
+  `ekr.kernel.ProposalAttribution`), it is split in two and each half is submitted again, down to
+  the single group that is refused. Every other group is committed.
+- **A refusal of the transaction as a whole stops the run.** Some refusals are about the
+  transaction rather than an operation in it, so every transaction of the run would be refused the
+  same way. These are `ekr.kernel.ProposalAttribution` naming a registered submitter other than
+  the batcher's proposer (the proposer is not the host operator), and a rejection with a
+  `proposer-is-validator` issue. Such a refusal is not bisected. The run stops after that one
+  proposal and validation, and `report.refused` names the refusal once, for every group not
+  committed. A `ProposalAttribution` naming the batcher's own proposer is about one operation's
+  attribution (an assertion's `proposed_by` or an evidence entry's `extracted_by`), and is
+  bisected like a rejection.
+
+A `BatchReport` holds:
+
+| field | what it lists |
+|---|---|
+| `committed` | every committed transaction, as `CommittedTransaction`: `transaction` (its id), `revision`, `batch`, the `groups` it carried (by index in the input), and the `stale` ids it was proposed under before |
+| `rejected` | every operation of every refused group, as `RejectedOperation`: `batch`, `group`, `index` within the group, the `operation` itself, and the `rejection` |
+| `refused` | `None`, or the `RefusedBatch` that stopped the run: the `batch`, every `groups` index it did not commit (that batch's and every later batch's), and the `rejection` |
+
+A `Rejection` is `Rejected { transaction, issues }` (each `Issue` has `validator`, `code` and
+`message`, as `ekr validate` prints them), `Refused(refusal)` for a propose refusal, or
+`Document(reason)` when the SDK could not write the group alone within the limits. Groups are
+atomic, so every operation of a refused group is listed with the group's rejection. An issue's
+message names the operation it is about.
+
+If a request gets no answer the SDK can act on, `commit` returns a boxed `BatchError`. Its `report`
+lists what was committed and rejected until then, and its `cause` is a boxed `CallError`: `Transport`,
+`Unanswered` (a refusal not about the document, a usage message or a fault), `Unexpected` (a
+document the SDK cannot read), `Document`, or `StaleRetries`.
+
+**An unanswered commit's outcome is unknown.** Sometimes a `commit` request is sent and no outcome
+comes back: the reply is lost to a timeout, a cancel or a dead session, or the verb answers a
+fault, or the receipt cannot be read. `ekr` may have applied that commit. `BatchError::outcome_unknown` then names it as
+an `UnknownOutcome`: the `transaction` id, its `batch`, and the `groups` it carried. It is not in
+`report.committed`. Settle it before sending those groups again. Read `ekr transactions --state
+Committed` (from a new session if this one failed): if the id is listed, its groups were committed
+and must not be sent again. If it is not listed, send them again.
+
+## Typed reads
+
+`ekr_sdk::read::Reader` sends a read over any transport (a `ProcessSession`, a `&mut` one, a
+recording or a replay) and returns a typed value instead of a `Reply`:
+
+```rust
+use ekr_sdk::read::{ExpandQuery, Reader, Since};
+
+let mut reader = Reader::new(&mut session);
+let overview = reader.overview(None, Some(50))?;          // Overview
+let found = reader.search("Globex", None, None)?;         // NodeMatches
+let detail = reader.describe(found.matches[0].id, None)?; // NodeDetail
+for page in reader.expand(ExpandQuery::new(vec![detail.node.id], 1, 500)) {
+    let page = page?;                                      // Slice
+}
+let changed = reader.changes(Since::Revision(0), None, None, None)?; // Changes
+```
+
+| method | `ekr` verb | value |
+|---|---|---|
+| `overview(revision, limit)` | `overview` | `Overview`, `ekr.graph-overview/1` |
+| `search(text, limit, revision)` | `search` | `NodeMatches`, `ekr.node-matches/1` |
+| `describe(node, revision)` | `describe` | `NodeDetail`, `ekr.node-detail/1` |
+| `expand(query)`, `expand_page(&query, after)` | `expand` | `Slice` pages, `ekr.graph-slice/1` |
+| `timeline(&query)` | `timeline` | `Timeline`, `ekr.graph-timeline/1` |
+| `changes(since, at, limit, after)` | `changes` | `Changes`, `ekr.graph-changes/1` |
+| `head()` | `head` | `Head`: `revision` and `root` |
+| `snapshot(at, valid_at)` | `snapshot` | `Snapshot`: `root` and the graph, every map keyed by id |
+| `ontology(at)` | `ontology` | `Ontology`: node and edge types by name and id, the schema version |
+| `transactions(state)` | `transactions` | `Transactions`: each id, state, proposer, time and operation count |
+| `explain(assertion)` | `explain` | `Explanation`: `links`, one `ExplanationLink` per kind |
+
+The first six are the [`ekr.views` reads](cli.md#session-views), which `ekr` serves in a session
+only. Each reads the store as it stands when `ekr` reads the request, so a commit made by this
+session or by another process is what the next call reads, and `None` for a revision reads the
+newest. `ExpandQuery` holds the seeds, `depth`, `limit` and, optionally, `edges` and `revision`;
+`TimelineQuery` holds `hops`, `limit` and, optionally, `row_type`, `bucket`, `subject` and
+`revision`; `Since` is `Revision(n)`, `Valid(t)` or `Recorded(t)`.
+
+`expand(query)` returns `ExpandPages`, an iterator that reads one `Slice` each time it is advanced
+and ends after the page without `next`. Every page after the first reads the revision that the
+first page read, so a commit between two pages neither drops nor repeats a node or an edge. After
+an error, the iterator ends. `changes` pages by hand: pass each page's `next` as `after`, and the
+first page's `meta.revision` as `at`.
+
+`head`, `snapshot`, `ontology`, `transactions` and `explain` also run without a session.
+`OneShotReader::new(&binary, store, options)` runs each read as its own
+`ekr --host … --store … --backend … <verb>` process. It starts the process the way a session does,
+with the same environment and working directory, and stops it after `options.timeout`. It returns
+the same typed value that a session returns for the same store state.
+
+A read that returns no value fails with a `ReadError` that names the verb:
+
+| `ReadError` | when |
+|---|---|
+| `Refused { verb, refusal }` | a named refusal, for example `ekr.views.NodeNotFound`, `ekr.views.RevisionNotFound`, `ekr.views.LimitExceeded` or `ekr.kernel.AssertionNotFound` |
+| `Usage { verb, message }` | `ekr` did not accept the argv, for example because the binary predates the verb |
+| `Fault { verb, fault }` | a store that does not open or cannot be read, including one never seeded for `head` |
+| `Document { verb, source }` | the document does not read as the verb's value |
+| `Transport(error)` | no reply was read |
+
+The values are serde models of what `ekr` prints. A reader ignores a field it does not know, so a
+newer `ekr` does not break an older consumer. Each value writes back exactly the document it was
+read from. `crates/ekr-sdk/tests/read.rs` checks this against every document that the `ekr-views`
+conformance fixture stores render and against real `ekr` output, so if a format gains a field
+without an SDK update, that test fails and names the field. In `Snapshot` and `Explanation`, the
+parts that vary by kind stay JSON `Value`s, read by their tag as [the page](cli.md#ekr-snapshot)
+documents them. These are an assertion's `object`, `assessment` and `lifecycle`, an evidence
+entry's `source`, and the origin links of an explanation.
 
 ## Recording and replay
 

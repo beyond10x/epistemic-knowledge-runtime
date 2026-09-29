@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:sdk-session-transport
 kind: story
-status: active
+status: implemented
 title: The SDK drives one child ekr session with typed replies and a binary handshake
 relations:
 - depends_on: story:ekr-session
@@ -28,10 +28,11 @@ scope:
   path: crates/ekr-sdk/src/viewer.rs
 - confidence: inferred
   path: docs/sdk.md
-revision: 14
+revision: 15
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-29T15:13:55Z", actor: "human:timo", revision: 12}
 - {from: "proposed", to: "active", at: "2026-09-29T15:13:55Z", actor: "human:timo", revision: 13}
+- {from: "active", to: "implemented", at: "2026-09-29T18:41:25Z", actor: "human:timo", revision: 15, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}}
 ---
 ## Context
 

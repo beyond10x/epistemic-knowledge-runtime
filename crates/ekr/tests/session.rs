@@ -16,7 +16,10 @@
 //!   and `resolve` of the same session;
 //! * `story:session-starts-before-a-store`: a session on a path holding no store serves `mint`,
 //!   `hash` and `schema` and answers a store verb `store-not-found`; `ekr session --create` seeds
-//!   the store and then answers as the one-shot sequence does, in one process.
+//!   the store and then answers as the one-shot sequence does, in one process;
+//! * `story:sdk-read-helpers`: the `ekr.views` reads — `overview`, `search`, `describe`,
+//!   `expand`, `timeline` and `changes` — answer the document, or the refusal, that `ekr view`
+//!   serves for the same request at the same revision.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write as _;
@@ -1410,4 +1413,338 @@ fn the_library_seam_serves_a_session_in_process() {
         &absent.run(&["head"]),
         "in-process head after seed",
     );
+}
+
+/// A running `ekr view` over a world's store, killed when dropped.
+struct ViewServer {
+    child: std::process::Child,
+    address: String,
+}
+
+impl ViewServer {
+    fn start(world: &World) -> Self {
+        let mut child = world
+            .command(&["view", "--port", "0"])
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let mut line = String::new();
+        std::io::BufRead::read_line(
+            &mut std::io::BufReader::new(child.stdout.take().unwrap()),
+            &mut line,
+        )
+        .unwrap();
+        let printed: Value = serde_json::from_str(&line)
+            .unwrap_or_else(|error| panic!("`ekr view` printed {line:?}: {error}"));
+        let address = printed["url"]
+            .as_str()
+            .unwrap()
+            .trim_start_matches("http://")
+            .trim_end_matches('/')
+            .to_owned();
+        Self { child, address }
+    }
+
+    /// `GET <target>`: the status and the body, de-chunked.
+    fn get(&self, target: &str) -> (u16, Vec<u8>) {
+        use std::io::Read as _;
+        let mut stream = std::net::TcpStream::connect(&self.address).unwrap();
+        stream
+            .set_read_timeout(Some(std::time::Duration::from_secs(60)))
+            .unwrap();
+        write!(
+            stream,
+            "GET {target} HTTP/1.1\r\nHost: {}\r\nConnection: close\r\n\r\n",
+            self.address
+        )
+        .unwrap();
+        let mut raw = Vec::new();
+        stream.read_to_end(&mut raw).unwrap();
+        let split = raw.windows(4).position(|w| w == b"\r\n\r\n").unwrap();
+        let head = String::from_utf8_lossy(&raw[..split]).into_owned();
+        let status = head.split_whitespace().nth(1).unwrap().parse().unwrap();
+        let mut body = raw[split + 4..].to_vec();
+        if head
+            .to_ascii_lowercase()
+            .contains("transfer-encoding: chunked")
+        {
+            let (mut rest, mut out) = (body.as_slice(), Vec::new());
+            loop {
+                let end = rest.windows(2).position(|w| w == b"\r\n").unwrap();
+                let size =
+                    usize::from_str_radix(std::str::from_utf8(&rest[..end]).unwrap(), 16).unwrap();
+                rest = &rest[end + 2..];
+                if size == 0 {
+                    break;
+                }
+                out.extend_from_slice(&rest[..size]);
+                rest = &rest[size + 2..];
+            }
+            body = out;
+        }
+        (status, body)
+    }
+}
+
+impl Drop for ViewServer {
+    fn drop(&mut self) {
+        self.child.kill().ok();
+        self.child.wait().ok();
+    }
+}
+
+/// The `ekr.graph-slice/1` document an `/expand` NDJSON stream carries: its meta, its node and
+/// edge records in order, and `next` when the end line names one.
+fn slice_of_stream(body: &[u8]) -> Value {
+    let (mut meta, mut nodes, mut edges, mut next) = (Value::Null, vec![], vec![], Value::Null);
+    for line in std::str::from_utf8(body).unwrap().lines() {
+        let mut record: Value = serde_json::from_str(line).unwrap();
+        let kind = record["kind"].as_str().unwrap().to_owned();
+        record.as_object_mut().unwrap().remove("kind");
+        match kind.as_str() {
+            "meta" => meta = record,
+            "node" => nodes.push(record),
+            "edge" => edges.push(record),
+            "end" => next = record["next"].clone(),
+            "progress" => {}
+            other => panic!("an /expand line of kind {other}"),
+        }
+    }
+    let mut slice = json!({"meta": meta, "nodes": nodes, "edges": edges});
+    if !next.is_null() {
+        slice["next"] = next;
+    }
+    slice
+}
+
+/// `story:sdk-read-helpers`: each views verb of a session answers what `ekr view` serves for the
+/// same request — the document at 200, or at a 400 or 404 the refusal `{"refusal", "message"}`
+/// as `ekr: <refusal>: <message>` on exit 2 — at the head and at a past revision, on both
+/// providers.
+#[test]
+fn each_views_verb_answers_the_document_or_refusal_its_view_route_serves() {
+    const ALICE: &str = "00000000-0000-4000-8000-000000000301";
+    const ACME: &str = "00000000-0000-4000-8000-000000000303";
+    const PERSON: &str = "00000000-0000-4000-8000-000000000201";
+    let unknown = "00000000-0000-4000-8000-000000000999";
+    let cases: Vec<(Vec<&str>, String)> = vec![
+        (vec!["overview"], "/overview".into()),
+        (
+            vec!["overview", "--revision", "0", "--limit", "1"],
+            "/overview?revision=0&limit=1".into(),
+        ),
+        (vec!["search", "Globex"], "/search?q=Globex".into()),
+        (
+            vec!["search", "--limit", "2", "--revision", "0", "--", ""],
+            "/search?q=&limit=2&revision=0".into(),
+        ),
+        (vec!["describe", ALICE], format!("/node/{ALICE}")),
+        (vec!["describe", NODE], format!("/node/{NODE}")),
+        (
+            vec!["describe", NODE, "--revision", "0"],
+            format!("/node/{NODE}?revision=0"),
+        ),
+        (vec!["describe", "not-a-node"], "/node/not-a-node".into()),
+        (
+            vec!["expand", ALICE, "--depth", "1", "--limit", "10"],
+            format!("/expand?seeds={ALICE}&depth=1&limit=10"),
+        ),
+        (
+            vec![
+                "expand",
+                ALICE,
+                ACME,
+                "--depth",
+                "2",
+                "--limit",
+                "1",
+                "--edges",
+                "1",
+                "--after",
+                "1",
+                "--revision",
+                "0",
+            ],
+            format!("/expand?seeds={ALICE},{ACME}&depth=2&limit=1&edges=1&after=1&revision=0"),
+        ),
+        (
+            vec!["expand", "--depth", "0", "--limit", "1"],
+            "/expand?seeds=&depth=0&limit=1".into(),
+        ),
+        (
+            vec!["expand", unknown, "--depth", "0", "--limit", "1"],
+            format!("/expand?seeds={unknown}&depth=0&limit=1"),
+        ),
+        (
+            vec!["timeline", "--hops", "1", "--limit", "10"],
+            "/timeline?hops=1&limit=10".into(),
+        ),
+        (
+            vec![
+                "timeline",
+                "--type",
+                PERSON,
+                "--hops",
+                "2",
+                "--limit",
+                "5",
+                "--bucket",
+                "week",
+                "--subject",
+                ALICE,
+                "--revision",
+                "0",
+            ],
+            format!(
+                "/timeline?type={PERSON}&hops=2&limit=5&bucket=week&subject={ALICE}&revision=0"
+            ),
+        ),
+        (
+            vec!["timeline", "--hops", "9", "--limit", "1"],
+            "/timeline?hops=9&limit=1".into(),
+        ),
+        (
+            vec!["changes", "--since-revision", "0"],
+            "/changes?since_revision=0".into(),
+        ),
+        (
+            vec![
+                "changes",
+                "--since-recorded",
+                "-1",
+                "--at",
+                "1",
+                "--limit",
+                "1",
+                "--after",
+                "1",
+            ],
+            "/changes?since_recorded=-1&at=1&limit=1&after=1".into(),
+        ),
+        (
+            vec!["changes", "--since-valid", "0"],
+            "/changes?since_valid=0".into(),
+        ),
+        (
+            vec!["changes", "--since-revision", "-1"],
+            "/changes?since_revision=-1".into(),
+        ),
+        (
+            vec!["changes", "--since-revision", "5"],
+            "/changes?since_revision=5".into(),
+        ),
+        (vec!["overview", "--limit", "0"], "/overview?limit=0".into()),
+        (
+            vec!["overview", "--revision", "9"],
+            "/overview?revision=9".into(),
+        ),
+    ];
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        for verb in [
+            &["propose", "create.yaml"][..],
+            &["validate", TRANSACTION],
+            &["commit", TRANSACTION],
+        ] {
+            one_shot_document(&world.run(verb), &format!("{backend} {verb:?}"));
+        }
+        let server = ViewServer::start(&world);
+        let lines: Vec<String> = cases.iter().map(|(argv, _)| request(argv, None)).collect();
+        let answers = world.session(&lines, true);
+        let (mut documents, mut refusals) = (0, 0);
+        for ((argv, target), answer) in cases.iter().zip(&answers) {
+            let what = format!("{backend} {argv:?} against GET {target}");
+            let (status, body) = server.get(target);
+            if status == 200 {
+                let served = if argv[0] == "expand" {
+                    slice_of_stream(&body)
+                } else {
+                    serde_json::from_slice(&body).unwrap()
+                };
+                assert_eq!(answer["exit"], 0, "{what}: {answer}");
+                assert_eq!(answer["stdout"], served, "{what}");
+                assert_eq!(answer["stderr"], "", "{what}");
+                documents += 1;
+            } else {
+                assert!(matches!(status, 400 | 404), "{what}: {status}");
+                let refusal: Value = serde_json::from_slice(&body).unwrap();
+                assert_eq!(answer["exit"], 2, "{what}: {answer}");
+                assert!(answer["stdout"].is_null(), "{what}");
+                assert_eq!(
+                    answer["stderr"].as_str().unwrap(),
+                    format!(
+                        "ekr: {}: {}\n",
+                        refusal["refusal"].as_str().unwrap(),
+                        refusal["message"].as_str().unwrap()
+                    ),
+                    "{what}"
+                );
+                refusals += 1;
+            }
+        }
+        assert_eq!((documents, refusals), (14, 8), "{backend}");
+    }
+}
+
+/// The views verbs are session verbs: help is refused as for every verb, a global option is the
+/// session's own, a value clap does not take is a usage error, and on a path holding no store a
+/// views verb answers `store-not-found` as every store verb does. The page lists all six.
+#[test]
+fn the_views_verbs_are_refused_parsed_and_opened_as_every_session_verb_is() {
+    let world = World::absent("file");
+    let lines = [
+        request(&["overview", "--help"], None),
+        request(&["--store", "elsewhere", "overview"], None),
+        request(
+            &["expand", "not-a-node", "--depth", "0", "--limit", "1"],
+            None,
+        ),
+        request(&["changes"], None),
+        request(&["overview"], None),
+        request(&["no-such-verb"], None),
+    ];
+    let answers = world.session(&lines, true);
+    let refused = |at: usize, name: &str| {
+        assert_eq!(answers[at]["exit"], 2, "{}", answers[at]);
+        assert!(
+            answers[at]["stderr"]
+                .as_str()
+                .unwrap()
+                .starts_with(&format!("ekr: {name}: ")),
+            "{}",
+            answers[at]
+        );
+    };
+    refused(0, "session-verb-refused");
+    refused(1, "session-option-refused");
+    for usage in [2, 3] {
+        assert_eq!(answers[usage]["exit"], 2, "{}", answers[usage]);
+        assert!(
+            answers[usage]["stderr"]
+                .as_str()
+                .unwrap()
+                .starts_with("error: "),
+            "{}",
+            answers[usage]
+        );
+    }
+    assert_eq!(answers[4]["exit"], 1, "{}", answers[4]);
+    assert!(answers[4]["stderr"]
+        .as_str()
+        .unwrap()
+        .starts_with("ekr: store-not-found: "));
+    refused(5, "session-verb-unknown");
+    assert!(!world.store().exists());
+
+    let section = session_section();
+    for verb in [
+        "overview", "search", "describe", "expand", "timeline", "changes",
+    ] {
+        assert!(
+            section.contains(&format!("| `{verb}")),
+            "the session section's views table lists `{verb}`"
+        );
+    }
 }

@@ -9,11 +9,17 @@
 //! writes the replay checkpoint of the newest head it reached when that head is past the
 //! retained checkpoint (design § 99.5).
 //!
+//! A session also serves the `ekr.views` reads as verbs of its own — `overview`, `search`,
+//! `describe`, `expand`, `timeline` and `changes` ([`views`]) — each answering the document
+//! `ekr view` serves for the same query and revision, from indexes it keeps of the store it holds
+//! as `ekr view` keeps them. `ekr` has no one-shot verb of these names.
+//!
 //! On a path that holds no store the session starts without one. Until it holds one, a store
 //! verb opens the store as the one-shot verb does — `store-not-found` where there is none — and
 //! the verbs that open no store answer as always. Started with `--create`, it also serves `seed`
 //! through the one-shot verb's own path; the seed that creates the store leaves the session
-//! holding it, opened once as at the start.
+//! holding it, opened once as at the start. A views verb that finds a store at the path —
+//! another process created it — leaves the session holding it the same way.
 //!
 //! **A store replaced at its path.** A long-running reader — this session, `ekr mcp`, `ekr view` —
 //! compares, before each request that reads the store, the identity of what is at its configured
@@ -40,6 +46,7 @@ use clap::error::ErrorKind;
 use clap::Parser;
 use ekr_core::{Timestamp, TransactionId};
 use ekr_kernel::Runtime;
+use ekr_views::IndexCache;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -121,6 +128,7 @@ pub fn serve(
         held: session.runtime.is_some(),
         opened,
         proposed: BTreeSet::new(),
+        indexes: IndexCache::new(IndexCache::DEFAULT_CAPACITY),
     };
     let mut line = Vec::new();
     loop {
@@ -208,12 +216,14 @@ pub(super) fn next_line(
 }
 
 /// What a session knows of the store it holds beyond its runtime: whether it has held one, the
-/// identity of the store it opened, and the transactions it proposed that are neither committed
-/// nor rejected.
+/// identity of the store it opened, the transactions it proposed that are neither committed
+/// nor rejected, and the `ekr.views` indexes of the revisions its views verbs read from it,
+/// loaded once per revision as `ekr view` keeps them and dropped when it opens another store.
 struct Watch {
     held: bool,
     opened: Option<Identity>,
     proposed: BTreeSet<TransactionId>,
+    indexes: IndexCache,
 }
 
 /// What a request does to the session's open proposals once it has answered.
@@ -239,7 +249,17 @@ fn respond(
             format!("a request is {{\"argv\": [...]}}: {error}"),
         )
     })?;
-    let cli = parse(&request.argv)?;
+    let cli = match parse(&request.argv) {
+        Ok(cli) => cli,
+        // Not a one-shot verb: one of the `ekr.views` reads, or no verb at all.
+        Err(unknown) if unknown.name() == Some(UNKNOWN) => {
+            return match views::parse(&request.argv) {
+                Some(views) => read_views(&views?, session, watch),
+                None => Err(unknown),
+            };
+        }
+        Err(failure) => return Err(failure),
+    };
     admit(&cli, session.create)?;
     let seeds = matches!(cli.command, Command::Seed { .. });
     let tracked = match &cli.command {
@@ -307,6 +327,43 @@ fn respond(
     Ok(document)
 }
 
+/// A views verb ([`views`]) against the session's store: refused as [`admit`] refuses a global
+/// option, then answered as a store verb is — after [`follow`], and once more from the store at
+/// the path when the held runtime's history diverged from it.
+///
+/// A session holding no store opens the one at its path as a one-shot verb does —
+/// `store-not-found` where there is none — and, where another process has created one since the
+/// session started, holds it from then on, opened once, as after its own seed: so its indexes
+/// are loaded once per revision there too.
+fn read_views(
+    views: &views::ViewsCli,
+    session: &mut Session,
+    watch: &mut Watch,
+) -> Result<Value, Failure> {
+    if views.sets_an_option() {
+        return Err(option_refused());
+    }
+    if session.runtime.is_none() {
+        let opened = identity(&session.store.store);
+        session.runtime = Some(session.store.open()?);
+        watch.held = true;
+        watch.opened = opened;
+        watch.indexes = IndexCache::new(IndexCache::DEFAULT_CAPACITY);
+    }
+    follow(session, watch, false)?;
+    let answer = |session: &Session, indexes: &mut IndexCache| match &session.runtime {
+        Some(runtime) => views::answer(views.verb(), runtime, indexes),
+        None => Err(Failure::fault("the session holds no store")),
+    };
+    match answer(session, &mut watch.indexes) {
+        Err(failure) if failed_diverged(&failure) => {
+            follow(session, watch, true)?;
+            answer(session, &mut watch.indexes)
+        }
+        answered => answered,
+    }
+}
+
 /// Before a store verb: when the store at the session's path is not the one it opened — or,
 /// `diverged`, the held runtime found its history replaced under the same identity — reopens
 /// there, unless a transaction the session proposed is open ([`PROPOSALS_OPEN`]). A reopen that
@@ -346,6 +403,7 @@ fn follow(session: &mut Session, watch: &mut Watch, diverged: bool) -> Result<()
         ));
     }
     session.runtime = None;
+    watch.indexes = IndexCache::new(IndexCache::DEFAULT_CAPACITY);
     let runtime = reopen(&session.store)
         .map_err(|replaced| Failure::fault(format!("{STORE_REPLACED}: {}", replaced.message)))?;
     session.runtime = Some(runtime);
@@ -560,16 +618,16 @@ fn failed_diverged(failure: &Failure) -> bool {
 fn parse(argv: &[String]) -> Result<Cli, Failure> {
     Cli::try_parse_from(std::iter::once("ekr").chain(argv.iter().map(String::as_str))).map_err(
         |error| match error.kind() {
-            ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => Failure::refused(
-                REFUSED,
-                "`help`, `--help` and `--version` print text, not a JSON document; run them \
-                 outside the session",
-            ),
+            ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => help_refused(),
             ErrorKind::InvalidSubcommand
             | ErrorKind::MissingSubcommand
             | ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand => Failure::refused(
                 UNKNOWN,
-                format!("{argv:?} names no verb of `ekr`; `ekr --help` lists them"),
+                format!(
+                    "{argv:?} names no verb of `ekr`, which `ekr --help` lists, and none of the \
+                     session's ekr.views reads `overview`, `search`, `describe`, `expand`, \
+                     `timeline` and `changes`"
+                ),
             ),
             _ => Failure::Usage {
                 message: error.render().to_string(),
@@ -578,15 +636,29 @@ fn parse(argv: &[String]) -> Result<Cli, Failure> {
     )
 }
 
+/// The refusal of `help`, `--help` and `--version`, which print text.
+fn help_refused() -> Failure {
+    Failure::refused(
+        REFUSED,
+        "`help`, `--help` and `--version` print text, not a JSON document; run them outside the \
+         session",
+    )
+}
+
+/// The refusal of a request that sets a global option.
+fn option_refused() -> Failure {
+    Failure::refused(
+        OPTION,
+        "--host, --store, --backend and --full-replay are the session's own, fixed when it \
+         started; a request carries none of them",
+    )
+}
+
 /// Refuses a request that sets a global option, or names a verb the session does not serve:
 /// `seed` is served only by a session started with `--create`.
 fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
     if cli.host.is_some() || cli.store.is_some() || cli.backend.is_some() || cli.full_replay {
-        return Err(Failure::refused(
-            OPTION,
-            "--host, --store, --backend and --full-replay are the session's own, fixed when it \
-             started; a request carries none of them",
-        ));
+        return Err(option_refused());
     }
     match cli.command {
         Command::Seed { .. } if create => Ok(()),
@@ -638,6 +710,8 @@ fn stderr(failure: &Failure) -> String {
         failure => format!("{failure}\n"),
     }
 }
+
+mod views;
 
 #[cfg(test)]
 pub(super) mod fixture;

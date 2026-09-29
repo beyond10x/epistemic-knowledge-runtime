@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:sdk-typed-documents
 kind: story
-status: active
+status: implemented
 title: The SDK builds every document a consumer writes and names the ontology by name
 relations:
 - serves: vision:o5
@@ -18,10 +18,11 @@ scope:
   path: crates/ekr-sdk/src/lib.rs
 - confidence: inferred
   path: crates/ekr-sdk/tests/document_drift.rs
-revision: 9
+revision: 10
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-29T15:13:55Z", actor: "human:timo", revision: 8}
 - {from: "proposed", to: "active", at: "2026-09-29T15:13:55Z", actor: "human:timo", revision: 9}
+- {from: "active", to: "implemented", at: "2026-09-29T18:41:25Z", actor: "human:timo", revision: 10, decided_on: {"recorded":{"test_result":1,"review_outcome":3}}}
 ---
 ## Context
 

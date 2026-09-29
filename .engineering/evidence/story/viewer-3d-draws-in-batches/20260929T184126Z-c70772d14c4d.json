@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-29T18:41:26Z",
+  "actor": "human:timo",
+  "artifact": "story:viewer-3d-draws-in-batches",
+  "kind": "story",
+  "revision": 4,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Repository correctness run on PR #51 head af4ea0c5, success",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/36611639030"
+  }
+}
