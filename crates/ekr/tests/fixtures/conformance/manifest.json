@@ -36,6 +36,18 @@
     },
     "ekr.kernel.GraphTransaction/transition/reject/by/ekr.kernel.Validate/rejected": {
       "transaction_document": "propose-rejected.yaml"
+    },
+    "ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it": {
+      "transaction_document": "add-evidence.yaml"
+    },
+    "ekr.kernel/authored/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name": {
+      "transaction_document": "add-evidence-mismatched.yaml"
+    },
+    "ekr.kernel/authored/a-reused-evidence-id-is-rejected-by-name": {
+      "transaction_document": "add-evidence-reused-id.yaml"
+    },
+    "ekr.kernel/authored/an-assertion-citing-evidence-no-revision-holds-is-rejected-by-name": {
+      "transaction_document": "add-evidence-absent-citation.yaml"
     }
   },
   "proposals": {

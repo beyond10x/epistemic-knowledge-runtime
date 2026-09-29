@@ -444,6 +444,13 @@ enum Defect {
     /// A command reports none of the store events the provider log gained
     /// (adversary pass 1, finding 1).
     DroppedStoreEvents,
+    /// Every recorded validation issue reports one generic code, so a rejection is no longer
+    /// refused by name (`story:add-evidence-operation`).
+    UnnamedValidationIssues,
+    /// Evidence a commit added is reported without its payload held at its content hash, as a
+    /// kernel that kept the bytes only inside the proposal record would read
+    /// (`story:add-evidence-operation`).
+    AddedEvidenceWithoutPayload,
 }
 
 struct Defective<'a> {
@@ -525,7 +532,27 @@ impl ConformanceTarget for Defective<'_> {
     }
     fn query_view(&self, request: SemanticViewRequest) -> Result<SemanticViewResult, TargetError> {
         let transactions = request.view.to_string() == "ekr.kernel.Transactions";
+        let issues = request.view.to_string() == "ekr.kernel.ValidationIssues";
+        let evidence = request.view.to_string() == "ekr.kernel.RetainedEvidence";
         let mut result = self.inner.query_view(request)?;
+        if matches!(self.defect, Defect::UnnamedValidationIssues) && issues {
+            for row in &mut result.rows {
+                row.insert("code".to_owned(), Node::Text("rejected".to_owned()));
+            }
+        }
+        if matches!(self.defect, Defect::AddedEvidenceWithoutPayload) && evidence {
+            // Only the seed's two entries (0401, 0402) keep a row: their payloads the seed holds.
+            result.rows.retain(|row| {
+                row.get("evidence_id").is_some_and(|id| {
+                    [
+                        "00000000-0000-4000-8000-000000000401",
+                        "00000000-0000-4000-8000-000000000402",
+                    ]
+                    .iter()
+                    .any(|seeded| *id == Node::Text((*seeded).to_owned()))
+                })
+            });
+        }
         if matches!(self.defect, Defect::CommittedReadAsValidated) && transactions {
             for row in &mut result.rows {
                 if row.get("state") == Some(&Node::Text("Committed".to_owned())) {
@@ -636,7 +663,20 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
                 "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/committed",
                 "ekr.kernel.GraphTransaction/transition/commit/by/ekr.kernel.Commit/committed",
                 "ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names",
+                "ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it",
             ],
+        ),
+        (
+            Defect::UnnamedValidationIssues,
+            vec![
+                "ekr.kernel/authored/a-reused-evidence-id-is-rejected-by-name",
+                "ekr.kernel/authored/an-assertion-citing-evidence-no-revision-holds-is-rejected-by-name",
+                "ekr.kernel/authored/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name",
+            ],
+        ),
+        (
+            Defect::AddedEvidenceWithoutPayload,
+            vec!["ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it"],
         ),
         (
             Defect::ForgedSnapshot,
@@ -647,7 +687,10 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
         ),
         (
             Defect::NulledOptionalTransactionFields,
-            vec!["ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names"],
+            vec![
+                "ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names",
+                "ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it",
+            ],
         ),
         (
             Defect::EphemeralStoredObjects,

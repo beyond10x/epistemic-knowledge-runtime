@@ -71,6 +71,13 @@ pub(crate) fn apply(
                 assertion.transaction_time = TransactionTime::since(at);
                 graph.assertions.insert(assertion.id, assertion);
             }
+            // The entry joins retained evidence; its payload is published beside the commit
+            // receipt as a Provenance object (`crate::commands`), never inside a record.
+            GraphOperation::AddEvidence(addition) => {
+                graph
+                    .evidence
+                    .insert(addition.evidence.id, addition.evidence.clone());
+            }
             _ => {}
         }
     }
@@ -154,7 +161,8 @@ pub(crate) fn apply(
             | GraphOperation::ModifyProperty(_)
             | GraphOperation::CreateNode(_)
             | GraphOperation::CreateEdge(_)
-            | GraphOperation::AddAssertion(_) => {}
+            | GraphOperation::AddAssertion(_)
+            | GraphOperation::AddEvidence(_) => {}
         }
     }
     // `ekr.p2-apply/1`: a schema change replaces the ontology with the version it names, derived

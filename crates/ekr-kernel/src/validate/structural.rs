@@ -29,7 +29,7 @@
 //! space (`identity-previously-held`). Profiles v1 and v2 do not, and keep answering as they did,
 //! so a store that already committed such a reuse replays.
 //!
-//! # The class is five, and it was written here as three
+//! # The class is six, and it was written here as three
 //!
 //! The rule is "an operation that brings an identity into existence", and this file said so while
 //! covering node, edge and assertion — the three an adversary had named, widened from the two an
@@ -38,6 +38,9 @@
 //! a catch-all arm. They are the fourth and fifth, and the arms below are now exhaustive rather
 //! than open, so the next operation added to `ekr.kernel.OperationKind` cannot join the class
 //! silently: it has to be given an arm, and the arm has to say which side of the rule it is on.
+//! `AddEvidence` was that next operation, and it is the sixth: it mints an `EvidenceId`, refused
+//! as `duplicate-identity` twice in one transaction and as `identity-already-exists` over one
+//! canonical state retains.
 //!
 //! The two ids live in **one** space. A `TypeId` the ontology holds as an edge type is not free
 //! for a node type: `ekr.ontology.NodeType` and `ekr.ontology.EdgeType` share `TypeId`, and
@@ -54,7 +57,9 @@
 //! `ekr.kernel.GraphTransaction.evidence_hash` is the address of exactly that. A declaration
 //! nothing compares to the operations is a hash over a number the proposer chose, so the set is
 //! held equal to the evidence the transaction's assertions cite — the same shape as the domain's
-//! `operation_count`, which is equally derivable and equally declared.
+//! `operation_count`, which is equally derivable and equally declared. Evidence an `AddEvidence`
+//! brings is in it exactly when an assertion of the transaction cites it: the set says what the
+//! transaction rests on, not what it adds.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -586,6 +591,7 @@ fn check(
     let mut edges = BTreeSet::new();
     let mut assertions = BTreeSet::new();
     let mut types = BTreeSet::new();
+    let mut evidence: BTreeSet<EvidenceId> = BTreeSet::new();
     let mut cited: BTreeSet<EvidenceId> = BTreeSet::new();
     let declared = |type_id: TypeId| {
         state.ontology.node_type(type_id).is_some() || state.ontology.edge_type(type_id).is_some()
@@ -619,6 +625,18 @@ fn check(
                         .assertions
                         .contains_key(&assertion.id)
                         .then(|| format!("assertion {}", assertion.id)),
+                )
+            }
+            // The sixth member of the class: an evidence id names one retained record for the
+            // life of the store, as evidence is never removed, so canonical state is its history.
+            GraphOperation::AddEvidence(addition) => {
+                let id = addition.evidence.id;
+                (
+                    (!evidence.insert(id)).then(|| format!("evidence {id}")),
+                    state
+                        .evidence
+                        .contains_key(&id)
+                        .then(|| format!("evidence {id}")),
                 )
             }
             GraphOperation::DefineNodeType(declaration) => (

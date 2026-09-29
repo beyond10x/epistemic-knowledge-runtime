@@ -143,7 +143,7 @@
     },
     "ekr.views/authored/seeded-evidence-is-projected-as-retained": {
       "file": "seeded-evidence-is-projected-as-retained.yaml",
-      "digest": "sha256:3f1ef387e658de1a6a00f02285300327b26238f6369ec2c1eba39200d7eb8a36"
+      "digest": "sha256:5abf4850b88699b2a07dcb8f401978ab313ca6ac37342fda7a3bc278fd80a793"
     },
     "ekr.views/authored/the-edge-limit-cuts-a-page-between-a-node-and-its-edges": {
       "file": "the-edge-limit-cuts-a-page-between-a-node-and-its-edges.yaml",

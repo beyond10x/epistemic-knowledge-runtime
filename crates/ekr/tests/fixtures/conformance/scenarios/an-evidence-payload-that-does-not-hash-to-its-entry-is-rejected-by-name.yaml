@@ -1,0 +1,46 @@
+# story:add-evidence-operation, acceptance 2, the payload half.
+#
+# The target has committed revision 1 before the first act. The fixture
+# `add-evidence-mismatched.yaml` adds evidence 0403 whose content_hash is the address of
+# "Bob is CEO of Acme." while its payload is the bytes of "Dan is CEO of Acme.". Validation
+# rejects it with exactly one issue, which the Provenance validator raises under the name
+# evidence-payload-mismatch. A target that rejected it for any other reason, or with a second
+# issue, fails.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name
+summary: Evidence whose payload bytes do not hash to its content_hash is rejected with one issue, evidence-payload-mismatch, raised by Provenance.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: transaction_document
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 1
+    outcome: rejected
+    events:
+      - event: ekr.kernel.TransactionRejected
+        payload:
+          issues: 1
+
+assert:
+  - view: ekr.kernel.ValidationIssues
+    contains:
+      transaction_id: {$instance: proposal}
+      validator: Provenance
+      code: evidence-payload-mismatch

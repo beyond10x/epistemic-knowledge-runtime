@@ -7,7 +7,7 @@ use ekr_core::{ContentHash, EventId, RevisionId, RevisionNumber, Timestamp, Tran
 use ekr_graph::{CanonicalGraph, Root};
 use ekr_ontology::Ontology;
 use ekr_store::{ObjectStore, RevisionLog};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 /// Complete verified coordinates of one retained canonical revision.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VerifiedRevision {
@@ -65,6 +65,9 @@ pub struct SchemaHistory {
     /// The ontology in force from each of those revisions whose ontology root differs from the
     /// revision before it: the seed's, and one more for each revision that changed the schema.
     pub schemas: BTreeMap<RevisionNumber, Ontology>,
+    /// The content hashes, among the chosen revision's evidence, whose bytes the same verified
+    /// history holds as objects: answered from that one read, not one history read per entry.
+    pub retained_evidence: BTreeSet<ContentHash>,
 }
 impl<S: RevisionLog + ObjectStore> Commit<S> {
     /// The graph at `revision` and the schema history of its lineage.
@@ -126,11 +129,20 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             })
             .filter(|(number, _)| *number <= revision)
             .collect();
+        // The kernel requires every evidence payload of the lineage (seeded or added), so the
+        // history just verified holds each one it retains, already checked against its address.
+        let retained_evidence = graph
+            .evidence
+            .values()
+            .map(|evidence| evidence.content_hash)
+            .filter(|hash| history.objects.contains_key(hash))
+            .collect();
         Ok(SchemaHistory {
             graph,
             revisions,
             transactions,
             schemas,
+            retained_evidence,
         })
     }
     /// How many replays this handle's authority has begun at the seed.

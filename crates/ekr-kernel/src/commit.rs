@@ -19,6 +19,8 @@ pub struct KernelAuthority {
     pub(crate) cache: std::sync::Arc<std::sync::Mutex<crate::replay::ReplayCache>>,
 }
 impl CommitAuthority for KernelAuthority {
+    /// The seed envelope's evidence payloads, and the payload of every evidence entry a committed
+    /// `AddEvidence` brought: what a verified read, `explain` and replay read by content hash.
     fn required_objects(
         &self,
         history: &RetainedHistory,
@@ -32,7 +34,9 @@ impl CommitAuthority for KernelAuthority {
         // An `ekr-seed-envelope/2` requires the payloads it carries; an `/3` requires none and
         // reads the ones it names where held (`objects_if_held`), judging an absent one itself.
         let (payloads, named) = self.seed_payloads(history, seed_hash)?;
-        Ok(if named { BTreeSet::new() } else { payloads })
+        let mut required = if named { BTreeSet::new() } else { payloads };
+        required.extend(self.added_evidence_required(history)?);
+        Ok(required)
     }
     fn objects_if_held(
         &self,
@@ -103,6 +107,71 @@ impl CommitAuthority for KernelAuthority {
     }
 }
 impl KernelAuthority {
+    /// The content hash of every evidence entry a committed `AddEvidence` of `history` brought,
+    /// whose payload the commit published as a Provenance object.
+    ///
+    /// Retained evidence is never removed, so a state this authority already reached over a
+    /// prefix of `history` — replayed, or restored from a checkpoint whose head graph the
+    /// head's recorded evidence root binds — names every one before it in its head graph's
+    /// evidence. Only the commits after that prefix are read: each retained receipt's proposal
+    /// document, parsed for its `AddEvidence` operations. A receipt or document that does not
+    /// read contributes nothing here; replay refuses it by its own name.
+    fn added_evidence_required(
+        &self,
+        history: &RetainedHistory,
+    ) -> Result<BTreeSet<ContentHash>, StoreError> {
+        if history.occurrences.is_empty() {
+            return Ok(BTreeSet::new());
+        }
+        let digests = crate::replay::prefix_digests(&history.occurrences);
+        let reached = self.cache()?.longest(&digests);
+        let (start, mut required) = match reached
+            .as_ref()
+            .and_then(|(covered, state)| Some((*covered, state.head().graph.as_deref()?)))
+        {
+            Some((covered, graph)) => (
+                covered,
+                graph
+                    .evidence
+                    .values()
+                    .map(|evidence| evidence.content_hash)
+                    .collect(),
+            ),
+            None => (0, BTreeSet::new()),
+        };
+        for occurrence in history.occurrences.iter().skip(start) {
+            if !matches!(
+                occurrence.event.payload,
+                RevisionPayload::RevisionCommitted { .. }
+            ) {
+                continue;
+            }
+            let Ok(bytes) = history.content(occurrence.event.record_hash, StorageClass::Canonical)
+            else {
+                continue;
+            };
+            let Ok(receipt) = crate::CommitReceiptV1::from_bytes(bytes) else {
+                continue;
+            };
+            let Ok(document) = crate::TransactionDocument::parse(&receipt.proposal.document_bytes)
+            else {
+                continue;
+            };
+            required.extend(
+                document
+                    .transaction()
+                    .operations
+                    .iter()
+                    .filter_map(|operation| match operation {
+                        crate::GraphOperation::AddEvidence(addition) => {
+                            Some(addition.evidence.content_hash)
+                        }
+                        _ => None,
+                    }),
+            );
+        }
+        Ok(required)
+    }
     pub(crate) fn cache(
         &self,
     ) -> Result<std::sync::MutexGuard<'_, crate::replay::ReplayCache>, StoreError> {
