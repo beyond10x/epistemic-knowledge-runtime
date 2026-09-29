@@ -574,15 +574,15 @@ writes through one process instead of one each:
 ```
 
 A session serves `propose`, `validate`, `commit`, `snapshot`, `explain`, `resolve`, `head`,
-`transactions`, `ontology`, `mint`, `hash` and `schema`, and `seed` when it was started with
-`--create`. It refuses these, each answered with `"exit": 2`, `"stdout": null` and
-`ekr: <refusal>: <reason>` as `"stderr"`:
+`transactions`, `ontology`, `mint`, `hash` and `schema`, the `ekr.views` reads
+([below](#session-views)), and `seed` when it was started with `--create`. It refuses these, each
+answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"stderr"`:
 
 | refusal | exit | what it means | what to fix |
 |---|---|---|---|
 | `session-request-malformed` | 2 | the line is not a JSON object with `argv`, a list of strings, and at most `stdin`, a string; an empty line included | send `{"argv": [...]}` on one line |
 | `session-request-too-large` | 2 | the line is longer than 25231360 bytes, its newline excluded: three times the 8388608-byte `ekr.transaction-document/2` cap, the most JSON escaping can make of it, and 65536 bytes for `argv` and the framing. The session holds no more of the line than that; it reads the rest up to the newline, drops it and serves the next line | send the document as a file (`["propose", "doc.yaml"]`), or a smaller one |
-| `session-verb-unknown` | 2 | `argv` is empty, or its first word is not a verb of `ekr` | a verb from the list above |
+| `session-verb-unknown` | 2 | `argv` is empty, or its first word is neither a verb of `ekr` nor one of the `ekr.views` reads below | a verb from the list above |
 | `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `migrate`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, write a second store, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
 | `session-option-refused` | 2 | the request sets `--host`, `--store`, `--backend` or `--full-replay` | the session's store is fixed when it starts; start another session for another store |
 
@@ -592,6 +592,41 @@ Any other `argv` the verbs' definitions do not accept — an unknown flag
 `"exit": 2`, `"stdout": null` and clap's usage message, byte for byte, as `"stderr"`: the
 message `ekr <argv>` prints with the store configured through `EKR_HOST`, `EKR_STORE` and
 `EKR_BACKEND`, since clap's usage line repeats the global options an argv gives.
+
+<a id="session-views"></a>**The `ekr.views` reads.** A session also serves six verbs that `ekr`
+has no one-shot verb for: the bounded reads [`ekr view`](#ekr-view) serves over HTTP and
+[`ekr mcp`](#ekr-mcp) as tools. Each answers, as its `"stdout"`, the document `ekr view` serves on
+the route in the last column for the same query at the same revision, read through the same
+`ekr.views` index, which the session loads once per revision of the store it holds and keeps for
+the 3 revisions used most recently:
+
+| verb | arguments (required in bold) | answers | as |
+|---|---|---|---|
+| `overview` | `--revision N`, `--limit L` (1 to 500, 300 when absent) | the `ekr.graph-overview/1` document | `GET /overview` |
+| `search` | **the text** (empty matches every node; put `--` before a text that starts with `-`), `--limit L` (1 to 100, 20 when absent), `--revision N` | the `ekr.node-matches/1` document | `GET /search` |
+| `describe` | **the node id**, `--revision N` | the `ekr.node-detail/1` document | `GET /node/<node id>` |
+| `expand` | the seed node ids (none answers an empty page), **`--depth D`** (0 to 2), **`--limit L`** (1 to 2,000 nodes), `--edges E` (1 to 5,000, 5,000 when absent), `--after A` (a cursor), `--revision N` | the whole `ekr.graph-slice/1` page as one document, `next` naming the next page's `--after` | `GET /expand`, as one document rather than NDJSON |
+| `timeline` | `--type T` (a node type id), **`--hops H`** (1 to 3), **`--limit L`** (1 to 500), `--bucket day\|week`, `--subject S` (a node id), `--revision N` | the `ekr.graph-timeline/1` document | `GET /timeline` |
+| `changes` | exactly one of **`--since-revision N`**, **`--since-valid T`** and **`--since-recorded T`** (milliseconds since the epoch), `--at R` (the last revision read, the head when absent), `--limit L` (1 to 2,000, 500 when absent), `--after A` (a cursor) | the `ekr.graph-changes/1` page ([what it lists](#changes-since)); pass the first page's `meta.revision` as `--at` for the rest | `GET /changes` |
+
+```console
+{"argv": ["search", "Globex", "--limit", "5"]}
+{"argv": ["expand", "00000000-0000-4000-8000-000000000301", "--depth", "1", "--limit", "500"]}
+{"argv": ["changes", "--since-revision", "0"]}
+```
+
+Every read is of the store as it stands when the request is read, so a transaction this session
+or another process committed is what the next one reads, and a request naming no revision reads
+the newest. What `ekr view` refuses with a JSON `{"refusal", "message"}` body a session answers
+`"exit": 2` with `ekr: <refusal>: <message>`, the same name and message, in the same order: a
+`--since-revision` below 0 is `ekr.views.SinceMalformed` and a bound outside its range
+`ekr.views.LimitExceeded`, both before the store is read; a store never seeded
+`ekr.views.NotSeeded`; a revision the store does not hold `ekr.views.RevisionNotFound`; and a node
+or seed the revision does not hold, or a `describe` id that is no node id,
+`ekr.views.NodeNotFound`. A query `ekr view` answers `invalid-query` — a seed, `--type` or
+`--subject` that is not an id, a `--bucket` other than `day` or `week`, no since or more than one —
+is an argv these verbs do not take: clap's usage message, `"exit": 2`. On a path holding no store
+each answers `store-not-found`, as every store verb does.
 
 **A store replaced at its path** ([as for `ekr view`](#replaced-store)) is followed before each
 store verb; `mint`, `hash` and `schema` read no store and are served throughout. A store now at

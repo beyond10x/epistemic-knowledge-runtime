@@ -4,6 +4,25 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- **`ekr session` serves the `ekr.views` reads** (`docs/cli.md`, § `ekr session`, "The
+  `ekr.views` reads"). Six session verbs, `overview`, `search`, `describe`, `expand`, `timeline`
+  and `changes`, answer the document that `ekr view` serves on the matching route for the same
+  query and revision. They refuse what that route refuses, with the same name and message, as
+  `"exit": 2`. The session loads each revision's index once, keeps the three used most recently,
+  and drops them when it follows a replaced store. A reader no longer has to fetch a whole
+  snapshot to count or find things. `ekr` has no one-shot verb of these names.
+- **Typed reads in `ekr-sdk`** (`docs/sdk.md`, "Typed reads"). `read::Reader` works over any
+  transport and returns `Overview`, `NodeMatches`, `NodeDetail`, `Timeline` and `Changes`. Its
+  `ExpandPages` iterator reads a neighbourhood page by page, pinned to the first page's
+  revision. It also returns `Head`, `Snapshot`, `Ontology`, `Transactions` and `Explanation`,
+  which `OneShotReader` reads with no session open, one `ekr` process per read. A read that
+  answers no value is a `ReadError` naming the verb and, for a refusal, its code. Every value
+  writes back exactly the document it was read from. `crates/ekr-sdk/tests/read.rs` checks this
+  against every document the `ekr-views` conformance fixtures render, so a field added to a views
+  format without an SDK update fails there.
+
 ## [0.0.19] — 2026-09-29
 
 A Rust SDK drives a store through one child `ekr session`; nodes gain aliases; `ekr mcp` serves

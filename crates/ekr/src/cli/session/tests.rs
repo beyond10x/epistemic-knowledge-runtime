@@ -5,7 +5,8 @@
 
 use std::collections::BTreeSet;
 
-use ekr_core::Timestamp;
+use ekr_core::{RevisionNumber, Timestamp};
+use ekr_views::IndexCache;
 
 use super::fixture::{replace, replace_inside, seeded, seeded_with_a_commit, BACKENDS};
 use super::{identity, reader_work, respond, Checked, Held, ReaderWork, Watch};
@@ -17,6 +18,7 @@ fn session(store: Store) -> (Session, Watch) {
         held: true,
         opened: identity(&store.store),
         proposed: BTreeSet::new(),
+        indexes: IndexCache::new(IndexCache::DEFAULT_CAPACITY),
     };
     let session = Session {
         runtime: Some(store.open().expect("the store opens")),
@@ -190,6 +192,7 @@ fn a_session_request_checks_the_store_only_for_a_store_verb_and_opens_it_only_wh
             held: true,
             opened: identity(&path),
             proposed: BTreeSet::new(),
+            indexes: IndexCache::new(IndexCache::DEFAULT_CAPACITY),
         };
         let mut session = Session {
             runtime: Some(store.open().expect("the store opens")),
@@ -230,6 +233,61 @@ fn a_session_request_checks_the_store_only_for_a_store_verb_and_opens_it_only_wh
                 settles: 0
             },
             "{backend:?}"
+        );
+    }
+}
+
+/// A views verb loads a revision's index once and answers from it until the store is replaced:
+/// then it answers from the store now at the path — by a rename or, for a file store, inside its
+/// directory — and keeps no index of the replaced one.
+#[test]
+fn a_views_verb_keeps_its_index_until_the_store_is_replaced_and_none_of_the_replaced_one() {
+    let clock = || Timestamp::from_millis(0);
+    let overview = |session: &mut Session, watch: &mut Watch| {
+        respond(&line(&["overview"]), session, watch, &clock).expect("overview answers")
+    };
+    for (backend, inside) in [
+        (Backend::File, false),
+        (Backend::Sqlite, false),
+        (Backend::File, true),
+    ] {
+        let what = format!("{backend:?}, inside {inside}");
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let store = seeded(directory.path(), backend, "store");
+        let path = store.store.clone();
+        let (mut session, mut watch) = session(store);
+        let first = overview(&mut session, &mut watch);
+        assert_eq!(first["meta"]["revision"], 0, "{what}");
+        let _ = reader_work();
+        assert_eq!(overview(&mut session, &mut watch), first, "{what}");
+        assert_eq!(reader_work().reopens, 0, "{what}");
+        assert!(
+            watch.indexes.get(RevisionNumber::new(0)).is_some(),
+            "{what}"
+        );
+
+        let next = seeded_with_a_commit(directory.path(), backend, "next");
+        if inside {
+            replace_inside(&path, &next.store);
+        } else {
+            replace(&path, &directory.path().join("replaced"), &next.store);
+        }
+        let after = overview(&mut session, &mut watch);
+        assert_eq!(after["meta"]["revision"], 1, "{what}");
+        assert_eq!(
+            after["meta"]["node_count"].as_u64(),
+            first["meta"]["node_count"].as_u64().map(|nodes| nodes + 1),
+            "{what}"
+        );
+        assert_eq!(reader_work().reopens, 1, "{what}");
+        assert_eq!(
+            watch.indexes.len(),
+            1,
+            "{what}: the replaced store's index is gone"
+        );
+        assert!(
+            watch.indexes.get(RevisionNumber::new(1)).is_some(),
+            "{what}"
         );
     }
 }
