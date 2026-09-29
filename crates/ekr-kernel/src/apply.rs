@@ -6,7 +6,50 @@ use ekr_graph::{
     AssertionLifecycle, Assessment, CanonicalGraph, CanonicalRef, Edge, Node, Root, TransactionTime,
 };
 use ekr_store::{evidence_root, knowledge_root, StoreError};
+use std::cell::RefCell;
 use std::collections::BTreeSet;
+use std::sync::{Arc, Weak};
+
+/// The root the last [`apply`] on this thread computed, with every input it is a function of.
+///
+/// A commit applies its transaction to the head when the kernel decides it, and the store then
+/// admits the staged candidate by replaying it through the same kernel, which applies the same
+/// transaction to the same head graph again. The root is a pure function of these inputs, so that
+/// second application takes the root the kernel already computed rather than hashing the whole
+/// graph a second time (`story:commit-hashes-the-graph-once`). The root is still the kernel's.
+///
+/// The prior graph is identified by its allocation. The weak reference keeps that allocation
+/// from being reused while it is held, so an equal address is the same graph; it does not keep
+/// the graph's contents alive.
+struct Applied {
+    prior: Weak<CanonicalGraph>,
+    prior_root: Root,
+    prior_committed_at: Timestamp,
+    validators: BTreeSet<AgentId>,
+    at: Timestamp,
+    /// The result; its `transaction` is the content address of the transaction applied.
+    root: Root,
+}
+impl Applied {
+    fn holds(
+        &self,
+        prior: &Revision,
+        graph: &Arc<CanonicalGraph>,
+        transaction: ContentHash,
+        validators: &BTreeSet<AgentId>,
+        at: Timestamp,
+    ) -> bool {
+        std::ptr::eq(self.prior.as_ptr(), Arc::as_ptr(graph))
+            && self.prior_root == prior.root
+            && self.prior_committed_at == prior.committed_at
+            && self.root.transaction == transaction
+            && self.validators == *validators
+            && self.at == at
+    }
+}
+thread_local! {
+    static APPLIED: RefCell<Option<Applied>> = const { RefCell::new(None) };
+}
 
 pub(crate) fn apply(
     prior: &Revision,
@@ -17,8 +60,57 @@ pub(crate) fn apply(
     if at < prior.committed_at {
         return Err(StoreError::Document("commit-time-precedes-head".into()));
     }
-    let mut graph = prior.graph()?.clone();
+    let held = prior
+        .graph
+        .as_ref()
+        .ok_or_else(|| crate::replay::refuse(crate::replay::GRAPH_NOT_HELD))?;
     let tx = validated.transaction();
+    let transaction = ContentHash::of(tx);
+    let graph = applied_graph(prior, held, tx, validators, at)?;
+    let reused = APPLIED.with(|applied| {
+        applied
+            .borrow()
+            .as_ref()
+            .filter(|applied| applied.holds(prior, held, transaction, validators, at))
+            .map(|applied| applied.root)
+    });
+    let root = match reused {
+        Some(root) => root,
+        None => {
+            let root = Root {
+                revision: graph.revision,
+                parent: Some(ContentHash::of(&prior.root)),
+                ontology_root: ContentHash::of(&graph.ontology),
+                knowledge_root: knowledge_root(&graph),
+                evidence_root: evidence_root(&graph),
+                agent_root: prior.root.agent_root,
+                transaction,
+            };
+            APPLIED.with(|applied| {
+                *applied.borrow_mut() = Some(Applied {
+                    prior: Arc::downgrade(held),
+                    prior_root: prior.root,
+                    prior_committed_at: prior.committed_at,
+                    validators: validators.clone(),
+                    at,
+                    root,
+                });
+            });
+            root
+        }
+    };
+    Ok((graph, root))
+}
+
+/// The graph `tx` makes of `prior`'s graph, `held`.
+fn applied_graph(
+    prior: &Revision,
+    held: &CanonicalGraph,
+    tx: &crate::GraphTransaction<ekr_graph::CanonicalValue>,
+    validators: &BTreeSet<AgentId>,
+    at: Timestamp,
+) -> Result<CanonicalGraph, StoreError> {
+    let mut graph = held.clone();
     graph.revision = prior
         .root
         .revision
@@ -178,14 +270,5 @@ pub(crate) fn apply(
             .evolve(version, at, &changes)
             .map_err(|error| StoreError::Document(error.code().into()))?;
     }
-    let root = Root {
-        revision: graph.revision,
-        parent: Some(ContentHash::of(&prior.root)),
-        ontology_root: ContentHash::of(&graph.ontology),
-        knowledge_root: knowledge_root(&graph),
-        evidence_root: evidence_root(&graph),
-        agent_root: prior.root.agent_root,
-        transaction: ContentHash::of(tx),
-    };
-    Ok((graph, root))
+    Ok(graph)
 }

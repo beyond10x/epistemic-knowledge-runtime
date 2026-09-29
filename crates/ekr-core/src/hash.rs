@@ -55,7 +55,8 @@ impl ContentHash {
     /// The domain label of an address over a value's canonical encoding.
     pub const VALUE_DOMAIN: &'static [u8] = b"ekr.value.v1";
 
-    /// The digest of a domain label followed by bytes. The one place either domain is hashed.
+    /// The digest of a domain label followed by bytes: the payload domain's one hashing path, and
+    /// what [`ContentHash::of`] computes for the value domain without holding the bytes.
     fn under_domain(domain: &[u8], bytes: &[u8]) -> Self {
         let mut hasher = Sha256::new();
         hasher.update(domain);
@@ -78,9 +79,15 @@ impl ContentHash {
     ///
     /// `of(&v)` is never `of_bytes(&v.canonical_bytes())`; the two live in different domains, and
     /// that is the point.
+    ///
+    /// It is the digest of [`ContentHash::VALUE_DOMAIN`] followed by exactly the bytes
+    /// [`Canonical::canonical_bytes`] returns, taken as the encoding is written: the encoder holds
+    /// a bounded window of it, never the whole, which for a knowledge root is a whole graph.
     #[must_use]
     pub fn of<T: Canonical + ?Sized>(value: &T) -> Self {
-        Self::under_domain(Self::VALUE_DOMAIN, &value.canonical_bytes())
+        let mut encoder = crate::canonical::Encoder::hashing(Self::VALUE_DOMAIN);
+        value.encode(&mut encoder);
+        Self(encoder.digest())
     }
 
     /// A digest that was computed before — read back from storage, say.
@@ -161,5 +168,62 @@ impl<'de> Deserialize<'de> for ContentHash {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let text = String::deserialize(deserializer)?;
         text.parse().map_err(D::Error::custom)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ContentHash;
+    use crate::canonical::{Canonical, Encoder};
+    use std::collections::BTreeMap;
+
+    /// `chunks` strings of `chunk` bytes each, then one raw run of `tail` bytes.
+    struct Large {
+        chunks: usize,
+        chunk: usize,
+        tail: usize,
+    }
+    impl Canonical for Large {
+        fn encode(&self, out: &mut Encoder) {
+            for n in 0..self.chunks {
+                let byte = b'a' + u8::try_from(n % 26).expect("a letter");
+                out.string(&String::from_utf8(vec![byte; self.chunk]).expect("ascii"));
+            }
+            out.bytes(&vec![0x5a; self.tail]);
+        }
+    }
+
+    /// The address as it was taken before it streamed: the value domain and the whole encoding,
+    /// built in memory first.
+    fn in_memory<T: Canonical>(value: &T) -> ContentHash {
+        ContentHash::under_domain(ContentHash::VALUE_DOMAIN, &value.canonical_bytes())
+    }
+
+    /// `story:commit-hashes-the-graph-once`: hashing the encoding as it is written moves no
+    /// address, whether it spans one window or many, and whether a run is shorter or longer than
+    /// a window.
+    #[test]
+    fn the_streamed_address_is_the_address_over_the_whole_encoding() {
+        let large = Large {
+            chunks: 600,
+            chunk: 1000,
+            tail: 3 << 20,
+        };
+        assert_eq!(ContentHash::of(&large), in_memory(&large));
+
+        // Nested maps, whose entries each encode their own values: the shape of a graph.
+        let nested: BTreeMap<u64, BTreeMap<String, Vec<u64>>> = (0..2_000_u64)
+            .map(|n| {
+                let inner = (0..8_u64)
+                    .map(|m| (format!("property {m}"), (0..n % 17).collect()))
+                    .collect();
+                (n, inner)
+            })
+            .collect();
+        assert_eq!(ContentHash::of(&nested), in_memory(&nested));
+
+        for small in [String::new(), "knowledge".to_owned(), "k".repeat(70_000)] {
+            assert_eq!(ContentHash::of(&small), in_memory(&small));
+        }
     }
 }
