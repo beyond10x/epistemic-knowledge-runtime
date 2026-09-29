@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-29T12:31:09Z",
+  "actor": "human:timo",
+  "artifact": "story:edge-type-endpoints-widen",
+  "kind": "story",
+  "revision": 7,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:adversary-perf-02-e-pass-1",
+    "review": "review-result:adversary-perf-02-e-pass-1",
+    "outcome": "fixed"
+  }
+}
