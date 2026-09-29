@@ -4,7 +4,8 @@
 //! observed and the exact bytes — and cites each through an [`EvidenceSet`], which hashes the
 //! bytes and mints the evidence id here, without a request: [`payload_hash`] is the hash
 //! `ekr hash` prints and [`EvidenceId::mint`] the function `ekr mint evidence` runs. The same item
-//! cited again gets the same id.
+//! cited again through one set gets the same id; a set rebuilt with [`EvidenceSet::from_store`]
+//! also cites the id of an entry the store already holds for it.
 //!
 //! [`Batcher::commit_with_evidence`](crate::batch::Batcher::commit_with_evidence) turns each
 //! entry into an `!AddEvidence` and puts it into the group of the first assertion that cites it
@@ -16,6 +17,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use ekr_core::{AgentId, ContentHash, EvidenceId, Timestamp};
 
 use crate::document::{payload_hash, Confidence, EvidenceAddition, EvidenceSource, Operation};
+use crate::read::{ReadError, Reader};
+use crate::transport::Transport;
 
 /// One piece of a consumer's evidence: who or what said it, when it was observed, and its exact
 /// bytes, trailing newline included.
@@ -73,9 +76,38 @@ impl EvidenceSet {
         }
     }
 
+    /// A set that knows every entry the store holds at its head, read with
+    /// [`Reader::snapshot`], so a consumer that restarts cites those entries instead of adding a
+    /// second one for the same item. Each `!HumanStatement` entry with an identity is keyed by
+    /// that identity, its observed-at time and its content hash, as [`Self::cite`] keys an item;
+    /// where several share a key, the lowest id is cited. Every one is committed, and none has
+    /// an [`Self::entry`]: the set did not mint it and does not hold its bytes. An entry another
+    /// process commits after the read is not known.
+    ///
+    /// # Errors
+    /// [`ReadError`] when `ekr snapshot` does not answer with a snapshot.
+    pub fn from_store<T: Transport + ?Sized>(
+        transport: &mut T,
+        extracted_by: AgentId,
+    ) -> Result<Self, ReadError> {
+        let snapshot = Reader::new(transport).snapshot(None, None)?;
+        let mut set = Self::new(extracted_by);
+        for (id, entry) in snapshot.graph.graph.evidence {
+            let Some(identity) = entry.source["HumanStatement"]["identity"].as_str() else {
+                continue;
+            };
+            let key = (identity.to_owned(), entry.observed_at, entry.content_hash);
+            set.ids.entry(key).or_insert(id);
+            set.committed.insert(id);
+        }
+        Ok(set)
+    }
+
     /// The evidence id to cite for `item`. The first time, its bytes are hashed and an id is
     /// minted for an entry of confidence [`Confidence::CERTAIN`]; an item with the same source,
-    /// observed-at time and bytes gets the same id.
+    /// observed-at time and bytes gets the same id from this set, and one the store held when
+    /// [`Self::from_store`] read it gets that entry's id. A new set that was not rebuilt knows
+    /// nothing of the store and mints a new id.
     pub fn cite(&mut self, item: EvidenceItem) -> EvidenceId {
         let key = (item.source.clone(), item.observed_at, item.content_hash());
         if let Some(id) = self.ids.get(&key) {
@@ -100,19 +132,20 @@ impl EvidenceSet {
         self.entries.get(&id)
     }
 
-    /// How many entries the set holds.
+    /// How many entries the set can cite: those it minted and those [`Self::from_store`] read.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.entries.len()
+        self.ids.len()
     }
 
-    /// Whether the set holds no entry.
+    /// Whether the set can cite no entry.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
+        self.ids.is_empty()
     }
 
-    /// Whether a transaction a batcher committed with this set added the entry `id`.
+    /// Whether the store holds the entry `id`: a transaction a batcher committed with this set
+    /// added it, [`Self::from_store`] read it, or [`Self::mark_committed`] recorded it.
     #[must_use]
     pub fn is_committed(&self, id: EvidenceId) -> bool {
         self.committed.contains(&id)

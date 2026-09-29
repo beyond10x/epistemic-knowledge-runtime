@@ -388,6 +388,17 @@ impl Batcher {
             )
             .build();
         let attempt = match built {
+            // An entry a rejected group introduced moves to the next group citing it, which the
+            // plan packed without it: past the operation cap, the batch is split, not proposed.
+            // A group alone past the cap is proposed, as the plan packs it.
+            Ok(document)
+                if members.len() > 1 && document.transaction.operations.len() > self.operations =>
+            {
+                Attempt::Refused(Rejection::Document(format!(
+                    "past this batcher's limit of {} operations",
+                    self.operations
+                )))
+            }
             Ok(document) if self.within(&document) => {
                 let mut sent = None;
                 let attempt = self.attempt(transport, document, &mut sent);

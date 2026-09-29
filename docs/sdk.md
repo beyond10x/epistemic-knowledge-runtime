@@ -515,7 +515,8 @@ for rejected in &report.rejected {
   existing id. Bisection rebuilds each half the same way, so an assertion is never submitted
   without the evidence it introduces: if the group that first cited an entry is rejected, the
   next group citing it carries the entry instead, and an entry only rejected groups cite is never
-  committed.
+  committed. A batch that the moved entry would take past the operation limit of `with_limits`
+  is split in two rather than proposed.
 
 A `BatchReport` holds:
 
@@ -553,9 +554,13 @@ host operator. `EvidenceSet::cite(item)` returns the `EvidenceId` to cite with
 `Assertion::citing`. The first time, it hashes the bytes with `payload_hash`, which is what
 [`ekr hash`](cli.md#ekr-hash) prints. It then mints the id with `EvidenceId::mint`, which is what
 `ekr mint evidence` runs, and builds an `EvidenceAddition` of source `!HumanStatement {identity}`
-and confidence `Confidence::CERTAIN`. No request is sent. An item with the same source,
-observed-at time and bytes gets the same id, so 100 assertions citing 40 items add exactly 40
-entries.
+and confidence `Confidence::CERTAIN`. No request is sent. Within one set, an item with the same
+source, observed-at time and bytes gets the same id, so 100 assertions citing 40 items add exactly
+40 entries. A new set knows nothing of the store: a consumer that restarts builds its set with
+`EvidenceSet::from_store(transport, operator)`, which reads `ekr snapshot` at the head and keys
+every `!HumanStatement` entry the store holds by its identity, observed-at time and content hash.
+An item the store already holds then gets that entry's id, and is not added again. An entry
+another process commits after that read is not known to the set.
 
 ```rust
 use ekr_sdk::evidence::{EvidenceItem, EvidenceSet};
@@ -566,14 +571,16 @@ let groups = vec![vec![book.into(), claim.citing(cites).into()]];
 let report = Batcher::new(operator).commit_with_evidence(&mut session, &groups, &mut evidence)?;
 ```
 
-`EvidenceSet::is_committed(id)` says whether a transaction committed with the set added the
-entry. `EvidenceSet::entry(id)` returns the `EvidenceAddition`. Do not push a set's entry into a
-group yourself: the batcher adds it, and a second copy is refused as `duplicate-identity`. An
-entry carries at most 16,384 bytes (`sequence_elements`, [the ten limits](#the-ten-limits)); a
-group citing a larger item is rejected as `Rejection::Document`. The report lists each group's
-own operations, never the `!AddEvidence` the batcher added to it. If a commit's outcome is
-unknown (above) and `ekr transactions` lists it as committed, mark the entries its groups cite
-with `EvidenceSet::mark_committed`, so no later run adds them again.
+`EvidenceSet::is_committed(id)` says whether the store holds the entry: a transaction committed
+with the set added it, or `from_store` read it. `EvidenceSet::entry(id)` returns the
+`EvidenceAddition` of an entry the set minted; an entry read by `from_store` has none. Do not
+push a set's entry into a group yourself: the batcher adds it, and a second copy is refused as
+`duplicate-identity`. An entry carries at most 16,384 bytes (`sequence_elements`,
+[the ten limits](#the-ten-limits)); a group citing a larger item is rejected as
+`Rejection::Document`. The report lists each group's own operations, never the `!AddEvidence`
+the batcher added to it. If a commit's outcome is unknown (above) and `ekr transactions` lists it
+as committed, mark the entries its groups cite with `EvidenceSet::mark_committed`, or rebuild the
+set with `EvidenceSet::from_store`, so no later run adds them again.
 
 ## Typed reads
 

@@ -174,7 +174,6 @@ fn scripted_item(n: u8) -> EvidenceItem {
 /// plan counts as introduced, and group 2 cites an id the set did not mint: batch 1 is planned at
 /// 2 operations and proposed with 3.
 #[test]
-#[ignore = "defect: an entry moved by a rejection takes a batch past the batcher's operation cap"]
 fn scripted_an_entry_moved_by_a_rejection_keeps_every_proposal_within_the_operation_cap() {
     let mut evidence = EvidenceSet::new(operator());
     let shared = evidence.cite(scripted_item(0));

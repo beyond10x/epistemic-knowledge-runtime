@@ -159,14 +159,19 @@ impl World {
         }
     }
 
-    /// A session that has seeded the store.
-    fn seeded(&self) -> ProcessSession {
+    /// A new session on the store.
+    fn session(&self) -> ProcessSession {
         let binary = EkrBinary::open(ekr_path()).unwrap();
         let options = SessionOptions {
             current_dir: Some(self.path().to_path_buf()),
             ..SessionOptions::default()
         };
-        let mut session = ProcessSession::start(&binary, self.store(), options).unwrap();
+        ProcessSession::start(&binary, self.store(), options).unwrap()
+    }
+
+    /// A session that has seeded the store.
+    fn seeded(&self) -> ProcessSession {
+        let mut session = self.session();
         let seeded = ok(&mut session, Request::new(["seed", "seed.yaml"]));
         assert_eq!(seeded["result"]["revision"], 0);
         session
@@ -441,6 +446,80 @@ fn a_planted_rejection_never_commits_an_assertion_without_its_evidence() {
             );
             assert!(
                 !links.contains_key(&orphan.to_string()),
+                "{backend:?}: {assertion}"
+            );
+        }
+    }
+}
+
+/// A consumer that restarts adds no second entry for an item the store holds: the first run
+/// commits items 0-9 through one set and closes its session; the second, in a new session,
+/// rebuilds its set from the store with `EvidenceSet::from_store`, cites items 0-14 and adds only
+/// items 10-14. The rebuilt set cites the first run's ids.
+#[test]
+fn two_runs_over_one_store_with_a_rebuilt_set_add_each_entry_once() {
+    for backend in BACKENDS {
+        let world = World::new(backend);
+        let mut first_session = world.seeded();
+        let seeded = evidence_entries(&mut first_session);
+        let mut first = EvidenceSet::new(operator());
+        let mut groups = Vec::new();
+        let mut first_ids = Vec::new();
+        for n in 0..10 {
+            let cites = first.cite(item(n));
+            groups.push(group(&format!("first-{n}"), id(ORGANIZATION), cites).0);
+            first_ids.push(cites);
+        }
+        let report = Batcher::new(operator())
+            .commit_with_evidence(&mut first_session, &groups, &mut first)
+            .unwrap();
+        assert!(report.rejected.is_empty(), "{backend:?}: {report:?}");
+        first_session.close().unwrap();
+
+        let mut session = world.session();
+        let mut second = EvidenceSet::from_store(&mut session, operator()).unwrap();
+        let mut groups = Vec::new();
+        let mut cited = Vec::new();
+        for n in 0..15 {
+            let cites = second.cite(item(n));
+            let (operations, assertion) = group(&format!("second-{n}"), id(ORGANIZATION), cites);
+            groups.push(operations);
+            cited.push((assertion, n, cites));
+        }
+        assert_eq!(
+            cited[..10].iter().map(|(_, _, id)| *id).collect::<Vec<_>>(),
+            first_ids,
+            "{backend:?}: the rebuilt set cites the entries the store holds"
+        );
+        let report = Batcher::new(operator())
+            .commit_with_evidence(&mut session, &groups, &mut second)
+            .unwrap();
+        assert!(report.rejected.is_empty(), "{backend:?}: {report:?}");
+        assert_eq!(committed_groups(&report), (0..15).collect::<Vec<_>>());
+
+        let held = evidence_entries(&mut session);
+        let added: BTreeSet<String> = held
+            .keys()
+            .filter(|id| !seeded.contains_key(*id))
+            .cloned()
+            .collect();
+        let expected: BTreeSet<String> = cited.iter().map(|(_, _, id)| id.to_string()).collect();
+        assert_eq!(added, expected, "{backend:?}: 15 entries, each once");
+        for (assertion, n, cites) in &cited {
+            assert!(second.is_committed(*cites), "{backend:?}");
+            let explained = ok(
+                &mut session,
+                Request::new(["explain".to_owned(), assertion.to_string()]),
+            );
+            let payload = explained["links"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|link| link["kind"] == "Evidence" && link["id"] == cites.to_string())
+                .map(|link| link["payload"].clone());
+            assert_eq!(
+                payload,
+                Some(Json::String(base64(&item(*n).bytes))),
                 "{backend:?}: {assertion}"
             );
         }
