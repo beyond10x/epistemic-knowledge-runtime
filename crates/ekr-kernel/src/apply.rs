@@ -159,6 +159,7 @@ pub(crate) fn apply(
             GraphOperation::DefineNodeType(_)
             | GraphOperation::DefineEdgeType(_)
             | GraphOperation::ModifyProperty(_)
+            | GraphOperation::WidenEdgeType(_)
             | GraphOperation::CreateNode(_)
             | GraphOperation::CreateEdge(_)
             | GraphOperation::AddAssertion(_)

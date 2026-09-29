@@ -106,8 +106,8 @@ impl ValidationProfileV1 {
     }
 
     /// Validation profile v2 for a host-selected validator: the same seven checks, with
-    /// `DefineNodeType`, `DefineEdgeType` and `ModifyProperty` admitted as schema-only
-    /// transactions and applied as a new schema version.
+    /// `DefineNodeType`, `DefineEdgeType`, `ModifyProperty` and `WidenEdgeType` admitted as
+    /// schema-only transactions and applied as a new schema version.
     #[must_use]
     pub fn schema_evolving(validator: AgentId) -> Self {
         Self::with(validator, P2_RULESET, P2_APPLICATION)

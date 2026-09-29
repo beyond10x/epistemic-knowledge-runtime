@@ -101,19 +101,19 @@ ASSESSMENT: Proposed -> Accepted
   added and retracted in the same transaction validates and commits, and reads back Accepted
   and Retracted.
 
-SCHEMA CHANGES: DefineNodeType, DefineEdgeType, ModifyProperty
+SCHEMA CHANGES: DefineNodeType, DefineEdgeType, ModifyProperty, WidenEdgeType
   A committed schema change produces the next schema version: its number is one more and its
   parent is the version before. Three rules decide whether one is applied:
   1. The store runs validation profile v2. A store keeps the profile it was seeded under, from
      the host's authority.validation_profile: v2 is the example host's profile with
      \"ruleset\": \"ekr.p2-deterministic/1\" and \"application\": \"ekr.p2-apply/1\". Under
-     profile v1 validation rejects DefineNodeType, DefineEdgeType and ModifyProperty with the
-     issue code unsupported-operation, and no mechanism moves a store from v1 to v2. To seed a
-     store under v2, write `ekr example ekr.cli-host/1` to a file, replace those two values,
-     and run `ekr seed` with that host into a new --store. Profile v3, \"ruleset\":
-     \"ekr.p3-deterministic/1\" with \"application\": \"ekr.p2-apply/1\", admits them as v2
-     does, and also refuses a CreateNode or CreateEdge whose id an earlier revision held, such
-     as a deleted edge's (identity-previously-held).
+     profile v1 validation rejects DefineNodeType, DefineEdgeType, ModifyProperty and
+     WidenEdgeType with the issue code unsupported-operation, and no mechanism moves a store
+     from v1 to v2. To seed a store under v2, write `ekr example ekr.cli-host/1` to a file,
+     replace those two values, and run `ekr seed` with that host into a new --store. Profile
+     v3, \"ruleset\": \"ekr.p3-deterministic/1\" with \"application\": \"ekr.p2-apply/1\",
+     admits them as v2 does, and also refuses a CreateNode or CreateEdge whose id an earlier
+     revision held, such as a deleted edge's (identity-previously-held).
   2. The transaction holds only schema changes (mixed-schema-transaction otherwise).
   3. It names the version it produces in transaction.schema_version, a fresh id from
      `ekr mint schema-version` (schema-version-missing without one;
@@ -121,10 +121,13 @@ SCHEMA CHANGES: DefineNodeType, DefineEdgeType, ModifyProperty
   A change is checked against the canonical state it would govern: a property made required
   that a node lacks, a cardinality narrowed below what a node holds, a value type that no
   longer admits a held value are refused with named issues (docs/cli.md lists them). No
-  operation removes a type or a property. `ekr example schema-change` prints a complete schema
-  change; `ekr ontology --at <revision>` prints the schema, with its version, as of a revision.
+  operation removes a type or a property. To let an existing edge type connect more node
+  types, WidenEdgeType it rather than defining a second edge type: it writes the type's
+  source_types and target_types whole, each keeping every type it has, and existing edges stay
+  valid. `ekr example schema-change` prints a complete schema change; `ekr ontology --at
+  <revision>` prints the schema, with its version, as of a revision.
   MergeEntity is not applied under either profile: validation rejects it with the issue code
-  unsupported-operation. `ekr operations` marks all four.
+  unsupported-operation. `ekr operations` marks all five.
 
 WHERE VALUES COME FROM
   new ids          ekr mint <kind>; ids are never derived from names
@@ -231,6 +234,8 @@ pub enum OperationKind {
     SupersedeAssertion,
     /// `!AddEvidence`.
     AddEvidence,
+    /// `!WidenEdgeType`.
+    WidenEdgeType,
 }
 
 impl OperationKind {
@@ -252,6 +257,7 @@ impl OperationKind {
             GraphOperation::Invoke { .. } => Self::Invoke,
             GraphOperation::SupersedeAssertion(_) => Self::SupersedeAssertion,
             GraphOperation::AddEvidence(_) => Self::AddEvidence,
+            GraphOperation::WidenEdgeType(_) => Self::WidenEdgeType,
         }
     }
 
@@ -270,6 +276,7 @@ impl OperationKind {
             Self::Invoke => "Invoke",
             Self::SupersedeAssertion => "SupersedeAssertion",
             Self::AddEvidence => "AddEvidence",
+            Self::WidenEdgeType => "WidenEdgeType",
         }
     }
 
@@ -287,9 +294,10 @@ impl OperationKind {
             | Self::Invoke
             | Self::SupersedeAssertion
             | Self::AddEvidence => Applied::Always,
-            Self::DefineNodeType | Self::DefineEdgeType | Self::ModifyProperty => {
-                Applied::SchemaChange
-            }
+            Self::DefineNodeType
+            | Self::DefineEdgeType
+            | Self::ModifyProperty
+            | Self::WidenEdgeType => Applied::SchemaChange,
             Self::MergeEntity => Applied::Never,
         }
     }
@@ -519,6 +527,24 @@ impl OperationKind {
     observed_at: 1773273600000
     confidence: 10000
   payload: [66, 111, 98, 32, 105, 115, 32, 67, 69, 79, 32, 111, 102, 32, 65, 99, 109, 101, 46]",
+            ),
+            Self::WidenEdgeType => (
+                "add declared node types to an edge type's source and target types",
+                "  edge_type     TypeId    an edge type: ekr ontology edge_types[].id
+  source_types  [TypeId]  its source_types afterwards: every type it has now, plus any
+                          node types added (ekr ontology node_types[].id)
+  target_types  [TypeId]  its target_types afterwards, the same way
+  Both ends are written whole; write an end that does not grow as it is. Leaving out a type
+  an end has is refused (edge-endpoint-removed); an edge type or node type the schema does
+  not declare is refused (unknown-edge-type, unknown-endpoint-type); naming exactly the ends
+  it has is schema-change-without-effect. Existing edges stay valid.",
+                "- !WidenEdgeType
+  edge_type: 00000000-0000-4000-8000-000000000203
+  source_types:
+  - 00000000-0000-4000-8000-000000000201
+  - 00000000-0000-4000-8000-000000000202
+  target_types:
+  - 00000000-0000-4000-8000-000000000202",
             ),
         }
     }

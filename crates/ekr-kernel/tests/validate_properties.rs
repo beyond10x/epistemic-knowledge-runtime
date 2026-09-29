@@ -302,6 +302,18 @@ where
                 property
             }
         )),
+        (
+            0usize..2,
+            proptest::collection::btree_set(0usize..2, 0..3),
+            proptest::collection::btree_set(0usize..2, 0..3)
+        )
+            .prop_map(|(at, sources, targets)| GraphOperation::WidenEdgeType(
+                ekr_kernel::EdgeWidening {
+                    edge_type: POOL.types[at],
+                    source_types: sources.into_iter().map(|at| POOL.types[at]).collect(),
+                    target_types: targets.into_iter().map(|at| POOL.types[at]).collect(),
+                }
+            )),
         // The second index steps past the first, so `absorbed != into` always. Drawing the two
         // independently from a pool of three produced a node merged into itself about one
         // proposal in three — a shape the structural validator now refuses, so a generator that
@@ -527,6 +539,7 @@ fn operation_carries_a_float(operation: &GraphOperation) -> bool {
         | GraphOperation::DefineNodeType(_)
         | GraphOperation::DefineEdgeType(_)
         | GraphOperation::ModifyProperty(_)
+        | GraphOperation::WidenEdgeType(_)
         | GraphOperation::MergeEntity(_)
         | GraphOperation::AddEvidence(_) => false,
     }

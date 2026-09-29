@@ -388,6 +388,7 @@ impl Validator for Types {
                 | GraphOperation::DefineNodeType(_)
                 | GraphOperation::DefineEdgeType(_)
                 | GraphOperation::ModifyProperty(_)
+                | GraphOperation::WidenEdgeType(_)
                 | GraphOperation::AddEvidence(_) => {}
             }
         }
@@ -445,6 +446,7 @@ fn values_of(operation: &GraphOperation) -> Vec<(String, &Value)> {
         | GraphOperation::DefineNodeType(_)
         | GraphOperation::DefineEdgeType(_)
         | GraphOperation::ModifyProperty(_)
+        | GraphOperation::WidenEdgeType(_)
         | GraphOperation::MergeEntity(_)
         | GraphOperation::AddEvidence(_) => Vec::new(),
     }

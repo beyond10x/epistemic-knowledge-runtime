@@ -136,6 +136,38 @@ pub struct EntityMerge {
     pub into: NodeId,
 }
 
+/// An edge type's ends widened: the payload of [`GraphOperation::WidenEdgeType`], and
+/// `ekr.kernel.EdgeWideningProjection` (`story:edge-type-endpoints-widen`).
+///
+/// Each end is written whole, as it is to be, and not as the types to add: a widening that left a
+/// type out would narrow the end, and it is refused by name (`edge-endpoint-removed`) rather than
+/// being unrepresentable, so that a proposer who meant to replace an end is told so. Both ends are
+/// required; the one that does not grow is written as it is.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct EdgeWidening {
+    /// The edge type whose ends grow: `ekr ontology` `edge_types[].id`.
+    pub edge_type: TypeId,
+    /// The node types an edge of it may start at afterwards: every one it may start at now, and
+    /// the declared node types added.
+    #[serde(deserialize_with = "ekr_core::decode::unique_set")]
+    pub source_types: BTreeSet<TypeId>,
+    /// The node types an edge of it may end at afterwards: every one it may end at now, and the
+    /// declared node types added.
+    #[serde(deserialize_with = "ekr_core::decode::unique_set")]
+    pub target_types: BTreeSet<TypeId>,
+}
+
+impl Canonical for EdgeWidening {
+    /// The three fields in declaration order; each end as a set.
+    fn encode(&self, out: &mut Encoder) {
+        self.edge_type.encode(out);
+        out.set(self.source_types.iter());
+        out.set(self.target_types.iter());
+    }
+}
+
 /// A property added to, or redeclared on, a type the ontology declares: the payload of
 /// [`GraphOperation::ModifyProperty`], and `ekr.ontology.PropertyModification`.
 ///
@@ -389,9 +421,9 @@ impl Canonical for Supersession {
 }
 
 /// One change a transaction proposes: design § 19, plus `Invoke` from amendment 87,
-/// `SupersedeAssertion` from amendment 88 and `AddEvidence`.
+/// `SupersedeAssertion` from amendment 88, `AddEvidence` and `WidenEdgeType` (amendment 101).
 ///
-/// Thirteen variants, which are the thirteen `ekr.kernel.OperationKind` names of
+/// Fourteen variants, which are the fourteen `ekr.kernel.OperationKind` names of
 /// `systems/ekr/domains/kernel.yaml`, in that order. The order is the encoding's contract: the
 /// variant number is what separates two operations carrying the same payload shape, and moving a
 /// number moves every `validation_hash` that contains the variant.
@@ -459,6 +491,10 @@ pub enum GraphOperation<V: ValueSpace = Value> {
     /// its payload is larger than every other variant.
     #[cfg_attr(feature = "schema", schemars(rename = "!AddEvidence"))]
     AddEvidence(Box<EvidenceAddition>),
+    /// Add declared node types to an edge type's ends: a schema change, as `DefineNodeType`,
+    /// `DefineEdgeType` and `ModifyProperty` are.
+    #[cfg_attr(feature = "schema", schemars(rename = "!WidenEdgeType"))]
+    WidenEdgeType(EdgeWidening),
 }
 
 /// What an agent proposes: design § 19, and `ekr.kernel.GraphTransaction`.
@@ -509,10 +545,10 @@ pub struct GraphTransaction<V: ValueSpace = Value> {
     /// The schema version a schema-changing transaction produces, minted by
     /// `ekr mint schema-version`.
     ///
-    /// Required exactly when an operation is `DefineNodeType`, `DefineEdgeType` or
-    /// `ModifyProperty`, and refused otherwise (wave p5-01, decision 3). Absent, it is absent from
-    /// the canonical encoding and from `ekr.transaction-document/1`, so every transaction without it
-    /// encodes and reads exactly as before the field existed.
+    /// Required exactly when an operation is `DefineNodeType`, `DefineEdgeType`,
+    /// `ModifyProperty` or `WidenEdgeType`, and refused otherwise (wave p5-01, decision 3).
+    /// Absent, it is absent from the canonical encoding and from `ekr.transaction-document/1`, so
+    /// every transaction without it encodes and reads exactly as before the field existed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub schema_version: Option<SchemaVersionId>,
 }
@@ -682,6 +718,10 @@ impl<V: ValueSpace + Canonical> Canonical for GraphOperation<V> {
                 out.variant(12);
                 addition.encode(out);
             }
+            Self::WidenEdgeType(widening) => {
+                out.variant(13);
+                widening.encode(out);
+            }
         }
     }
 }
@@ -807,6 +847,7 @@ fn canonical_operation(
         GraphOperation::DefineNodeType(declared) => GraphOperation::DefineNodeType(declared),
         GraphOperation::DefineEdgeType(declared) => GraphOperation::DefineEdgeType(declared),
         GraphOperation::ModifyProperty(declared) => GraphOperation::ModifyProperty(declared),
+        GraphOperation::WidenEdgeType(widening) => GraphOperation::WidenEdgeType(widening),
         GraphOperation::MergeEntity(merge) => GraphOperation::MergeEntity(merge),
         GraphOperation::Invoke {
             node,

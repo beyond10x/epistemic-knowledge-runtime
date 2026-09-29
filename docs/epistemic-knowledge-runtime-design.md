@@ -4796,3 +4796,79 @@ once and reads them back; a decision without one stays `/2`; an absent staged pa
 by name), `crates/ekr-store/tests/store_inventory.rs` (the inventory reads a legacy inline object
 under its frozen shape and writes nothing) and `crates/ekr/tests/migrate_cli.rs` (the verb, over
 a store the binary writes), all on both providers.
+
+---
+
+# 101. Widening an Edge Type's Ends
+
+*Added 2026-09-29 by `story:edge-type-endpoints-widen` (wave perf-02). Extends §§ 12, 19, 26 and 95.
+It adds one operation and one schema change; it moves no retained encoding, no refusal a store
+already retains and no root of an existing revision.*
+
+**What was measured.** A consumer's delta ingest, bringing a second source into a store built from
+a first, skipped 1,768 of 2,312 facts on 0.0.16. They reused existing edge types with new endpoint
+types — an `AUTHORED` from a person to a work item where `AUTHORED` ran from `Person` to `Document`
+— and no schema change could widen an edge type's ends: `DefineEdgeType` over a declared id is
+refused (`type-already-declared`, or `identity-already-exists` from the structural validator), and
+`ModifyProperty` reaches properties only. The alternative left to the consumer was a parallel edge
+type per new pair, which splits one relation across several.
+
+## 101.1 The operation
+
+`WidenEdgeType` is `ekr.kernel.OperationKind` index 13, after `AddEvidence`. Its payload is
+`{edge_type, source_types, target_types}` (`ekr.kernel.EdgeWideningProjection`), encoded as those
+three fields in that order, each end as a set. Both ends are written whole, as they are to be, and
+not as the types to add: a proposer who writes an end without one of its types has written a
+narrowing, and is told so by name rather than having it read as an addition.
+
+It is a schema change under the rules of § 95 unchanged: admitted under validation profiles v2 and
+v3 only, alone in its transaction, naming the version it produces; under v1 it is refused as
+`unsupported-operation` with the P1 message form, `WidenEdgeType is not supported in P1`. The
+message of `schema-version-without-schema-change` still names only the three kinds of § 95, because
+replay compares every retained rejection's message with what the ruleset says now.
+
+## 101.2 What evolve decides
+
+`Ontology::evolve` applies `SchemaChange::WidenEdgeType` in order with the other changes, so the
+node types of an end may be defined earlier in the same transaction. For each end, `source_types`
+first, it refuses:
+
+| case | code |
+|---|---|
+| the edge type is not an edge type of the version under construction | `unknown-edge-type` |
+| the end leaves out a type the edge type's end holds | `edge-endpoint-removed` |
+| the end names a type that is not a node type of the version | `unknown-endpoint-type` |
+
+Otherwise the edge type's ends are replaced by the ones written, and nothing else of its declaration
+moves. A widening to the ends the type already has, alone, derives a version equal to the prior one
+and is `schema-change-without-effect`. Two widenings of one edge type in one transaction are the
+structural validator's `conflicting-write`, as two declarations of one property are, and the
+ontology stage then says nothing.
+
+## 101.3 Why existing edges stay valid
+
+An edge's endpoint is checked by conformance of its node's own type to one of the end's types. A
+widened end holds every type it held, and no schema change moves an existing node type's parents, so
+every edge the type holds still fits. `incompatibilities` therefore treats an edge type whose
+declaration differs only in its properties and in ends that gained types as unchanged at the type
+level: `type-declaration-changed` is raised for an edge type with edges only when an end lost a type
+or something other than the ends and properties moved.
+
+## 101.4 Result, and what is not changed
+
+A store with `AUTHORED` from `Person` to `Document`, holding such an edge, widens it to `Person` to
+`Document` or `WorkItem` in one schema-only transaction, which commits as the next schema version
+with the prior one as its parent; the next ordinary transaction creates `Person → WorkItem` edges;
+replay from the seed reproduces every root. No retained transaction, rejection or root moves: the
+new variant appears only in transactions that carry it.
+
+Executed by `crates/ekr-ontology/tests/schema_evolution.rs` (the widening, each refusal, a type
+defined earlier in the list, and compatibility over held edges beside a replaced end that is not),
+`crates/ekr-kernel/tests/edge_type_widening.rs` (the acceptance above under profiles v2 and v3 on
+both providers, the refusals by name, and the schema-change rules), the kernel conformance
+scenarios `an-edge-type-widened-to-a-new-target-type-takes-edges-to-it`,
+`an-edge-type-widening-that-removes-an-end-is-rejected-by-name`,
+`a-widening-of-an-edge-type-no-version-declares-is-rejected-by-name`,
+`a-widening-to-a-type-no-version-declares-is-rejected-by-name` and
+`a-widening-that-adds-no-type-is-rejected-by-name` on both providers, and
+`crates/ekr/tests/docs_cli.rs`, which runs `docs/cli.md` § Evolve the schema, step 4, as written.
