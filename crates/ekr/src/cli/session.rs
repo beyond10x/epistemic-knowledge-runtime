@@ -18,7 +18,8 @@
 //! verb opens the store as the one-shot verb does — `store-not-found` where there is none — and
 //! the verbs that open no store answer as always. Started with `--create`, it also serves `seed`
 //! through the one-shot verb's own path; the seed that creates the store leaves the session
-//! holding it, opened once as at the start.
+//! holding it, opened once as at the start. A views verb that finds a store at the path —
+//! another process created it — leaves the session holding it the same way.
 //!
 //! **A store replaced at its path.** A long-running reader — this session, `ekr mcp`, `ekr view` —
 //! compares, before each request that reads the store, the identity of what is at its configured
@@ -329,6 +330,11 @@ fn respond(
 /// A views verb ([`views`]) against the session's store: refused as [`admit`] refuses a global
 /// option, then answered as a store verb is — after [`follow`], and once more from the store at
 /// the path when the held runtime's history diverged from it.
+///
+/// A session holding no store opens the one at its path as a one-shot verb does —
+/// `store-not-found` where there is none — and, where another process has created one since the
+/// session started, holds it from then on, opened once, as after its own seed: so its indexes
+/// are loaded once per revision there too.
 fn read_views(
     views: &views::ViewsCli,
     session: &mut Session,
@@ -337,11 +343,22 @@ fn read_views(
     if views.sets_an_option() {
         return Err(option_refused());
     }
+    if session.runtime.is_none() {
+        let opened = identity(&session.store.store);
+        session.runtime = Some(session.store.open()?);
+        watch.held = true;
+        watch.opened = opened;
+        watch.indexes = IndexCache::new(IndexCache::DEFAULT_CAPACITY);
+    }
     follow(session, watch, false)?;
-    match views::answer(views.verb(), session, &mut watch.indexes) {
-        Err(failure) if session.runtime.is_some() && failed_diverged(&failure) => {
+    let answer = |session: &Session, indexes: &mut IndexCache| match &session.runtime {
+        Some(runtime) => views::answer(views.verb(), runtime, indexes),
+        None => Err(Failure::fault("the session holds no store")),
+    };
+    match answer(session, &mut watch.indexes) {
+        Err(failure) if failed_diverged(&failure) => {
             follow(session, watch, true)?;
-            views::answer(views.verb(), session, &mut watch.indexes)
+            answer(session, &mut watch.indexes)
         }
         answered => answered,
     }
@@ -606,7 +623,11 @@ fn parse(argv: &[String]) -> Result<Cli, Failure> {
             | ErrorKind::MissingSubcommand
             | ErrorKind::DisplayHelpOnMissingArgumentOrSubcommand => Failure::refused(
                 UNKNOWN,
-                format!("{argv:?} names no verb of `ekr`; `ekr --help` lists them"),
+                format!(
+                    "{argv:?} names no verb of `ekr`, which `ekr --help` lists, and none of the \
+                     session's ekr.views reads `overview`, `search`, `describe`, `expand`, \
+                     `timeline` and `changes`"
+                ),
             ),
             _ => Failure::Usage {
                 message: error.render().to_string(),

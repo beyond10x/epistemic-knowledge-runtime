@@ -228,7 +228,6 @@ fn with_field(document: &Value, pointer: &str) -> Value {
 /// (`crates/ekr-sdk/src/document/graph.rs` `TemporalRange`, `TransactionTime`;
 /// `document/seed.rs` `GraphRoot`; `document/value.rs` `PropertyDefinition`, `ValueType`).
 #[test]
-#[ignore = "defect: Snapshot and Ontology refuse an unknown field inside nested records, against docs/sdk.md's forward-compatibility promise"]
 fn a_snapshot_and_an_ontology_read_with_a_field_a_newer_ekr_added_anywhere() {
     let world = World::new();
     let snapshot: Value = serde_json::from_slice(&world.run(&["snapshot"], true)).unwrap();

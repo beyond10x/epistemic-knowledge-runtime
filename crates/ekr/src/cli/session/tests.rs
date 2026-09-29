@@ -291,3 +291,63 @@ fn a_views_verb_keeps_its_index_until_the_store_is_replaced_and_none_of_the_repl
         );
     }
 }
+
+/// A session started before its store exists answers a views verb `store-not-found`; once
+/// another process has created the store, the next views verb opens it once and the session
+/// holds it, so every later views verb answers from the index it loaded, with no open.
+#[test]
+fn a_session_started_before_its_store_holds_the_store_another_process_created() {
+    let clock = || Timestamp::from_millis(0);
+    for backend in BACKENDS {
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let mut configured = seeded(directory.path(), backend, "configured");
+        configured.store = directory.path().join("later");
+        let mut watch = Watch {
+            held: false,
+            opened: identity(&configured.store),
+            proposed: BTreeSet::new(),
+            indexes: IndexCache::new(IndexCache::DEFAULT_CAPACITY),
+        };
+        let mut session = Session {
+            runtime: None,
+            store: configured,
+            create: false,
+        };
+        let absent = respond(&line(&["overview"]), &mut session, &mut watch, &clock)
+            .expect_err("no store yet");
+        assert!(
+            absent.to_string().starts_with("ekr: store-not-found: "),
+            "{backend:?}: {absent}"
+        );
+        assert!(session.runtime.is_none(), "{backend:?}");
+
+        seeded(directory.path(), backend, "later");
+        let _ = reader_work();
+        let first = respond(&line(&["overview"]), &mut session, &mut watch, &clock)
+            .expect("overview answers");
+        assert_eq!(first["meta"]["revision"], 0, "{backend:?}");
+        assert!(
+            session.runtime.is_some(),
+            "{backend:?}: the session holds it"
+        );
+        for _ in 0..3 {
+            let again = respond(&line(&["overview"]), &mut session, &mut watch, &clock)
+                .expect("overview answers");
+            assert_eq!(again, first, "{backend:?}");
+        }
+        assert_eq!(
+            watch.indexes.len(),
+            1,
+            "{backend:?}: one index, loaded once"
+        );
+        assert_eq!(
+            reader_work(),
+            ReaderWork {
+                checks: 4,
+                reopens: 0,
+                settles: 0
+            },
+            "{backend:?}: a check per request, no reopen"
+        );
+    }
+}

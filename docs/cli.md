@@ -623,10 +623,13 @@ the newest. What `ekr view` refuses with a JSON `{"refusal", "message"}` body a 
 `ekr.views.LimitExceeded`, both before the store is read; a store never seeded
 `ekr.views.NotSeeded`; a revision the store does not hold `ekr.views.RevisionNotFound`; and a node
 or seed the revision does not hold, or a `describe` id that is no node id,
-`ekr.views.NodeNotFound`. A query `ekr view` answers `invalid-query` — a seed, `--type` or
-`--subject` that is not an id, a `--bucket` other than `day` or `week`, no since or more than one —
-is an argv these verbs do not take: clap's usage message, `"exit": 2`. On a path holding no store
-each answers `store-not-found`, as every store verb does.
+`ekr.views.NodeNotFound`. A query `ekr view` answers `invalid-query` — a bound that is not an
+optional `-` and ASCII digits, a revision that is not ASCII digits (so `+5` is neither), a seed,
+`--type` or `--subject` that is not an id, a `--bucket` other than `day` or `week`, no since or
+more than one — is an argv these verbs do not take: clap's usage message, `"exit": 2`. On a path
+holding no store each answers `store-not-found`, as every store verb does; once another process
+has created a store there, the first views verb opens it and the session holds it from then on,
+as after its own seed, so its indexes are loaded once per revision there too.
 
 **A store replaced at its path** ([as for `ekr view`](#replaced-store)) is followed before each
 store verb; `mint`, `hash` and `schema` read no store and are served throughout. A store now at

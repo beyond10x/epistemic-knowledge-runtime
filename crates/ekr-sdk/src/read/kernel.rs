@@ -5,7 +5,9 @@
 //! object, assessment and lifecycle, an evidence entry's source, the retained records of an
 //! explanation's origin links — stays JSON, read by its `kind` or tag as the page documents it.
 //! Each type writes back exactly the document it was read from; `crates/ekr-sdk/tests/read.rs`
-//! holds that against real `ekr` output.
+//! holds that against real `ekr` output. Every record here is the read side's own and ignores a
+//! field it does not know, so a newer `ekr` does not break an older consumer; the strict types of
+//! [`crate::document`] are for the documents a consumer writes.
 
 use std::collections::BTreeMap;
 
@@ -16,9 +18,7 @@ use ekr_core::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::document::{
-    Cardinality, GraphRoot, Predicate, PropertyDefinition, Subject, TemporalRange, TransactionTime,
-};
+use crate::document::{Cardinality, Predicate, Subject};
 
 /// A revision's root: its number and the hashes of its state.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -76,7 +76,7 @@ pub struct SnapshotGraphDocument {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SnapshotGraph {
     /// The root every entity names.
-    pub root: GraphRoot,
+    pub root: SnapshotRoot,
     /// The revision, where the document records it.
     pub revision: Option<u64>,
     /// Its nodes.
@@ -147,9 +147,9 @@ pub struct SnapshotAssertion {
     /// Its lifecycle: `"Active"`, or a retraction or supersession.
     pub lifecycle: Value,
     /// When it holds.
-    pub valid_time: TemporalRange,
+    pub valid_time: ValidTime,
     /// When it was recorded.
-    pub transaction_time: TransactionTime,
+    pub transaction_time: RecordedTime,
 }
 
 /// A canonical evidence entry.
@@ -207,7 +207,7 @@ pub struct OntologyNodeType {
     /// Whether it is abstract.
     pub abstract_type: bool,
     /// Its properties.
-    pub properties: Vec<PropertyDefinition>,
+    pub properties: Vec<OntologyProperty>,
 }
 
 /// An edge type of `ekr ontology`.
@@ -224,7 +224,7 @@ pub struct OntologyEdgeType {
     /// How many it may have per source.
     pub cardinality: Cardinality,
     /// Its properties.
-    pub properties: Vec<PropertyDefinition>,
+    pub properties: Vec<OntologyProperty>,
 }
 
 /// A retained transaction's state, as `ekr transactions` prints and `--state` takes it.
@@ -318,4 +318,88 @@ pub struct ExplainedEvidence {
     /// The same bytes as text, when they are UTF-8.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,
+}
+
+/// The graph root a snapshot's entities name, as `ekr snapshot` prints it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SnapshotRoot {
+    /// Its id.
+    pub id: GraphRootId,
+    /// Its space: `Canonical`.
+    pub space: String,
+    /// The schema version it was created under.
+    pub schema_version_id: SchemaVersionId,
+    /// The root it was derived from; `None` for the seed's.
+    pub parent: Option<GraphRootId>,
+    /// When it was created.
+    pub created_at: Timestamp,
+}
+
+/// When an assertion holds: half-open, `from` included and `to` not; `None` is unbounded.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ValidTime {
+    /// From, included.
+    pub from: Option<Timestamp>,
+    /// To, excluded.
+    pub to: Option<Timestamp>,
+}
+
+/// When an assertion was recorded: from its commit, to the commit that ended it, if any.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecordedTime {
+    /// Recorded from.
+    pub recorded_from: Timestamp,
+    /// Recorded to; `None` while it is still recorded.
+    pub recorded_to: Option<Timestamp>,
+}
+
+/// A property declaration as `ekr ontology` prints it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OntologyProperty {
+    /// Its id: the key a document writes its values under.
+    pub id: PropertyId,
+    /// Its name.
+    pub name: String,
+    /// Its value type.
+    pub value_type: OntologyValueType,
+    /// How many values a node or edge may hold.
+    pub cardinality: Cardinality,
+    /// Whether a value is required.
+    pub required: bool,
+    /// Its constraints.
+    pub constraints: Vec<String>,
+}
+
+/// A declared value type, `{value_kind, parameters}`, as `ekr ontology` prints it.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "value_kind", content = "parameters")]
+pub enum OntologyValueType {
+    /// Text.
+    String,
+    /// A truth value.
+    Boolean,
+    /// A signed 64-bit whole number.
+    Integer,
+    /// An approximate number.
+    Float,
+    /// An exact number held as text.
+    Decimal,
+    /// Milliseconds since the Unix epoch.
+    Timestamp,
+    /// A signed whole number.
+    Duration,
+    /// A reference to a node of one of these types.
+    NodeRef {
+        /// The node types a value may point at.
+        allowed_types: Vec<TypeId>,
+    },
+    /// One of these variants.
+    Enum {
+        /// The variants.
+        variants: Vec<String>,
+    },
+    /// A sequence of elements of this type.
+    List(Box<OntologyValueType>),
+    /// Exactly these fields.
+    Record(BTreeMap<String, OntologyValueType>),
 }

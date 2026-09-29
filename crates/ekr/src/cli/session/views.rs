@@ -29,7 +29,7 @@ use super::super::view::{
     not_a_node_id, project_refusal, since_not_one, LIMIT_EXCEEDED, NODE_NOT_FOUND, SEARCH_LIMIT,
     SINCE_MALFORMED,
 };
-use super::super::{Backend, Session};
+use super::super::Backend;
 use crate::exit::Failure;
 
 /// A views request: the session's global options, which [`super::admit`] refuses, and the verb.
@@ -73,10 +73,10 @@ pub(super) enum Verb {
     /// `GET /overview`: the `ekr.graph-overview/1` document.
     Overview {
         /// The committed revision to read; the head when absent.
-        #[arg(long)]
+        #[arg(long, value_parser = revision_number)]
         revision: Option<u64>,
         /// How many of the highest-degree nodes to list, 1 to 500; 300 when absent.
-        #[arg(long, allow_negative_numbers = true)]
+        #[arg(long, allow_negative_numbers = true, value_parser = bound)]
         limit: Option<i64>,
     },
     /// `GET /search`: the `ekr.node-matches/1` document.
@@ -85,10 +85,10 @@ pub(super) enum Verb {
         /// with `-`.
         text: String,
         /// The most matches answered, 1 to 100; 20 when absent.
-        #[arg(long, allow_negative_numbers = true)]
+        #[arg(long, allow_negative_numbers = true, value_parser = bound)]
         limit: Option<i64>,
         /// The committed revision to read; the head when absent.
-        #[arg(long)]
+        #[arg(long, value_parser = revision_number)]
         revision: Option<u64>,
     },
     /// `GET /node/<id>`: the `ekr.node-detail/1` document of one node.
@@ -96,7 +96,7 @@ pub(super) enum Verb {
         /// The node's id; one that is no node id names no node (`ekr.views.NodeNotFound`).
         node: String,
         /// The committed revision to read; the head when absent.
-        #[arg(long)]
+        #[arg(long, value_parser = revision_number)]
         revision: Option<u64>,
     },
     /// `GET /expand`: one `ekr.graph-slice/1` page, as one document.
@@ -104,19 +104,19 @@ pub(super) enum Verb {
         /// The node ids to start from; none answers an empty page.
         seeds: Vec<NodeId>,
         /// The hops from the seeds, 0 to 2.
-        #[arg(long, allow_negative_numbers = true)]
+        #[arg(long, allow_negative_numbers = true, value_parser = bound)]
         depth: i64,
         /// The most nodes a page holds, 1 to 2,000.
-        #[arg(long, allow_negative_numbers = true)]
+        #[arg(long, allow_negative_numbers = true, value_parser = bound)]
         limit: i64,
         /// The most edges a page holds, 1 to 5,000; 5,000 when absent.
-        #[arg(long, allow_negative_numbers = true)]
+        #[arg(long, allow_negative_numbers = true, value_parser = bound)]
         edges: Option<i64>,
         /// The cursor the page starts at: an earlier page's `next`; 0 when absent.
-        #[arg(long, allow_negative_numbers = true)]
+        #[arg(long, allow_negative_numbers = true, value_parser = bound)]
         after: Option<i64>,
         /// The committed revision to read; the head when absent.
-        #[arg(long)]
+        #[arg(long, value_parser = revision_number)]
         revision: Option<u64>,
     },
     /// `GET /timeline`: the `ekr.graph-timeline/1` document.
@@ -125,10 +125,10 @@ pub(super) enum Verb {
         #[arg(long = "type")]
         row_type: Option<TypeId>,
         /// How far an event may be from its subject, 1 to 3.
-        #[arg(long, allow_negative_numbers = true)]
+        #[arg(long, allow_negative_numbers = true, value_parser = bound)]
         hops: i64,
         /// The most rows answered, 1 to 500.
-        #[arg(long, allow_negative_numbers = true)]
+        #[arg(long, allow_negative_numbers = true, value_parser = bound)]
         limit: i64,
         /// The finest bucket.
         #[arg(long, value_enum)]
@@ -137,31 +137,54 @@ pub(super) enum Verb {
         #[arg(long)]
         subject: Option<NodeId>,
         /// The committed revision to read; the head when absent.
-        #[arg(long)]
+        #[arg(long, value_parser = revision_number)]
         revision: Option<u64>,
     },
     /// `GET /changes`: the `ekr.graph-changes/1` page of what changed after exactly one since.
     #[command(group(clap::ArgGroup::new("since").required(true).multiple(false)))]
     Changes {
         /// The changes of the revisions after this one.
-        #[arg(long, group = "since", allow_negative_numbers = true)]
+        #[arg(long, group = "since", allow_negative_numbers = true, value_parser = bound)]
         since_revision: Option<i64>,
         /// The assertion changes valid after this time, in milliseconds since the epoch.
-        #[arg(long, group = "since", allow_negative_numbers = true)]
+        #[arg(long, group = "since", allow_negative_numbers = true, value_parser = bound)]
         since_valid: Option<i64>,
         /// The changes of the revisions committed after this time, in milliseconds since the epoch.
-        #[arg(long, group = "since", allow_negative_numbers = true)]
+        #[arg(long, group = "since", allow_negative_numbers = true, value_parser = bound)]
         since_recorded: Option<i64>,
         /// The last committed revision read; the head when absent.
-        #[arg(long)]
+        #[arg(long, value_parser = revision_number)]
         at: Option<u64>,
         /// The most changes a page holds, 1 to 2,000; 500 when absent.
-        #[arg(long, allow_negative_numbers = true)]
+        #[arg(long, allow_negative_numbers = true, value_parser = bound)]
         limit: Option<i64>,
         /// The cursor the page starts at: an earlier page's `next`; 0 when absent.
-        #[arg(long, allow_negative_numbers = true)]
+        #[arg(long, allow_negative_numbers = true, value_parser = bound)]
         after: Option<i64>,
     },
+}
+
+/// A bound as `ekr view` reads one: an optional `-` and one or more ASCII digits that fit an
+/// `i64`. A `+`, a space or another digit script is not one, as the route refuses it
+/// `invalid-query`; the range is the engine's to refuse, as `ekr.views.LimitExceeded`.
+fn bound(value: &str) -> Result<i64, String> {
+    let digits = value.strip_prefix('-').unwrap_or(value);
+    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(format!("{value:?} is not a decimal integer"));
+    }
+    value
+        .parse()
+        .map_err(|_| format!("{value:?} is out of range"))
+}
+
+/// A revision as `ekr view` reads one: one or more ASCII digits that fit a `u64`, no sign.
+fn revision_number(value: &str) -> Result<u64, String> {
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(format!("{value:?} is not a decimal revision number"));
+    }
+    value
+        .parse()
+        .map_err(|_| format!("{value:?} is not a revision number"))
 }
 
 /// `argv` as a views request: `None` when it names no views verb, so the one-shot verbs'
@@ -182,19 +205,14 @@ pub(super) fn parse(argv: &[String]) -> Option<Result<ViewsCli, Failure>> {
     }
 }
 
-/// The document `verb` answers from the session's store: through the runtime it holds and the
-/// indexes it keeps of that store, or — holding none — through the store opened as a one-shot
-/// verb opens it, `store-not-found` where there is none.
+/// The document `verb` answers from the runtime the session holds and the indexes it keeps of
+/// that store.
 pub(super) fn answer(
     verb: &Verb,
-    session: &Session,
+    runtime: &Runtime,
     indexes: &mut IndexCache,
 ) -> Result<Value, Failure> {
-    let bytes = match &session.runtime {
-        Some(runtime) => read(verb, runtime, indexes)?,
-        None => read(verb, &session.store.open()?, &mut IndexCache::new(1))?,
-    };
-    serde_json::from_slice(&bytes).map_err(Failure::fault)
+    serde_json::from_slice(&read(verb, runtime, indexes)?).map_err(Failure::fault)
 }
 
 /// The document's bytes, as `ekr view` renders them for the same query.

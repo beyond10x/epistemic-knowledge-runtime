@@ -159,7 +159,6 @@ impl Drop for View {
 /// are 400 `invalid-query`. The session's clap `i64`/`u64` parsers take a leading `+`, and the
 /// session answers a document for the query the route refuses.
 #[test]
-#[ignore = "defect: session views verbs accept a `+`-signed bound or revision that the `ekr view` route refuses as invalid-query"]
 fn a_signed_bound_the_view_route_refuses_is_not_answered_by_the_session() {
     let seeded = Seeded::new();
     let view = View::start(&seeded);
@@ -191,7 +190,6 @@ fn a_signed_bound_the_view_route_refuses_is_not_answered_by_the_session() {
 /// and says a request's verb is taken "as `ekr` takes them" — while `ekr` has no verb of those
 /// names (`docs/cli.md` § session views says so itself).
 #[test]
-#[ignore = "defect: `ekr session --help` does not name the six ekr.views verbs the session serves"]
 fn session_help_names_the_views_verbs_the_session_serves() {
     let help = text(&["session", "--help"]);
     let missing: Vec<&str> = [

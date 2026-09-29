@@ -37,9 +37,9 @@ use crate::transport::{Request, Transport, TransportError};
 
 pub use kernel::{
     ExplainedEvidence, Explanation, ExplanationLink, Head, ListedTransaction, NamedType, Ontology,
-    OntologyEdgeType, OntologyNodeType, Root, Snapshot, SnapshotAssertion, SnapshotEdge,
-    SnapshotEvidence, SnapshotGraph, SnapshotGraphDocument, SnapshotNode, TransactionState,
-    Transactions,
+    OntologyEdgeType, OntologyNodeType, OntologyProperty, OntologyValueType, RecordedTime, Root,
+    Snapshot, SnapshotAssertion, SnapshotEdge, SnapshotEvidence, SnapshotGraph,
+    SnapshotGraphDocument, SnapshotNode, SnapshotRoot, TransactionState, Transactions, ValidTime,
 };
 pub use views::{
     ChangeKind, Changes, ChangesMeta, DetailMeta, DetailNode, GraphChange, MatchField, MatchTier,

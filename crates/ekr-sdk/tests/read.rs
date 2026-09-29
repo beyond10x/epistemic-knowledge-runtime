@@ -31,13 +31,14 @@ use ekr_sdk::read::{
     Bucket, ChangeKind, Changes, ChangesMeta, DetailMeta, DetailNode, ExpandPages, ExpandQuery,
     ExplainedEvidence, Explanation, ExplanationLink, GraphChange, Head, ListedTransaction,
     MatchField, MatchTier, MatchesMeta, NamedType, NodeDetail, NodeMatch, NodeMatches, NodeSummary,
-    OneShotReader, Ontology, OntologyEdgeType, OntologyNodeType, Overview, OverviewMeta,
-    OverviewRevision, OverviewRoles, OverviewSchema, OverviewTimeline, ReadError, Reader,
-    ReferencingAssertion, Root, SchemaMember, SchemaVersionChange, Since, Slice, SliceEdge,
-    SliceMeta, SliceNode, Snapshot, SnapshotAssertion, SnapshotEdge, SnapshotEvidence,
-    SnapshotGraph, SnapshotGraphDocument, SnapshotNode, Timeline, TimelineBucket, TimelineCell,
-    TimelineEvent, TimelineMeta, TimelineQuery, TimelineRow, TimelineRowType, TimelineStep,
-    TransactionState, Transactions, TypeCount, TypeTiming, ViewAssertion, ViewAssessment, ViewEdge,
+    OneShotReader, Ontology, OntologyEdgeType, OntologyNodeType, OntologyProperty,
+    OntologyValueType, Overview, OverviewMeta, OverviewRevision, OverviewRoles, OverviewSchema,
+    OverviewTimeline, ReadError, Reader, RecordedTime, ReferencingAssertion, Root, SchemaMember,
+    SchemaVersionChange, Since, Slice, SliceEdge, SliceMeta, SliceNode, Snapshot,
+    SnapshotAssertion, SnapshotEdge, SnapshotEvidence, SnapshotGraph, SnapshotGraphDocument,
+    SnapshotNode, SnapshotRoot, Timeline, TimelineBucket, TimelineCell, TimelineEvent,
+    TimelineMeta, TimelineQuery, TimelineRow, TimelineRowType, TimelineStep, TransactionState,
+    Transactions, TypeCount, TypeTiming, ValidTime, ViewAssertion, ViewAssessment, ViewEdge,
     ViewEdgeType, ViewLifecycle, ViewNodeType, ViewOntology, ViewProperty, ViewValue,
 };
 use ekr_sdk::session::{Backend, ProcessSession, SessionOptions, StoreConfig};
@@ -577,6 +578,8 @@ fn snapshot_holds(snapshot: &Snapshot) {
     let document: &SnapshotGraphDocument = &snapshot.graph;
     assert_eq!(document.format, "ekr.graph-document/2");
     let graph: &SnapshotGraph = &document.graph;
+    let graph_root: &SnapshotRoot = &graph.root;
+    assert_eq!(graph_root.space, "Canonical");
     assert_eq!(root.parent.is_none(), root.revision == 0);
     assert_eq!(
         snapshot.matching_assertions.is_some(),
@@ -594,6 +597,15 @@ fn snapshot_holds(snapshot: &Snapshot) {
     for (id, assertion) in &graph.assertions {
         let assertion: &SnapshotAssertion = assertion;
         assert_eq!(assertion.id, *id);
+        let valid: ValidTime = assertion.valid_time;
+        let recorded: RecordedTime = assertion.transaction_time;
+        assert!(valid
+            .from
+            .zip(valid.to)
+            .is_none_or(|(from, to)| from.millis() <= to.millis()));
+        assert!(recorded
+            .recorded_to
+            .is_none_or(|to| recorded.recorded_from.millis() <= to.millis()));
         assert!(assertion
             .evidence
             .iter()
@@ -888,6 +900,11 @@ fn the_five_kernel_reads_are_one_typed_value_through_a_session_and_one_shot() {
         );
         let node_types: &[OntologyNodeType] = &ontology.node_types;
         assert!(node_types.iter().any(|t| t.name == "Organization"));
+        for property in node_types.iter().flat_map(|t| &t.properties) {
+            let property: &OntologyProperty = property;
+            let kind: &OntologyValueType = &property.value_type;
+            assert!(!property.name.is_empty(), "{kind:?}");
+        }
         let edge_types: &[OntologyEdgeType] = &ontology.edge_types;
         for end in edge_types.iter().flat_map(|t| &t.source_types) {
             let end: &NamedType = end;
