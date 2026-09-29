@@ -535,7 +535,11 @@ fn an_ekr_below_the_minimum_version_is_refused_naming_both_versions() {
 
     let operations = binary.operations().unwrap();
     assert!(operations.iter().any(|kind| kind == "CreateNode"));
-    assert_eq!(operations.len(), 14, "{operations:?}");
+    assert_eq!(
+        operations.len(),
+        ekr_sdk::document::OperationKind::ALL.len(),
+        "{operations:?}"
+    );
     binary
         .require_operations(&["CreateNode", "AddAssertion"])
         .unwrap();
