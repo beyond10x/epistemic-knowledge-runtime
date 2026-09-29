@@ -31,8 +31,9 @@
 //!
 //! Nothing here proposes, validates, commits or seeds: the only store calls are
 //! [`Runtime::head`], [`IndexCache::index`] (which loads through [`ekr_views::load`]),
-//! [`Runtime::snapshot`] and [`Runtime::content`]. A local read-only page is not an outward write
-//! (design § 82, § 83).
+//! [`ekr_views::Index::changes`] (which reads [`Runtime::head`], [`Runtime::transactions`] and
+//! [`Runtime::replay`]), [`Runtime::snapshot`] and [`Runtime::content`]. A local read-only page is
+//! not an outward write (design § 82, § 83).
 //!
 //! A revision is loaded once: the first request of a revision, whichever path, loads and indexes
 //! it through one [`IndexCache`] of [`IndexCache::DEFAULT_CAPACITY`] revisions, keyed by the
@@ -57,14 +58,15 @@
 //! | `GET /node/<node id>[?revision=N]` | [`ekr_views::Index::describe`]'s `ekr.node-detail/1` bytes, `application/json` |
 //! | `GET /search?q=<text>[&limit=L][&revision=N]` | [`ekr_views::Index::search`]'s `ekr.node-matches/1` bytes (`L` is [`SEARCH_LIMIT`] when absent), `application/json` |
 //! | `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | [`ekr_views::Index::timeline`]'s `ekr.graph-timeline/1` bytes: one row per subject of the row type with its events within `H` hops (1 to 3; at most `L` rows, 1 to 500; `B` the finest bucket, `day` or `week`), or the named subject's row and events, `application/json` |
+//! | `GET /changes?since_revision=N\|since_valid=T\|since_recorded=T[&at=N][&limit=L][&after=A]` | [`ekr_views::Index::changes`]'s `ekr.graph-changes/1` bytes: the changes after the revision `N`, the valid time `T` or the transaction time `T`, up to revision `at` (the head when absent), at most `L` (1 to 2,000, 500 when absent) from cursor `A`, `application/json`; exactly one of the three since names, else 400 `invalid-query` |
 //!
-//! Those five read their query with [`Query`]: `name=value` pairs, each name one the path takes
+//! Those six read their query with [`Query`]: `name=value` pairs, each name one the path takes
 //! and at most once, each value percent-decoded; anything else is 400 `invalid-query`. Then, in
-//! the order views.yaml gives: a bound out of range is 400 `ekr.views.LimitExceeded` before any
-//! store call; an unseeded store 404 `ekr.views.NotSeeded`; an absent revision 404
-//! `ekr.views.RevisionNotFound`; an unknown node or seed — or a `/node/<id>` whose id is no node
-//! id — 404 `ekr.views.NodeNotFound`. Each is a whole JSON refusal, decided before the first byte
-//! of an answer.
+//! the order views.yaml gives: a revision since below 0 is 400 `ekr.views.SinceMalformed` and a
+//! bound out of range 400 `ekr.views.LimitExceeded`, before any store call; an unseeded store 404
+//! `ekr.views.NotSeeded`; an absent revision 404 `ekr.views.RevisionNotFound`; an unknown node or
+//! seed — or a `/node/<id>` whose id is no node id — 404 `ekr.views.NodeNotFound`. Each is a
+//! whole JSON refusal, decided before the first byte of an answer.
 //! | any other method on those paths | 405, with `Allow: GET` |
 //! | any other path | 404 |
 //! | a `GET` of those paths that announces a body | 413 |
@@ -88,9 +90,9 @@ use std::time::{Duration, Instant};
 use ekr_core::{EvidenceId, NodeId, RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{
-    BucketWidth, ExpandRequest, IndexCache, LimitExceeded, OverviewRequest, ProjectError,
-    QueryError, SearchRequest, SliceEdge, SliceMeta, SliceNode, SlicePage, SliceRecord,
-    TimelineRequest,
+    BucketWidth, ChangesError, ChangesRequest, ExpandRequest, IndexCache, LimitExceeded,
+    OverviewRequest, ProjectError, QueryError, SearchRequest, SinceKind, SliceEdge, SliceMeta,
+    SliceNode, SlicePage, SliceRecord, TimelineRequest,
 };
 use serde::Serialize;
 
@@ -608,6 +610,7 @@ enum Route<'a> {
     Node(&'a str),
     Search,
     Timeline,
+    Changes,
 }
 
 fn route(path: &str) -> Option<Route<'_>> {
@@ -625,6 +628,7 @@ fn route(path: &str) -> Option<Route<'_>> {
         "/expand" => Some(Route::Expand),
         "/search" => Some(Route::Search),
         "/timeline" => Some(Route::Timeline),
+        "/changes" => Some(Route::Changes),
         _ => named("/evidence/")
             .map(Route::Evidence)
             .or_else(|| named("/node/").map(Route::Node)),
@@ -702,6 +706,7 @@ fn answer(runtime: &Runtime, memory: &mut Memory, port: u16, asked: &Asked) -> A
         Route::Node(id) => node(runtime, &mut memory.indexes, id, query).unwrap_or_else(|r| r),
         Route::Search => search(runtime, &mut memory.indexes, query).unwrap_or_else(|r| r),
         Route::Timeline => timeline(runtime, &mut memory.indexes, query).unwrap_or_else(|r| r),
+        Route::Changes => changes(runtime, &mut memory.indexes, query).unwrap_or_else(|r| r),
         Route::Expand => {
             return match expand(runtime, &mut memory.indexes, query) {
                 Ok(page) => Answered::Stream(Box::new(page)),
@@ -956,6 +961,73 @@ fn timeline(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<
     let answer = index
         .timeline(&request)
         .map_err(|error| refused("timeline", error))?;
+    Ok(Reply::ok(JSON, answer.bytes))
+}
+
+/// `ekr.views.SinceMalformed`: a revision since below 0. `ekr view` and `ekr mcp` both name it
+/// from here.
+pub(super) const SINCE_MALFORMED: &str = "ekr.views.SinceMalformed";
+
+/// Why a `since` given as `since_revision`, `since_valid` and `since_recorded` is not exactly one
+/// of them, from the names [`SinceKind::one_of`] answers: `ekr view`'s `invalid-query` message and
+/// `ekr mcp`'s invalid-params message.
+pub(super) fn since_not_one(given: &[&str]) -> String {
+    if given.is_empty() {
+        "no since is given; give exactly one of since_revision, since_valid and since_recorded"
+            .to_owned()
+    } else {
+        format!(
+            "{} are given; give exactly one of since_revision, since_valid and since_recorded",
+            given.join(" and ")
+        )
+    }
+}
+
+/// A `ChangesSince` that answered nothing: 400 `ekr.views.SinceMalformed` or
+/// `ekr.views.LimitExceeded`, or the 404s and 500 a revision that could not be loaded answers.
+fn changes_refused(error: ChangesError) -> Reply {
+    match error {
+        ChangesError::SinceMalformed(error) => Reply::refusal(400, SINCE_MALFORMED, error),
+        ChangesError::LimitExceeded(error) => limit_exceeded(&error),
+        ChangesError::Project(error) => refused("changes", error),
+    }
+}
+
+/// `/changes?since_revision=N|since_valid=T|since_recorded=T[&at=N][&limit=L][&after=A]`: the
+/// `ekr.graph-changes/1` page. Exactly one of the three since names is required (`invalid-query`
+/// otherwise); `at` is a revision as `revision` is elsewhere, the head when absent.
+fn changes(runtime: &Runtime, indexes: &mut IndexCache, query: &str) -> Result<Reply, Reply> {
+    let query = Query::parse(
+        query,
+        &[
+            "since_revision",
+            "since_valid",
+            "since_recorded",
+            "at",
+            "limit",
+            "after",
+        ],
+    )
+    .map_err(invalid_query)?;
+    let integer = |name: &str| query.integer(name).map_err(invalid_query);
+    let (kind, since) = SinceKind::one_of(
+        integer("since_revision")?,
+        integer("since_valid")?,
+        integer("since_recorded")?,
+    )
+    .map_err(|given| invalid_query(since_not_one(&given)))?;
+    let limit = integer("limit")?;
+    let after = integer("after")?;
+    let at = query
+        .get("at")
+        .map(|value| revision(&format!("revision={value}")).map_err(invalid_query))
+        .transpose()?
+        .flatten();
+    let request = ChangesRequest::new(kind, since, limit, after).map_err(changes_refused)?;
+    let index = indexes
+        .index(runtime, at)
+        .map_err(|error| refused("changes", error))?;
+    let answer = index.changes(runtime, &request).map_err(changes_refused)?;
     Ok(Reply::ok(JSON, answer.bytes))
 }
 
@@ -1363,7 +1435,7 @@ mod tests {
     }
 
     #[test]
-    fn only_the_eleven_routes_exist() {
+    fn only_the_twelve_routes_exist() {
         assert!(matches!(route("/"), Some(Route::Page)));
         assert!(matches!(route("/alt"), Some(Route::AltPage)));
         assert!(matches!(route("/head"), Some(Route::Head)));
@@ -1378,8 +1450,11 @@ mod tests {
         assert!(matches!(route("/search"), Some(Route::Search)));
         assert!(matches!(route("/node/abc"), Some(Route::Node("abc"))));
         assert!(matches!(route("/timeline"), Some(Route::Timeline)));
+        assert!(matches!(route("/changes"), Some(Route::Changes)));
         for path in [
             "",
+            "/changes/",
+            "/change",
             "/index.html",
             "/projection/",
             "/roles/",
@@ -1913,6 +1988,32 @@ mod tests {
                 format!("/timeline?subject={node}&hops=1&limit=10&revision=9"),
                 "ekr.views.NotSeeded",
             ),
+            (
+                "/changes?since_revision=-1&limit=0&at=9".to_owned(),
+                "ekr.views.SinceMalformed",
+            ),
+            (
+                "/changes?since_revision=0&limit=0&at=9".to_owned(),
+                "ekr.views.LimitExceeded",
+            ),
+            (
+                "/changes?since_valid=0&after=-1".to_owned(),
+                "ekr.views.LimitExceeded",
+            ),
+            (
+                "/changes?since_revision=9&at=9".to_owned(),
+                "ekr.views.NotSeeded",
+            ),
+            (
+                "/changes?since_recorded=0".to_owned(),
+                "ekr.views.NotSeeded",
+            ),
+            ("/changes".to_owned(), "invalid-query"),
+            (
+                "/changes?since_revision=0&since_valid=0".to_owned(),
+                "invalid-query",
+            ),
+            ("/changes?since_revision=0&at=x".to_owned(), "invalid-query"),
             ("/projection?revision=9".to_owned(), "ekr.views.NotSeeded"),
             ("/roles".to_owned(), "ekr.views.NotSeeded"),
             ("/head".to_owned(), "ekr.views.NotSeeded"),

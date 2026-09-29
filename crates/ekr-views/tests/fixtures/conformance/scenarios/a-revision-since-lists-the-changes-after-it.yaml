@@ -1,0 +1,116 @@
+# story:changes-since-read: a revision since (ekr.views.GraphChangesV1).
+#
+# The store `changes` has four revisions. Revision 0, the seed: nodes alpha and beta, the edge
+# alpha → beta, and one assertion about alpha and one about that edge. Revision 1 creates one node,
+# one edge from it to alpha, and one assertion about each. Revision 2 adds one assertion about
+# alpha and supersedes the seeded claim about alpha by it. Revision 3 retracts the assertion
+# revision 1 added about its node. A property update, a schema change or an edge deletion is no
+# change of this format, and the store holds none.
+#   - since revision 0, at 3: revisions 1 to 3, 7 changes — 1 node, 1 edge, 3 assertions added,
+#     1 superseded, 1 retracted — from revision 1 to 3. A read that counts the seed lists 12; one
+#     that reads only the head's state lists no supersession or retraction as its own change;
+#   - since revision 2, at 3: the retraction alone;
+#   - since revision 1, at 1: nothing, and no refusal — revision 1 is held;
+#   - since revision 0, at 2: revisions 1 and 2, 6 changes; a read that takes `at` for the head
+#     lists the retraction too.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-revision-since-lists-the-changes-after-it
+summary: Since revision 0 at 3 lists revision 1 to 3's 7 changes by kind, since 2 the one retraction, since 1 at 1 nothing, and since 0 at 2 the 6 changes of revisions 1 and 2.
+
+timeline:
+  - at: 2027-01-15T12:00:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: changes
+      since_kind: Revision
+      since: 0
+      at: 3
+      limit: null
+      after: null
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          revision: 3
+          after: 0
+          changes: 7
+          total: 7
+          remaining: 0
+          nodes_created: 1
+          edges_created: 1
+          assertions_added: 3
+          assertions_superseded: 1
+          assertions_retracted: 1
+          first_revision: 1
+          last_revision: 3
+
+  - at: 2027-01-15T12:01:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: changes
+      since_kind: Revision
+      since: 2
+      at: 3
+      limit: null
+      after: null
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          revision: 3
+          changes: 1
+          total: 1
+          nodes_created: 0
+          edges_created: 0
+          assertions_added: 0
+          assertions_superseded: 0
+          assertions_retracted: 1
+          first_revision: 3
+          last_revision: 3
+
+  - at: 2027-01-15T12:02:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: changes
+      since_kind: Revision
+      since: 1
+      at: 1
+      limit: null
+      after: null
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          revision: 1
+          changes: 0
+          total: 0
+          remaining: 0
+
+  - at: 2027-01-15T12:03:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: changes
+      since_kind: Revision
+      since: 0
+      at: 2
+      limit: null
+      after: null
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          revision: 2
+          changes: 6
+          total: 6
+          nodes_created: 1
+          edges_created: 1
+          assertions_added: 3
+          assertions_superseded: 1
+          assertions_retracted: 0
+          first_revision: 1
+          last_revision: 2

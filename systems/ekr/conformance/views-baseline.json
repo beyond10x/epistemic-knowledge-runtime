@@ -7,11 +7,16 @@
     "file",
     "sqlite"
   ],
-  "total": 41,
-  "answered_floor": 41,
+  "total": 51,
+  "answered_floor": 51,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
+    "ekr.views.ChangesSince/outcome/limit-exceeded",
+    "ekr.views.ChangesSince/outcome/listed",
+    "ekr.views.ChangesSince/outcome/not-found",
+    "ekr.views.ChangesSince/outcome/not-seeded",
+    "ekr.views.ChangesSince/outcome/since-malformed",
     "ekr.views.DescribeNode/outcome/described",
     "ekr.views.DescribeNode/outcome/node-not-found",
     "ekr.views.DescribeNode/outcome/not-found",
@@ -37,19 +42,24 @@
     "ekr.views.SearchNodes/outcome/not-seeded",
     "ekr.views.SearchNodes/outcome/searched",
     "ekr.views/authored/a-cursor-pages-a-neighbourhood-to-its-end",
+    "ekr.views/authored/a-cursor-pages-the-changes-to-their-end",
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed",
     "ekr.views/authored/a-retracted-assertion-is-projected-with-its-lifecycle",
     "ekr.views/authored/a-revision-beyond-the-head-is-refused",
+    "ekr.views/authored/a-revision-since-lists-the-changes-after-it",
     "ekr.views/authored/a-schema-evolution-projects-each-version-from-its-revision",
     "ekr.views/authored/a-search-lists-at-most-its-limit-of-matches",
     "ekr.views/authored/a-search-with-no-match-answers-an-empty-list",
     "ekr.views/authored/a-seed-only-store-projects-revision-zero",
     "ekr.views/authored/a-timeline-refuses-each-input-outside-its-bound",
     "ekr.views/authored/a-timeline-row-is-a-subject-with-its-events-within-hops",
+    "ekr.views/authored/a-transaction-time-since-lists-the-revisions-committed-after-it",
+    "ekr.views/authored/a-valid-time-since-lists-the-assertion-changes-valid-after-it",
     "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge",
     "ekr.views/authored/an-expansion-refuses-each-input-outside-its-bound",
     "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes",
     "ekr.views/authored/an-unknown-seed-is-refused-by-name",
+    "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound",
     "ekr.views/authored/seeded-evidence-is-projected-as-retained",
     "ekr.views/authored/the-edge-limit-cuts-a-page-between-a-node-and-its-edges",
     "ekr.views/authored/the-overview-derives-roles-and-timeline-from-valid-time"
@@ -58,6 +68,10 @@
     "ekr.views/authored/a-cursor-pages-a-neighbourhood-to-its-end": {
       "file": "a-cursor-pages-a-neighbourhood-to-its-end.yaml",
       "digest": "sha256:9fe0ef08610084444a0f3cfb656841ccea5acb1814647c992763d9667585557a"
+    },
+    "ekr.views/authored/a-cursor-pages-the-changes-to-their-end": {
+      "file": "a-cursor-pages-the-changes-to-their-end.yaml",
+      "digest": "sha256:2721cf55e98e140224e0f99a9bac18b49d3b8b2513dc9c30651e2bdc5f7bb1da"
     },
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed": {
       "file": "a-node-is-not-found-at-a-revision-before-it-existed.yaml",
@@ -70,6 +84,10 @@
     "ekr.views/authored/a-revision-beyond-the-head-is-refused": {
       "file": "a-revision-beyond-the-head-is-refused.yaml",
       "digest": "sha256:28935562fd3515805424066d883e495799d4ec861fba65d380e6ac3b530074ad"
+    },
+    "ekr.views/authored/a-revision-since-lists-the-changes-after-it": {
+      "file": "a-revision-since-lists-the-changes-after-it.yaml",
+      "digest": "sha256:7d43b2a4fba30aca07e8c8a071f278a6c8d23f029bf542fde2b6bf51457e9260"
     },
     "ekr.views/authored/a-schema-evolution-projects-each-version-from-its-revision": {
       "file": "a-schema-evolution-projects-each-version-from-its-revision.yaml",
@@ -95,6 +113,14 @@
       "file": "a-timeline-row-is-a-subject-with-its-events-within-hops.yaml",
       "digest": "sha256:20243123f149eb97f505dd4e6b1ea5af3be55463be405d05d6d9a6e826a3a631"
     },
+    "ekr.views/authored/a-transaction-time-since-lists-the-revisions-committed-after-it": {
+      "file": "a-transaction-time-since-lists-the-revisions-committed-after-it.yaml",
+      "digest": "sha256:297912dfb14df62ab603e1a6779155ed340f0c116b761fd66caf087c514a6c9f"
+    },
+    "ekr.views/authored/a-valid-time-since-lists-the-assertion-changes-valid-after-it": {
+      "file": "a-valid-time-since-lists-the-assertion-changes-valid-after-it.yaml",
+      "digest": "sha256:5aa1a17e55d40afc8dfc267e1b96834f1608763730946eacb8e9523cce4eb8ce"
+    },
     "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge": {
       "file": "an-assertion-about-an-edge-is-carried-by-that-edge.yaml",
       "digest": "sha256:6af4281ad03aa69d90d2f551aa26c2c2cf0d9d3e7d8090262f4a6e2106197aa0"
@@ -111,6 +137,10 @@
       "file": "an-unknown-seed-is-refused-by-name.yaml",
       "digest": "sha256:deab4b014e2606a3f8828cbb009f58c57d6aecee56c75daf7cad6d870545618b"
     },
+    "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound": {
+      "file": "changes-refuse-a-malformed-since-and-each-bound.yaml",
+      "digest": "sha256:a6ec46cfd4b13bc11f34c733afbc2e3b7552ea7a1f64b549c92ca1c66bc66d2a"
+    },
     "ekr.views/authored/seeded-evidence-is-projected-as-retained": {
       "file": "seeded-evidence-is-projected-as-retained.yaml",
       "digest": "sha256:3f1ef387e658de1a6a00f02285300327b26238f6369ec2c1eba39200d7eb8a36"
@@ -125,6 +155,38 @@
     }
   },
   "step_floors": {
+    "ekr.views.ChangesSince/outcome/limit-exceeded": {
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 19,
+      "expect_outcome": 1
+    },
+    "ekr.views.ChangesSince/outcome/listed": {
+      "execute_command": 2,
+      "expect_event": 1,
+      "expect_no_event": 18,
+      "expect_outcome": 2
+    },
+    "ekr.views.ChangesSince/outcome/not-found": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 19,
+      "expect_outcome": 1
+    },
+    "ekr.views.ChangesSince/outcome/not-seeded": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 19,
+      "expect_outcome": 1
+    },
+    "ekr.views.ChangesSince/outcome/since-malformed": {
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 19,
+      "expect_outcome": 1
+    },
     "ekr.views.DescribeNode/outcome/described": {
       "execute_command": 1,
       "expect_event": 1,
@@ -288,6 +350,11 @@
       "expect_event": 4,
       "expect_outcome": 4
     },
+    "ekr.views/authored/a-cursor-pages-the-changes-to-their-end": {
+      "execute_command": 4,
+      "expect_event": 4,
+      "expect_outcome": 4
+    },
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed": {
       "execute_command": 8,
       "expect_error": 2,
@@ -306,6 +373,11 @@
       "expect_event": 1,
       "expect_no_event": 1,
       "expect_outcome": 2
+    },
+    "ekr.views/authored/a-revision-since-lists-the-changes-after-it": {
+      "execute_command": 4,
+      "expect_event": 4,
+      "expect_outcome": 4
     },
     "ekr.views/authored/a-schema-evolution-projects-each-version-from-its-revision": {
       "execute_command": 2,
@@ -341,6 +413,16 @@
       "expect_event": 9,
       "expect_outcome": 9
     },
+    "ekr.views/authored/a-transaction-time-since-lists-the-revisions-committed-after-it": {
+      "execute_command": 2,
+      "expect_event": 2,
+      "expect_outcome": 2
+    },
+    "ekr.views/authored/a-valid-time-since-lists-the-assertion-changes-valid-after-it": {
+      "execute_command": 2,
+      "expect_event": 2,
+      "expect_outcome": 2
+    },
     "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge": {
       "execute_command": 1,
       "expect_event": 1,
@@ -365,6 +447,13 @@
       "expect_error": 3,
       "expect_no_event": 3,
       "expect_outcome": 3
+    },
+    "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound": {
+      "execute_command": 7,
+      "expect_error": 5,
+      "expect_event": 2,
+      "expect_no_event": 5,
+      "expect_outcome": 7
     },
     "ekr.views/authored/seeded-evidence-is-projected-as-retained": {
       "execute_command": 1,

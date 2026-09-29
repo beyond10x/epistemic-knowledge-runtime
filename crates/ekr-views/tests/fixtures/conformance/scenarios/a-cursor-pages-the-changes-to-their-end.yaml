@@ -1,0 +1,102 @@
+# story:changes-since-read: a cursor pages a large change set (ekr.views.GraphChangesV1).
+#
+# The store `hub` is the one an-overview-lists-at-most-its-limit-of-top-nodes describes: a seed
+# alone, the hub and 600 leaves and the 600 edges from the hub to each. A transaction time of 0 ms
+# is before the seed, so its changes are the seed's: 601 NodeCreated then 600 EdgeCreated, in the
+# format's order, 1,201 changes. At the default limit of 500:
+#   - page 1 (no cursor): 500 nodes; 701 remain;
+#   - page 2 (after 500): the last 101 nodes and the first 399 edges; 201 remain;
+#   - page 3 (after 1000): the last 201 edges; nothing remains;
+#   - after 1,201, the end itself: an empty page.
+# A read that pages by revision rather than by change, or restarts at the cursor's node count,
+# repeats or drops changes across pages 1 and 2.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-cursor-pages-the-changes-to-their-end
+summary: The hub's 1,201 seed changes page as 500 nodes, 101 nodes and 399 edges, then 201 edges at the default limit, and a cursor at the end answers an empty page.
+
+timeline:
+  - at: 2027-01-15T12:30:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      since_kind: TransactionTime
+      since: 0
+      at: null
+      limit: null
+      after: null
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          revision: 0
+          after: 0
+          changes: 500
+          total: 1201
+          remaining: 701
+          nodes_created: 500
+          edges_created: 0
+          first_revision: 0
+          last_revision: 0
+
+  - at: 2027-01-15T12:31:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      since_kind: TransactionTime
+      since: 0
+      at: 0
+      limit: 500
+      after: 500
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          after: 500
+          changes: 500
+          total: 1201
+          remaining: 201
+          nodes_created: 101
+          edges_created: 399
+
+  - at: 2027-01-15T12:32:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      since_kind: TransactionTime
+      since: 0
+      at: 0
+      limit: 500
+      after: 1000
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          after: 1000
+          changes: 201
+          total: 1201
+          remaining: 0
+          nodes_created: 0
+          edges_created: 201
+
+  - at: 2027-01-15T12:33:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: hub
+      since_kind: TransactionTime
+      since: 0
+      at: 0
+      limit: 500
+      after: 1201
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          after: 1201
+          changes: 0
+          total: 1201
+          remaining: 0
