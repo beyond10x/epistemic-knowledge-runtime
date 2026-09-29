@@ -194,7 +194,8 @@ pub struct CodeNameMatch {
     pub type_name: Option<String>,
 }
 
-/// The kind of a store name.
+/// The kind of a store name. A kind a newer `ekr` adds reads as [`CodeNameKind::Other`], so it
+/// does not fail the read; it writes back as `Other`, not as the kind `ekr` printed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CodeNameKind {
     /// A node type's name.
@@ -207,6 +208,9 @@ pub enum CodeNameKind {
     CanonicalName,
     /// A node's alias.
     Alias,
+    /// A kind this SDK does not know, added by a newer `ekr`.
+    #[serde(other)]
+    Other,
 }
 
 // ---- the calls ---------------------------------------------------------------------------------

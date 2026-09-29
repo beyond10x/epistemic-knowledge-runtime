@@ -522,7 +522,6 @@ impl Transport for Canned {
 /// that names one more kind of store name breaks the whole `code-names` read, every finding
 /// with it, as `ReadError::Document`.
 #[test]
-#[ignore = "defect: a CodeNameKind a newer ekr adds fails the whole code-names read"]
 fn a_code_name_kind_a_newer_ekr_adds_does_not_break_the_read() {
     let world = World::seeded(Backend::File);
     let mut document: Value =

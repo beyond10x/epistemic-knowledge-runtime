@@ -640,6 +640,7 @@ fn every_conformance_fixture_quality_and_code_names_document_reads_exactly() {
         "with_item_evidence_share present",
         "with_item_evidence_share absent",
         "constrained_share present",
+        "constrained_share absent",
         "shared_names",
         "runtime_word",
         "type_id and type_name",
@@ -741,4 +742,15 @@ fn a_field_added_to_a_check_format_is_ignored_on_read_and_fails_the_exact_read()
         every_object_gains_a_field::<Rejections>("rejections", &rejections),
     ];
     assert!(grown.iter().all(|objects| *objects >= 4), "{grown:?}");
+
+    // A kind of store name the format gains reads as `Other` and fails the exact read by its
+    // pointer.
+    let mut new_kind = names.clone();
+    new_kind["findings"][0]["names"][0]["kind"] = Value::from("OperationName");
+    let read: CodeNames = serde_json::from_value(new_kind.clone()).unwrap();
+    assert_eq!(read.findings[0].names[0].kind, CodeNameKind::Other);
+    assert_eq!(
+        exactly::<CodeNames>(&new_kind).map(drop),
+        Err(vec!["/findings/0/names/0/kind".to_owned()])
+    );
 }

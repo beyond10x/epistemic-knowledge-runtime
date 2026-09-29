@@ -590,7 +590,9 @@ The last three are the store checks ([`ekr quality`](cli.md#ekr-quality),
 0. `rejections(from, to)` selects the basis revisions `from` to `to`, both included, and a `None`
 bound is unbounded. `code_names(files, at)` takes the source paths as strings; `ekr` reads a
 relative one from its working directory (`SessionOptions::current_dir`), and each finding's `file`
-is the path as given. A finding is not an error: test `meta.findings` to fail on one.
+is the path as given. A finding is not an error: test `meta.findings` to fail on one. A match's
+`kind` is a `CodeNameKind`; a kind a newer `ekr` adds reads as `CodeNameKind::Other`, with its
+`id` and the rest of the finding intact, and writes back as `Other`.
 
 ```rust
 let quality = reader.quality(None)?;                       // StoreQuality
