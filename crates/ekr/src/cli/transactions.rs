@@ -51,10 +51,10 @@ pub(super) struct Listed {
 pub(super) fn run(runtime: &Runtime, state: Option<StateFilter>) -> Result<Vec<Listed>, Failure> {
     Ok(runtime
         .transactions()?
-        .into_iter()
+        .iter()
         .filter(|(_, record)| state.is_none_or(|wanted| StateFilter::of(record.state()) == wanted))
         .map(|(transaction_id, record)| Listed {
-            transaction_id,
+            transaction_id: *transaction_id,
             state: record.state(),
             proposer: record.proposal.submitter,
             submitted_at: record.proposal.submitted_at,

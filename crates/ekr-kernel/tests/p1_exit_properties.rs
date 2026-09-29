@@ -970,7 +970,7 @@ proptest! {
                 prop_assert_eq!(&kernel.read(Some(revision)).unwrap().root, root,
                     "file={} the committing process recomputes revision {}", file, revision);
                 prop_assert_eq!(
-                    kernel.replay(revision).unwrap(),
+                    std::sync::Arc::new(kernel.replay(revision).unwrap()),
                     kernel.read(Some(revision)).unwrap().graph,
                     "file={} replay and a verified read agree at revision {}", file, revision
                 );

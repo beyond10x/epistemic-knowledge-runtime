@@ -615,7 +615,7 @@ fn restored(
     Ok(ReplayState {
         seed,
         revisions,
-        transactions,
+        transactions: Arc::new(transactions),
         version,
         digest: Some(checkpoint.prefix),
         seed_payloads: checkpoint.seed_payloads,

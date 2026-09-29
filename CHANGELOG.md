@@ -4,6 +4,19 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Changed
+
+- **Read verbs share the verified state instead of copying it.** `VerifiedRead` holds the kernel's
+  own graph, transaction records and seed input (`graph: Arc<CanonicalGraph>`,
+  `transactions: Arc<BTreeMap<..>>`, `seed_input: Arc<SeedDocument>`); `Runtime::transactions`
+  returns `Arc<BTreeMap<..>>`; `SchemaHistory::graph` and `ekr_views::LoadedRevision::graph` are
+  `Arc<CanonicalGraph>`. A read of an unchanged head copies none of them. Every answer is
+  byte-identical.
+- **`resolve` is a lookup.** `ekr_graph::AliasIndex` holds a graph's nodes by type and alias; the
+  kernel builds it once per head (`VerifiedRead::aliases`) and `ekr resolve` and the `resolve` MCP
+  tool answer through `ekr_integrate::resolve_indexed`, which answers exactly what
+  `ekr_integrate::resolve` answers.
+
 ## [0.0.16] — 2026-09-29
 
 Evidence after the seed; seed payloads out of the envelope; `ekr migrate`.

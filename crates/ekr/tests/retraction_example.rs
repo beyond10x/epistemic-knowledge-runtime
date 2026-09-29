@@ -145,8 +145,8 @@ impl World {
         let transactions = runtime
             .transactions()
             .unwrap()
-            .into_iter()
-            .map(|(id, record)| (id, record.state()))
+            .iter()
+            .map(|(id, record)| (*id, record.state()))
             .collect();
         let head = serde_json::to_value(runtime.head().unwrap()).unwrap();
         (transactions, head)

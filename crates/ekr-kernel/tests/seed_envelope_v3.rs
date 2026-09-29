@@ -310,7 +310,7 @@ fn a_v2_store_written_before_this_story_reopens_and_replays_with_identical_roots
             envelope.starts_with(br#"{"format":"ekr-seed-envelope/2","#),
             "file={file}"
         );
-        assert_eq!(read.seed_input, seed(), "file={file}");
+        assert_eq!(*read.seed_input, seed(), "file={file}");
         let states: Vec<(TransactionId, TransactionState)> = read
             .transactions
             .iter()

@@ -1222,11 +1222,11 @@ fn evidence(runtime: &Runtime, id: &str) -> Reply {
     let Ok(id) = id.parse::<EvidenceId>() else {
         return not_found();
     };
-    let graph = match runtime.snapshot() {
-        Ok(graph) => graph,
+    let read = match runtime.read(None) {
+        Ok(read) => read,
         Err(error) => return Reply::text(500, format!("reading the head: {error}")),
     };
-    let Some(item) = graph.evidence.get(&id) else {
+    let Some(item) = read.graph.evidence.get(&id) else {
         return not_found();
     };
     match runtime.content(&item.content_hash) {

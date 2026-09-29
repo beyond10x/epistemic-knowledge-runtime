@@ -271,11 +271,11 @@ fn a_verified_read_carries_every_committed_record_on_both_providers() {
         returned.get_mut(&two.id).unwrap().stale = Some(*stale);
 
         let read: VerifiedRead = kernel.read(None).unwrap();
-        assert_eq!(read.graph, kernel.snapshot().unwrap());
+        assert_eq!(*read.graph, kernel.snapshot().unwrap());
         assert_eq!(Some(read.root), kernel.head().unwrap());
         assert_eq!(read.root, receipt.result);
         assert_eq!(read.seed, seeded);
-        assert_eq!(read.seed_input, seed);
+        assert_eq!(*read.seed_input, seed);
         assert_eq!(read.context, context());
         assert_eq!(read.authority, anchor());
         for (hash, bytes) in &seed.evidence_payloads {
@@ -379,7 +379,7 @@ fn a_historical_read_reports_each_record_as_it_stood_at_that_boundary() {
         assert_eq!(at_seed.root, seeded.result);
         assert!(at_seed.transactions.is_empty(), "file={file}");
         assert_eq!(at_seed.seed, seeded);
-        assert_eq!(at_seed.graph, kernel.replay(RevisionNumber::SEED).unwrap());
+        assert_eq!(*at_seed.graph, kernel.replay(RevisionNumber::SEED).unwrap());
     }
 }
 
@@ -519,6 +519,138 @@ fn validation_material_addresses_exactly_the_transaction_basis_and_validators() 
                 validators: &held.validators,
             }),
             receipt.validation_hash
+        );
+    }
+}
+
+/// The read verbs (`resolve`, `ontology`, `snapshot`, `explain` through [`Runtime::read`],
+/// `transactions` through [`Runtime::transactions`], a view through [`Runtime::schema_history`])
+/// share the kernel's verified head state: a second read of an unchanged head finds every
+/// transaction record and the graph where the first found them. Each one found anywhere else is
+/// a copy, and the count of copies is the answer.
+#[test]
+fn read_verbs_copy_no_transaction_record_and_no_graph() {
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let seed = fixture();
+        let kernel = open(directory.path(), file);
+        kernel.seed(seed.clone(), at(10)).unwrap();
+        let (one, pending) = (proposal(&seed), proposal(&seed));
+        propose(&kernel, &one);
+        propose(&kernel, &pending);
+        validated(&kernel, &one);
+        kernel.commit(one.id, context().operator, at(40)).unwrap();
+
+        let first = kernel.read(None).unwrap();
+        let second = kernel.read(None).unwrap();
+        let listed = kernel.transactions().unwrap();
+        let history = kernel.schema_history(first.root.revision).unwrap();
+        assert_eq!(first.transactions.len(), 2, "file={file}");
+
+        let record_copies = first
+            .transactions
+            .values()
+            .zip(second.transactions.values())
+            .chain(first.transactions.values().zip(listed.values()))
+            .filter(|(held, again)| !std::ptr::eq(*held, *again))
+            .count();
+        let graph_copies = [&second.graph.nodes, &history.graph.nodes]
+            .into_iter()
+            .filter(|again| !std::ptr::eq(&first.graph.nodes, *again))
+            .count();
+        let seed_input_copies = usize::from(!std::ptr::eq(
+            &first.seed_input.graph,
+            &second.seed_input.graph,
+        ));
+        assert_eq!(
+            (record_copies, graph_copies, seed_input_copies),
+            (0, 0, 0),
+            "file={file}: transaction records, graphs and seed inputs a read verb copied"
+        );
+    }
+}
+
+/// `resolve` looks a reference up in its read's alias index. Every read of one head is handed the
+/// one index built for that head, which is the index of its graph; a new head has its own; and a
+/// capture whose graph its owner changed is indexed from the changed graph, not the admitted one.
+#[test]
+fn the_alias_index_is_built_once_per_head_and_indexes_the_captured_graph() {
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let seed = fixture();
+        let kernel = open(directory.path(), file);
+        kernel.seed(seed.clone(), at(10)).unwrap();
+
+        let first = kernel.read(None).unwrap();
+        let second = kernel.read(None).unwrap();
+        assert!(
+            std::ptr::eq(&*first.aliases(), &*second.aliases()),
+            "file={file}: two reads of one head built two alias indexes"
+        );
+        assert_eq!(*first.aliases(), AliasIndex::of(&first.graph));
+
+        let mut changed = kernel.read(None).unwrap();
+        let node = std::sync::Arc::make_mut(&mut changed.graph)
+            .nodes
+            .values_mut()
+            .next()
+            .unwrap();
+        node.aliases.push("renamed".into());
+        let (type_id, id) = (node.type_id, node.id);
+        assert_eq!(changed.aliases().nodes(type_id, "renamed"), [id]);
+        assert!(first.aliases().nodes(type_id, "renamed").is_empty());
+        assert!(kernel
+            .read(None)
+            .unwrap()
+            .aliases()
+            .nodes(type_id, "renamed")
+            .is_empty());
+
+        let one = proposal(&seed);
+        propose(&kernel, &one);
+        validated(&kernel, &one);
+        kernel.commit(one.id, context().operator, at(40)).unwrap();
+        let later = kernel.read(None).unwrap();
+        assert!(!std::ptr::eq(&*first.aliases(), &*later.aliases()));
+        assert_eq!(*later.aliases(), AliasIndex::of(&later.graph));
+    }
+}
+
+/// A live handle keeps the alias index of its current head only: after more commits than the
+/// kernel's replay cache holds states, each followed by a resolve of the new head and the
+/// capture dropped, exactly one of those indexes is still alive, and it is the newest head's.
+#[test]
+fn a_live_handle_keeps_the_alias_index_of_its_current_head_only() {
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let seed = fixture();
+        let kernel = open(directory.path(), file);
+        kernel.seed(seed.clone(), at(10)).unwrap();
+
+        let mut indexes = Vec::new();
+        for step in 0..6_i64 {
+            let tx = proposal(&seed);
+            let head = kernel.head().unwrap().unwrap().revision;
+            kernel
+                .propose(&encode(&tx), context().operator, at(100 + step * 10))
+                .unwrap();
+            kernel.validate(tx.id, head, at(101 + step * 10)).unwrap();
+            kernel
+                .commit(tx.id, context().operator, at(102 + step * 10))
+                .unwrap();
+            let read = kernel.read(None).unwrap();
+            indexes.push(std::sync::Arc::downgrade(&read.alias_index()));
+        }
+        let alive: Vec<usize> = indexes
+            .iter()
+            .enumerate()
+            .filter(|(_, index)| index.strong_count() > 0)
+            .map(|(step, _)| step)
+            .collect();
+        assert_eq!(
+            alive,
+            [indexes.len() - 1],
+            "file={file}: the alias indexes still alive after their heads moved on"
         );
     }
 }

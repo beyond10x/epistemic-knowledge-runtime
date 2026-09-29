@@ -146,7 +146,8 @@ fn the_p1_shape_encodes_exactly_as_the_base_kernel_encoded_it() {
     let retained = open(&directory)
         .transactions()
         .unwrap()
-        .remove(&P1_PROPOSAL.parse().unwrap())
+        .get(&P1_PROPOSAL.parse().unwrap())
+        .cloned()
         .unwrap()
         .proposal;
 
@@ -235,7 +236,8 @@ fn every_operation_kind_in_its_base_era_shape_re_derives_its_retained_hashes() {
     let record = kernel
         .transactions()
         .unwrap()
-        .remove(&ALL_KINDS_PROPOSAL.parse().unwrap())
+        .get(&ALL_KINDS_PROPOSAL.parse().unwrap())
+        .cloned()
         .expect("the all-kinds proposal is retained");
     assert_eq!(record.state(), TransactionState::Rejected);
     let parsed = TransactionDocument::parse(&record.proposal.document_bytes).unwrap();

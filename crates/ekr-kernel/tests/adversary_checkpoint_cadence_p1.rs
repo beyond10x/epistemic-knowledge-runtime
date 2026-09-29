@@ -201,7 +201,7 @@ fn schema(tag: u64) -> GraphTransaction {
 type Answers = (
     Option<Root>,
     CanonicalGraph,
-    BTreeMap<TransactionId, TransactionRecord>,
+    std::sync::Arc<BTreeMap<TransactionId, TransactionRecord>>,
 );
 fn answers(runtime: &Runtime) -> Answers {
     (

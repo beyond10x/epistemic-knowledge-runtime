@@ -247,8 +247,9 @@ fn a_rewritten_graph_root_is_refused_by_snapshot() {
         assert_eq!(genuine.graph.root, genuine.seed_input.graph.root);
 
         let mut forged = kernel.read(None).unwrap();
-        forged.graph.root.created_at = Timestamp::from_millis(987_654_321);
-        forged.graph.root.parent = Some(GraphRootId::mint());
+        std::sync::Arc::make_mut(&mut forged.graph).root.created_at =
+            Timestamp::from_millis(987_654_321);
+        std::sync::Arc::make_mut(&mut forged.graph).root.parent = Some(GraphRootId::mint());
         let outcome = forged.snapshot(None);
         if let Ok(result) = &outcome {
             assert_ne!(result.graph.root, genuine.graph.root);
