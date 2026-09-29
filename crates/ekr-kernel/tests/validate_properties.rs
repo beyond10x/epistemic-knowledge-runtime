@@ -531,3 +531,289 @@ fn operation_carries_a_float(operation: &GraphOperation) -> bool {
         | GraphOperation::AddEvidence(_) => false,
     }
 }
+
+/// The identities the alias and edge-count property draws from: few, so that holders, repeats,
+/// overwrites and deletions collide in ordinary draws.
+struct Counted {
+    root: GraphRootId,
+    elsewhere: GraphRootId,
+    decision: TypeId,
+    other: TypeId,
+    depends_on: TypeId,
+    blocks: TypeId,
+    nodes: [NodeId; 4],
+    edges: [EdgeId; 4],
+}
+
+static COUNTED: LazyLock<Counted> = LazyLock::new(|| Counted {
+    root: GraphRootId::mint(),
+    elsewhere: GraphRootId::mint(),
+    decision: TypeId::mint(),
+    other: TypeId::mint(),
+    depends_on: TypeId::mint(),
+    blocks: TypeId::mint(),
+    nodes: [
+        NodeId::mint(),
+        NodeId::mint(),
+        NodeId::mint(),
+        NodeId::mint(),
+    ],
+    edges: [
+        EdgeId::mint(),
+        EdgeId::mint(),
+        EdgeId::mint(),
+        EdgeId::mint(),
+    ],
+});
+
+const ALIASES: [&str; 3] = ["x", "y", ""];
+
+/// A basis node: `(node, in the snapshot's root, of the decision type, aliases)`.
+type HeldNode = (usize, bool, bool, Vec<usize>);
+/// A basis edge: `(edge, depends_on rather than blocks, source, target)`.
+type HeldEdge = (usize, bool, usize, usize);
+
+/// One operation of the property's transactions.
+#[derive(Clone, Debug)]
+enum Counting {
+    Node(usize, bool, Vec<usize>),
+    Edge(usize, bool, usize, usize),
+    Delete(usize),
+}
+
+fn counting() -> impl Strategy<Value = Counting> {
+    prop_oneof![
+        (
+            0..4usize,
+            proptest::bool::weighted(0.8),
+            proptest::collection::vec(0..3usize, 1..3)
+        )
+            .prop_map(|(node, decision, aliases)| Counting::Node(node, decision, aliases)),
+        (0..4usize, any::<bool>(), 0..4usize, 0..4usize).prop_map(
+            |(edge, depends, source, target)| Counting::Edge(edge, depends, source, target)
+        ),
+        (0..4usize).prop_map(Counting::Delete),
+    ]
+}
+
+/// Canonical state holding `nodes` and `edges`, with two node types and two edge types that
+/// permit one edge per source.
+fn counted_graph(nodes: &[HeldNode], edges: &[HeldEdge]) -> CanonicalGraph {
+    let c = &*COUNTED;
+    let schema = SchemaVersionId::mint();
+    let edge_type = |id: TypeId, name: &str| {
+        let mut declared = EdgeType::new(id, name);
+        declared.source_types = [c.decision, c.other].into_iter().collect();
+        declared.target_types = [c.decision, c.other].into_iter().collect();
+        declared.cardinality = Cardinality::One;
+        declared
+    };
+    let mut graph = CanonicalGraph {
+        root: GraphRoot {
+            id: c.root,
+            space: Space::Canonical,
+            schema_version_id: schema,
+            parent: None,
+            created_at: Timestamp::EPOCH,
+        },
+        revision: RevisionNumber::new(3),
+        ontology: Ontology::load(OntologyDocument {
+            version: SchemaVersion::seed(schema, Timestamp::EPOCH),
+            node_types: vec![
+                NodeType::new(c.decision, "Decision"),
+                NodeType::new(c.other, "Other"),
+            ],
+            edge_types: vec![
+                edge_type(c.depends_on, "depends_on"),
+                edge_type(c.blocks, "blocks"),
+            ],
+        })
+        .expect("two node types and two edge types cohere"),
+        nodes: BTreeMap::new(),
+        edges: BTreeMap::new(),
+        assertions: BTreeMap::new(),
+        evidence: BTreeMap::new(),
+    };
+    for (node, home, decision, aliases) in nodes {
+        let mut held = ekr_graph::Node::new(
+            c.nodes[*node],
+            if *home { c.root } else { c.elsewhere },
+            if *decision { c.decision } else { c.other },
+            "held",
+        );
+        held.aliases = aliases.iter().map(|at| ALIASES[*at].to_owned()).collect();
+        graph.nodes.insert(c.nodes[*node], held);
+    }
+    for (edge, depends, source, target) in edges {
+        graph.edges.insert(
+            c.edges[*edge],
+            ekr_graph::Edge::new(
+                c.edges[*edge],
+                c.root,
+                if *depends { c.depends_on } else { c.blocks },
+                CanonicalRef::new(c.nodes[*source]),
+                CanonicalRef::new(c.nodes[*target]),
+            ),
+        );
+    }
+    graph
+}
+
+/// What the alias and edge-count refusals were when each created node scanned every node and
+/// each created edge scanned every edge: `(validator, code, message)`, in the order raised.
+fn scanned(
+    graph: &CanonicalGraph,
+    proposal: &GraphTransaction,
+) -> Vec<(ValidatorName, String, String)> {
+    let mut raised = Vec::new();
+    let mut taken = BTreeSet::new();
+    for operation in &proposal.operations {
+        let GraphOperation::CreateNode(draft) = operation else {
+            continue;
+        };
+        let own: BTreeSet<&str> = draft
+            .aliases
+            .iter()
+            .map(String::as_str)
+            .filter(|alias| !alias.is_empty())
+            .collect();
+        for alias in own {
+            if let Some(holder) = graph.nodes.values().find(|node| {
+                node.root_id == graph.root.id
+                    && node.type_id == draft.type_id
+                    && node.aliases.iter().any(|held| held == alias)
+            }) {
+                raised.push((
+                    ValidatorName::Structural,
+                    "alias-already-exists".to_owned(),
+                    format!(
+                        "node {} is created with alias {alias:?}, which node {} of the same type \
+                         {} already holds; resolve the reference and use that node",
+                        draft.id, holder.id, draft.type_id
+                    ),
+                ));
+            }
+            if !taken.insert((draft.type_id, alias)) {
+                raised.push((
+                    ValidatorName::Structural,
+                    "duplicate-alias".to_owned(),
+                    format!(
+                        "alias {alias:?} of type {} is given to more than one node this \
+                         transaction creates; one alias identifies one node of a type",
+                        draft.type_id
+                    ),
+                ));
+            }
+        }
+    }
+    let mut edges: BTreeMap<EdgeId, (NodeId, TypeId)> = graph
+        .edges
+        .iter()
+        .map(|(id, edge)| (*id, (edge.source.node(), edge.type_id)))
+        .collect();
+    for operation in &proposal.operations {
+        if let GraphOperation::CreateEdge(draft) = operation {
+            edges.insert(draft.id, (draft.source, draft.type_id));
+        }
+    }
+    for operation in &proposal.operations {
+        if let GraphOperation::DeleteEdge(id) = operation {
+            edges.remove(id);
+        }
+    }
+    for operation in &proposal.operations {
+        let GraphOperation::CreateEdge(draft) = operation else {
+            continue;
+        };
+        let declared = graph
+            .ontology
+            .edge_type(draft.type_id)
+            .expect("the property draws declared edge types");
+        let out: BTreeSet<EdgeId> = edges
+            .iter()
+            .filter(|(_, edge)| **edge == (draft.source, draft.type_id))
+            .map(|(id, _)| *id)
+            .collect();
+        if !declared.cardinality.permits(out.len()) {
+            raised.push((
+                ValidatorName::Cardinality,
+                "edge-cardinality".to_owned(),
+                format!(
+                    "{} is {} and node {} would have {} edges of it: {:?}",
+                    declared.name,
+                    declared.cardinality,
+                    draft.source,
+                    out.len(),
+                    out.iter().map(ToString::to_string).collect::<Vec<_>>()
+                ),
+            ));
+        }
+    }
+    raised
+}
+
+proptest! {
+    /// `story:validation-without-whole-graph-scans`: counting edges per source once and indexing
+    /// aliases once says exactly what scanning the whole graph per created edge and node said.
+    ///
+    /// Over generated basis graphs and transactions — holders in another root and of another
+    /// type, repeated and empty aliases, an edge id created twice, created edges deleted in the
+    /// same transaction — the pipeline's `alias-already-exists`, `duplicate-alias` and
+    /// `edge-cardinality` refusals are, message for message and in order, the ones [`scanned`]
+    /// derives by the scans the story removed.
+    #[test]
+    fn alias_and_edge_count_refusals_are_the_ones_whole_graph_scans_gave(
+        nodes in proptest::collection::vec(
+            (0..4usize, proptest::bool::weighted(0.8), proptest::bool::weighted(0.8), proptest::collection::vec(0..3usize, 1..3)),
+            2..5,
+        ),
+        edges in proptest::collection::vec((0..4usize, any::<bool>(), 0..4usize, 0..4usize), 0..4),
+        operations in proptest::collection::vec(counting(), 1..7),
+    ) {
+        let c = &*COUNTED;
+        let graph = counted_graph(&nodes, &edges);
+        let proposal = GraphTransaction {
+            id: POOL.transactions[0],
+            proposer: POOL.agents[0],
+            operations: operations
+                .iter()
+                .map(|operation| match operation {
+                    Counting::Node(node, decision, aliases) => GraphOperation::CreateNode(NodeDraft {
+                        id: c.nodes[*node],
+                        root_id: c.root,
+                        type_id: if *decision { c.decision } else { c.other },
+                        canonical_name: "created".to_owned(),
+                        properties: BTreeMap::new(),
+                        aliases: aliases.iter().map(|at| ALIASES[*at].to_owned()).collect(),
+                    }),
+                    Counting::Edge(edge, depends, source, target) => {
+                        GraphOperation::CreateEdge(EdgeDraft {
+                            id: c.edges[*edge],
+                            root_id: c.root,
+                            type_id: if *depends { c.depends_on } else { c.blocks },
+                            source: c.nodes[*source],
+                            target: c.nodes[*target],
+                            properties: BTreeMap::new(),
+                        })
+                    }
+                    Counting::Delete(edge) => GraphOperation::DeleteEdge(c.edges[*edge]),
+                })
+                .collect(),
+            evidence: BTreeSet::new(),
+            schema_version: None,
+        };
+        let issues = Pipeline::deterministic(POOL.agents[1])
+            .validate(&GraphSnapshot::of(&graph), &proposal)
+            .err()
+            .unwrap_or_default();
+        let raised: Vec<_> = issues
+            .into_iter()
+            .filter(|issue| {
+                ["alias-already-exists", "duplicate-alias", "edge-cardinality"]
+                    .contains(&issue.code.as_str())
+            })
+            .map(|issue| (issue.validator, issue.code, issue.message))
+            .collect();
+        prop_assert_eq!(raised, scanned(&graph, &proposal));
+    }
+}

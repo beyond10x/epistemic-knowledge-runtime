@@ -36,5 +36,9 @@ schema = ["dep:schemars", "ekr-core/schema", "ekr-ontology/schema", "ekr-graph/s
 name = "command_bench"
 required-features = ["bench"]
 
+[[test]]
+name = "validation_bench"
+required-features = ["bench"]
+
 [lints]
 workspace = true

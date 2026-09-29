@@ -162,7 +162,7 @@ impl Validator for SchemaStructural {
 /// Transactions only: the seed routes its nodes through this validator with no aliases, because a
 /// seed may give two nodes one alias.
 fn aliases(graph: &GraphSnapshot<'_>, tx: &GraphTransaction, issues: &mut Vec<ValidationIssue>) {
-    let state = graph.graph();
+    let holders = alias_holders(graph, tx);
     let mut taken = BTreeSet::new();
     for operation in &tx.operations {
         let GraphOperation::CreateNode(draft) = operation else {
@@ -175,19 +175,20 @@ fn aliases(graph: &GraphSnapshot<'_>, tx: &GraphTransaction, issues: &mut Vec<Va
             .filter(|alias| !alias.is_empty())
             .collect();
         for alias in own {
-            if let Some(holder) = state.nodes.values().find(|node| {
-                node.root_id == state.root.id
-                    && node.type_id == draft.type_id
-                    && node.aliases.iter().any(|held| held == alias)
-            }) {
+            if let Some(holder) = holders
+                .get(&draft.type_id)
+                .and_then(|wanted| wanted.get(alias))
+                .copied()
+                .flatten()
+            {
                 issues.push(issue(
                     tx,
                     ValidatorName::Structural,
                     ALIAS_ALREADY_EXISTS,
                     format!(
-                        "node {} is created with alias {alias:?}, which node {} of the same type \
-                         {} already holds; resolve the reference and use that node",
-                        draft.id, holder.id, draft.type_id
+                        "node {} is created with alias {alias:?}, which node {holder} of the same \
+                         type {} already holds; resolve the reference and use that node",
+                        draft.id, draft.type_id
                     ),
                 ));
             }
@@ -205,6 +206,49 @@ fn aliases(graph: &GraphSnapshot<'_>, tx: &GraphTransaction, issues: &mut Vec<Va
             }
         }
     }
+}
+
+/// For each non-empty `(type, alias)` a `CreateNode` of `tx` takes, the lowest id of a node of the
+/// snapshot's root and that type holding it, or `None` when no such node does — the node the
+/// `alias-already-exists` refusal names.
+///
+/// One pass over the graph's nodes, in id order, however many nodes the transaction creates:
+/// looking each alias up by scanning every node cost the batch's aliases times the graph's
+/// nodes. The first holder a pass in id order meets is the lowest id, which is the node that scan
+/// found.
+fn alias_holders<'tx>(
+    graph: &GraphSnapshot<'_>,
+    tx: &'tx GraphTransaction,
+) -> BTreeMap<TypeId, BTreeMap<&'tx str, Option<NodeId>>> {
+    let mut holders: BTreeMap<TypeId, BTreeMap<&str, Option<NodeId>>> = BTreeMap::new();
+    for operation in &tx.operations {
+        if let GraphOperation::CreateNode(draft) = operation {
+            for alias in draft.aliases.iter().filter(|alias| !alias.is_empty()) {
+                holders
+                    .entry(draft.type_id)
+                    .or_default()
+                    .insert(alias.as_str(), None);
+            }
+        }
+    }
+    if holders.is_empty() {
+        return holders;
+    }
+    let state = graph.graph();
+    for node in state.nodes.values() {
+        if node.root_id != state.root.id {
+            continue;
+        }
+        let Some(wanted) = holders.get_mut(&node.type_id) else {
+            continue;
+        };
+        for alias in &node.aliases {
+            if let Some(holder) = wanted.get_mut(alias.as_str()) {
+                holder.get_or_insert(node.id);
+            }
+        }
+    }
+    holders
 }
 
 /// The version field and the schema-only rule (wave p5-01, decisions 1 and 3).

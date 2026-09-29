@@ -5,3 +5,5 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 508ee4bb703b92bd6bb7efd38dabc8d01bc1a843aea37aaee009d01302d62ffe # shrinks to proposal = GraphTransaction { id: TransactionId(2163984292236669972939289901614754483), proposer: AgentId(2163984292236669972939289909333935846), operations: [UpdateProperty(PropertyMutation { node: NodeId(2163984292236669972939289927021671612), property: PropertyId(2163984292236669972939289971960313507), values: [Float(0.0)] })], evidence: {} }
+cc 3800412e77b84af8af3749abddf5669c36c02d6e8304814506ef21bce1a62252 # shrinks to nodes = [(0, true, true, [1]), (1, true, true, [1])], edges = [], operations = [Node(0, true, [1])]
+cc c1f554a4c6dd720b0a614089831430b9e753033316bff8951918d7b052f05af2 # shrinks to nodes = [(0, false, false, [0]), (0, false, false, [0])], edges = [(0, true, 0, 0)], operations = [Edge(1, true, 0, 0)]
