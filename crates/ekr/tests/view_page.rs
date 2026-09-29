@@ -1791,6 +1791,144 @@ fn a_neighbourhood_beyond_one_page_offers_to_load_more() {
     reads_no_projection(&requests, "star");
 }
 
+/// The first page of `seed`'s neighbourhood of `depth` hops, as the page asks for it.
+fn expanded_page(index: &Index, seed: &str, depth: i64) -> SlicePage {
+    let request = ExpandRequest::new(vec![seed.parse().unwrap()], depth, 500, None, None).unwrap();
+    index.page(&request).unwrap()
+}
+
+/// `task:hops-slider-streams-the-neighbourhood`: a hops depth of 2 on a focus whose 2-hop
+/// neighbourhood the page has not loaded streams that neighbourhood with one `/expand` of depth 2,
+/// and the focus then holds exactly it. The address carries the slider's value, and the slider and
+/// the address set it through the same function, so an address stands in for the slider here: a
+/// headless browser under `--dump-dom` cannot move one.
+#[test]
+fn a_hops_depth_on_a_focus_streams_the_neighbourhood_it_names_once() {
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let (_, _, nodes, _, _) = GENERATED;
+    let fixture = tempfile::tempdir().unwrap();
+    generated_fixture(fixture.path(), GENERATED, false);
+    let seeded = Seeded::new(fixture.path());
+    let index = double_index(&seeded, 0);
+    let top = top_ids(&index);
+    let projection = seeded.projection();
+    let chosen = projection["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|node| node["id"].as_str().unwrap())
+        .find(|id| {
+            let near = page_nodes(&expanded_page(&index, id, 1));
+            let far = page_nodes(&expanded_page(&index, id, 2));
+            !top.contains(*id)
+                && near.len() > 1
+                && far.iter().any(|n| !top.contains(n) && !near.contains(n))
+        })
+        .unwrap()
+        .to_owned();
+    let two = expanded_page(&index, &chosen, 2);
+    assert!(
+        two.next().is_none(),
+        "{chosen}: its 2-hop neighbourhood is one page"
+    );
+    let neighbourhood = page_nodes(&two);
+    let mut expected = top.clone();
+    expected.extend(page_nodes(&expanded_page(&index, &chosen, 1)));
+    expected.extend(neighbourhood.iter().cloned());
+
+    let double = seeded.double(Duration::ZERO);
+    let dom = rendered(
+        &browser,
+        &format!("{}#node={chosen}&focus={chosen}&hops=2", double.url),
+    );
+    let requests = double.requests();
+    let focused: Vec<&String> = requests
+        .iter()
+        .filter(|target| {
+            target.starts_with("/expand?") && target.contains(&format!("seeds={chosen}&"))
+        })
+        .collect();
+    let deep = focused
+        .iter()
+        .filter(|target| target.contains("&depth=2&"))
+        .count();
+    assert_eq!(deep, 1, "one expansion of depth 2: {focused:?}");
+    assert!(
+        dom.contains(&format!(
+            "<span class=\"n\">{} nodes</span>",
+            grouped(neighbourhood.len() as u64)
+        )),
+        "the focus holds the {} nodes of the 2-hop neighbourhood: {dom}",
+        neighbourhood.len()
+    );
+    assert!(
+        dom.contains(&drawn(expected.len(), nodes as u64)),
+        "{} nodes drawn: {dom}",
+        expected.len()
+    );
+    reads_no_projection(&requests, "hops");
+}
+
+/// What the crumb bar says with no neighbourhood focus: how to get one, and with it the hops slider.
+const HOPS_HINT: &str =
+    "Double-click a node, or choose Neighbourhood in its panel, for a hops slider";
+
+/// `task:hops-slider-streams-the-neighbourhood`: with nothing focused, the page says how to reach
+/// the depth control.
+#[test]
+fn with_nothing_focused_the_crumb_bar_says_how_to_reach_the_hops_slider() {
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/view-page/sounding"));
+    let double = seeded.double(Duration::ZERO);
+    let dom = rendered(&browser, &double.url);
+    let crumbs = dom
+        .split("id=\"crumbs\"")
+        .nth(1)
+        .and_then(|rest| rest.split("</div>").next())
+        .expect("the page has a crumb bar");
+    assert!(crumbs.contains(HOPS_HINT), "the crumb bar: {crumbs}");
+}
+
+/// `story:viewer-3d-draws-in-batches`: the 3D view starts on a generated store and draws the
+/// overview without an error. Its draw calls and frame times are measured in a real-time browser
+/// with a GPU, not here.
+#[test]
+fn the_3d_view_draws_a_generated_store_without_an_error() {
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let (_, _, nodes, _, _) = GENERATED;
+    let fixture = tempfile::tempdir().unwrap();
+    generated_fixture(fixture.path(), GENERATED, false);
+    let seeded = Seeded::new(fixture.path());
+    let top = top_ids(&double_index(&seeded, 0));
+    let double = seeded.double(Duration::ZERO);
+    let dom = rendered(&browser, &format!("{}#view=3d", double.url));
+    assert!(dom.contains("<div id=\"error\"></div>"), "no error: {dom}");
+    assert!(
+        dom.contains(&drawn(top.len(), nodes as u64)),
+        "the overview's {} top nodes: {dom}",
+        top.len()
+    );
+    let stage = dom.split("id=\"graph3d\"").nth(1).unwrap_or_default();
+    assert!(
+        stage
+            .split('>')
+            .next()
+            .unwrap_or_default()
+            .contains("display: block")
+            && stage.contains("<canvas"),
+        "the 3D view is shown and draws on a canvas: {stage}"
+    );
+}
+
 /// A store of one hub joined to 800 others, and one relation assertion.
 const STAR: (usize, usize, usize, usize, usize) = (2, 1, 801, 800, 1);
 

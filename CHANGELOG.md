@@ -20,6 +20,18 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Changed
 
+- **The 3D view of `ekr view` draws in batches and rests when idle.** Nodes are one instanced mesh
+  per glyph, edges one line-segments buffer, arrows and particles one instanced mesh each;
+  3d-force-graph lays the graph out and builds no object per node or edge. The render loop pauses
+  once the layout has stopped and no control, drag, camera flight or particle moves, and the next
+  interaction wakes it. A generated store of 4,127 nodes with 3,490 nodes and 12,083 edges drawn,
+  headless Brave on a GPU: 25,386 → 2 draw calls per frame while the camera moves, 133.4 → 16.7 ms
+  median frame, 0 calls while idle. Hover, click, double-click, node drag and, up to 5,000 edges,
+  edge hover and click work as before; arrows keep the same 5,000-edge threshold.
+- **The hops slider streams the neighbourhood it names.** Setting it to N on a neighbourhood focus
+  streams `/expand` with `depth=N` from the focus, once per focus and depth, and the focus is walked
+  again when the stream ends; an address carrying `hops` does the same. With no focus, the crumb
+  bar says how to get one.
 - **A checkpoint is due by commits and document bytes, not by operations** (design § 99.5). A commit
   writes a replay checkpoint when it is the fifth past the retained one
   (`REPLAY_CHECKPOINT_COMMITS` = 5) or when the transaction documents committed since hold 16 MiB
