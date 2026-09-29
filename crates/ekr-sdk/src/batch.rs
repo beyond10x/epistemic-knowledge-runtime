@@ -7,6 +7,12 @@
 //! `Stale` commit is proposed again under a newly minted transaction id; a batch that is rejected
 //! is split in two and each half submitted again, down to the single group that is refused. The
 //! [`BatchReport`] names every committed transaction and every rejected operation.
+//!
+//! [`Batcher::commit_with_evidence`] adds the entries of an [`EvidenceSet`] the groups cite, each
+//! in the group of its first citing assertion within every transaction proposed, until one
+//! commits it (`story:sdk-evidence-attachment`).
+
+use std::collections::BTreeSet;
 
 use ekr_core::{AgentId, TransactionId};
 use serde::Deserialize;
@@ -15,6 +21,7 @@ use serde_json::Value as Json;
 use crate::document::{
     to_yaml, DocumentError, Operation, TransactionBuilder, TransactionDocument, TRANSACTION_LIMITS,
 };
+use crate::evidence::EvidenceSet;
 use crate::reply::{Answer, Outcome, Refusal};
 use crate::transport::{Request, Transport, TransportError};
 
@@ -220,10 +227,12 @@ enum Attempt {
     Stop(Rejection),
 }
 
-/// Where a run is: what it did, and the commit it has sent without an answer yet.
-struct Run {
+/// Where a run is: what it did, the commit it has sent without an answer yet, and the evidence
+/// its groups introduce.
+struct Run<'a> {
     report: BatchReport,
     in_flight: Option<UnknownOutcome>,
+    evidence: &'a mut EvidenceSet,
 }
 
 impl Batcher {
@@ -257,10 +266,31 @@ impl Batcher {
         transport: &mut T,
         groups: &[Vec<Operation>],
     ) -> Result<BatchReport, Box<BatchError>> {
-        let plan = self.plan(groups);
+        self.commit_with_evidence(transport, groups, &mut EvidenceSet::new(self.proposer))
+    }
+
+    /// [`Self::commit`], adding the entries of `evidence` that the groups' assertions cite. Each
+    /// transaction proposed carries an entry's `!AddEvidence` in the group of its first assertion
+    /// citing it, ahead of that group's operations, unless an earlier transaction committed it:
+    /// a group is never submitted without the evidence it introduces, and a group whose entry was
+    /// committed before cites the existing id. An entry is marked committed
+    /// ([`EvidenceSet::is_committed`]) with the transaction that added it. The report lists each
+    /// group's own operations, never the `!AddEvidence` added to it.
+    ///
+    /// # Errors
+    /// As [`Self::commit`]. The entries of [`BatchError::outcome_unknown`]'s transaction are not
+    /// marked committed; if it is committed, mark them with [`EvidenceSet::mark_committed`].
+    pub fn commit_with_evidence<T: Transport + ?Sized>(
+        &self,
+        transport: &mut T,
+        groups: &[Vec<Operation>],
+        evidence: &mut EvidenceSet,
+    ) -> Result<BatchReport, Box<BatchError>> {
+        let plan = self.plan(groups, evidence);
         let mut run = Run {
             report: BatchReport::default(),
             in_flight: None,
+            evidence,
         };
         for (batch, members) in plan.iter().enumerate() {
             match self.submit(transport, groups, members, batch, &mut run) {
@@ -298,18 +328,26 @@ impl Batcher {
         Ok(run.report)
     }
 
-    /// The groups packed into batches, in order, under the caps.
-    fn plan(&self, groups: &[Vec<Operation>]) -> Vec<Vec<usize>> {
+    /// The groups packed into batches, in order, under the caps. Each group's size counts the
+    /// `!AddEvidence` of every entry of `evidence` it is the first to cite.
+    fn plan(&self, groups: &[Vec<Operation>], evidence: &EvidenceSet) -> Vec<Vec<usize>> {
         let mut batches = Vec::new();
         let mut current: Vec<usize> = Vec::new();
         let (mut operations, mut bytes, mut schema) = (0, ENVELOPE_BYTES, false);
+        let mut introduced = BTreeSet::new();
         for (index, group) in groups.iter().enumerate() {
             if group.is_empty() {
                 continue;
             }
             let changes_schema = group.iter().any(Operation::is_schema_change);
-            let size = estimate(group);
-            let fits = operations + group.len() <= self.operations
+            let entries = evidence.introduce(group, &mut introduced);
+            let size = estimate(group).saturating_add(if entries.is_empty() {
+                0
+            } else {
+                estimate(&entries)
+            });
+            let length = group.len() + entries.len();
+            let fits = operations + length <= self.operations
                 && bytes.saturating_add(size) <= self.bytes
                 && changes_schema == schema;
             if !current.is_empty() && !fits {
@@ -317,7 +355,7 @@ impl Batcher {
                 (operations, bytes) = (0, ENVELOPE_BYTES);
             }
             current.push(index);
-            operations += group.len();
+            operations += length;
             bytes = bytes.saturating_add(size);
             schema = changes_schema;
         }
@@ -337,15 +375,30 @@ impl Batcher {
         batch: usize,
         run: &mut Run,
     ) -> Result<Option<Rejection>, CallError> {
+        let mut attached = BTreeSet::new();
         let built = members
             .iter()
-            .flat_map(|&group| groups[group].iter().cloned())
+            .flat_map(|&group| {
+                let entries = run.evidence.introduce(&groups[group], &mut attached);
+                entries.into_iter().chain(groups[group].iter().cloned())
+            })
             .fold(
                 TransactionBuilder::new(self.proposer),
                 TransactionBuilder::push,
             )
             .build();
         let attempt = match built {
+            // An entry a rejected group introduced moves to the next group citing it, which the
+            // plan packed without it: past the operation cap, the batch is split, not proposed.
+            // A group alone past the cap is proposed, as the plan packs it.
+            Ok(document)
+                if members.len() > 1 && document.transaction.operations.len() > self.operations =>
+            {
+                Attempt::Refused(Rejection::Document(format!(
+                    "past this batcher's limit of {} operations",
+                    self.operations
+                )))
+            }
             Ok(document) if self.within(&document) => {
                 let mut sent = None;
                 let attempt = self.attempt(transport, document, &mut sent);
@@ -370,13 +423,16 @@ impl Batcher {
                 transaction,
                 revision,
                 stale,
-            } => report.committed.push(CommittedTransaction {
-                transaction,
-                revision,
-                batch,
-                groups: members.to_vec(),
-                stale,
-            }),
+            } => {
+                report.committed.push(CommittedTransaction {
+                    transaction,
+                    revision,
+                    batch,
+                    groups: members.to_vec(),
+                    stale,
+                });
+                run.evidence.extend_committed(attached);
+            }
             Attempt::Stop(rejection) => return Ok(Some(rejection)),
             Attempt::Refused(_) if members.len() > 1 => {
                 let (left, right) = members.split_at(members.len() / 2);
@@ -561,7 +617,7 @@ mod tests {
     #[test]
     fn the_kernel_caps_pack_10_000_operations_and_no_more_into_one_batch() {
         let groups: Vec<Vec<Operation>> = (0..10_001).map(|n| vec![node(&n.to_string())]).collect();
-        let plan = Batcher::new(AgentId::mint()).plan(&groups);
+        let plan = Batcher::new(AgentId::mint()).plan(&groups, &EvidenceSet::new(AgentId::mint()));
         let sizes: Vec<usize> = plan.iter().map(Vec::len).collect();
         assert_eq!(sizes, [10_000, 1]);
     }
@@ -574,7 +630,7 @@ mod tests {
             .map(|_| (0..20).map(|_| node(&name)).collect())
             .collect();
         let batcher = Batcher::new(AgentId::mint());
-        let plan = batcher.plan(&groups);
+        let plan = batcher.plan(&groups, &EvidenceSet::new(AgentId::mint()));
         assert!(plan.len() >= 4, "{} batches", plan.len());
         for members in &plan {
             let document = members
@@ -603,7 +659,72 @@ mod tests {
             vec![widening],
             vec![node("b")],
         ];
-        let plan = Batcher::new(AgentId::mint()).plan(&groups);
+        let plan = Batcher::new(AgentId::mint()).plan(&groups, &EvidenceSet::new(AgentId::mint()));
         assert_eq!(plan, [vec![0], vec![1, 3], vec![4]]);
+    }
+
+    /// The `!AddEvidence` a group is the first to cite counts toward the caps: 12 groups of one
+    /// assertion, each citing its own 4,000-byte item, and every third one citing the previous
+    /// group's item too. Without it, the operation cap alone would pack them into three batches.
+    #[test]
+    fn the_evidence_a_group_introduces_counts_toward_the_caps() {
+        use crate::document::{
+            Assertion, NodeId, Object, Predicate, PropertyId, Subject, Timestamp, Value,
+        };
+        use crate::evidence::EvidenceItem;
+        let operator = AgentId::mint();
+        let mut evidence = EvidenceSet::new(operator);
+        let mut previous = None;
+        let groups: Vec<Vec<Operation>> = (0..12_u8)
+            .map(|n| {
+                let cites = evidence.cite(EvidenceItem::new(
+                    "a reader",
+                    Timestamp::EPOCH,
+                    vec![n; 4_000],
+                ));
+                let mut claim = Assertion::new(
+                    GraphRootId::mint(),
+                    Subject::Node(NodeId::mint()),
+                    Predicate::Property(PropertyId::mint()),
+                    Object::Value(Value::String(n.to_string())),
+                    operator,
+                )
+                .citing(cites);
+                if n % 3 == 2 {
+                    claim = claim.citing(previous.expect("an earlier item"));
+                }
+                previous = Some(cites);
+                vec![claim.into()]
+            })
+            .collect();
+        let (cap_operations, cap_bytes) = (5, 128 * 1024);
+        let batcher = Batcher::new(operator).with_limits(cap_operations, cap_bytes);
+
+        let plan = batcher.plan(&groups, &evidence);
+
+        assert!(plan.len() >= 6, "{plan:?}");
+        assert_eq!(plan.concat(), (0..12).collect::<Vec<_>>());
+        let mut run = evidence.clone();
+        for members in &plan {
+            let mut attached = BTreeSet::new();
+            let document = members
+                .iter()
+                .flat_map(|&group| {
+                    let entries = run.introduce(&groups[group], &mut attached);
+                    entries.into_iter().chain(groups[group].iter().cloned())
+                })
+                .fold(TransactionBuilder::new(operator), TransactionBuilder::push)
+                .build()
+                .expect("every planned batch is within the kernel's limits");
+            assert!(
+                document.transaction.operations.len() <= cap_operations,
+                "{members:?}"
+            );
+            assert!(
+                document.to_yaml().unwrap().len() <= cap_bytes,
+                "{members:?}"
+            );
+            run.extend_committed(attached);
+        }
     }
 }
