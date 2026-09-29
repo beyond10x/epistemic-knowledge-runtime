@@ -537,3 +537,37 @@ fn a_commit_payload_knowledge_root_that_disagrees_with_its_receipt_is_refused() 
         },
     );
 }
+
+/// An `ekr.commit-receipt/3` names the ids its transaction created, which an open admitting a
+/// profile-v3 checkpoint reads instead of the proposal (design § 99.5). A receipt whose list is
+/// not exactly what its transaction creates — here, one created node dropped, re-addressed and
+/// named again by its commit event — is refused by name on replay.
+#[test]
+fn a_commit_receipt_whose_created_identities_are_not_its_transactions_is_refused() {
+    let source = source();
+    let mut forged = source.history.clone();
+    let at = commit_of(&forged, source.committed);
+    forged.occurrences.truncate(at + 1);
+    let original = forged.occurrences[at].event.record_hash;
+    let mut receipt = CommitReceiptV1::from_bytes(&forged.objects[&original].bytes).unwrap();
+    assert_eq!(receipt.format, CommitReceiptV1::FORMAT);
+    let created = receipt.created.as_mut().expect("a /3 receipt");
+    let dropped = *created
+        .nodes
+        .iter()
+        .next()
+        .expect("the commit created a node");
+    created.nodes.remove(&dropped);
+    let bytes = receipt.to_bytes().unwrap();
+    let hash = ContentHash::of_bytes(&bytes);
+    let mut object = forged.objects.remove(&original).unwrap();
+    object.metadata.content_hash = hash;
+    object.metadata.byte_len = bytes.len() as u64;
+    object.bytes = std::sync::Arc::new(bytes);
+    forged.objects.insert(hash, object);
+    forged.occurrences[at].event.record_hash = hash;
+    refused_on_both_providers(
+        &forged,
+        &StoreError::Document("commit-created-identities".into()),
+    );
+}

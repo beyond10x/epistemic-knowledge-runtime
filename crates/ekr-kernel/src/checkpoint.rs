@@ -691,9 +691,9 @@ fn held_by(seed: &GraphDocument, state: &ReplayState) -> Result<HeldIdentities, 
 #[cfg(test)]
 mod tests {
     //! What a fresh open does with a checkpoint, seen from inside the kernel: the state it reaches
-    //! holds the graph of the checkpoint's head and of each revision committed after it, and no
-    //! earlier one, which a replay from the seed never produces, and so the lineage the
-    //! checkpoint covers was not replayed again.
+    //! holds the graph of the checkpoint's head and of its own head and no other, and it begins no
+    //! replay at the seed, so the lineage the checkpoint covers was not replayed again. A full
+    //! replay reaches the same state holding only its head's graph.
     use crate::{
         Agent, AuthorityStateV1, BootstrapContext, Commit, GraphOperation, GraphTransaction,
         NodeDraft, SeedDocument, ValidationProfileV1, REPLAY_CHECKPOINT_COMMITS,
@@ -813,17 +813,19 @@ mod tests {
                 .map(|(number, _)| number.get())
                 .collect::<Vec<_>>()
         };
-        let restored = open(path, false).read_state().unwrap();
+        let reopened = open(path, false);
+        let restored = reopened.read_state().unwrap();
         assert_eq!(
             held(&restored),
             [checkpointed, head],
             "the checkpoint's head graph, and the graph of the one commit replayed after it"
         );
+        assert_eq!(reopened.seed_replays(), 0, "no replay began at the seed");
         let replayed = open(path, true).read_state().unwrap();
         assert_eq!(
             held(&replayed),
-            (0..=head).collect::<Vec<_>>(),
-            "a full replay holds every graph"
+            [head],
+            "a full replay keeps only its head's graph"
         );
         assert_eq!(restored.head().root, replayed.head().root);
         assert_eq!(restored.transactions, replayed.transactions);

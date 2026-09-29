@@ -185,8 +185,10 @@ pub struct LoadedRevision {
 
 /// Loads revision `at` of `runtime`'s store, or its head when `at` is `None`.
 ///
-/// Reads the head first, so an unseeded store answers [`ProjectError::NotSeeded`] whatever `at`
-/// names, and a seeded one [`ProjectError::RevisionNotFound`] for any `at` beyond its head.
+/// Reads the head first only when `at` is `None`; a named revision is read directly, and the head
+/// only when that read finds no such revision. An unseeded store answers
+/// [`ProjectError::NotSeeded`] whatever `at` names, and a seeded one
+/// [`ProjectError::RevisionNotFound`], carrying its head, for any `at` beyond its head.
 /// The graph and the schema history come from one kernel read, [`Runtime::schema_history`], which
 /// replays the store's history at most once whatever the number of schema versions.
 ///
@@ -195,23 +197,28 @@ pub struct LoadedRevision {
 /// [`ProjectError::NotSeeded`], [`ProjectError::RevisionNotFound`], or the kernel's refusal of
 /// the store's history as [`ProjectError::Read`].
 pub fn load(runtime: &Runtime, at: Option<RevisionNumber>) -> Result<LoadedRevision, ProjectError> {
-    let head = runtime
-        .head()?
-        .ok_or(ProjectError::NotSeeded { requested: at })?
-        .revision;
-    let revision = at.unwrap_or(head);
-    if revision > head {
-        return Err(ProjectError::RevisionNotFound {
-            requested: revision,
-            head,
-        });
-    }
+    let head = || -> Result<RevisionNumber, ProjectError> {
+        Ok(runtime
+            .head()?
+            .ok_or(ProjectError::NotSeeded { requested: at })?
+            .revision)
+    };
+    // A requested revision is read before the head is: the kernel keeps only a few revisions'
+    // graphs, and the replay that verifies the history keeps the requested one's only while that
+    // read runs, so reading the head first could cost a second replay.
+    let revision = match at {
+        Some(revision) => revision,
+        None => head()?,
+    };
     let mut read = runtime
         .schema_history(revision)
         .map_err(|error| match error {
-            CommitError::RevisionNotFound { against } => ProjectError::RevisionNotFound {
-                requested: against,
-                head,
+            CommitError::RevisionNotFound { against } => match head() {
+                Ok(head) => ProjectError::RevisionNotFound {
+                    requested: against,
+                    head,
+                },
+                Err(error) => error,
             },
             CommitError::NotSeeded => ProjectError::NotSeeded { requested: at },
             other => other.into(),
