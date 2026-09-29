@@ -34,10 +34,15 @@
 //! A sixth, [`Index::changes`] (`ekr.graph-changes/1`), answers what the revisions up to the
 //! indexed one changed after a revision or a time, reading each chosen revision's committed
 //! transaction; [`ChangesRequest`] holds its `since` and bounds.
+//!
+//! [`report_quality`] (`ekr.store-quality/1`) reports how well one revision's assertions are
+//! evidenced, its properties constrained and its nodes of one type named apart; [`quality`] is
+//! its pure half.
 
 mod changes;
 mod document;
 mod index;
+mod quality;
 mod query;
 mod timeline;
 
@@ -45,6 +50,7 @@ pub use changes::{
     ChangesError, ChangesListed, ChangesRequest, SinceKind, SinceMalformed, CHANGES_FORMAT,
 };
 pub use index::{Index, IndexCache};
+pub use quality::{quality, report_quality, StoreQualityReported, QUALITY_FORMAT};
 pub use query::{
     Answer, ExpandRequest, GraphOverviewed, LimitExceeded, NeighbourhoodExpanded, NodeDescribed,
     NodeSummary, NodesSearched, OverviewRequest, QueryError, SearchRequest, SliceEdge, SliceMeta,

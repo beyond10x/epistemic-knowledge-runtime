@@ -1,7 +1,8 @@
-//! The ESS conformance target over `ekr_views`' seven reads, on one native provider:
-//! `ekr_views::project` for `ProjectGraph`, and an [`ekr_views::Index`] of the requested revision
-//! for `ProjectOverview`, `ExpandNeighbourhood`, `DescribeNode`, `SearchNodes`,
-//! `ProjectTimeline` and `ChangesSince`.
+//! The ESS conformance target over `ekr_views`' eight reads, on one native provider:
+//! `ekr_views::project` for `ProjectGraph`, `ekr_views::report_quality` for
+//! `ReportStoreQuality`, and an [`ekr_views::Index`] of the requested revision for
+//! `ProjectOverview`, `ExpandNeighbourhood`, `DescribeNode`, `SearchNodes`, `ProjectTimeline` and
+//! `ChangesSince`.
 //!
 //! * **Isolation.** Every scenario gets a fresh directory below the caller's work directory, and
 //!   every store a scenario names is a fresh provider root inside it.
@@ -32,8 +33,8 @@ use ekr_kernel::Runtime;
 use ekr_views::{
     BucketWidth, ChangesError, ChangesListed, ChangesRequest, ExpandRequest, GraphOverviewed,
     GraphProjected, Index, LimitExceeded, NeighbourhoodExpanded, NodeDescribed, NodesSearched,
-    OverviewRequest, ProjectError, QueryError, SearchRequest, SinceKind, SubjectsTimelined,
-    TimelineRequest,
+    OverviewRequest, ProjectError, QueryError, SearchRequest, SinceKind, StoreQualityReported,
+    SubjectsTimelined, TimelineRequest,
 };
 use ess_conformance::target::{
     ConformanceTarget, DeclaredErrorValue, EventObservationRequest, ExternalOutcomeControl,
@@ -53,7 +54,8 @@ const DESCRIBE_NODE: &str = "ekr.views.DescribeNode";
 const SEARCH_NODES: &str = "ekr.views.SearchNodes";
 const PROJECT_TIMELINE: &str = "ekr.views.ProjectTimeline";
 const CHANGES_SINCE: &str = "ekr.views.ChangesSince";
-const COMMANDS: [&str; 7] = [
+const REPORT_STORE_QUALITY: &str = "ekr.views.ReportStoreQuality";
+const COMMANDS: [&str; 8] = [
     PROJECT_GRAPH,
     PROJECT_OVERVIEW,
     EXPAND_NEIGHBOURHOOD,
@@ -61,6 +63,7 @@ const COMMANDS: [&str; 7] = [
     SEARCH_NODES,
     PROJECT_TIMELINE,
     CHANGES_SINCE,
+    REPORT_STORE_QUALITY,
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -101,6 +104,7 @@ enum Read {
     Search(Result<SearchRequest, LimitExceeded>),
     Timeline(Result<TimelineRequest, LimitExceeded>),
     Changes(Result<ChangesRequest, ChangesError>),
+    Quality,
 }
 
 fn unavailable(operation: &str, detail: impl std::fmt::Display) -> TargetError {
@@ -281,6 +285,21 @@ fn changes_listed(summary: &ChangesListed) -> Result<ObservedEvent, TargetError>
     }
     fields.push(("changes_hash", Node::Text(summary.changes_hash.clone())));
     observed("ekr.views.ChangesListed", fields)
+}
+
+fn store_quality_reported(summary: &StoreQualityReported) -> Result<ObservedEvent, TargetError> {
+    let mut fields = counts(&[
+        ("revision", summary.revision),
+        ("active_assertions", summary.active_assertions),
+        ("with_evidence", summary.with_evidence),
+        ("with_item_evidence", summary.with_item_evidence),
+        ("properties", summary.properties),
+        ("constrained_properties", summary.constrained_properties),
+        ("shared_names", summary.shared_names),
+        ("sharing_nodes", summary.sharing_nodes),
+    ])?;
+    fields.push(("quality_hash", Node::Text(summary.quality_hash.clone())));
+    observed("ekr.views.StoreQualityReported", fields)
 }
 
 /// `ChangesSince`'s input, bounded: its since kind by name, its since, and its page.
@@ -467,6 +486,7 @@ fn read(request: &SemanticCommandRequest, command: &str) -> Result<Read, TargetE
         )),
         PROJECT_TIMELINE => Read::Timeline(timeline_request(request)?),
         CHANGES_SINCE => Read::Changes(changes_request(request)?),
+        REPORT_STORE_QUALITY => Read::Quality,
         _ => Read::Graph,
     })
 }
@@ -537,6 +557,15 @@ fn answer(
             Err(error) => Ok((refused(command, QueryError::Project(error))?, None)),
         };
     }
+    if let Read::Quality = read {
+        return match ekr_views::report_quality(runtime, at) {
+            Ok(answer) => Ok((
+                took("reported", store_quality_reported(&answer.summary)?)?,
+                None,
+            )),
+            Err(error) => Ok((refused(command, QueryError::Project(error))?, None)),
+        };
+    }
     if let Read::Changes(request) = read {
         // The since and the bounds first: a broken one is refused before the store is read.
         let listed = request.and_then(|request| {
@@ -551,7 +580,7 @@ fn answer(
     let result = (|| -> Result<Result<SemanticCommandResult, TargetError>, QueryError> {
         // The bound first: a broken one is refused before the store is read.
         match read {
-            Read::Graph | Read::Changes(_) => unreachable!("answered above"),
+            Read::Graph | Read::Changes(_) | Read::Quality => unreachable!("answered above"),
             Read::Overview(request) => {
                 let request = request?;
                 let index = Index::load(runtime, at)?;
@@ -643,7 +672,7 @@ impl ConformanceTarget for ViewsTarget {
         let Some(command) = COMMANDS.iter().copied().find(|known| *known == command) else {
             return Err(TargetError::unsupported(
                 format!("executing `{}`", request.command),
-                "the views target answers the seven ekr.views commands only",
+                "the views target answers the ekr.views commands only",
             ));
         };
         let store = match request.input.get("store") {

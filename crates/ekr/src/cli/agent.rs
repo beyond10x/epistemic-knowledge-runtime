@@ -58,6 +58,9 @@ WORKFLOW
      ekr transactions [--state <State>]            retained transactions, id, state, proposer
      ekr snapshot [--at N] [--valid-at YYYY-MM-DD]  read the result back
      ekr explain <assertion_id>                    why an assertion is what it is
+     ekr quality [--revision N]                    the store's quality beyond its size:
+                                                   evidenced assertions, constrained
+                                                   properties, names shared within a type
      ekr view [--port N]                           a read-only viewer on 127.0.0.1, until interrupted
      ekr mcp                                       read-only MCP tools over stdio for an agent's
                                                    client: overview, search, describe_node,

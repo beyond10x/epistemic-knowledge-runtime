@@ -4,6 +4,18 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- **`ekr quality` reports a store's quality beyond its size** (`docs/cli.md`, `ekr quality`):
+  the `ekr.store-quality/1` document of the head or of `--revision N`, a one-shot verb and an
+  `ekr session` verb. It counts the active assertions with evidence and with evidence an
+  `AddEvidence` added after the seed, the property declarations that declare a constraint, and
+  every name two or more nodes of one type share, listed with the type and the nodes. Each
+  figure comes with its count and, where it has a whole, a share in basis points. It reads one
+  revision only, so two reads of that revision print the same bytes. Refused transactions and
+  open ambiguities are not part of it. Specified as `ekr.views.ReportStoreQuality` in
+  `systems/ekr/domains/views.yaml`, with `ekr_views::report_quality` in the library.
+
 ## [0.0.20] — 2026-09-29
 
 The SDK resolves through a cache, commits in bisected batches and types the views reads, which
