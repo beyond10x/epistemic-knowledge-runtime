@@ -63,6 +63,11 @@ hashing, minting, seeding and the first writes all go through one process.
 The child is started with an absolute path and holds no `PATH` unless `Exact` gives it one. It
 therefore starts when the consumer's own `PATH` is empty.
 
+A binary that Linux refuses to start as busy (`ETXTBSY`: some process, possibly a child another
+thread forked, still holds it open for writing) is retried for up to 630 ms before the refusal is
+returned. This applies to the `--version` and `operations` probes, the session and one-shot
+requests. Every other start error is returned at once.
+
 ### Requests over the line cap
 
 A session refuses a request line longer than 25,231,360 bytes (`LINE_CAP`,

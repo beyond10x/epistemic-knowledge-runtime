@@ -7,7 +7,7 @@
 
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 
@@ -250,6 +250,37 @@ impl EkrBinary {
     }
 }
 
+/// The waits before each retry of a start refused as busy: 630 ms in all.
+const BUSY_RETRY_WAITS: [Duration; 6] = [
+    Duration::from_millis(10),
+    Duration::from_millis(20),
+    Duration::from_millis(40),
+    Duration::from_millis(80),
+    Duration::from_millis(160),
+    Duration::from_millis(320),
+];
+
+/// Start `command`, retrying while the binary is busy being written.
+///
+/// Linux refuses to execute a file that any process holds open for writing (`ETXTBSY`). A binary
+/// just written is busy for as long as that descriptor lives, including in a child another thread
+/// of the consumer forked before it execs. That refusal is retried after each of
+/// [`BUSY_RETRY_WAITS`]; any other error, and the busy refusal after the last wait, is returned.
+pub(crate) fn spawn(command: &mut Command) -> std::io::Result<Child> {
+    let mut waits = BUSY_RETRY_WAITS.iter();
+    loop {
+        match command.spawn() {
+            Err(error) if error.kind() == std::io::ErrorKind::ExecutableFileBusy => {
+                match waits.next() {
+                    Some(wait) => std::thread::sleep(*wait),
+                    None => return Err(error),
+                }
+            }
+            started => return started,
+        }
+    }
+}
+
 /// `path args…` with an empty environment and nothing on stdin: its stdout, on exit 0. A process
 /// still running after `timeout` is killed and refused.
 fn run(path: &Path, args: &[&str], timeout: Duration) -> Result<String, BinaryError> {
@@ -264,14 +295,14 @@ fn run(path: &Path, args: &[&str], timeout: Duration) -> Result<String, BinaryEr
         what: what.clone(),
         timeout,
     };
-    let mut child = Command::new(path)
+    let mut command = Command::new(path);
+    command
         .args(args)
         .env_clear()
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(run_error)?;
+        .stderr(Stdio::piped());
+    let mut child = spawn(&mut command).map_err(run_error)?;
     let read_all = |mut pipe: Box<dyn std::io::Read + Send>| {
         let (sent, received) = std::sync::mpsc::channel();
         std::thread::spawn(move || {

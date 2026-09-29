@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::binary::EkrBinary;
+use crate::binary::{spawn, EkrBinary};
 use crate::reply::Reply;
 use crate::transport::{Request, Transport, TransportError};
 
@@ -254,7 +254,7 @@ impl ProcessSession {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        let mut child = command.spawn().map_err(|source| TransportError::Io {
+        let mut child = spawn(&mut command).map_err(|source| TransportError::Io {
             verb: "session".to_owned(),
             what: format!("starting {}", binary.path().display()),
             source,
@@ -385,9 +385,8 @@ impl ProcessSession {
             what: what.to_owned(),
             source,
         };
-        let mut child = command
-            .spawn()
-            .map_err(|source| io("starting a one-shot ekr", source))?;
+        let mut child =
+            spawn(&mut command).map_err(|source| io("starting a one-shot ekr", source))?;
         self.started += 1;
         let mut stdin = child.stdin.take().expect("stdin is piped");
         let text = request.stdin.clone().unwrap_or_default();
