@@ -113,7 +113,6 @@ fn a_binary_busy_past_the_bound_is_refused_after_the_documented_630_ms_and_not_m
 }
 
 #[test]
-#[ignore = "defect: a cancel during the one-shot busy wait is ignored for up to 630 ms and the call fails with Io, not Cancelled"]
 fn a_cancel_during_the_busy_wait_of_a_one_shot_ends_the_call_as_cancelled() {
     let directory = tempfile::tempdir().unwrap();
     let path = stand_in(directory.path());
@@ -155,7 +154,6 @@ fn a_cancel_during_the_busy_wait_of_a_one_shot_ends_the_call_as_cancelled() {
 }
 
 #[test]
-#[ignore = "defect: the busy wait is outside probe_timeout, so a 50 ms probe limit returns after 630 ms"]
 fn a_probe_timeout_shorter_than_the_busy_wait_bounds_the_probe() {
     let directory = tempfile::tempdir().unwrap();
     let path = stand_in(directory.path());

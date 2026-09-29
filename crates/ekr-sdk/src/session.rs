@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::binary::{spawn, EkrBinary};
+use crate::binary::{spawn, spawn_within, EkrBinary, SpawnRefused};
 use crate::reply::Reply;
 use crate::transport::{Request, Transport, TransportError};
 
@@ -385,8 +385,26 @@ impl ProcessSession {
             what: what.to_owned(),
             source,
         };
-        let mut child =
-            spawn(&mut command).map_err(|source| io("starting a one-shot ekr", source))?;
+        // The timeout and the cancel flag cover waiting for a busy binary as well as the request.
+        let deadline = Instant::now() + self.options.timeout;
+        let cancel = Arc::clone(&self.shared.cancel);
+        let started = spawn_within(&mut command, Some(deadline), &|| {
+            cancel.load(Ordering::SeqCst)
+        });
+        let mut child = match started {
+            Ok(child) => child,
+            Err(SpawnRefused::Io(source)) => return Err(io("starting a one-shot ekr", source)),
+            Err(SpawnRefused::Stopped) => {
+                return Err(self.fail(TransportError::Cancelled { verb }));
+            }
+            Err(SpawnRefused::Expired) => {
+                return Err(TransportError::TimedOut {
+                    verb,
+                    timeout: self.options.timeout,
+                    stderr_tail: String::new(),
+                });
+            }
+        };
         self.started += 1;
         let mut stdin = child.stdin.take().expect("stdin is piped");
         let text = request.stdin.clone().unwrap_or_default();
@@ -398,7 +416,6 @@ impl ProcessSession {
         });
         // The reply carries the whole of stderr, as the one-shot verb wrote it; errors show its tail.
         let stderr = StderrTail::collect(child.stderr.take().expect("stderr is piped"), usize::MAX);
-        let deadline = Instant::now() + self.options.timeout;
         let status = loop {
             match child.try_wait() {
                 Ok(Some(status)) => break status,

@@ -12,7 +12,9 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   `--version` and `operations` probes, `ProcessSession::start`, one-shot requests and
   `Viewer::spawn` now retry that refusal for up to 630 ms; any other start error is still
   returned at once, and the refusal after the last retry is the same `BinaryError::Run`,
-  `TransportError::Io` or `ViewerError::Spawn` as before.
+  `TransportError::Io` or `ViewerError::Spawn` as before. The wait counts against the probe
+  timeout and a one-shot request's timeout (`TimedOut`), and a cancel ends a one-shot's wait as
+  `Cancelled`.
 
 ## [0.0.19] — 2026-09-29
 
