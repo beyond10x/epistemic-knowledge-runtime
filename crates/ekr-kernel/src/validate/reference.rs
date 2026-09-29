@@ -40,7 +40,7 @@
 use std::collections::BTreeSet;
 
 use ekr_core::{AssertionId, EdgeId, EvidenceId, GraphRootId, NodeId};
-use ekr_graph::{GraphSnapshot, Object, Subject};
+use ekr_graph::{CanonicalGraph, GraphSnapshot, Object, Subject};
 use ekr_ontology::Value;
 
 use super::candidate::Candidate;
@@ -104,7 +104,7 @@ impl Validator for Reference {
                     }
                 }
                 GraphOperation::DeleteEdge(edge) => {
-                    if !candidate.available_edges.contains(edge) {
+                    if !candidate.available(edge) {
                         known.edge(tx, *edge, &mut issues);
                     }
                 }
@@ -121,7 +121,7 @@ impl Validator for Reference {
                         Object::Type(_) => {}
                     }
                     for evidence in &assertion.evidence {
-                        if !known.evidence.contains(evidence) {
+                        if !known.holds_evidence(evidence) {
                             issues.push(issue(
                                 tx,
                                 ValidatorName::Reference,
@@ -137,7 +137,7 @@ impl Validator for Reference {
                 }
                 GraphOperation::RetractAssertion(retraction) => {
                     let assertion = retraction.assertion;
-                    if !known.assertions.contains(&assertion) {
+                    if !known.holds_assertion(&assertion) {
                         issues.push(issue(
                             tx,
                             ValidatorName::Reference,
@@ -148,7 +148,7 @@ impl Validator for Reference {
                 }
                 GraphOperation::SupersedeAssertion(supersession) => {
                     for assertion in [supersession.assertion, supersession.by] {
-                        if !known.assertions.contains(&assertion) {
+                        if !known.holds_assertion(&assertion) {
                             issues.push(issue(
                                 tx,
                                 ValidatorName::Reference,
@@ -190,29 +190,30 @@ impl Validator for Reference {
     }
 }
 
-/// Every graph identity that exists once this transaction has been applied.
-struct Known {
+/// Every graph identity that exists once this transaction has been applied: canonical state and
+/// the shared candidate, read in place, and the assertions and evidence the transaction adds.
+struct Known<'c, 'g> {
     root: GraphRootId,
-    nodes: BTreeSet<NodeId>,
-    edges: BTreeSet<EdgeId>,
+    state: &'g CanonicalGraph,
+    candidate: &'c Candidate<'g>,
     assertions: BTreeSet<AssertionId>,
     evidence: BTreeSet<EvidenceId>,
 }
 
-impl Known {
+impl<'c, 'g> Known<'c, 'g> {
     /// Identities retained in the shared candidate, plus new assertion and evidence identities.
     ///
     /// Deleted edges are absent. Assertions remain addressable after retraction. Evidence is
     /// retained evidence and what an `AddEvidence` of this transaction brings; the root must
     /// already exist because no operation introduces one.
-    fn of(graph: &GraphSnapshot<'_>, tx: &GraphTransaction, candidate: &Candidate) -> Self {
+    fn of(graph: &GraphSnapshot<'g>, tx: &GraphTransaction, candidate: &'c Candidate<'g>) -> Self {
         let state = graph.graph();
         let mut known = Self {
             root: state.root.id,
-            nodes: candidate.nodes.keys().copied().collect(),
-            edges: candidate.edges.keys().copied().collect(),
-            assertions: state.assertions.keys().copied().collect(),
-            evidence: state.evidence.keys().copied().collect(),
+            state,
+            candidate,
+            assertions: BTreeSet::new(),
+            evidence: BTreeSet::new(),
         };
         for operation in &tx.operations {
             match operation {
@@ -226,6 +227,16 @@ impl Known {
             }
         }
         known
+    }
+
+    /// Whether canonical state holds `assertion` or the transaction adds it.
+    fn holds_assertion(&self, assertion: &AssertionId) -> bool {
+        self.state.assertions.contains_key(assertion) || self.assertions.contains(assertion)
+    }
+
+    /// Whether canonical state retains `evidence` or an `AddEvidence` of the transaction brings it.
+    fn holds_evidence(&self, evidence: &EvidenceId) -> bool {
+        self.state.evidence.contains_key(evidence) || self.evidence.contains(evidence)
     }
 
     /// Refuses a graph root that is not the one the snapshot reads.
@@ -256,7 +267,7 @@ impl Known {
 
     /// Refuses `node` if nothing will hold it.
     fn node(&self, tx: &GraphTransaction, node: NodeId, issues: &mut Vec<ValidationIssue>) {
-        if !self.nodes.contains(&node) {
+        if !self.candidate.nodes.contains_key(&node) {
             issues.push(issue(
                 tx,
                 ValidatorName::Reference,
@@ -268,7 +279,7 @@ impl Known {
 
     /// Refuses `edge` if nothing will hold it.
     fn edge(&self, tx: &GraphTransaction, edge: EdgeId, issues: &mut Vec<ValidationIssue>) {
-        if !self.edges.contains(&edge) {
+        if !self.candidate.edges.contains_key(&edge) {
             issues.push(issue(
                 tx,
                 ValidatorName::Reference,

@@ -14,6 +14,17 @@ struct Claim {
     lifecycle: AssertionLifecycle<AssertionId>,
 }
 pub(super) fn check(snapshot: &GraphSnapshot<'_>, tx: &GraphTransaction) -> Vec<ValidationIssue> {
+    // Every refusal below is raised for a `RetractAssertion` or a `SupersedeAssertion`, so a
+    // transaction carrying neither has nothing to answer, and copying every claim of the graph to
+    // say so cost each validation the size of the graph.
+    if !tx.operations.iter().any(|op| {
+        matches!(
+            op,
+            GraphOperation::RetractAssertion(_) | GraphOperation::SupersedeAssertion(_)
+        )
+    }) {
+        return Vec::new();
+    }
     let mut claims: BTreeMap<AssertionId, Claim> = snapshot
         .graph()
         .assertions
