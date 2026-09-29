@@ -615,3 +615,42 @@ fn the_alias_index_is_built_once_per_head_and_indexes_the_captured_graph() {
         assert_eq!(*later.aliases(), AliasIndex::of(&later.graph));
     }
 }
+
+/// A live handle keeps the alias index of its current head only: after more commits than the
+/// kernel's replay cache holds states, each followed by a resolve of the new head and the
+/// capture dropped, exactly one of those indexes is still alive, and it is the newest head's.
+#[test]
+fn a_live_handle_keeps_the_alias_index_of_its_current_head_only() {
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let seed = fixture();
+        let kernel = open(directory.path(), file);
+        kernel.seed(seed.clone(), at(10)).unwrap();
+
+        let mut indexes = Vec::new();
+        for step in 0..6_i64 {
+            let tx = proposal(&seed);
+            let head = kernel.head().unwrap().unwrap().revision;
+            kernel
+                .propose(&encode(&tx), context().operator, at(100 + step * 10))
+                .unwrap();
+            kernel.validate(tx.id, head, at(101 + step * 10)).unwrap();
+            kernel
+                .commit(tx.id, context().operator, at(102 + step * 10))
+                .unwrap();
+            let read = kernel.read(None).unwrap();
+            indexes.push(std::sync::Arc::downgrade(&read.alias_index()));
+        }
+        let alive: Vec<usize> = indexes
+            .iter()
+            .enumerate()
+            .filter(|(_, index)| index.strong_count() > 0)
+            .map(|(step, _)| step)
+            .collect();
+        assert_eq!(
+            alive,
+            [indexes.len() - 1],
+            "file={file}: the alias indexes still alive after their heads moved on"
+        );
+    }
+}

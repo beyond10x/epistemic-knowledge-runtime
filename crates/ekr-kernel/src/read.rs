@@ -1,4 +1,5 @@
 //! Kernel-owned immutable read captures; projection consumers receive no storage authority.
+use crate::replay::AliasCell;
 use crate::seed::{RetainedSeedInput, SeedEnvelope, SeedPayloads};
 use crate::{
     AuthorityStateV1, BootstrapContext, Commit, CommitError, SeedDocument, SeedResultV1,
@@ -10,7 +11,7 @@ use ekr_ontology::Ontology;
 use ekr_store::{ObjectStore, RetainedHistory, RetainedObject, RevisionLog, StorageClass};
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 /// Complete verified coordinates of one retained canonical revision.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VerifiedRevision {
@@ -51,7 +52,7 @@ pub struct VerifiedRead {
     objects: BTreeMap<ContentHash, RetainedObject>,
     /// The verified graph as the kernel admitted it, and the cell its [`AliasIndex`] is kept in.
     /// Holding the graph here keeps [`Arc::make_mut`] on [`Self::graph`] from changing it in place.
-    indexed: (Arc<CanonicalGraph>, Arc<OnceLock<AliasIndex>>),
+    indexed: (Arc<CanonicalGraph>, AliasCell),
 }
 impl VerifiedRead {
     /// Already verified retained bytes, with no provider access or new history observation.
@@ -64,12 +65,23 @@ impl VerifiedRead {
     /// replaced or changed it is built from that graph.
     #[must_use]
     pub fn aliases(&self) -> Cow<'_, AliasIndex> {
-        let (admitted, index) = &self.indexed;
-        if Arc::ptr_eq(&self.graph, admitted) {
-            Cow::Borrowed(index.get_or_init(|| AliasIndex::of(admitted)))
-        } else {
-            Cow::Owned(AliasIndex::of(&self.graph))
+        match self.admitted_aliases() {
+            Some(index) => Cow::Borrowed(index),
+            None => Cow::Owned(AliasIndex::of(&self.graph)),
         }
+    }
+    /// [`Self::aliases`] as a shared handle, which a caller may keep beyond this capture.
+    #[must_use]
+    pub fn alias_index(&self) -> Arc<AliasIndex> {
+        self.admitted_aliases()
+            .map_or_else(|| Arc::new(AliasIndex::of(&self.graph)), Arc::clone)
+    }
+    /// The index of the graph the kernel admitted, built on first use, while [`Self::graph`] is
+    /// still that graph.
+    fn admitted_aliases(&self) -> Option<&Arc<AliasIndex>> {
+        let (admitted, index) = &self.indexed;
+        Arc::ptr_eq(&self.graph, admitted)
+            .then(|| index.get_or_init(|| Arc::new(AliasIndex::of(admitted))))
     }
 }
 /// One revision's canonical state with the schema history of its lineage, from one verified
@@ -210,6 +222,11 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             .seed_envelope(&history, state.seed.seed_hash)?;
         let seed_input = self.seed_input(&history, state.seed.seed_hash, &envelope)?;
         let head = state.head();
+        // Only the head read shares the one kept cell; a historical read indexes its own graph.
+        let aliases = match (revision, self.authority.cache.lock()) {
+            (None, Ok(mut cache)) => cache.alias_cell(head.revision_id, head.root),
+            _ => AliasCell::default(),
+        };
         let graph = Arc::clone(
             head.graph
                 .as_ref()
@@ -240,7 +257,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 })
                 .collect(),
             objects: history.objects,
-            indexed: (graph, Arc::clone(&head.aliases)),
+            indexed: (graph, aliases),
         })
     }
     /// The complete seed input `envelope` retains, its named payloads read from `history`.

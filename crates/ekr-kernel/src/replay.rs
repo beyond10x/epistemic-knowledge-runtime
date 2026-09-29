@@ -116,9 +116,6 @@ pub(crate) struct Revision {
     /// The schema in force at this revision.
     pub(crate) ontology: Arc<ekr_ontology::Ontology>,
     pub(crate) graph: Option<Arc<ekr_graph::CanonicalGraph>>,
-    /// The [`AliasIndex`] of `graph`, built by the first read that asks for it and shared by every
-    /// clone of this revision after: once per head, not once per read.
-    pub(crate) aliases: Arc<OnceLock<AliasIndex>>,
 }
 impl Revision {
     pub(crate) fn replayed(admitted: AdmittedRevision) -> Self {
@@ -131,7 +128,6 @@ impl Revision {
             graph_root: admitted.graph.root.id,
             ontology: Arc::new(admitted.graph.ontology.clone()),
             graph: Some(Arc::new(admitted.graph)),
-            aliases: Arc::default(),
         }
     }
     /// The graph at this revision, or [`GRAPH_NOT_HELD`].
@@ -235,6 +231,10 @@ pub(crate) struct ReplayCache {
     /// it names, by the envelope's address: a function of that address and of payload addresses,
     /// so a read of a history holding the same payloads shares it instead of rebuilding it.
     pub(crate) seed_input: Option<(ContentHash, Arc<crate::SeedDocument>)>,
+    /// The cell holding the [`AliasIndex`] of the newest head a read captured, by that head's
+    /// revision identity and root. One slot: a read of a newer head replaces it, so this
+    /// authority keeps the index of no head but the current one.
+    pub(crate) aliases: Option<(RevisionId, ekr_graph::Root, AliasCell)>,
     /// The retained replay checkpoint this authority knows of — the one it admitted, or the last
     /// it wrote — as the occurrences it covers and its head revision; `None` before either. What
     /// decides whether a commit writes the next one (design § 99).
@@ -250,8 +250,26 @@ pub(crate) struct ReplayCache {
     /// which it stops asking for the migration markers: a store with a history never gains one.
     pub(crate) migration_settled: bool,
 }
+/// Where one head's [`AliasIndex`] is built, by the first read that asks for it.
+pub(crate) type AliasCell = Arc<OnceLock<Arc<AliasIndex>>>;
 impl ReplayCache {
     const CAPACITY: usize = 4;
+    /// The alias-index cell of the head `revision_id` with `root`: the held one when it is that
+    /// head's, and otherwise a new one, which replaces it.
+    pub(crate) fn alias_cell(
+        &mut self,
+        revision_id: RevisionId,
+        root: ekr_graph::Root,
+    ) -> AliasCell {
+        match &self.aliases {
+            Some((held, at, cell)) if *held == revision_id && *at == root => Arc::clone(cell),
+            _ => {
+                let cell = AliasCell::default();
+                self.aliases = Some((revision_id, root, Arc::clone(&cell)));
+                cell
+            }
+        }
+    }
     /// The longest cached prefix of the history whose digests are `digests`.
     pub(crate) fn longest(&self, digests: &[ContentHash]) -> Option<(usize, Arc<ReplayState>)> {
         self.entries
@@ -807,7 +825,6 @@ impl KernelAuthority {
                             graph_root,
                             ontology,
                             graph: Some(Arc::new(graph)),
-                            aliases: Arc::default(),
                         },
                     );
                     state.validated.remove(&transaction_id);
