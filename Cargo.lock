@@ -444,6 +444,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "ekr-sdk"
+version = "0.0.17"
+dependencies = [
+ "ekr-core",
+ "ekr-kernel",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "ekr-store"
 version = "0.0.17"
 dependencies = [
