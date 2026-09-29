@@ -11,6 +11,8 @@
 //! hash, and open no provider.
 //! `migrate` opens the configured store as those verbs do, reads it only, and hands it and the
 //! store it creates at `--to` to `Runtime::migrate_into`.
+//! `quality` opens the store as those verbs do and reads one revision through
+//! `ekr_views::report_quality` (`quality.rs`).
 //! `session` opens the store once and runs each request line through the same dispatch as the
 //! one-shot verbs (`session.rs`), against the runtime it holds; on a path holding no store it
 //! starts without one, and with `--create` its `seed` creates the store it then holds. It also
@@ -31,6 +33,7 @@ mod mcp;
 mod migrate;
 mod ontology;
 mod propose;
+mod quality;
 mod resolve;
 mod schema;
 mod seed;
@@ -254,6 +257,19 @@ pub enum Command {
         /// The committed revision whose schema to print; the newest (`ekr head`) when absent.
         #[arg(long)]
         at: Option<u64>,
+    },
+    /// Print the store's quality at one revision as the `ekr.store-quality/1` document
+    /// (`ekr.views.ReportStoreQuality`): active assertions with evidence and with evidence added
+    /// after the seed, property declarations under a constraint, and names two or more nodes of
+    /// one type share.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST); it reads only. A
+    /// share is basis points (10000 is all). Two reads of one revision print the same bytes.
+    #[command(after_help = SEE)]
+    Quality {
+        /// The committed revision to report; the newest (`ekr head`) when absent.
+        #[arg(long)]
+        revision: Option<u64>,
     },
     /// Serve a read-only viewer of the store on 127.0.0.1 until interrupted: the page, the
     /// `ekr.graph-projection/1` at the head or at a revision, its bounded reads, and retained
@@ -597,6 +613,10 @@ fn dispatch(
         Command::Ontology { at } => {
             let runtime = source.resolve("ontology")?.open()?;
             render(&ontology::run(&runtime, at)?)
+        }
+        Command::Quality { revision } => {
+            let runtime = source.resolve("quality")?.open()?;
+            quality::run(&runtime, revision).map(Printed::Document)
         }
         Command::View { port } => {
             let store = source.configured("view")?;

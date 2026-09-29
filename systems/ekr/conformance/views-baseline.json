@@ -7,8 +7,8 @@
     "file",
     "sqlite"
   ],
-  "total": 51,
-  "answered_floor": 51,
+  "total": 55,
+  "answered_floor": 55,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -37,6 +37,9 @@
     "ekr.views.ProjectTimeline/outcome/not-found",
     "ekr.views.ProjectTimeline/outcome/not-seeded",
     "ekr.views.ProjectTimeline/outcome/timelined",
+    "ekr.views.ReportStoreQuality/outcome/not-found",
+    "ekr.views.ReportStoreQuality/outcome/not-seeded",
+    "ekr.views.ReportStoreQuality/outcome/reported",
     "ekr.views.SearchNodes/outcome/limit-exceeded",
     "ekr.views.SearchNodes/outcome/not-found",
     "ekr.views.SearchNodes/outcome/not-seeded",
@@ -44,6 +47,7 @@
     "ekr.views/authored/a-cursor-pages-a-neighbourhood-to-its-end",
     "ekr.views/authored/a-cursor-pages-the-changes-to-their-end",
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed",
+    "ekr.views/authored/a-quality-report-counts-evidence-constraints-and-shared-names",
     "ekr.views/authored/a-retracted-assertion-is-projected-with-its-lifecycle",
     "ekr.views/authored/a-revision-beyond-the-head-is-refused",
     "ekr.views/authored/a-revision-since-lists-the-changes-after-it",
@@ -76,6 +80,10 @@
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed": {
       "file": "a-node-is-not-found-at-a-revision-before-it-existed.yaml",
       "digest": "sha256:d65a72a1823d4e0b8c73c142e250a5698151b333a51ca6165069eef0c5974227"
+    },
+    "ekr.views/authored/a-quality-report-counts-evidence-constraints-and-shared-names": {
+      "file": "a-quality-report-counts-evidence-constraints-and-shared-names.yaml",
+      "digest": "sha256:63adb6d17e9872c8d85e029fa2ac88aa5a6d685e093e07758d9912fd536753af"
     },
     "ekr.views/authored/a-retracted-assertion-is-projected-with-its-lifecycle": {
       "file": "a-retracted-assertion-is-projected-with-its-lifecycle.yaml",
@@ -319,6 +327,26 @@
       "expect_no_event": 17,
       "expect_outcome": 1
     },
+    "ekr.views.ReportStoreQuality/outcome/not-found": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 20,
+      "expect_outcome": 1
+    },
+    "ekr.views.ReportStoreQuality/outcome/not-seeded": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 20,
+      "expect_outcome": 1
+    },
+    "ekr.views.ReportStoreQuality/outcome/reported": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_no_event": 19,
+      "expect_outcome": 1
+    },
     "ekr.views.SearchNodes/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
@@ -361,6 +389,11 @@
       "expect_event": 6,
       "expect_no_event": 2,
       "expect_outcome": 8
+    },
+    "ekr.views/authored/a-quality-report-counts-evidence-constraints-and-shared-names": {
+      "execute_command": 3,
+      "expect_event": 3,
+      "expect_outcome": 3
     },
     "ekr.views/authored/a-retracted-assertion-is-projected-with-its-lifecycle": {
       "execute_command": 3,

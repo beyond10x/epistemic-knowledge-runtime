@@ -18,9 +18,9 @@ use ekr_graph::{
     Object, Predicate, RetractionReason, Subject, TemporalRange, TransactionTime,
 };
 use ekr_kernel::{
-    Agent, AuthorityStateV1, BootstrapContext, CommitCommandResult, EdgeDraft, GraphOperation,
-    GraphTransaction, NodeDraft, PropertyModification, PropertyMutation, Retraction, Runtime,
-    SeedDocument, Supersession, ValidationCommandResult, ValidationProfileV1,
+    Agent, AuthorityStateV1, BootstrapContext, CommitCommandResult, EdgeDraft, EvidenceAddition,
+    GraphOperation, GraphTransaction, NodeDraft, PropertyModification, PropertyMutation,
+    Retraction, Runtime, SeedDocument, Supersession, ValidationCommandResult, ValidationProfileV1,
 };
 use ekr_ontology::{Cardinality, EdgeType, NodeType, PropertyDefinition, Value, ValueType};
 use serde::Serialize;
@@ -226,6 +226,28 @@ pub const REPLACED_AT_MS: i64 = 3_000;
 /// The seed's assertions are valid from this instant.
 pub const SEEDED_VALID_MS: i64 = 500;
 
+// `quality`: a-quality-report-counts-evidence-constraints-and-shared-names.yaml and
+// `tests/quality.rs`, which state what the store holds.
+/// The node types `item` and `other`.
+pub const Q_ITEM: u64 = 0xd0_0001;
+pub const Q_OTHER: u64 = 0xd0_0002;
+const Q_GUARDED: u64 = 0xd0_0003;
+const Q_RELATES: u64 = 0xd0_0004;
+const Q_TITLE: u64 = 0xd0_0010;
+const Q_RANK: u64 = 0xd0_0011;
+const Q_NOTE: u64 = 0xd0_0012;
+const Q_CODE: u64 = 0xd0_0013;
+const Q_WEIGHT: u64 = 0xd0_0014;
+/// Items i1 to i6 are `Q_ITEMS + 1` to `+ 6`; i6 is created at revision 1.
+pub const Q_ITEMS: u64 = 0xd0_0100;
+/// Others o1 to o3 are `Q_OTHERS + 1` to `+ 3`.
+pub const Q_OTHERS: u64 = 0xd0_0200;
+/// Seed evidence E0 and E1 are `Q_EVIDENCE` and `+ 1`; X0 and X1, added at revisions 1 and 3,
+/// are `Q_EVIDENCE + 0x10` and `+ 0x11`.
+pub const Q_EVIDENCE: u64 = 0xd0_0300;
+/// Assertions a1 to a6 are `Q_ASSERTIONS + 1` to `+ 6`.
+pub const Q_ASSERTIONS: u64 = 0xd0_0400;
+
 /// The first instant a fixture's host clock reads; each sample adds a millisecond. A seed reads
 /// one sample and every commit three (propose, validate, commit), so a fixture's revision `n > 0`
 /// is committed at `CLOCK_START_MS + 1 + 3n` and its seed at `CLOCK_START_MS + 1`.
@@ -268,6 +290,10 @@ pub enum Fixture {
     /// assertion about each at 1; an assertion added and the seeded claim superseded by it at 2;
     /// the claim added at 1 retracted at 3.
     Changes,
+    /// Known quality figures over three revisions after the seed: evidence added after the seed,
+    /// two constrained property declarations, names shared within a type, a retraction and a
+    /// supersession ([`build_quality`]).
+    Quality,
 }
 
 impl Fixture {
@@ -285,6 +311,7 @@ impl Fixture {
             "growth" => Self::Growth,
             "subjects" => Self::Subjects,
             "changes" => Self::Changes,
+            "quality" => Self::Quality,
             _ => return None,
         })
     }
@@ -375,6 +402,7 @@ impl Fixture {
                 );
                 writer.commit(retraction(CHANGED_NODE_CLAIM), None);
             }
+            Self::Quality => build_quality(&mut writer),
             Self::Evolved => {
                 let mut document = seed(3, true, false, 2);
                 let described = Node::<Value>::new(
@@ -466,6 +494,156 @@ pub fn commit_later_change(runtime: &Runtime) {
             Object::Value(Value::String("beta, later".into())),
             None,
             evidence_id(0),
+        )))],
+        None,
+    );
+}
+
+/// One retained human statement added after the seed: an `AddEvidence` of evidence `n`.
+fn added_statement(n: u64) -> GraphOperation {
+    let payload = format!("item statement {n:x}").into_bytes();
+    GraphOperation::AddEvidence(Box::new(EvidenceAddition {
+        evidence: Evidence {
+            id: id(n),
+            source: EvidenceSource::HumanStatement {
+                identity: Some("operator".into()),
+            },
+            content_hash: ContentHash::of_bytes(&payload),
+            extracted_by: context().operator,
+            observed_at: Timestamp::from_millis(2_000),
+            confidence: Confidence::from_basis_points(9_000).expect("basis points"),
+        },
+        payload,
+    }))
+}
+
+/// A `title` assertion about the item `item`, valid from `valid_from`, citing `cited`.
+fn titled(assertion: u64, item: u64, valid_from: i64, cited: &[u64]) -> Assertion<Value> {
+    let mut claim = fact(
+        Q_ASSERTIONS + assertion,
+        Subject::Node(id(Q_ITEMS + item)),
+        Predicate::Property(id(Q_TITLE)),
+        Object::Value(Value::String(format!("title {assertion}"))),
+        Some(valid_from),
+        id(cited[0]),
+    );
+    claim.evidence = cited.iter().map(|n| id::<EvidenceId>(*n)).collect();
+    claim
+}
+
+/// The `quality` store, as a-quality-report-counts-evidence-constraints-and-shared-names.yaml
+/// states it: the seed, then X0 with a4, a5 and i6 at 1, a1 retracted at 2, and X1 with a6
+/// superseding a2 at 3.
+fn build_quality(writer: &mut Writer<'_>) {
+    let mut document = empty_seed();
+    let root = document.graph.root.id;
+    let constrained = |property: u64, name: &str| {
+        let mut definition = PropertyDefinition::new(id(property), name, ValueType::String);
+        definition.constraints = vec!["matches [A-Z]+".into()];
+        definition
+    };
+    let mut item = NodeType::new(id(Q_ITEM), "item");
+    for (property, name) in [(Q_TITLE, "title"), (Q_RANK, "rank")] {
+        item.properties.insert(
+            id(property),
+            PropertyDefinition::new(id(property), name, ValueType::String),
+        );
+    }
+    let mut other = NodeType::new(id(Q_OTHER), "other");
+    other.properties.insert(
+        id(Q_NOTE),
+        PropertyDefinition::new(id(Q_NOTE), "note", ValueType::String),
+    );
+    let mut guarded = NodeType::new(id(Q_GUARDED), "guarded");
+    guarded
+        .properties
+        .insert(id(Q_CODE), constrained(Q_CODE, "code"));
+    let mut relates = EdgeType::new(id(Q_RELATES), "relates");
+    relates.source_types = [id(Q_ITEM)].into_iter().collect();
+    relates.target_types = [id(Q_ITEM)].into_iter().collect();
+    relates
+        .properties
+        .insert(id(Q_WEIGHT), constrained(Q_WEIGHT, "weight"));
+    document.ontology.node_types.extend([item, other, guarded]);
+    document.ontology.edge_types.push(relates);
+    let nodes: [(u64, u64, &str, &[&str]); 8] = [
+        (Q_ITEMS + 1, Q_ITEM, "Ada", &["A. Lovelace"]),
+        (Q_ITEMS + 2, Q_ITEM, "Ada", &["Countess"]),
+        (
+            Q_ITEMS + 3,
+            Q_ITEM,
+            "Lovelace",
+            &["A. Lovelace", "Lovelace"],
+        ),
+        (Q_ITEMS + 4, Q_ITEM, "Countess", &[]),
+        (Q_ITEMS + 5, Q_ITEM, "Babbage", &[""]),
+        (Q_OTHERS + 1, Q_OTHER, "Ada", &[]),
+        (Q_OTHERS + 2, Q_OTHER, "Byron", &["byron"]),
+        (Q_OTHERS + 3, Q_OTHER, "byron", &[]),
+    ];
+    for (node, type_id, name, aliases) in nodes {
+        let mut held = Node::<Value>::new(id(node), root, id(type_id), name);
+        held.aliases = aliases.iter().map(|alias| (*alias).to_owned()).collect();
+        document.graph.nodes.insert(held.id, held);
+    }
+    statement(&mut document, Q_EVIDENCE);
+    statement(&mut document, Q_EVIDENCE + 1);
+    let (e0, e1) = (Q_EVIDENCE, Q_EVIDENCE + 1);
+    for claim in [
+        titled(1, 1, 500, &[e0]),
+        titled(2, 2, 500, &[e0, e1]),
+        titled(3, 5, 500, &[e1]),
+    ] {
+        document.graph.assertions.insert(claim.id, claim);
+    }
+    writer.seed(document);
+
+    let (x0, x1) = (Q_EVIDENCE + 0x10, Q_EVIDENCE + 0x11);
+    writer.commit(
+        vec![
+            added_statement(x0),
+            GraphOperation::CreateNode(NodeDraft {
+                id: id(Q_ITEMS + 6),
+                root_id: id(2),
+                type_id: id(Q_ITEM),
+                canonical_name: "Babbage".into(),
+                properties: BTreeMap::new(),
+                aliases: vec![String::new()],
+            }),
+            GraphOperation::AddAssertion(Box::new(titled(4, 3, 500, &[x0]))),
+            GraphOperation::AddAssertion(Box::new(titled(5, 4, 500, &[x0, e0]))),
+        ],
+        None,
+    );
+    writer.commit(retraction(Q_ASSERTIONS + 1), None);
+    writer.commit(
+        vec![
+            added_statement(x1),
+            GraphOperation::AddAssertion(Box::new(titled(6, 2, REPLACED_AT_MS, &[x1]))),
+            GraphOperation::SupersedeAssertion(Supersession {
+                assertion: id(Q_ASSERTIONS + 2),
+                by: id(Q_ASSERTIONS + 6),
+                effective_from: Timestamp::from_millis(REPLACED_AT_MS),
+            }),
+        ],
+        None,
+    );
+}
+
+/// Commits one more transaction onto a built [`Fixture::Quality`] store: an assertion about i5
+/// citing E0, as revision 4, timed after everything the fixture committed.
+pub fn commit_later_quality(runtime: &Runtime) {
+    let mut writer = Writer {
+        runtime,
+        clock: CLOCK_START_MS + 1_000_000,
+        transactions: TRANSACTIONS + 0x3000,
+    };
+    writer.commit(
+        vec![GraphOperation::AddAssertion(Box::new(titled(
+            7,
+            5,
+            500,
+            &[Q_EVIDENCE],
         )))],
         None,
     );

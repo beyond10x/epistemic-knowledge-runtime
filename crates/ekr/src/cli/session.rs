@@ -679,6 +679,7 @@ fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
         | Command::Head
         | Command::Transactions { .. }
         | Command::Ontology { .. }
+        | Command::Quality { .. }
         | Command::Schema { .. }
         | Command::Mint { .. }
         | Command::Hash { .. } => Ok(()),
