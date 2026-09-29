@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:seed-envelope-v3-references-payloads
 kind: story
-status: active
+status: implemented
 title: The seed envelope names evidence payloads by hash instead of embedding them
 relations:
 - serves: vision:o5
@@ -19,10 +19,11 @@ scope:
   path: crates/ekr-store/tests/payload_blobs.rs
 - confidence: inferred
   path: systems/ekr/domains/store.yaml
-revision: 9
+revision: 10
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T23:00:44Z", actor: "agent:claude-coordinator", revision: 8, decided_on: {"recorded":{"review_outcome":3}}}
 - {from: "proposed", to: "active", at: "2026-09-28T23:00:44Z", actor: "agent:claude-coordinator", revision: 9, decided_on: {"recorded":{"review_outcome":3}}}
+- {from: "active", to: "implemented", at: "2026-09-29T07:07:33Z", actor: "human:timo", revision: 10, decided_on: {"recorded":{"test_result":1,"review_outcome":4}}}
 ---
 ## Context
 

@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:add-evidence-operation
 kind: story
-status: active
+status: implemented
 title: A transaction adds evidence after the seed
 relations:
 - serves: vision:o2
@@ -20,10 +20,11 @@ scope:
   path: systems/ekr/domains/graph.yaml
 - confidence: inferred
   path: systems/ekr/domains/kernel.yaml
-revision: 9
+revision: 10
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T23:00:43Z", actor: "agent:claude-coordinator", revision: 8}
 - {from: "proposed", to: "active", at: "2026-09-28T23:00:44Z", actor: "agent:claude-coordinator", revision: 9}
+- {from: "active", to: "implemented", at: "2026-09-29T07:07:33Z", actor: "human:timo", revision: 10, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}}
 ---
 ## Context
 
