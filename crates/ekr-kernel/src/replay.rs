@@ -274,12 +274,15 @@ pub(crate) struct ReplayCache {
     pub(crate) migration_settled: bool,
 }
 /// While held, every replay of the authority that returned it keeps one more revision's graph
-/// ([`KernelAuthority::keeping`]).
-pub(crate) struct Keeping<'a>(&'a KernelAuthority);
+/// ([`KernelAuthority::keeping`]). Dropping it releases that graph from every state the cache
+/// holds, unless it is that state's head or the retained checkpoint's; a caller that still needs
+/// the graph holds its own reference.
+pub(crate) struct Keeping<'a>(&'a KernelAuthority, RevisionNumber);
 impl Drop for Keeping<'_> {
     fn drop(&mut self) {
         if let Ok(mut cache) = self.0.cache.lock() {
             cache.keep = None;
+            cache.release(self.1);
         }
     }
 }
@@ -317,6 +320,26 @@ impl ReplayCache {
             .iter()
             .max_by_key(|(covered, _, _)| *covered)
             .map(|(_, _, state)| Arc::clone(state))
+    }
+    /// Releases the graph of revision `number` from every held state that holds it and does not
+    /// keep it as its head or as the retained checkpoint's head. Each such state is replaced by a
+    /// copy without it, so that a caller still sharing the old state keeps what it holds.
+    fn release(&mut self, number: RevisionNumber) {
+        let checkpointed = self.retained.map(|(_, revision)| revision);
+        for entry in &mut self.entries {
+            let state = &entry.2;
+            let releases = Some(number) != checkpointed
+                && state.head().root.revision != number
+                && state
+                    .revisions
+                    .get(&number)
+                    .is_some_and(|revision| revision.graph.is_some());
+            if releases {
+                let mut released = (**state).clone();
+                released.release(number, |_| false);
+                entry.2 = Arc::new(released);
+            }
+        }
     }
     /// Replaces the held state whose prefix digest is `digest` with `state`, which covers the same
     /// prefix, if one is held.
@@ -566,7 +589,7 @@ impl KernelAuthority {
         if let Ok(mut cache) = self.cache.lock() {
             cache.keep = Some(number);
         }
-        Keeping(self)
+        Keeping(self, number)
     }
     /// The graph of revision `number` of `state`, the state this authority reached over
     /// `history`: the state's own when it holds it, and otherwise reconstructed by a verified

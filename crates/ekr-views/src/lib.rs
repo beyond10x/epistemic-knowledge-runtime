@@ -185,8 +185,10 @@ pub struct LoadedRevision {
 
 /// Loads revision `at` of `runtime`'s store, or its head when `at` is `None`.
 ///
-/// Reads the head first, so an unseeded store answers [`ProjectError::NotSeeded`] whatever `at`
-/// names, and a seeded one [`ProjectError::RevisionNotFound`] for any `at` beyond its head.
+/// Reads the head first only when `at` is `None`; a named revision is read directly, and the head
+/// only when that read finds no such revision. An unseeded store answers
+/// [`ProjectError::NotSeeded`] whatever `at` names, and a seeded one
+/// [`ProjectError::RevisionNotFound`], carrying its head, for any `at` beyond its head.
 /// The graph and the schema history come from one kernel read, [`Runtime::schema_history`], which
 /// replays the store's history at most once whatever the number of schema versions.
 ///

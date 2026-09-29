@@ -118,6 +118,8 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
     pub fn schema_history(&self, revision: RevisionNumber) -> Result<SchemaHistory, CommitError> {
         // The replay that verifies the history keeps the chosen revision's graph where it passes
         // it, so that a replay from the seed is not followed by another one to that revision.
+        // Dropping the hint releases that graph from the cached states again; `state`, this
+        // read's own reference, still holds it.
         let keeping = self.authority.keeping(revision);
         let history = self.store.history()?;
         let state = self
