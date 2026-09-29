@@ -2,15 +2,16 @@
 format: aep.planning-md/3
 id: task:retire-alt-viewer-page
 kind: task
-status: active
+status: implemented
 title: Remove the earlier viewer page served at /alt
 relations:
 - serves: vision:o5
 - decomposes: epic:p4-operator-surface
-revision: 5
+revision: 6
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-29T15:13:56Z", actor: "human:timo", revision: 4}
 - {from: "proposed", to: "active", at: "2026-09-29T15:13:56Z", actor: "human:timo", revision: 5}
+- {from: "active", to: "implemented", at: "2026-09-29T18:41:26Z", actor: "human:timo", revision: 6, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Context
 

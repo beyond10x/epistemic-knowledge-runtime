@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:viewer-3d-draws-in-batches
 kind: story
-status: active
+status: implemented
 title: The 3D view draws all nodes and edges in a few calls and rests when idle
 relations:
 - serves: vision:o5
@@ -10,10 +10,11 @@ relations:
 scope:
 - confidence: cited
   path: crates/ekr/src/cli/viewer/index.html
-revision: 4
+revision: 5
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-29T15:13:56Z", actor: "human:timo", revision: 3}
 - {from: "proposed", to: "active", at: "2026-09-29T15:13:56Z", actor: "human:timo", revision: 4}
+- {from: "active", to: "implemented", at: "2026-09-29T18:41:26Z", actor: "human:timo", revision: 5, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}}
 ---
 ## Context
 

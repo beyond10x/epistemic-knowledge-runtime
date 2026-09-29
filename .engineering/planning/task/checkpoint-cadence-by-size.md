@@ -2,15 +2,16 @@
 format: aep.planning-md/3
 id: task:checkpoint-cadence-by-size
 kind: task
-status: active
+status: implemented
 title: Checkpoints fall due by size, and cold open does not re-parse proposals
 relations:
 - serves: vision:o5
 - decomposes: epic:ingestion-throughput
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-29T11:07:35Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-09-29T11:07:35Z", actor: "human:timo", revision: 3}
+- {from: "active", to: "implemented", at: "2026-09-29T18:41:25Z", actor: "human:timo", revision: 4, decided_on: {"recorded":{"test_result":1,"review_outcome":4}}}
 ---
 ## Context
 

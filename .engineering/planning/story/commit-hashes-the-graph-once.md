@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:commit-hashes-the-graph-once
 kind: story
-status: active
+status: implemented
 title: A commit hashes the graph once, as a stream
 relations:
 - serves: vision:o5
@@ -14,10 +14,11 @@ scope:
   path: crates/ekr-kernel/src/apply.rs
 - confidence: cited
   path: crates/ekr-kernel/src/commit.rs
-revision: 5
+revision: 6
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-29T11:07:35Z", actor: "human:timo", revision: 4}
 - {from: "proposed", to: "active", at: "2026-09-29T11:07:35Z", actor: "human:timo", revision: 5}
+- {from: "active", to: "implemented", at: "2026-09-29T18:41:24Z", actor: "human:timo", revision: 6, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}}
 ---
 ## Context
 

@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:node-gains-an-alias
 kind: story
-status: active
+status: implemented
 title: A transaction adds an alias to an existing node
 relations:
 - serves: vision:o5
@@ -16,10 +16,11 @@ scope:
   path: systems/ekr/domains/graph.yaml
 - confidence: inferred
   path: systems/ekr/domains/kernel.yaml
-revision: 7
+revision: 8
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-29T15:14:19Z", actor: "human:timo", revision: 6}
 - {from: "proposed", to: "active", at: "2026-09-29T15:14:19Z", actor: "human:timo", revision: 7}
+- {from: "active", to: "implemented", at: "2026-09-29T18:41:25Z", actor: "human:timo", revision: 8, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}}
 ---
 ## Context
 
