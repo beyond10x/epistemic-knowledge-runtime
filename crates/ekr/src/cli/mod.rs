@@ -283,9 +283,10 @@ pub enum Command {
     ///
     /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST); it reads the store and
     /// the files and writes nothing. A literal is text between two `"`, `'` or backtick quotes on
-    /// one line; bare identifiers are not literals, and a quoted name in a comment is. The
-    /// runtime's own vocabulary and the store's ids are never reported. Findings exit 0: the count
-    /// is `meta.findings`, and failing on it is the caller's choice.
+    /// one line; bare identifiers are not literals, and a quoted name in a comment is. A name that
+    /// is also the runtime's own vocabulary is reported, flagged `"runtime_word": true` and counted
+    /// in `meta.runtime_word_findings`; the store's ids are never reported. Findings exit 0: the
+    /// count is `meta.findings`, and failing on it is the caller's choice.
     #[command(after_help = SEE)]
     CodeNames {
         /// The source files to check, one or more.

@@ -1350,7 +1350,8 @@ types:
 
   # One literal that equals at least one store name. `file` is the source's path as given; `line`
   # is 1-based; `column` is the 1-based position, in Unicode scalar values, of the literal's
-  # opening quote on that line; `literal` is the text between the quotes; `names` is every store
+  # opening quote on that line; `literal` is the text between the quotes; `runtime_word` is true
+  # exactly when that text is also one of the runtime's own words (below); `names` is every store
   # name it equals.
   - name: ekr.views.CodeNameFinding
     kind: struct
@@ -1363,13 +1364,16 @@ types:
         type: Integer
       - name: literal
         type: String
+      - name: runtime_word
+        type: Boolean
       - name: names
         type: List<ekr.views.CodeNameMatch>
 
   # `revision` is the revision whose names were read: `at`, or the head as it stood at the
   # request. `files` counts the distinct sources, `literals` every literal found in them,
-  # `exempt` the literals that equal a store name that is exempt (below) and `findings` the
-  # findings. A literal is both exempt and a finding never.
+  # `exempt` the literals that equal a store id's text (below), `findings` every finding and
+  # `runtime_word_findings` those of them whose `runtime_word` is true. A literal is both exempt
+  # and a finding never.
   - name: ekr.views.CodeNamesMeta
     kind: struct
     fields:
@@ -1385,29 +1389,37 @@ types:
         type: Integer
       - name: findings
         type: Integer
+      - name: runtime_word_findings
+        type: Integer
 
   # ekr.code-names/1. What a literal is: in each line of a source's text (lines split at `\n`),
-  # for each of the three quote characters `"`, `'` and a backtick separately, the text between
-  # an opening quote and the next quote of the same character on the same line that no
-  # backslash escapes, paired left to right, scanning on after the closing quote; a quote with no
-  # closing partner on its line opens nothing. The three characters are scanned independently,
-  # so a literal of one may lie inside a literal of another. A literal is its raw text: no escape
-  # is decoded, and none spans a line. Identifiers — a bare word outside quotes — are not
+  # the text between an opening quote — `"`, `'` or a backtick — and the next quote of the same
+  # character on the same line that no backslash escapes. Each line is scanned twice, and a
+  # literal either scan finds is one, counted once: (a) one pass left to right over all three
+  # characters at once, which skips a backslash and the character after it and consumes a whole
+  # literal before it looks for the next opening quote, so a quote inside a literal of another
+  # kind (`'"'`, `"can't"`) opens nothing; (b) one pass per character, blind to the other two,
+  # paired left to right, so a literal of one kind is found inside a literal of another. In both,
+  # a quote with no closing partner on its line opens nothing. A literal is its raw text: no
+  # escape is decoded, and none spans a line. Identifiers — a bare word outside quotes — are not
   # literals, and comments are not recognised: a quoted name in a comment is a literal like any
-  # other, because the check is the same for every language.
+  # other, because the check is the same for every language. Finding the literals is linear in
+  # the length of the text.
   #
   # The store's names are those the revision holds: every node type's and edge type's name, the
   # name of every property any type declares, and every node's canonical name and aliases. A
   # literal equals a name when the two are the same text, byte for byte, case included; an empty
-  # or blank name equals nothing. A finding is a literal equal to a name that is not exempt. A
-  # name is exempt, and so never found, when it is the runtime's own vocabulary or a store id:
-  # the vocabulary is every field name, enum variant, union tag and union variant name the ESS
-  # domains of this runtime declare (systems/ekr/domains/*.yaml), which is what a reader of the
-  # runtime's documents names whatever the ontology; a store id is the text, in any case, of
-  # an id the revision holds — the graph root's, a schema version's, a transaction's, a type's,
-  # a property's, a node's, an edge's, an assertion's, an evidence record's, or an agent's that
-  # an assertion or evidence record names. A literal equal to an exempt name is counted in
-  # meta.exempt and not reported.
+  # or blank name equals nothing. A finding is a literal equal to a name that is not exempt.
+  # A name is exempt, and so never found, when it is a store id: the text, in any case, of an id
+  # the revision holds — the graph root's, a schema version's, a transaction's, a type's, a
+  # property's, a node's, an edge's, an assertion's, an evidence record's, or an agent's that an
+  # assertion or evidence record names. A literal equal to an exempt name is counted in
+  # meta.exempt and not reported. A name that is also one of the runtime's own words is reported,
+  # flagged `runtime_word: true`, never dropped: the runtime's words are every field name, enum
+  # variant, union tag and union variant name the ESS domains of this runtime declare
+  # (systems/ekr/domains/*.yaml), which a reader of the runtime's documents names whatever the
+  # ontology, so such a finding may be the runtime's word and not the store's name, and the
+  # reader decides.
   #
   # Determinism: sources are read in ascending order of their path text, and a path given twice
   # is read once; findings are ordered by that path, then line, then column; each finding's names
@@ -1980,6 +1992,7 @@ commands:
             literals: {generated: true}
             exempt: {generated: true}
             findings: {generated: true}
+            runtime_word_findings: {generated: true}
             node_types: {generated: true}
             edge_types: {generated: true}
             properties: {generated: true}
@@ -2262,9 +2275,9 @@ events:
       - name: quality_hash
         type: ekr.kernel.ContentHash
 
-  # What one code-names answer returned. `revision`, `files`, `literals`, `exempt` and `findings`
-  # are meta's; the five kind counts count the names of every finding of each
-  # ekr.views.CodeNameKind, so a literal equal to two names counts in two; `first_file` and
+  # What one code-names answer returned. `revision`, `files`, `literals`, `exempt`, `findings` and
+  # `runtime_word_findings` are meta's; the five kind counts count the names of every finding of
+  # each ekr.views.CodeNameKind, so a literal equal to two names counts in two; `first_file` and
   # `first_line` are the first finding's, omitted when there is none; `code_names_hash` the hex
   # SHA-256 of the document's exact bytes.
   - name: ekr.views.CodeNamesFound
@@ -2278,6 +2291,8 @@ events:
       - name: exempt
         type: Integer
       - name: findings
+        type: Integer
+      - name: runtime_word_findings
         type: Integer
       - name: node_types
         type: Integer

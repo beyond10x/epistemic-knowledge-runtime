@@ -308,27 +308,33 @@ ontology: it reports every literal in the given source files that equals one of 
 at the head or as of revision `N`. It reads the files and the store and writes nothing.
 
 - **A literal** is the text between two quotes of the same character — `"`, `'` or a backtick — on
-  one line, paired left to right, with `\` escaping the character after it. Each quote character is
-  scanned on its own, so `'…'` around `"…"` yields both. A quote with no partner on its line opens
-  nothing, and no literal spans a line. The text is compared raw: no escape is decoded. A bare
-  identifier (`Volume` outside quotes) is not a literal; comments are not recognised, so a quoted
-  name in a comment is a literal like any other. The rule is the same for every language.
+  one line, with `\` escaping the character after it. Each line is scanned twice and a literal either
+  scan finds counts once: one pass over all three characters at once consumes whole literals, so
+  the `"` in `'"'` or the `'` in `"can't"` opens nothing and the literal after it is still found;
+  one pass per character, blind to the other two, finds `"…"` inside `'…'` as well. A quote with no
+  partner on its line opens nothing, and no literal spans a line. The text is compared raw: no
+  escape is decoded. A bare identifier (`Volume` outside quotes) is not a literal; comments are not
+  recognised, so a quoted name in a comment is a literal like any other. The rule is the same for
+  every language, and the scan is linear in the length of a file.
 - **A store name** is a node type's or edge type's name, a property's name, or a node's canonical
   name or alias, at that revision. A literal equals a name when the two are the same text, case
   included.
-- **Never reported:** a name that is also the runtime's own vocabulary — every field name, enum
-  variant and union tag its specification declares (`name`, `aliases`, `kind`, `String`,
+- **Flagged, not dropped:** a store name that is also one of the runtime's own words — every field
+  name, enum variant and union tag its specification declares (`name`, `aliases`, `kind`, `String`,
   `Accepted`, `CreateNode`, `ekr.graph-projection/1`, …), the words any reader of `ekr`'s documents
-  uses — and a name that is the text of one of the store's ids (a node's alias that is an old id,
-  say). A literal equal to such a name is counted in `meta.exempt` instead.
+  uses — is reported with `"runtime_word": true`, and `meta.runtime_word_findings` counts those
+  findings: the literal may be the runtime's word rather than the store's name, and you decide.
+- **Never reported:** a name that is the text of one of the store's ids (a node's alias that is an
+  old id, say). A literal equal to such a name is counted in `meta.exempt` instead.
 
 It prints one `ekr.code-names/1` document:
 
 ```json
 {
-  "meta": {"format": "ekr.code-names/1", "revision": 0, "files": 2, "literals": 14, "exempt": 4, "findings": 1},
+  "meta": {"format": "ekr.code-names/1", "revision": 0, "files": 2, "literals": 14, "exempt": 1,
+           "findings": 1, "runtime_word_findings": 0},
   "findings": [
-    {"file": "src/reader.ts", "line": 7, "column": 16, "literal": "Folio",
+    {"file": "src/reader.ts", "line": 7, "column": 16, "literal": "Folio", "runtime_word": false,
      "names": [{"kind": "NodeType", "id": "<type id>"},
                {"kind": "Alias", "id": "<node id>", "type_id": "<its type id>", "type_name": "Volume"}]}
   ]
@@ -338,9 +344,10 @@ It prints one `ekr.code-names/1` document:
 `file` is the path as given on the command line. `line` is 1-based, `column` the 1-based position
 of the opening quote in characters. `names` lists every store name the literal equals: `kind` is
 `NodeType`, `EdgeType`, `Property`, `CanonicalName` or `Alias`, `id` the type's, property's or
-node's id, and for a node's name `type_id` and `type_name` its type. Files are read in order of
-their path and each once, findings follow in file, line and column order, so the same files and
-revision print the same document in any argument order.
+node's id, and for a node's name `type_id` and `type_name` its type. `runtime_word` is `true` when
+the literal is also a runtime word. Files are read in order of their path and each once, findings
+follow in file, line and column order, so the same files and revision print the same document in
+any argument order.
 
 **Findings are not a failure: the verb exits 0** and `meta.findings` is the count. To fail a build
 on a finding, test that count. Exit 1 is a fault — a file that does not read or is not UTF-8 text

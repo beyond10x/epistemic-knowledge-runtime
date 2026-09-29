@@ -20,534 +20,106 @@ use crate::{load, LoadedRevision, ProjectError};
 /// The format literal every answer carries in `meta.format`.
 pub const CODE_NAMES_FORMAT: &str = "ekr.code-names/1";
 
-/// The runtime's own vocabulary, ascending: every field name, enum variant, union tag and union
-/// variant name the ESS domains under `systems/ekr/domains` declare. A store name equal to one of
-/// these is exempt: a reader of the runtime's documents names it whatever the ontology.
-/// `tests/code_names.rs` holds this list to those files, entry for entry.
-pub const RUNTIME_VOCABULARY: &[&str] = &[
-    "Accepted",
-    "Active",
-    "AddAlias",
-    "AddAssertion",
-    "AddEvidence",
-    "Alias",
-    "AlreadyRecorded",
-    "Ambiguous",
-    "Any",
-    "ApiResponse",
-    "Assertion",
-    "AssertionAdded",
-    "AssertionRetracted",
-    "AssertionSuperseded",
-    "Attempt",
-    "Authorization",
-    "Blob",
-    "Boolean",
-    "Bootstrap",
-    "Cache",
-    "Canonical",
-    "CanonicalName",
-    "Cardinality",
-    "Commit",
-    "Committed",
-    "Complete",
-    "Conflict",
-    "CreateEdge",
-    "CreateNode",
-    "DatabaseRecord",
-    "Day",
-    "Decimal",
-    "DefineEdgeType",
-    "DefineNodeType",
-    "DeleteEdge",
-    "Disputed",
-    "Document",
-    "Duration",
-    "Edge",
-    "EdgeCreated",
-    "EdgeType",
-    "Enum",
-    "Ephemeral",
-    "Evidence",
-    "Exact",
-    "Failed",
-    "FeedItem",
-    "Float",
-    "Folded",
-    "GitDiff",
-    "GraphAssertion",
-    "GraphFragment",
-    "HumanStatement",
-    "Incubating",
-    "Integer",
-    "Invoke",
-    "Lifecycle",
-    "List",
-    "Many",
-    "MergeEntity",
-    "MessageBatch",
-    "ModifyProperty",
-    "Name",
-    "NoStream",
-    "Node",
-    "NodeCreated",
-    "NodeRef",
-    "NodeType",
-    "Observation",
-    "One",
-    "OntologyConstraint",
-    "Partial",
-    "Property",
-    "Proposal",
-    "Propose",
-    "ProposeNew",
-    "Proposed",
-    "Provenance",
-    "Record",
-    "Reference",
-    "Refused",
-    "Rejected",
-    "Relation",
-    "Resolved",
-    "RetractAssertion",
-    "Retracted",
-    "Revision",
-    "RevisionCommitted",
-    "Seed",
-    "Seeded",
-    "Stale",
-    "String",
-    "Structural",
-    "SupersedeAssertion",
-    "Superseded",
-    "Timestamp",
-    "TransactionProposed",
-    "TransactionRejected",
-    "TransactionStale",
-    "TransactionTime",
-    "TransactionValidated",
-    "Transient",
-    "Type",
-    "UnknownCommit",
-    "UpdateProperty",
-    "Url",
-    "ValidTime",
-    "Validate",
-    "Validated",
-    "Validating",
-    "Validation",
-    "Value",
-    "Week",
-    "WidenEdgeType",
-    "Written",
-    "absorbed",
-    "abstract_type",
-    "active",
-    "actor",
-    "added",
-    "after",
-    "against",
-    "agent_root",
-    "agents",
-    "alias",
-    "aliases",
-    "allowed_types",
-    "appends",
-    "application",
-    "arguments",
-    "assertion",
-    "assertion_count",
-    "assertion_id",
-    "assertions",
-    "assertions_added",
-    "assertions_retracted",
-    "assertions_superseded",
-    "assessment",
-    "at",
-    "at_revision",
-    "attempt_number",
-    "authority",
-    "authority_root",
-    "basis",
-    "binding",
-    "blobs",
-    "bucket",
-    "bucket_ms",
-    "buckets",
-    "by",
-    "byte_len",
-    "bytes",
-    "candidates",
-    "canonical_bytes",
-    "canonical_name",
-    "canonical_names",
-    "canonical_operations_hash",
-    "canonical_transaction_hash",
-    "capabilities",
-    "cardinality",
-    "cardinality-narrowed",
-    "carried_objects",
-    "causation_depth",
-    "causation_id",
-    "cells",
-    "change",
-    "changes",
-    "changes_hash",
-    "checked_through",
-    "checkpoint_hash",
-    "checks",
-    "claim",
-    "code",
-    "code_names",
-    "code_names_hash",
-    "column",
-    "command_key",
-    "committed_at",
-    "committer",
-    "competing_assertions",
-    "completed",
-    "confidence_bp",
-    "constraint-changed",
-    "constraints",
-    "content_hash",
-    "context",
-    "count",
-    "covered",
-    "created",
-    "created_at",
-    "current",
-    "data",
-    "database",
-    "dated_assertions",
-    "decision",
-    "degree",
-    "depth",
-    "destination_record_hash",
-    "destination_seed_hash",
-    "detail",
-    "detail_hash",
-    "digest",
-    "distance",
-    "document_bytes",
-    "document_hash",
-    "document_id",
-    "edge",
-    "edge-endpoint-removed",
-    "edge_assertions",
-    "edge_count",
-    "edge_limit",
-    "edge_total",
-    "edge_type",
-    "edge_types",
-    "edges",
-    "edges_created",
-    "effective_from",
-    "ekr.cli-host/1",
-    "ekr.code-names/1",
-    "ekr.graph-changes/1",
-    "ekr.graph-overview/1",
-    "ekr.graph-projection/1",
-    "ekr.graph-slice/1",
-    "ekr.graph-timeline/1",
-    "ekr.node-detail/1",
-    "ekr.node-matches/1",
-    "ekr.publication-preparation/1",
-    "ekr.publication-preparation/2",
-    "ekr.publication-preparation/3",
-    "ekr.transaction-document/1",
-    "ekr.transaction-document/2",
-    "element",
-    "emits",
-    "empty-schema-change",
-    "end",
-    "event",
-    "event_id",
-    "event_types",
-    "events",
-    "evidence",
-    "evidence_count",
-    "evidence_hash",
-    "evidence_payloads",
-    "evidence_root",
-    "exact_total",
-    "exempt",
-    "expected",
-    "expected_basis",
-    "expected_version",
-    "extracted_by",
-    "field",
-    "fields",
-    "file",
-    "files",
-    "findings",
-    "first",
-    "first_file",
-    "first_line",
-    "first_match",
-    "first_revision",
-    "first_row",
-    "format",
-    "forward",
-    "from",
-    "graph",
-    "graph_root_id",
-    "head",
-    "hops",
-    "id",
-    "idempotency_key",
-    "identity",
-    "incoherent-schema",
-    "initial",
-    "input",
-    "input_hash",
-    "instant",
-    "into",
-    "inverse",
-    "issues",
-    "judged",
-    "key",
-    "kind",
-    "knowledge_root",
-    "last",
-    "last_revision",
-    "legacy_objects",
-    "lifecycle",
-    "limit",
-    "line",
-    "links",
-    "listed_events",
-    "literal",
-    "literals",
-    "locator",
-    "map_hash",
-    "matches",
-    "matches_hash",
-    "matching_assertions",
-    "maximum",
-    "message",
-    "meta",
-    "minimum",
-    "name",
-    "names",
-    "native_fingerprint",
-    "native_request",
-    "neighbour_types",
-    "neighbours",
-    "next",
-    "node",
-    "node_count",
-    "node_id",
-    "node_total",
-    "node_types",
-    "nodes",
-    "nodes_created",
-    "not-a-successor",
-    "number",
-    "object",
-    "object_kind",
-    "object_ref",
-    "object_value",
-    "objects",
-    "observation",
-    "observation_id",
-    "observation_type",
-    "observed_at",
-    "observed_event_id",
-    "observed_record_hash",
-    "observed_revision_id",
-    "observed_root",
-    "observed_root_hash",
-    "occurred_at_offset_seconds",
-    "occurred_at_unix_nanos",
-    "occurrences",
-    "ontology",
-    "ontology_root",
-    "operation",
-    "operation_count",
-    "operations",
-    "operations_hash",
-    "operator",
-    "overview",
-    "overview_hash",
-    "owner",
-    "parameter",
-    "parent",
-    "parents",
-    "path",
-    "payload",
-    "preconditions",
-    "predecessor_event_id",
-    "predecessor_record_hash",
-    "predicate",
-    "predicate_kind",
-    "preparation_hash",
-    "previous_attempt_hash",
-    "previous_event_id",
-    "previous_record_hash",
-    "previous_revision_id",
-    "previous_root",
-    "previous_root_hash",
-    "projection",
-    "projection_hash",
-    "properties",
-    "property",
-    "property-removed",
-    "proposal",
-    "proposal_record_hash",
-    "proposed_by",
-    "proposed_event_id",
-    "proposer",
-    "proposer_separation",
-    "props",
-    "provenance",
-    "reached",
-    "reason",
-    "receipt",
-    "record_hash",
-    "recorded_at",
-    "recorded_from",
-    "recorded_to",
-    "reference",
-    "reference-type-has-subtypes",
-    "reference-type-undeclared",
-    "reference-without-identity",
-    "referencing",
-    "rejected_at",
-    "remaining",
-    "removed",
-    "request_hash",
-    "request_id",
-    "requested",
-    "requested_basis",
-    "required",
-    "required-property-missing",
-    "result",
-    "result_hash",
-    "retained",
-    "retained_evidence",
-    "retracted_assertions",
-    "revision",
-    "revision_id",
-    "revision_zero_assertions",
-    "revision_zero_edges",
-    "revision_zero_nodes",
-    "revisions",
-    "roles",
-    "root",
-    "root_id",
-    "row_events",
-    "row_type",
-    "row_types",
-    "rows",
-    "ruleset",
-    "schema",
-    "schema-change-without-effect",
-    "schema-version-exhausted",
-    "schema-version-reused",
-    "schema_version",
-    "schema_version_id",
-    "schema_versions",
-    "scope",
-    "section",
-    "seed_document",
-    "seed_hash",
-    "seeds",
-    "since",
-    "since_kind",
-    "since_recorded",
-    "since_revision",
-    "since_valid",
-    "slice",
-    "slice_hash",
-    "source",
-    "source_native_id",
-    "source_record_hash",
-    "source_seed_hash",
-    "source_types",
-    "sources",
-    "space",
-    "stale_at",
-    "start",
-    "state",
-    "states",
-    "status",
-    "storage_class",
-    "store",
-    "stored_at",
-    "stream",
-    "stream_id",
-    "stream_type",
-    "strip",
-    "subject",
-    "subject_kind",
-    "subjects",
-    "submitted_at",
-    "submitter",
-    "symmetric",
-    "table",
-    "target",
-    "target_types",
-    "tenant",
-    "text",
-    "tier",
-    "timeline",
-    "timeline_buckets",
-    "timeline_hash",
-    "timestamped",
-    "to",
-    "top",
-    "total",
-    "trace_id",
-    "transaction",
-    "transaction_document",
-    "transaction_hash",
-    "transaction_id",
-    "transaction_time",
-    "transactions",
-    "transition",
-    "transitions",
-    "transitive",
-    "type",
-    "type-already-declared",
-    "type-declaration-changed",
-    "type-removed",
-    "type_id",
-    "type_name",
-    "type_state",
-    "types",
-    "undated",
-    "undated_assertions",
-    "unknown-edge-type",
-    "unknown-endpoint-type",
-    "unknown-property-owner",
-    "unrecorded_edges",
-    "unrecorded_nodes",
-    "url",
-    "valid_at",
-    "valid_from",
-    "valid_time",
-    "valid_to",
-    "validated_against",
-    "validated_at",
-    "validation",
-    "validation_hash",
-    "validation_profile",
-    "validation_profile_hash",
-    "validation_record_hash",
-    "validator",
-    "validators",
-    "value",
-    "value-kind-not-admitted",
-    "value-type-narrowed",
-    "value_kind",
-    "value_type",
-    "values",
-    "variants",
-    "version",
-    "versions",
-    "weight",
-    "within_hour",
+/// The ESS domains of this runtime, `systems/ekr/domains/*.yaml`, by file name, as this crate was
+/// built from them: the source of [`runtime_vocabulary`]. `tests/code_names.rs` holds the list
+/// to the directory, so a domain file added there and not here is named.
+pub const EMBEDDED_DOMAINS: [(&str, &str); 7] = [
+    (
+        "graph.yaml",
+        include_str!("../../../systems/ekr/domains/graph.yaml"),
+    ),
+    (
+        "integrate.yaml",
+        include_str!("../../../systems/ekr/domains/integrate.yaml"),
+    ),
+    (
+        "kernel.yaml",
+        include_str!("../../../systems/ekr/domains/kernel.yaml"),
+    ),
+    (
+        "observe.yaml",
+        include_str!("../../../systems/ekr/domains/observe.yaml"),
+    ),
+    (
+        "ontology.yaml",
+        include_str!("../../../systems/ekr/domains/ontology.yaml"),
+    ),
+    (
+        "store.yaml",
+        include_str!("../../../systems/ekr/domains/store.yaml"),
+    ),
+    (
+        "views.yaml",
+        include_str!("../../../systems/ekr/domains/views.yaml"),
+    ),
 ];
+
+/// The runtime's own words: every field name, enum variant, union tag and union variant name the
+/// [`EMBEDDED_DOMAINS`] declare — the fields of their types, errors and events, and the inputs and
+/// responses of their commands. A reader of the runtime's documents names these whatever the
+/// ontology, so a finding whose literal is one of them carries `runtime_word: true`. Derived once,
+/// on first use; a new field in a domain file needs no edit here.
+///
+/// # Panics
+///
+/// If an embedded domain is not YAML, which `tests/code_names.rs` rules out for the files this
+/// crate is built from.
+#[must_use]
+pub fn runtime_vocabulary() -> &'static BTreeSet<String> {
+    static WORDS: std::sync::OnceLock<BTreeSet<String>> = std::sync::OnceLock::new();
+    WORDS.get_or_init(|| {
+        use serde_yaml_ng::Value;
+        fn names_of(list: &Value, into: &mut BTreeSet<String>) {
+            for entry in list.as_sequence().into_iter().flatten() {
+                if let Some(name) = entry.get("name").and_then(Value::as_str) {
+                    into.insert(name.to_owned());
+                }
+            }
+        }
+        let mut words = BTreeSet::new();
+        for (file, text) in EMBEDDED_DOMAINS {
+            let domain: Value = serde_yaml_ng::from_str(text)
+                .unwrap_or_else(|error| panic!("the embedded ESS domain {file}: {error}"));
+            let section = |key: &str| {
+                domain
+                    .get(key)
+                    .and_then(Value::as_sequence)
+                    .cloned()
+                    .unwrap_or_default()
+            };
+            for declared in section("types") {
+                if let Some(fields) = declared.get("fields") {
+                    names_of(fields, &mut words);
+                }
+                if let Some(tag) = declared.get("tag").and_then(Value::as_str) {
+                    words.insert(tag.to_owned());
+                }
+                match declared.get("variants") {
+                    Some(Value::Sequence(variants)) => {
+                        words.extend(variants.iter().filter_map(Value::as_str).map(str::to_owned))
+                    }
+                    Some(Value::Mapping(variants)) => {
+                        words.extend(variants.keys().filter_map(Value::as_str).map(str::to_owned))
+                    }
+                    _ => {}
+                }
+            }
+            for declared in section("errors").into_iter().chain(section("events")) {
+                if let Some(fields) = declared.get("fields") {
+                    names_of(fields, &mut words);
+                }
+            }
+            for command in section("commands") {
+                for part in ["input", "response"] {
+                    if let Some(list) = command.get(part) {
+                        names_of(list, &mut words);
+                    }
+                }
+            }
+        }
+        words
+    })
+}
 
 /// One source file as the host read it.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -569,51 +141,102 @@ pub struct Literal {
     pub text: String,
 }
 
-/// Every literal of `text`, ordered by line then column: for each of `"`, `'` and a backtick
-/// separately, the text between an opening quote and the next unescaped quote of the same
-/// character on the same line, paired left to right. A backslash escapes the character after it;
-/// a quote with no partner on its line opens nothing.
+/// The three quote characters a literal is delimited by.
+const QUOTES: [char; 3] = ['"', '\'', '`'];
+
+/// Every literal of `text`, ordered by line then column, each once. On each line (lines split at
+/// `\n`) two scans are made, and a literal either finds is one:
+///
+/// - one pass left to right over every quote character at once, which skips a backslash and the
+///   character after it and consumes a whole literal before looking for the next opening quote,
+///   so a quote inside a literal of another kind opens nothing;
+/// - one pass per quote character, blind to the other two, so a literal of one kind is found
+///   inside a literal of another.
+///
+/// In both, a literal is the text between an opening quote and the next quote of the same
+/// character that no backslash escapes, and a quote with no partner on its line opens nothing.
+/// The cost is linear in the length of the text.
 #[must_use]
 pub fn literals(text: &str) -> Vec<Literal> {
-    let mut found = Vec::new();
+    let mut found = BTreeSet::new();
     for (index, line) in text.split('\n').enumerate() {
         let chars: Vec<char> = line.chars().collect();
-        for quote in ['"', '\'', '`'] {
+        let closings = Closings::of(&chars);
+        let mut add = |open: usize, close: usize| {
+            found.insert((
+                index as u64 + 1,
+                open as u64 + 1,
+                chars[open + 1..close].iter().collect::<String>(),
+            ));
+        };
+        // Every quote character at once, escapes and whole literals consumed.
+        let mut at = 0;
+        while at < chars.len() {
+            match chars[at] {
+                '\\' => at += 2,
+                quote if QUOTES.contains(&quote) => match closings.after(quote, at) {
+                    Some(close) => {
+                        add(at, close);
+                        at = close + 1;
+                    }
+                    None => at += 1,
+                },
+                _ => at += 1,
+            }
+        }
+        // Each quote character on its own.
+        for quote in QUOTES {
             let mut at = 0;
             while at < chars.len() {
                 if chars[at] != quote {
                     at += 1;
                     continue;
                 }
-                match closing(&chars, at + 1, quote) {
-                    Some(end) => {
-                        found.push(Literal {
-                            line: index as u64 + 1,
-                            column: at as u64 + 1,
-                            text: chars[at + 1..end].iter().collect(),
-                        });
-                        at = end + 1;
+                match closings.after(quote, at) {
+                    Some(close) => {
+                        add(at, close);
+                        at = close + 1;
                     }
                     None => at += 1,
                 }
             }
         }
     }
-    found.sort_by_key(|literal| (literal.line, literal.column));
     found
+        .into_iter()
+        .map(|(line, column, text)| Literal { line, column, text })
+        .collect()
 }
 
-/// The index of the first `quote` at or after `from` that no backslash escapes.
-fn closing(chars: &[char], from: usize, quote: char) -> Option<usize> {
-    let mut at = from;
-    while at < chars.len() {
-        match chars[at] {
-            '\\' => at += 2,
-            found if found == quote => return Some(at),
-            _ => at += 1,
-        }
+/// For each quote character and each position of one line, the first quote of that character at
+/// or after it that no backslash escapes, reading from that position: a backslash skips itself
+/// and the character after it. Built right to left in one pass per character, so finding a
+/// literal's closing quote costs nothing however often it is asked.
+struct Closings {
+    next: [Vec<Option<usize>>; 3],
+}
+
+impl Closings {
+    fn of(chars: &[char]) -> Self {
+        let next = QUOTES.map(|quote| {
+            let mut next = vec![None; chars.len() + 2];
+            for at in (0..chars.len()).rev() {
+                next[at] = match chars[at] {
+                    '\\' => next[at + 2],
+                    found if found == quote => Some(at),
+                    _ => next[at + 1],
+                };
+            }
+            next
+        });
+        Self { next }
     }
-    None
+
+    /// The closing quote of a `quote` opened at `open`.
+    fn after(&self, quote: char, open: usize) -> Option<usize> {
+        let kind = QUOTES.iter().position(|known| *known == quote)?;
+        self.next[kind].get(open + 1).copied().flatten()
+    }
 }
 
 /// `ekr.views.CodeNamesFound`: what one answer returned, every field a function of its bytes.
@@ -629,6 +252,8 @@ pub struct CodeNamesFound {
     pub exempt: u64,
     /// `meta.findings`.
     pub findings: u64,
+    /// `meta.runtime_word_findings`.
+    pub runtime_word_findings: u64,
     /// Names of kind `NodeType` over every finding.
     pub node_types: u64,
     /// Names of kind `EdgeType` over every finding.
@@ -676,6 +301,7 @@ struct Meta {
     literals: u64,
     exempt: u64,
     findings: u64,
+    runtime_word_findings: u64,
 }
 
 #[derive(Serialize)]
@@ -684,6 +310,7 @@ struct Finding<'a> {
     line: u64,
     column: u64,
     literal: String,
+    runtime_word: bool,
     names: &'a BTreeSet<Match>,
 }
 
@@ -787,9 +414,9 @@ fn names(loaded: &LoadedRevision) -> (BTreeMap<String, BTreeSet<Match>>, BTreeSe
     (names, ids)
 }
 
-/// Whether the store name `name` is exempt: the runtime's vocabulary or the text of a store id.
+/// Whether the store name `name` is exempt: the text, in any case, of a store id.
 fn exempt(name: &str, ids: &BTreeSet<String>) -> bool {
-    RUNTIME_VOCABULARY.binary_search(&name).is_ok() || ids.contains(&name.to_lowercase())
+    ids.contains(&name.to_lowercase())
 }
 
 /// Answers `ekr.views.FindCodeNames` from `loaded`: the `ekr.code-names/1` document of
@@ -806,13 +433,13 @@ pub fn code_names(
     sources: &[SourceText],
 ) -> Result<Answer<CodeNamesFound>, ProjectError> {
     let (names, ids) = names(loaded);
-    let mut read: Vec<&SourceText> = Vec::with_capacity(sources.len());
-    for source in sources {
-        if !read.iter().any(|earlier| earlier.path == source.path) {
-            read.push(source);
-        }
-    }
+    let mut given = std::collections::HashSet::with_capacity(sources.len());
+    let mut read: Vec<&SourceText> = sources
+        .iter()
+        .filter(|source| given.insert(source.path.as_str()))
+        .collect();
     read.sort_by(|a, b| a.path.cmp(&b.path));
+    let vocabulary = runtime_vocabulary();
     let (mut literal_count, mut exempt_count) = (0_u64, 0_u64);
     let mut findings = Vec::new();
     for source in &read {
@@ -829,6 +456,7 @@ pub fn code_names(
                 file: &source.path,
                 line: literal.line,
                 column: literal.column,
+                runtime_word: vocabulary.contains(name),
                 literal: literal.text,
                 names: matched,
             });
@@ -842,6 +470,10 @@ pub fn code_names(
             literals: literal_count,
             exempt: exempt_count,
             findings: findings.len() as u64,
+            runtime_word_findings: findings
+                .iter()
+                .filter(|finding| finding.runtime_word)
+                .count() as u64,
         },
         findings,
     };
@@ -860,6 +492,7 @@ pub fn code_names(
         literals: document.meta.literals,
         exempt: document.meta.exempt,
         findings: document.meta.findings,
+        runtime_word_findings: document.meta.runtime_word_findings,
         node_types: count(Kind::NodeType),
         edge_types: count(Kind::EdgeType),
         properties: count(Kind::Property),

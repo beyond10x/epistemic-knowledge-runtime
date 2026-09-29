@@ -7,9 +7,9 @@
 //! Aurum carries the alias `Folio`, which is also a type's name; Ledger of Tides the alias Tidal
 //! Register; Folio Alpha an alias that is Codex Aurum's id; Folio Beta the alias `Accepted`. The
 //! sources under `tests/fixtures/code-names/sources` plant one name of each kind in `reader.ts`,
-//! quote the exempt ones — the property `name` and the alias `Accepted` are the runtime's own
-//! vocabulary, Folio Alpha's alias is a store id — and name the rest as bare words; `generic.js`
-//! is store-reading code that names only the runtime's vocabulary.
+//! quote the property `name` and the alias `Accepted`, which are also runtime words and so are
+//! reported flagged `runtime_word`, and Folio Alpha's alias, a store id and so exempt, and name the
+//! rest as bare words; `generic.js` is store-reading code that names only runtime words.
 
 use std::collections::BTreeMap;
 use std::io::Write as _;
@@ -131,26 +131,107 @@ fn tree_bytes(at: &Path) -> BTreeMap<PathBuf, Vec<u8>> {
 
 const VOLUME: &str = "00000000-0000-4000-8000-00000000b201";
 const FOLIO: &str = "00000000-0000-4000-8000-00000000b202";
+const NAME_PROPERTY: &str = "00000000-0000-4000-8000-00000000b803";
 
-/// The `ekr.code-names/1` document the fixture sources answer at revision 0.
-fn expected(reader: &str, files: u64) -> Value {
-    let finding = |line: u64, column: u64, literal: &str, names: Value| {
+/// The `ekr.code-names/1` document the fixture sources answer at revision 0: `reader.ts` alone,
+/// or with `generic.js`, whose path sorts first.
+fn expected(reader: &str, generic: Option<&str>) -> Value {
+    let finding = |file: &str, line: u64, column: u64, literal: &str, word: bool, names: Value| {
         json!({
-            "file": reader,
+            "file": file,
             "line": line,
             "column": column,
             "literal": literal,
+            "runtime_word": word,
             "names": names,
         })
     };
-    let volume_node = |kind: &str, node: &str| {
+    let node = |kind: &str, node: &str, type_id: &str, type_name: &str| {
         json!({
             "kind": kind,
             "id": format!("00000000-0000-4000-8000-00000000{node}"),
-            "type_id": VOLUME,
-            "type_name": "Volume",
+            "type_id": type_id,
+            "type_name": type_name,
         })
     };
+    let name_property = json!([{"kind": "Property", "id": NAME_PROPERTY}]);
+    let mut findings = Vec::new();
+    if let Some(generic) = generic {
+        // `node["name"]`: the property `name`, which is also a runtime word.
+        findings.push(finding(generic, 2, 47, "name", true, name_property.clone()));
+    }
+    findings.extend([
+        finding(
+            reader,
+            2,
+            16,
+            "Volume",
+            false,
+            json!([{"kind": "NodeType", "id": VOLUME}]),
+        ),
+        finding(
+            reader,
+            3,
+            15,
+            "BOUND_IN",
+            false,
+            json!([{
+                "kind": "EdgeType",
+                "id": "00000000-0000-4000-8000-00000000b211",
+            }]),
+        ),
+        finding(
+            reader,
+            4,
+            12,
+            "shelfmark",
+            false,
+            json!([{
+                "kind": "Property",
+                "id": "00000000-0000-4000-8000-00000000b802",
+            }]),
+        ),
+        finding(
+            reader,
+            5,
+            6,
+            "Codex Aurum",
+            false,
+            json!([node("CanonicalName", "b301", VOLUME, "Volume"),]),
+        ),
+        finding(
+            reader,
+            6,
+            6,
+            "Tidal Register",
+            false,
+            json!([node("Alias", "b302", VOLUME, "Volume"),]),
+        ),
+        finding(
+            reader,
+            7,
+            16,
+            "Folio",
+            false,
+            json!([
+                {"kind": "NodeType", "id": FOLIO},
+                node("Alias", "b301", VOLUME, "Volume"),
+            ]),
+        ),
+        // Line 8: `name` and Folio Beta's alias `Accepted` are store names and runtime words;
+        // `aliases` is no store name, and Folio Alpha's alias is Codex Aurum's id: exempt.
+        finding(reader, 8, 18, "name", true, name_property),
+        finding(
+            reader,
+            8,
+            37,
+            "Accepted",
+            true,
+            json!([node("Alias", "b312", FOLIO, "Folio"),]),
+        ),
+    ]);
+    let files = if generic.is_some() { 2 } else { 1 };
+    let words = if generic.is_some() { 3 } else { 2 };
     json!({
         "meta": {
             "format": "ekr.code-names/1",
@@ -158,27 +239,12 @@ fn expected(reader: &str, files: u64) -> Value {
             "files": files,
             // reader.ts: 12, one of them the text between the apostrophes of "consumer's" and
             // "store's" on line 1; generic.js: 2.
-            "literals": if files == 2 { 14 } else { 12 },
-            "exempt": if files == 2 { 4 } else { 3 },
-            "findings": 6,
+            "literals": if generic.is_some() { 14 } else { 12 },
+            "exempt": 1,
+            "findings": findings.len(),
+            "runtime_word_findings": words,
         },
-        "findings": [
-            finding(2, 16, "Volume", json!([{"kind": "NodeType", "id": VOLUME}])),
-            finding(3, 15, "BOUND_IN", json!([{
-                "kind": "EdgeType",
-                "id": "00000000-0000-4000-8000-00000000b211",
-            }])),
-            finding(4, 12, "shelfmark", json!([{
-                "kind": "Property",
-                "id": "00000000-0000-4000-8000-00000000b802",
-            }])),
-            finding(5, 6, "Codex Aurum", json!([volume_node("CanonicalName", "b301")])),
-            finding(6, 6, "Tidal Register", json!([volume_node("Alias", "b302")])),
-            finding(7, 16, "Folio", json!([
-                {"kind": "NodeType", "id": FOLIO},
-                volume_node("Alias", "b301"),
-            ])),
-        ],
+        "findings": findings,
     })
 }
 
@@ -188,7 +254,7 @@ fn ekr_code_names_reports_every_planted_name_with_its_file_and_line_on_both_prov
     for backend in BACKENDS {
         let world = World::seeded(backend);
         let found = world.ok(&["code-names", &reader, &generic]);
-        assert_eq!(found, expected(&reader, 2), "{backend}");
+        assert_eq!(found, expected(&reader, Some(&generic)), "{backend}");
         // The same files in another order, one named twice, answer the same document.
         assert_eq!(
             world.ok(&["code-names", &generic, &reader, &generic]),
@@ -198,14 +264,21 @@ fn ekr_code_names_reports_every_planted_name_with_its_file_and_line_on_both_prov
         // A revision named with --at answers as the head does; findings exit 0, never 1.
         assert_eq!(
             world.ok(&["code-names", "--at", "0", &reader]),
-            expected(&reader, 1),
+            expected(&reader, None),
             "{backend}"
         );
-        // Code that names only the runtime's vocabulary has no finding.
-        let clean = world.ok(&["code-names", &generic]);
-        assert_eq!(clean["meta"]["findings"], 0, "{backend}");
-        assert_eq!(clean["meta"]["exempt"], 1, "{backend}");
-        assert_eq!(clean["findings"], json!([]), "{backend}");
+        // Code that names only runtime words has only flagged findings.
+        let generic_only = world.ok(&["code-names", &generic]);
+        assert_eq!(generic_only["meta"]["findings"], 1, "{backend}");
+        assert_eq!(
+            generic_only["meta"]["runtime_word_findings"], 1,
+            "{backend}"
+        );
+        assert_eq!(generic_only["meta"]["exempt"], 0, "{backend}");
+        assert_eq!(
+            generic_only["findings"][0]["runtime_word"], true,
+            "{backend}"
+        );
     }
 }
 

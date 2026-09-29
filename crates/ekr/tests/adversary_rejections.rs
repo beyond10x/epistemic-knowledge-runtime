@@ -415,7 +415,6 @@ fn a_session_answers_rejections_from_a_store_replaced_at_its_path() {
 /// `kernel.yaml` and regenerated `suite.json` only, so `views-suite.json` still names the old
 /// contract and `task conform-fresh` (a step of `task check`) fails its `cmp`.
 #[test]
-#[ignore = "defect: views-suite.json not regenerated after kernel.yaml changed; task conform-fresh fails"]
 fn both_committed_suites_name_the_one_contract_they_were_synthesized_from() {
     let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR");
     let conformance = PathBuf::from(manifest)

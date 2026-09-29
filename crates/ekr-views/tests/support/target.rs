@@ -298,6 +298,7 @@ fn code_names_found(summary: &CodeNamesFound) -> Result<ObservedEvent, TargetErr
         ("literals", summary.literals),
         ("exempt", summary.exempt),
         ("findings", summary.findings),
+        ("runtime_word_findings", summary.runtime_word_findings),
         ("node_types", summary.node_types),
         ("edge_types", summary.edge_types),
         ("properties", summary.properties),

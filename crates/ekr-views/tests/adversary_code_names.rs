@@ -54,7 +54,6 @@ fn found(runtime: &ekr_kernel::Runtime, text: &str) -> Vec<(u64, String)> {
 /// JavaScript `split('"')`, and an apostrophe in a double-quoted message before a single-quoted
 /// name all hide a store name that stands quoted on its own.
 #[test]
-#[ignore = "defect: a quote of another kind before a quoted store name hides it (views.yaml CodeNamesV1 literal rule)"]
 fn a_quote_of_another_kind_earlier_on_the_line_does_not_hide_a_quoted_store_name() {
     let (_work, runtime) = built();
     let text = "\
@@ -76,7 +75,6 @@ raise KeyError(\"can't find\", 'Subject')
 /// quotes them only works on a store that declares them. Both are exempt because they are also
 /// words somewhere in the runtime's ESS domains, so the check passes code that is not generic.
 #[test]
-#[ignore = "defect (judgement): a store name that is also a runtime vocabulary word is never reported"]
 fn an_edge_type_and_a_property_the_consumer_hard_codes_are_reported_even_if_vocabulary() {
     let (_work, runtime) = built();
     let text = "\
@@ -113,7 +111,6 @@ log(\"it is\", \"alpha\"); // don't
 /// unescaped partner scans to the end of its line, and the scan for openings does not skip
 /// escaped quotes, so a line of `n` escaped quotes costs `n` scans of the line.
 #[test]
-#[ignore = "defect (note): literals() is quadratic in a line of escaped quotes with no unescaped partner"]
 fn scanning_a_long_line_of_escaped_quotes_is_linear() {
     let line = format!("data = '{}';\n", "\\\"".repeat(50_000));
     let started = Instant::now();
@@ -131,7 +128,6 @@ fn scanning_a_long_line_of_escaped_quotes_is_linear() {
 /// doubling costs four times, from the path dedup in `code_names`, which compares every source
 /// with every one kept before it.
 #[test]
-#[ignore = "defect (note): code_names() is quadratic in the number of sources (path dedup)"]
 fn forty_thousand_sources_answer_in_bounded_time() {
     let (_work, runtime) = built();
     let loaded = ekr_views::load(&runtime, None).expect("the head loads");

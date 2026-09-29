@@ -7,8 +7,8 @@
     "file",
     "sqlite"
   ],
-  "total": 55,
-  "answered_floor": 55,
+  "total": 59,
+  "answered_floor": 59,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -155,7 +155,7 @@
     },
     "ekr.views/authored/code-names-reports-each-planted-name-and-no-id-or-vocabulary": {
       "file": "code-names-reports-each-planted-name-and-no-id-or-vocabulary.yaml",
-      "digest": "sha256:8d70dd308ccefbda09fd25b3d54e03dd6a44c3d47abf18e034ac85690117c6f5"
+      "digest": "sha256:176a2065bf27c8ddc666f5f9c3352516023110f977e02403fcf4282d3ceb56ee"
     },
     "ekr.views/authored/seeded-evidence-is-projected-as-retained": {
       "file": "seeded-evidence-is-projected-as-retained.yaml",

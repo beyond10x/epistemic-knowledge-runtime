@@ -1,7 +1,7 @@
 //! `story:store-reading-code-names-no-contents`: ekr.code-names/1, the store's names found as
 //! literals in a consumer's source files, held against `systems/ekr/domains/views.yaml`
 //! (`ekr.views.FindCodeNames`): what a literal is, which names are found, which are exempt — the
-//! runtime's own vocabulary and the store's ids — and the document's determinism.
+//! store's ids —, which are flagged as the runtime's own words, and the document's determinism.
 
 mod support;
 
@@ -98,20 +98,56 @@ fn declared_vocabulary() -> BTreeSet<String> {
 
 #[test]
 fn the_runtime_vocabulary_is_every_name_the_ess_domains_declare() {
-    let listed: Vec<&str> = ekr_views::RUNTIME_VOCABULARY.to_vec();
-    let mut sorted = listed.clone();
-    sorted.sort_unstable();
-    sorted.dedup();
-    assert_eq!(listed, sorted, "RUNTIME_VOCABULARY ascends with no repeat");
-    let listed: BTreeSet<String> = listed.into_iter().map(str::to_owned).collect();
+    // The crate embeds every domain file of the directory, as it stands.
+    let directory = support::workspace_root().join("systems/ekr/domains");
+    let mut on_disk: Vec<(String, String)> = std::fs::read_dir(&directory)
+        .expect("the domains directory")
+        .map(|entry| entry.expect("an entry").path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "yaml")
+        })
+        .map(|path| {
+            (
+                path.file_name().unwrap().to_string_lossy().into_owned(),
+                std::fs::read_to_string(&path).expect("a domain file"),
+            )
+        })
+        .collect();
+    on_disk.sort();
+    let embedded: Vec<(String, String)> = ekr_views::EMBEDDED_DOMAINS
+        .iter()
+        .map(|(file, text)| ((*file).to_owned(), (*text).to_owned()))
+        .collect();
+    assert_eq!(
+        embedded.iter().map(|(file, _)| file).collect::<Vec<_>>(),
+        on_disk.iter().map(|(file, _)| file).collect::<Vec<_>>(),
+        "EMBEDDED_DOMAINS names every file of systems/ekr/domains"
+    );
+    assert!(
+        embedded == on_disk,
+        "an embedded domain differs from its file"
+    );
+    // The derivation finds exactly what a walk of those files finds.
+    let listed = ekr_views::runtime_vocabulary();
     let declared = declared_vocabulary();
-    let missing: Vec<&String> = declared.difference(&listed).collect();
+    let missing: Vec<&String> = declared.difference(listed).collect();
     let extra: Vec<&String> = listed.difference(&declared).collect();
     assert!(
         missing.is_empty() && extra.is_empty(),
-        "RUNTIME_VOCABULARY is not what systems/ekr/domains declares; missing {missing:?}, \
+        "the runtime vocabulary is not what systems/ekr/domains declares; missing {missing:?}, \
          not declared {extra:?}"
     );
+    assert!(listed.len() > 500, "{}", listed.len());
+    for absent in [
+        "Subject",
+        "alpha",
+        "label",
+        "ekr.views.CodeNamesV1",
+        "found",
+    ] {
+        assert!(!listed.contains(absent), "{absent}");
+    }
     for word in [
         "name",
         "aliases",
@@ -161,6 +197,12 @@ fn a_literal_is_the_text_between_two_quotes_of_one_character_on_one_line() {
         literals("'a \"b\" c'"),
         vec![triple(1, 1, "a \"b\" c"), triple(1, 4, "b")]
     );
+    // A quote inside a literal of another kind opens nothing in the pass over all three, so the
+    // literal after it is found; the per-character passes still find theirs.
+    let found = literals("if c == '\"' { f(\"S\"); } // can't");
+    assert!(found.contains(&triple(1, 9, "\"")), "{found:?}");
+    assert!(found.contains(&triple(1, 17, "S")), "{found:?}");
+    assert!(found.contains(&triple(1, 10, "' { f(")), "{found:?}");
     // Identifiers are no literal; an empty literal is one.
     assert_eq!(literals("let Name = Name;"), Vec::new());
     assert_eq!(literals("f(\"\")"), vec![triple(1, 3, "")]);
@@ -186,7 +228,7 @@ fn document(bytes: &[u8]) -> Value {
 }
 
 /// One name of each kind on lines 1 to 4. `links` (line 2) and `weight` (line 3) are store names
-/// that are also the runtime's vocabulary, so they are exempt, not found.
+/// that are also runtime words: reported, flagged `runtime_word`.
 const PLANTED: &str = "\
 const kind = \"Subject\";
 const relation = 'links';
@@ -199,7 +241,7 @@ const near = [\"subject\", \"alpha \", \"Alpha\", \"alpha-alias\"];
 ";
 
 #[test]
-fn every_planted_name_is_found_with_its_file_and_line_and_no_id_or_vocabulary_is() {
+fn every_planted_name_is_found_with_its_file_and_line_and_runtime_words_are_flagged() {
     for provider in [Provider::File, Provider::Sqlite] {
         let (_work, runtime) = built(provider);
         let events = runtime.published_events().expect("the provider log").len();
@@ -219,12 +261,13 @@ fn every_planted_name_is_found_with_its_file_and_line_and_no_id_or_vocabulary_is
         );
         let value = document(&answer.bytes);
         let subject = uuid(0x100);
-        let finding = |line: u64, column: u64, literal: &str, names: Value| {
+        let finding = |line: u64, column: u64, literal: &str, word: bool, names: Value| {
             json!({
                 "file": "src/reader.ts",
                 "line": line,
                 "column": column,
                 "literal": literal,
+                "runtime_word": word,
                 "names": names,
             })
         };
@@ -242,14 +285,17 @@ fn every_planted_name_is_found_with_its_file_and_line_and_no_id_or_vocabulary_is
                 "revision": 0,
                 "files": 2,
                 "literals": 16,
-                "exempt": 2,
-                "findings": 4,
+                "exempt": 0,
+                "findings": 6,
+                "runtime_word_findings": 2,
             },
             "findings": [
-                finding(1, 14, "Subject", json!([{"kind": "NodeType", "id": subject}])),
-                finding(3, 12, "label", json!([{"kind": "Property", "id": uuid(0x101)}])),
-                finding(4, 6, "alpha", node_name("CanonicalName", 0x110)),
-                finding(4, 23, "beta-alias-a", node_name("Alias", 0x111)),
+                finding(1, 14, "Subject", false, json!([{"kind": "NodeType", "id": subject}])),
+                finding(2, 18, "links", true, json!([{"kind": "EdgeType", "id": uuid(0x102)}])),
+                finding(3, 12, "label", false, json!([{"kind": "Property", "id": uuid(0x101)}])),
+                finding(3, 21, "weight", true, json!([{"kind": "Property", "id": uuid(0x103)}])),
+                finding(4, 6, "alpha", false, node_name("CanonicalName", 0x110)),
+                finding(4, 23, "beta-alias-a", false, node_name("Alias", 0x111)),
             ],
         });
         assert_eq!(value, expected, "{provider:?}");
@@ -263,7 +309,7 @@ fn every_planted_name_is_found_with_its_file_and_line_and_no_id_or_vocabulary_is
                 summary.exempt,
                 summary.findings
             ),
-            (0, 2, 16, 2, 4)
+            (0, 2, 16, 0, 6)
         );
         assert_eq!(
             (
@@ -273,8 +319,9 @@ fn every_planted_name_is_found_with_its_file_and_line_and_no_id_or_vocabulary_is
                 summary.canonical_names,
                 summary.aliases
             ),
-            (1, 0, 1, 1, 1)
+            (1, 1, 2, 1, 1)
         );
+        assert_eq!(summary.runtime_word_findings, 2);
         assert_eq!(summary.first_file.as_deref(), Some("src/reader.ts"));
         assert_eq!(summary.first_line, Some(1));
         assert_eq!(
@@ -330,6 +377,7 @@ fn no_source_answers_no_finding_and_an_unknown_revision_is_refused() {
                 "literals": 0,
                 "exempt": 0,
                 "findings": 0,
+                "runtime_word_findings": 0,
             },
             "findings": [],
         })
