@@ -7,6 +7,7 @@
 pub mod batch;
 pub mod binary;
 pub mod document;
+pub mod evidence;
 pub mod read;
 pub mod reply;
 pub mod resolve;

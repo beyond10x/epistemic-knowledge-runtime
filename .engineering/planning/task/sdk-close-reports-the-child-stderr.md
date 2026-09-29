@@ -2,15 +2,16 @@
 format: aep.planning-md/3
 id: task:sdk-close-reports-the-child-stderr
 kind: task
-status: active
+status: implemented
 title: ProcessSession::close reports the child's stderr when it exits non-zero
 relations:
 - serves: vision:o5
 - decomposes: epic:consumer-sdk
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-29T20:49:27Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-09-29T20:49:28Z", actor: "human:timo", revision: 3}
+- {from: "active", to: "implemented", at: "2026-09-29T23:07:51Z", actor: "human:timo", revision: 4, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}}
 ---
 ## Context
 

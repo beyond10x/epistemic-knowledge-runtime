@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:store-reading-code-names-no-contents
 kind: story
-status: active
+status: implemented
 title: A check reports store contents named in a consumer's code
 relations:
 - serves: vision:o6
@@ -26,10 +26,11 @@ scope:
   path: systems/ekr/conformance/views-suite.json
 - confidence: inferred
   path: systems/ekr/domains/views.yaml
-revision: 6
+revision: 7
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-29T20:35:57Z", actor: "human:timo", revision: 5}
 - {from: "proposed", to: "active", at: "2026-09-29T20:35:57Z", actor: "human:timo", revision: 6}
+- {from: "active", to: "implemented", at: "2026-09-29T23:07:50Z", actor: "human:timo", revision: 7, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}}
 ---
 ## Context
 
