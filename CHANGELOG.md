@@ -4,6 +4,11 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.21] — 2026-09-30
+
+A store's quality, its rejections and the store names a consumer's code quotes are reads; the SDK's
+`close()` reports why a session failed at its end.
+
 ### Added
 
 - **`ekr code-names <file>...` reports the store's names a consumer's code quotes**
