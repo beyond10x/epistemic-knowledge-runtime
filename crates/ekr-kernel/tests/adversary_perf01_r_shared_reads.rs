@@ -72,7 +72,7 @@ fn fixture() -> SeedDocument {
     };
     seed.graph.nodes.insert(node.id, node);
     seed.graph.evidence.insert(evidence.id, evidence);
-    seed.evidence_payloads.insert(hash, bytes);
+    seed.evidence_payloads.insert(hash, bytes.into());
     seed
 }
 fn subject(seed: &SeedDocument) -> TypeId {

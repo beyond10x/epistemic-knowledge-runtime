@@ -1,6 +1,5 @@
 //! Kernel-owned immutable read captures; projection consumers receive no storage authority.
 use crate::replay::AliasCell;
-use crate::seed::{RetainedSeedInput, SeedEnvelope, SeedPayloads};
 use crate::{
     AuthorityStateV1, BootstrapContext, Commit, CommitError, SeedDocument, SeedResultV1,
     TransactionRecord,
@@ -8,7 +7,7 @@ use crate::{
 use ekr_core::{ContentHash, EventId, RevisionId, RevisionNumber, Timestamp, TransactionId};
 use ekr_graph::{AliasIndex, CanonicalGraph, Root};
 use ekr_ontology::Ontology;
-use ekr_store::{ObjectStore, RetainedHistory, RetainedObject, RevisionLog, StorageClass};
+use ekr_store::{ObjectStore, RevisionLog};
 use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -39,7 +38,8 @@ pub struct VerifiedRead {
     pub root: Root,
     /// Actual original seed result, even after later head advancement.
     pub seed: SeedResultV1,
-    /// Original admitted seed input, including complete ontology and evidence declarations.
+    /// Original admitted seed input, including complete ontology and evidence declarations,
+    /// shared with every other read of the same runtime rather than copied into each.
     pub seed_input: Arc<SeedDocument>,
     /// Actual retained bootstrap identities checked against the host at this same boundary.
     pub context: BootstrapContext,
@@ -49,7 +49,7 @@ pub struct VerifiedRead {
     pub revisions: BTreeMap<RevisionNumber, VerifiedRevision>,
     /// Actual retained transaction decisions through this boundary.
     pub transactions: Arc<BTreeMap<TransactionId, TransactionRecord>>,
-    objects: BTreeMap<ContentHash, RetainedObject>,
+    objects: BTreeMap<ContentHash, Arc<Vec<u8>>>,
     /// The verified graph as the kernel admitted it, and the cell its [`AliasIndex`] is kept in.
     /// Holding the graph here keeps [`Arc::make_mut`] on [`Self::graph`] from changing it in place.
     indexed: (Arc<CanonicalGraph>, AliasCell),
@@ -58,7 +58,7 @@ impl VerifiedRead {
     /// Already verified retained bytes, with no provider access or new history observation.
     #[must_use]
     pub fn content(&self, hash: &ContentHash) -> Option<&[u8]> {
-        self.objects.get(hash).map(|object| &object.bytes[..])
+        self.objects.get(hash).map(|bytes| bytes.as_slice())
     }
     /// The [`AliasIndex`] of [`Self::graph`]. For the graph the kernel admitted it is built once
     /// per revision and shared by every read of that revision; for a graph this capture's owner
@@ -220,7 +220,9 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         let envelope = self
             .authority
             .seed_envelope(&history, state.seed.seed_hash)?;
-        let seed_input = self.seed_input(&history, state.seed.seed_hash, &envelope)?;
+        let seed_input = self
+            .authority
+            .seed_document(&history, state.seed.seed_hash, &envelope)?;
         let head = state.head();
         // Only the head read shares the one kept cell; a historical read indexes its own graph.
         let aliases = match (revision, self.authority.cache.lock()) {
@@ -256,53 +258,12 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                     )
                 })
                 .collect(),
-            objects: history.objects,
+            objects: history
+                .objects
+                .into_iter()
+                .map(|(hash, object)| (hash, object.bytes))
+                .collect(),
             indexed: (graph, aliases),
         })
-    }
-    /// The complete seed input `envelope` retains, its named payloads read from `history`.
-    ///
-    /// The input is a function of the envelope's address and of the payload addresses it names,
-    /// and `history` came from the store, which checked every object it loaded against its
-    /// address. So the input this authority already rebuilt for the same envelope is the one a
-    /// rebuild would give, whenever `history` holds each named payload as the rebuild requires.
-    /// When it does not, the rebuild runs and refuses exactly as it always has.
-    fn seed_input(
-        &self,
-        history: &RetainedHistory,
-        seed_hash: ContentHash,
-        envelope: &SeedEnvelope,
-    ) -> Result<Arc<SeedDocument>, CommitError> {
-        let held = self.authority.cache.lock().ok().and_then(|cache| {
-            cache
-                .seed_input
-                .as_ref()
-                .filter(|(hash, _)| *hash == seed_hash)
-                .map(|(_, input)| Arc::clone(input))
-        });
-        if let Some(input) = held.filter(|_| payloads_held(&envelope.input, history)) {
-            return Ok(input);
-        }
-        let input = Arc::new(envelope.input.document(history)?);
-        if let Ok(mut cache) = self.authority.cache.lock() {
-            cache.seed_input = Some((seed_hash, Arc::clone(&input)));
-        }
-        Ok(input)
-    }
-}
-/// Whether `history` holds every payload `input` names, as [`RetainedSeedInput::document`] reads
-/// it: an object at that address, of that length, retained at least at Provenance strength. A
-/// carried payload is part of the envelope and reads nothing from `history`.
-fn payloads_held(input: &RetainedSeedInput, history: &RetainedHistory) -> bool {
-    match &input.payloads {
-        SeedPayloads::Carried(_) => true,
-        SeedPayloads::Named(keys) => keys.iter().all(|hash| {
-            history.objects.get(hash).is_some_and(|held| {
-                held.metadata.content_hash == *hash
-                    && held.metadata.byte_len == held.bytes.len() as u64
-                    && held.metadata.storage_class.retention_rank()
-                        >= StorageClass::Provenance.retention_rank()
-            })
-        }),
     }
 }

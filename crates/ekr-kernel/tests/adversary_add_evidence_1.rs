@@ -98,7 +98,7 @@ fn seeded() -> Seeded {
         .insert(seeded_evidence.id, seeded_evidence.clone());
     document
         .evidence_payloads
-        .insert(seeded_evidence.content_hash, bytes.clone());
+        .insert(seeded_evidence.content_hash, bytes.clone().into());
     Seeded {
         document,
         node: node.id,
@@ -915,7 +915,7 @@ fn cold_open_time_by_number_of_add_evidence_commits() {
                             .insert(evidence.id, evidence.clone());
                         seed.document
                             .evidence_payloads
-                            .insert(evidence.content_hash, payload);
+                            .insert(evidence.content_hash, payload.into());
                     }
                 }
                 let runtime = open(directory.path(), file);

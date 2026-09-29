@@ -92,7 +92,7 @@ pub fn seed_fixture() -> SeedDocument {
     seed.graph.nodes.insert(node.id, node);
     seed.graph.assertions.insert(assertion.id, assertion);
     seed.graph.evidence.insert(evidence.id, evidence);
-    seed.evidence_payloads.insert(hash, bytes);
+    seed.evidence_payloads.insert(hash, bytes.into());
     seed
 }
 /// A transaction the deterministic validators accept against the seed, or refuse by type.

@@ -148,7 +148,7 @@ fn world() -> World {
     let assertion_id = assertion.id;
     seed.graph.assertions.insert(assertion.id, assertion);
     seed.graph.evidence.insert(evidence.id, evidence.clone());
-    seed.evidence_payloads.insert(hash, bytes);
+    seed.evidence_payloads.insert(hash, bytes.into());
     World {
         seed,
         node_type,

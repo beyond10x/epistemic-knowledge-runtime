@@ -129,7 +129,7 @@ fn seeded() -> Seeded {
         .graph
         .evidence
         .insert(evidence.id, evidence.clone());
-    document.evidence_payloads.insert(hash, bytes);
+    document.evidence_payloads.insert(hash, bytes.into());
     Seeded {
         document,
         subject_type,

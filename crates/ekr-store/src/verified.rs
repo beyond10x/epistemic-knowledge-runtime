@@ -12,6 +12,10 @@
 //! the SHA-256 is saved, and a comparison costs a small fraction of it. Bytes that differ in any
 //! position or in length are hashed in full, exactly as before.
 //!
+//! The registered copy is also the one every history a handle returns holds, so the usual case is
+//! cheaper still: bytes that are the registered allocation itself are neither compared nor hashed
+//! ([`addresses`]).
+//!
 //! The registry holds no bytes of its own. Its entries are weak references to the verified copies
 //! store handles keep ([`register`]), so it holds bytes only while a handle does, and nothing
 //! outlives the process.
@@ -35,15 +39,27 @@ struct Registry {
     prune_at: usize,
 }
 
-/// Whether `bytes` are the payload `hash` addresses: compared with bytes this process already
-/// hashed to `hash` when it holds some, and hashed otherwise.
+/// Whether `bytes` are the payload `hash` addresses: the registered copy itself when they are its
+/// allocation, compared with it when this process holds one elsewhere, and hashed otherwise.
+///
+/// The first answer needs no look at the bytes. A registered copy is only reached through a live
+/// strong reference, and bytes behind one cannot change: `Arc::get_mut` refuses while the
+/// registry's weak reference exists, and `Arc::make_mut` either copies them elsewhere or, when
+/// only weak references are left, detaches them from the registry first, after which its entry
+/// no longer upgrades. So bytes starting where the registered copy starts, of its length, are it.
 pub(crate) fn addresses(hash: ContentHash, bytes: &[u8]) -> bool {
     let known = REGISTRY
         .lock()
         .ok()
         .and_then(|registry| registry.by_hash.get(&hash).and_then(Weak::upgrade));
-    if known.is_some_and(|known| known.as_slice() == bytes) {
-        return true;
+    if let Some(known) = known {
+        if std::ptr::eq(known.as_ptr(), bytes.as_ptr()) && known.len() == bytes.len() {
+            return true;
+        }
+        count(|work| work.bytes_compared += bytes.len() as u64);
+        if known.as_slice() == bytes {
+            return true;
+        }
     }
     count(|work| work.blobs_hashed += 1);
     ContentHash::of_bytes(bytes) == hash
@@ -56,15 +72,16 @@ pub(crate) fn addresses(hash: ContentHash, bytes: &[u8]) -> bool {
 /// `crate::eventlog` does so for every object it passes here, through the one function that checks
 /// a loaded blob. A live copy is verified for the same address, so the caller keeps it in place of
 /// its own: one copy per process, and each handle keeps the registered one alive for as long as it
-/// holds the object, whichever handle registered it.
-pub(crate) fn register(hash: ContentHash, bytes: &[u8]) -> Arc<Vec<u8>> {
+/// holds the object, whichever handle registered it. Nothing is copied: `bytes` are registered as
+/// they are, and the registry's weak reference holds none of them once no handle does.
+pub(crate) fn register(hash: ContentHash, bytes: Arc<Vec<u8>>) -> Arc<Vec<u8>> {
     let Ok(mut registry) = REGISTRY.lock() else {
-        return Arc::new(bytes.to_vec());
+        return bytes;
     };
     if let Some(live) = registry.by_hash.get(&hash).and_then(Weak::upgrade) {
         return live;
     }
-    let held = Arc::new(bytes.to_vec());
+    let held = bytes;
     registry.by_hash.insert(hash, Arc::downgrade(&held));
     if registry.by_hash.len() >= registry.prune_at {
         registry.by_hash.retain(|_, held| held.strong_count() > 0);
@@ -89,6 +106,9 @@ pub struct ReadWork {
     /// one held occurrence each read fetches again, to confirm the provider still has it, is not
     /// counted.
     pub occurrences_read: u64,
+    /// Bytes compared in full with a registered verified copy in place of hashing them: bytes a
+    /// caller holds in an allocation of their own, not the registered one.
+    pub bytes_compared: u64,
 }
 
 thread_local! {
@@ -96,6 +116,7 @@ thread_local! {
         blobs_read: 0,
         blobs_hashed: 0,
         occurrences_read: 0,
+        bytes_compared: 0,
     }) };
 }
 
@@ -165,18 +186,31 @@ mod registry {
         assert!(addresses(hash, &bytes));
         assert_eq!(read_work().blobs_hashed, 1, "unregistered bytes are hashed");
 
-        let held = register(hash, &bytes);
-        let again = register(hash, &bytes);
+        let held = register(hash, Arc::new(bytes.clone()));
+        let again = register(hash, Arc::new(bytes.clone()));
         assert!(
             Arc::ptr_eq(&held, &again),
             "a live copy is shared, not duplicated"
         );
         drop(again);
         assert!(addresses(hash, &bytes));
+        let work = read_work();
+        assert_eq!(
+            (work.blobs_hashed, work.bytes_compared),
+            (0, bytes.len() as u64),
+            "equal registered bytes in another allocation are compared"
+        );
+        assert!(addresses(hash, &held));
+        assert_eq!(
+            read_work(),
+            super::ReadWork::default(),
+            "the registered allocation itself is neither compared nor hashed"
+        );
+        assert!(!addresses(hash, &held[..held.len() - 1]));
         assert_eq!(
             read_work().blobs_hashed,
-            0,
-            "equal registered bytes are compared"
+            1,
+            "a shorter slice of the registered allocation is not it"
         );
 
         let mut changed = bytes.clone();
@@ -197,5 +231,27 @@ mod registry {
             1,
             "bytes no handle keeps any more are hashed again"
         );
+    }
+
+    /// Bytes changed in place through their sole strong reference are detached from the registry
+    /// first, so their unchanged address no longer vouches for them.
+    #[test]
+    fn bytes_changed_in_place_are_hashed_again() {
+        let bytes = b"verified-registry payload changed in place".to_vec();
+        let hash = ContentHash::of_bytes(&bytes);
+        let mut held = register(hash, Arc::new(bytes));
+        let before = held.as_ptr();
+        let _ = read_work();
+        assert!(addresses(hash, &held));
+        assert_eq!(read_work().blobs_hashed, 0);
+
+        Arc::make_mut(&mut held)[4] ^= 1;
+        assert_eq!(
+            held.as_ptr(),
+            before,
+            "the buffer was changed where it lies"
+        );
+        assert!(!addresses(hash, &held));
+        assert_eq!(read_work().blobs_hashed, 1, "changed bytes are hashed");
     }
 }

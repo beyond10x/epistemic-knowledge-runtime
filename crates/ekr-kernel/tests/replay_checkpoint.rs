@@ -105,7 +105,7 @@ fn seed() -> SeedDocument {
         confidence: Confidence::from_basis_points(10000).unwrap(),
     };
     seed.graph.evidence.insert(evidence.id, evidence);
-    seed.evidence_payloads.insert(hash, bytes);
+    seed.evidence_payloads.insert(hash, bytes.into());
     seed
 }
 /// `nodes` new nodes filed under `root`, each with one evidenced assertion.

@@ -75,7 +75,7 @@ fn further_seed_inputs_move_exactly_the_sub_roots_they_feed_on_both_providers() 
                 let other = b"a different synthetic statement".to_vec();
                 let hash = ContentHash::of_bytes(&other);
                 s.evidence_payloads.clear();
-                s.evidence_payloads.insert(hash, other);
+                s.evidence_payloads.insert(hash, other.into());
                 s.graph.evidence.get_mut(&evidence).unwrap().content_hash = hash;
             }),
         ),

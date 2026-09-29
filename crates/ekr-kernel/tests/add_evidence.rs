@@ -85,7 +85,7 @@ fn seeded() -> Seeded {
         .insert(seeded_evidence.id, seeded_evidence.clone());
     document
         .evidence_payloads
-        .insert(seeded_evidence.content_hash, bytes);
+        .insert(seeded_evidence.content_hash, bytes.into());
     Seeded {
         document,
         node: node.id,

@@ -100,7 +100,7 @@ fn heavy_seed() -> (SeedDocument, Vec<Vec<u8>>) {
         document.graph.evidence.insert(evidence.id, evidence);
         document
             .evidence_payloads
-            .insert(ContentHash::of_bytes(&payload), payload.clone());
+            .insert(ContentHash::of_bytes(&payload), payload.clone().into());
         payloads.push(payload);
     }
     (document, payloads)

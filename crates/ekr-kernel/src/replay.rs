@@ -227,10 +227,6 @@ pub(crate) struct ReplayCache {
     /// address. It is a function of that address, so every path that verified the retained bytes
     /// at the same address takes it instead of decoding them again.
     pub(crate) envelope: Option<(ContentHash, Arc<crate::seed::SeedEnvelope>)>,
-    /// The complete seed input a read rebuilt from that envelope and the verified payload bytes
-    /// it names, by the envelope's address: a function of that address and of payload addresses,
-    /// so a read of a history holding the same payloads shares it instead of rebuilding it.
-    pub(crate) seed_input: Option<(ContentHash, Arc<crate::SeedDocument>)>,
     /// The cell holding the [`AliasIndex`] of the newest head a read captured, by that head's
     /// revision identity and root. One slot: a read of a newer head replaces it, so this
     /// authority keeps the index of no head but the current one.

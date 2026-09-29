@@ -89,7 +89,8 @@ fn fixture() -> Seeded {
         };
         evidence_ids.push(evidence.id);
         seed.graph.evidence.insert(evidence.id, evidence);
-        seed.evidence_payloads.insert(hash, statement.to_vec());
+        seed.evidence_payloads
+            .insert(hash, statement.to_vec().into());
     }
     let assertion = Assertion {
         id: AssertionId::mint(),

@@ -188,7 +188,7 @@ fn seeded() -> Seeded {
     document.graph.nodes.insert(node.id, node);
     document.graph.assertions.insert(assertion.id, assertion);
     document.graph.evidence.insert(evidence.id, evidence);
-    document.evidence_payloads.insert(hash, bytes);
+    document.evidence_payloads.insert(hash, bytes.into());
     Seeded {
         document,
         subject_type,

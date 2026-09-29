@@ -123,7 +123,7 @@ impl Fixture {
             graph: self.graph.clone(),
             evidence_payloads: [(
                 ContentHash::of_bytes(&self.statement),
-                self.statement.clone(),
+                self.statement.clone().into(),
             )]
             .into_iter()
             .collect(),
@@ -534,12 +534,7 @@ fn seed_support_checks_missing_uncited_and_unsupported_evidence() {
     missing.evidence_payloads.clear();
     refuses(&f, &missing, "seed-evidence-payload-missing");
     let mut mismatched = f.document();
-    mismatched
-        .evidence_payloads
-        .values_mut()
-        .next()
-        .unwrap()
-        .push(0);
+    std::sync::Arc::make_mut(mismatched.evidence_payloads.values_mut().next().unwrap()).push(0);
     refuses(&f, &mismatched, "seed-evidence-payload-mismatch");
     let mut uncited = f.document();
     uncited.graph.assertions.clear();
@@ -589,7 +584,7 @@ fn a_payload_mismatch_names_the_expected_and_the_found_content_hash() {
     let f = Fixture::new();
     let mut cited = f.document();
     let (&found, payload) = cited.evidence_payloads.iter_mut().next().unwrap();
-    payload.push(0);
+    std::sync::Arc::make_mut(payload).push(0);
     let expected = ContentHash::of_bytes(payload);
     assert_ne!(expected, found);
     for needle in [
@@ -605,7 +600,7 @@ fn a_payload_mismatch_names_the_expected_and_the_found_content_hash() {
     let expected = ContentHash::of_bytes(b"retained bytes");
     uncited
         .evidence_payloads
-        .insert(found, b"retained bytes".to_vec());
+        .insert(found, b"retained bytes".to_vec().into());
     for needle in [
         "seed-evidence-payload-mismatch".to_owned(),
         format!("expected {expected}"),
@@ -949,12 +944,7 @@ fn concurrent_independent_handles_publish_exactly_one_seed_and_no_losing_object(
 fn legacy_and_tampered_seed_envelopes_are_preserved_but_never_admitted() {
     let f = Fixture::new();
     let mut tampered = f.document();
-    tampered
-        .evidence_payloads
-        .values_mut()
-        .next()
-        .unwrap()
-        .push(0);
+    std::sync::Arc::make_mut(tampered.evidence_payloads.values_mut().next().unwrap()).push(0);
     let mut transient = f.document();
     transient.graph.root.space = Space::Transient;
     let mut other_schema = f.document();
