@@ -13,9 +13,11 @@
 //! store it creates at `--to` to `Runtime::migrate_into`.
 //! `session` opens the store once and runs each request line through the same dispatch as the
 //! one-shot verbs (`session.rs`), against the runtime it holds; on a path holding no store it
-//! starts without one, and with `--create` its `seed` creates the store it then holds. `mcp`
-//! opens the store once and answers MCP tool calls with the `ekr.views` reads, the head and the
-//! `explain` and `resolve` verbs' documents (`mcp.rs`); it writes nothing. `session`, `mcp` and
+//! starts without one, and with `--create` its `seed` creates the store it then holds. It also
+//! serves the `ekr.views` reads as verbs of its own — `overview`, `search`, `describe`, `expand`,
+//! `timeline` and `changes` (`session/views.rs`). `mcp` opens the store once and answers MCP
+//! tool calls with the `ekr.views` reads, the head and the `explain` and `resolve` verbs'
+//! documents (`mcp.rs`); it writes nothing. `session`, `mcp` and
 //! `view` open the store again when the one at the path is no longer the one they opened
 //! (`session.rs`).
 
@@ -276,9 +278,12 @@ pub enum Command {
     /// once. A request is `{"argv": ["resolve", "reference.yaml"]}`: a verb and its arguments as
     /// `ekr` takes them, with an optional `"stdin"` text that `-` reads. Its answer is
     /// `{"exit": <status>, "stdout": <the verb's JSON document, or null>, "stderr": <its message,
-    /// or "">}`, what the verb exits with and prints. On a --store holding no store yet the
-    /// session starts anyway: `mint`, `hash` and `schema` are served, and a store verb answers
-    /// `store-not-found` until a seed creates the store. `seed` is served with --create only;
+    /// or "">}`, what the verb exits with and prints. It also serves the `ekr.views` reads, which
+    /// `ekr` has no one-shot verb for: `overview`, `search`, `describe`, `expand`, `timeline` and
+    /// `changes`, each answering the document `ekr view` serves for the same query (docs/cli.md,
+    /// `ekr session`). On a --store holding no store yet the session starts anyway: `mint`,
+    /// `hash` and `schema` are served, and a store verb answers `store-not-found` until a seed
+    /// creates the store. `seed` is served with --create only;
     /// `view`, `session`, `mcp`, `migrate`, `guide`, `operations` and `example` are refused
     /// (`session-verb-refused`), and so are --host/--store/--backend/--full-replay in a request
     /// (`session-option-refused`).

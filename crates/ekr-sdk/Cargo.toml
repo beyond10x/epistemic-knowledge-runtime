@@ -17,7 +17,10 @@ thiserror.workspace = true
 
 [dev-dependencies]
 ekr = { path = "../ekr" }
+ekr-graph.workspace = true
 ekr-kernel.workspace = true
+ekr-ontology.workspace = true
+ekr-views.workspace = true
 jsonschema = { version = "0.58", default-features = false }
 signal-hook = "0.3"
 toml = "1"

@@ -449,7 +449,10 @@ version = "0.0.19"
 dependencies = [
  "ekr",
  "ekr-core",
+ "ekr-graph",
  "ekr-kernel",
+ "ekr-ontology",
+ "ekr-views",
  "jsonschema",
  "serde",
  "serde_json",
