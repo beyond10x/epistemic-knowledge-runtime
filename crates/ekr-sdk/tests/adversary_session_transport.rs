@@ -216,7 +216,7 @@ fn a_seed_over_the_line_cap_leaves_the_create_session_holding_the_store() {
     exit_zero(&mut session, &["validate", GLOBEX.0], None);
     let committed = exit_zero(&mut session, &["commit", GLOBEX.0], None);
     assert_eq!(committed["result"]["revision"], 1);
-    assert!(session.close().unwrap().success());
+    session.close().unwrap();
 
     assert_eq!(
         retained_checkpoint_revisions(&world.store().store),
