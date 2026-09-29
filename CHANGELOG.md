@@ -4,6 +4,11 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.20] — 2026-09-29
+
+The SDK resolves through a cache, commits in bisected batches and types the views reads, which
+`ekr session` now serves; it retries starting a binary that is busy being written.
+
 ### Added
 
 - **`ekr-sdk` resolves through a cache and commits in bisected batches** (`docs/sdk.md`,
