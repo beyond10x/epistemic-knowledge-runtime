@@ -19,6 +19,8 @@ pub struct KernelAuthority {
     pub(crate) cache: std::sync::Arc<std::sync::Mutex<crate::replay::ReplayCache>>,
 }
 impl CommitAuthority for KernelAuthority {
+    /// The seed envelope's evidence payloads, and the payload of every evidence entry a committed
+    /// `AddEvidence` brought: what a verified read, `explain` and replay read by content hash.
     fn required_objects(
         &self,
         history: &RetainedHistory,
@@ -29,21 +31,31 @@ impl CommitAuthority for KernelAuthority {
         let RevisionPayload::Seeded { seed_hash, .. } = first.event.payload else {
             return Err(StoreError::NotSeeded);
         };
-        // The seed envelope is content-addressed, so its admission and the payloads it names are
-        // a function of `seed_hash`: admitted once, they are not admitted again by this authority.
-        if let Some(required) = self.seed_requirements(seed_hash)? {
-            return Ok(required);
-        }
-        let envelope = self.seed_envelope(history, seed_hash)?;
-        seed::admitted_graph(&envelope.input, envelope.context, envelope.committed_at)
-            .map_err(|error| StoreError::InvalidSeed(error.to_string()))?;
-        let required: BTreeSet<ContentHash> =
-            envelope.input.evidence_payloads.keys().copied().collect();
-        self.cache
-            .lock()
-            .map_err(|_| StoreError::Document("replay-cache-poisoned".into()))?
-            .seed = Some((seed_hash, required.clone()));
+        // An `ekr-seed-envelope/2` requires the payloads it carries; an `/3` requires none and
+        // reads the ones it names where held (`objects_if_held`), judging an absent one itself.
+        let (payloads, named) = self.seed_payloads(history, seed_hash)?;
+        let mut required = if named { BTreeSet::new() } else { payloads };
+        required.extend(self.added_evidence_required(history)?);
         Ok(required)
+    }
+    fn objects_if_held(
+        &self,
+        history: &RetainedHistory,
+    ) -> Result<BTreeSet<ContentHash>, StoreError> {
+        let Some(first) = history.occurrences.first() else {
+            return Ok(BTreeSet::new());
+        };
+        let RevisionPayload::Seeded { seed_hash, .. } = first.event.payload else {
+            return Err(StoreError::NotSeeded);
+        };
+        let (payloads, named) = self.seed_payloads(history, seed_hash)?;
+        let mut wanted = if named { payloads } else { BTreeSet::new() };
+        // Until this authority has seen the store settled, the markers of a preserving migration
+        // (design § 100.3) are read where held, so an unfinished one is refused by name.
+        if !self.cache()?.migration_settled {
+            wanted.extend(crate::migrate::markers());
+        }
+        Ok(wanted)
     }
     fn replay(
         &self,
@@ -95,7 +107,74 @@ impl CommitAuthority for KernelAuthority {
     }
 }
 impl KernelAuthority {
-    fn cache(&self) -> Result<std::sync::MutexGuard<'_, crate::replay::ReplayCache>, StoreError> {
+    /// The content hash of every evidence entry a committed `AddEvidence` of `history` brought,
+    /// whose payload the commit published as a Provenance object.
+    ///
+    /// Retained evidence is never removed, so a state this authority already reached over a
+    /// prefix of `history` — replayed, or restored from a checkpoint whose head graph the
+    /// head's recorded evidence root binds — names every one before it in its head graph's
+    /// evidence. Only the commits after that prefix are read: each retained receipt's proposal
+    /// document, parsed for its `AddEvidence` operations. A receipt or document that does not
+    /// read contributes nothing here; replay refuses it by its own name.
+    fn added_evidence_required(
+        &self,
+        history: &RetainedHistory,
+    ) -> Result<BTreeSet<ContentHash>, StoreError> {
+        if history.occurrences.is_empty() {
+            return Ok(BTreeSet::new());
+        }
+        let digests = crate::replay::prefix_digests(&history.occurrences);
+        let reached = self.cache()?.longest(&digests);
+        let (start, mut required) = match reached
+            .as_ref()
+            .and_then(|(covered, state)| Some((*covered, state.head().graph.as_deref()?)))
+        {
+            Some((covered, graph)) => (
+                covered,
+                graph
+                    .evidence
+                    .values()
+                    .map(|evidence| evidence.content_hash)
+                    .collect(),
+            ),
+            None => (0, BTreeSet::new()),
+        };
+        for occurrence in history.occurrences.iter().skip(start) {
+            if !matches!(
+                occurrence.event.payload,
+                RevisionPayload::RevisionCommitted { .. }
+            ) {
+                continue;
+            }
+            let Ok(bytes) = history.content(occurrence.event.record_hash, StorageClass::Canonical)
+            else {
+                continue;
+            };
+            let Ok(receipt) = crate::CommitReceiptV1::from_bytes(bytes) else {
+                continue;
+            };
+            let Ok(document) = crate::TransactionDocument::parse(&receipt.proposal.document_bytes)
+            else {
+                continue;
+            };
+            required.extend(
+                document
+                    .transaction()
+                    .operations
+                    .iter()
+                    .filter_map(|operation| match operation {
+                        crate::GraphOperation::AddEvidence(addition) => {
+                            Some(addition.evidence.content_hash)
+                        }
+                        _ => None,
+                    }),
+            );
+        }
+        Ok(required)
+    }
+    pub(crate) fn cache(
+        &self,
+    ) -> Result<std::sync::MutexGuard<'_, crate::replay::ReplayCache>, StoreError> {
         self.cache
             .lock()
             .map_err(|_| StoreError::Document("replay-cache-poisoned".into()))
@@ -133,18 +212,31 @@ impl KernelAuthority {
         cache.envelope = Some((seed_hash, Arc::clone(&envelope)));
         Ok(envelope)
     }
-    fn seed_requirements(
+    /// The evidence payloads the seed envelope at `seed_hash` holds, and whether it names them
+    /// rather than carrying them. The envelope is content-addressed, so its admission and its
+    /// payloads are a function of `seed_hash`: admitted once, they are not admitted again by this
+    /// authority.
+    fn seed_payloads(
         &self,
+        history: &RetainedHistory,
         seed_hash: ContentHash,
-    ) -> Result<Option<BTreeSet<ContentHash>>, StoreError> {
-        Ok(self
-            .cache
-            .lock()
-            .map_err(|_| StoreError::Document("replay-cache-poisoned".into()))?
+    ) -> Result<(BTreeSet<ContentHash>, bool), StoreError> {
+        if let Some(known) = self
+            .cache()?
             .seed
             .as_ref()
-            .filter(|(admitted, _)| *admitted == seed_hash)
-            .map(|(_, required)| required.clone()))
+            .filter(|(admitted, _, _)| *admitted == seed_hash)
+            .map(|(_, payloads, named)| (payloads.clone(), *named))
+        {
+            return Ok(known);
+        }
+        let envelope = self.seed_envelope(history, seed_hash)?;
+        seed::admitted_retained(&envelope)
+            .map_err(|error| StoreError::InvalidSeed(error.to_string()))?;
+        let payloads = envelope.input.payload_keys();
+        let named = matches!(envelope.input.payloads, seed::SeedPayloads::Named(_));
+        self.cache()?.seed = Some((seed_hash, payloads.clone(), named));
+        Ok((payloads, named))
     }
     pub(crate) fn seed_state(
         &self,
@@ -168,14 +260,25 @@ impl KernelAuthority {
         // Every replay from the seed admits the seed input in full and compares every retained
         // payload with the envelope's; only the decode of the envelope's bytes is shared.
         let envelope = self.seed_envelope(history, seed_hash)?;
-        let graph = seed::replay(&envelope, ontology, self.context, &self.anchor)?;
-        for (hash, original) in &envelope.input.evidence_payloads {
-            if history.content(*hash, StorageClass::Provenance)? != original {
-                return Err(StoreError::InvalidSeed(
-                    "seed-evidence-payload-mismatch".into(),
-                ));
+        // A carried payload is admitted from the envelope's bytes, and its retained object must
+        // then be exactly those bytes; a named payload is admitted from its retained object, and
+        // one the store holds no object for is refused by name.
+        let graph = match &envelope.input.payloads {
+            seed::SeedPayloads::Carried(carried) => {
+                let carried = carried
+                    .iter()
+                    .map(|(hash, bytes)| (*hash, bytes.as_slice()))
+                    .collect();
+                let graph =
+                    seed::replay(&envelope, &carried, ontology, self.context, &self.anchor)?;
+                envelope.payload_bytes(history)?;
+                graph
             }
-        }
+            seed::SeedPayloads::Named(_) => {
+                let payloads = envelope.payload_bytes(history)?;
+                seed::replay(&envelope, &payloads, ontology, self.context, &self.anchor)?
+            }
+        };
         let record = SeedResultV1::from_bytes(
             history.content(first.event.record_hash, StorageClass::Canonical)?,
         )?;
@@ -198,7 +301,7 @@ impl KernelAuthority {
             record_hash: first.event.record_hash,
             committed_at: record.committed_at,
         };
-        let payloads = envelope.input.evidence_payloads.keys().copied().collect();
+        let payloads = envelope.input.payload_keys();
         Ok(Some((result, payloads)))
     }
 }
@@ -323,7 +426,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             return Err(StoreError::NotSeeded.into());
         };
         let envelope = self.authority.seed_envelope(&history, seed_hash)?;
-        if envelope.input != *document
+        if !envelope.input.holds(document)
             || envelope.context != self.authority.context
             || envelope.authority != self.authority.anchor
         {
@@ -370,14 +473,16 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
         }
         let committed_at = now();
         let graph = seed::admitted_graph(&document, self.authority.context, committed_at)?;
+        // `ekr-seed-envelope/3` (design § 100.1): the input with its evidence payloads named. The
+        // payloads are retained once, as the Provenance objects published beside it.
         let envelope = SeedEnvelope {
             format: seed::ENVELOPE_FORMAT.into(),
-            input: document.clone(),
+            input: seed::RetainedSeedInput::naming(&document),
             context: self.authority.context,
             authority: self.authority.anchor.clone(),
             committed_at,
         };
-        let bytes = serde_json::to_vec(&envelope).map_err(|e| SeedError::Invalid(e.to_string()))?;
+        let bytes = envelope.to_bytes()?;
         let seed_hash = ContentHash::of_bytes(&bytes);
         // Nothing is held for `seed_hash` here: the replay that admits the publication decodes
         // the staged bytes themselves (invariant 1), and only that decode is then held.
@@ -411,11 +516,11 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
                 bytes: record_bytes,
             },
         );
-        for (hash, payload) in document.evidence_payloads {
-            objects.entry(hash).or_insert(PublicationObject {
+        for (hash, payload) in &document.evidence_payloads {
+            objects.entry(*hash).or_insert_with(|| PublicationObject {
                 storage_class: StorageClass::Provenance,
                 stored_at: committed_at,
-                bytes: payload,
+                bytes: payload.clone(),
             });
         }
         let publication = Publication {
@@ -432,7 +537,7 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
             expected_version: 0,
         };
         let selected = bootstrap_slot(self.store.prepare(&key, input, &publication, None))?;
-        self.finish_seed(selected, &envelope.input)
+        self.finish_seed(selected, &document)
     }
     fn finish_seed(
         &self,

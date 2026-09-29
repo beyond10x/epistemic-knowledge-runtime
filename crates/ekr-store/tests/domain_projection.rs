@@ -534,8 +534,15 @@ const BINDINGS: &[(&str, Carrier)] = &[
         Carrier::Whole("NativePublicationRequest"),
     ),
     (
+        "ekr.store.StagedPublicationObject",
+        Carrier::Whole("StagedPublicationObject"),
+    ),
+    (
         "ekr.store.PublicationPreparationFormatV1",
-        Carrier::Constants("PublicationPreparationV1", &["FORMAT_V1", "FORMAT"]),
+        Carrier::Constants(
+            "PublicationPreparationV1",
+            &["FORMAT_V1", "FORMAT", "FORMAT_V3"],
+        ),
     ),
     (
         "ekr.store.PublicationPreparationV1",

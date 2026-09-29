@@ -4662,3 +4662,137 @@ alike and the newest checkpoint is within the bound — crash-like pointer state
 `crates/ekr-store/tests/authority_verify.rs` holds `replay_root`'s default and that a head no
 pointer answers asks for the root alone; `crates/ekr-store/tests/checkpoint_pointer.rs`'s
 `a_write_says_whether_its_pointer_stands` holds what `write_checkpoint` answers.
+
+---
+
+# 100. Seed Envelope 3: Evidence Payloads Retained Once
+
+*Added 2026-09-29 by `story:seed-envelope-v3-references-payloads`, with the remaining scope of
+`task:object-payloads-belong-in-provider-blobs`. Extends §§ 89, 90, 91.2, 91.6 and 94.2. It adds
+one seed envelope format, one private preparation format and the preserving migration; it changes
+no canonical root other than the seed's own `transaction` address, no validation rule and no
+refusal a `/2` store gives. Every retained `/2` envelope and `/1`–`/2` preparation is still read
+and replayed exactly as before.*
+
+**What was measured.** A seed carrying 10 MiB of evidence — four payloads of 2.5 MiB — retained
+each payload three times more: its `ekr-seed-envelope/2` blob was 37,446,229 bytes, the payloads as
+JSON number arrays, and its `ekr.publication-preparation/2` blob 63,916,454 bytes, the envelope and
+the payloads again as base64 (`crates/ekr-kernel/tests/seed_envelope_v3.rs`, the red run of
+`no_retained_blob_or_event_but_the_payload_blobs_holds_the_payload_bytes_on_both_providers`, both
+providers alike). On the store `epic:ingestion-throughput` measured, 11 MB of corpus evidence made
+a 39,055,886-byte envelope and a 66,545,772-byte preparation. After this section the same seed
+retains a 5,542-byte `/3` envelope and a 14,481-byte `/3` preparation, and each payload once, in
+its own 2,621,440-byte blob (the same case's green run, both providers).
+
+## 100.1 `ekr-seed-envelope/3`
+
+The envelope of § 89's table with `input.evidence_payloads` a list of content hashes — the keys of
+the seed's `evidence_payloads`, unique and ascending — instead of a map of their bytes. Everything
+else is `/2`'s, in `/2`'s field order: the input's `format` (`ekr-seed/2`), `ontology` and `graph`,
+the `context`, the `authority` and `committed_at`. The payloads are the Provenance objects the seed
+publishes beside the envelope, in the same atomic group, as they already were. Every new seed
+retains `/3`. A retained envelope is decoded by its exact format: `/3`'s layout for
+`ekr-seed-envelope/3`, `/2`'s for `ekr-seed-envelope/2`, and a layout that disagrees with its
+format is `unsupported-seed-envelope`.
+
+Replay of a `/3` seed reads each named payload's object and admits the seed with those bytes, each
+checked against its address by the store as it is read and by the kernel again at admission. A
+named payload the store holds no object for is refused by name, `seed-evidence-payload-absent:
+<content hash>`, on every read and at publication; nothing substitutes an archived or inline copy.
+The store asks the authority for such objects through `CommitAuthority::objects_if_held`: it
+loads each one it holds an object for, verified as a required object is, and leaves out each it
+holds none for, so the refusal is the kernel's and names the payload. A `/2` seed still requires
+its payloads (`CommitAuthority::required_objects`) and compares each retained object with the bytes
+it carries, `seed-evidence-payload-mismatch` as before. An exact seed retry compares the parsed
+input with the retained one: the named hashes must be the document's keys and each of the document's
+payloads must hash to its key.
+
+The seed's Root0 names its envelope (`transaction`), so a `/3` seed of an input has a different
+Root0 address than a `/2` seed of the same input; its ontology, knowledge, evidence and authority
+roots are the same.
+
+## 100.2 `ekr.publication-preparation/3`
+
+A decision that stages a Provenance object — the evidence payloads of a seed — is elected in
+`/3`: `/2`'s layout, except that each Provenance object is written as its `storage_class`,
+`stored_at` and `byte_len` (`ekr.store.StagedPublicationObject`), without its bytes. The
+preparation's own atomic group binds those bytes under the object's own content address, the
+address its publication binds the same bytes to again; the provider accepts an identical binding of
+a bound address, so the bytes are retained once. Until the publication no `ObjectStored` metadata
+names them and no object read finds them. A losing election writes nothing, as before; an elected
+attempt whose publication never succeeds leaves its payloads bound without metadata, which no read
+reaches. Reading a `/3` attempt back reads each staged binding and checks its address and length;
+an absent one refuses `preparation-staged-object-missing: <content hash>`, a different one
+`preparation-staged-object-integrity: <content hash>`. A decision that stages no Provenance object
+— every proposal, validation, rejection, commit and stale decision today — is elected in `/2`, byte
+for byte as before.
+
+## 100.3 The preserving migration
+
+`ekr migrate --to <path>` (`Runtime::migrate_into`) turns a store into one whose seed is `/3`. The
+provider log is append-only and the seed occurrence names its envelope by address, so a store
+cannot change its own envelope without rewriting its history; as § 90 requires, the migration
+writes a separate destination and leaves the source untouched. The destination must hold no event.
+
+The source is read in full (`ekr_store::Inventory`): its revision stream, every object its log
+stored — a current one checked as every read checks one, a legacy `ObjectStored`/schema-1 one under
+its frozen inline shape, its bytes checked against `content_hash` and `byte_len` — and each
+publication preparation's newest decision. A decision elected and never published refuses
+`migrate-unresolved-preparation`. The source history is replayed in full through the kernel
+authority before anything is written.
+
+The destination is seeded with the source seed's exact input, context, authority, identities and
+time under `/3`, its seed result record naming the new envelope. Every later occurrence is published
+again with its original event identity, revision identity, actors and times, through the
+destination's kernel authority (`RevisionLog::publish`): a proposal record byte for byte; a
+validation receipt, rejection, commit receipt or stale record derived again against the
+destination's replay of what precedes it, by the functions replay checks it with, since each names
+the seed envelope or an earlier root or record. Every other object the source holds is carried with
+its class, retention raises and `stored_at`; a legacy inline object becomes schema-2 metadata and a
+blob. The destination is replayed in full and compared with the source — every revision's identity,
+time and knowledge, evidence, ontology and authority roots, the head graph, the evidence, the seed's
+payloads and every transaction's state — and a disagreement refuses
+`migrate-verification-disagrees`. The report, `ekr.store-migration/1`, maps each occurrence's source
+record to its destination record and lists the objects carried and the legacy objects converted; it
+is retained in the destination as a Canonical object at its `map_hash`.
+
+An interrupted migration leaves no store that answers as the migrated one. Before its first write
+the migration retains the fixed Canonical object `{"format":"ekr.migration-started/1"}` in the
+destination, and after its last — the report included — `{"format":"ekr.migration-finished/1"}`.
+The kernel reads both where held (`CommitAuthority::objects_if_held`) and every replay of a store
+holding the first without the second refuses `migrate-incomplete`, except the migrating handle's
+own; a handle that has once seen its store with a history and no unfinished migration stops asking,
+since such a store never gains one. The destination's store is written in place rather than at a
+staging path renamed into place: the kernel migrates into a store handle, not a path, and a marker
+holds for every caller of `Runtime::migrate_into` alike. `ekr migrate` also refuses a `--to` that
+is the source (through a symbolic link or, for SQLite, a side file too), lies inside it or contains
+it — `migrate-destination-is-source`, `migrate-destination-inside-source`,
+`migrate-destination-contains-source` — resolving `--to` through its nearest existing directory
+before anything is created, so no byte is written into the source.
+
+## 100.4 What is not changed
+
+A `/2` store opens, replays, answers and accepts new transactions exactly as before; its seed stays
+`/2` until it is migrated, and its reads still load its payloads as required objects. The
+ontology, knowledge, evidence and authority roots of every revision are the same in a migrated store
+as in its source; the seed's `transaction` address, the parent chain after it and the record
+addresses that name them differ, and the report says which. The migration does not reclaim the
+source: it is kept, and removing it is the operator's decision. Evidence payloads a transaction
+adds carry no Provenance object in any decision yet, so no preparation other than a seed's is `/3`.
+
+Executed by `crates/ekr-kernel/tests/seed_envelope_v3.rs` (a 10 MiB seed retains an envelope under
+1 MB; no retained blob or event but the payload blobs holds the payload bytes, raw, as base64 or as
+a number array; a `/2` store reopens, replays with the roots the base kernel's own store reached and
+commits again; a `/3` envelope naming an absent payload is refused by name on read and at
+publication). Its `/2` stores are written at test time by
+`crates/ekr-kernel/tests/support/v2_store.rs`, which seeds as `36e87d41` did — an
+`ekr-seed-envelope/2` elected in an `ekr.publication-preparation/2` attempt, then resumed and
+admitted by the real kernel — and `crates/ekr-kernel/tests/current_vectors.rs` holds that
+envelope to the address `36e87d41` produced;
+`crates/ekr-kernel/tests/migrate_store.rs` (a `/2` store migrates with its snapshot, decisions and
+every object, the source byte for byte unchanged; a legacy inline object is carried as schema 2),
+`crates/ekr-store/tests/payload_blobs.rs` (the `/3` preparation names its payload, stages the bytes
+once and reads them back; a decision without one stays `/2`; an absent staged payload is refused
+by name), `crates/ekr-store/tests/store_inventory.rs` (the inventory reads a legacy inline object
+under its frozen shape and writes nothing) and `crates/ekr/tests/migrate_cli.rs` (the verb, over
+a store the binary writes), all on both providers.

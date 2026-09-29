@@ -844,6 +844,8 @@ impl KernelTarget {
                 | "ekr.kernel.PendingTransactions"
                 | "ekr.kernel.Revisions"
                 | "ekr.kernel.CurrentRevision"
+                | "ekr.kernel.ValidationIssues"
+                | "ekr.kernel.RetainedEvidence"
         ) {
             return Err(TargetError::unsupported(
                 format!("the view `{view}`"),
@@ -892,6 +894,39 @@ impl KernelTarget {
                 }
                 Ok(rows)
             }
+            // One row per issue of every retained rejection, as the rejection record holds it.
+            "ekr.kernel.ValidationIssues" => Ok(read
+                .transactions
+                .values()
+                .filter_map(|record| record.rejection.as_ref())
+                .flat_map(|rejection| rejection.issues.iter())
+                .map(|issue| {
+                    BTreeMap::from([
+                        ("issue_id".to_owned(), text(issue.id)),
+                        ("transaction_id".to_owned(), text(issue.transaction_id)),
+                        (
+                            "validator".to_owned(),
+                            Node::Text(format!("{:?}", issue.validator)),
+                        ),
+                        ("code".to_owned(), Node::Text(issue.code.clone())),
+                        ("message".to_owned(), Node::Text(issue.message.clone())),
+                    ])
+                })
+                .collect()),
+            // The head's evidence whose payload the verified read holds at its content hash.
+            "ekr.kernel.RetainedEvidence" => Ok(read
+                .graph
+                .evidence
+                .values()
+                .filter(|evidence| read.content(&evidence.content_hash).is_some())
+                .map(|evidence| {
+                    BTreeMap::from([
+                        ("evidence_id".to_owned(), text(evidence.id)),
+                        ("content_hash".to_owned(), text(evidence.content_hash)),
+                        ("extracted_by".to_owned(), text(evidence.extracted_by)),
+                    ])
+                })
+                .collect()),
             _ => unreachable!("the view name was admitted above"),
         }
     }

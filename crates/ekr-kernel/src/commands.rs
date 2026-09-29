@@ -231,10 +231,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         let parsed = crate::TransactionDocument::parse(bytes)?;
         let id = parsed.transaction().id;
         if !self.authority.anchor.agents.contains_key(&actor)
-            || parsed.transaction().proposer != actor
-            || parsed.transaction().operations.iter().any(
-                |op| matches!(op,crate::GraphOperation::AddAssertion(a) if a.proposed_by!=actor),
-            )
+            || !replay::attributed(parsed.transaction(), actor)
         {
             return Err(CommitError::ProposalAttribution { actor });
         }
@@ -531,6 +528,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         let tx = target(state, id)?;
         let validation = tx.validation.as_ref().expect("validated state");
         let head = state.head();
+        let mut evidence_payloads = BTreeMap::new();
         let (payload, bytes) = if validation.basis
             != replay::basis(head, state.seed.seed_hash, &self.authority.anchor)
         {
@@ -571,6 +569,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 ),
             };
             let (_, root) = crate::apply::apply(head, &validated, &validation.validators, at)?;
+            evidence_payloads = added_payloads(validated.transaction());
             let record = CommitReceiptV1 {
                 format: CommitReceiptV1::FORMAT.into(),
                 event_id,
@@ -593,6 +592,34 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 record.to_bytes()?,
             )
         };
-        Ok(publication(event_id, payload, bytes, at, state.version))
+        let mut decision = publication(event_id, payload, bytes, at, state.version);
+        // Each payload an `AddEvidence` brings is published atomically with the receipt, as an
+        // object of its own in the Provenance class: the seed's payload class. The receipt holds
+        // the proposal, and so the payload inside the document, but a verified read and `explain`
+        // find evidence bytes by the entry's content hash, which addresses the payload alone.
+        for (hash, bytes) in evidence_payloads {
+            decision.objects.entry(hash).or_insert(PublicationObject {
+                storage_class: StorageClass::Provenance,
+                stored_at: at,
+                bytes,
+            });
+        }
+        Ok(decision)
     }
+}
+
+/// The payload of every `AddEvidence` in `tx`, by its content address. Only a validated
+/// transaction is read, so each address is the hash of its bytes.
+pub(crate) fn added_payloads<V: ekr_graph::ValueSpace>(
+    tx: &crate::GraphTransaction<V>,
+) -> BTreeMap<ContentHash, Vec<u8>> {
+    tx.operations
+        .iter()
+        .filter_map(|operation| match operation {
+            crate::GraphOperation::AddEvidence(addition) => {
+                Some((addition.evidence.content_hash, addition.payload.clone()))
+            }
+            _ => None,
+        })
+        .collect()
 }

@@ -137,6 +137,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr view` | reads | `--port <port>` (`0`, the default, picks a free one) | `{"url": "http://127.0.0.1:<port>/"}` as one line, then serves a read-only viewer until interrupted |
 | `ekr session` | reads and writes | one JSON request per line on stdin, `{"argv": [...]}`, until it ends; `--create` also serves `seed` | one JSON answer per request, `{"exit", "stdout", "stderr"}`: what the verb exits with and prints |
 | `ekr mcp` | reads | JSON-RPC 2.0 messages, one per line on stdin, until it ends | one JSON-RPC response per request: read-only MCP tools over the store (below) |
+| `ekr migrate` | reads, and writes a new store | `--to <path>`: where the migrated store is written, holding no store yet | the `ekr.store-migration/1` report: `destination_seed_hash` and which record replaced which |
 
 Every verb has `--help`.
 
@@ -281,11 +282,11 @@ as for `ekr snapshot --at`.
 ### `ekr guide`
 
 Prints the workflow for an agent: roles, propose → validate → commit, exit codes, where ids come from,
-how to add evidence to a seed and how to change the schema.
+how to add evidence after the seed and to a seed, and how to change the schema.
 
 ### `ekr operations`
 
-Without an argument, lists the twelve operation kinds, one per line, marking the three schema
+Without an argument, lists the thirteen operation kinds, one per line, marking the three schema
 changes (`[schema change: …]`) and the one kind that is not applied (`[not applied: …]`). With a
 kind (`ekr operations AddAssertion`), prints its fields and an example operation.
 
@@ -564,7 +565,7 @@ A session serves `propose`, `validate`, `commit`, `snapshot`, `explain`, `resolv
 | `session-request-malformed` | 2 | the line is not a JSON object with `argv`, a list of strings, and at most `stdin`, a string; an empty line included | send `{"argv": [...]}` on one line |
 | `session-request-too-large` | 2 | the line is longer than 25231360 bytes, its newline excluded: three times the 8388608-byte `ekr.transaction-document/2` cap, the most JSON escaping can make of it, and 65536 bytes for `argv` and the framing. The session holds no more of the line than that; it reads the rest up to the newline, drops it and serves the next line | send the document as a file (`["propose", "doc.yaml"]`), or a smaller one |
 | `session-verb-unknown` | 2 | `argv` is empty, or its first word is not a verb of `ekr` | a verb from the list above |
-| `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
+| `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `migrate`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, write a second store, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
 | `session-option-refused` | 2 | the request sets `--host`, `--store`, `--backend` or `--full-replay` | the session's store is fixed when it starts; start another session for another store |
 
 Any other `argv` the verbs' definitions do not accept — an unknown flag
@@ -657,6 +658,61 @@ Record text — names, aliases, property values, evidence text — is untrusted 
 returns it as JSON string data, and its instructions and every tool's description tell the agent
 to treat it as data, never as instructions. No tool proposes, validates or commits: an agent
 records knowledge only through [`ekr propose`, `ekr validate` and `ekr commit`](#the-workflow).
+
+### `ekr migrate`
+
+Writes a copy of the store in the current formats to a new path and leaves the store itself
+exactly as it is. A store seeded before `ekr-seed-envelope/3` retains every evidence payload three
+times: as its own object, inside the seed envelope as a list of numbers three to four times its
+size, and again inside the record the seed was published from. A new seed names each payload by its
+content hash instead and retains its bytes once; `ekr migrate` gives an existing store's history the
+same shape in a new store.
+
+```console
+ekr migrate --to library-v3                       # the --store, --backend and --host of every verb
+```
+
+`--to` is a directory for `file` and a database file for `sqlite`, of the same backend as
+`--store`, and must hold no store. The migration reads the whole store and replays it from its
+seed first, so a store that does not verify is refused and nothing is written. It then seeds the
+new store with the same seed — the same input, identities and time, the envelope naming its
+payloads — and publishes every later proposal, validation, rejection, commit and stale decision
+again with its original identity, actors and times. A proposal record is copied byte for byte; a
+record that names the seed envelope or an earlier root is derived again for the new lineage, so
+its content hash changes. Every other object is copied with its class and time, and an object an
+old store holds inline in its log is written as a blob. The new store is replayed in full and
+compared with the old one — every revision's knowledge, evidence, ontology and authority roots,
+the graph, the evidence and every transaction's state — before the report is printed:
+
+```console
+{
+  "format": "ekr.store-migration/1",
+  "source_seed_hash": "…",
+  "destination_seed_hash": "…",
+  "occurrences": [{"event_id": "…", "event": "ekr.kernel.Seeded", "source_record_hash": "…", "destination_record_hash": "…"}, …],
+  "carried_objects": ["…"],
+  "legacy_objects": [],
+  "map_hash": "…"
+}
+```
+
+The report is also kept in the new store, at `map_hash`. Nothing is ever written to `--store`.
+Its refusals are faults (exit 1). These are refused before any event is written to `--to`, so a
+later `ekr migrate` can still write there: `migrate-destination-not-empty` for a `--to` that holds
+a store; `migrate-destination-is-source`, `migrate-destination-inside-source` and
+`migrate-destination-contains-source` for a `--to` that is `--store` (a symbolic link to it or,
+for `sqlite`, one of its side files included), lies inside it, or contains it — `--to` is resolved
+through its nearest existing directory, and nothing is created; `migrate-unresolved-preparation`
+for a decision a command elected and never published — run that command again first — and a
+`--store` that does not replay.
+
+A migration that stops after it began writing — `migrate-verification-disagrees`, a new store
+that does not replay to the old one's state, a full disk, an interrupted process — leaves the store
+at `--to` as it is, and that store is not the migrated one: the migration marks it as begun before
+its first write and as finished after its last, the report included, and every verb refuses a
+store marked begun and not finished as `migrate-incomplete` (exit 1). A second `ekr migrate` to
+the same path refuses it as `migrate-destination-not-empty`: remove it, then migrate again.
+`ekr migrate` is not served in `ekr session`.
 
 ## The workflow
 
@@ -872,8 +928,9 @@ An assertion in a seed is written exactly as in [`!AddAssertion`](#assertions), 
 
 ### Evidence and `evidence_payloads`
 
-Every assertion cites evidence, and in P1 evidence enters only through the seed. An evidence entry
-records where a statement came from; its payload is the statement's exact bytes.
+Every assertion cites evidence. Evidence enters with the seed, as here, or later through a
+transaction's [`!AddEvidence`](#evidence-after-the-seed). An evidence entry records where a
+statement came from; its payload is the statement's exact bytes.
 
 | evidence field | value |
 |---|---|
@@ -910,9 +967,11 @@ transaction omits it.
 
 `operations` is a non-empty list applied in order, all or nothing. `evidence` is exactly the set of
 evidence ids cited by the transaction's `!AddAssertion` operations — no more, no fewer
-(`evidence-set-mismatch`) — and `[]` when it adds no assertion. Every cited evidence id must already
-be retained, which in P1 means seeded. `ekr example ekr.transaction-document/2` prints a complete
-document, and `ekr operations <Kind>` prints each kind's fields.
+(`evidence-set-mismatch`) — and `[]` when it adds no assertion. Every cited evidence id must be
+retained — seeded, or added by an earlier commit — or be added by an `!AddEvidence` of the same
+transaction ([Evidence after the seed](#evidence-after-the-seed)). `ekr example
+ekr.transaction-document/2` prints a complete document, and `ekr operations <Kind>` prints each
+kind's fields.
 
 ### Document limits
 
@@ -941,7 +1000,7 @@ on such a line is held to the `/1` cap.
 
 ### Operation kinds
 
-There are twelve kinds. Eight are applied under every validation profile. Three are **schema
+There are thirteen kinds. Nine are applied under every validation profile. Three are **schema
 changes**, applied only under profile v2 and only in a transaction of their own that names its
 `schema_version` ([Evolve the schema](#evolve-the-schema)); under profile v1 validation rejects them
 with the issue code `unsupported-operation`, so the schema is fixed at seeding. One, `MergeEntity`,
@@ -957,6 +1016,7 @@ parses but is **refused** under either profile, with the same code.
 | `RetractAssertion` | applied | withdraws an accepted, active assertion with a reason: `assertion`, `reason`. It is kept, marked retracted |
 | `Invoke` | applied | calls an operation of the node's type: `node`, `operation` (the operation's key under the type's `operations`, not its `name` field), `arguments` (map name → value) |
 | `SupersedeAssertion` | applied | replaces an accepted, active assertion from an instant on: `assertion`, `by` (the replacement, which may be added in the same transaction), `effective_from`. [Rules below](#supersession) |
+| `AddEvidence` | applied | adds one evidence entry and the bytes it rests on: `evidence` (an entry as in the seed) and `payload` (its bytes). [Rules below](#evidence-after-the-seed) |
 | `DefineNodeType` | schema change | declares a node type: `id`, `name`, `parents`, `properties`, `abstract_type`, `lifecycle`, `operations`, as in the seed |
 | `DefineEdgeType` | schema change | declares an edge type: `id`, `name`, `source_types`, `target_types`, `cardinality`, `properties`, `inverse`, `symmetric`, `transitive`, as in the seed |
 | `ModifyProperty` | schema change | adds a property to a type or redeclares one it declares: `owner` (the node or edge type) and `property` (a [property definition](#property-definitions)) |
@@ -1003,6 +1063,55 @@ Committing it closes the old assertion's `valid_time.to` at `effective_from` and
 accepted and active (`assertion-lifecycle-state` otherwise), one transaction may change an
 assertion's lifecycle once (`conflicting-assertion-lifecycle`), and a chain of supersessions may
 not lead back to where it started (`supersession-cycle`).
+
+### Evidence after the seed
+
+`!AddEvidence` brings one evidence entry into the store together with the bytes it rests on, so
+that an assertion can cite one statement rather than a whole seeded file. The entry is written
+exactly as a seed's [evidence entry](#evidence-and-evidence_payloads); `payload` is its bytes as a
+list of byte values, the `payload_yaml` that `ekr hash` prints.
+
+One byte is one element of that list, so the document's `sequence_elements` limit
+([Document limits](#document-limits)) is the payload's ceiling: at most 16,384 bytes in an
+`ekr.transaction-document/2` and 4,096 in an `ekr.transaction-document/1`. One byte more and
+`ekr propose` refuses the document as `transaction document limit: sequence_elements`, exit 2,
+recording nothing. A larger statement goes into the seed with `ekr seed --evidence <file>`, or is
+split into several evidence entries of at most that size.
+
+```yaml ekr.transaction-document/2
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-a000-000000000798        # a fresh transaction id: ekr mint transaction
+  proposer: 00000000-0000-4000-a000-000000000011  # the host operator
+  operations:
+  - !AddEvidence
+    evidence:
+      id: 00000000-0000-4000-a000-000000000409    # a fresh evidence id: ekr mint evidence
+      source: !HumanStatement
+        identity: Runtime operator
+      content_hash: d665088b6d8d615784418d2e9e79245f5aad71d0565a60fd45ed4649cb8c425c
+      extracted_by: 00000000-0000-4000-a000-000000000011
+      observed_at: 1773273600000
+      confidence: 10000
+    payload: [66, 111, 98, 32, 105, 115, 32, 67, 69, 79, 32, 111, 102, 32, 65, 99, 109, 101, 46]
+  evidence: []                                    # no assertion here cites it yet
+```
+
+An `!AddAssertion` in the same transaction, or in any later one, may cite the new id; list it in
+`transaction.evidence` only in a transaction whose assertions cite it. Committing applies the entry
+and stores the payload as an object of its own, in the Provenance class the seed's payloads use;
+`ekr explain` prints it for every assertion that cites it. Validation refuses, as named issues:
+
+| issue | validator | when |
+|---|---|---|
+| `evidence-payload-mismatch` | Provenance | the payload's bytes do not hash to `content_hash`; the message names both hashes |
+| `evidence-unsupported-source` | Provenance | `source` is not `!HumanStatement` |
+| `identity-already-exists` | Structural | the id is one the store already retains, seeded or added |
+| `duplicate-identity` | Structural | the transaction adds the same id twice |
+| `unresolved-evidence` | Reference | an assertion cites an id the store does not retain and the transaction does not add |
+
+An entry whose `extracted_by` is not the host operator is refused by `ekr propose` as
+`ekr.kernel.ProposalAttribution`, exit 2, and nothing is recorded.
 
 ### Relations: assertion, edge or both
 
@@ -1799,8 +1908,9 @@ is refused. Either way most of the work is in the seed. What holds up:
   and invocations to be accepted in P1.
 - **Declare lifecycles only for real state machines.** A lifecycle's state changes only through a
   named operation with a declared transition; there is no other way to move it.
-- **Put the evidence you will need in the seed.** In P1 evidence enters only through the seed, and
-  every assertion must cite retained evidence. Seed the statements your first assertions rest on.
+- **Put the evidence your first assertions need in the seed.** Every assertion must cite retained
+  evidence, or evidence its transaction adds with [`!AddEvidence`](#evidence-after-the-seed). Seed
+  the statements the seed's own assertions rest on, and add later ones as they arrive.
 
 ## Common refusals
 
@@ -1845,7 +1955,7 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `seed-authority-profile` | any store verb | 1 | the host's `validation_profile` is no accepted profile exactly — an unknown `ruleset`, or a `ruleset` of one profile with an `application` it is not paired with — or its agent registry does not fit it for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example and keep `ruleset` and `application` a pair: `ekr.p1-deterministic/1` with `ekr.p1-apply/1` (v1) , `ekr.p2-deterministic/1` with `ekr.p2-apply/1` (v2) or `ekr.p3-deterministic/1` with `ekr.p2-apply/1` (v3); set `validator` to `context.validator` |
 | `store-not-found` | propose, validate, commit, snapshot, explain, head, transactions, ontology, resolve | 1 | `--store` names a path that holds no store: nothing, an empty directory, an empty file, a symlink to nothing, a SQLite database without the runtime's tables, or a file-store directory holding only what `ekr seed` writes before its manifest; nothing is created there. Only `ekr seed` creates a store, and a seed that is refused creates none | check `--store` or `EKR_STORE`; run `ekr seed` first |
 | `bootstrap-authority-mismatch` | any store verb | 1 | the store was seeded under a host document whose authority differs from this one | use the host document the store was seeded with |
-| `ekr.kernel.ProposalAttribution` | propose | 2 | the document's `proposer` is not the host operator | use `context.operator` |
+| `ekr.kernel.ProposalAttribution` | propose | 2 | the document's `proposer`, an assertion's `proposed_by` or an added evidence entry's `extracted_by` is not the host operator | use `context.operator` |
 | `ekr.kernel.StructurallyInvalid` | propose | 2 | the transaction document does not parse, for example a bare `assessment: Accepted` | the field it names; compare with `ekr operations <Kind>` |
 | `ekr.kernel.TransactionNotFound` | validate, commit | 2 | no transaction has that id | take the id `ekr propose` printed, or `ekr transactions` |
 | `ekr.kernel.TransactionStateConflict` | validate, commit | 2 | the transaction is not in the state the verb needs: validating one that is already validated, committing one that is only proposed or was rejected | propose a corrected document under a new id |
@@ -1875,7 +1985,7 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `edge-cardinality` | validation issue | 0 | a second edge of a `cardinality: One` edge type from the same source | delete the old edge first, or use `Many` |
 | `edge-endpoint-type` | validation issue | 0 | an edge's or relation assertion's source or target is not of an allowed type | check the edge type's `source_types` and `target_types` |
 | `unresolved-node` | validation issue | 0 | a node id that does not exist | take ids from `ekr snapshot`, or create the node earlier in the same transaction |
-| `unresolved-evidence` | validation issue | 0 | an assertion cites evidence that is not retained | cite seeded evidence |
+| `unresolved-evidence` | validation issue | 0 | an assertion cites evidence that is not retained and that no `!AddEvidence` of its transaction adds | cite retained evidence, or add it with `!AddEvidence` |
 | `unresolved-edge` | validation issue | 0 | an edge id (`!DeleteEdge`, an `!Edge` subject) that does not exist | take ids from `ekr snapshot` |
 | `unresolved-assertion` | validation issue | 0 | a retraction or supersession names an assertion (or a `by`) that does not exist | take ids from `ekr snapshot`, or add the replacement in the same transaction |
 | `unresolved-graph-root` | validation issue | 0 | an entity's `root_id` is not the graph root | use the root id from `ekr snapshot` (`root_id` of any node) |
@@ -1886,9 +1996,11 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `evidence-set-mismatch` | validation issue | 0 | `transaction.evidence` is not exactly the evidence the assertions cite | list exactly those ids |
 | `assertion-without-evidence` | validation issue | 0 | an assertion cites no evidence | cite at least one evidence id |
 | `assertion-states-its-own-verdict` | validation issue | 0 | an assertion written with a complete assessment other than `Proposed`, such as `!Accepted {validators: [...]}` (a bare `Accepted` is refused earlier, as `ekr.kernel.StructurallyInvalid`) | write `assessment: Proposed` |
-| `identity-already-exists` | validation issue | 0 | a create reuses an id that already exists | `ekr mint` a fresh id |
+| `evidence-payload-mismatch` | validation issue | 0 | an `!AddEvidence` payload whose bytes do not hash to the entry's `content_hash`; the message names both hashes | re-run `ekr hash` on the exact bytes, and paste its `content_hash` and `payload_yaml` |
+| `evidence-unsupported-source` | validation issue | 0 | an `!AddEvidence` entry whose `source` is not `!HumanStatement` | add evidence from a `!HumanStatement` source |
+| `identity-already-exists` | validation issue | 0 | a create or an `!AddEvidence` reuses an id that already exists | `ekr mint` a fresh id |
 | `identity-previously-held` | validation issue | 0 | under profile v3, a `CreateNode` or `CreateEdge` takes an id an earlier revision held for a node or an edge, such as a deleted edge's | `ekr mint` a fresh id |
-| `duplicate-identity` | validation issue | 0 | one transaction creates the same id twice | `ekr mint` one id per created thing |
+| `duplicate-identity` | validation issue | 0 | one transaction creates or adds the same id twice | `ekr mint` one id per created thing |
 | `alias-already-exists` | validation issue | 0 | a `CreateNode` gives a non-empty alias that a node of the same type already holds | resolve the reference and use that node instead of creating one |
 | `duplicate-alias` | validation issue | 0 | two `CreateNode` operations of one transaction give the same non-empty alias to nodes of one type | give each alias to one node |
 | `conflicting-write` | validation issue | 0 | one transaction writes the same property of a node twice with different values, or moves one node's lifecycle twice | one write per property and one state move per node per transaction |

@@ -80,13 +80,15 @@ summary: >-
   RevisionNotFound — for ChangesSince `at` first, then since_revision; then a node the revision
   does not hold answers NodeNotFound.
 
-  UNMAPPED under decision-blocker:evidence-entry-after-seed: evidence without retained bytes. Every
-  evidence record the kernel admits today arrives with the seed, and the seed retains its bytes.
-  The kernel's verified read also refuses a store whose evidence bytes are missing, rather than
-  reading it (crates/ekr-kernel/tests/explain.rs, "A payload deleted from the provider refuses the
-  read itself"). So `retained` is true for every evidence record a projection can be rendered
-  from, and `retained: false` may stay unreachable whichever way that decision goes. The flag is
-  kept so the format does not change if a later decision admits evidence without bytes.
+  Evidence without retained bytes is unreachable. Evidence enters canonical state in two ways, and
+  both carry its bytes: with the seed, whose envelope retains each payload, and through an
+  ekr.kernel AddEvidence operation, which carries the payload beside the entry and whose commit
+  stores it (decision-blocker:evidence-entry-after-seed, answered by option 1). The kernel's
+  verified read also refuses a store whose evidence bytes are missing, rather than reading it
+  (crates/ekr-kernel/tests/explain.rs, "A payload deleted from the provider refuses the read
+  itself"). So `retained` is true for every evidence record a projection can be rendered from, and
+  `retained: false` is unreachable. The flag is kept so the format does not change if a later
+  decision admits evidence without bytes.
 
 naming:
   wire: views

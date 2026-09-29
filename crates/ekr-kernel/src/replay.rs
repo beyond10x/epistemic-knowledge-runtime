@@ -214,8 +214,10 @@ pub(crate) fn prefix_digests(occurrences: &[RecordedOccurrence]) -> Vec<ContentH
 #[derive(Default)]
 pub(crate) struct ReplayCache {
     entries: Vec<(usize, ContentHash, Arc<ReplayState>)>,
-    /// The seed envelope this authority admitted, and the evidence payloads it requires.
-    pub(crate) seed: Option<(ContentHash, BTreeSet<ContentHash>)>,
+    /// The seed envelope this authority admitted, the evidence payloads it names, and whether it
+    /// names them (`ekr-seed-envelope/3`: read where held) rather than carrying them (`/2`:
+    /// required).
+    pub(crate) seed: Option<(ContentHash, BTreeSet<ContentHash>, bool)>,
     /// The seed envelope this authority decoded in full from verified retained bytes, by their
     /// address. It is a function of that address, so every path that verified the retained bytes
     /// at the same address takes it instead of decoding them again.
@@ -228,6 +230,12 @@ pub(crate) struct ReplayCache {
     pub(crate) seed_replays: u64,
     /// How many times this authority decoded a retained seed envelope's complete bytes.
     pub(crate) envelope_decodes: u64,
+    /// Whether this authority is the one publishing a preserving migration into its store, which
+    /// alone reads that store before the migration finished (design § 100.3).
+    pub(crate) migrating: bool,
+    /// Whether this authority has seen its store's history with no unfinished migration, after
+    /// which it stops asking for the migration markers: a store with a history never gains one.
+    pub(crate) migration_settled: bool,
 }
 impl ReplayCache {
     const CAPACITY: usize = 4;
@@ -268,6 +276,17 @@ pub(crate) fn require(condition: bool, code: &str) -> Result<(), StoreError> {
 pub(crate) fn registered(anchor: &AuthorityStateV1, actor: AgentId) -> Result<(), StoreError> {
     require(anchor.agents.contains_key(&actor), "unregistered-actor")
 }
+/// Whether every attribution `tx` writes is `actor`'s: its proposer, each assertion's
+/// `proposed_by` and each added evidence entry's `extracted_by`. The host submitter is who
+/// proposes, claims and extracts; a document naming anyone else is misattributed.
+pub(crate) fn attributed(tx: &GraphTransaction, actor: AgentId) -> bool {
+    tx.proposer == actor
+        && tx.operations.iter().all(|op| match op {
+            GraphOperation::AddAssertion(assertion) => assertion.proposed_by == actor,
+            GraphOperation::AddEvidence(addition) => addition.evidence.extracted_by == actor,
+            _ => true,
+        })
+}
 pub(crate) fn proposal(
     bytes: &[u8],
     actor: AgentId,
@@ -292,14 +311,7 @@ pub(crate) fn parsed_proposal(
     let document = TransactionDocument::parse(bytes)
         .map_err(|e| refuse(&format!("proposal-document: {e}")))?;
     let tx = document.transaction();
-    require(
-        tx.proposer == actor
-            && tx
-                .operations
-                .iter()
-                .all(|op| !matches!(op,GraphOperation::AddAssertion(a) if a.proposed_by!=actor)),
-        "proposal-attribution-mismatch",
-    )?;
+    require(attributed(tx, actor), "proposal-attribution-mismatch")?;
     let canonical = GraphTransaction::<CanonicalValue>::try_from(tx.clone()).ok();
     let record = ProposalRecordV1 {
         format: format.into(),
@@ -450,6 +462,7 @@ impl KernelAuthority {
         selected: Option<RevisionNumber>,
         reuse: bool,
     ) -> Result<Option<Arc<ReplayState>>, StoreError> {
+        crate::migrate::finished(self, history)?;
         // Only the ordinary head replay is shared: a replay under a caller's ontology or to a
         // selected revision is computed in full, as before.
         let shared = ontology.is_none() && selected.is_none();
@@ -727,6 +740,15 @@ impl KernelAuthority {
                         &validation.validators,
                         record.committed_at,
                     )?;
+                    // Evidence a commit added is retained admissible evidence only while its
+                    // payload is retained, at Provenance strength, as the seed's payloads are.
+                    for (hash, payload) in crate::commands::added_payloads(validated.transaction())
+                    {
+                        require(
+                            history.content(hash, StorageClass::Provenance)? == payload.as_slice(),
+                            "evidence-payload-mismatch",
+                        )?;
+                    }
                     // Each claim a named refusal describes is held against the recomputed root on
                     // both of its carriers, payload and receipt, before the generic comparison:
                     // a lie told consistently in both must still get its own name.

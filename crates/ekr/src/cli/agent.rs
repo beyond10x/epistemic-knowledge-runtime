@@ -134,7 +134,8 @@ WHERE VALUES COME FROM
   times            milliseconds since the Unix epoch (valid_time.from, effective_from);
                    transaction_time.recorded_from is written as 0 and set by the kernel
   evidence         a transaction's `evidence` list is exactly the evidence its assertions cite,
-                   and each must already be retained (seeded; see ADDING EVIDENCE TO A SEED)
+                   and each must be retained (seeded, or added by an earlier commit) or be added
+                   by an AddEvidence of the same transaction (see ADDING EVIDENCE)
   content hashes   ekr hash <file | ->
 
 RESOLVE BEFORE YOU CREATE: ekr resolve
@@ -155,9 +156,17 @@ RESOLVE BEFORE YOU CREATE: ekr resolve
   at the next revision. A CreateNode naming an alias a node of its type already holds is
   Rejected (alias-already-exists): resolve again, and use the node it returns.
 
+ADDING EVIDENCE
+  After the seed, a transaction adds evidence with AddEvidence: the entry and its payload bytes
+  together (`ekr operations AddEvidence`). An AddAssertion in the same or a later transaction
+  cites its id. The payload must hash to the entry's content_hash (evidence-payload-mismatch),
+  the id must be new (identity-already-exists), the source must be !HumanStatement
+  (evidence-unsupported-source) and extracted_by the host operator (propose refuses otherwise,
+  as ekr.kernel.ProposalAttribution). The commit stores the payload; explain prints it.
+
 ADDING EVIDENCE TO A SEED
-  In P1 evidence enters only through the seed, before `ekr seed`; a transaction can cite only
-  evidence that is already retained. To add a new evidence entry to a seed:
+  Evidence the seed's own assertions cite enters with the seed, before `ekr seed`. To add a new
+  evidence entry to a seed:
   1. Write the payload to a file: exactly the bytes to retain (a trailing newline counts).
   2. ekr hash payload.txt              -> {content_hash, byte_len, algorithm, payload_yaml}
      The hash is sha256(\"ekr.payload.v1\" || bytes), not the bare SHA-256 of the file.
@@ -220,6 +229,8 @@ pub enum OperationKind {
     Invoke,
     /// `!SupersedeAssertion`.
     SupersedeAssertion,
+    /// `!AddEvidence`.
+    AddEvidence,
 }
 
 impl OperationKind {
@@ -240,6 +251,7 @@ impl OperationKind {
             GraphOperation::MergeEntity(_) => Self::MergeEntity,
             GraphOperation::Invoke { .. } => Self::Invoke,
             GraphOperation::SupersedeAssertion(_) => Self::SupersedeAssertion,
+            GraphOperation::AddEvidence(_) => Self::AddEvidence,
         }
     }
 
@@ -257,6 +269,7 @@ impl OperationKind {
             Self::MergeEntity => "MergeEntity",
             Self::Invoke => "Invoke",
             Self::SupersedeAssertion => "SupersedeAssertion",
+            Self::AddEvidence => "AddEvidence",
         }
     }
 
@@ -272,7 +285,8 @@ impl OperationKind {
             | Self::AddAssertion
             | Self::RetractAssertion
             | Self::Invoke
-            | Self::SupersedeAssertion => Applied::Always,
+            | Self::SupersedeAssertion
+            | Self::AddEvidence => Applied::Always,
             Self::DefineNodeType | Self::DefineEdgeType | Self::ModifyProperty => {
                 Applied::SchemaChange
             }
@@ -476,6 +490,35 @@ impl OperationKind {
   assertion: 00000000-0000-4000-8000-000000000510
   by: 00000000-0000-4000-8000-000000000511
   effective_from: 1773273600000",
+            ),
+            Self::AddEvidence => (
+                "add an evidence entry and the bytes it rests on, for assertions to cite",
+                "  evidence      an evidence entry, as a seed's graph.evidence holds one:
+    id            EvidenceId   new: ekr mint evidence (identity-already-exists if held)
+    source        !HumanStatement {identity: <who said it>}; any other source is refused
+                  (evidence-unsupported-source)
+    content_hash  ContentHash  ekr hash <file> of the payload
+    extracted_by  AgentId      the host operator
+    observed_at   ms
+    confidence    basis points, 0 to 10000
+  payload       [byte]       the exact bytes, as ekr hash prints payload_yaml; they must hash
+                             to content_hash (evidence-payload-mismatch). The commit stores them.
+                             At most 16384 bytes in ekr.transaction-document/2 and 4096 in /1
+                             (one byte per element: the sequence_elements limit; propose refuses
+                             one byte more). Put a larger statement in the seed with
+                             ekr seed --evidence <file>, or split it into several entries.
+  An AddAssertion in the same or a later transaction may cite the id; list it in
+  transaction.evidence only when an assertion of that transaction cites it.",
+                "- !AddEvidence
+  evidence:
+    id: 00000000-0000-4000-8000-000000000403
+    source: !HumanStatement
+      identity: Runtime operator
+    content_hash: d665088b6d8d615784418d2e9e79245f5aad71d0565a60fd45ed4649cb8c425c
+    extracted_by: 00000000-0000-4000-8000-000000000101
+    observed_at: 1773273600000
+    confidence: 10000
+  payload: [66, 111, 98, 32, 105, 115, 32, 67, 69, 79, 32, 111, 102, 32, 65, 99, 109, 101, 46]",
             ),
         }
     }

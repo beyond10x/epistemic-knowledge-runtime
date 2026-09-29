@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:changes-since-read
 kind: story
-status: active
+status: implemented
 title: Agents ask what changed since a revision or a time
 relations:
 - serves: vision:o5
@@ -27,10 +27,11 @@ scope:
   path: systems/ekr/conformance/views-suite.json
 - confidence: inferred
   path: systems/ekr/domains/views.yaml
-revision: 12
+revision: 13
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T18:16:21Z", actor: "agent:claude-coordinator", revision: 2}
 - {from: "proposed", to: "active", at: "2026-09-28T22:44:17Z", actor: "agent:claude-coordinator", revision: 3}
+- {from: "active", to: "implemented", at: "2026-09-29T00:25:51Z", actor: "human:timo", revision: 13, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}}
 ---
 ## Context
 

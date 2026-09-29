@@ -157,9 +157,31 @@ types:
       - name: blobs
         type: List<ekr.store.NativeBlobWrite>
 
+  # Design §100.2, added 2026-09-29 by story:seed-envelope-v3-references-payloads. A decision that
+  # stages a Provenance object (an evidence payload) is elected in ekr.publication-preparation/3:
+  # the /2 layout, except that each Provenance object is this carrier, without its bytes. The
+  # preparation's own atomic group binds those bytes under the object's own content address, the
+  # address its publication binds the same bytes to again, so the bytes are retained once. Until
+  # that publication no ObjectStored metadata names them and no object read finds them. Reading a
+  # /3 attempt back reads each staged binding and checks it against the address and byte_len; one
+  # that is absent refuses `preparation-staged-object-missing: <content hash>`. A decision that
+  # stages no Provenance object is still elected in /2, byte for byte as before.
+  - name: ekr.store.StagedPublicationObject
+    kind: struct
+    fields:
+      - name: storage_class
+        type: ekr.store.StorageClass
+      - name: stored_at
+        type: Timestamp
+      - name: byte_len
+        type: Integer
+
   - name: ekr.store.PublicationPreparationFormatV1
     kind: enum
-    variants: [ekr.publication-preparation/1, ekr.publication-preparation/2]
+    variants:
+      - ekr.publication-preparation/1
+      - ekr.publication-preparation/2
+      - ekr.publication-preparation/3
 
   - name: ekr.store.PublicationPreparationV1
     kind: struct
@@ -259,6 +281,12 @@ events:
   # backend schema; refuse unknown versions, inline/schema2, metadata/schema1, extra/missing
   # semantic fields and mismatched/missing blob bindings. Do not infer a format from bytes absence.
   # ObjectRetentionRaised stays schema1; this is a per-event version rule, not a blanket bump.
+  # Design §100.3: the preserving migration (`ekr migrate --to <path>`) is the one reader of the
+  # frozen schema1 body. It verifies the inline bytes against content_hash and byte_len and writes
+  # the object into the migration's new destination store as schema2 metadata and a blob, with its
+  # class, retention raises and stored_at. The provider log is append-only and the source is left
+  # untouched, so an inline record is never rewritten in place; current reads of the source keep
+  # refusing it as before.
   - name: ekr.store.ObjectStored
     fields:
       - name: content_hash

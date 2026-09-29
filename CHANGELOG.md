@@ -4,6 +4,53 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.16] — 2026-09-29
+
+Evidence after the seed; seed payloads out of the envelope; `ekr migrate`.
+
+### Added
+
+- **Evidence after the seed.** `AddEvidence` (operation 12) in `ekr.transaction-document/1` and
+  `/2` carries one `ekr.graph.Evidence` and its payload bytes; an assertion in the same or a later
+  transaction may cite it, and the commit retains the payload as a Provenance object. Refusals: a
+  payload that does not hash to its entry, a reused evidence id (`identity-already-exists`,
+  `duplicate-identity`), an assertion citing evidence no revision holds (`unresolved-evidence`),
+  evidence other than a human statement (`evidence-unsupported-source`), and an `extracted_by` that
+  is not the submitter. A payload is at most 16,384 bytes in `/2` and 4,096 in `/1` (the
+  `sequence_elements` limit); a larger statement goes in the seed with `ekr seed --evidence`. The
+  kernel conformance suite holds 44 scenarios (4 new).
+- `ekr migrate --to <path>` (design § 100.3): writes a copy of the store at a new path whose seed is
+  `ekr-seed-envelope/3`, re-publishing every decision with its original identities and times,
+  carrying every other object and converting a legacy inline `ObjectStored` object into metadata
+  and a blob; the new store is replayed in full against the old one, which is left untouched, and
+  the `ekr.store-migration/1` report maps each replaced record. A destination that is, is inside or
+  contains the source is refused (`migrate-destination-is-source`,
+  `migrate-destination-inside-source`, `migrate-destination-contains-source`); a store whose
+  migration did not finish refuses every read as `migrate-incomplete`.
+
+### Changed
+
+- **New seeds write `ekr-seed-envelope/3`** (design § 100.1): the envelope names each evidence
+  payload by its content hash instead of carrying it as a JSON number array, and the seed's
+  publication preparation (`ekr.publication-preparation/3`) names it too, binding its bytes once
+  under the payload's own address. A seed with 10 MiB of evidence retained a 37,446,229-byte
+  envelope and a 63,916,454-byte preparation; it now retains a 5,542-byte envelope and a
+  14,481-byte preparation, and each payload once. A `/2` store opens,
+  replays and commits as before. A `/3` envelope naming a payload the store does not hold is
+  refused `seed-evidence-payload-absent: <hash>`.
+- The `ekr.views` reads work out which evidence is retained in one pass over the verified history
+  instead of one history read per evidence entry: rendering a store with 400 added evidence
+  entries took 13.66 s on SQLite and takes 57.2 ms. The documents are unchanged.
+
+### Known limits
+
+- `AddEvidence` accepts human statements only; evidence from observations waits on
+  `decision-blocker:observation-retention-path`.
+- `GET /changes` and `changes_since` do not list added evidence yet
+  (`task:changes-since-lists-added-evidence`).
+- Still open from 0.0.15: no MCP `head` tool, and long-running readers keep a store replaced at
+  their path.
+
 ## [0.0.15] — 2026-09-29
 
 Agents and pages ask what changed since a revision or a time.

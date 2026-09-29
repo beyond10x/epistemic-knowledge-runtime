@@ -108,6 +108,7 @@ pub mod commit;
 pub mod document;
 mod explain;
 pub mod issue;
+pub mod migrate;
 mod read;
 pub mod records;
 mod replay;
@@ -133,6 +134,7 @@ pub use explain::{
     ProjectionError, SnapshotResult,
 };
 pub use issue::{ValidationIssue, ValidatorName};
+pub use migrate::{MigratedOccurrence, StoreMigrationV1};
 pub use read::{SchemaHistory, VerifiedRead, VerifiedRevision};
 pub use records::{
     CommitReceiptV1, ProposalRecordV1, RecordedValidationIssue, RejectionRecordV1, SeedResultV1,
@@ -142,8 +144,8 @@ pub use replay::{TransactionRecord, TransactionState};
 pub use runtime::Runtime;
 pub use seed::{BootstrapContext, SeedDocument, SeedError};
 pub use transaction::{
-    EdgeDraft, EntityMerge, GraphOperation, GraphTransaction, NodeDraft, PropertyModification,
-    PropertyMutation, Retraction, Supersession, ValidatedTransaction,
+    EdgeDraft, EntityMerge, EvidenceAddition, GraphOperation, GraphTransaction, NodeDraft,
+    PropertyModification, PropertyMutation, Retraction, Supersession, ValidatedTransaction,
 };
 pub use validate::{
     Authorization, Cardinality, OntologyConstraint, Pipeline, Provenance, Reference, Structural,

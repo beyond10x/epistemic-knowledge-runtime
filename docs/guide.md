@@ -105,9 +105,9 @@ ekr: store-not-found: no file store at ./ops-store; `ekr seed` creates one
 
 ## 2. Prepare the evidence
 
-Evidence enters **only through the seed**. Every assertion you will make must cite
-evidence that is already in the store, so write the statements down before seeding. Put each one in
-a file:
+Every assertion must cite evidence the store retains, or evidence the same transaction adds with
+`!AddEvidence` ([`docs/cli.md`](cli.md#evidence-after-the-seed)). This guide seeds the evidence its
+first assertions rest on, so write the statements down before seeding. Put each one in a file:
 
 ```text
 On-call log: the checkout latency incident of 2026-07-14 affects checkout-api.

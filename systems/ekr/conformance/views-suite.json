@@ -121,7 +121,7 @@
         "scenario": "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound"
       },
       "seeded-evidence-is-projected-as-retained.yaml": {
-        "digest": "sha256:3f1ef387e658de1a6a00f02285300327b26238f6369ec2c1eba39200d7eb8a36",
+        "digest": "sha256:5abf4850b88699b2a07dcb8f401978ab313ca6ac37342fda7a3bc278fd80a793",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/seeded-evidence-is-projected-as-retained"
       },
@@ -1126,8 +1126,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "4113e60bac5454017d1756b0c754ecd8390854d21773a5d19e95764121d0456a",
-    "spec_digest": "39dc7ca16443171e93d89428845bef7fae4a58098325f0adb459481349a78858",
+    "contract_digest": "43b0c23da19215734b2f0ae8a545c3a1372f5561bbb3c65411e96e95a1ba290d",
+    "spec_digest": "fde1160a5eca9a842ffb927dad687e3aa93c3b050886c642d2ad49c1be79803a",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"

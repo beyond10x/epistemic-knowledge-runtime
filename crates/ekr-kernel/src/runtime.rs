@@ -288,6 +288,24 @@ impl Runtime {
             Backend::Sqlite(kernel) => kernel.store.published_events(),
         }
     }
+    /// The preserving migration (design § 100.3): this store's complete retained history
+    /// re-published into `destination`, a store under the same host anchor that holds nothing yet,
+    /// with its seed under `ekr-seed-envelope/3`. This store is only read; the destination is
+    /// replayed in full and compared with it before the report is returned.
+    /// # Errors
+    /// `migrate-destination-not-empty`, `migrate-unresolved-preparation`, any refusal of either
+    /// store's replay, and `migrate-verification-disagrees`.
+    pub fn migrate_into(
+        &self,
+        destination: &Runtime,
+    ) -> Result<crate::StoreMigrationV1, crate::CommitError> {
+        match (&self.backend, &destination.backend) {
+            (Backend::File(source), Backend::File(into)) => source.migrate_into(into),
+            (Backend::File(source), Backend::Sqlite(into)) => source.migrate_into(into),
+            (Backend::Sqlite(source), Backend::File(into)) => source.migrate_into(into),
+            (Backend::Sqlite(source), Backend::Sqlite(into)) => source.migrate_into(into),
+        }
+    }
     /// Reads verified retained content through the shared handler.
     /// # Errors
     /// Invalid history or corrupt native blob binding.

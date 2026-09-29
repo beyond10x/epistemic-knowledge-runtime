@@ -233,6 +233,7 @@ fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
         Command::View { .. } => Err(verb_refused("view")),
         Command::Session { .. } => Err(verb_refused("session")),
         Command::Mcp => Err(verb_refused("mcp")),
+        Command::Migrate { .. } => Err(verb_refused("migrate")),
         Command::Guide => Err(verb_refused("guide")),
         Command::Operations { .. } => Err(verb_refused("operations")),
         Command::Example { .. } => Err(verb_refused("example")),
@@ -253,7 +254,8 @@ fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
 
 /// The refusal of a verb a session does not serve: `seed` creates a store, which only a session
 /// started with `--create` does, `view` serves until interrupted, `mcp` until its own input ends,
-/// a session does not nest, and `guide`, `operations` and `example` print text.
+/// a session does not nest, `migrate` writes a second store, and `guide`, `operations` and
+/// `example` print text.
 pub(super) fn verb_refused(verb: &str) -> Failure {
     let instead = if verb == "seed" {
         "run `ekr seed` outside the session, or start the session with `ekr session --create`"

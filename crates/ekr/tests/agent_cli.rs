@@ -43,9 +43,9 @@ fn names<E: ValueEnum>() -> Vec<String> {
         .collect()
 }
 
-/// `GraphOperation` has twelve variants (the eleven of design § 19 and amendment 87, plus
-/// `SupersedeAssertion`).
-const KIND_COUNT: usize = 12;
+/// `GraphOperation` has thirteen variants (the eleven of design § 19 and amendment 87, plus
+/// `SupersedeAssertion` and `AddEvidence`).
+const KIND_COUNT: usize = 13;
 
 /// A fresh `ekr` process with no inherited `EKR_*` configuration.
 fn ekr() -> std::process::Command {
@@ -760,6 +760,15 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
                 "ekr explain",
                 "ekr resolve",
                 "untrusted evidence",
+                store,
+            ],
+        ),
+        (
+            "migrate",
+            &[
+                "ekr-seed-envelope/3",
+                "ekr.store-migration/1",
+                "must hold no store",
                 store,
             ],
         ),

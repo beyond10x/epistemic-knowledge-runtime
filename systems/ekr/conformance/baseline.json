@@ -1,15 +1,15 @@
 {
   "format": "ekr.conformance-baseline/1",
   "suite": "systems/ekr/conformance/suite.json",
-  "suite_digest": "sha256:28fe48c8e49312c42f65252f7cccf647871a038970f8105971dc649e27f3893d",
+  "suite_digest": "sha256:088fc76d332af34b8b3596047ff7c8bcdf4a807c4aa28035f2f9ed08bb9edda5",
   "suite_version": "ess-conformance/13",
   "component": "ekr-kernel",
   "providers": [
     "file",
     "sqlite"
   ],
-  "total": 40,
-  "answered_floor": 40,
+  "total": 44,
+  "answered_floor": 44,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -51,6 +51,10 @@
     "ekr.kernel.Validate/outcome/validated",
     "ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names",
     "ekr.kernel/authored/a-proposal-is-stored-as-its-canonical-record",
+    "ekr.kernel/authored/a-reused-evidence-id-is-rejected-by-name",
+    "ekr.kernel/authored/an-assertion-citing-evidence-no-revision-holds-is-rejected-by-name",
+    "ekr.kernel/authored/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name",
+    "ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it",
     "ekr.kernel/authored/snapshot-at-a-past-revision-reports-that-revision",
     "ekr.kernel/authored/snapshot-without-a-revision-reports-the-newest"
   ]

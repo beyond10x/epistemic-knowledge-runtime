@@ -1,0 +1,16 @@
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-8000-000000000713
+  proposer: 00000000-0000-4000-8000-000000000101
+  operations:
+  - !AddEvidence
+    evidence:
+      id: 00000000-0000-4000-8000-000000000401
+      source: !HumanStatement
+        identity: Runtime operator
+      content_hash: 111fc8fd8b3b900195f35cb56f86ee0db1777c9b9cd4671999fff26aa8e5af21
+      extracted_by: 00000000-0000-4000-8000-000000000101
+      observed_at: 1773273600000
+      confidence: 10000
+    payload: [67, 97, 114, 111, 108, 32, 105, 115, 32, 67, 69, 79, 32, 111, 102, 32, 65, 99, 109, 101, 46]
+  evidence: []
