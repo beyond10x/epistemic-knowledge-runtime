@@ -23,8 +23,12 @@
 //! closing the replaced store before it opens another, then opens the store now at the path and
 //! answers from it, and a reader that keeps indexes empties them. If that open fails it answers
 //! [`STORE_REPLACED`], naming the path, and never the replaced store's data; the next request
-//! tries again. A session holding a transaction it proposed that is neither committed nor
-//! rejected refuses the replacement instead, as [`PROPOSALS_OPEN`], on every store verb until the
+//! tries again. A file store replaced under the same device and inode — deleted and created again,
+//! or its files replaced inside it — passes that check; the held runtime then refuses its read as a
+//! diverged history ([`diverged`]), and the reader opens the store at the path once and answers
+//! the request again from it. A session holding a transaction it proposed that is neither
+//! committed nor rejected — read from the held runtime, so one another process committed does not
+//! count — refuses the replacement instead, as [`PROPOSALS_OPEN`], on every store verb until the
 //! store it opened is back at the path.
 
 use std::cell::Cell;
@@ -244,14 +248,29 @@ fn respond(
         Command::Commit { transaction_id } => Tracked::Commits(*transaction_id),
         _ => Tracked::Nothing,
     };
-    if !matches!(
+    let reads_store = !matches!(
         cli.command,
         Command::Mint { .. } | Command::Hash { .. } | Command::Schema { .. }
-    ) {
-        follow(session, watch)?;
+    );
+    if reads_store {
+        follow(session, watch, false)?;
     }
     let mut stdin = request.stdin.as_deref().unwrap_or_default().as_bytes();
-    let printed = super::dispatch(cli.command, Source::Session(session), now, &mut stdin)?;
+    let printed = match super::dispatch(cli.command, Source::Session(session), now, &mut stdin) {
+        // The held runtime's history diverged from the store at the path: a store replaced
+        // under the same device and inode. Reopened once, the request is run again there.
+        Err(failure) if reads_store && session.runtime.is_some() && failed_diverged(&failure) => {
+            follow(session, watch, true)?;
+            let mut stdin = request.stdin.as_deref().unwrap_or_default().as_bytes();
+            super::dispatch(
+                parse(&request.argv)?.command,
+                Source::Session(session),
+                now,
+                &mut stdin,
+            )?
+        }
+        printed => printed?,
+    };
     if seeds && session.runtime.is_none() {
         // Where this open fails, the seed's answer still stands and the session stays without a
         // store: each store verb then opens it as the one-shot verb does and says why it cannot.
@@ -288,17 +307,29 @@ fn respond(
     Ok(document)
 }
 
-/// Before a store verb: when the store at the session's path is not the one it opened, reopens
+/// Before a store verb: when the store at the session's path is not the one it opened — or,
+/// `diverged`, the held runtime found its history replaced under the same identity — reopens
 /// there, unless a transaction the session proposed is open ([`PROPOSALS_OPEN`]). A reopen that
 /// fails is [`STORE_REPLACED`], a fault as `store-not-found` is, and leaves the session holding no
 /// runtime, so no later request is answered from the replaced store and each tries again.
-fn follow(session: &mut Session, watch: &mut Watch) -> Result<(), Failure> {
+///
+/// While the store is the one opened and the session tracks proposals, the held runtime's
+/// transactions are read ([`settle`]), so one another process committed or rejected is not
+/// open; a file store replaced by a rename can no longer be read through the held runtime, so
+/// this is the read that can tell. Without tracked proposals nothing is read.
+fn follow(session: &mut Session, watch: &mut Watch, diverged: bool) -> Result<(), Failure> {
     if !watch.held {
         return Ok(());
     }
     let now = check(&session.store.store);
-    if now == watch.opened && session.runtime.is_some() {
-        return Ok(());
+    if !diverged && now == watch.opened {
+        if let Some(runtime) = &session.runtime {
+            settle(runtime, &mut watch.proposed);
+            return Ok(());
+        }
+    }
+    if let Some(runtime) = &session.runtime {
+        settle(runtime, &mut watch.proposed);
     }
     if session.runtime.is_some() && !watch.proposed.is_empty() {
         let open: Vec<String> = watch.proposed.iter().map(ToString::to_string).collect();
@@ -320,6 +351,23 @@ fn follow(session: &mut Session, watch: &mut Watch) -> Result<(), Failure> {
     session.runtime = Some(runtime);
     watch.opened = now;
     Ok(())
+}
+
+/// Drops from `proposed` every transaction the held runtime reads as committed or rejected — by
+/// this session or by another process. Reads nothing when `proposed` is empty. Where the held
+/// runtime cannot read its transactions, each stays open.
+fn settle(runtime: &Runtime, proposed: &mut BTreeSet<TransactionId>) {
+    if proposed.is_empty() {
+        return;
+    }
+    count(|work| work.settles += 1);
+    if let Ok(transactions) = runtime.transactions() {
+        proposed.retain(|id| {
+            transactions
+                .get(id)
+                .is_none_or(|record| record.committed.is_none() && record.rejection.is_none())
+        });
+    }
 }
 
 /// The identity of a store: the device and inode of what its path names, symbolic links
@@ -362,17 +410,24 @@ fn of(metadata: &std::fs::Metadata) -> Identity {
 /// What long-running readers did on this thread to follow a replaced store.
 ///
 /// Test instrumentation, as `ekr_store::read_work` is: it lets a case show that a request without
-/// a replacement costs the check — one `stat` — and no store open or read.
+/// a replacement costs the check — one `stat` — and no store open or read, and that a session
+/// reads its transactions only while it tracks proposals.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(super) struct ReaderWork {
     /// Identity checks of a store path before a request.
     pub(super) checks: u64,
     /// Stores opened again because the one at the path was not the one opened.
     pub(super) reopens: u64,
+    /// Reads of a session's transactions to settle the proposals it tracks.
+    pub(super) settles: u64,
 }
 
 thread_local! {
-    static WORK: Cell<ReaderWork> = const { Cell::new(ReaderWork { checks: 0, reopens: 0 }) };
+    static WORK: Cell<ReaderWork> = const { Cell::new(ReaderWork {
+        checks: 0,
+        reopens: 0,
+        settles: 0,
+    }) };
 }
 
 /// The work counted on this thread since the last call, which starts the count again.
@@ -472,6 +527,32 @@ impl Held {
                 message: format!("no store is held for {}", self.store.store.display()),
             }),
         }
+    }
+
+    /// Drops the held runtime, so the next [`Held::current`] opens the store at the path: for a
+    /// held history that diverged from the store there ([`diverged`]), which a store replaced
+    /// under the same device and inode — deleted and created again, or its files replaced inside
+    /// it — leaves the identity check blind to.
+    pub(super) fn forget(&mut self) {
+        self.runtime = None;
+    }
+}
+
+/// What the file provider reports when the history at the path is no longer the one a handle
+/// observed (eventlog-file `fe8a0a7`, `lib.rs` and `capture.rs`).
+const DIVERGED: &str = "history diverged from this handle's observed history";
+
+/// Whether an error's text is the provider's refusal of a diverged history.
+pub(super) fn diverged(message: &str) -> bool {
+    message.contains(DIVERGED)
+}
+
+/// [`diverged`] for a verb's failure.
+fn failed_diverged(failure: &Failure) -> bool {
+    match failure {
+        Failure::Refused { message, .. }
+        | Failure::Fault { message }
+        | Failure::Usage { message } => diverged(message),
     }
 }
 

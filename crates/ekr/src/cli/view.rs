@@ -102,7 +102,7 @@ use ekr_views::{
 };
 use serde::Serialize;
 
-use super::session::{Checked, Held, STORE_REPLACED};
+use super::session::{diverged, Checked, Held, Replaced, STORE_REPLACED};
 use super::Store;
 use crate::exit::Failure;
 
@@ -609,6 +609,7 @@ impl Reply {
 }
 
 /// The paths this server knows.
+#[derive(Clone, Copy)]
 enum Route<'a> {
     Page,
     AltPage,
@@ -684,7 +685,9 @@ fn own_host(hosts: &[String], port: u16) -> bool {
 /// 404 whatever the method, a known path 405 for any method but `GET`, and a body 413. Before a
 /// path that reads the store, the store at the configured path is checked ([`Held::current`]): a
 /// replaced one is opened and everything [`Memory`] kept of the old is dropped, and one that does
-/// not open is 503 [`STORE_REPLACED`].
+/// not open is 503 [`STORE_REPLACED`]. A request whose read through the held runtime fails because the history
+/// at the path diverged from it — a store replaced under the same device and inode — is answered
+/// again after one reopen.
 fn answer(held: &mut Held, memory: &mut Memory, port: u16, asked: &Asked) -> Answered {
     if !own_host(&asked.hosts, port) {
         return Answered::Whole(Reply::text(
@@ -709,19 +712,55 @@ fn answer(held: &mut Held, memory: &mut Memory, port: u16, asked: &Asked) -> Ans
             "request-body-refused: a GET carries no body",
         ));
     }
-    let runtime = match route {
-        Route::Page => return Answered::Whole(Reply::ok(HTML, PAGE.as_bytes().to_vec())),
-        Route::AltPage => return Answered::Whole(Reply::ok(HTML, ALT_PAGE.as_bytes().to_vec())),
-        _ => match held.current() {
-            Ok(Checked::Same(runtime)) => runtime,
-            Ok(Checked::Reopened(runtime)) => {
-                *memory = Memory::default();
-                runtime
-            }
-            Err(replaced) => {
-                return Answered::Whole(Reply::refusal(503, STORE_REPLACED, replaced.message))
-            }
-        },
+    if let Route::Page | Route::AltPage = route {
+        return route_answer(None, memory, route, query);
+    }
+    let first = route_answer(Some(held.current()), memory, route, query);
+    if !answered_diverged(&first) {
+        return first;
+    }
+    // The held history diverged from the store at the path: one replaced under the same device
+    // and inode. Reopened once, the request is answered from that store.
+    held.forget();
+    route_answer(Some(held.current()), memory, route, query)
+}
+
+/// Whether an answer is a 500 carrying the provider's refusal of a diverged history.
+fn answered_diverged(answered: &Answered) -> bool {
+    match answered {
+        Answered::Whole(reply) => {
+            reply.status == 500 && diverged(&String::from_utf8_lossy(&reply.body))
+        }
+        Answered::Stream(_) => false,
+    }
+}
+
+/// Answers `route` from the store `checked` holds — none for the pages, which read no store: a
+/// store opened again empties [`Memory`], and one that does not open is 503
+/// [`STORE_REPLACED`].
+fn route_answer(
+    checked: Option<Result<Checked<'_>, Replaced>>,
+    memory: &mut Memory,
+    route: Route<'_>,
+    query: &str,
+) -> Answered {
+    let runtime = match checked {
+        None => {
+            let page = if let Route::AltPage = route {
+                ALT_PAGE
+            } else {
+                PAGE
+            };
+            return Answered::Whole(Reply::ok(HTML, page.as_bytes().to_vec()));
+        }
+        Some(Ok(Checked::Same(runtime))) => runtime,
+        Some(Ok(Checked::Reopened(runtime))) => {
+            *memory = Memory::default();
+            runtime
+        }
+        Some(Err(replaced)) => {
+            return Answered::Whole(Reply::refusal(503, STORE_REPLACED, replaced.message))
+        }
     };
     let reply = match route {
         Route::Page => Reply::ok(HTML, PAGE.as_bytes().to_vec()),
@@ -1288,7 +1327,9 @@ fn content_type(bytes: &[u8]) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::super::session::fixture::{replace, seeded, BACKENDS};
+    use super::super::session::fixture::{
+        replace, replace_inside, seeded, seeded_with_a_commit, BACKENDS,
+    };
     use super::super::session::{reader_work, ReaderWork};
     use super::*;
 
@@ -1305,6 +1346,36 @@ mod tests {
             Answered::Whole(reply) => reply,
             Answered::Stream(_) => panic!("{target} answered a stream"),
         }
+    }
+
+    /// A file store whose files are replaced inside its directory keeps its device and inode: the
+    /// held history is refused as diverged, and the request is answered from the store at the
+    /// path after one reopen, the replaced store's index dropped.
+    #[test]
+    fn a_file_store_replaced_inside_its_directory_is_answered_after_one_reopen() {
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let store = seeded(directory.path(), super::super::Backend::File, "store");
+        let path = store.store.clone();
+        let mut held = Held::open(store).expect("the store opens");
+        let mut memory = Memory::default();
+        assert_eq!(get(&mut held, &mut memory, "/overview").status, 200);
+        let next = seeded_with_a_commit(directory.path(), super::super::Backend::File, "next");
+        replace_inside(&path, &next.store);
+        let _ = reader_work();
+        for target in ["/head", "/overview"] {
+            let answer = get(&mut held, &mut memory, target);
+            assert_eq!(
+                answer.status,
+                200,
+                "{target}: {}",
+                String::from_utf8_lossy(&answer.body)
+            );
+        }
+        assert_eq!(
+            get(&mut held, &mut memory, "/head").body,
+            br#"{"format":"ekr.view-head/1","head":1}"#
+        );
+        assert_eq!(reader_work().reopens, 1);
     }
 
     /// Without a replacement a request that reads the store costs the identity check and no
@@ -1328,7 +1399,8 @@ mod tests {
                 reader_work(),
                 ReaderWork {
                     checks: 6,
-                    reopens: 0
+                    reopens: 0,
+                    settles: 0
                 },
                 "{backend:?}"
             );
@@ -1346,7 +1418,8 @@ mod tests {
                 reader_work(),
                 ReaderWork {
                     checks: 2,
-                    reopens: 1
+                    reopens: 1,
+                    settles: 0
                 },
                 "{backend:?}"
             );

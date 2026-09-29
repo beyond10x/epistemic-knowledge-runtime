@@ -379,9 +379,12 @@ the next request is answered from the store now at the path, with no restart, an
 from the replaced store — no loaded revision, no rendered answer — is used again. If what is at
 the path does not open as a store (nothing, or a file that is not one), the request is refused
 with `store-replaced`, naming the path and why it does not open, and is never answered from the
-replaced store; each later request tries again. `ekr view` answers it 503 with
-`{"refusal": "store-replaced", …}`; `GET /` and `GET /alt` read no store and are served
-throughout. Move a SQLite database together with its `-wal` and `-shm` files.
+replaced store; each later request tries again. A file store replaced under the same device and
+inode — deleted and created again, or its files replaced inside the directory — passes that
+comparison, but the reader's next read finds the history there diverged from the one it holds;
+it then opens the store at the path once and answers the request from it. `ekr view` answers
+`store-replaced` 503 with `{"refusal": "store-replaced", …}`; `GET /` and `GET /alt` read no
+store and are served throughout. Move a SQLite database together with its `-wal` and `-shm` files.
 
 The query of `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and `/changes` is
 `name=value` pairs joined by `&`, each name one the path takes and at most once, each value
@@ -594,11 +597,14 @@ message `ekr <argv>` prints with the store configured through `EKR_HOST`, `EKR_S
 store verb; `mint`, `hash` and `schema` read no store and are served throughout. A store now at
 the path that does not open is answered `"exit": 1` with `ekr: store-replaced: <reason>`, a fault
 as `store-not-found` is. A session holding a transaction it proposed that is neither committed
-nor rejected does not follow a replacement: every store verb is answered `"exit": 2` with
+nor rejected — as the store it holds records them, so one another process committed is not open —
+does not follow a replacement: every store verb is answered `"exit": 2` with
 `ekr: store-replaced-proposals-open: <reason>`, naming those transactions, which stay in the
 store the session opened, until that store is back at the path. End the session to work on the
-store now there. At the end of its input a session writes its replay checkpoint only into the
-store it holds, and only while that store is still the one at the path.
+store now there. While it holds such a transaction, each store verb also reads the store's
+transactions once to see whether it is still open; a session holding none reads nothing more.
+At the end of its input a session writes its replay checkpoint only into the store it holds, and
+only while that store is still the one at the path.
 
 ### `ekr mcp`
 
