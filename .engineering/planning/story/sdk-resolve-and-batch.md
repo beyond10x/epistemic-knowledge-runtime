@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:sdk-resolve-and-batch
 kind: story
-status: active
+status: implemented
 title: The SDK resolves-or-creates through a cache and bisects a rejected batch
 relations:
 - depends_on: story:sdk-session-transport
@@ -18,10 +18,11 @@ scope:
   path: crates/ekr-sdk/tests/batch_bisect.rs
 - confidence: inferred
   path: crates/ekr-sdk/tests/resolve_cache.rs
-revision: 8
+revision: 9
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-29T18:41:42Z", actor: "human:timo", revision: 7}
 - {from: "proposed", to: "active", at: "2026-09-29T18:41:42Z", actor: "human:timo", revision: 8}
+- {from: "active", to: "implemented", at: "2026-09-29T20:35:57Z", actor: "human:timo", revision: 9, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}}
 ---
 ## Context
 

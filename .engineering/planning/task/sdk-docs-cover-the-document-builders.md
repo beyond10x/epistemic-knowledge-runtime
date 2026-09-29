@@ -2,15 +2,16 @@
 format: aep.planning-md/3
 id: task:sdk-docs-cover-the-document-builders
 kind: task
-status: active
+status: implemented
 title: docs/sdk.md documents the document builders and the ontology by name
 relations:
 - serves: vision:o5
 - decomposes: epic:consumer-sdk
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-29T19:39:15Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-09-29T19:39:15Z", actor: "human:timo", revision: 3}
+- {from: "active", to: "implemented", at: "2026-09-29T20:35:57Z", actor: "human:timo", revision: 4, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}}
 ---
 ## Context
 
