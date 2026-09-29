@@ -1558,8 +1558,8 @@ fn every_issue_code_the_kernel_can_raise_is_raised_by_a_case() {
     );
 }
 
-/// The eleven `GraphOperation` numbers are the domain's list, the declaration order and the
-/// encoding's, all three.
+/// The thirteen `GraphOperation` numbers are the domain's list, the declaration order and the
+/// encoding's, all three. There were eleven; `SupersedeAssertion` took 11 and `AddEvidence` 12.
 ///
 /// `Encoder::variant`'s own doc puts the obligation here and names the precedent:
 ///
@@ -1584,11 +1584,14 @@ fn every_issue_code_the_kernel_can_raise_is_raised_by_a_case() {
 ///
 /// And then the numbers themselves, transcribed here and checked against the bytes, so that a
 /// renumbering which moved all three lists together still turns this red.
+///
+/// The name still says twelve: design § 95 cites the case by it, and an amendment adds rather
+/// than rewrites. It holds thirteen since `AddEvidence`.
 #[test]
 fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
-    /// The eleven names in the order their numbers count in, transcribed from
+    /// The names in the order their numbers count in, transcribed from
     /// `ekr.kernel.OperationKind`.
-    const NAMES: [&str; 12] = [
+    const NAMES: [&str; 13] = [
         "CreateNode",
         "UpdateProperty",
         "CreateEdge",
@@ -1601,6 +1604,7 @@ fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
         "MergeEntity",
         "Invoke",
         "SupersedeAssertion",
+        "AddEvidence",
     ];
 
     let domain = read_workspace_file("systems/ekr/domains/kernel.yaml");
@@ -1697,10 +1701,10 @@ fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
     assert_eq!(
         numbered.len(),
         NAMES.len(),
-        "the encode scan found {numbered:?}, which is not eleven arms"
+        "the encode scan found {numbered:?}, which is not one arm per name"
     );
     for (position, (index, name)) in numbered.iter().enumerate() {
-        let expected = u32::try_from(position).expect("eleven variants fit in a u32");
+        let expected = u32::try_from(position).expect("thirteen variants fit in a u32");
         assert_eq!(
             (*index, name.as_str()),
             (expected, NAMES[position]),
@@ -1713,7 +1717,7 @@ fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
     // tag byte and the index, big-endian, and it opens the encoding.
     let world = World::new();
     for (position, operation) in one_of_each_operation(&world).iter().enumerate() {
-        let index = u32::try_from(position).expect("eleven variants fit in a u32");
+        let index = u32::try_from(position).expect("thirteen variants fit in a u32");
         let mut expected = vec![0x0f_u8];
         expected.extend_from_slice(&index.to_be_bytes());
         assert_eq!(
@@ -1725,7 +1729,7 @@ fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
     }
 }
 
-/// One operation of each variant, in the order the eleven numbers count in.
+/// One operation of each variant, in the order the thirteen numbers count in.
 fn one_of_each_operation(world: &World) -> Vec<GraphOperation<CanonicalValue>> {
     let node = NodeId::mint();
     vec![
@@ -1788,6 +1792,17 @@ fn one_of_each_operation(world: &World) -> Vec<GraphOperation<CanonicalValue>> {
             by: AssertionId::mint(),
             effective_from: Timestamp::EPOCH,
         }),
+        GraphOperation::AddEvidence(Box::new(ekr_kernel::EvidenceAddition {
+            evidence: Evidence {
+                id: EvidenceId::mint(),
+                source: EvidenceSource::HumanStatement { identity: None },
+                content_hash: ContentHash::of_bytes(b"one"),
+                extracted_by: world.proposer,
+                observed_at: Timestamp::EPOCH,
+                confidence: Confidence::CERTAIN,
+            },
+            payload: b"one".to_vec(),
+        })),
     ]
 }
 
@@ -2004,8 +2019,9 @@ fn every_field_of_every_encoded_type_reaches_its_encoding() {
 /// Every struct whose fields the kernel's `validation_hash` is computed over, and the file each is
 /// declared in. The upstream ones are here because the kernel encodes them by hand: they are
 /// `ekr_ontology`'s, and a foreign trait cannot be implemented for a foreign type.
-const ENCODED: [(&str, &str); 12] = [
+const ENCODED: [(&str, &str); 13] = [
     ("GraphTransaction", "transaction"),
+    ("EvidenceAddition", "transaction"),
     ("PropertyModification", "transaction"),
     ("NodeDraft", "transaction"),
     ("EdgeDraft", "transaction"),

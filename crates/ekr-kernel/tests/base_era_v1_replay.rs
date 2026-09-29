@@ -256,9 +256,12 @@ fn every_operation_kind_in_its_base_era_shape_re_derives_its_retained_hashes() {
             GraphOperation::MergeEntity(_) => "MergeEntity",
             GraphOperation::Invoke { .. } => "Invoke",
             GraphOperation::SupersedeAssertion(_) => "SupersedeAssertion",
+            // Later than the base era: the fixture cannot carry it, and the count stays twelve.
+            GraphOperation::AddEvidence(_) => "AddEvidence",
         })
         .collect();
     assert_eq!(kinds.len(), 12, "{kinds:?}");
+    assert!(!kinds.contains("AddEvidence"), "{kinds:?}");
     let canonical =
         GraphTransaction::<CanonicalValue>::try_from(parsed.transaction().clone()).unwrap();
     assert_eq!(

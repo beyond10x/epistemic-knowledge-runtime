@@ -1,0 +1,70 @@
+# story:add-evidence-operation, acceptance 1.
+#
+# The target has committed revision 1 before the first act. One transaction (fixture
+# `add-evidence.yaml`) carries an AddEvidence of evidence 0403 with its 19 payload bytes, and an
+# AddAssertion citing 0403, which no earlier revision holds. It is proposed, validated against
+# revision 1 and committed as revision 2.
+#
+# Afterwards evidence 0403 is retained, attributed to the operator, and its payload is held as an
+# object at the entry's own content hash: RetainedEvidence lists an entry only when the verified
+# read holds that object. A target that kept the bytes only inside the proposal record holds them
+# under the record's address, and has no row for 0403. Which ekr.store object class the commit
+# stored the payload under is not observable here — ESS reads the first ObjectStored of a command,
+# and the commit's two objects are published in address order — and
+# crates/ekr-kernel/tests/add_evidence.rs holds it to Provenance on both providers.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: evidence-added-after-the-seed-commits-with-the-assertion-citing-it
+summary: A transaction that adds evidence and an assertion citing it validates and commits, and the evidence is then retained with its payload held at its content hash.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: transaction_document
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 1
+    outcome: validated
+    events:
+      - event: ekr.kernel.TransactionValidated
+        payload:
+          against: 1
+
+  - at: 2027-01-15T08:00:02Z
+    command: ekr.kernel.Commit
+    actor: ekr.kernel.Committer
+    input:
+      transaction_id: {$instance: proposal}
+    outcome: committed
+    events:
+      - event: ekr.kernel.RevisionCommitted
+        payload:
+          number: 2
+
+assert:
+  - view: ekr.kernel.Transactions
+    contains:
+      transaction_id: {$instance: proposal}
+      state: Committed
+      validated_against: 1
+      terminal_record_hash: {$observed: {event: ekr.kernel.RevisionCommitted, field: record_hash}}
+
+  - view: ekr.kernel.RetainedEvidence
+    contains:
+      evidence_id: 00000000-0000-4000-8000-000000000403
+      content_hash: d665088b6d8d615784418d2e9e79245f5aad71d0565a60fd45ed4649cb8c425c
+      extracted_by: 00000000-0000-4000-8000-000000000101

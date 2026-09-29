@@ -5,9 +5,9 @@
 # retained; the projection never carries the bytes themselves (design § 86). A renderer that
 # inverts the flag reports zero retained.
 #
-# The other half — evidence whose bytes the store does not hold — cannot be built today: the seed
-# refuses it and no evidence enters after the seed. views.yaml names it UNMAPPED under
-# decision-blocker:evidence-entry-after-seed.
+# The other half — evidence whose bytes the store does not hold — cannot be built: the seed
+# refuses it, and evidence that enters after the seed through AddEvidence carries its bytes and
+# its commit stores them. views.yaml says so where it declares the flag.
 type: ess-scenario/1
 domain: ekr.views
 scenario: seeded-evidence-is-projected-as-retained

@@ -13,9 +13,11 @@
 //! - an id derived from [`ObservationIdempotencyKey`], so the same record always yields the same
 //!   id (design § 56).
 //!
-//! Nothing here persists or deduplicates an observation, and no evidence cites one yet: those
-//! wait on `decision-blocker:observation-retention-path` and
-//! `decision-blocker:evidence-entry-after-seed`. There is no source adapter and no checkpoint.
+//! Nothing here persists or deduplicates an observation, and no evidence cites one yet: that
+//! waits on `decision-blocker:observation-retention-path`. Evidence itself now enters after the
+//! seed through the kernel's `AddEvidence` operation (`decision-blocker:evidence-entry-after-seed`,
+//! option 1), which admits `HumanStatement` evidence only until an observation is retained. There
+//! is no source adapter and no checkpoint.
 
 use ekr_core::{Canonical, ContentHash, Encoder, ObservationId, Timestamp};
 use ekr_graph::{Observation, ObservationContent};

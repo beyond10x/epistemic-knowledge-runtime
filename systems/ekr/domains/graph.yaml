@@ -3,7 +3,8 @@ domain: ekr.graph
 summary: >-
   Graph roots, nodes, edges, bitemporal assertions with independent assessment and lifecycle, evidence and
   observations. Design § 13–17, § 21–23, § 36. This domain has no commands: every change to it is an
-  operation inside a transaction the kernel commits, which is why assertion assessment/lifecycle and per-type
+  operation inside a transaction the kernel commits (evidence included, through AddEvidence), or
+  the seed, which is why assertion assessment/lifecycle and per-type
   lifecycle state are fields here rather than ESS lifecycles — one commit applies many operations,
   and an outcome causes one move.
 
@@ -554,6 +555,13 @@ entities:
       terminal: [Linked]
 
   # Design § 16. Confidence in basis points, so it is an integer a suite can compare.
+  # What creates one: the seed, whose envelope retains each entry's payload, or an ekr.kernel
+  # AddEvidence operation of a committed transaction, which carries the entry with its payload and
+  # whose commit stores the payload as a Provenance object (ekr.kernel.EvidenceAdditionProjection,
+  # decision-blocker:evidence-entry-after-seed, option 1). Either way the entry's content_hash is
+  # the address of retained bytes, its source is HumanStatement and its extracted_by is the agent
+  # that submitted it. Its id is never taken again (identity-already-exists), and it is never
+  # removed: Retained is its only state.
   - name: ekr.graph.Evidence
     identity:
       name: evidence_id

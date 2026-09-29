@@ -22,18 +22,20 @@
 //! validated into a root nothing holds. A snapshot has exactly one root in P1, so resolving it is
 //! an equality rather than a lookup.
 //!
-//! # Evidence resolves against retained evidence, and against nothing else
+//! # Evidence resolves against retained evidence and `AddEvidence`, and against nothing else
 //!
 //! It used to resolve against the ids the transaction listed as well, and that was the story's
-//! fifth acceptance defect passing: a `GraphTransaction` carries evidence **ids** and never an
-//! `Evidence`, and not one of the eleven operations creates one, so "brought by the transaction"
-//! could only mean "written down by the proposer" — and a proposer naming a phantom id twice, once
-//! on the assertion and once in the list, satisfied the provenance validator with a non-empty set
-//! and this one with the list. That is AGENTS.md invariant 4 defeated by the agent saying so
-//! twice.
+//! fifth acceptance defect passing: the list is evidence **ids**, never an `Evidence`, so
+//! "brought by the transaction" could only mean "written down by the proposer" — and a proposer
+//! naming a phantom id twice, once on the assertion and once in the list, satisfied the provenance
+//! validator with a non-empty set and this one with the list. That is AGENTS.md invariant 4
+//! defeated by the agent saying so twice. `tests/adversary_membrane.rs` holds the case.
 //!
-//! P1 has no operation that introduces evidence, so evidence an assertion cites is already in
-//! canonical state or it does not exist. `tests/adversary_membrane.rs` holds the case.
+//! Evidence an assertion cites is therefore in canonical state — seeded, or added by a committed
+//! transaction — or it is brought by an `AddEvidence` of the same transaction, which carries the
+//! whole entry and the payload its content hash names, held equal by the provenance validator
+//! (`decision-blocker:evidence-entry-after-seed`, option 1). Any other id is
+//! `unresolved-evidence`. The transaction's own evidence list is still never a source.
 
 use std::collections::BTreeSet;
 
@@ -55,7 +57,8 @@ const UNRESOLVED_EDGE: &str = "unresolved-edge";
 /// An assertion the graph does not hold and the transaction does not add.
 const UNRESOLVED_ASSERTION: &str = "unresolved-assertion";
 
-/// A piece of evidence canonical state does not retain.
+/// A piece of evidence canonical state does not retain and no `AddEvidence` of the transaction
+/// brings. The message is P1's, unchanged, because retained rejections replay against it.
 const UNRESOLVED_EVIDENCE: &str = "unresolved-evidence";
 
 /// A graph root that is not the one the snapshot reads.
@@ -167,7 +170,10 @@ impl Validator for Reference {
                         known.value(tx, value, &mut issues);
                     }
                 }
-                GraphOperation::DefineNodeType(_)
+                // Names no graph identity but its own, which is new (`Structural`). Its source
+                // is a `HumanStatement` or refused by `Provenance`, so it names no assertion.
+                GraphOperation::AddEvidence(_)
+                | GraphOperation::DefineNodeType(_)
                 | GraphOperation::DefineEdgeType(_)
                 | GraphOperation::ModifyProperty(_) => {}
             }
@@ -194,10 +200,11 @@ struct Known {
 }
 
 impl Known {
-    /// Identities retained in the shared candidate, plus new assertion identities.
+    /// Identities retained in the shared candidate, plus new assertion and evidence identities.
     ///
-    /// Deleted edges are absent. Assertions remain addressable after retraction; evidence and
-    /// the root must already exist because no operation introduces them.
+    /// Deleted edges are absent. Assertions remain addressable after retraction. Evidence is
+    /// retained evidence and what an `AddEvidence` of this transaction brings; the root must
+    /// already exist because no operation introduces one.
     fn of(graph: &GraphSnapshot<'_>, tx: &GraphTransaction, candidate: &Candidate) -> Self {
         let state = graph.graph();
         let mut known = Self {
@@ -208,8 +215,14 @@ impl Known {
             evidence: state.evidence.keys().copied().collect(),
         };
         for operation in &tx.operations {
-            if let GraphOperation::AddAssertion(assertion) = operation {
-                known.assertions.insert(assertion.id);
+            match operation {
+                GraphOperation::AddAssertion(assertion) => {
+                    known.assertions.insert(assertion.id);
+                }
+                GraphOperation::AddEvidence(addition) => {
+                    known.evidence.insert(addition.evidence.id);
+                }
+                _ => {}
             }
         }
         known

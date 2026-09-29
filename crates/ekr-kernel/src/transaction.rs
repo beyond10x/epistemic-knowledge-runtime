@@ -44,8 +44,8 @@ use ekr_core::{
     RevisionNumber, SchemaVersionId, TransactionId, TypeId,
 };
 use ekr_graph::{
-    Assertion, CanonicalRef, CanonicalValue, InadmissibleValue, Object, RetractionReason, Subject,
-    ValueSpace,
+    Assertion, CanonicalRef, CanonicalValue, Evidence, InadmissibleValue, Object, RetractionReason,
+    Subject, ValueSpace,
 };
 use ekr_ontology::{EdgeType, NodeType, PropertyDefinition, Value};
 use serde::{Deserialize, Serialize};
@@ -344,6 +344,36 @@ pub struct Supersession {
     /// Replacement's required valid-time start.
     pub effective_from: ekr_core::Timestamp,
 }
+/// Evidence a transaction brings into canonical state, with the bytes it rests on: the payload of
+/// [`GraphOperation::AddEvidence`], and `ekr.kernel.EvidenceAdditionProjection`.
+///
+/// `decision-blocker:evidence-entry-after-seed`, option 1. The entry is an [`Evidence`] exactly as
+/// a seed's `graph.evidence` holds one, and `payload` is the bytes its `content_hash` addresses —
+/// what a seed carries in `evidence_payloads`. They travel together so that the evidence and its
+/// retained bytes are admitted by one validation: the provenance validator holds
+/// `ContentHash::of_bytes(payload)` equal to `evidence.content_hash`, and the commit stores the
+/// payload as a Provenance object of its own.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceAddition {
+    /// The evidence entry, under a fresh id (`ekr mint evidence`).
+    pub evidence: Evidence,
+    /// The exact bytes `evidence.content_hash` addresses, written as a list of byte values: the
+    /// `payload_yaml` `ekr hash` prints.
+    pub payload: Vec<u8>,
+}
+
+impl Canonical for EvidenceAddition {
+    /// The entry, then the payload's bytes. The bytes are written, and not only the entry whose
+    /// `content_hash` names them, so that two proposals differing only in their payload have two
+    /// addresses even before validation has held the hash to the bytes.
+    fn encode(&self, out: &mut Encoder) {
+        self.evidence.encode(out);
+        out.bytes(&self.payload);
+    }
+}
+
 impl Canonical for Retraction {
     fn encode(&self, out: &mut Encoder) {
         self.assertion.encode(out);
@@ -358,9 +388,10 @@ impl Canonical for Supersession {
     }
 }
 
-/// One change a transaction proposes: design § 19, plus `Invoke` from amendment 87.
+/// One change a transaction proposes: design § 19, plus `Invoke` from amendment 87,
+/// `SupersedeAssertion` from amendment 88 and `AddEvidence`.
 ///
-/// Eleven variants, which are the eleven `ekr.kernel.OperationKind` names of
+/// Thirteen variants, which are the thirteen `ekr.kernel.OperationKind` names of
 /// `systems/ekr/domains/kernel.yaml`, in that order. The order is the encoding's contract: the
 /// variant number is what separates two operations carrying the same payload shape, and moving a
 /// number moves every `validation_hash` that contains the variant.
@@ -423,6 +454,11 @@ pub enum GraphOperation<V: ValueSpace = Value> {
     /// Replace an accepted assertion without erasing its assessment or former valid interval.
     #[cfg_attr(feature = "schema", schemars(rename = "!SupersedeAssertion"))]
     SupersedeAssertion(Supersession),
+    /// Bring one piece of evidence, and the bytes it rests on, into canonical state, so that an
+    /// assertion of this or a later transaction may cite it. Boxed because an evidence entry with
+    /// its payload is larger than every other variant.
+    #[cfg_attr(feature = "schema", schemars(rename = "!AddEvidence"))]
+    AddEvidence(Box<EvidenceAddition>),
 }
 
 /// What an agent proposes: design § 19, and `ekr.kernel.GraphTransaction`.
@@ -452,9 +488,10 @@ pub struct GraphTransaction<V: ValueSpace = Value> {
     pub operations: Vec<GraphOperation<V>>,
     /// **The manifest: what this transaction declares it rests on.**
     ///
-    /// It is not a way in for evidence. A transaction carries evidence *ids* and never an
-    /// [`Evidence`](ekr_graph::Evidence), and no operation here creates one, so every id in it
-    /// names something canonical state must already retain — which is what
+    /// It is not a way in for evidence. It carries evidence *ids* and never an [`Evidence`]
+    /// itself. Evidence comes in only through a
+    /// [`GraphOperation::AddEvidence`], with its payload, and every id here names something
+    /// canonical state retains or an `AddEvidence` of the same transaction brings — which is what
     /// [`Reference`](crate::Reference) resolves it against, and only that. It said "the evidence
     /// it brings" once, and the reference validator believed it: a proposer naming a phantom id
     /// both on an assertion and here satisfied provenance with a non-empty set and reference with
@@ -641,6 +678,10 @@ impl<V: ValueSpace + Canonical> Canonical for GraphOperation<V> {
                 out.variant(11);
                 supersession.encode(out);
             }
+            Self::AddEvidence(addition) => {
+                out.variant(12);
+                addition.encode(out);
+            }
         }
     }
 }
@@ -762,6 +803,7 @@ fn canonical_operation(
         GraphOperation::SupersedeAssertion(supersession) => {
             GraphOperation::SupersedeAssertion(supersession)
         }
+        GraphOperation::AddEvidence(addition) => GraphOperation::AddEvidence(addition),
         GraphOperation::DefineNodeType(declared) => GraphOperation::DefineNodeType(declared),
         GraphOperation::DefineEdgeType(declared) => GraphOperation::DefineEdgeType(declared),
         GraphOperation::ModifyProperty(declared) => GraphOperation::ModifyProperty(declared),

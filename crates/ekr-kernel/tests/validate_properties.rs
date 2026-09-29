@@ -322,6 +322,23 @@ where
                 operation,
                 arguments,
             }),
+        // The payload is drawn apart from the entry's content hash, so that two additions
+        // differing only in their bytes are an ordinary outcome.
+        (0usize..2, 0usize..2, "(a|b)", "(a|b)", 0i64..2).prop_map(
+            |(evidence_at, agent_at, named, payload, at)| GraphOperation::AddEvidence(Box::new(
+                ekr_kernel::EvidenceAddition {
+                    evidence: ekr_graph::Evidence {
+                        id: POOL.evidence[evidence_at],
+                        source: ekr_graph::EvidenceSource::HumanStatement { identity: None },
+                        content_hash: ContentHash::of_bytes(named.as_bytes()),
+                        extracted_by: POOL.agents[agent_at],
+                        observed_at: Timestamp::from_millis(at),
+                        confidence: ekr_graph::Confidence::CERTAIN,
+                    },
+                    payload: payload.into_bytes(),
+                }
+            ))
+        ),
     ]
 }
 
@@ -510,6 +527,7 @@ fn operation_carries_a_float(operation: &GraphOperation) -> bool {
         | GraphOperation::DefineNodeType(_)
         | GraphOperation::DefineEdgeType(_)
         | GraphOperation::ModifyProperty(_)
-        | GraphOperation::MergeEntity(_) => false,
+        | GraphOperation::MergeEntity(_)
+        | GraphOperation::AddEvidence(_) => false,
     }
 }

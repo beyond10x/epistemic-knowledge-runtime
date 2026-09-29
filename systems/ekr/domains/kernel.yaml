@@ -37,7 +37,9 @@ types:
 
   # Existing indices 0–10 stay fixed; §88 appends SupersedeAssertion at index11 in new-format
   # transactions. Legacy verification retains the original eleven variants and scalar retraction.
-  # Design §19 plus amendments87–91.
+  # AddEvidence is index 12 (decision-blocker:evidence-entry-after-seed, option 1): it carries one
+  # ekr.graph.Evidence and the payload bytes its content_hash addresses, and is applied under every
+  # validation profile. Design §19 plus amendments87–91.
   - name: ekr.kernel.OperationKind
     kind: enum
     variants:
@@ -53,6 +55,7 @@ types:
       - MergeEntity
       - Invoke
       - SupersedeAssertion
+      - AddEvidence
 
   # Design § 20 items 1–7. Items 8–10 (contradiction, temporal consistency, policy) arrive with the
   # subsystems that need them and are added here together with the outcome that runs them.
@@ -520,6 +523,26 @@ types:
       - name: arguments
         type: Map<String, ekr.graph.TypedValue>
 
+  # `AddEvidence`: one evidence entry, as a seed's graph.evidence holds one, and the exact bytes
+  # its content_hash addresses (ContentHash::of_bytes, "ekr.payload.v1"). Validation refuses, as
+  # named issues of a Rejected transaction: a payload that does not hash to the entry
+  # (evidence-payload-mismatch, Provenance), a source other than HumanStatement
+  # (evidence-unsupported-source, Provenance), an id canonical state already retains
+  # (identity-already-exists, Structural) or that the transaction adds twice (duplicate-identity,
+  # Structural). An entry whose extracted_by is not the submitter is refused at Propose as
+  # ekr.kernel.ProposalAttribution. An AddAssertion of the same or a later transaction may cite the
+  # id; an assertion citing evidence no revision retains and no AddEvidence of its transaction
+  # brings is refused as unresolved-evidence (Reference). Commit applies the entry to retained
+  # evidence and stores the payload as its own ekr.store object in the Provenance class, beside
+  # the Canonical commit receipt; no event carries the bytes. Replay requires that object.
+  - name: ekr.kernel.EvidenceAdditionProjection
+    kind: struct
+    fields:
+      - name: evidence
+        type: ekr.graph.EvidenceRecord
+      - name: payload
+        type: Bytes
+
   - name: ekr.kernel.CanonicalOperationProjection
     kind: union
     tag: kind
@@ -536,6 +559,7 @@ types:
       MergeEntity: ekr.kernel.EntityMerge
       Invoke: ekr.kernel.InvocationProjection
       SupersedeAssertion: ekr.kernel.Supersession
+      AddEvidence: ekr.kernel.EvidenceAdditionProjection
 
   - name: ekr.kernel.CanonicalTransactionProjection
     kind: struct
@@ -1454,3 +1478,44 @@ views:
     naming:
       wire: pending
       display: Pending transactions
+
+  # Every issue a retained rejection records, one row per issue, from the real rejection records:
+  # the named refusal a Validate `rejected` outcome carries, which TransactionRejected counts and
+  # does not name. A conformance read surface, not a CLI verb; `ekr validate` prints the same
+  # issues in its Rejected result.
+  - name: ekr.kernel.ValidationIssues
+    source: ekr.kernel.ValidationIssue
+    consistency: read_your_writes
+    fields:
+      - name: issue_id
+        type: ekr.kernel.IssueId
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: validator
+        type: ekr.kernel.ValidatorName
+      - name: code
+        type: String
+      - name: message
+        type: String
+    naming:
+      wire: validation-issues
+      display: Validation issues
+
+  # Every evidence entry the newest revision retains, seeded or added by a committed AddEvidence,
+  # whose payload the verified read holds as an object at the entry's content_hash — an object of
+  # its own, since bytes inside a record have that record's address. An entry whose payload is not
+  # held has no row; the verified read refuses such a store outright. A conformance read surface,
+  # not a CLI verb.
+  - name: ekr.kernel.RetainedEvidence
+    source: ekr.graph.Evidence
+    consistency: read_your_writes
+    fields:
+      - name: evidence_id
+        type: ekr.graph.EvidenceId
+      - name: content_hash
+        type: ekr.kernel.ContentHash
+      - name: extracted_by
+        type: ekr.kernel.AgentId
+    naming:
+      wire: retained-evidence
+      display: Retained evidence

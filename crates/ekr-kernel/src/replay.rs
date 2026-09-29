@@ -268,6 +268,17 @@ pub(crate) fn require(condition: bool, code: &str) -> Result<(), StoreError> {
 pub(crate) fn registered(anchor: &AuthorityStateV1, actor: AgentId) -> Result<(), StoreError> {
     require(anchor.agents.contains_key(&actor), "unregistered-actor")
 }
+/// Whether every attribution `tx` writes is `actor`'s: its proposer, each assertion's
+/// `proposed_by` and each added evidence entry's `extracted_by`. The host submitter is who
+/// proposes, claims and extracts; a document naming anyone else is misattributed.
+pub(crate) fn attributed(tx: &GraphTransaction, actor: AgentId) -> bool {
+    tx.proposer == actor
+        && tx.operations.iter().all(|op| match op {
+            GraphOperation::AddAssertion(assertion) => assertion.proposed_by == actor,
+            GraphOperation::AddEvidence(addition) => addition.evidence.extracted_by == actor,
+            _ => true,
+        })
+}
 pub(crate) fn proposal(
     bytes: &[u8],
     actor: AgentId,
@@ -292,14 +303,7 @@ pub(crate) fn parsed_proposal(
     let document = TransactionDocument::parse(bytes)
         .map_err(|e| refuse(&format!("proposal-document: {e}")))?;
     let tx = document.transaction();
-    require(
-        tx.proposer == actor
-            && tx
-                .operations
-                .iter()
-                .all(|op| !matches!(op,GraphOperation::AddAssertion(a) if a.proposed_by!=actor)),
-        "proposal-attribution-mismatch",
-    )?;
+    require(attributed(tx, actor), "proposal-attribution-mismatch")?;
     let canonical = GraphTransaction::<CanonicalValue>::try_from(tx.clone()).ok();
     let record = ProposalRecordV1 {
         format: format.into(),
@@ -727,6 +731,15 @@ impl KernelAuthority {
                         &validation.validators,
                         record.committed_at,
                     )?;
+                    // Evidence a commit added is retained admissible evidence only while its
+                    // payload is retained, at Provenance strength, as the seed's payloads are.
+                    for (hash, payload) in crate::commands::added_payloads(validated.transaction())
+                    {
+                        require(
+                            history.content(hash, StorageClass::Provenance)? == payload.as_slice(),
+                            "evidence-payload-mismatch",
+                        )?;
+                    }
                     // Each claim a named refusal describes is held against the recomputed root on
                     // both of its carriers, payload and receipt, before the generic comparison:
                     // a lie told consistently in both must still get its own name.

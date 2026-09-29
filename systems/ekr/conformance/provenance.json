@@ -27,6 +27,10 @@
   "authored_scenarios": [
     "crates/ekr/tests/fixtures/conformance/scenarios/a-committed-transaction-row-carries-every-record-it-names.yaml",
     "crates/ekr/tests/fixtures/conformance/scenarios/a-proposal-is-stored-as-its-canonical-record.yaml",
+    "crates/ekr/tests/fixtures/conformance/scenarios/a-reused-evidence-id-is-rejected-by-name.yaml",
+    "crates/ekr/tests/fixtures/conformance/scenarios/an-assertion-citing-evidence-no-revision-holds-is-rejected-by-name.yaml",
+    "crates/ekr/tests/fixtures/conformance/scenarios/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name.yaml",
+    "crates/ekr/tests/fixtures/conformance/scenarios/evidence-added-after-the-seed-commits-with-the-assertion-citing-it.yaml",
     "crates/ekr/tests/fixtures/conformance/scenarios/snapshot-at-a-past-revision-reports-that-revision.yaml",
     "crates/ekr/tests/fixtures/conformance/scenarios/snapshot-without-a-revision-reports-the-newest.yaml"
   ]

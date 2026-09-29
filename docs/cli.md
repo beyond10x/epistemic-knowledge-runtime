@@ -281,11 +281,11 @@ as for `ekr snapshot --at`.
 ### `ekr guide`
 
 Prints the workflow for an agent: roles, propose → validate → commit, exit codes, where ids come from,
-how to add evidence to a seed and how to change the schema.
+how to add evidence after the seed and to a seed, and how to change the schema.
 
 ### `ekr operations`
 
-Without an argument, lists the twelve operation kinds, one per line, marking the three schema
+Without an argument, lists the thirteen operation kinds, one per line, marking the three schema
 changes (`[schema change: …]`) and the one kind that is not applied (`[not applied: …]`). With a
 kind (`ekr operations AddAssertion`), prints its fields and an example operation.
 
@@ -872,8 +872,9 @@ An assertion in a seed is written exactly as in [`!AddAssertion`](#assertions), 
 
 ### Evidence and `evidence_payloads`
 
-Every assertion cites evidence, and in P1 evidence enters only through the seed. An evidence entry
-records where a statement came from; its payload is the statement's exact bytes.
+Every assertion cites evidence. Evidence enters with the seed, as here, or later through a
+transaction's [`!AddEvidence`](#evidence-after-the-seed). An evidence entry records where a
+statement came from; its payload is the statement's exact bytes.
 
 | evidence field | value |
 |---|---|
@@ -910,9 +911,11 @@ transaction omits it.
 
 `operations` is a non-empty list applied in order, all or nothing. `evidence` is exactly the set of
 evidence ids cited by the transaction's `!AddAssertion` operations — no more, no fewer
-(`evidence-set-mismatch`) — and `[]` when it adds no assertion. Every cited evidence id must already
-be retained, which in P1 means seeded. `ekr example ekr.transaction-document/2` prints a complete
-document, and `ekr operations <Kind>` prints each kind's fields.
+(`evidence-set-mismatch`) — and `[]` when it adds no assertion. Every cited evidence id must be
+retained — seeded, or added by an earlier commit — or be added by an `!AddEvidence` of the same
+transaction ([Evidence after the seed](#evidence-after-the-seed)). `ekr example
+ekr.transaction-document/2` prints a complete document, and `ekr operations <Kind>` prints each
+kind's fields.
 
 ### Document limits
 
@@ -941,7 +944,7 @@ on such a line is held to the `/1` cap.
 
 ### Operation kinds
 
-There are twelve kinds. Eight are applied under every validation profile. Three are **schema
+There are thirteen kinds. Nine are applied under every validation profile. Three are **schema
 changes**, applied only under profile v2 and only in a transaction of their own that names its
 `schema_version` ([Evolve the schema](#evolve-the-schema)); under profile v1 validation rejects them
 with the issue code `unsupported-operation`, so the schema is fixed at seeding. One, `MergeEntity`,
@@ -957,6 +960,7 @@ parses but is **refused** under either profile, with the same code.
 | `RetractAssertion` | applied | withdraws an accepted, active assertion with a reason: `assertion`, `reason`. It is kept, marked retracted |
 | `Invoke` | applied | calls an operation of the node's type: `node`, `operation` (the operation's key under the type's `operations`, not its `name` field), `arguments` (map name → value) |
 | `SupersedeAssertion` | applied | replaces an accepted, active assertion from an instant on: `assertion`, `by` (the replacement, which may be added in the same transaction), `effective_from`. [Rules below](#supersession) |
+| `AddEvidence` | applied | adds one evidence entry and the bytes it rests on: `evidence` (an entry as in the seed) and `payload` (its bytes). [Rules below](#evidence-after-the-seed) |
 | `DefineNodeType` | schema change | declares a node type: `id`, `name`, `parents`, `properties`, `abstract_type`, `lifecycle`, `operations`, as in the seed |
 | `DefineEdgeType` | schema change | declares an edge type: `id`, `name`, `source_types`, `target_types`, `cardinality`, `properties`, `inverse`, `symmetric`, `transitive`, as in the seed |
 | `ModifyProperty` | schema change | adds a property to a type or redeclares one it declares: `owner` (the node or edge type) and `property` (a [property definition](#property-definitions)) |
@@ -1003,6 +1007,48 @@ Committing it closes the old assertion's `valid_time.to` at `effective_from` and
 accepted and active (`assertion-lifecycle-state` otherwise), one transaction may change an
 assertion's lifecycle once (`conflicting-assertion-lifecycle`), and a chain of supersessions may
 not lead back to where it started (`supersession-cycle`).
+
+### Evidence after the seed
+
+`!AddEvidence` brings one evidence entry into the store together with the bytes it rests on, so
+that an assertion can cite one statement rather than a whole seeded file. The entry is written
+exactly as a seed's [evidence entry](#evidence-and-evidence_payloads); `payload` is its bytes as a
+list of byte values, the `payload_yaml` that `ekr hash` prints.
+
+```yaml ekr.transaction-document/2
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-a000-000000000798        # a fresh transaction id: ekr mint transaction
+  proposer: 00000000-0000-4000-a000-000000000011  # the host operator
+  operations:
+  - !AddEvidence
+    evidence:
+      id: 00000000-0000-4000-a000-000000000409    # a fresh evidence id: ekr mint evidence
+      source: !HumanStatement
+        identity: Runtime operator
+      content_hash: d665088b6d8d615784418d2e9e79245f5aad71d0565a60fd45ed4649cb8c425c
+      extracted_by: 00000000-0000-4000-a000-000000000011
+      observed_at: 1773273600000
+      confidence: 10000
+    payload: [66, 111, 98, 32, 105, 115, 32, 67, 69, 79, 32, 111, 102, 32, 65, 99, 109, 101, 46]
+  evidence: []                                    # no assertion here cites it yet
+```
+
+An `!AddAssertion` in the same transaction, or in any later one, may cite the new id; list it in
+`transaction.evidence` only in a transaction whose assertions cite it. Committing applies the entry
+and stores the payload as an object of its own, in the Provenance class the seed's payloads use;
+`ekr explain` prints it for every assertion that cites it. Validation refuses, as named issues:
+
+| issue | validator | when |
+|---|---|---|
+| `evidence-payload-mismatch` | Provenance | the payload's bytes do not hash to `content_hash`; the message names both hashes |
+| `evidence-unsupported-source` | Provenance | `source` is not `!HumanStatement` |
+| `identity-already-exists` | Structural | the id is one the store already retains, seeded or added |
+| `duplicate-identity` | Structural | the transaction adds the same id twice |
+| `unresolved-evidence` | Reference | an assertion cites an id the store does not retain and the transaction does not add |
+
+An entry whose `extracted_by` is not the host operator is refused by `ekr propose` as
+`ekr.kernel.ProposalAttribution`, exit 2, and nothing is recorded.
 
 ### Relations: assertion, edge or both
 
@@ -1799,8 +1845,9 @@ is refused. Either way most of the work is in the seed. What holds up:
   and invocations to be accepted in P1.
 - **Declare lifecycles only for real state machines.** A lifecycle's state changes only through a
   named operation with a declared transition; there is no other way to move it.
-- **Put the evidence you will need in the seed.** In P1 evidence enters only through the seed, and
-  every assertion must cite retained evidence. Seed the statements your first assertions rest on.
+- **Put the evidence your first assertions need in the seed.** Every assertion must cite retained
+  evidence, or evidence its transaction adds with [`!AddEvidence`](#evidence-after-the-seed). Seed
+  the statements the seed's own assertions rest on, and add later ones as they arrive.
 
 ## Common refusals
 
@@ -1845,7 +1892,7 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `seed-authority-profile` | any store verb | 1 | the host's `validation_profile` is no accepted profile exactly — an unknown `ruleset`, or a `ruleset` of one profile with an `application` it is not paired with — or its agent registry does not fit it for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example and keep `ruleset` and `application` a pair: `ekr.p1-deterministic/1` with `ekr.p1-apply/1` (v1) , `ekr.p2-deterministic/1` with `ekr.p2-apply/1` (v2) or `ekr.p3-deterministic/1` with `ekr.p2-apply/1` (v3); set `validator` to `context.validator` |
 | `store-not-found` | propose, validate, commit, snapshot, explain, head, transactions, ontology, resolve | 1 | `--store` names a path that holds no store: nothing, an empty directory, an empty file, a symlink to nothing, a SQLite database without the runtime's tables, or a file-store directory holding only what `ekr seed` writes before its manifest; nothing is created there. Only `ekr seed` creates a store, and a seed that is refused creates none | check `--store` or `EKR_STORE`; run `ekr seed` first |
 | `bootstrap-authority-mismatch` | any store verb | 1 | the store was seeded under a host document whose authority differs from this one | use the host document the store was seeded with |
-| `ekr.kernel.ProposalAttribution` | propose | 2 | the document's `proposer` is not the host operator | use `context.operator` |
+| `ekr.kernel.ProposalAttribution` | propose | 2 | the document's `proposer`, an assertion's `proposed_by` or an added evidence entry's `extracted_by` is not the host operator | use `context.operator` |
 | `ekr.kernel.StructurallyInvalid` | propose | 2 | the transaction document does not parse, for example a bare `assessment: Accepted` | the field it names; compare with `ekr operations <Kind>` |
 | `ekr.kernel.TransactionNotFound` | validate, commit | 2 | no transaction has that id | take the id `ekr propose` printed, or `ekr transactions` |
 | `ekr.kernel.TransactionStateConflict` | validate, commit | 2 | the transaction is not in the state the verb needs: validating one that is already validated, committing one that is only proposed or was rejected | propose a corrected document under a new id |
@@ -1875,7 +1922,7 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `edge-cardinality` | validation issue | 0 | a second edge of a `cardinality: One` edge type from the same source | delete the old edge first, or use `Many` |
 | `edge-endpoint-type` | validation issue | 0 | an edge's or relation assertion's source or target is not of an allowed type | check the edge type's `source_types` and `target_types` |
 | `unresolved-node` | validation issue | 0 | a node id that does not exist | take ids from `ekr snapshot`, or create the node earlier in the same transaction |
-| `unresolved-evidence` | validation issue | 0 | an assertion cites evidence that is not retained | cite seeded evidence |
+| `unresolved-evidence` | validation issue | 0 | an assertion cites evidence that is not retained and that no `!AddEvidence` of its transaction adds | cite retained evidence, or add it with `!AddEvidence` |
 | `unresolved-edge` | validation issue | 0 | an edge id (`!DeleteEdge`, an `!Edge` subject) that does not exist | take ids from `ekr snapshot` |
 | `unresolved-assertion` | validation issue | 0 | a retraction or supersession names an assertion (or a `by`) that does not exist | take ids from `ekr snapshot`, or add the replacement in the same transaction |
 | `unresolved-graph-root` | validation issue | 0 | an entity's `root_id` is not the graph root | use the root id from `ekr snapshot` (`root_id` of any node) |
@@ -1886,9 +1933,11 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `evidence-set-mismatch` | validation issue | 0 | `transaction.evidence` is not exactly the evidence the assertions cite | list exactly those ids |
 | `assertion-without-evidence` | validation issue | 0 | an assertion cites no evidence | cite at least one evidence id |
 | `assertion-states-its-own-verdict` | validation issue | 0 | an assertion written with a complete assessment other than `Proposed`, such as `!Accepted {validators: [...]}` (a bare `Accepted` is refused earlier, as `ekr.kernel.StructurallyInvalid`) | write `assessment: Proposed` |
-| `identity-already-exists` | validation issue | 0 | a create reuses an id that already exists | `ekr mint` a fresh id |
+| `evidence-payload-mismatch` | validation issue | 0 | an `!AddEvidence` payload whose bytes do not hash to the entry's `content_hash`; the message names both hashes | re-run `ekr hash` on the exact bytes, and paste its `content_hash` and `payload_yaml` |
+| `evidence-unsupported-source` | validation issue | 0 | an `!AddEvidence` entry whose `source` is not `!HumanStatement` | add evidence from a `!HumanStatement` source |
+| `identity-already-exists` | validation issue | 0 | a create or an `!AddEvidence` reuses an id that already exists | `ekr mint` a fresh id |
 | `identity-previously-held` | validation issue | 0 | under profile v3, a `CreateNode` or `CreateEdge` takes an id an earlier revision held for a node or an edge, such as a deleted edge's | `ekr mint` a fresh id |
-| `duplicate-identity` | validation issue | 0 | one transaction creates the same id twice | `ekr mint` one id per created thing |
+| `duplicate-identity` | validation issue | 0 | one transaction creates or adds the same id twice | `ekr mint` one id per created thing |
 | `alias-already-exists` | validation issue | 0 | a `CreateNode` gives a non-empty alias that a node of the same type already holds | resolve the reference and use that node instead of creating one |
 | `duplicate-alias` | validation issue | 0 | two `CreateNode` operations of one transaction give the same non-empty alias to nodes of one type | give each alias to one node |
 | `conflicting-write` | validation issue | 0 | one transaction writes the same property of a node twice with different values, or moves one node's lifecycle twice | one write per property and one state move per node per transaction |

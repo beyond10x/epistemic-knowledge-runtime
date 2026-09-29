@@ -19,30 +19,14 @@ pub struct KernelAuthority {
     pub(crate) cache: std::sync::Arc<std::sync::Mutex<crate::replay::ReplayCache>>,
 }
 impl CommitAuthority for KernelAuthority {
+    /// The seed envelope's evidence payloads, and the payload of every evidence entry a committed
+    /// `AddEvidence` brought: what a verified read, `explain` and replay read by content hash.
     fn required_objects(
         &self,
         history: &RetainedHistory,
     ) -> Result<BTreeSet<ContentHash>, StoreError> {
-        let Some(first) = history.occurrences.first() else {
-            return Ok(BTreeSet::new());
-        };
-        let RevisionPayload::Seeded { seed_hash, .. } = first.event.payload else {
-            return Err(StoreError::NotSeeded);
-        };
-        // The seed envelope is content-addressed, so its admission and the payloads it names are
-        // a function of `seed_hash`: admitted once, they are not admitted again by this authority.
-        if let Some(required) = self.seed_requirements(seed_hash)? {
-            return Ok(required);
-        }
-        let envelope = self.seed_envelope(history, seed_hash)?;
-        seed::admitted_graph(&envelope.input, envelope.context, envelope.committed_at)
-            .map_err(|error| StoreError::InvalidSeed(error.to_string()))?;
-        let required: BTreeSet<ContentHash> =
-            envelope.input.evidence_payloads.keys().copied().collect();
-        self.cache
-            .lock()
-            .map_err(|_| StoreError::Document("replay-cache-poisoned".into()))?
-            .seed = Some((seed_hash, required.clone()));
+        let mut required = self.seed_payloads_required(history)?;
+        required.extend(self.added_evidence_required(history)?);
         Ok(required)
     }
     fn replay(
@@ -95,6 +79,98 @@ impl CommitAuthority for KernelAuthority {
     }
 }
 impl KernelAuthority {
+    /// The evidence payloads the admitted seed envelope requires.
+    fn seed_payloads_required(
+        &self,
+        history: &RetainedHistory,
+    ) -> Result<BTreeSet<ContentHash>, StoreError> {
+        let Some(first) = history.occurrences.first() else {
+            return Ok(BTreeSet::new());
+        };
+        let RevisionPayload::Seeded { seed_hash, .. } = first.event.payload else {
+            return Err(StoreError::NotSeeded);
+        };
+        // The seed envelope is content-addressed, so its admission and the payloads it names are
+        // a function of `seed_hash`: admitted once, they are not admitted again by this authority.
+        if let Some(required) = self.seed_requirements(seed_hash)? {
+            return Ok(required);
+        }
+        let envelope = self.seed_envelope(history, seed_hash)?;
+        seed::admitted_graph(&envelope.input, envelope.context, envelope.committed_at)
+            .map_err(|error| StoreError::InvalidSeed(error.to_string()))?;
+        let required: BTreeSet<ContentHash> =
+            envelope.input.evidence_payloads.keys().copied().collect();
+        self.cache
+            .lock()
+            .map_err(|_| StoreError::Document("replay-cache-poisoned".into()))?
+            .seed = Some((seed_hash, required.clone()));
+        Ok(required)
+    }
+    /// The content hash of every evidence entry a committed `AddEvidence` of `history` brought,
+    /// whose payload the commit published as a Provenance object.
+    ///
+    /// Retained evidence is never removed, so a state this authority already reached over a
+    /// prefix of `history` — replayed, or restored from a checkpoint whose head graph the
+    /// head's recorded evidence root binds — names every one before it in its head graph's
+    /// evidence. Only the commits after that prefix are read: each retained receipt's proposal
+    /// document, parsed for its `AddEvidence` operations. A receipt or document that does not
+    /// read contributes nothing here; replay refuses it by its own name.
+    fn added_evidence_required(
+        &self,
+        history: &RetainedHistory,
+    ) -> Result<BTreeSet<ContentHash>, StoreError> {
+        if history.occurrences.is_empty() {
+            return Ok(BTreeSet::new());
+        }
+        let digests = crate::replay::prefix_digests(&history.occurrences);
+        let reached = self.cache()?.longest(&digests);
+        let (start, mut required) = match reached
+            .as_ref()
+            .and_then(|(covered, state)| Some((*covered, state.head().graph.as_deref()?)))
+        {
+            Some((covered, graph)) => (
+                covered,
+                graph
+                    .evidence
+                    .values()
+                    .map(|evidence| evidence.content_hash)
+                    .collect(),
+            ),
+            None => (0, BTreeSet::new()),
+        };
+        for occurrence in history.occurrences.iter().skip(start) {
+            if !matches!(
+                occurrence.event.payload,
+                RevisionPayload::RevisionCommitted { .. }
+            ) {
+                continue;
+            }
+            let Ok(bytes) = history.content(occurrence.event.record_hash, StorageClass::Canonical)
+            else {
+                continue;
+            };
+            let Ok(receipt) = crate::CommitReceiptV1::from_bytes(bytes) else {
+                continue;
+            };
+            let Ok(document) = crate::TransactionDocument::parse(&receipt.proposal.document_bytes)
+            else {
+                continue;
+            };
+            required.extend(
+                document
+                    .transaction()
+                    .operations
+                    .iter()
+                    .filter_map(|operation| match operation {
+                        crate::GraphOperation::AddEvidence(addition) => {
+                            Some(addition.evidence.content_hash)
+                        }
+                        _ => None,
+                    }),
+            );
+        }
+        Ok(required)
+    }
     fn cache(&self) -> Result<std::sync::MutexGuard<'_, crate::replay::ReplayCache>, StoreError> {
         self.cache
             .lock()
