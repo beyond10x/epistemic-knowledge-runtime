@@ -6,6 +6,16 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Added
 
+- **`AddAlias`: a transaction gives a node that exists one more alias.** `!AddAlias {node,
+  alias}`, operation 14, is data rather than a schema change and is applied under every
+  validation profile. The alias is appended to the node's `aliases`, so `ekr resolve` answers the
+  node for it from the next revision on; nothing removes an alias. Refused by name: an alias the
+  node or another node of its type already holds (`alias-already-exists`), one alias given twice
+  for a type in one transaction (`duplicate-alias`), the empty alias (`empty-alias`, new) and a
+  node that does not exist (`unresolved-node`). A consumer's import keys nodes by an alias and
+  could not give that key to a node created earlier without it. `ekr operations`, `ekr guide` and
+  `docs/cli.md` describe it; four new kernel conformance scenarios, 53 in all, pass on both
+  providers.
 - **`WidenEdgeType`: a schema change adds node types to an edge type's ends.** Under validation
   profiles v2 and v3, `!WidenEdgeType {edge_type, source_types, target_types}` writes both ends
   whole, each keeping every type it has; it is a schema-only transaction naming its

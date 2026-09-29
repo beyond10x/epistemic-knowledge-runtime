@@ -784,6 +784,129 @@ fn a_created_node_does_not_take_an_alias_its_type_already_identifies() {
     );
 }
 
+/// `story:node-gains-an-alias`: an `AddAlias` is held to the rules a `CreateNode`'s aliases are
+/// held to, and each refusal is pinned whole — validator, code and message. An alias another node
+/// of the type holds, or the node itself holds, is `alias-already-exists`; one alias given twice in
+/// a transaction, by two `AddAlias` or by an `AddAlias` and a `CreateNode`, is `duplicate-alias`
+/// and names the `AddAlias`; the empty alias is `empty-alias`; and a node nothing holds is
+/// `Reference`'s `unresolved-node`, with nothing from `Structural`. A fresh alias on a held node or
+/// on a node the same transaction creates validates, and so does one a node of another type holds.
+#[test]
+fn an_added_alias_is_held_to_the_rules_a_created_nodes_aliases_are_held_to() {
+    let mut world = World::new();
+    world.graph.nodes.get_mut(&world.open).unwrap().aliases = vec!["eventlog".to_owned()];
+    let (open, decided, decision) = (world.open, world.decided, world.decision);
+    let add = |node: NodeId, alias: &str| {
+        GraphOperation::AddAlias(ekr_kernel::AliasAddition {
+            node,
+            alias: alias.to_owned(),
+        })
+    };
+    let pinned = |issues: &[ValidationIssue]| -> Vec<(ValidatorName, String, String)> {
+        issues
+            .iter()
+            .map(|issue| (issue.validator, issue.code.clone(), issue.message.clone()))
+            .collect()
+    };
+    let structural =
+        |code: &str, message: String| vec![(ValidatorName::Structural, code.to_owned(), message)];
+
+    let fresh = NodeId::mint();
+    let admitted = world.proposal(vec![
+        add(decided, "hashing"),
+        GraphOperation::CreateNode(world.draft(fresh, "A decision made today")),
+        add(fresh, "today"),
+    ]);
+    assert!(world
+        .pipeline()
+        .validate(&world.snapshot(), &admitted)
+        .is_ok());
+
+    assert_eq!(
+        pinned(&refuse(&world, vec![add(decided, "eventlog")])),
+        structural(
+            "alias-already-exists",
+            format!(
+                "node {decided} is given alias \"eventlog\", which node {open} of the same type \
+                 {decision} already holds; one alias identifies one node of a type"
+            )
+        )
+    );
+    assert_eq!(
+        pinned(&refuse(&world, vec![add(open, "eventlog")])),
+        structural(
+            "alias-already-exists",
+            format!(
+                "node {open} is given alias \"eventlog\", which it already holds; an alias is \
+                 added once"
+            )
+        )
+    );
+    let twice = |node: NodeId, alias: &str| {
+        structural(
+            "duplicate-alias",
+            format!(
+                "node {node} is given alias {alias:?} of type {decision}, which this transaction \
+                 also gives to a node of that type; one alias identifies one node of a type"
+            ),
+        )
+    };
+    assert_eq!(
+        pinned(&refuse(
+            &world,
+            vec![add(open, "membrane"), add(decided, "membrane")]
+        )),
+        twice(decided, "membrane")
+    );
+    assert_eq!(
+        pinned(&refuse(
+            &world,
+            vec![add(decided, "membrane"), add(decided, "membrane")]
+        )),
+        twice(decided, "membrane")
+    );
+    let mut draft = world.draft(NodeId::mint(), "The membrane decision");
+    draft.aliases = vec!["membrane".to_owned()];
+    assert_eq!(
+        pinned(&refuse(
+            &world,
+            vec![add(decided, "membrane"), GraphOperation::CreateNode(draft)]
+        )),
+        twice(decided, "membrane"),
+        "the CreateNode takes the alias first, whatever the operation order"
+    );
+    assert_eq!(
+        pinned(&refuse(&world, vec![add(decided, "")])),
+        structural(
+            "empty-alias",
+            format!(
+                "node {decided} is given the empty alias, which identifies nothing; give it the \
+                 alias a typed reference names"
+            )
+        )
+    );
+    let ghost = NodeId::mint();
+    assert_eq!(
+        pinned(&refuse(&world, vec![add(ghost, "ghost")])),
+        vec![(
+            ValidatorName::Reference,
+            "unresolved-node".to_owned(),
+            format!("node {ghost} is not in the graph")
+        )]
+    );
+
+    let mut other_type = world.graph.clone();
+    other_type.nodes.get_mut(&open).unwrap().type_id = world.depends_on;
+    let proposal = world.proposal(vec![add(decided, "eventlog")]);
+    assert!(
+        world
+            .pipeline()
+            .validate(&GraphSnapshot::of(&other_type), &proposal)
+            .is_ok(),
+        "a node of another type holding the alias does not identify this one"
+    );
+}
+
 /// `story:validation-without-whole-graph-scans`: every alias and edge-cardinality refusal of one
 /// batch, pinned whole — validator, code and message, in the order raised.
 ///
@@ -1714,9 +1837,9 @@ fn every_issue_code_the_kernel_can_raise_is_raised_by_a_case() {
     );
 }
 
-/// The fourteen `GraphOperation` numbers are the domain's list, the declaration order and the
-/// encoding's, all three. There were eleven; `SupersedeAssertion` took 11, `AddEvidence` 12 and
-/// `WidenEdgeType` 13.
+/// The fifteen `GraphOperation` numbers are the domain's list, the declaration order and the
+/// encoding's, all three. There were eleven; `SupersedeAssertion` took 11, `AddEvidence` 12,
+/// `WidenEdgeType` 13 and `AddAlias` 14.
 ///
 /// `Encoder::variant`'s own doc puts the obligation here and names the precedent:
 ///
@@ -1743,12 +1866,13 @@ fn every_issue_code_the_kernel_can_raise_is_raised_by_a_case() {
 /// renumbering which moved all three lists together still turns this red.
 ///
 /// The name still says twelve: design § 95 cites the case by it, and an amendment adds rather
-/// than rewrites. It holds thirteen since `AddEvidence`, and fourteen since `WidenEdgeType`.
+/// than rewrites. It holds thirteen since `AddEvidence`, fourteen since `WidenEdgeType` and fifteen
+/// since `AddAlias`.
 #[test]
 fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
     /// The names in the order their numbers count in, transcribed from
     /// `ekr.kernel.OperationKind`.
-    const NAMES: [&str; 14] = [
+    const NAMES: [&str; 15] = [
         "CreateNode",
         "UpdateProperty",
         "CreateEdge",
@@ -1763,6 +1887,7 @@ fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
         "SupersedeAssertion",
         "AddEvidence",
         "WidenEdgeType",
+        "AddAlias",
     ];
 
     let domain = read_workspace_file("systems/ekr/domains/kernel.yaml");
@@ -1862,7 +1987,7 @@ fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
         "the encode scan found {numbered:?}, which is not one arm per name"
     );
     for (position, (index, name)) in numbered.iter().enumerate() {
-        let expected = u32::try_from(position).expect("fourteen variants fit in a u32");
+        let expected = u32::try_from(position).expect("fifteen variants fit in a u32");
         assert_eq!(
             (*index, name.as_str()),
             (expected, NAMES[position]),
@@ -1875,7 +2000,7 @@ fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
     // tag byte and the index, big-endian, and it opens the encoding.
     let world = World::new();
     for (position, operation) in one_of_each_operation(&world).iter().enumerate() {
-        let index = u32::try_from(position).expect("fourteen variants fit in a u32");
+        let index = u32::try_from(position).expect("fifteen variants fit in a u32");
         let mut expected = vec![0x0f_u8];
         expected.extend_from_slice(&index.to_be_bytes());
         assert_eq!(
@@ -1887,7 +2012,7 @@ fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
     }
 }
 
-/// One operation of each variant, in the order the fourteen numbers count in.
+/// One operation of each variant, in the order the fifteen numbers count in.
 fn one_of_each_operation(world: &World) -> Vec<GraphOperation<CanonicalValue>> {
     let node = NodeId::mint();
     vec![
@@ -1965,6 +2090,10 @@ fn one_of_each_operation(world: &World) -> Vec<GraphOperation<CanonicalValue>> {
             edge_type: world.depends_on,
             source_types: BTreeSet::from([world.decision]),
             target_types: BTreeSet::from([world.decision]),
+        }),
+        GraphOperation::AddAlias(ekr_kernel::AliasAddition {
+            node,
+            alias: "one".to_owned(),
         }),
     ]
 }
@@ -2182,7 +2311,7 @@ fn every_field_of_every_encoded_type_reaches_its_encoding() {
 /// Every struct whose fields the kernel's `validation_hash` is computed over, and the file each is
 /// declared in. The upstream ones are here because the kernel encodes them by hand: they are
 /// `ekr_ontology`'s, and a foreign trait cannot be implemented for a foreign type.
-const ENCODED: [(&str, &str); 14] = [
+const ENCODED: [(&str, &str); 15] = [
     ("GraphTransaction", "transaction"),
     ("EvidenceAddition", "transaction"),
     ("PropertyModification", "transaction"),
@@ -2191,6 +2320,7 @@ const ENCODED: [(&str, &str); 14] = [
     ("PropertyMutation", "transaction"),
     ("EntityMerge", "transaction"),
     ("EdgeWidening", "transaction"),
+    ("AliasAddition", "transaction"),
     ("PropertyDefinition", "ontology-types"),
     ("NodeType", "ontology-types"),
     ("EdgeType", "ontology-types"),
