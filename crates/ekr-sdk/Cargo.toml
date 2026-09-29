@@ -11,9 +11,15 @@ rust-version.workspace = true
 ekr-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+serde_yaml_ng.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
+ekr = { path = "../ekr" }
 ekr-kernel.workspace = true
+jsonschema = { version = "0.58", default-features = false }
+tempfile.workspace = true
+toml = "1"
 
 [lints]
 workspace = true

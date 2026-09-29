@@ -447,10 +447,16 @@ dependencies = [
 name = "ekr-sdk"
 version = "0.0.17"
 dependencies = [
+ "ekr",
  "ekr-core",
  "ekr-kernel",
+ "jsonschema",
  "serde",
  "serde_json",
+ "serde_yaml_ng",
+ "tempfile",
+ "thiserror",
+ "toml",
 ]
 
 [[package]]

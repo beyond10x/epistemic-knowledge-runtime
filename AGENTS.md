@@ -42,7 +42,9 @@ contributors. Two rules hold for it:
 - it writes only through `ekr propose`, `ekr validate` and `ekr commit`, never to a store's files
   or database;
 - it takes ids from `ekr mint`, `ekr ontology` and `ekr snapshot`, and never derives one from a
-  name.
+  name. `ekr mint` runs `ekr-core`'s `Id::mint()` (`NodeId::mint()`, `TypeId::mint()`, …), so a
+  Rust consumer that calls that function in process, as `ekr-sdk` does, holds an id from the same
+  source; `crates/ekr-sdk/tests/document_drift.rs` holds the verb to that function.
 
 A change to the binary's verbs, global options, operation kinds, value kinds or named refusals
 updates `docs/cli.md` in the same change: `crates/ekr/tests/docs_cli.rs` compares the page with
