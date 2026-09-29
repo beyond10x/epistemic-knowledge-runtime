@@ -171,14 +171,22 @@ pub struct NativePublicationRequest {
 /// An elected immutable attempt. Its strict bytes live only in the private provider namespace.
 ///
 /// Two formats, one set of fields. `ekr.publication-preparation/1` writes every byte string as a
-/// number array and repeats every staged object in `native_request.blobs`. `/2`, which every new
-/// attempt is elected in, writes byte strings as base64 ([`ekr_core::bytes`]) and omits
-/// `native_request.blobs`: that list is exactly the decision's objects in address order, which
-/// `/1` authorization already required, so a `/2` reader rebuilds it from the decision. A record
-/// keeps its format, so a `/1` attempt re-encodes to its original bytes and address.
+/// number array and repeats every staged object in `native_request.blobs`. `/2`, which a new
+/// attempt staging no evidence payload is elected in, writes byte strings as base64
+/// ([`ekr_core::bytes`]) and omits `native_request.blobs`: that list is exactly the decision's
+/// objects in address order, which `/1` authorization already required, so a `/2` reader
+/// rebuilds it from the decision. A record keeps its format, so a `/1` attempt re-encodes to its
+/// original bytes and address.
+///
+/// `/3` (design § 100.2) is `/2` for a decision that stages an evidence payload — a
+/// [`StorageClass::Provenance`] object: each such object is written as a
+/// [`StagedPublicationObject`], without its bytes, and the preparation's own atomic group binds the
+/// bytes under the object's own address, where its publication binds them again. Reading a `/3`
+/// attempt back takes those bytes from that binding. A decision that stages no evidence payload
+/// is elected in `/2` as before. In memory every attempt holds every staged object's bytes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PublicationPreparationV1 {
-    /// `ekr.publication-preparation/2`, or `/1` for an attempt elected before it.
+    /// `ekr.publication-preparation/2` or `/3`, or `/1` for an attempt elected before them.
     pub format: String,
     /// Logical CAS slot.
     pub command_key: PublicationCommandKey,
@@ -200,14 +208,61 @@ impl PublicationPreparationV1 {
     pub const FORMAT: &'static str = "ekr.publication-preparation/2";
     /// The original format, still read and re-encoded exactly.
     pub const FORMAT_V1: &'static str = "ekr.publication-preparation/1";
+    /// The format a decision staging an evidence payload is elected in.
+    pub const FORMAT_V3: &'static str = "ekr.publication-preparation/3";
     fn hash(&self) -> Result<ContentHash, StoreError> {
         Ok(ContentHash::of_bytes(
             &serde_json::to_vec(self).map_err(json_error)?,
         ))
     }
     fn is_supported(&self) -> bool {
-        self.format == Self::FORMAT || self.format == Self::FORMAT_V1
+        self.format == Self::FORMAT
+            || self.format == Self::FORMAT_V1
+            || self.format == Self::FORMAT_V3
     }
+    /// The format a new attempt electing `decision` is written in.
+    fn format_for(decision: &Publication) -> &'static str {
+        if decision.objects.values().any(stages) {
+            Self::FORMAT_V3
+        } else {
+            Self::FORMAT
+        }
+    }
+    /// Whether this attempt's record names `object` instead of carrying its bytes.
+    fn names(&self, object: &crate::PublicationObject) -> bool {
+        self.format == Self::FORMAT_V3 && stages(object)
+    }
+    /// The bindings this attempt's own atomic group makes: the bytes of every object it names.
+    fn staged_blobs(&self) -> Vec<BlobWrite> {
+        self.decision
+            .objects
+            .iter()
+            .filter(|(_, object)| self.names(object))
+            .map(|(hash, object)| BlobWrite {
+                digest: hash.to_hex(),
+                bytes: object.bytes.clone(),
+            })
+            .collect()
+    }
+}
+
+/// Whether a `/3` attempt names `object` rather than carrying it: an evidence payload.
+fn stages(object: &crate::PublicationObject) -> bool {
+    object.storage_class == StorageClass::Provenance
+}
+
+/// How an `ekr.publication-preparation/3` record writes an evidence payload its decision stages:
+/// everything but its bytes, which the preparation's own atomic group binds under the payload's
+/// own address (design § 100.2).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StagedPublicationObject {
+    /// Requested minimum retention.
+    pub storage_class: StorageClass,
+    /// Trusted decision time used for the payload's metadata record.
+    pub stored_at: Timestamp,
+    /// The payload's length, checked against the staged binding when the record is read back.
+    pub byte_len: u64,
 }
 
 #[derive(Serialize)]
@@ -228,10 +283,14 @@ struct DecisionWrite<'a> {
     expected_version: u64,
 }
 #[derive(Serialize)]
-struct ObjectWrite<'a> {
-    storage_class: StorageClass,
-    stored_at: Timestamp,
-    bytes: Spell<'a>,
+#[serde(untagged)]
+enum ObjectWrite<'a> {
+    Carried {
+        storage_class: StorageClass,
+        stored_at: Timestamp,
+        bytes: Spell<'a>,
+    },
+    Named(StagedPublicationObject),
 }
 #[derive(Serialize)]
 struct RequestWrite<'a> {
@@ -276,14 +335,20 @@ impl Serialize for PublicationPreparationV1 {
                     .objects
                     .iter()
                     .map(|(hash, object)| {
-                        (
-                            *hash,
-                            ObjectWrite {
+                        let written = if self.names(object) {
+                            ObjectWrite::Named(StagedPublicationObject {
+                                storage_class: object.storage_class,
+                                stored_at: object.stored_at,
+                                byte_len: object.bytes.len() as u64,
+                            })
+                        } else {
+                            ObjectWrite::Carried {
                                 storage_class: object.storage_class,
                                 stored_at: object.stored_at,
                                 bytes: spell(&object.bytes),
-                            },
-                        )
+                            }
+                        };
+                        (*hash, written)
                     })
                     .collect(),
                 expected_version: self.decision.expected_version,
@@ -347,12 +412,22 @@ struct DecisionRead {
     objects: BTreeMap<ContentHash, ObjectRead>,
     expected_version: u64,
 }
+/// One decision object as a record writes it: carried with its `bytes`, or, in `/3` only, named
+/// by its `byte_len` alone. Exactly one of the two is present; a present `null` is refused.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct ObjectRead {
     storage_class: StorageClass,
     stored_at: Timestamp,
-    bytes: Spelled,
+    #[serde(default, deserialize_with = "present")]
+    bytes: Option<Spelled>,
+    #[serde(default, deserialize_with = "present")]
+    byte_len: Option<u64>,
+}
+fn present<'de, D: serde::Deserializer<'de>, T: Deserialize<'de>>(
+    deserializer: D,
+) -> Result<Option<T>, D::Error> {
+    T::deserialize(deserializer).map(Some)
 }
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -385,11 +460,28 @@ struct BlobRead {
 }
 impl<'de> Deserialize<'de> for PublicationPreparationV1 {
     /// Each format admits only its own layout: `/1` spells every byte string as a number array
-    /// and carries `native_request.blobs`; `/2` spells them as base64 and carries no blob list.
+    /// and carries `native_request.blobs`; `/2` spells them as base64 and carries no blob list;
+    /// `/3` is `/2` with each evidence payload named, whose bytes only a store can read back
+    /// (`read_preparation`), so this decoder refuses a `/3` attempt that names one.
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let read = PreparationRead::deserialize(deserializer)?;
-        let numbers = read.format == Self::FORMAT_V1;
-        let mismatch = || serde::de::Error::custom("preparation layout disagrees with its format");
+        PreparationRead::deserialize(deserializer)?.assemble(&mut |hash, _| {
+            Err(format!(
+                "preparation-staged-object-unread: {hash} is read from the store that staged it"
+            ))
+        })
+    }
+}
+impl PreparationRead {
+    /// The attempt this record writes, taking each object a `/3` record names from `staged`,
+    /// which answers its bytes for its address and recorded length.
+    fn assemble<E: serde::de::Error>(
+        self,
+        staged: &mut dyn FnMut(ContentHash, u64) -> Result<Vec<u8>, String>,
+    ) -> Result<PublicationPreparationV1, E> {
+        let read = self;
+        let numbers = read.format == PublicationPreparationV1::FORMAT_V1;
+        let names = read.format == PublicationPreparationV1::FORMAT_V3;
+        let mismatch = || E::custom("preparation layout disagrees with its format");
         let spelled = |bytes: Spelled| {
             if bytes.numbers == numbers {
                 Ok(bytes.bytes)
@@ -399,12 +491,18 @@ impl<'de> Deserialize<'de> for PublicationPreparationV1 {
         };
         let mut objects = BTreeMap::new();
         for (hash, object) in read.decision.objects {
+            let named = names && object.storage_class == StorageClass::Provenance;
+            let bytes = match (named, object.bytes, object.byte_len) {
+                (false, Some(bytes), None) => spelled(bytes)?,
+                (true, None, Some(byte_len)) => staged(hash, byte_len).map_err(E::custom)?,
+                _ => return Err(mismatch()),
+            };
             objects.insert(
                 hash,
                 crate::PublicationObject {
                     storage_class: object.storage_class,
                     stored_at: object.stored_at,
-                    bytes: spelled(object.bytes)?,
+                    bytes,
                 },
             );
         }
@@ -413,6 +511,10 @@ impl<'de> Deserialize<'de> for PublicationPreparationV1 {
             objects,
             expected_version: read.decision.expected_version,
         };
+        // `/3` is only ever written for a decision that stages an evidence payload.
+        if names && PublicationPreparationV1::format_for(&decision) != read.format {
+            return Err(mismatch());
+        }
         let mut appends = Vec::with_capacity(read.native_request.appends.len());
         for append in read.native_request.appends {
             let mut events = Vec::with_capacity(append.events.len());
@@ -438,7 +540,7 @@ impl<'de> Deserialize<'de> for PublicationPreparationV1 {
                         bytes: spelled(blob.bytes)?,
                     })
                 })
-                .collect::<Result<_, D::Error>>()?,
+                .collect::<Result<_, E>>()?,
             (false, None) => decision
                 .objects
                 .iter()
@@ -449,7 +551,7 @@ impl<'de> Deserialize<'de> for PublicationPreparationV1 {
                 .collect(),
             _ => return Err(mismatch()),
         };
-        Ok(Self {
+        Ok(PublicationPreparationV1 {
             format: read.format,
             command_key: read.command_key,
             input_hash: read.input_hash,
@@ -960,8 +1062,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         }
         self.load_objects(&mut history, required)?;
         if !history.occurrences.is_empty() {
-            let required = self.authority()?.required_objects(&history)?;
-            self.load_objects(&mut history, required)?;
+            self.load_authority_objects(&mut history)?;
         }
         self.authority()?
             .verify(&history, self.ontology.as_ref(), None)?;
@@ -985,11 +1086,43 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             event: decision.event.clone(),
         });
         self.load_object(&mut history, decision.event.record_hash)?;
-        let required = self.authority()?.required_objects(&history)?;
-        self.load_objects(&mut history, required)?;
+        self.load_authority_objects(&mut history)?;
         self.authority()?
             .verify(&history, self.ontology.as_ref(), None)?;
         Ok(request)
+    }
+    /// A retained preparation record, each object a `/3` record names read back from the binding
+    /// its own atomic group made under the object's address and checked against it.
+    fn decode_preparation(&self, bytes: &[u8]) -> Result<PublicationPreparationV1, StoreError> {
+        let read: PreparationRead = serde_json::from_slice(bytes).map_err(json_error)?;
+        let mut refusal = None;
+        let assembled = read.assemble::<serde_json::Error>(&mut |hash, byte_len| {
+            let found = self
+                .runtime()
+                .block_on(self.store.get_blob(&self.tenant, &hash.to_hex()));
+            let outcome = match found {
+                Ok(Some(bytes))
+                    if bytes.len() as u64 == byte_len && ContentHash::of_bytes(&bytes) == hash =>
+                {
+                    return Ok(bytes);
+                }
+                Ok(Some(_)) => {
+                    StoreError::Document(format!("preparation-staged-object-integrity: {hash}"))
+                }
+                Ok(None) => {
+                    StoreError::Document(format!("preparation-staged-object-missing: {hash}"))
+                }
+                Err(error) => StoreError::from(error),
+            };
+            let named = outcome.to_string();
+            refusal = Some(outcome);
+            Err(named)
+        });
+        match (assembled, refusal) {
+            (Ok(prepared), _) => Ok(prepared),
+            (Err(_), Some(refusal)) => Err(refusal),
+            (Err(error), None) => Err(json_error(error)),
+        }
     }
     fn retention_at(&self, hash: ContentHash, version: u64) -> Result<StorageClass, StoreError> {
         let events = self.read_until(&self.object_stream(hash)?, 1, |record| {
@@ -1056,8 +1189,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
                 ContentHash::of_bytes(&bytes) == selection.preparation_hash,
                 "preparation-address",
             )?;
-            let prepared: PublicationPreparationV1 =
-                serde_json::from_slice(&bytes).map_err(json_error)?;
+            let prepared = self.decode_preparation(&bytes)?;
             require(
                 prepared.command_key == *key
                     && prepared.attempt_number == selection.attempt_number
@@ -1156,7 +1288,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         })?;
         let request = self.native_for(decision, attempt_number)?;
         let prepared = PublicationPreparationV1 {
-            format: PublicationPreparationV1::FORMAT.into(),
+            format: PublicationPreparationV1::format_for(decision).into(),
             command_key: key.clone(),
             input_hash,
             decision: decision.clone(),
@@ -1198,10 +1330,14 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
                     hash.to_hex(),
                 ),
             },
-            blobs: vec![BlobWrite {
+            // A `/3` attempt binds the evidence payloads it names under their own addresses in
+            // the same group, so they exist exactly when the attempt is elected.
+            blobs: std::iter::once(BlobWrite {
                 digest: private_key(hash),
                 bytes,
-            }],
+            })
+            .chain(prepared.staged_blobs())
+            .collect(),
         };
         match self.atomic(&native) {
             Ok(_) => Ok(prepared),

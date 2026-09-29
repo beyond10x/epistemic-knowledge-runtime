@@ -305,7 +305,7 @@ impl KernelAuthority {
         let bytes = history.content(seed_hash, StorageClass::Canonical)?;
         let envelope = match self.held_envelope(seed_hash)? {
             Some(envelope) => SeedOutline::Full(envelope),
-            None => SeedOutline::View(Box::new(crate::seed::envelope_view(bytes)?)),
+            None => crate::seed::outline(bytes)?,
         };
         require(
             checkpoint.graph.root == envelope.graph().root,
@@ -334,7 +334,7 @@ impl KernelAuthority {
             .lock()
             .map_err(|_| refuse("replay-cache-poisoned"))?;
         cache.insert(covered, digests[covered], Arc::new(state));
-        cache.seed = Some((seed_hash, payloads));
+        cache.seed = Some((seed_hash, payloads, envelope.names_payloads()));
         cache.retained = Some(retained);
         Ok(())
     }

@@ -30,12 +30,16 @@ const OBJECT_STREAM_TYPE: &str = "ekr.store.object";
 const OBJECT_STORED: &str = "ekr.store.ObjectStored";
 const OBJECT_RETENTION_RAISED: &str = "ekr.store.ObjectRetentionRaised";
 const WRITER: &str = "ekr.store";
+#[path = "inventory.rs"]
+mod inventory;
 #[path = "preparation.rs"]
 mod preparation;
+pub use inventory::{InventoriedObject, Inventory, StoreInventory};
 pub use preparation::{
     NativeBlobWrite, NativeClaim, NativeCommandMeta, NativeExpected, NativeExpectedKind,
     NativeNewEvent, NativePublicationRequest, NativeStreamAppend, NativeStreamId,
     PublicationCommandKey, PublicationCommandKind, PublicationPreparationV1,
+    StagedPublicationObject,
 };
 #[cfg(test)]
 #[path = "eventlog_reads.rs"]
@@ -1040,8 +1044,66 @@ impl<S: EventStore> EventlogStore<S> {
             }
             let required = required_objects(&history)?;
             self.load_objects(&mut history, required)?;
+            if let Ok(authority) = self.authority() {
+                let wanted = authority.objects_if_held(&history)?;
+                self.load_present(&mut history, wanted)?;
+            }
         }
         Ok(history)
+    }
+    /// Everything the authority asks of `history` beyond its records and seed envelope: its
+    /// required objects, then each object it reads if held that the store holds.
+    fn load_authority_objects(&self, history: &mut RetainedHistory) -> Result<(), StoreError> {
+        let authority = self.authority()?;
+        let required = authority.required_objects(history)?;
+        self.load_objects(history, required)?;
+        let wanted = authority.objects_if_held(history)?;
+        self.load_present(history, wanted)
+    }
+    /// Loads each object of `hashes` the history does not hold yet and the store holds an object
+    /// for, as [`Self::load_objects`] loads it; one with no object stream is left out.
+    fn load_present(
+        &self,
+        history: &mut RetainedHistory,
+        hashes: impl IntoIterator<Item = ContentHash>,
+    ) -> Result<(), StoreError> {
+        let wanted: Vec<ContentHash> = hashes
+            .into_iter()
+            .filter(|hash| !history.objects.contains_key(hash))
+            .collect::<BTreeSet<_>>()
+            .into_iter()
+            .collect();
+        if wanted.is_empty() {
+            return Ok(());
+        }
+        let held = self.verified_objects(&wanted)?;
+        let unknown: Vec<ContentHash> = wanted
+            .iter()
+            .filter(|hash| !held.contains_key(hash))
+            .copied()
+            .collect();
+        let mut present: Vec<ContentHash> = held.into_keys().collect();
+        if !unknown.is_empty() {
+            let reads = unknown
+                .iter()
+                .map(|hash| {
+                    Ok(Read::Stream {
+                        stream: self.object_stream(*hash)?,
+                        after_version: 0,
+                        limit: 1,
+                    })
+                })
+                .collect::<Result<Vec<_>, StoreError>>()?;
+            for (hash, slice) in unknown.iter().zip(self.batch(&reads)?) {
+                let ReadResult::Stream(slice) = slice else {
+                    return Err(StoreError::Document("batch-read-disagrees".into()));
+                };
+                if !slice.events.is_empty() {
+                    present.push(*hash);
+                }
+            }
+        }
+        self.load_objects(history, present)
     }
     /// Offers the retained replay checkpoint to the authority once per handle, before the first
     /// head replay. A checkpoint the authority refuses, or one that cannot be read, is ignored:
@@ -1247,8 +1309,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
                 event: publication.event.clone(),
             });
             self.load_object(&mut history, publication.event.record_hash)?;
-            let required = self.authority()?.required_objects(&history)?;
-            self.load_objects(&mut history, required)?;
+            self.load_authority_objects(&mut history)?;
             self.authority()?
                 .verify(&history, self.ontology.as_ref(), None)?;
             let mut appends = vec![StreamAppend {

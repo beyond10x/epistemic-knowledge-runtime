@@ -55,11 +55,15 @@ pub mod objects;
 pub mod snapshot;
 mod verified;
 
-pub use eventlog::{EventlogStore, FileStore, PublishedEvent, SqliteStore};
+pub use eventlog::{
+    EventlogStore, FileStore, InventoriedObject, Inventory, PublishedEvent, SqliteStore,
+    StoreInventory,
+};
 pub use eventlog::{
     NativeBlobWrite, NativeClaim, NativeCommandMeta, NativeExpected, NativeExpectedKind,
     NativeNewEvent, NativePublicationRequest, NativeStreamAppend, NativeStreamId,
     PublicationCommandKey, PublicationCommandKind, PublicationPreparationV1,
+    StagedPublicationObject,
 };
 pub use log::{
     evidence_root, knowledge_root, AdmittedRevision, Appended, CommitAuthority, Initialize,

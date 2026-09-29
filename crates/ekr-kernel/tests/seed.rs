@@ -335,6 +335,40 @@ impl Backend {
 }
 
 fn envelope_bytes(document: &SeedDocument, context: BootstrapContext) -> Vec<u8> {
+    // The `ekr-seed-envelope/3` a seed of `document` retains: its payloads named, not carried.
+    #[derive(serde::Serialize)]
+    struct Input<'a> {
+        format: &'a str,
+        ontology: &'a OntologyDocument,
+        graph: &'a GraphDocument,
+        evidence_payloads: Vec<&'a ContentHash>,
+    }
+    #[derive(serde::Serialize)]
+    struct Envelope<'a> {
+        format: &'a str,
+        input: Input<'a>,
+        context: BootstrapContext,
+        authority: AuthorityStateV1,
+        committed_at: Timestamp,
+    }
+    serde_json::to_vec(&Envelope {
+        format: "ekr-seed-envelope/3",
+        input: Input {
+            format: &document.format,
+            ontology: &document.ontology,
+            graph: &document.graph,
+            evidence_payloads: document.evidence_payloads.keys().collect(),
+        },
+        context,
+        authority: anchor(context),
+        committed_at: Timestamp::EPOCH,
+    })
+    .unwrap()
+}
+
+/// The `ekr-seed-envelope/2` a seed of `document` retained before design § 100: the complete input,
+/// its payloads carried.
+fn envelope_v2_bytes(document: &SeedDocument, context: BootstrapContext) -> Vec<u8> {
     #[derive(serde::Serialize)]
     struct Envelope<'a> {
         format: &'a str,
@@ -930,9 +964,15 @@ fn legacy_and_tampered_seed_envelopes_are_preserved_but_never_admitted() {
             serde_json::to_vec(&serde_json::to_value(&f.graph).unwrap()["graph"]).unwrap(),
             "legacy seed requires migration",
         ),
+        // A `/2` envelope carries its payloads, so one of them can disagree with its key.
         (
-            envelope_bytes(&tampered, f.context()),
+            envelope_v2_bytes(&tampered, f.context()),
             "seed-evidence-payload-mismatch",
+        ),
+        (envelope_v2_bytes(&transient, f.context()), "seed-space"),
+        (
+            envelope_v2_bytes(&other_schema, f.context()),
+            "seed-schema-version",
         ),
         (envelope_bytes(&transient, f.context()), "seed-space"),
         (

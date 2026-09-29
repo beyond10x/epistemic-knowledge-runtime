@@ -214,8 +214,10 @@ pub(crate) fn prefix_digests(occurrences: &[RecordedOccurrence]) -> Vec<ContentH
 #[derive(Default)]
 pub(crate) struct ReplayCache {
     entries: Vec<(usize, ContentHash, Arc<ReplayState>)>,
-    /// The seed envelope this authority admitted, and the evidence payloads it requires.
-    pub(crate) seed: Option<(ContentHash, BTreeSet<ContentHash>)>,
+    /// The seed envelope this authority admitted, the evidence payloads it names, and whether it
+    /// names them (`ekr-seed-envelope/3`: read where held) rather than carrying them (`/2`:
+    /// required).
+    pub(crate) seed: Option<(ContentHash, BTreeSet<ContentHash>, bool)>,
     /// The seed envelope this authority decoded in full from verified retained bytes, by their
     /// address. It is a function of that address, so every path that verified the retained bytes
     /// at the same address takes it instead of decoding them again.

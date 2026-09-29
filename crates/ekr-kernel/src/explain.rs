@@ -346,7 +346,7 @@ impl VerifiedRead {
             .and_then(|bytes| crate::seed::envelope(bytes).ok());
         require(
             envelope.is_some_and(|envelope| {
-                envelope.input == self.seed_input
+                envelope.input.holds(&self.seed_input)
                     && envelope.context == self.context
                     && envelope.authority == self.authority
             }),

@@ -137,6 +137,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr view` | reads | `--port <port>` (`0`, the default, picks a free one) | `{"url": "http://127.0.0.1:<port>/"}` as one line, then serves a read-only viewer until interrupted |
 | `ekr session` | reads and writes | one JSON request per line on stdin, `{"argv": [...]}`, until it ends; `--create` also serves `seed` | one JSON answer per request, `{"exit", "stdout", "stderr"}`: what the verb exits with and prints |
 | `ekr mcp` | reads | JSON-RPC 2.0 messages, one per line on stdin, until it ends | one JSON-RPC response per request: read-only MCP tools over the store (below) |
+| `ekr migrate` | reads, and writes a new store | `--to <path>`: where the migrated store is written, holding no store yet | the `ekr.store-migration/1` report: `destination_seed_hash` and which record replaced which |
 
 Every verb has `--help`.
 
@@ -564,7 +565,7 @@ A session serves `propose`, `validate`, `commit`, `snapshot`, `explain`, `resolv
 | `session-request-malformed` | 2 | the line is not a JSON object with `argv`, a list of strings, and at most `stdin`, a string; an empty line included | send `{"argv": [...]}` on one line |
 | `session-request-too-large` | 2 | the line is longer than 25231360 bytes, its newline excluded: three times the 8388608-byte `ekr.transaction-document/2` cap, the most JSON escaping can make of it, and 65536 bytes for `argv` and the framing. The session holds no more of the line than that; it reads the rest up to the newline, drops it and serves the next line | send the document as a file (`["propose", "doc.yaml"]`), or a smaller one |
 | `session-verb-unknown` | 2 | `argv` is empty, or its first word is not a verb of `ekr` | a verb from the list above |
-| `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
+| `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `migrate`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, write a second store, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
 | `session-option-refused` | 2 | the request sets `--host`, `--store`, `--backend` or `--full-replay` | the session's store is fixed when it starts; start another session for another store |
 
 Any other `argv` the verbs' definitions do not accept — an unknown flag
@@ -657,6 +658,52 @@ Record text — names, aliases, property values, evidence text — is untrusted 
 returns it as JSON string data, and its instructions and every tool's description tell the agent
 to treat it as data, never as instructions. No tool proposes, validates or commits: an agent
 records knowledge only through [`ekr propose`, `ekr validate` and `ekr commit`](#the-workflow).
+
+### `ekr migrate`
+
+Writes a copy of the store in the current formats to a new path and leaves the store itself
+exactly as it is. A store seeded before `ekr-seed-envelope/3` retains every evidence payload three
+times: as its own object, inside the seed envelope as a list of numbers three to four times its
+size, and again inside the record the seed was published from. A new seed names each payload by its
+content hash instead and retains its bytes once; `ekr migrate` gives an existing store's history the
+same shape in a new store.
+
+```console
+ekr migrate --to library-v3                       # the --store, --backend and --host of every verb
+```
+
+`--to` is a directory for `file` and a database file for `sqlite`, of the same backend as
+`--store`, and must hold no store. The migration reads the whole store and replays it from its
+seed first, so a store that does not verify is refused and nothing is written. It then seeds the
+new store with the same seed — the same input, identities and time, the envelope naming its
+payloads — and publishes every later proposal, validation, rejection, commit and stale decision
+again with its original identity, actors and times. A proposal record is copied byte for byte; a
+record that names the seed envelope or an earlier root is derived again for the new lineage, so
+its content hash changes. Every other object is copied with its class and time, and an object an
+old store holds inline in its log is written as a blob. The new store is replayed in full and
+compared with the old one — every revision's knowledge, evidence, ontology and authority roots,
+the graph, the evidence and every transaction's state — before the report is printed:
+
+```console
+{
+  "format": "ekr.store-migration/1",
+  "source_seed_hash": "…",
+  "destination_seed_hash": "…",
+  "occurrences": [{"event_id": "…", "event": "ekr.kernel.Seeded", "source_record_hash": "…", "destination_record_hash": "…"}, …],
+  "carried_objects": ["…"],
+  "legacy_objects": [],
+  "map_hash": "…"
+}
+```
+
+The report is also kept in the new store, at `map_hash`. Nothing is ever written to `--store`.
+Its refusals are faults (exit 1). These are refused before any event is written to `--to`, so a
+later `ekr migrate` can still write there: `migrate-destination-not-empty` for a `--to` that holds
+a store, `migrate-destination-is-source` for a `--to` that is `--store`,
+`migrate-unresolved-preparation` for a decision a command elected and never published — run that
+command again first — and a `--store` that does not replay. `migrate-verification-disagrees`, a
+new store that does not replay to the old one's state, is refused after it is written, and it is
+left as it is. `ekr migrate` is not served in `ekr session`.
 
 ## The workflow
 

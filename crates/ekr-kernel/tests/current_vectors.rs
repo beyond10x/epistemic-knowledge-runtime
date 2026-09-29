@@ -1,11 +1,16 @@
 //! Fixed current-format vectors for the kernel's retained carriers: the six decision records and
 //! the complete validation basis (§ 91.4), the host authority anchor and its profile (§ 91.1), the
-//! value-domain validation material (§ 89), and the `ekr-seed-envelope/2` a real seed retains
-//! together with the Root0 it produces (§ 91.2) on both providers.
+//! value-domain validation material (§ 89), and the `ekr-seed-envelope/3` a real seed retains
+//! together with the Root0 it produces (§§ 91.2, 100.1) on both providers, beside the
+//! `ekr-seed-envelope/2` the base kernel retained for the same seed, written at test time by
+//! `support/v2_store.rs`.
 //!
 //! The frozen original-format vectors are `tests/legacy.rs`. These are the current counterparts:
 //! one fixed input each, with its exact retained bytes or content address pinned as a literal.
 mod current_fixture;
+#[allow(dead_code)]
+#[path = "support/v2_store.rs"]
+mod v2;
 
 use std::collections::BTreeSet;
 
@@ -361,7 +366,83 @@ fn the_host_anchor_and_its_profile_have_fixed_value_addresses() {
     pins.finish();
 }
 
-/// A real seed on both providers: the retained envelope and Root0 are identical and pinned.
+/// One retained seed envelope and the Root0 it produced, checked for its layout and pinned. The
+/// ontology, knowledge, evidence and authority roots are the input's, whatever the envelope format;
+/// the envelope address and the root that names it are the format's.
+fn check_seed(
+    pins: &mut Pins,
+    provider: &str,
+    envelope: Vec<u8>,
+    result: &SeedResultV1,
+    format: &str,
+    (envelope_pin, root_pin): (&str, &str),
+) {
+    assert_eq!(ContentHash::of_bytes(&envelope), result.seed_hash);
+    let text = String::from_utf8(envelope).unwrap();
+    assert!(
+        text.starts_with(&format!(
+            r#"{{"format":"{format}","input":{{"format":"ekr-seed/2","#
+        )),
+        "{provider}: {text}"
+    );
+    let order: Vec<usize> = [
+        r#""input":"#,
+        r#""context":{"operator""#,
+        r#""authority":{"format":"ekr.authority-state/1""#,
+        r#""committed_at":10}"#,
+    ]
+    .iter()
+    .map(|key| {
+        text.find(key)
+            .unwrap_or_else(|| panic!("{provider}: {key}"))
+    })
+    .collect();
+    assert!(
+        order.windows(2).all(|w| w[0] < w[1]),
+        "{provider}: {order:?}"
+    );
+    assert!(text.ends_with(r#""committed_at":10}"#), "{provider}");
+    let root = result.result;
+    pins.check(
+        &format!("{provider} envelope"),
+        result.seed_hash.to_hex(),
+        envelope_pin,
+    );
+    pins.check(
+        &format!("{provider} ontology_root"),
+        root.ontology_root.to_hex(),
+        "46eddc0a9a78fc47272ca431bade36af25a84265dbd66f736257385208b663f4",
+    );
+    pins.check(
+        &format!("{provider} knowledge_root"),
+        root.knowledge_root.to_hex(),
+        "4b2eb53ed4e3d1eb56af0a7c0d9f40c2ae28564c8567c1a318911101a3abe2cc",
+    );
+    pins.check(
+        &format!("{provider} evidence_root"),
+        root.evidence_root.to_hex(),
+        "ddb727b80fe83cd0d433ac3412f75f1d4615e846eebb956dbc6717571a6256e4",
+    );
+    pins.check(
+        &format!("{provider} agent_root"),
+        root.agent_root.to_hex(),
+        "765656ac90343aa873f2a76b11c93f4e55d6684c2fe00bbaaacced3a9d92327c",
+    );
+    pins.check(
+        &format!("{provider} root"),
+        ContentHash::of(&root).to_hex(),
+        root_pin,
+    );
+    assert_eq!(root.transaction, result.seed_hash);
+    assert_eq!(root.parent, None);
+    assert_eq!(root.revision, RevisionNumber::SEED);
+    assert_eq!(result.committed_at, SEEDED_AT);
+    assert_eq!(result.authority_root, root.agent_root);
+    assert_eq!(result.result_hash, ContentHash::of(&root));
+}
+
+/// A real seed on both providers: the retained `ekr-seed-envelope/3`, which names the payload by
+/// its content hash (design § 100.1), and Root0 are identical and pinned.
 #[test]
 fn a_real_seed_retains_a_fixed_envelope_and_produces_a_fixed_root_on_both_providers() {
     let mut pins = Pins::default();
@@ -369,66 +450,82 @@ fn a_real_seed_retains_a_fixed_envelope_and_produces_a_fixed_root_on_both_provid
         let (_directory, runtime, result) = seeded(seed(), context(), anchor(), file, SEEDED_AT);
         let provider = if file { "file" } else { "sqlite" };
         let envelope = runtime.content(&result.seed_hash).unwrap().unwrap();
-        assert_eq!(ContentHash::of_bytes(&envelope), result.seed_hash);
-        let text = String::from_utf8(envelope).unwrap();
+        let payloads = format!(
+            r#""evidence_payloads":["{}"]}}"#,
+            ContentHash::of_bytes(current_fixture::STATEMENT)
+        );
         assert!(
-            text.starts_with(r#"{"format":"ekr-seed-envelope/2","input":{"format":"ekr-seed/2","#),
-            "{provider}: {text}"
+            String::from_utf8_lossy(&envelope).contains(&payloads),
+            "{provider}"
         );
-        let order: Vec<usize> = [
-            r#""input":"#,
-            r#""context":{"operator""#,
-            r#""authority":{"format":"ekr.authority-state/1""#,
-            r#""committed_at":10}"#,
-        ]
-        .iter()
-        .map(|key| {
-            text.find(key)
-                .unwrap_or_else(|| panic!("{provider}: {key}"))
-        })
-        .collect();
-        assert!(
-            order.windows(2).all(|w| w[0] < w[1]),
-            "{provider}: {order:?}"
+        check_seed(
+            &mut pins,
+            provider,
+            envelope,
+            &result,
+            "ekr-seed-envelope/3",
+            (
+                "eb335c0b09c94331375899454660699fc99557a5fd25c5626140cb2704decfc6",
+                "c7bd5bd75db124b0e76d8f8703c140ca7f219ed88f0b1895837433a5971f13ef",
+            ),
         );
-        assert!(text.ends_with(r#""committed_at":10}"#), "{provider}");
-        let root = result.result;
-        pins.check(
-            &format!("{provider} envelope"),
-            result.seed_hash.to_hex(),
-            "d9fc8c0fe513570feebbfd97837e79ee8e7636b657ee7b6974a9c5e892d51dde",
+    }
+    pins.finish();
+}
+
+/// The address `36e87d41`'s kernel retained its `ekr-seed-envelope/2` at for `seed()` seeded at
+/// `SEEDED_AT` under `context()` and `anchor()`: pinned by this file's real-seed case before design
+/// § 100, and measured again on the store that kernel wrote before this story changed anything.
+const BASE_V2_ENVELOPE: &str = "d9fc8c0fe513570feebbfd97837e79ee8e7636b657ee7b6974a9c5e892d51dde";
+/// The Root0 address that kernel produced for it.
+const BASE_V2_ROOT: &str = "8c58ac2ab74064c6002234a830133cb28ff6f5aac7a94429a822bff32698cd9f";
+
+/// The same seed as the base kernel retained it, written at test time by `support/v2_store.rs`:
+/// its `ekr-seed-envelope/2` bytes hash to the address that kernel produced, and the kernel
+/// reopens it with the Root0 that kernel produced, on both providers.
+#[test]
+fn the_base_kernels_v2_seed_keeps_its_fixed_envelope_and_root_on_both_providers() {
+    let envelope = v2::envelope_v2(&seed(), context(), &anchor(), SEEDED_AT);
+    assert_eq!(
+        ContentHash::of_bytes(&envelope).to_hex(),
+        BASE_V2_ENVELOPE,
+        "the writer's /2 envelope is the base kernel's, byte for byte"
+    );
+    let mut pins = Pins::default();
+    for file in [false, true] {
+        let provider = if file { "file" } else { "sqlite" };
+        let directory = tempfile::tempdir().unwrap();
+        let written = v2::seed_v2(
+            directory.path(),
+            file,
+            &seed(),
+            context(),
+            &anchor(),
+            SEEDED_AT,
         );
-        pins.check(
-            &format!("{provider} ontology_root"),
-            root.ontology_root.to_hex(),
-            "46eddc0a9a78fc47272ca431bade36af25a84265dbd66f736257385208b663f4",
+        let runtime = if file {
+            ekr_kernel::Runtime::file_existing(directory.path(), "ekr", context(), anchor())
+        } else {
+            ekr_kernel::Runtime::sqlite_existing(
+                &directory.path().join("state.db"),
+                "ekr",
+                context(),
+                anchor(),
+            )
+        }
+        .unwrap();
+        let result = runtime.read(Some(RevisionNumber::SEED)).unwrap().seed;
+        assert_eq!(result, written, "{provider}");
+        let retained = runtime.content(&result.seed_hash).unwrap().unwrap();
+        assert_eq!(retained, envelope, "{provider}");
+        check_seed(
+            &mut pins,
+            provider,
+            retained,
+            &result,
+            "ekr-seed-envelope/2",
+            (BASE_V2_ENVELOPE, BASE_V2_ROOT),
         );
-        pins.check(
-            &format!("{provider} knowledge_root"),
-            root.knowledge_root.to_hex(),
-            "4b2eb53ed4e3d1eb56af0a7c0d9f40c2ae28564c8567c1a318911101a3abe2cc",
-        );
-        pins.check(
-            &format!("{provider} evidence_root"),
-            root.evidence_root.to_hex(),
-            "ddb727b80fe83cd0d433ac3412f75f1d4615e846eebb956dbc6717571a6256e4",
-        );
-        pins.check(
-            &format!("{provider} agent_root"),
-            root.agent_root.to_hex(),
-            "765656ac90343aa873f2a76b11c93f4e55d6684c2fe00bbaaacced3a9d92327c",
-        );
-        pins.check(
-            &format!("{provider} root"),
-            ContentHash::of(&root).to_hex(),
-            "8c58ac2ab74064c6002234a830133cb28ff6f5aac7a94429a822bff32698cd9f",
-        );
-        assert_eq!(root.transaction, result.seed_hash);
-        assert_eq!(root.parent, None);
-        assert_eq!(root.revision, RevisionNumber::SEED);
-        assert_eq!(result.committed_at, SEEDED_AT);
-        assert_eq!(result.authority_root, root.agent_root);
-        assert_eq!(result.result_hash, ContentHash::of(&root));
     }
     pins.finish();
 }
