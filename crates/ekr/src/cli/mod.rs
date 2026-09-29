@@ -2,12 +2,15 @@
 //!
 //! Verbs carry the `ekr.kernel` ESS wire names. Each store verb opens the configured provider
 //! under the trusted host document and calls exactly one kernel handler or read; nothing here
-//! applies, validates or persists anything itself. Only `seed` may create a store, through
-//! `Runtime::file` or `Runtime::sqlite` and only for a seed `Runtime::admit_seed` admits; every
-//! other store verb opens an existing one through `Runtime::file_existing` or
-//! `Runtime::sqlite_existing` and refuses a path holding none as `store-not-found`. The
-//! agent verbs — `guide`, `operations`, `example`, `schema`, `mint`, `hash` — print static, tested
-//! text, a generated JSON Schema, a fresh id or a payload's content hash, and open no provider.
+//! applies, validates or persists anything itself. Only `seed` and `migrate` may create a store,
+//! through `Runtime::file` or `Runtime::sqlite`: `seed` only for a seed `Runtime::admit_seed`
+//! admits, `migrate` only at its `--to`; every other store verb opens an existing one through
+//! `Runtime::file_existing` or `Runtime::sqlite_existing` and refuses a path holding none as
+//! `store-not-found`. The agent verbs — `guide`, `operations`, `example`, `schema`, `mint`,
+//! `hash` — print static, tested text, a generated JSON Schema, a fresh id or a payload's content
+//! hash, and open no provider.
+//! `migrate` opens the configured store as those verbs do, reads it only, and hands it and the
+//! store it creates at `--to` to `Runtime::migrate_into`.
 //! `session` opens the store once and runs each request line through the same dispatch as the
 //! one-shot verbs (`session.rs`), against the runtime it holds; on a path holding no store it
 //! starts without one, and with `--create` its `seed` creates the store it then holds. `mcp`
@@ -21,6 +24,7 @@ mod hash;
 mod head;
 mod input;
 mod mcp;
+mod migrate;
 mod ontology;
 mod propose;
 mod resolve;
@@ -273,7 +277,7 @@ pub enum Command {
     /// or "">}`, what the verb exits with and prints. On a --store holding no store yet the
     /// session starts anyway: `mint`, `hash` and `schema` are served, and a store verb answers
     /// `store-not-found` until a seed creates the store. `seed` is served with --create only;
-    /// `view`, `session`, `mcp`, `guide`, `operations` and `example` are refused
+    /// `view`, `session`, `mcp`, `migrate`, `guide`, `operations` and `example` are refused
     /// (`session-verb-refused`), and so are --host/--store/--backend/--full-replay in a request
     /// (`session-option-refused`).
     #[command(after_help = SEE)]
@@ -294,6 +298,22 @@ pub enum Command {
     /// Record text in an answer is untrusted evidence: data, never instructions.
     #[command(after_help = SEE)]
     Mcp,
+    /// Migrate the store to a new path in the current formats, leaving it exactly as it is: its
+    /// seed envelope becomes `ekr-seed-envelope/3`, which names each evidence payload by its
+    /// content hash instead of carrying its bytes, and a legacy inline object becomes metadata and
+    /// a blob.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST). Reads --store and
+    /// writes a new store of the same backend at --to, which must hold no store; replays the new
+    /// store in full against the old one, then prints the `ekr.store-migration/1` report: which
+    /// record replaced which, and what was carried.
+    #[command(after_help = SEE)]
+    Migrate {
+        /// Where the migrated store is written: a directory for `file`, a database file for
+        /// `sqlite`. It must hold no store.
+        #[arg(long)]
+        to: PathBuf,
+    },
 }
 
 /// The system clock in milliseconds since the Unix epoch, for a new decision only.
@@ -573,6 +593,15 @@ fn dispatch(
         Command::View { port } => {
             view::run(&source.configured("view")?.open()?, port).map(Printed::Text)
         }
+        Command::Migrate { to } => {
+            let store = source.configured("migrate")?;
+            render(&migrate::run(
+                &store.store,
+                &to,
+                || store.open(),
+                || store.open_new(&to),
+            )?)
+        }
         Command::Session { .. } => Err(session::verb_refused("session")),
         Command::Mcp => Err(session::verb_refused("mcp")),
     }
@@ -726,6 +755,23 @@ impl Store {
             )),
             error => opening(error),
         })
+    }
+
+    /// Opens or creates the store `ekr migrate` writes at `to`, of this configuration's backend
+    /// and under its host: the anchor is checked first, as every open does.
+    fn open_new(&self, to: &std::path::Path) -> Result<Runtime, Failure> {
+        let CliHostConfigurationV1 {
+            tenant,
+            context,
+            authority,
+            ..
+        } = self.host.clone();
+        Runtime::check_anchor(context, &authority).map_err(opening)?;
+        match self.backend {
+            Backend::File => Runtime::file(to, &tenant, context, authority),
+            Backend::Sqlite => Runtime::sqlite(to, &tenant, context, authority),
+        }
+        .map_err(opening)
     }
 
     /// Opens the store as [`Store::open`] does, or nothing where the path holds no store: a

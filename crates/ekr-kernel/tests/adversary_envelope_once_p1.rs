@@ -331,8 +331,16 @@ fn a_checkpoint_over_an_envelope_with_non_byte_payloads_answers_as_a_full_replay
     let old_envelope = &genuine_history.objects[&seed_hash];
     let old_record = &genuine_history.objects[&first.event.record_hash];
 
+    // A new seed retains `ekr-seed-envelope/3`, which names its payloads and carries no value for
+    // one; the forgery is the `/2` layout of the same envelope, which carries each payload's value.
     let mut envelope: serde_json::Value = serde_json::from_slice(&old_envelope.bytes).unwrap();
     let key = serde_json::to_value(hash).unwrap();
+    assert_eq!(
+        envelope["input"]["evidence_payloads"],
+        serde_json::json!([key])
+    );
+    envelope["format"] = "ekr-seed-envelope/2".into();
+    envelope["input"]["evidence_payloads"] = serde_json::json!({});
     envelope["input"]["evidence_payloads"][key.as_str().unwrap()] =
         serde_json::json!("these are not the payload's bytes");
     let (forged_hash, forged_envelope) =

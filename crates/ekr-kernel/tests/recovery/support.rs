@@ -547,6 +547,12 @@ impl ekr_store::CommitAuthority for Interleaved {
         self.fire();
         self.inner.required_objects(history)
     }
+    fn objects_if_held(
+        &self,
+        history: &ekr_store::RetainedHistory,
+    ) -> Result<BTreeSet<ContentHash>, StoreError> {
+        self.inner.objects_if_held(history)
+    }
     fn replay(
         &self,
         history: &ekr_store::RetainedHistory,
@@ -827,6 +833,18 @@ pub fn install_preparation(
                 .put_blob(&tenant(), &private_key(hash), bytes)
                 .await
                 .unwrap();
+        }
+        // An `ekr.publication-preparation/3` attempt's own group also binds each evidence payload
+        // it names under the payload's address (design § 100.2).
+        if prepared.format == "ekr.publication-preparation/3" {
+            for (hash, object) in &prepared.decision.objects {
+                if object.storage_class == ekr_store::StorageClass::Provenance {
+                    provider
+                        .put_blob(&tenant(), &hash.to_hex(), &object.bytes)
+                        .await
+                        .unwrap();
+                }
+            }
         }
         let stream =
             StreamId::new(tenant(), "ekr.preparation", slot(&prepared.command_key)).unwrap();

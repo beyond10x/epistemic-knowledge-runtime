@@ -4,6 +4,25 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- `ekr migrate --to <path>` (design § 100.3): writes a copy of the store at a new path whose seed is
+  `ekr-seed-envelope/3`, re-publishing every decision with its original identities and times,
+  carrying every other object and converting a legacy inline `ObjectStored` object into metadata
+  and a blob; the new store is replayed in full against the old one, which is left untouched, and
+  the `ekr.store-migration/1` report maps each replaced record.
+
+### Changed
+
+- **New seeds write `ekr-seed-envelope/3`** (design § 100.1): the envelope names each evidence
+  payload by its content hash instead of carrying it as a JSON number array, and the seed's
+  publication preparation (`ekr.publication-preparation/3`) names it too, binding its bytes once
+  under the payload's own address. A seed with 10 MiB of evidence retained a 37,446,229-byte
+  envelope and a 63,916,454-byte preparation; it now retains a 5,542-byte envelope and a
+  14,481-byte preparation, and each payload once. A `/2` store opens,
+  replays and commits as before. A `/3` envelope naming a payload the store does not hold is
+  refused `seed-evidence-payload-absent: <hash>`.
+
 ## [0.0.14] — 2026-09-29
 
 Past revisions keep their view bytes; a session can seed; replay checkpoints are written when due.

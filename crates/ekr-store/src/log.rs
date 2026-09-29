@@ -98,6 +98,19 @@ pub trait CommitAuthority {
         &self,
         history: &RetainedHistory,
     ) -> Result<BTreeSet<ContentHash>, StoreError>;
+    /// Payloads replay reads where the store holds them, and whose absence the authority judges
+    /// itself, by name: the evidence payloads an `ekr-seed-envelope/3` names (design § 100.1).
+    /// The store loads each of them it holds an object for, verified as a required object is, and
+    /// leaves out each it holds none for. None by default.
+    /// # Errors
+    /// Malformed retained records refuse discovery.
+    fn objects_if_held(
+        &self,
+        history: &RetainedHistory,
+    ) -> Result<BTreeSet<ContentHash>, StoreError> {
+        let _ = history;
+        Ok(BTreeSet::new())
+    }
     /// Reconstructs and verifies history, optionally stopping at a committed revision.
     /// # Errors
     /// Any unsupported, incomplete or inconsistent history refuses explicitly.

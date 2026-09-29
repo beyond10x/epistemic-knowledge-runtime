@@ -174,6 +174,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         let envelope = self
             .authority
             .seed_envelope(&history, state.seed.seed_hash)?;
+        let seed_input = envelope.input.document(&history)?;
         let head = state.head();
         let graph = head.graph()?.clone();
         let root = head.root;
@@ -181,7 +182,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             graph,
             root,
             seed: state.seed,
-            seed_input: envelope.input.clone(),
+            seed_input,
             context: envelope.context,
             authority: envelope.authority.clone(),
             transactions: state.transactions,

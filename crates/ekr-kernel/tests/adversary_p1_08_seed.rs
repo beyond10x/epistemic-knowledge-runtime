@@ -190,17 +190,30 @@ impl Backend {
     }
 }
 fn envelope(document: &SeedDocument, context: BootstrapContext) -> Vec<u8> {
+    // The `ekr-seed-envelope/3` a seed of `document` retains: its payloads named, not carried.
+    #[derive(serde::Serialize)]
+    struct Input<'a> {
+        format: &'a str,
+        ontology: &'a OntologyDocument,
+        graph: &'a GraphDocument,
+        evidence_payloads: Vec<&'a ContentHash>,
+    }
     #[derive(serde::Serialize)]
     struct Envelope<'a> {
         format: &'a str,
-        input: &'a SeedDocument,
+        input: Input<'a>,
         context: BootstrapContext,
         authority: AuthorityStateV1,
         committed_at: Timestamp,
     }
     serde_json::to_vec(&Envelope {
-        format: "ekr-seed-envelope/2",
-        input: document,
+        format: "ekr-seed-envelope/3",
+        input: Input {
+            format: &document.format,
+            ontology: &document.ontology,
+            graph: &document.graph,
+            evidence_payloads: document.evidence_payloads.keys().collect(),
+        },
         context,
         authority: anchor(context),
         committed_at: Timestamp::EPOCH,

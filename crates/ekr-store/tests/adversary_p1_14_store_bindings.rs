@@ -197,6 +197,10 @@ const CARRIERS: &[(&str, Option<&str>)] = &[
         "ekr.store.NativePublicationRequest",
         Some("NativePublicationRequest"),
     ),
+    (
+        "ekr.store.StagedPublicationObject",
+        Some("StagedPublicationObject"),
+    ),
     ("ekr.store.PublicationPreparationFormatV1", None),
     (
         "ekr.store.PublicationPreparationV1",

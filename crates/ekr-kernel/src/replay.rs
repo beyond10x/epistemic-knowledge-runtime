@@ -214,8 +214,10 @@ pub(crate) fn prefix_digests(occurrences: &[RecordedOccurrence]) -> Vec<ContentH
 #[derive(Default)]
 pub(crate) struct ReplayCache {
     entries: Vec<(usize, ContentHash, Arc<ReplayState>)>,
-    /// The seed envelope this authority admitted, and the evidence payloads it requires.
-    pub(crate) seed: Option<(ContentHash, BTreeSet<ContentHash>)>,
+    /// The seed envelope this authority admitted, the evidence payloads it names, and whether it
+    /// names them (`ekr-seed-envelope/3`: read where held) rather than carrying them (`/2`:
+    /// required).
+    pub(crate) seed: Option<(ContentHash, BTreeSet<ContentHash>, bool)>,
     /// The seed envelope this authority decoded in full from verified retained bytes, by their
     /// address. It is a function of that address, so every path that verified the retained bytes
     /// at the same address takes it instead of decoding them again.
@@ -228,6 +230,12 @@ pub(crate) struct ReplayCache {
     pub(crate) seed_replays: u64,
     /// How many times this authority decoded a retained seed envelope's complete bytes.
     pub(crate) envelope_decodes: u64,
+    /// Whether this authority is the one publishing a preserving migration into its store, which
+    /// alone reads that store before the migration finished (design § 100.3).
+    pub(crate) migrating: bool,
+    /// Whether this authority has seen its store's history with no unfinished migration, after
+    /// which it stops asking for the migration markers: a store with a history never gains one.
+    pub(crate) migration_settled: bool,
 }
 impl ReplayCache {
     const CAPACITY: usize = 4;
@@ -450,6 +458,7 @@ impl KernelAuthority {
         selected: Option<RevisionNumber>,
         reuse: bool,
     ) -> Result<Option<Arc<ReplayState>>, StoreError> {
+        crate::migrate::finished(self, history)?;
         // Only the ordinary head replay is shared: a replay under a caller's ontology or to a
         // selected revision is computed in full, as before.
         let shared = ontology.is_none() && selected.is_none();

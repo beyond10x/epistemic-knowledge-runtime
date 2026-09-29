@@ -7,7 +7,7 @@ use ekr_graph::{
     GraphSnapshot, Node, Object, Space, Subject,
 };
 use ekr_ontology::{Ontology, OntologyDocument, Value};
-use ekr_store::{Entity, GraphDocument, MembraneError, StoreError};
+use ekr_store::{Entity, GraphDocument, MembraneError, RetainedHistory, StorageClass, StoreError};
 use serde::{Deserialize, Serialize};
 
 use crate::{AuthorityStateV1, EdgeDraft, GraphOperation, GraphTransaction, NodeDraft, Pipeline};
@@ -57,11 +57,15 @@ impl SeedDocument {
     }
 
     fn check_version(&self) -> Result<(), SeedError> {
-        if self.format != "ekr-seed/2" {
-            return invalid("unsupported-seed-format");
-        }
-        Ok(())
+        check_version(&self.format)
     }
+}
+
+fn check_version(format: &str) -> Result<(), SeedError> {
+    if format != "ekr-seed/2" {
+        return invalid("unsupported-seed-format");
+    }
+    Ok(())
 }
 
 /// A named bootstrap refusal.
@@ -75,14 +79,242 @@ pub enum SeedError {
     Store(#[from] StoreError),
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+/// A retained seed envelope, decoded: `ekr-seed-envelope/2`, which carries the evidence payloads,
+/// or `ekr-seed-envelope/3`, which names them (design § 100.1).
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct SeedEnvelope {
     pub(crate) format: String,
-    pub(crate) input: SeedDocument,
+    pub(crate) input: RetainedSeedInput,
     pub(crate) context: BootstrapContext,
     pub(crate) authority: AuthorityStateV1,
     pub(crate) committed_at: Timestamp,
+}
+
+/// The seed input an envelope retains: the admitted `ekr-seed/2` document, its evidence payloads
+/// carried (`/2`) or named by their content hashes (`/3`).
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct RetainedSeedInput {
+    pub(crate) format: String,
+    pub(crate) ontology: OntologyDocument,
+    pub(crate) graph: GraphDocument,
+    pub(crate) payloads: SeedPayloads,
+}
+
+/// How a retained seed input holds its evidence payloads.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum SeedPayloads {
+    /// `ekr-seed-envelope/2`: every payload's bytes, keyed by their content hash.
+    Carried(BTreeMap<ContentHash, Vec<u8>>),
+    /// `ekr-seed-envelope/3`: every payload's content hash; the bytes are retained objects.
+    Named(BTreeSet<ContentHash>),
+}
+
+impl RetainedSeedInput {
+    /// The input of a new `ekr-seed-envelope/3`: `document` less its payload bytes.
+    pub(crate) fn naming(document: &SeedDocument) -> Self {
+        Self {
+            format: document.format.clone(),
+            ontology: document.ontology.clone(),
+            graph: document.graph.clone(),
+            payloads: SeedPayloads::Named(document.evidence_payloads.keys().copied().collect()),
+        }
+    }
+
+    /// The format, ontology and graph admission reads.
+    fn parts(&self) -> (&str, &OntologyDocument, &GraphDocument) {
+        (&self.format, &self.ontology, &self.graph)
+    }
+
+    /// The content hashes of the evidence payloads, in ascending order.
+    pub(crate) fn payload_keys(&self) -> BTreeSet<ContentHash> {
+        match &self.payloads {
+            SeedPayloads::Carried(payloads) => payloads.keys().copied().collect(),
+            SeedPayloads::Named(keys) => keys.clone(),
+        }
+    }
+
+    /// Whether this is the retained input of `document`: the same format, ontology and graph, and
+    /// the same evidence payloads — compared byte for byte where carried, and where named, the
+    /// same content hashes, each of which `document`'s bytes for it must have.
+    pub(crate) fn holds(&self, document: &SeedDocument) -> bool {
+        self.format == document.format
+            && self.ontology == document.ontology
+            && self.graph == document.graph
+            && match &self.payloads {
+                SeedPayloads::Carried(payloads) => *payloads == document.evidence_payloads,
+                SeedPayloads::Named(keys) => {
+                    keys.iter().eq(document.evidence_payloads.keys())
+                        && document
+                            .evidence_payloads
+                            .iter()
+                            .all(|(hash, bytes)| ContentHash::of_bytes(bytes) == *hash)
+                }
+            }
+    }
+
+    /// The complete `ekr-seed/2` document this input retains, a named payload's bytes read from
+    /// `history`, which holds it (see [`SeedEnvelope::payload_bytes`]).
+    pub(crate) fn document(&self, history: &RetainedHistory) -> Result<SeedDocument, StoreError> {
+        let evidence_payloads = match &self.payloads {
+            SeedPayloads::Carried(payloads) => payloads.clone(),
+            SeedPayloads::Named(keys) => keys
+                .iter()
+                .map(|hash| Ok((*hash, payload(history, *hash)?.to_vec())))
+                .collect::<Result<_, StoreError>>()?,
+        };
+        Ok(SeedDocument {
+            format: self.format.clone(),
+            ontology: self.ontology.clone(),
+            graph: self.graph.clone(),
+            evidence_payloads,
+        })
+    }
+}
+
+/// A named evidence payload's retained bytes, or `seed-evidence-payload-absent` naming it where
+/// the store holds no object for it.
+fn payload(history: &RetainedHistory, hash: ContentHash) -> Result<&[u8], StoreError> {
+    if !history.objects.contains_key(&hash) {
+        return Err(StoreError::InvalidSeed(format!(
+            "seed-evidence-payload-absent: {hash} is an evidence payload the seed envelope names \
+             and the store holds no object for"
+        )));
+    }
+    history.content(hash, StorageClass::Provenance)
+}
+
+impl SeedEnvelope {
+    /// The retained bytes of every evidence payload. A carried payload's retained object must hold
+    /// exactly the bytes the envelope carries; a named payload's are the retained object's.
+    ///
+    /// # Errors
+    /// `seed-evidence-payload-mismatch` where a carried payload's object differs,
+    /// `seed-evidence-payload-absent` where a named payload has no object, and every refusal of
+    /// [`RetainedHistory::content`].
+    pub(crate) fn payload_bytes<'a>(
+        &'a self,
+        history: &'a RetainedHistory,
+    ) -> Result<BTreeMap<ContentHash, &'a [u8]>, StoreError> {
+        match &self.input.payloads {
+            SeedPayloads::Carried(payloads) => payloads
+                .iter()
+                .map(|(hash, original)| {
+                    if history.content(*hash, StorageClass::Provenance)? != original.as_slice() {
+                        return Err(StoreError::InvalidSeed(
+                            "seed-evidence-payload-mismatch".into(),
+                        ));
+                    }
+                    Ok((*hash, original.as_slice()))
+                })
+                .collect(),
+            SeedPayloads::Named(keys) => keys
+                .iter()
+                .map(|hash| Ok((*hash, payload(history, *hash)?)))
+                .collect(),
+        }
+    }
+
+    /// The exact retained bytes of this envelope, in its own format's layout.
+    ///
+    /// # Errors
+    /// An envelope whose format and payload holding disagree, or an encoding failure.
+    pub(crate) fn to_bytes(&self) -> Result<Vec<u8>, SeedError> {
+        let encoded = match (&self.input.payloads, self.format.as_str()) {
+            (SeedPayloads::Named(keys), ENVELOPE_FORMAT) => serde_json::to_vec(&EnvelopeV3 {
+                format: self.format.clone(),
+                input: InputV3 {
+                    format: self.input.format.clone(),
+                    ontology: self.input.ontology.clone(),
+                    graph: self.input.graph.clone(),
+                    evidence_payloads: keys.clone(),
+                },
+                context: self.context,
+                authority: self.authority.clone(),
+                committed_at: self.committed_at,
+            }),
+            (SeedPayloads::Carried(payloads), ENVELOPE_FORMAT_V2) => {
+                serde_json::to_vec(&EnvelopeV2 {
+                    format: self.format.clone(),
+                    input: SeedDocument {
+                        format: self.input.format.clone(),
+                        ontology: self.input.ontology.clone(),
+                        graph: self.input.graph.clone(),
+                        evidence_payloads: payloads.clone(),
+                    },
+                    context: self.context,
+                    authority: self.authority.clone(),
+                    committed_at: self.committed_at,
+                })
+            }
+            _ => return invalid("seed-envelope-layout"),
+        };
+        encoded.map_err(|error| SeedError::Invalid(error.to_string()))
+    }
+}
+
+/// `ekr-seed-envelope/2` as retained: the complete seed input, payload bytes included.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EnvelopeV2 {
+    format: String,
+    input: SeedDocument,
+    context: BootstrapContext,
+    authority: AuthorityStateV1,
+    committed_at: Timestamp,
+}
+
+/// `ekr-seed-envelope/3` as retained: the seed input with its payloads named, in the field order
+/// of `/2`.
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct EnvelopeV3 {
+    format: String,
+    input: InputV3,
+    context: BootstrapContext,
+    authority: AuthorityStateV1,
+    committed_at: Timestamp,
+}
+#[derive(Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InputV3 {
+    format: String,
+    ontology: OntologyDocument,
+    graph: GraphDocument,
+    #[serde(deserialize_with = "ekr_core::decode::unique_set")]
+    evidence_payloads: BTreeSet<ContentHash>,
+}
+
+impl From<EnvelopeV2> for SeedEnvelope {
+    fn from(envelope: EnvelopeV2) -> Self {
+        Self {
+            format: envelope.format,
+            input: RetainedSeedInput {
+                format: envelope.input.format,
+                ontology: envelope.input.ontology,
+                graph: envelope.input.graph,
+                payloads: SeedPayloads::Carried(envelope.input.evidence_payloads),
+            },
+            context: envelope.context,
+            authority: envelope.authority,
+            committed_at: envelope.committed_at,
+        }
+    }
+}
+impl From<EnvelopeV3> for SeedEnvelope {
+    fn from(envelope: EnvelopeV3) -> Self {
+        Self {
+            format: envelope.format,
+            input: RetainedSeedInput {
+                format: envelope.input.format,
+                ontology: envelope.input.ontology,
+                graph: envelope.input.graph,
+                payloads: SeedPayloads::Named(envelope.input.evidence_payloads),
+            },
+            context: envelope.context,
+            authority: envelope.authority,
+            committed_at: envelope.committed_at,
+        }
+    }
 }
 
 fn invalid<T>(code: &str) -> Result<T, SeedError> {
@@ -95,7 +327,7 @@ fn invalid<T>(code: &str) -> Result<T, SeedError> {
 fn payload_missing<T>(
     evidence: &ekr_graph::Evidence,
     entries: &BTreeMap<ekr_core::EvidenceId, ekr_graph::Evidence>,
-    payloads: &BTreeMap<ContentHash, Vec<u8>>,
+    payloads: &BTreeMap<ContentHash, Option<&[u8]>>,
 ) -> Result<T, SeedError> {
     let named: BTreeSet<ContentHash> = entries.values().map(|e| e.content_hash).collect();
     let unnamed: Vec<String> = payloads
@@ -148,9 +380,9 @@ impl<'de> Deserialize<'de> for CheckedBytes {
     }
 }
 
-/// What a replay checkpoint's restore reads of a retained seed envelope: the seed graph and the
-/// addresses of the evidence payloads, every other field decoded as in [`SeedEnvelope`] and each
-/// payload's bytes checked as `Vec<u8>` would decode them, but not kept.
+/// What a replay checkpoint's restore reads of a retained `ekr-seed-envelope/2`: the seed graph
+/// and the addresses of the evidence payloads, every other field decoded as in [`SeedEnvelope`]
+/// and each payload's bytes checked as `Vec<u8>` would decode them, but not kept.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(crate) struct SeedEnvelopeView {
@@ -191,17 +423,23 @@ impl SeedOutline {
             Self::View(view) => &view.input.graph,
         }
     }
+    /// Whether the envelope names its evidence payloads (`ekr-seed-envelope/3`).
+    pub(crate) fn names_payloads(&self) -> bool {
+        matches!(self, Self::Full(envelope) if matches!(envelope.input.payloads, SeedPayloads::Named(_)))
+    }
     /// Whether `keys` are exactly the addresses of the seed's evidence payloads.
     pub(crate) fn payloads_are(&self, keys: &BTreeSet<ContentHash>) -> bool {
         match self {
-            Self::Full(envelope) => keys.iter().eq(envelope.input.evidence_payloads.keys()),
+            Self::Full(envelope) => *keys == envelope.input.payload_keys(),
             Self::View(view) => keys.iter().eq(view.input.evidence_payloads.keys()),
         }
     }
 }
 
-/// The envelope format this kernel admits.
-pub(crate) const ENVELOPE_FORMAT: &str = "ekr-seed-envelope/2";
+/// The envelope format every new seed retains (design § 100.1).
+pub(crate) const ENVELOPE_FORMAT: &str = "ekr-seed-envelope/3";
+/// The envelope format seeds before it retained, still replayed exactly.
+pub(crate) const ENVELOPE_FORMAT_V2: &str = "ekr-seed-envelope/2";
 
 /// Decodes a retained seed envelope, typed first. Only bytes the typed decode refuses are read
 /// again as a JSON value, to tell a legacy envelope (`SeedMigrationRequired`) and bytes that are
@@ -217,8 +455,8 @@ fn decoded<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, StoreError
     })
 }
 
-fn supported(format: &str) -> Result<(), StoreError> {
-    if format != ENVELOPE_FORMAT {
+fn supported(format: &str, expected: &str) -> Result<(), StoreError> {
+    if format != expected {
         return Err(StoreError::InvalidSeed(
             "unsupported-seed-envelope".to_owned(),
         ));
@@ -226,23 +464,42 @@ fn supported(format: &str) -> Result<(), StoreError> {
     Ok(())
 }
 
-/// Decodes a complete retained seed envelope, payload bytes included.
+/// Decodes bytes laid out as `ekr-seed-envelope/3`, if they are, and whatever their format says.
+fn as_v3(bytes: &[u8]) -> Option<EnvelopeV3> {
+    serde_json::from_slice(bytes).ok()
+}
+
+/// Decodes a complete retained seed envelope by its exact format: `/3`'s layout for
+/// `ekr-seed-envelope/3`, and `/2`'s, payload bytes included, for `ekr-seed-envelope/2`. A layout
+/// that disagrees with its format is `unsupported-seed-envelope`.
 pub(crate) fn envelope(bytes: &[u8]) -> Result<SeedEnvelope, StoreError> {
-    let envelope: SeedEnvelope = decoded(bytes)?;
-    supported(&envelope.format)?;
-    Ok(envelope)
+    if let Some(envelope) = as_v3(bytes) {
+        supported(&envelope.format, ENVELOPE_FORMAT)?;
+        return Ok(envelope.into());
+    }
+    let envelope: EnvelopeV2 = decoded(bytes)?;
+    supported(&envelope.format, ENVELOPE_FORMAT_V2)?;
+    Ok(envelope.into())
 }
 
-/// Decodes a retained seed envelope without keeping its payload bytes, refusing what
-/// [`envelope`] refuses, payload values that are not bytes included.
-pub(crate) fn envelope_view(bytes: &[u8]) -> Result<SeedEnvelopeView, StoreError> {
+/// What a checkpoint restore reads of a retained envelope: an `ekr-seed-envelope/3` in full,
+/// since it carries no payload bytes, and a view of an `ekr-seed-envelope/2` without its payload
+/// bytes, refusing what [`envelope`] refuses, payload values that are not bytes included.
+pub(crate) fn outline(bytes: &[u8]) -> Result<SeedOutline, StoreError> {
+    if let Some(envelope) = as_v3(bytes) {
+        supported(&envelope.format, ENVELOPE_FORMAT)?;
+        return Ok(SeedOutline::Full(std::sync::Arc::new(envelope.into())));
+    }
     let view: SeedEnvelopeView = decoded(bytes)?;
-    supported(&view.format)?;
-    Ok(view)
+    supported(&view.format, ENVELOPE_FORMAT_V2)?;
+    Ok(SeedOutline::View(Box::new(view)))
 }
 
+/// Admits the retained seed `envelope` names, with `payloads` its evidence payloads' retained
+/// bytes ([`SeedEnvelope::payload_bytes`]).
 pub(crate) fn replay(
     envelope: &SeedEnvelope,
+    payloads: &BTreeMap<ContentHash, &[u8]>,
     ontology: Option<&Ontology>,
     context: BootstrapContext,
     authority: &AuthorityStateV1,
@@ -251,12 +508,40 @@ pub(crate) fn replay(
     if envelope.context != context || envelope.authority != *authority {
         return Err(StoreError::AuthorityMismatch);
     }
-    let graph = admitted_graph(&envelope.input, context, envelope.committed_at)
-        .map_err(|error| StoreError::InvalidSeed(error.to_string()))?;
+    let payloads = payloads
+        .iter()
+        .map(|(hash, bytes)| (*hash, Some(*bytes)))
+        .collect();
+    let graph = admitted(
+        envelope.input.parts(),
+        &payloads,
+        context,
+        envelope.committed_at,
+    )
+    .map_err(|error| StoreError::InvalidSeed(error.to_string()))?;
     if ontology.is_some_and(|expected| graph.ontology != *expected) {
         return Err(StoreError::InvalidSeed("seed-ontology-mismatch".to_owned()));
     }
     Ok(graph)
+}
+
+/// The kernel's admission of `envelope`'s retained seed before its named payloads are loaded:
+/// every rule, with each carried payload's bytes checked against its address and each named one's
+/// left to [`replay`], which reads them.
+pub(crate) fn admitted_retained(envelope: &SeedEnvelope) -> Result<CanonicalGraph, SeedError> {
+    let payloads = match &envelope.input.payloads {
+        SeedPayloads::Carried(payloads) => payloads
+            .iter()
+            .map(|(hash, bytes)| (*hash, Some(bytes.as_slice())))
+            .collect(),
+        SeedPayloads::Named(keys) => keys.iter().map(|hash| (*hash, None)).collect(),
+    };
+    admitted(
+        envelope.input.parts(),
+        &payloads,
+        envelope.context,
+        envelope.committed_at,
+    )
 }
 
 pub(crate) fn admitted_graph(
@@ -264,13 +549,34 @@ pub(crate) fn admitted_graph(
     context: BootstrapContext,
     committed_at: Timestamp,
 ) -> Result<CanonicalGraph, SeedError> {
-    input.check_version()?;
-    let ontology = Ontology::load(input.ontology.clone())
+    let payloads = input
+        .evidence_payloads
+        .iter()
+        .map(|(hash, bytes)| (*hash, Some(bytes.as_slice())))
+        .collect();
+    admitted(
+        (&input.format, &input.ontology, &input.graph),
+        &payloads,
+        context,
+        committed_at,
+    )
+}
+
+/// Seed admission of `input` with `payloads` its evidence payloads: each one's bytes where they
+/// are to be checked against its address here, `None` where the store holds and checks them.
+fn admitted(
+    (format, ontology, graph): (&str, &OntologyDocument, &GraphDocument),
+    payloads: &BTreeMap<ContentHash, Option<&[u8]>>,
+    context: BootstrapContext,
+    committed_at: Timestamp,
+) -> Result<CanonicalGraph, SeedError> {
+    check_version(format)?;
+    let ontology = Ontology::load(ontology.clone())
         .map_err(|error| SeedError::Invalid(format!("seed-ontology: {error}")))?;
     if ontology.version().number != 0 || ontology.version().parent.is_some() {
         return invalid("seed-ontology-lineage");
     }
-    let document = &input.graph;
+    let document = graph;
     if document.root.space != Space::Canonical {
         return invalid("seed-space");
     }
@@ -333,16 +639,20 @@ pub(crate) fn admitted_graph(
         if evidence.extracted_by != context.operator {
             return invalid("seed-attribution-mismatch");
         }
-        let Some(payload) = input.evidence_payloads.get(&evidence.content_hash) else {
-            return payload_missing(evidence, &document.evidence, &input.evidence_payloads);
+        let Some(payload) = payloads.get(&evidence.content_hash) else {
+            return payload_missing(evidence, &document.evidence, payloads);
         };
-        let expected = ContentHash::of_bytes(payload);
-        if expected != evidence.content_hash {
-            return payload_mismatch(expected, evidence.content_hash);
+        if let Some(payload) = payload {
+            let expected = ContentHash::of_bytes(payload);
+            if expected != evidence.content_hash {
+                return payload_mismatch(expected, evidence.content_hash);
+            }
         }
     }
     // An extra map entry is still retained input: verify every content address, cited or not.
-    for (hash, payload) in &input.evidence_payloads {
+    // A named payload's bytes are the store's to hold, and are checked where they are read.
+    for (hash, payload) in payloads {
+        let Some(payload) = payload else { continue };
         let expected = ContentHash::of_bytes(payload);
         if expected != *hash {
             return payload_mismatch(expected, *hash);
