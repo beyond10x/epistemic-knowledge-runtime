@@ -158,6 +158,8 @@ RESOLVE BEFORE YOU CREATE: ekr resolve
   Give the CreateNode the reference's aliases: the created node is then found by ekr resolve
   at the next revision. A CreateNode naming an alias a node of its type already holds is
   Rejected (alias-already-exists): resolve again, and use the node it returns.
+  A node that exists but lacks the alias a reference names gains it with AddAlias
+  (`ekr operations AddAlias`); ekr resolve finds it by that alias from the next revision on.
 
 ADDING EVIDENCE
   After the seed, a transaction adds evidence with AddEvidence: the entry and its payload bytes
@@ -236,6 +238,8 @@ pub enum OperationKind {
     AddEvidence,
     /// `!WidenEdgeType`.
     WidenEdgeType,
+    /// `!AddAlias`.
+    AddAlias,
 }
 
 impl OperationKind {
@@ -258,6 +262,7 @@ impl OperationKind {
             GraphOperation::SupersedeAssertion(_) => Self::SupersedeAssertion,
             GraphOperation::AddEvidence(_) => Self::AddEvidence,
             GraphOperation::WidenEdgeType(_) => Self::WidenEdgeType,
+            GraphOperation::AddAlias(_) => Self::AddAlias,
         }
     }
 
@@ -277,6 +282,7 @@ impl OperationKind {
             Self::SupersedeAssertion => "SupersedeAssertion",
             Self::AddEvidence => "AddEvidence",
             Self::WidenEdgeType => "WidenEdgeType",
+            Self::AddAlias => "AddAlias",
         }
     }
 
@@ -293,7 +299,8 @@ impl OperationKind {
             | Self::RetractAssertion
             | Self::Invoke
             | Self::SupersedeAssertion
-            | Self::AddEvidence => Applied::Always,
+            | Self::AddEvidence
+            | Self::AddAlias => Applied::Always,
             Self::DefineNodeType
             | Self::DefineEdgeType
             | Self::ModifyProperty
@@ -545,6 +552,19 @@ impl OperationKind {
   - 00000000-0000-4000-8000-000000000202
   target_types:
   - 00000000-0000-4000-8000-000000000202",
+            ),
+            Self::AddAlias => (
+                "give a node that exists one more alias, which ekr resolve then finds it by",
+                "  node   NodeId  the node: ekr snapshot, or one a CreateNode of the same transaction
+                  creates (unresolved-node otherwise)
+  alias  String  appended to the node's aliases; not empty (empty-alias), and held by no
+                 node of the node's type, the node itself included (alias-already-exists),
+                 nor given twice for that type in one transaction (duplicate-alias)
+  ekr resolve on the alias answers the node from the next revision on. No operation
+  removes an alias.",
+                "- !AddAlias
+  node: 00000000-0000-4000-8000-000000000303
+  alias: Acme Corporation",
             ),
         }
     }

@@ -190,6 +190,15 @@ fn applied_graph(
             GraphOperation::DeleteEdge(id) => {
                 graph.edges.remove(id);
             }
+            // After every create, so a node the same transaction creates gains it too.
+            GraphOperation::AddAlias(addition) => {
+                graph
+                    .nodes
+                    .get_mut(&addition.node)
+                    .ok_or_else(|| StoreError::Document("admitted-node-missing".into()))?
+                    .aliases
+                    .push(addition.alias.clone());
+            }
             GraphOperation::Invoke {
                 node, operation, ..
             } => {

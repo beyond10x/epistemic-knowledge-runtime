@@ -959,50 +959,199 @@ async function main() {
   }
 
   // ---- 3D: 3d-force-graph (three.js), loaded with the page ----
+  // 3d-force-graph lays the graph out (d3-force-3d) and owns the scene, camera, controls and renderer, but builds
+  // no object per node or edge: the page draws them in batches — one instanced mesh per glyph, one line-segments
+  // buffer for every edge, one instanced mesh each for the arrows and the particles — so a frame is a handful
+  // of draw calls whatever the graph holds. The loop rests once nothing moves, and the next interaction wakes it.
   const load3D = () => typeof window.ForceGraph3D === "function" ? Promise.resolve() : Promise.reject(new Error("3d-force-graph did not load"));
   const pos3D = new Map();          // 3D positions survive a switch to 2D and back
-  let fgNodes = new Map(), fgLinks = [], fgThree = null;
-  const rgba = (hex, a) => { const [r, g, b] = rgb(hex); return `rgba(${r},${g},${b},${a})`; };
-  const node3DColour = n => rgba(n.a.colour, nodeOpacity(n.id));
+  let fgNodes = new Map(), fgLinks = [];
+  const BG3D = "#161615";
+  const EDGE_CAP = 5000;            // over this many edges: no arrows, no edge hover or click, no antialiasing, no node drag
+  const ARROW = 3.5, PARTICLE_SPEED = 0.006, PARTICLE = "#f2f2ee";
   const emphasised = id => id === focused || id === pathFrom || matches.has(id) || (cursor && cursor.list[cursor.i] === id);
-  const node3DVal = n => (n.a.size * (emphasised(n.id) ? 1.6 : 1)) ** 3;
+  // translucency is precomputed toward the stage, as in 2D: every batch is drawn opaque
+  const node3DColour = n => mix(n.a.colour, nodeOpacity(n.id), BG3D);
+  const node3DRadius = n => 0.75 * n.a.size * (emphasised(n.id) ? 1.6 : 1);
+  const link3DColour = l => { const s = edgeStyle(l.id, l.a); return mix(s.c, s.near ? 0.95 : s.op * (s.c === "#74746c" ? 0.7 : 1), BG3D); };
   let lastClick3D = {id: null, t: 0};
-  const link3DColour = l => { const s = edgeStyle(l.id, l.a); return rgba(s.c, s.near ? 0.95 : s.op * (s.c === "#74746c" ? 0.7 : 1)); };
-  // types past the eighth: wireframe (ring), faceted (bullseye), faceted wireframe (halo). three.js is
-  // bundled inside 3d-force-graph without a global, so its classes are taken from a default node mesh.
-  const glyphCache = new Map();
-  function glyphParts(n) {
-    const op = nodeOpacity(n.id), r = 0.75 * n.a.size * (emphasised(n.id) ? 1.6 : 1);
-    const gk = `${n.a.glyph}|${r.toFixed(1)}`, mk = `${n.a.glyph}|${n.a.colour}|${op}`;
-    if (!glyphCache.has(gk)) glyphCache.set(gk, n.a.glyph === "ring" ? new fgThree.Geo(r, 8, 6) : new fgThree.Geo(r * 1.15, 4, 2));
-    if (!glyphCache.has(mk)) glyphCache.set(mk, new fgThree.Mat({color: n.a.colour, transparent: true, opacity: op,
-      wireframe: n.a.glyph !== "bullseye"}));
-    return [glyphCache.get(gk), glyphCache.get(mk)];
+
+  // three.js is bundled inside 3d-force-graph without a global, and the policy admits no other script: its
+  // classes are taken, once, from the objects 3d-force-graph builds for a graph of two nodes. The bundle holds
+  // neither InstancedMesh nor LineSegments. Its renderer (three r183, fixed by the integrity hash) draws a mesh
+  // flagged `isInstancedMesh` from its `instanceMatrix` and `instanceColor` in one instanced call, and a line
+  // flagged `isLineSegments` as separate segments, which is all those two classes add.
+  let T3 = null;
+  async function threeOf(g) {
+    if (T3) return T3;
+    const data = {nodes: [{id: "a"}, {id: "b"}], links: [{source: "a", target: "b"}]};
+    g.linkDirectionalArrowLength(ARROW).graphData(data);
+    const [a] = data.nodes, [l] = data.links;
+    for (let i = 0; i < 300 && !(a.__threeObj?.geometry?.attributes.position && l.__lineObj && l.__arrowObj); i++) {
+      await new Promise(done => setTimeout(done, 10));
+    }
+    const node = a.__threeObj, line = l.__lineObj, arrow = l.__arrowObj;
+    if (!node?.geometry?.attributes.position || !line || !arrow) throw new Error("3d-force-graph built no objects to take three.js from");
+    T3 = {Mesh: node.constructor, Sphere: node.geometry.constructor, Lambert: node.material.constructor,
+      Geometry: Object.getPrototypeOf(node.geometry.constructor), Attribute: node.geometry.attributes.position.constructor,
+      Line: line.constructor, LineMaterial: line.material.constructor, Cone: arrow.geometry.constructor, Color: node.material.color.constructor};
+    return T3;
   }
-  const glyphObject = n => fgThree && n.a.glyph !== "disc" ? new fgThree.Mesh(...glyphParts(n)) : null;
-  const noLinkHover = () => {     // link hover off for big graphs: lines leave the raycast
-    if (fg && fgLinks.length > 5000) for (const l of fgLinks) if (l.__lineObj) l.__lineObj.raycast = () => {};
-  };
-  const tick3D = () => {
-    if (fgThree) return;
-    for (const n of fgNodes.values()) {
-      const o = n.__threeObj;
-      if (o?.__graphDefaultObj && o.geometry && o.material) {
-        fgThree = {Mesh: o.constructor, Geo: o.geometry.constructor, Mat: o.material.constructor};
-        fg.nodeThreeObject(glyphObject);
-        return;
-      }
+  const DYNAMIC = 35048;            // gl.DYNAMIC_DRAW: a batch is rewritten while the layout runs
+  function floats(count, size, instanced) {
+    const a = new T3.Attribute(new Float32Array(Math.max(1, count) * size), size);
+    a.setUsage(DYNAMIC);
+    if (instanced) { a.isInstancedBufferAttribute = true; a.meshPerAttribute = 1; }
+    return a;
+  }
+  // one draw call for `count` copies of a geometry, each with its own matrix and colour
+  function instanced(geometry, material, capacity) {
+    return Object.assign(new T3.Mesh(geometry, material), {isInstancedMesh: true, instanceMatrix: floats(capacity, 16, true),
+      instanceColor: floats(capacity, 3, true), morphTexture: null, count: 0, frustumCulled: false, visible: false});
+  }
+  const linear = new Map();         // a colour in the renderer's linear space, as three.js converts a hex colour
+  const lin = hex => { let v = linear.get(hex); if (!v) { const c = new T3.Color(hex); linear.set(hex, v = [c.r, c.g, c.b]); } return v; };
+  const endOf = e => typeof e === "object" ? e : fgNodes.get(e);   // d3 swaps a link's ids for its node objects
+
+  // the batches for the data 3d-force-graph lays out, sized to it and built again when it changes
+  let b3 = null, engine3D = false, awake3D = 0, phase3D = 0, drag3D = null;
+  function build3D() {
+    if (!b3) {
+      // types past the eighth: wireframe (ring), faceted (bullseye), faceted wireframe (halo)
+      const solid = new T3.Lambert({color: "#ffffff"}), wire = new T3.Lambert({color: "#ffffff", wireframe: true});
+      const cone = new T3.Cone(0.25 * ARROW, ARROW, 8);
+      cone.translate(0, ARROW / 2, 0);                  // its base at the origin, its tip up the y axis
+      b3 = {shapes: {disc: [new T3.Sphere(1, 8, 8), solid], ring: [new T3.Sphere(1, 8, 6), wire],
+        bullseye: [new T3.Sphere(1.15, 4, 2), solid], halo: [new T3.Sphere(1.15, 4, 2), wire]},
+        cone, photon: new T3.Sphere(0.9, 4, 4), lineMaterial: new T3.LineMaterial({vertexColors: true}), objects: [], links: [], flow: []};
     }
-  };
+    drop3D();
+    const per = new Map(GLYPHS.map(g => [g, 0]));
+    for (const n of fgNodes.values()) per.set(n.a.glyph, per.get(n.a.glyph) + 1);
+    b3.glyphs = Object.fromEntries(GLYPHS.map(g => [g, {mesh: instanced(...b3.shapes[g], per.get(g)), list: []}]));
+    const lines = new T3.Geometry();
+    lines.setAttribute("position", floats(2 * fgLinks.length, 3, false));
+    lines.setAttribute("color", floats(2 * fgLinks.length, 3, false));
+    b3.lines = Object.assign(new T3.Line(lines, b3.lineMaterial), {isLineSegments: true, frustumCulled: false});
+    b3.arrowsOn = fgLinks.length <= EDGE_CAP;
+    b3.arrows = instanced(b3.cone, b3.shapes.disc[1], b3.arrowsOn ? fgLinks.length : 0);
+    b3.photons = instanced(b3.photon, b3.shapes.disc[1], 0);
+    b3.objects = [...GLYPHS.map(g => b3.glyphs[g].mesh), b3.lines, b3.arrows, b3.photons];
+    for (const o of b3.objects) fg.scene().add(o);
+    repaint3D();
+  }
+  // lets the batches' buffers go; the shared geometries and materials stay for the next build
+  function drop3D() {
+    for (const o of b3.objects) {
+      fg.scene().remove(o);
+      if (o.isInstancedMesh) o.dispatchEvent({type: "dispose"}); else o.geometry.dispose();
+    }
+    b3.objects = [];
+  }
+  // what is drawn, and in which colour, from the view state: on every refresh
   function repaint3D() {
-    fg.nodeVisibility(n => !nodeHidden(n.id, n.a)).nodeColor(node3DColour).nodeVal(node3DVal)
-      .linkVisibility(l => !edgeHidden(l.a) && !nodeHiddenId(l.a.s) && !nodeHiddenId(l.a.t)).linkColor(link3DColour)
-      .linkDirectionalParticles(l => (path ? path.edgeSet.has(l.id) : hoodEdges.has(l.id) && hoodEdges.size <= 300) ? 2 : 0);
-    if (fgThree) for (const n of fgNodes.values()) {
-      const o = n.__threeObj;
-      if (o && !o.__graphDefaultObj && n.a.glyph !== "disc") [o.geometry, o.material] = glyphParts(n);
+    if (!fg || !b3) return;
+    for (const g of GLYPHS) b3.glyphs[g].list = [];
+    for (const n of fgNodes.values()) {
+      if (!graph.hasNode(n.id) || nodeHidden(n.id, n.a)) continue;
+      n.r3 = node3DRadius(n);
+      b3.glyphs[n.a.glyph].list.push(n);
     }
-    setTimeout(noLinkHover, 30);
+    for (const g of GLYPHS) {
+      const {mesh, list} = b3.glyphs[g], c = mesh.instanceColor.array;
+      list.forEach((n, i) => c.set(lin(node3DColour(n)), 3 * i));
+      mesh.count = list.length; mesh.visible = list.length > 0; mesh.instanceColor.needsUpdate = true;
+    }
+    b3.links = fgLinks.filter(l => graph.hasEdge(l.id) && graph.hasNode(l.a.s) && graph.hasNode(l.a.t) &&
+      !edgeHidden(l.a) && !nodeHiddenId(l.a.s) && !nodeHiddenId(l.a.t));
+    const colours = b3.lines.geometry.attributes.color, arrows = b3.arrows.instanceColor.array;
+    b3.links.forEach((l, i) => {
+      const c = lin(link3DColour(l));
+      colours.array.set(c, 6 * i); colours.array.set(c, 6 * i + 3);
+      if (b3.arrowsOn) arrows.set(c, 3 * i);
+    });
+    colours.needsUpdate = true;
+    b3.lines.geometry.setDrawRange(0, 2 * b3.links.length); b3.lines.visible = b3.links.length > 0;
+    b3.arrows.count = b3.arrowsOn ? b3.links.length : 0; b3.arrows.visible = b3.arrows.count > 0; b3.arrows.instanceColor.needsUpdate = true;
+    // two particles run along each edge of a path, or of a focus with at most 300 edges
+    b3.flow = b3.links.filter(l => path ? path.edgeSet.has(l.id) : hoodEdges.size <= 300 && hoodEdges.has(l.id));
+    if (b3.photons.instanceMatrix.count < 2 * b3.flow.length) {
+      const i = b3.objects.indexOf(b3.photons);
+      fg.scene().remove(b3.photons); b3.photons.dispatchEvent({type: "dispose"});
+      b3.objects[i] = b3.photons = instanced(b3.photon, b3.shapes.disc[1], 2 * b3.flow.length);
+      fg.scene().add(b3.photons);
+    }
+    const white = lin(PARTICLE);
+    for (let i = 0; i < 2 * b3.flow.length; i++) b3.photons.instanceColor.array.set(white, 3 * i);
+    b3.photons.count = 2 * b3.flow.length; b3.photons.visible = b3.photons.count > 0; b3.photons.instanceColor.needsUpdate = true;
+    place3D();
+    wake3D();
+  }
+  // an arrow's matrix: the cone's axis along the edge, its tip on the target's surface
+  function arrowAt(m, o, sx, sy, sz, tx, ty, tz, rt) {
+    let dx = tx - sx, dy = ty - sy, dz = tz - sz;
+    const len = Math.hypot(dx, dy, dz);
+    if (len < 1e-6) { m.fill(0, o, o + 16); return; }
+    dx /= len; dy /= len; dz /= len;
+    const [ax, ay] = Math.abs(dy) > 0.9 ? [1, 0] : [0, 1];            // any axis not along the edge
+    let xx = -dz * ay, xy = dz * ax, xz = dx * ay - dy * ax;          // (edge × axis): across the edge
+    const xl = Math.hypot(xx, xy, xz); xx /= xl; xy /= xl; xz /= xl;
+    const zx = xy * dz - xz * dy, zy = xz * dx - xx * dz, zz = xx * dy - xy * dx;
+    const base = len - rt - ARROW;
+    m[o] = xx; m[o + 1] = xy; m[o + 2] = xz; m[o + 3] = 0;
+    m[o + 4] = dx; m[o + 5] = dy; m[o + 6] = dz; m[o + 7] = 0;
+    m[o + 8] = zx; m[o + 9] = zy; m[o + 10] = zz; m[o + 11] = 0;
+    m[o + 12] = sx + dx * base; m[o + 13] = sy + dy * base; m[o + 14] = sz + dz * base; m[o + 15] = 1;
+  }
+  // where everything is: the batches follow the layout, a dragged node and the particles
+  function place3D() {
+    if (!b3) return;
+    for (const g of GLYPHS) {
+      const {mesh, list} = b3.glyphs[g], m = mesh.instanceMatrix.array;
+      for (let i = 0, o = 0; i < list.length; i++, o += 16) {
+        const n = list[i], r = n.r3;
+        m[o] = r; m[o + 5] = r; m[o + 10] = r; m[o + 15] = 1;
+        m[o + 12] = n.x || 0; m[o + 13] = n.y || 0; m[o + 14] = n.z || 0;
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+    const p = b3.lines.geometry.attributes.position, am = b3.arrows.instanceMatrix.array;
+    b3.links.forEach((l, i) => {
+      const s = endOf(l.source), t = endOf(l.target);
+      if (!s || !t) return;
+      const sx = s.x || 0, sy = s.y || 0, sz = s.z || 0, tx = t.x || 0, ty = t.y || 0, tz = t.z || 0, o = 6 * i;
+      p.array[o] = sx; p.array[o + 1] = sy; p.array[o + 2] = sz; p.array[o + 3] = tx; p.array[o + 4] = ty; p.array[o + 5] = tz;
+      if (b3.arrowsOn) arrowAt(am, 16 * i, sx, sy, sz, tx, ty, tz, t.r3 || 0);
+    });
+    p.needsUpdate = true; b3.arrows.instanceMatrix.needsUpdate = true;
+    const pm = b3.photons.instanceMatrix.array;
+    b3.flow.forEach((l, i) => {
+      const s = endOf(l.source), t = endOf(l.target);
+      if (!s || !t) return;
+      for (let k = 0; k < 2; k++) {
+        const f = (phase3D + k / 2) % 1, o = 16 * (2 * i + k);
+        pm[o] = 1; pm[o + 5] = 1; pm[o + 10] = 1; pm[o + 15] = 1;
+        pm[o + 12] = (s.x || 0) + ((t.x || 0) - (s.x || 0)) * f;
+        pm[o + 13] = (s.y || 0) + ((t.y || 0) - (s.y || 0)) * f;
+        pm[o + 14] = (s.z || 0) + ((t.z || 0) - (s.z || 0)) * f;
+      }
+    });
+    b3.photons.instanceMatrix.needsUpdate = true;
+  }
+  // The loop draws a frame while the layout runs, a node is dragged, particles run, or within a moment of the
+  // last control move, camera flight or repaint; otherwise it pauses, and `wake3D` resumes it.
+  const covered3D = () => document.body.classList.contains("tl-on") || document.body.classList.contains("schema-on");
+  const busy3D = () => engine3D || !!drag3D || !!b3?.flow.length || performance.now() < awake3D;
+  function wake3D(ms = 250) {
+    awake3D = Math.max(awake3D, performance.now() + ms);
+    if (fg && !covered3D()) fg.resumeAnimation();
+  }
+  // run by the renderer before each frame it draws
+  function frame3D() {
+    if (b3?.flow.length) phase3D = (phase3D + PARTICLE_SPEED) % 1;
+    place3D();
+    // after this frame has asked for the next one, which the pause then cancels
+    if (!busy3D()) queueMicrotask(() => { if (fg && !busy3D()) fg.pauseAnimation(); });
   }
   function data3D() {
     // 2D positions (rescaled) seed nodes that have never been placed in 3D, so the first frame has a shape
@@ -1019,68 +1168,211 @@ async function main() {
     fgNodes = next;
     fgLinks = [];
     graph.forEachEdge((id, a, s, t) => fgLinks.push({id, source: s, target: t, a}));
-    setTimeout(noLinkHover, 60);
     return {nodes: [...fgNodes.values()], links: fgLinks};
   }
+  // hands 3d-force-graph new data to lay out, and builds the batches for it
+  function layout3D(data, ticks, ms) {
+    fg.cooldownTicks(ticks).cooldownTime(ms).graphData(data);
+    engine3D = true; hud.textContent = "laying out…";
+    build3D();
+  }
+  function reheat3D(ticks, ms) {
+    fg.cooldownTicks(ticks).cooldownTime(ms).d3ReheatSimulation();
+    engine3D = true; hud.textContent = "laying out…";
+    wake3D();
+  }
+
+  // The node, else the edge, under a point of the canvas: a ray from the camera through it, against the sphere
+  // of every drawn node and, where edges are hovered at all, every drawn edge within one unit of it (3d-force-graph's
+  // line hover precision). The nearest along the ray wins.
+  function pick3D(x, y, edges) {
+    if (!fg || !b3) return null;
+    const o = fg.screen2GraphCoords(x, y, 0), f = fg.screen2GraphCoords(x, y, 1);
+    const dx = f.x - o.x, dy = f.y - o.y, dz = f.z - o.z;          // a unit vector
+    let node = null, near = Infinity;
+    for (const g of GLYPHS) {
+      const k = g === "bullseye" || g === "halo" ? 1.15 : 1;
+      for (const n of b3.glyphs[g].list) {
+        const cx = (n.x || 0) - o.x, cy = (n.y || 0) - o.y, cz = (n.z || 0) - o.z;
+        const t = cx * dx + cy * dy + cz * dz, r = n.r3 * k;
+        if (t <= 0 || t >= near || cx * cx + cy * cy + cz * cz - t * t > r * r) continue;
+        node = n; near = t;
+      }
+    }
+    if (node) return {node};
+    if (!edges || fgLinks.length > EDGE_CAP) return null;
+    let link = null;
+    for (const l of b3.links) {
+      const s = endOf(l.source), e = endOf(l.target);
+      if (!s || !e) continue;
+      const ux = e.x - s.x, uy = e.y - s.y, uz = e.z - s.z, wx = o.x - s.x, wy = o.y - s.y, wz = o.z - s.z;
+      const b = dx * ux + dy * uy + dz * uz, c = ux * ux + uy * uy + uz * uz, dw = dx * wx + dy * wy + dz * wz, uw = ux * wx + uy * wy + uz * wz;
+      const den = c - b * b;
+      const u = Math.min(1, Math.max(0, den > 1e-9 ? (uw - b * dw) / den : 0));   // along the edge
+      const t = u * b - dw;                                                          // along the ray
+      if (t <= 0 || t >= near) continue;
+      const qx = wx + dx * t - ux * u, qy = wy + dy * t - uy * u, qz = wz + dz * t - uz * u;
+      if (qx * qx + qy * qy + qz * qz > 1) continue;
+      link = l; near = t;
+    }
+    return link ? {link} : null;
+  }
+  // A held node pulls its neighbours along, as 3d-force-graph's own drag did: the layout is reheated when the drag
+  // starts and kept running while the node is held, at an alpha held near DRAG_ALPHA (3d-force-graph's alpha target
+  // while dragging, which it does not expose: the gravity force, which sees the alpha every tick, stops its decay
+  // there), and reheated again when the node is let go.
+  const DRAG_ALPHA = 0.3, ALPHA_DECAY = 0.0228;       // d3-force's default decay: 1 - 0.001^(1/300)
+  let alpha3D = 0;                                     // the layout's alpha at its last tick
+  function dragStart() {
+    drag3D.started = true;
+    fg.cooldownTicks(Infinity).cooldownTime(Infinity);
+    if (!engine3D || alpha3D < DRAG_ALPHA) fg.d3ReheatSimulation();
+    engine3D = true;
+  }
+  function dragEnd(dragged) {
+    const n = dragged.n;
+    n.fx = n.fy = n.fz = undefined;
+    if (!dragged.started) { wake3D(); return; }
+    fg.d3AlphaDecay(ALPHA_DECAY);
+    reheat3D(120, 3000);
+  }
+  // a dragged node moves in the plane through it that faces the camera
+  function dragTo(x, y) {
+    if (!drag3D.started) dragStart();
+    const n = drag3D.n, o = fg.screen2GraphCoords(x, y, 0), f = fg.screen2GraphCoords(x, y, 1);
+    const e = fg.camera().matrixWorld.elements, nx = -e[8], ny = -e[9], nz = -e[10];   // where the camera looks
+    const dx = f.x - o.x, dy = f.y - o.y, dz = f.z - o.z, den = dx * nx + dy * ny + dz * nz;
+    if (Math.abs(den) < 1e-6) return;
+    const t = (((n.x || 0) - o.x) * nx + ((n.y || 0) - o.y) * ny + ((n.z || 0) - o.z) * nz) / den;
+    n.fx = n.x = o.x + dx * t; n.fy = n.y = o.y + dy * t; n.fz = n.z = o.z + dz * t;
+    wake3D();
+  }
+  function click3D(x, y, ev) {
+    const hit = pick3D(x, y, true);
+    if (hit?.node) {
+      const n = hit.node;
+      // two clicks on one node within 350 ms count as a double-click
+      const now = performance.now(), dbl = lastClick3D.id === n.id && now - lastClick3D.t < 350;
+      lastClick3D = {id: n.id, t: now};
+      if (dbl) { scopeTo(n.id); return; }
+      nodeClicked(n.id, ev); if (!ev.shiftKey) fly3D(n);
+    } else if (hit?.link) showEdge(hit.link.id);
+    else if (focused || cursor) { clearFocus(); pushState(); }
+  }
+  // Pointer input on the canvas: hover and click by `pick3D`, a node drag where the graph holds at most EDGE_CAP
+  // edges, and a camera move otherwise. The controls wake the loop whenever they move the camera.
+  function listen3D(canvas) {
+    const controls = fg.controls();
+    controls.addEventListener("start", () => wake3D());
+    controls.addEventListener("change", () => wake3D());
+    const at = ev => { const b = canvas.getBoundingClientRect(); return {x: ev.clientX - b.left, y: ev.clientY - b.top}; };
+    let down = null, shown = null, queued = false, last = null;
+    const hover = () => {
+      queued = false;
+      if (down) return;                   // a press is a click, a drag or a camera move, not a hover
+      const hit = last ? pick3D(last.x, last.y, true) : null;
+      const key = hit ? (hit.node ? `n${hit.node.id}` : `e${hit.link.id}`) : null;
+      if (key === shown) return;
+      shown = key;
+      canvas.style.cursor = hit?.node ? "pointer" : "";
+      if (hit?.node && graph.hasNode(hit.node.id)) nodeTip(hit.node.id);
+      else if (hit?.link && graph.hasEdge(hit.link.id)) edgeTip(hit.link.id);
+      else hideTip();
+    };
+    canvas.addEventListener("pointerdown", ev => {
+      if (ev.button !== 0) return;
+      down = {...at(ev), moved: false};
+      const hit = fgLinks.length <= EDGE_CAP ? pick3D(down.x, down.y, false) : null;
+      if (hit) { drag3D = {n: hit.node}; controls.enabled = false; canvas.setPointerCapture(ev.pointerId); }
+    }, {capture: true});
+    canvas.addEventListener("pointermove", ev => {
+      const p = at(ev);
+      if (down && Math.hypot(p.x - down.x, p.y - down.y) > 4) down.moved = true;
+      if (drag3D && down?.moved) { dragTo(p.x, p.y); return; }
+      last = p;
+      if (!queued) { queued = true; requestAnimationFrame(hover); }
+    });
+    canvas.addEventListener("pointerup", ev => {
+      if (ev.button !== 0 || !down) return;
+      const d = down, dragged = drag3D;
+      down = null;
+      if (dragged) { drag3D = null; controls.enabled = true; dragEnd(dragged); }
+      if (!d.moved) click3D(d.x, d.y, ev);
+    });
+    canvas.addEventListener("pointerleave", () => { last = null; shown = null; canvas.style.cursor = ""; });
+  }
+
   async function create3D() {
     const el = $("graph3d");
     el.style.display = "block";
     hud.textContent = "loading 3D…";
     await load3D();
-    if (dim !== "3d") return;
+    if (dim !== "3d" || fg) return;
     const box = $("stage").getBoundingClientRect();
-    const big = graph.size > 5000;
-    fg = ForceGraph3D({controlType: "orbit", rendererConfig: {antialias: !big, powerPreference: "high-performance"}})(el)
-      .width(box.width).height(box.height)
-      .backgroundColor("#161615").showNavInfo(false)
-      .nodeId("id").nodeRelSize(0.75).nodeResolution(8).nodeOpacity(1).nodeLabel(() => "").linkLabel(() => "")
-      .linkOpacity(1).linkWidth(0)
-      .linkDirectionalArrowLength(big ? 0 : 3.5).linkDirectionalArrowRelPos(1).linkDirectionalArrowColor(link3DColour)
-      .linkDirectionalParticleWidth(1.8).linkDirectionalParticleColor(() => "#f2f2ee").linkDirectionalParticleSpeed(0.006)
-      .warmupTicks(pos3D.size ? 0 : 12).cooldownTicks(pos3D.size ? 60 : 300).cooldownTime(pos3D.size ? 2000 : 8000)
-      .enableNodeDrag(!big)
-      .onEngineTick(tick3D)
-      .onEngineStop(() => { if (!fg) return; hud.textContent = ""; tick3D();
-        for (const n of fgNodes.values()) if (n.fx != null) { n.fx = n.fy = n.fz = undefined; } })
-      .onNodeHover(n => { el.style.cursor = n ? "pointer" : ""; if (n) nodeTip(n.id); else hideTip(); })
-      .onLinkHover(l => { if (l) edgeTip(l.id); else hideTip(); })
-      .onNodeClick((n, ev) => {
-        // 3d-force-graph has no double-click: two clicks on one node within 350 ms count as one
-        const now = performance.now(), dbl = lastClick3D.id === n.id && now - lastClick3D.t < 350;
-        lastClick3D = {id: n.id, t: now};
-        if (dbl) { scopeTo(n.id); return; }
-        nodeClicked(n.id, ev); if (!ev?.shiftKey) fly3D(n);
-      })
-      .onLinkClick(l => showEdge(l.id))
-      .onBackgroundClick(() => { if (focused || cursor) { clearFocus(); pushState(); } });
-    repaint3D();
+    const g = ForceGraph3D({controlType: "orbit", rendererConfig: {antialias: graph.size <= EDGE_CAP, powerPreference: "high-performance"}})(el)
+      .width(box.width).height(box.height).backgroundColor(BG3D).showNavInfo(false)
+      .enablePointerInteraction(false).enableNodeDrag(false);
+    await threeOf(g);
+    if (dim !== "3d" || fg) { g._destructor(); return; }      // left 3D, or entered it again, meanwhile
+    fg = g;
+    fg.nodeId("id").nodeVisibility(false).linkVisibility(false).linkDirectionalArrowLength(0)
+      .warmupTicks(pos3D.size ? 0 : 12)
+      .onEngineStop(() => {
+        if (!fg) return;
+        engine3D = false; hud.textContent = "";
+        for (const n of fgNodes.values()) if (n.fx != null && n !== drag3D?.n) { n.fx = n.fy = n.fz = undefined; }
+        wake3D();
+      });
+    fg.scene().onBeforeRender = frame3D;
     fg.d3Force("charge").distanceMax(260);
     // a weak pull to the centre (stronger for nodes without edges), so nothing drifts off to a far shell
     fg.d3Force("gravity", alpha => {
+      alpha3D = alpha;
+      if (drag3D?.started && !drag3D.held && alpha <= DRAG_ALPHA) { fg.d3AlphaDecay(0); drag3D.held = true; }
       for (const n of fgNodes.values()) {
         if (n.x == null) continue;
         const k = (n.a.deg ? 0.015 : 0.08) * alpha;
         n.vx -= n.x * k; n.vy -= n.y * k; n.vz -= n.z * k;
       }
     });
-    fg.graphData(data3D());
-    hud.textContent = "laying out…";
+    listen3D(fg.renderer().domElement);
+    layout3D(data3D(), pos3D.size ? 60 : 300, pos3D.size ? 2000 : 8000);
     el.onmousemove = ev => { const b = el.getBoundingClientRect(); moveTip({x: ev.clientX - b.left, y: ev.clientY - b.top}); };
   }
   function destroy3D() {
     if (fg) {
       for (const n of fgNodes.values()) if (n.x != null) pos3D.set(n.id, {x: n.x, y: n.y, z: n.z});
-      fg.pauseAnimation(); fg._destructor(); fg = null;
-      fgNodes = new Map(); fgLinks = []; fgThree = null; glyphCache.clear();
+      fg.pauseAnimation();
+      if (b3) { drop3D(); b3 = null; }            // the scene's emptying disposes the shared geometries and materials
+      fg._destructor(); fg = null;
+      fgNodes = new Map(); fgLinks = []; engine3D = false; drag3D = null;
     }
     const el = $("graph3d"); el.replaceChildren(); el.style.display = "none"; el.onmousemove = null;
   }
   const fly3D = n => {
-    if (!fg || n.x == null) return;
+    if (!fg || !n || n.x == null) return;
     const d = Math.hypot(n.x, n.y, n.z) || 1, dist = 80 + 6 * n.a.size, r = 1 + dist / d;
     fg.cameraPosition({x: n.x * r, y: n.y * r, z: n.z * r}, {x: n.x, y: n.y, z: n.z}, 900);
+    wake3D(1000);
   };
-  window.addEventListener("resize", () => { if (fg) { const b = $("stage").getBoundingClientRect(); fg.width(b.width).height(b.height); } });
+  // the camera onto the drawn nodes `ids` names (all when null), aimed at their centre, as 3d-force-graph fits
+  function fit3D(ids, ms, pad) {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const n of fgNodes.values()) {
+      if ((ids && !ids.has(n.id)) || n.x == null || !graph.hasNode(n.id) || nodeHidden(n.id, n.a)) continue;
+      x0 = Math.min(x0, n.x); x1 = Math.max(x1, n.x); y0 = Math.min(y0, n.y); y1 = Math.max(y1, n.y); z0 = Math.min(z0, n.z); z1 = Math.max(z1, n.z);
+    }
+    if (x0 === Infinity) return;
+    const cam = fg.camera(), c = {x: (x0 + x1) / 2, y: (y0 + y1) / 2, z: (z0 + z1) / 2};
+    const side = Math.max(x1 - x0, y1 - y0, z1 - z0, 20), fov = (1 - 2 * pad / fg.height()) * cam.fov;
+    const dist = side / Math.atan(fov * Math.PI / 180) / Math.min(1, cam.aspect);
+    let vx = cam.position.x - c.x, vy = cam.position.y - c.y, vz = cam.position.z - c.z;
+    const vl = Math.hypot(vx, vy, vz);
+    if (vl < 1e-6) { vx = 0; vy = 0; vz = 1; } else { vx /= vl; vy /= vl; vz /= vl; }
+    fg.cameraPosition({x: c.x + vx * dist, y: c.y + vy * dist, z: c.z + vz * dist}, c, ms);
+    wake3D(ms + 100);
+  }
+  window.addEventListener("resize", () => { if (fg) { const b = $("stage").getBoundingClientRect(); fg.width(b.width).height(b.height); wake3D(); } });
 
   async function setDim(next) {
     if (next === dim && (next === "3d" ? fg : renderer)) return;
@@ -1364,7 +1656,7 @@ async function main() {
     focusOn(id);
     if (graph.hasNode(id)) centreOn(id);
     else pending = id;
-    opened = expandFrom([id], 1);
+    opened = noteHops(id, 1, expandFrom([id], 1));
     const shown = showNode(id);
     if (push) pushState();
     return shown;
@@ -1474,14 +1766,14 @@ async function main() {
     if ((fresh.size || freshEdges) && fg) {
       const was = new Set(fgNodes.keys()), data = data3D();
       for (const n of data.nodes) if (was.has(n.id) && n.x != null) { n.fx = n.x; n.fy = n.y; n.fz = n.z; }
-      fg.cooldownTicks(80).cooldownTime(2500).graphData(data); hud.textContent = "laying out…";
+      layout3D(data, 80, 2500);
     }
     fresh.clear(); freshEdges = 0;
     tlM = null;
     refresh(); render(false);
   }
   const fitTo = (ids, pad = 1.35) => {
-    if (fg) { fg.zoomToFit(400, 60, n => ids.has(n.id)); return; }
+    if (fg) { fit3D(ids, 400, 60); return; }
     if (!renderer) return;
     let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
     for (const id of ids) { const p = renderer.getNodeDisplayData(id); if (!p) continue;
@@ -1489,7 +1781,7 @@ async function main() {
     if (x0 === Infinity) return;
     camera.animate({x: (x0 + x1) / 2, y: (y0 + y1) / 2, ratio: Math.min(1.1, Math.max(0.06, pad * Math.max(x1 - x0, y1 - y0)))}, {duration: 300});
   };
-  const fitAll = () => { if (currentView() === "timeline") tlFit(); else if (fg) fg.zoomToFit(400, 40); else if (scope) fitTo(scope.set); else camera?.animatedReset({duration: 300}); };
+  const fitAll = () => { if (currentView() === "timeline") tlFit(); else if (fg) fit3D(null, 400, 40); else if (scope) fitTo(scope.set); else camera?.animatedReset({duration: 300}); };
   document.body.addEventListener("click", ev => {
     const act = ev.target.closest("[data-act]");
     if (act) {
@@ -1502,7 +1794,7 @@ async function main() {
       else if (act.dataset.act === "show-graph") { setView("graph"); goTo(id); }
       else if (act.dataset.act === "stated-all") showNode(id, true);
       else if (act.dataset.act === "evidence-close") closeEvidence();
-      else if (act.dataset.act === "expand") expandFrom([id], 2);
+      else if (act.dataset.act === "expand") noteHops(id, 2, expandFrom([id], 2));
       else if (act.dataset.act === "stream-stop") streamLine?.handle?.cancel();
       else if (act.dataset.act === "stream-more" && streamLine?.next != null) {
         const l = streamLine;
@@ -1584,7 +1876,7 @@ async function main() {
   const relayout = () => {
     if (fg) {
       for (const n of fgNodes.values()) { n.x = (Math.random() - 0.5) * 400; n.y = (Math.random() - 0.5) * 400; n.z = (Math.random() - 0.5) * 400; }
-      fg.cooldownTicks(300).cooldownTime(8000).d3ReheatSimulation(); hud.textContent = "laying out…"; return;
+      reheat3D(300, 8000); return;
     }
     seedPositions(); camera.animatedReset({duration: 0}); runLayout(budget());
   };
@@ -1635,7 +1927,7 @@ async function main() {
     if (focused) { focusOn(focused); showNode(focused); }
     refreshScope(); computeTime();
     if (renderer) runLayout(3000);
-    if (fg) { fg.cooldownTicks(120).cooldownTime(3000).graphData(data3D()); hud.textContent = "laying out…"; }
+    if (fg) layout3D(data3D(), 120, 3000);
     refresh(); render(false);
     if (push) pushState();
   }
@@ -1664,6 +1956,38 @@ async function main() {
     if (!scope.trail.length) { scope = null; renderCrumbs(); return; }
     scope.set = hopsFrom(scope.trail[scope.trail.length - 1], scope.hops);
   }
+  // The page holds only what it has streamed, so a depth names a neighbourhood to stream, not only one to walk:
+  // setting it to N streams /expand {seeds: [focus], depth: N}, as "Expand 2 hops" does, and the set is walked
+  // again when that stream ends. Each node's deepest neighbourhood streamed for the revision shown is noted once
+  // its stream has ended well, so a depth already streamed, or one inside it, is not streamed again; one still
+  // streaming covers the same, and when it fails or is closed, a shallower depth the slider now names is streamed.
+  // `/expand` answers at most MAX_HOPS, and the slider and an address go no deeper.
+  const MAX_HOPS = 2;
+  const streamedHops = new Map();      // node id → the deepest neighbourhood of it streamed for this revision
+  const streamingHops = new Map();     // node id → the deepest neighbourhood of it streaming now
+  const noteHops = (id, depth, handle) => {
+    if (!handle) return handle;
+    if (depth > (streamingHops.get(id) || 0)) streamingHops.set(id, depth);
+    // a stream that did not end well is not retried at its own depth, only one the focus now names that is shallower
+    const ended = ok => {
+      if (streamingHops.get(id) === depth) streamingHops.delete(id);
+      if (ok) { if (depth > (streamedHops.get(id) || 0)) streamedHops.set(id, depth); }
+      else if (scope && scope.trail[scope.trail.length - 1] === id && scope.hops < depth) streamHops();
+    };
+    handle.done.then(end => ended(!end.cancelled), () => ended(false));
+    return handle;
+  };
+  function streamHops() {
+    if (!scope) return;
+    const root = scope.trail[scope.trail.length - 1], hops = scope.hops;
+    if (Math.max(streamedHops.get(root) || 0, streamingHops.get(root) || 0) >= hops) return;
+    const handle = noteHops(root, hops, expandFrom([root], hops));
+    if (!handle) return;                 // over the render budget, the stream line asks first
+    handle.done.then(end => {
+      if (end.cancelled || !scope || scope.trail[scope.trail.length - 1] !== root || scope.hops !== hops) return;
+      refreshScope(); renderCrumbs(); refresh();
+    }).catch(() => {});                  // the stream line says why it failed
+  }
   function scopeTo(id, push = true) {
     if (!graph.hasNode(id)) return;
     const trail = scope ? scope.trail.slice() : [];
@@ -1672,15 +1996,31 @@ async function main() {
     refreshScope();
     focusOn(id); showNode(id); renderCrumbs(); refresh();
     fitTo(scope.set, 1.5);
+    streamHops();
     if (push) pushState();
   }
   function clearScope(push = true) { scope = null; renderCrumbs(); refresh(); if (push) pushState(); }
+  // With a focus the bar holds its trail, the hops slider and the focus's size; without one it says how to get one.
+  // The slider is built once per trail, and moved in place after, so a drag is never cut off by a redraw.
   function renderCrumbs() {
     const el = $("crumbs");
-    if (!scope) { el.style.display = "none"; return; }
+    if (!scope) {
+      el.dataset.trail = "";
+      put(el, h("span", null, "Double-click a node, or choose Neighbourhood in its panel, for a hops slider"));
+      el.style.display = "flex";
+      return;
+    }
+    const trail = scope.trail.map(id => `${id} ${nodeName(id)}`).join("|");
+    if (el.dataset.trail === trail && $("hopsR")) {
+      $("hopsR").value = scope.hops;
+      el.querySelector(".hopbox b").textContent = scope.hops;
+      el.querySelector(".n").textContent = `${fmt(scope.set.size)} nodes`;
+      return;
+    }
+    el.dataset.trail = trail;
     put(el, h("a", {"data-crumb": "-1"}, "All"), scope.trail.map((id, i) =>
       [h("span", {class: "sep"}, "›"), h("a", {"data-crumb": i, class: i === scope.trail.length - 1 ? "on" : ""}, short(nodeName(id)))]),
-      h("span", {class: "hopbox"}, "hops ", h("input", {type: "range", id: "hopsR", min: 1, max: 3, step: 1, value: scope.hops}), h("b", null, scope.hops)),
+      h("span", {class: "hopbox"}, "hops ", h("input", {type: "range", id: "hopsR", min: 1, max: MAX_HOPS, step: 1, value: scope.hops}), h("b", null, scope.hops)),
       h("span", {class: "n"}, `${fmt(scope.set.size)} nodes`));
     el.style.display = "flex";
   }
@@ -1698,7 +2038,8 @@ async function main() {
     scope.hops = lastHops = +ev.target.value;
     refreshScope(); renderCrumbs(); refresh();
   });
-  $("crumbs").addEventListener("change", ev => { if (ev.target.id === "hopsR" && scope) { fitTo(scope.set, 1.5); pushState(); } });
+  // a moved slider walks what is drawn at once, and streams what it names when let go
+  $("crumbs").addEventListener("change", ev => { if (ev.target.id === "hopsR" && scope) { streamHops(); fitTo(scope.set, 1.5); pushState(); } });
 
   // ---- 3. time slider over valid_from: what was valid as of a date; play animates the growth ----
   let timeRange = null, nodeDated = new Set(), playTimer = 0;
@@ -2054,10 +2395,10 @@ async function main() {
         if (moved) { applying = false; pushState(); return; }
       }
       if (trail.length) {
-        scope = {trail: trail.filter(id => graph.hasNode(id)), hops: Math.min(3, Math.max(1, Number(p.get("hops")) || 1)), set: null};
+        scope = {trail: trail.filter(id => graph.hasNode(id)), hops: Math.min(MAX_HOPS, Math.max(1, Number(p.get("hops")) || 1)), set: null};
         lastHops = scope.hops;
       }
-      refreshScope(); renderCrumbs();
+      refreshScope(); renderCrumbs(); streamHops();
       if (ends) findPath(ends[0], ends[1], false);
       if (scope && !ends) fitTo(scope.set, 1.5);
       refresh(); render(false);
@@ -2070,7 +2411,7 @@ async function main() {
     const ended = handle => handle ? handle.done.catch(() => null) : null;
     await Promise.all(inFlight.map(ended));
     const missing = [...new Set(ids)].filter(id => id && !graph.hasNode(id));
-    await Promise.all(missing.map(id => ended(expandFrom([id], 1, 0, false))));
+    await Promise.all(missing.map(id => ended(noteHops(id, 1, expandFrom([id], 1, 0, false)))));
   }
   window.addEventListener("popstate", () => { applyState(location.hash).catch(err => { $("error").textContent = String(err); }); });
 
@@ -2127,8 +2468,8 @@ async function main() {
     document.querySelectorAll("#views button").forEach(b => b.classList.toggle("on", b.dataset.view === view));
     if (view === "schema") renderSchema(true);
     if (view === "timeline") { hideTip(); tlRender(); } else tlHideTip();
-    // the 3D engine animates every frame: it rests while another view covers it
-    if (fg && was !== view) { if (view === "graph") fg.resumeAnimation(); else fg.pauseAnimation(); }
+    // the 3D loop rests while another view covers it
+    if (fg && was !== view) { if (view === "graph") wake3D(); else fg.pauseAnimation(); }
   };
   $("views").addEventListener("click", ev => { const v = ev.target.closest("button")?.dataset.view; if (v) { setView(v); pushState(); } });
 
@@ -3060,6 +3401,7 @@ async function main() {
       tlM = null;                     // the timeline is rebuilt from the new overview when next needed
       tlDetail.id = null; tlDetail.d = null;
       tlRows = null; tlLanes = null;  // and its rows and lanes are read again from the revision shown
+      streamedHops.clear(); streamingHops.clear();   // what a revision streamed is dropped with it
       details.clear();
       if (!typeSlot.size) seedSlots();
       const first = graph.order === 0;
@@ -3080,7 +3422,7 @@ async function main() {
       // the layout starts once the first batches have settled, not under them
       clearTimeout(settleTimer);
       settleTimer = setTimeout(settle, 120);
-      if (fg) { fg.cooldownTicks(120).cooldownTime(3000).graphData(data3D()); hud.textContent = "laying out…"; }
+      if (fg) layout3D(data3D(), 120, 3000);
       if (focused && !graph.hasNode(focused)) pending = focused;
       if (focused) focusOn(focused); else refresh();
       streamLine = null; asking = null; drawStream();

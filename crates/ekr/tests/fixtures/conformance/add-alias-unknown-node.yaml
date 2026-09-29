@@ -1,0 +1,9 @@
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-8000-000000000735
+  proposer: 00000000-0000-4000-8000-000000000101
+  operations:
+  - !AddAlias
+    node: 00000000-0000-4000-8000-000000000399
+    alias: the-ghost
+  evidence: []

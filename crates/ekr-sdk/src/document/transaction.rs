@@ -185,6 +185,8 @@ pub enum Operation {
     AddEvidence(Box<EvidenceAddition>),
     /// `!WidenEdgeType`, a schema change.
     WidenEdgeType(EdgeWidening),
+    /// `!AddAlias`: one more alias for a node that exists.
+    AddAlias(AliasAddition),
 }
 
 impl Operation {
@@ -206,6 +208,7 @@ impl Operation {
             Self::SupersedeAssertion(_) => OperationKind::SupersedeAssertion,
             Self::AddEvidence(_) => OperationKind::AddEvidence,
             Self::WidenEdgeType(_) => OperationKind::WidenEdgeType,
+            Self::AddAlias(_) => OperationKind::AddAlias,
         }
     }
 
@@ -247,11 +250,13 @@ pub enum OperationKind {
     AddEvidence,
     /// `!WidenEdgeType`.
     WidenEdgeType,
+    /// `!AddAlias`.
+    AddAlias,
 }
 
 impl OperationKind {
     /// Every kind, in the order `ekr operations` lists them.
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 15] = [
         Self::CreateNode,
         Self::UpdateProperty,
         Self::CreateEdge,
@@ -266,6 +271,7 @@ impl OperationKind {
         Self::SupersedeAssertion,
         Self::AddEvidence,
         Self::WidenEdgeType,
+        Self::AddAlias,
     ];
 
     /// Its tag without `!`, as `ekr operations` prints it.
@@ -286,6 +292,7 @@ impl OperationKind {
             Self::SupersedeAssertion => "SupersedeAssertion",
             Self::AddEvidence => "AddEvidence",
             Self::WidenEdgeType => "WidenEdgeType",
+            Self::AddAlias => "AddAlias",
         }
     }
 
@@ -425,6 +432,28 @@ impl EntityMerge {
     }
 }
 
+/// `!AddAlias`: one more alias for a node that exists, which `ekr resolve` finds it by from the
+/// next revision on. Nothing removes an alias.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AliasAddition {
+    /// The node: one the store holds, or one a `!CreateNode` of the same transaction creates.
+    pub node: NodeId,
+    /// The alias: not empty, and held by no node of the node's type.
+    pub alias: String,
+}
+
+impl AliasAddition {
+    /// Give `node` the alias `alias`.
+    #[must_use]
+    pub fn new(node: NodeId, alias: impl Into<String>) -> Self {
+        Self {
+            node,
+            alias: alias.into(),
+        }
+    }
+}
+
 /// `!WidenEdgeType`: an edge type's ends written whole, as they are to be.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -528,4 +557,5 @@ operation_from! {
     Supersession => SupersedeAssertion(std::convert::identity),
     EvidenceAddition => AddEvidence(Box::new),
     EdgeWidening => WidenEdgeType(std::convert::identity),
+    AliasAddition => AddAlias(std::convert::identity),
 }

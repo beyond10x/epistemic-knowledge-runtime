@@ -42,7 +42,10 @@ types:
   # validation profile. Design §19 plus amendments87–91. WidenEdgeType is index 13 (design §101,
   # story:edge-type-endpoints-widen): a schema change, as DefineNodeType, DefineEdgeType and
   # ModifyProperty are, admitted only under validation profiles v2 and v3 in a schema-only
-  # transaction naming its schema_version, and refused under v1 as unsupported-operation.
+  # transaction naming its schema_version, and refused under v1 as unsupported-operation. AddAlias
+  # is index 14 (story:node-gains-an-alias): data, not a schema change, applied under every
+  # validation profile; it appends one alias to a node that exists
+  # (ekr.kernel.AliasAdditionProjection).
   - name: ekr.kernel.OperationKind
     kind: enum
     variants:
@@ -60,6 +63,7 @@ types:
       - SupersedeAssertion
       - AddEvidence
       - WidenEdgeType
+      - AddAlias
 
   # Design § 20 items 1–7. Items 8–10 (contradiction, temporal consistency, policy) arrive with the
   # subsystems that need them and are added here together with the outcome that runs them.
@@ -641,6 +645,23 @@ types:
       - name: target_types
         type: List<ekr.ontology.TypeId>
 
+  # `AddAlias` in the canonical operation: the node, then the alias, in this order. Commit appends
+  # the alias to the node's aliases (ekr.graph.Node), so the alias index of the next head, and
+  # every typed reference resolved against it, finds the node by it; no operation removes an alias.
+  # Validation holds it to the rules a CreateNode's aliases are held to, as named issues of a
+  # Rejected transaction: a node canonical state does not hold and the transaction does not create
+  # (unresolved-node, Reference); the empty alias, which identifies nothing (empty-alias,
+  # Structural); an alias a node of the root and of the node's type already holds, the node itself
+  # included (alias-already-exists, Structural); and an alias the same transaction also gives, by
+  # another AddAlias or a CreateNode, to a node of that type (duplicate-alias, Structural).
+  - name: ekr.kernel.AliasAdditionProjection
+    kind: struct
+    fields:
+      - name: node
+        type: ekr.graph.NodeId
+      - name: alias
+        type: String
+
   - name: ekr.kernel.InvocationProjection
     kind: struct
     fields:
@@ -689,6 +710,7 @@ types:
       SupersedeAssertion: ekr.kernel.Supersession
       AddEvidence: ekr.kernel.EvidenceAdditionProjection
       WidenEdgeType: ekr.kernel.EdgeWideningProjection
+      AddAlias: ekr.kernel.AliasAdditionProjection
 
   - name: ekr.kernel.CanonicalTransactionProjection
     kind: struct

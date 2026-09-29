@@ -19,17 +19,17 @@ use std::path::{Path, PathBuf};
 use ekr::exit::Failure;
 use ekr_sdk::document as sdk;
 use ekr_sdk::document::{
-    payload_hash, to_yaml, AgentId, Assertion, AssertionId, AssertionLifecycle, Assessment,
-    Cardinality, Confidence, DocumentError, DocumentLimit, DocumentLimits, EdgeDraft, EdgeId,
-    EdgeType, EdgeTypeSpec, EdgeWidening, EntityMerge, Evidence, EvidenceAddition, EvidenceId,
-    EvidenceSource, GraphRoot, GraphRootId, GraphSection, Invocation, Lifecycle, NodeDraft, NodeId,
-    NodeType, NodeTypeSpec, Object, Ontology, OntologyError, OntologySection, OntologySpec,
-    Operation, OperationDefinition, OperationKind, Predicate, PropertyDefinition, PropertyId,
-    PropertyModification, PropertyMutation, PropertySpec, Retraction, SchemaChange, SchemaVersion,
-    SchemaVersionId, SeedBuilder, SeedDocument, SeedGraph, SeedNode, Space, Subject, Supersession,
-    TemporalRange, Timestamp, Transaction, TransactionBuilder, TransactionDocument, TransactionId,
-    TransactionTime, Transition, TypeId, TypedReference, ValidationProfile, Value, ValueSpec,
-    ValueType,
+    payload_hash, to_yaml, AgentId, AliasAddition, Assertion, AssertionId, AssertionLifecycle,
+    Assessment, Cardinality, Confidence, DocumentError, DocumentLimit, DocumentLimits, EdgeDraft,
+    EdgeId, EdgeType, EdgeTypeSpec, EdgeWidening, EntityMerge, Evidence, EvidenceAddition,
+    EvidenceId, EvidenceSource, GraphRoot, GraphRootId, GraphSection, Invocation, Lifecycle,
+    NodeDraft, NodeId, NodeType, NodeTypeSpec, Object, Ontology, OntologyError, OntologySection,
+    OntologySpec, Operation, OperationDefinition, OperationKind, Predicate, PropertyDefinition,
+    PropertyId, PropertyModification, PropertyMutation, PropertySpec, Retraction, SchemaChange,
+    SchemaVersion, SchemaVersionId, SeedBuilder, SeedDocument, SeedGraph, SeedNode, Space, Subject,
+    Supersession, TemporalRange, Timestamp, Transaction, TransactionBuilder, TransactionDocument,
+    TransactionId, TransactionTime, Transition, TypeId, TypedReference, ValidationProfile, Value,
+    ValueSpec, ValueType,
 };
 use serde_json::Value as Json;
 
@@ -99,6 +99,7 @@ fn kernel_kind(operation: &ekr_kernel::GraphOperation) -> &'static str {
         G::SupersedeAssertion(_) => "SupersedeAssertion",
         G::AddEvidence(_) => "AddEvidence",
         G::WidenEdgeType(_) => "WidenEdgeType",
+        G::AddAlias(_) => "AddAlias",
     }
 }
 
@@ -216,6 +217,7 @@ fn example(kind: OperationKind, operator: AgentId) -> Operation {
         OperationKind::WidenEdgeType => {
             EdgeWidening::new(type_id, [TypeId::mint()], [TypeId::mint(), TypeId::mint()]).into()
         }
+        OperationKind::AddAlias => AliasAddition::new(NodeId::mint(), "field-guide-2019").into(),
     }
 }
 
@@ -1384,4 +1386,29 @@ fn seed_and_data_documents_the_sdk_builds_seed_and_commit_on_a_store() {
         "{snapshot:#}"
     );
     assert!(snapshot["graph"]["graph"]["edges"][edge_id.to_string()].is_null());
+
+    // `!AddAlias`: the seeded book, created without this alias, is found by it once it commits.
+    let later = TypedReference::new(book_type, ["lichen-guide-2019"])
+        .to_yaml()
+        .unwrap();
+    assert_eq!(
+        store.json(&["resolve", "-"], later.as_bytes())["kind"],
+        "ProposeNew"
+    );
+    let aliased = store.commit(
+        &TransactionBuilder::new(operator)
+            .push(AliasAddition::new(book_id, "lichen-guide-2019").into())
+            .build()
+            .unwrap(),
+    );
+    assert_eq!(aliased["result"]["revision"], 3, "{aliased}");
+    let resolved = store.json(&["resolve", "-"], later.as_bytes());
+    assert_eq!(resolved["kind"], "Resolved", "{resolved}");
+    assert_eq!(resolved["node_id"], book_id.to_string());
+    let node = &store.json(&["snapshot"], b"")["graph"]["graph"]["nodes"][book_id.to_string()];
+    assert_eq!(
+        node["aliases"],
+        serde_json::json!(["lichen-guide-2019"]),
+        "{node:#}"
+    );
 }

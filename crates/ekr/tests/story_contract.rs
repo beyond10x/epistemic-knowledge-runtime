@@ -871,3 +871,72 @@ fn seed_admission_is_kernel_owned_and_the_commit_api_lends_no_writer() {
     assert!(seed.contains("pub(crate) fn admitted_graph("));
     assert!(!seed.contains("pub fn admitted_graph("));
 }
+
+/// The crates `epic:consumer-sdk` keeps out of a consumer's build: the SDK talks to a store through
+/// a child `ekr session` and links none of them.
+const SDK_UNLINKED: [&str; 3] = ["ekr-kernel", "ekr-store", "ekr-graph"];
+
+/// Every line of a manifest's linked dependency tables — `[dependencies]`,
+/// `[build-dependencies]`, their `.<name>` table forms and their `[target.<cfg>.…]` forms, but no
+/// `dev-dependencies` table — that names one of `unlinked`, as `<line>: <text>`. A key, a
+/// `package = "…"` rename and a `path` all name the crate, so the line is read whole.
+fn linked_edges_to(manifest: &str, unlinked: &[&str]) -> Vec<String> {
+    let linked_table = |header: &str| {
+        let table = header.trim();
+        ["dependencies", "build-dependencies"]
+            .iter()
+            .any(|name| table == *name || table.starts_with(&format!("{name}.")))
+            || (table.starts_with("target.")
+                && (table.contains(".dependencies") || table.contains(".build-dependencies")))
+    };
+    let mut linked = false;
+    let mut found = Vec::new();
+    for (index, line) in manifest.lines().enumerate() {
+        let trimmed = line.trim();
+        if let Some(header) = trimmed.strip_prefix('[') {
+            linked = linked_table(header.trim_start_matches('[').trim_end_matches(']'));
+        }
+        if linked && unlinked.iter().any(|name| line.contains(name)) {
+            found.push(format!("{}: {trimmed}", index + 1));
+        }
+    }
+    found
+}
+
+/// `epic:consumer-sdk`: `crates/ekr-sdk/Cargo.toml` declares no `ekr-kernel`, `ekr-store` or
+/// `ekr-graph` dependency; a dev-dependency is the SDK's own tests and links into no consumer.
+#[test]
+fn the_sdk_links_no_kernel_store_or_graph() {
+    for (manifest, expected) in [
+        ("[dependencies]\nekr-core.workspace = true\n", 0),
+        ("[dev-dependencies]\nekr-kernel.workspace = true\n", 0),
+        ("[dependencies]\nekr-kernel.workspace = true\n", 1),
+        ("[dependencies.ekr-store]\npath = \"../ekr-store\"\n", 2),
+        ("[dependencies]\ngraph = { package = \"ekr-graph\" }\n", 1),
+        ("[target.'cfg(unix)'.dependencies]\nekr-store = \"0\"\n", 1),
+        (
+            "[target.\"cfg(unix)\".dependencies]\nekr-graph = \"0\"\n",
+            1,
+        ),
+        ("[build-dependencies]\nekr-kernel = \"0\"\n", 1),
+        (
+            "[target.'cfg(unix)'.dev-dependencies]\nekr-store = \"0\"\n",
+            0,
+        ),
+    ] {
+        assert_eq!(
+            linked_edges_to(manifest, &SDK_UNLINKED).len(),
+            expected,
+            "{manifest}"
+        );
+    }
+    let path = workspace_root().join("crates/ekr-sdk/Cargo.toml");
+    let manifest = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
+    let found = linked_edges_to(&manifest, &SDK_UNLINKED);
+    assert!(
+        found.is_empty(),
+        "crates/ekr-sdk/Cargo.toml links what the SDK must reach only through a child process: \
+         {found:?}"
+    );
+}

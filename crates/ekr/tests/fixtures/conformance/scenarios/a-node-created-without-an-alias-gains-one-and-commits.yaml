@@ -1,0 +1,59 @@
+# story:node-gains-an-alias, acceptance 1.
+#
+# The target is seeded from `seed.yaml`, whose three nodes carry no alias, and has committed
+# revision 1 before the first act. The fixture `add-alias.yaml` is one AddAlias: Bob, a Person the
+# seed created without an alias, gains `the-author`. No node of the type holds it, so it validates
+# against revision 1 and commits as revision 2.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: a-node-created-without-an-alias-gains-one-and-commits
+summary: A transaction adds an alias to a node created earlier without one, validates against the head and commits as the next revision.
+
+arrange:
+  - instance: addition
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: addition
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: addition, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: addition}
+      against: 1
+    outcome: validated
+    events:
+      - event: ekr.kernel.TransactionValidated
+        payload:
+          against: 1
+
+  - at: 2027-01-15T08:00:02Z
+    command: ekr.kernel.Commit
+    actor: ekr.kernel.Committer
+    input:
+      transaction_id: {$instance: addition}
+    outcome: committed
+    events:
+      - event: ekr.kernel.RevisionCommitted
+        payload:
+          number: 2
+
+assert:
+  - view: ekr.kernel.Transactions
+    contains:
+      transaction_id: {$instance: addition}
+      state: Committed
+      validated_against: 1
+
+  - view: ekr.kernel.CurrentRevision
+    contains:
+      number: 2

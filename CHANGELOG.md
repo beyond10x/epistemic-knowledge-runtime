@@ -6,6 +6,16 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Added
 
+- **`AddAlias`: a transaction gives a node that exists one more alias.** `!AddAlias {node,
+  alias}`, operation 14, is data rather than a schema change and is applied under every
+  validation profile. The alias is appended to the node's `aliases`, so `ekr resolve` answers the
+  node for it from the next revision on; nothing removes an alias. Refused by name: an alias the
+  node or another node of its type already holds (`alias-already-exists`), one alias given twice
+  for a type in one transaction (`duplicate-alias`), the empty alias (`empty-alias`, new) and a
+  node that does not exist (`unresolved-node`). A consumer's import keys nodes by an alias and
+  could not give that key to a node created earlier without it. `ekr operations`, `ekr guide` and
+  `docs/cli.md` describe it; four new kernel conformance scenarios, 53 in all, pass on both
+  providers.
 - **`WidenEdgeType`: a schema change adds node types to an edge type's ends.** Under validation
   profiles v2 and v3, `!WidenEdgeType {edge_type, source_types, target_types}` writes both ends
   whole, each keeping every type it has; it is a schema-only transaction naming its
@@ -20,6 +30,18 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Changed
 
+- **The 3D view of `ekr view` draws in batches and rests when idle.** Nodes are one instanced mesh
+  per glyph, edges one line-segments buffer, arrows and particles one instanced mesh each;
+  3d-force-graph lays the graph out and builds no object per node or edge. The render loop pauses
+  once the layout has stopped and no control, drag, camera flight or particle moves, and the next
+  interaction wakes it. A generated store of 4,127 nodes with 3,490 nodes and 12,083 edges drawn,
+  headless Brave on a GPU: 25,386 → 2 draw calls per frame while the camera moves, 133.4 → 16.7 ms
+  median frame, 0 calls while idle. Hover, click, double-click, node drag and, up to 5,000 edges,
+  edge hover and click work as before; arrows keep the same 5,000-edge threshold.
+- **The hops slider streams the neighbourhood it names.** Setting it to N (1 or 2, the most
+  `/expand` answers) on a neighbourhood focus streams `/expand` with `depth=N` from the focus, once
+  per focus and depth once its read has succeeded, and the focus is walked again when the stream
+  ends; an address carrying `hops` does the same. With no focus, the crumb bar says how to get one.
 - **A checkpoint is due by commits and document bytes, not by operations** (design § 99.5). A commit
   writes a replay checkpoint when it is the fifth past the retained one
   (`REPLAY_CHECKPOINT_COMMITS` = 5) or when the transaction documents committed since hold 16 MiB
@@ -35,6 +57,12 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   (`CommitReceiptV1::created`, `CreatedIdentitiesV1`); `/1` and `/2` receipts are read as before and
   keep their bytes. Under validation profile v3 an open that admits a checkpoint reads them from the
   receipt instead of parsing every committed proposal.
+
+### Removed
+
+- **`ekr view` no longer serves the earlier viewer page at `GET /alt`.** The streamed page at `/`
+  is the only page the binary embeds; `/alt` answers 404 like any other unknown path, and the
+  binary is 65,297 bytes of HTML lighter. `/projection` and `/roles` are still served.
 
 ## [0.0.17] — 2026-09-29
 

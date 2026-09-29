@@ -676,6 +676,7 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
                 "ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names",
                 "ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it",
                 "ekr.kernel/authored/an-edge-type-widened-to-a-new-target-type-takes-edges-to-it",
+                "ekr.kernel/authored/a-node-created-without-an-alias-gains-one-and-commits",
             ],
         ),
         (
@@ -688,6 +689,9 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
                 "ekr.kernel/authored/a-widening-of-an-edge-type-no-version-declares-is-rejected-by-name",
                 "ekr.kernel/authored/a-widening-to-a-type-no-version-declares-is-rejected-by-name",
                 "ekr.kernel/authored/a-widening-that-adds-no-type-is-rejected-by-name",
+                "ekr.kernel/authored/an-alias-a-node-of-the-type-holds-is-rejected-by-name",
+                "ekr.kernel/authored/one-alias-added-twice-in-a-transaction-is-rejected-by-name",
+                "ekr.kernel/authored/an-alias-for-a-node-no-revision-holds-is-rejected-by-name",
             ],
         ),
         (

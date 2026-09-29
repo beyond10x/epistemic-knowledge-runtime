@@ -1,0 +1,12 @@
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-8000-000000000734
+  proposer: 00000000-0000-4000-8000-000000000101
+  operations:
+  - !AddAlias
+    node: 00000000-0000-4000-8000-000000000301
+    alias: the-editor
+  - !AddAlias
+    node: 00000000-0000-4000-8000-000000000302
+    alias: the-editor
+  evidence: []
