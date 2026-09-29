@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-29T09:02:11Z",
+  "actor": "human:timo",
+  "artifact": "story:validation-without-whole-graph-scans",
+  "kind": "story",
+  "revision": 4,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:adversary-perf-01-w-pass-1",
+    "review": "review-result:adversary-perf-01-w-pass-1",
+    "outcome": "escalated"
+  }
+}
