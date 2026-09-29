@@ -145,8 +145,8 @@ pub use replay::{TransactionRecord, TransactionState};
 pub use runtime::Runtime;
 pub use seed::{BootstrapContext, SeedDocument, SeedError};
 pub use transaction::{
-    EdgeDraft, EdgeWidening, EntityMerge, EvidenceAddition, GraphOperation, GraphTransaction,
-    NodeDraft, PropertyModification, PropertyMutation, Retraction, Supersession,
+    AliasAddition, EdgeDraft, EdgeWidening, EntityMerge, EvidenceAddition, GraphOperation,
+    GraphTransaction, NodeDraft, PropertyModification, PropertyMutation, Retraction, Supersession,
     ValidatedTransaction,
 };
 pub use validate::{

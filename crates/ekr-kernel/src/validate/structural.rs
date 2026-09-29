@@ -83,11 +83,14 @@ const IDENTITY_ALREADY_EXISTS: &str = "identity-already-exists";
 /// A node or edge created over an id an earlier revision held and canonical state no longer does.
 const IDENTITY_PREVIOUSLY_HELD: &str = "identity-previously-held";
 
-/// One `(type, alias)` taken by two `CreateNode` operations of one transaction.
+/// One `(type, alias)` taken by two `CreateNode` or `AddAlias` operations of one transaction.
 const DUPLICATE_ALIAS: &str = "duplicate-alias";
 
-/// A `CreateNode` alias a node of the same type already holds in canonical state.
+/// A `CreateNode` or `AddAlias` alias a node of the same type already holds in canonical state.
 const ALIAS_ALREADY_EXISTS: &str = "alias-already-exists";
+
+/// An `AddAlias` of the empty alias, which identifies nothing.
+const EMPTY_ALIAS: &str = "empty-alias";
 
 /// A transaction whose declared evidence is not the evidence its assertions cite.
 const EVIDENCE_SET_MISMATCH: &str = "evidence-set-mismatch";
@@ -150,19 +153,26 @@ impl Validator for SchemaStructural {
     }
 }
 
-/// A created node's aliases identify it within its exact type: `ekr_integrate::resolve` matches a
-/// typed reference to the nodes of the root whose `type_id` equals the reference's and that hold
-/// one of its non-empty aliases, byte for byte. A `CreateNode` that took a `(type, alias)` another
-/// node already identifies by would make every reference to either `Ambiguous`, and no operation
-/// changes an alias to repair that, so it is refused: against canonical state as
-/// `alias-already-exists`, and against another `CreateNode` of the same transaction as
-/// `duplicate-alias`. The empty alias identifies nothing and is not checked, and a repeat inside one
-/// draft is one alias.
+/// A node's aliases identify it within its exact type: `ekr_integrate::resolve` matches a typed
+/// reference to the nodes of the root whose `type_id` equals the reference's and that hold one of
+/// its non-empty aliases, byte for byte. A `CreateNode` or an `AddAlias` that gave a `(type,
+/// alias)` another node already identifies by would make every reference to either `Ambiguous`,
+/// and no operation removes an alias to repair that, so it is refused: against canonical state as
+/// `alias-already-exists`, and against another operation of the same transaction as
+/// `duplicate-alias`. The empty alias identifies nothing: a `CreateNode` may carry it and it is not
+/// checked, a repeat inside one draft is one alias, and an `AddAlias` of it adds nothing and is
+/// `empty-alias`.
+///
+/// The `CreateNode` checks run first and say what they said before `AddAlias` existed, so a
+/// transaction without one is refused exactly as it was: replay compares every retained
+/// rejection's message with what this ruleset says now. An `AddAlias` whose node canonical state
+/// does not hold and the transaction does not create is left to `Reference` (`unresolved-node`).
 ///
 /// Transactions only: the seed routes its nodes through this validator with no aliases, because a
 /// seed may give two nodes one alias.
 fn aliases(graph: &GraphSnapshot<'_>, tx: &GraphTransaction, issues: &mut Vec<ValidationIssue>) {
-    let holders = alias_holders(graph, tx);
+    let added = added_aliases(graph, tx);
+    let holders = alias_holders(graph, tx, &added);
     let mut taken = BTreeSet::new();
     for operation in &tx.operations {
         let GraphOperation::CreateNode(draft) = operation else {
@@ -206,19 +216,120 @@ fn aliases(graph: &GraphSnapshot<'_>, tx: &GraphTransaction, issues: &mut Vec<Va
             }
         }
     }
+    for (node, alias, type_id) in added {
+        if alias.is_empty() {
+            issues.push(empty_alias(tx, node));
+            continue;
+        }
+        let Some(type_id) = type_id else {
+            continue;
+        };
+        match holders
+            .get(&type_id)
+            .and_then(|wanted| wanted.get(alias))
+            .copied()
+            .flatten()
+        {
+            Some(holder) if holder == node => issues.push(issue(
+                tx,
+                ValidatorName::Structural,
+                ALIAS_ALREADY_EXISTS,
+                format!(
+                    "node {node} is given alias {alias:?}, which it already holds; an alias is \
+                     added once"
+                ),
+            )),
+            Some(holder) => issues.push(issue(
+                tx,
+                ValidatorName::Structural,
+                ALIAS_ALREADY_EXISTS,
+                format!(
+                    "node {node} is given alias {alias:?}, which node {holder} of the same type \
+                     {type_id} already holds; one alias identifies one node of a type"
+                ),
+            )),
+            None => {}
+        }
+        if !taken.insert((type_id, alias)) {
+            issues.push(issue(
+                tx,
+                ValidatorName::Structural,
+                DUPLICATE_ALIAS,
+                format!(
+                    "node {node} is given alias {alias:?} of type {type_id}, which this \
+                     transaction also gives to a node of that type; one alias identifies one \
+                     node of a type"
+                ),
+            ));
+        }
+    }
 }
 
-/// For each non-empty `(type, alias)` a `CreateNode` of `tx` takes, the lowest id of a node of the
-/// snapshot's root and that type holding it, or `None` when no such node does — the node the
-/// `alias-already-exists` refusal names.
+/// The `empty-alias` refusal of an `AddAlias` to `node`.
+fn empty_alias(tx: &GraphTransaction, node: NodeId) -> ValidationIssue {
+    issue(
+        tx,
+        ValidatorName::Structural,
+        EMPTY_ALIAS,
+        format!(
+            "node {node} is given the empty alias, which identifies nothing; give it the alias a \
+             typed reference names"
+        ),
+    )
+}
+
+/// Each `AddAlias` of `tx`, in operation order, with the type of the node it names: the type a
+/// `CreateNode` of `tx` gives the node, or else the one canonical state holds it under, or `None`
+/// when neither holds it.
 ///
-/// One pass over the graph's nodes, in id order, however many nodes the transaction creates:
+/// Read by lookup, never by a pass over the graph: an `AddAlias` names its node.
+fn added_aliases<'tx>(
+    graph: &GraphSnapshot<'_>,
+    tx: &'tx GraphTransaction,
+) -> Vec<(NodeId, &'tx str, Option<TypeId>)> {
+    let mut additions = tx
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            GraphOperation::AddAlias(addition) => Some((addition.node, addition.alias.as_str())),
+            _ => None,
+        })
+        .peekable();
+    if additions.peek().is_none() {
+        return Vec::new();
+    }
+    let created: BTreeMap<NodeId, TypeId> = tx
+        .operations
+        .iter()
+        .filter_map(|operation| match operation {
+            GraphOperation::CreateNode(draft) => Some((draft.id, draft.type_id)),
+            _ => None,
+        })
+        .collect();
+    let state = graph.graph();
+    additions
+        .map(|(node, alias)| {
+            let type_id = created
+                .get(&node)
+                .copied()
+                .or_else(|| state.nodes.get(&node).map(|held| held.type_id));
+            (node, alias, type_id)
+        })
+        .collect()
+}
+
+/// For each non-empty `(type, alias)` a `CreateNode` or an `AddAlias` of `tx` gives, the lowest id
+/// of a node of the snapshot's root and that type holding it, or `None` when no such node does —
+/// the node the `alias-already-exists` refusal names.
+///
+/// One pass over the graph's nodes, in id order, however many aliases the transaction gives:
 /// looking each alias up by scanning every node cost the batch's aliases times the graph's
 /// nodes. The first holder a pass in id order meets is the lowest id, which is the node that scan
 /// found.
 fn alias_holders<'tx>(
     graph: &GraphSnapshot<'_>,
     tx: &'tx GraphTransaction,
+    added: &[(NodeId, &'tx str, Option<TypeId>)],
 ) -> BTreeMap<TypeId, BTreeMap<&'tx str, Option<NodeId>>> {
     let mut holders: BTreeMap<TypeId, BTreeMap<&str, Option<NodeId>>> = BTreeMap::new();
     for operation in &tx.operations {
@@ -229,6 +340,11 @@ fn alias_holders<'tx>(
                     .or_default()
                     .insert(alias.as_str(), None);
             }
+        }
+    }
+    for (_, alias, type_id) in added {
+        if let Some(type_id) = type_id.filter(|_| !alias.is_empty()) {
+            holders.entry(type_id).or_default().insert(alias, None);
         }
     }
     if holders.is_empty() {
@@ -740,6 +856,7 @@ fn check(
             // Name an identity and create none: each is refused by `Reference` if what it
             // names is not there.
             GraphOperation::UpdateProperty(_)
+            | GraphOperation::AddAlias(_)
             | GraphOperation::DeleteEdge(_)
             | GraphOperation::RetractAssertion(_)
             | GraphOperation::SupersedeAssertion(_)

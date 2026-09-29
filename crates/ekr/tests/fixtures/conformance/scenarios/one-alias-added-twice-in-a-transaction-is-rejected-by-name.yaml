@@ -1,0 +1,45 @@
+# story:node-gains-an-alias, acceptance 2, the same alias twice in one transaction.
+#
+# The target is seeded from `seed.yaml` and has committed revision 1 before the first act. The
+# fixture `add-alias-twice.yaml` gives `the-editor` to Alice and to Bob, two Persons, in one
+# transaction. Neither holds it yet, but together they would make it name two nodes of one type, so
+# validation rejects it with exactly one issue, which the Structural validator raises under the
+# name duplicate-alias.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: one-alias-added-twice-in-a-transaction-is-rejected-by-name
+summary: One alias given to two nodes of a type in one transaction is rejected with one issue, duplicate-alias, raised by Structural.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: addition
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 1
+    outcome: rejected
+    events:
+      - event: ekr.kernel.TransactionRejected
+        payload:
+          issues: 1
+
+assert:
+  - view: ekr.kernel.ValidationIssues
+    contains:
+      transaction_id: {$instance: proposal}
+      validator: Structural
+      code: duplicate-alias

@@ -1,0 +1,44 @@
+# story:node-gains-an-alias, acceptance 2, the unknown node.
+#
+# The target is seeded from `seed.yaml` and has committed revision 1 before the first act. The
+# fixture `add-alias-unknown-node.yaml` gives an alias to node 0399, which no revision holds and the
+# transaction does not create. Validation rejects it with exactly one issue, which the Reference
+# validator raises under the name unresolved-node.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: an-alias-for-a-node-no-revision-holds-is-rejected-by-name
+summary: An alias added to a node no revision holds is rejected with one issue, unresolved-node, raised by Reference.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: addition
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 1
+    outcome: rejected
+    events:
+      - event: ekr.kernel.TransactionRejected
+        payload:
+          issues: 1
+
+assert:
+  - view: ekr.kernel.ValidationIssues
+    contains:
+      transaction_id: {$instance: proposal}
+      validator: Reference
+      code: unresolved-node

@@ -2,16 +2,20 @@
   "coverage": {
     "authored": [
       "ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names",
+      "ekr.kernel/authored/a-node-created-without-an-alias-gains-one-and-commits",
       "ekr.kernel/authored/a-proposal-is-stored-as-its-canonical-record",
       "ekr.kernel/authored/a-reused-evidence-id-is-rejected-by-name",
       "ekr.kernel/authored/a-widening-of-an-edge-type-no-version-declares-is-rejected-by-name",
       "ekr.kernel/authored/a-widening-that-adds-no-type-is-rejected-by-name",
       "ekr.kernel/authored/a-widening-to-a-type-no-version-declares-is-rejected-by-name",
+      "ekr.kernel/authored/an-alias-a-node-of-the-type-holds-is-rejected-by-name",
+      "ekr.kernel/authored/an-alias-for-a-node-no-revision-holds-is-rejected-by-name",
       "ekr.kernel/authored/an-assertion-citing-evidence-no-revision-holds-is-rejected-by-name",
       "ekr.kernel/authored/an-edge-type-widened-to-a-new-target-type-takes-edges-to-it",
       "ekr.kernel/authored/an-edge-type-widening-that-removes-an-end-is-rejected-by-name",
       "ekr.kernel/authored/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name",
       "ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it",
+      "ekr.kernel/authored/one-alias-added-twice-in-a-transaction-is-rejected-by-name",
       "ekr.kernel/authored/snapshot-at-a-past-revision-reports-that-revision",
       "ekr.kernel/authored/snapshot-without-a-revision-reports-the-newest"
     ],
@@ -20,6 +24,11 @@
         "digest": "sha256:2b9d4b1974ec1637a6efe64232cb3009ee059a2220a81f3774891b463e415409",
         "disposition": "accepted",
         "scenario": "ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names"
+      },
+      "a-node-created-without-an-alias-gains-one-and-commits.yaml": {
+        "digest": "sha256:c69cfc249c954f4853c57ec9bf12cc3b730d049ed32478267ac8fc33e529001b",
+        "disposition": "accepted",
+        "scenario": "ekr.kernel/authored/a-node-created-without-an-alias-gains-one-and-commits"
       },
       "a-proposal-is-stored-as-its-canonical-record.yaml": {
         "digest": "sha256:3926f877403abfbbe51328e55f6ba999e13962074232a214efb80d69779352dd",
@@ -46,6 +55,16 @@
         "disposition": "accepted",
         "scenario": "ekr.kernel/authored/a-widening-to-a-type-no-version-declares-is-rejected-by-name"
       },
+      "an-alias-a-node-of-the-type-holds-is-rejected-by-name.yaml": {
+        "digest": "sha256:95b75f127884eb9fad5f9e02efc55371b1fe2becdc957ad0acf6c03b6d0f8647",
+        "disposition": "accepted",
+        "scenario": "ekr.kernel/authored/an-alias-a-node-of-the-type-holds-is-rejected-by-name"
+      },
+      "an-alias-for-a-node-no-revision-holds-is-rejected-by-name.yaml": {
+        "digest": "sha256:9dac1142fa7816f3cb1b784b6066a40d4da2eae7b54dbb577c9b824559533f08",
+        "disposition": "accepted",
+        "scenario": "ekr.kernel/authored/an-alias-for-a-node-no-revision-holds-is-rejected-by-name"
+      },
       "an-assertion-citing-evidence-no-revision-holds-is-rejected-by-name.yaml": {
         "digest": "sha256:aee1ec52a99ace9d9f8a5f4a27b32d1b620604f7a9abaaaf083877184f9267b4",
         "disposition": "accepted",
@@ -71,6 +90,11 @@
         "disposition": "accepted",
         "scenario": "ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it"
       },
+      "one-alias-added-twice-in-a-transaction-is-rejected-by-name.yaml": {
+        "digest": "sha256:61caeaeab73de78fa359e9a7a2625121b8e65badf50d85029f17c494035b9bd0",
+        "disposition": "accepted",
+        "scenario": "ekr.kernel/authored/one-alias-added-twice-in-a-transaction-is-rejected-by-name"
+      },
       "snapshot-at-a-past-revision-reports-that-revision.yaml": {
         "digest": "sha256:b20a345e9968429060f591a2424e74368615fb4e8973b34230ff8e77b5dac3be",
         "disposition": "accepted",
@@ -83,7 +107,7 @@
       }
     },
     "counts": {
-      "authored": 13,
+      "authored": 17,
       "generated": 36,
       "outside": 29,
       "refused": 0
@@ -490,8 +514,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "a536b07d568c7f47b9a95e6223659de0e18eb716f0784b121287d60adfc339f7",
-    "spec_digest": "c6b81a2c16218f4223f89aef51c7bbb21ad237992d9b6c843d7c4ef15060e367",
+    "contract_digest": "12c63bbad5bddb2a5a568d99ee4848deb98452bfc04167b77709fb80baf6dbcb",
+    "spec_digest": "27cb1880f65bd453dea76d234cbfbb92fe0c07a7c0e8ab09bd06370f5048bce2",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"
@@ -13894,6 +13918,330 @@
         }
       ]
     },
+    "ekr.kernel/authored/a-node-created-without-an-alias-gains-one-and-commits": {
+      "purpose": "A transaction adds an alias to a node created earlier without one, validates against the head and commits as the next revision.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.kernel"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.GraphRootId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.RevisionRoot"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AgentId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.EventId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.GraphTransaction.State"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TransactionDocumentPath"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TransactionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ValidationBasisFormatV1"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ValidationBasisV1"
+        },
+        {
+          "kind": "entity",
+          "name": "ekr.kernel.GraphTransaction"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Commit"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Propose"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Validate"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Commit",
+            "outcome": "committed"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Propose",
+            "outcome": "proposed"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Validate",
+            "outcome": "validated"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "view",
+          "name": "ekr.kernel.CurrentRevision"
+        },
+        {
+          "kind": "view",
+          "name": "ekr.kernel.Transactions"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Committer"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Proposer"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Validator"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.kernel.Proposer",
+          "command": "ekr.kernel.Propose",
+          "input": {
+            "transaction_document": {
+              "kind": "literal",
+              "value": "addition"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Propose",
+            "outcome": "proposed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "shape": {
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "operations_hash": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            },
+            "proposer": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "transaction_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "entity": "ekr.kernel.GraphTransaction",
+          "event": "ekr.kernel.TransactionProposed",
+          "field": "transaction_id",
+          "instance": "addition",
+          "step": "capture_instance"
+        },
+        {
+          "actor": "ekr.kernel.Validator",
+          "command": "ekr.kernel.Validate",
+          "input": {
+            "against": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "transaction_id": {
+              "instance": "addition",
+              "kind": "instance"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Validate",
+            "outcome": "validated"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "payload": {
+            "against": 1.0
+          },
+          "shape": {
+            "against": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "transaction_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "validation_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.kernel.Committer",
+          "command": "ekr.kernel.Commit",
+          "input": {
+            "transaction_id": {
+              "instance": "addition",
+              "kind": "instance"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Commit",
+            "outcome": "committed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "payload": {
+            "number": 2.0
+          },
+          "shape": {
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "knowledge_root": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "transaction_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.kernel.Transactions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "state": {
+                "kind": "literal",
+                "value": "Committed"
+              },
+              "transaction_id": {
+                "instance": "addition",
+                "kind": "instance"
+              },
+              "validated_against": {
+                "kind": "literal",
+                "value": 1.0
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.kernel.Transactions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.kernel.CurrentRevision"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "number": {
+                "kind": "literal",
+                "value": 2.0
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.kernel.CurrentRevision"
+        }
+      ]
+    },
     "ekr.kernel/authored/a-proposal-is-stored-as-its-canonical-record": {
       "purpose": "A proposal's one stored object is Canonical, has the proposal record's length and address, and its one preparation is the first attempt.",
       "source": [
@@ -14964,6 +15312,432 @@
               "validator": {
                 "kind": "literal",
                 "value": "OntologyConstraint"
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.kernel.ValidationIssues"
+        }
+      ]
+    },
+    "ekr.kernel/authored/an-alias-a-node-of-the-type-holds-is-rejected-by-name": {
+      "purpose": "An alias added to a node when another node of its type already holds it is rejected with one issue, alias-already-exists, raised by Structural.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.kernel"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AgentId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.EventId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.IssueId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TransactionDocumentPath"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TransactionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ValidatorName"
+        },
+        {
+          "kind": "entity",
+          "name": "ekr.kernel.GraphTransaction"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Propose"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Validate"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Propose",
+            "outcome": "proposed"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Validate",
+            "outcome": "rejected"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "view",
+          "name": "ekr.kernel.ValidationIssues"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Proposer"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Validator"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.kernel.Proposer",
+          "command": "ekr.kernel.Propose",
+          "input": {
+            "transaction_document": {
+              "kind": "literal",
+              "value": "addition"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Propose",
+            "outcome": "proposed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "shape": {
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "operations_hash": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            },
+            "proposer": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "transaction_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "entity": "ekr.kernel.GraphTransaction",
+          "event": "ekr.kernel.TransactionProposed",
+          "field": "transaction_id",
+          "instance": "proposal",
+          "step": "capture_instance"
+        },
+        {
+          "actor": "ekr.kernel.Validator",
+          "command": "ekr.kernel.Validate",
+          "input": {
+            "against": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "transaction_id": {
+              "instance": "proposal",
+              "kind": "instance"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Validate",
+            "outcome": "rejected"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "payload": {
+            "issues": 1.0
+          },
+          "shape": {
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "issues": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "transaction_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.kernel.ValidationIssues"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "code": {
+                "kind": "literal",
+                "value": "alias-already-exists"
+              },
+              "transaction_id": {
+                "instance": "proposal",
+                "kind": "instance"
+              },
+              "validator": {
+                "kind": "literal",
+                "value": "Structural"
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.kernel.ValidationIssues"
+        }
+      ]
+    },
+    "ekr.kernel/authored/an-alias-for-a-node-no-revision-holds-is-rejected-by-name": {
+      "purpose": "An alias added to a node no revision holds is rejected with one issue, unresolved-node, raised by Reference.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.kernel"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AgentId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.EventId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.IssueId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TransactionDocumentPath"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TransactionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ValidatorName"
+        },
+        {
+          "kind": "entity",
+          "name": "ekr.kernel.GraphTransaction"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Propose"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Validate"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Propose",
+            "outcome": "proposed"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Validate",
+            "outcome": "rejected"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "view",
+          "name": "ekr.kernel.ValidationIssues"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Proposer"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Validator"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.kernel.Proposer",
+          "command": "ekr.kernel.Propose",
+          "input": {
+            "transaction_document": {
+              "kind": "literal",
+              "value": "addition"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Propose",
+            "outcome": "proposed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "shape": {
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "operations_hash": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            },
+            "proposer": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "transaction_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "entity": "ekr.kernel.GraphTransaction",
+          "event": "ekr.kernel.TransactionProposed",
+          "field": "transaction_id",
+          "instance": "proposal",
+          "step": "capture_instance"
+        },
+        {
+          "actor": "ekr.kernel.Validator",
+          "command": "ekr.kernel.Validate",
+          "input": {
+            "against": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "transaction_id": {
+              "instance": "proposal",
+              "kind": "instance"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Validate",
+            "outcome": "rejected"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "payload": {
+            "issues": 1.0
+          },
+          "shape": {
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "issues": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "transaction_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.kernel.ValidationIssues"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "code": {
+                "kind": "literal",
+                "value": "unresolved-node"
+              },
+              "transaction_id": {
+                "instance": "proposal",
+                "kind": "instance"
+              },
+              "validator": {
+                "kind": "literal",
+                "value": "Reference"
               }
             }
           },
@@ -16452,6 +17226,219 @@
           },
           "step": "expect_view",
           "view": "ekr.kernel.RetainedEvidence"
+        }
+      ]
+    },
+    "ekr.kernel/authored/one-alias-added-twice-in-a-transaction-is-rejected-by-name": {
+      "purpose": "One alias given to two nodes of a type in one transaction is rejected with one issue, duplicate-alias, raised by Structural.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.kernel"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AgentId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.EventId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.IssueId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TransactionDocumentPath"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TransactionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ValidatorName"
+        },
+        {
+          "kind": "entity",
+          "name": "ekr.kernel.GraphTransaction"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Propose"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Validate"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Propose",
+            "outcome": "proposed"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Validate",
+            "outcome": "rejected"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "view",
+          "name": "ekr.kernel.ValidationIssues"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Proposer"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Validator"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.kernel.Proposer",
+          "command": "ekr.kernel.Propose",
+          "input": {
+            "transaction_document": {
+              "kind": "literal",
+              "value": "addition"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Propose",
+            "outcome": "proposed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "shape": {
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "operations_hash": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            },
+            "proposer": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "transaction_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "entity": "ekr.kernel.GraphTransaction",
+          "event": "ekr.kernel.TransactionProposed",
+          "field": "transaction_id",
+          "instance": "proposal",
+          "step": "capture_instance"
+        },
+        {
+          "actor": "ekr.kernel.Validator",
+          "command": "ekr.kernel.Validate",
+          "input": {
+            "against": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "transaction_id": {
+              "instance": "proposal",
+              "kind": "instance"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Validate",
+            "outcome": "rejected"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "payload": {
+            "issues": 1.0
+          },
+          "shape": {
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "issues": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "transaction_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.kernel.ValidationIssues"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "code": {
+                "kind": "literal",
+                "value": "duplicate-alias"
+              },
+              "transaction_id": {
+                "instance": "proposal",
+                "kind": "instance"
+              },
+              "validator": {
+                "kind": "literal",
+                "value": "Structural"
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.kernel.ValidationIssues"
         }
       ]
     },

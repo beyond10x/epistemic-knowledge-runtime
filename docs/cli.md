@@ -246,7 +246,9 @@ answer:
 
 Give the `!CreateNode` the reference's aliases: the created node is then a candidate at the next
 revision. A `!CreateNode` naming an alias a node of its type already holds is `Rejected`
-(`alias-already-exists`); resolve again and use the node it returns.
+(`alias-already-exists`); resolve again and use the node it returns. A node that exists but lacks
+the alias gains it with `!AddAlias` ([operation kinds](#operation-kinds)), and is a candidate for it
+from the next revision on.
 
 A document that is not a typed reference exits 1, `ekr: typed reference <file>: <reason>`, before
 the store is opened. That includes a document over 1048576 bytes, a YAML alias (`*name`), a tag,
@@ -915,7 +917,7 @@ carry.
 |---|---|
 | `id`, `root_id`, `type_id` | its id, the root id, a concrete (not abstract) node type |
 | `canonical_name` | the name a reader sees; a property, not an identity |
-| `aliases` | other names, a list of strings. A `CreateNode` sets them the same way; no other operation changes them |
+| `aliases` | other names, a list of strings. A `CreateNode` sets them the same way, and a later `AddAlias` appends one; no operation removes one |
 | `type_state` | the lifecycle's `initial` state, or `null` for a type without a lifecycle |
 | `properties` | map property id → non-empty list of values, satisfying the type's definitions (required properties present) |
 
@@ -1002,7 +1004,7 @@ on such a line is held to the `/1` cap.
 
 ### Operation kinds
 
-There are fourteen kinds. Nine are applied under every validation profile. Four are **schema
+There are fifteen kinds. Ten are applied under every validation profile. Four are **schema
 changes**, applied only under profile v2 and only in a transaction of their own that names its
 `schema_version` ([Evolve the schema](#evolve-the-schema)); under profile v1 validation rejects them
 with the issue code `unsupported-operation`, so the schema is fixed at seeding. One, `MergeEntity`,
@@ -1019,6 +1021,7 @@ parses but is **refused** under either profile, with the same code.
 | `Invoke` | applied | calls an operation of the node's type: `node`, `operation` (the operation's key under the type's `operations`, not its `name` field), `arguments` (map name → value) |
 | `SupersedeAssertion` | applied | replaces an accepted, active assertion from an instant on: `assertion`, `by` (the replacement, which may be added in the same transaction), `effective_from`. [Rules below](#supersession) |
 | `AddEvidence` | applied | adds one evidence entry and the bytes it rests on: `evidence` (an entry as in the seed) and `payload` (its bytes). [Rules below](#evidence-after-the-seed) |
+| `AddAlias` | applied | appends one alias to a node that exists, so that [`ekr resolve`](#ekr-resolve) finds it by that alias from the next revision on: `node` (a node id from `ekr snapshot`, or one a `CreateNode` of the same transaction creates) and `alias` (a non-empty string). Refused: an alias that node or another node of its type already holds (`alias-already-exists`), one alias given twice for a type in one transaction (`duplicate-alias`), the empty alias (`empty-alias`), a node that does not exist (`unresolved-node`). No operation removes an alias |
 | `DefineNodeType` | schema change | declares a node type: `id`, `name`, `parents`, `properties`, `abstract_type`, `lifecycle`, `operations`, as in the seed |
 | `DefineEdgeType` | schema change | declares an edge type: `id`, `name`, `source_types`, `target_types`, `cardinality`, `properties`, `inverse`, `symmetric`, `transitive`, as in the seed |
 | `ModifyProperty` | schema change | adds a property to a type or redeclares one it declares: `owner` (the node or edge type) and `property` (a [property definition](#property-definitions)) |
@@ -2082,8 +2085,9 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `identity-already-exists` | validation issue | 0 | a create or an `!AddEvidence` reuses an id that already exists | `ekr mint` a fresh id |
 | `identity-previously-held` | validation issue | 0 | under profile v3, a `CreateNode` or `CreateEdge` takes an id an earlier revision held for a node or an edge, such as a deleted edge's | `ekr mint` a fresh id |
 | `duplicate-identity` | validation issue | 0 | one transaction creates or adds the same id twice | `ekr mint` one id per created thing |
-| `alias-already-exists` | validation issue | 0 | a `CreateNode` gives a non-empty alias that a node of the same type already holds | resolve the reference and use that node instead of creating one |
-| `duplicate-alias` | validation issue | 0 | two `CreateNode` operations of one transaction give the same non-empty alias to nodes of one type | give each alias to one node |
+| `alias-already-exists` | validation issue | 0 | a `CreateNode` gives a non-empty alias that a node of the same type already holds, or an `AddAlias` gives a node an alias that it or another node of its type already holds | resolve the reference and use that node instead of creating one or aliasing another |
+| `duplicate-alias` | validation issue | 0 | two `CreateNode` or `AddAlias` operations of one transaction give the same non-empty alias to nodes of one type | give each alias to one node, once |
+| `empty-alias` | validation issue | 0 | an `AddAlias` gives the empty alias, which identifies nothing | give the alias a typed reference names |
 | `conflicting-write` | validation issue | 0 | one transaction writes the same property of a node twice with different values, moves one node's lifecycle twice, declares one property of one type in two `ModifyProperty`, or widens one edge type in two `WidenEdgeType` | one write per property, one state move per node, one declaration per property and one widening per edge type per transaction |
 | `operation-not-declared` | validation issue | 0 | `!Invoke` names no operation **key** of the node's type (an operation's `name` field is not consulted) | use the key under `operations` |
 | `transition-refused` | validation issue | 0 | the node is not in the operation's `from` state | check the node's `type_state` |

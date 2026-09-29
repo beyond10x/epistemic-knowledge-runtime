@@ -131,6 +131,7 @@ impl Validator for Cardinality {
                 | GraphOperation::DefineEdgeType(_)
                 | GraphOperation::ModifyProperty(_)
                 | GraphOperation::WidenEdgeType(_)
+                | GraphOperation::AddAlias(_)
                 | GraphOperation::AddEvidence(_) => {}
             }
         }

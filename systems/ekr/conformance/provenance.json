@@ -26,16 +26,20 @@
   ],
   "authored_scenarios": [
     "crates/ekr/tests/fixtures/conformance/scenarios/a-committed-transaction-row-carries-every-record-it-names.yaml",
+    "crates/ekr/tests/fixtures/conformance/scenarios/a-node-created-without-an-alias-gains-one-and-commits.yaml",
     "crates/ekr/tests/fixtures/conformance/scenarios/a-proposal-is-stored-as-its-canonical-record.yaml",
     "crates/ekr/tests/fixtures/conformance/scenarios/a-reused-evidence-id-is-rejected-by-name.yaml",
     "crates/ekr/tests/fixtures/conformance/scenarios/a-widening-of-an-edge-type-no-version-declares-is-rejected-by-name.yaml",
     "crates/ekr/tests/fixtures/conformance/scenarios/a-widening-that-adds-no-type-is-rejected-by-name.yaml",
     "crates/ekr/tests/fixtures/conformance/scenarios/a-widening-to-a-type-no-version-declares-is-rejected-by-name.yaml",
+    "crates/ekr/tests/fixtures/conformance/scenarios/an-alias-a-node-of-the-type-holds-is-rejected-by-name.yaml",
+    "crates/ekr/tests/fixtures/conformance/scenarios/an-alias-for-a-node-no-revision-holds-is-rejected-by-name.yaml",
     "crates/ekr/tests/fixtures/conformance/scenarios/an-assertion-citing-evidence-no-revision-holds-is-rejected-by-name.yaml",
     "crates/ekr/tests/fixtures/conformance/scenarios/an-edge-type-widened-to-a-new-target-type-takes-edges-to-it.yaml",
     "crates/ekr/tests/fixtures/conformance/scenarios/an-edge-type-widening-that-removes-an-end-is-rejected-by-name.yaml",
     "crates/ekr/tests/fixtures/conformance/scenarios/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name.yaml",
     "crates/ekr/tests/fixtures/conformance/scenarios/evidence-added-after-the-seed-commits-with-the-assertion-citing-it.yaml",
+    "crates/ekr/tests/fixtures/conformance/scenarios/one-alias-added-twice-in-a-transaction-is-rejected-by-name.yaml",
     "crates/ekr/tests/fixtures/conformance/scenarios/snapshot-at-a-past-revision-reports-that-revision.yaml",
     "crates/ekr/tests/fixtures/conformance/scenarios/snapshot-without-a-revision-reports-the-newest.yaml"
   ]
