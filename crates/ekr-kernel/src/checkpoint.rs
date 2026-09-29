@@ -901,10 +901,16 @@ mod tests {
                 .commit(tx, operator, || Timestamp::from_millis(at + 2))
                 .unwrap();
         }
-        let replayed = v3(path).read_state().unwrap();
-        let seeded = ekr_store::GraphDocument::of(
-            replayed.revisions[&RevisionNumber::SEED].graph().unwrap(),
-        );
+        let kernel = v3(path);
+        let replayed = kernel.read_state().unwrap();
+        // A replayed state holds the head's graph, not the seed's (a session keeps the head graph
+        // only): the seed graph is rebuilt by a verified replay up to it.
+        let history = ekr_store::RevisionLog::history(&kernel.store).unwrap();
+        let seed_graph = kernel
+            .authority
+            .graph_at(&history, &replayed, RevisionNumber::SEED)
+            .unwrap();
+        let seeded = ekr_store::GraphDocument::of(&seed_graph);
         let truth = super::held_at(&replayed.held);
         assert_eq!(
             truth

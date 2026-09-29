@@ -4,6 +4,12 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.18] — 2026-09-29
+
+A commit hashes once; checkpoints fall due by size; a session holds one graph; edge types widen.
+At a consumer's size (4,127 nodes, 57 commits, SQLite) a 1,561-operation batch takes 0.94 s (0.0.17:
+1.64 s; 0.0.15: 3.5 s), commit 1,186 → 362 ms.
+
 ### Added
 
 - **`AddAlias`: a transaction gives a node that exists one more alias.** `!AddAlias {node,
@@ -56,7 +62,18 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   `created`, the node and edge ids of the transaction's `CreateNode` and `CreateEdge` operations
   (`CommitReceiptV1::created`, `CreatedIdentitiesV1`); `/1` and `/2` receipts are read as before and
   keep their bytes. Under validation profile v3 an open that admits a checkpoint reads them from the
-  receipt instead of parsing every committed proposal.
+  receipt instead of parsing every committed proposal. A `/3` receipt whose list is not what its
+  transaction creates is refused on replay as `commit-created-identities`. A session that comes to
+  rest does not write its checkpoint when the store already holds a newer one.
+- **A commit hashes the graph once, as a stream.** The verify step reuses the root the kernel
+  computed for the decision instead of hashing the whole graph again, and `ContentHash::of` hashes
+  as it encodes, holding at most a 64 KiB window. Roots are byte-identical to 0.0.17's. A hashing
+  encoder refuses `Encoder::as_bytes` and `Encoder::finish` by name.
+- **A session keeps the head graph, not one graph per revision.** An older revision's graph is
+  rebuilt by a verified replay when a read or `validate --against` asks for it, and released when
+  that read returns. At 3× a consumer's size, a session's memory after 20 commits is 1.24× its
+  memory after one (was 2.39×; peak 4.3 → 2.2 GB); `validate --against` an early revision on a
+  20-batch store 8.5 → 2.8 s.
 
 ### Removed
 
