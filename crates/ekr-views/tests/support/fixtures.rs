@@ -668,7 +668,7 @@ fn seed(evidence: u64, claimed: bool, edge: bool, nodes: u64) -> SeedDocument {
             confidence: Confidence::from_basis_points(9_000).expect("basis points"),
         };
         document.graph.evidence.insert(record.id, record);
-        document.evidence_payloads.insert(hash, bytes);
+        document.evidence_payloads.insert(hash, bytes.into());
     }
     if claimed {
         let cited: Vec<u64> = (0..evidence).collect();
@@ -740,7 +740,7 @@ fn statement(document: &mut SeedDocument, n: u64) -> EvidenceId {
         confidence: Confidence::from_basis_points(9_000).expect("basis points"),
     };
     document.graph.evidence.insert(record.id, record);
-    document.evidence_payloads.insert(hash, bytes);
+    document.evidence_payloads.insert(hash, bytes.into());
     id(n)
 }
 

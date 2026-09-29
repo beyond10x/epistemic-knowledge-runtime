@@ -241,7 +241,7 @@ fn a_superseded_assertion_projects_its_lifecycle_and_closed_valid_time_only_from
         confidence: Confidence::from_basis_points(9_000).expect("basis points"),
     };
     document.graph.evidence.insert(record.id, record);
-    document.evidence_payloads.insert(hash, bytes);
+    document.evidence_payloads.insert(hash, bytes.into());
     let (_work, runtime) = seeded(document);
 
     let mut writer = Writer {

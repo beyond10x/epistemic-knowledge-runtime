@@ -40,7 +40,7 @@ eventlog-sqlite = { git = "https://github.com/beyond10x/eventlog", rev = "fe8a0a
 hex = "0.4"
 httparse = "1.10"
 proptest = "1"
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 serde_yaml_ng = "0.10"
 sha2 = "0.11"

@@ -124,7 +124,7 @@ impl Fixture {
             graph: self.graph.clone(),
             evidence_payloads: [(
                 ContentHash::of_bytes(&self.statement),
-                self.statement.clone(),
+                self.statement.clone().into(),
             )]
             .into_iter()
             .collect(),

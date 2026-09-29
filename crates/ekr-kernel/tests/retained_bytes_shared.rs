@@ -90,6 +90,11 @@ fn a_request_copies_no_retained_object(path: &Path, file: bool, label: &str) {
             first.seed_input.evidence_payloads[hash].as_ptr(),
             "{label}: the second request copied the seed input's payload {hash}"
         );
+        assert_eq!(
+            Some(bytes.as_ptr()),
+            second.content(hash).map(<[u8]>::as_ptr),
+            "{label}: the seed input's payload {hash} is a copy of the retained object"
+        );
     }
     assert_eq!(
         (work.blobs_read, work.blobs_hashed, work.bytes_compared),

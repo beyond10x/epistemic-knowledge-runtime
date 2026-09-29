@@ -86,7 +86,7 @@ fn fixture() -> SeedDocument {
     seed.graph.nodes.insert(node.id, node);
     seed.graph.assertions.insert(assertion.id, assertion);
     seed.graph.evidence.insert(evidence.id, evidence);
-    seed.evidence_payloads.insert(hash, bytes);
+    seed.evidence_payloads.insert(hash, bytes.into());
     seed
 }
 fn proposal(seed: &SeedDocument) -> (GraphTransaction, NodeId) {

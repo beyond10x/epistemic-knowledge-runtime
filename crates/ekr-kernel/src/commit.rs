@@ -209,7 +209,11 @@ impl KernelAuthority {
         if let Some(held) = self.held_envelope(seed_hash)? {
             return Ok(held);
         }
-        let decoded = seed::envelope(bytes);
+        let decoded = seed::envelope(bytes).map(|mut envelope| {
+            // A carried payload is held as the retained object's allocation, not the decode's.
+            envelope.input.share_retained(history);
+            envelope
+        });
         let mut cache = self.cache()?;
         cache.envelope_decodes += 1;
         let envelope = Arc::new(decoded?);
@@ -557,7 +561,7 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
             objects.entry(*hash).or_insert_with(|| PublicationObject {
                 storage_class: StorageClass::Provenance,
                 stored_at: committed_at,
-                bytes: payload.clone(),
+                bytes: payload.to_vec(),
             });
         }
         let publication = Publication {

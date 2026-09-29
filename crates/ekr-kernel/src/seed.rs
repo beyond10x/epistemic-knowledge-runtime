@@ -1,5 +1,6 @@
 //! Kernel-owned bootstrap admission, without a preceding committed revision.
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 use ekr_core::{AgentId, ContentHash, GraphRootId, RevisionNumber, Timestamp, TransactionId};
 use ekr_graph::{
@@ -40,8 +41,12 @@ pub struct SeedDocument {
     )]
     pub graph: GraphDocument,
     /// Exact retained HumanStatement bytes, keyed by their content address.
+    ///
+    /// Shared, not owned: the seed input a verified read returns holds each payload as the very
+    /// allocation the store handle verified and retains, so no read copies them and a runtime
+    /// keeps no second copy. The encoded form is unchanged: a sequence of byte values.
     #[serde(deserialize_with = "ekr_core::decode::unique_map")]
-    pub evidence_payloads: BTreeMap<ContentHash, Vec<u8>>,
+    pub evidence_payloads: BTreeMap<ContentHash, Arc<Vec<u8>>>,
 }
 
 impl SeedDocument {
@@ -104,7 +109,7 @@ pub(crate) struct RetainedSeedInput {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum SeedPayloads {
     /// `ekr-seed-envelope/2`: every payload's bytes, keyed by their content hash.
-    Carried(BTreeMap<ContentHash, Vec<u8>>),
+    Carried(BTreeMap<ContentHash, Arc<Vec<u8>>>),
     /// `ekr-seed-envelope/3`: every payload's content hash; the bytes are retained objects.
     Named(BTreeSet<ContentHash>),
 }
@@ -154,12 +159,32 @@ impl RetainedSeedInput {
 
     /// The complete `ekr-seed/2` document this input retains, a named payload's bytes read from
     /// `history`, which holds it (see [`SeedEnvelope::payload_bytes`]).
+    ///
+    /// Every payload is shared, never copied: a named payload is the retained object's allocation
+    /// in `history`. A carried payload is that allocation too where `history` holds a verified
+    /// object with exactly the carried bytes, as every `/2` history the kernel requires does, and
+    /// otherwise the envelope's own; the carried bytes decide either way, so this refuses nothing
+    /// [`Self::document`] did not refuse before.
     pub(crate) fn document(&self, history: &RetainedHistory) -> Result<SeedDocument, StoreError> {
         let evidence_payloads = match &self.payloads {
-            SeedPayloads::Carried(payloads) => payloads.clone(),
+            SeedPayloads::Carried(payloads) => payloads
+                .iter()
+                .map(|(hash, carried)| {
+                    let shared = history
+                        .content(*hash, StorageClass::Provenance)
+                        .ok()
+                        .filter(|retained| *retained == carried.as_slice())
+                        .and_then(|_| history.objects.get(hash))
+                        .map_or_else(|| Arc::clone(carried), |held| Arc::clone(&held.bytes));
+                    (*hash, shared)
+                })
+                .collect(),
             SeedPayloads::Named(keys) => keys
                 .iter()
-                .map(|hash| Ok((*hash, payload(history, *hash)?.to_vec())))
+                .map(|hash| {
+                    payload(history, *hash)?;
+                    Ok((*hash, Arc::clone(&history.objects[hash].bytes)))
+                })
                 .collect::<Result<_, StoreError>>()?,
         };
         Ok(SeedDocument {
@@ -168,6 +193,14 @@ impl RetainedSeedInput {
             graph: self.graph.clone(),
             evidence_payloads,
         })
+    }
+
+    /// Holds each carried payload as the allocation `history` retains for it, where `history`
+    /// holds a verified object with exactly the carried bytes, instead of the copy decoding the
+    /// envelope made. The bytes are the same, so nothing this input answers changes; an authority
+    /// that keeps the decoded envelope then keeps no second copy of the seed evidence.
+    pub(crate) fn share_retained(&mut self, history: &RetainedHistory) {
+        self.payloads.share_retained(history);
     }
 
     /// What [`Self::document`] requires of `history`, checked in the same order and refused the
@@ -180,6 +213,26 @@ impl RetainedSeedInput {
             }
         }
         Ok(())
+    }
+}
+
+impl SeedPayloads {
+    /// [`RetainedSeedInput::share_retained`]: each carried payload `history` holds a verified
+    /// object with exactly the same bytes for becomes that object's allocation; every other
+    /// payload, and every named one, is left as it is.
+    fn share_retained(&mut self, history: &RetainedHistory) {
+        if let Self::Carried(payloads) = self {
+            for (hash, carried) in payloads.iter_mut() {
+                let retained = history
+                    .content(*hash, StorageClass::Provenance)
+                    .ok()
+                    .filter(|retained| *retained == carried.as_slice())
+                    .and_then(|_| history.objects.get(hash));
+                if let Some(held) = retained {
+                    *carried = Arc::clone(&held.bytes);
+                }
+            }
+        }
     }
 }
 
@@ -889,4 +942,72 @@ pub(crate) fn narrow_assertion(
         valid_time: assertion.valid_time,
         transaction_time: assertion.transaction_time,
     })
+}
+
+#[cfg(test)]
+mod shared_payloads {
+    use super::{SeedPayloads, StorageClass};
+    use ekr_core::{ContentHash, Timestamp};
+    use ekr_store::{RetainedHistory, RetainedObject, StoredObject};
+    use std::collections::{BTreeMap, BTreeSet};
+    use std::sync::Arc;
+
+    fn retained(bytes: Vec<u8>, stored_as: ContentHash) -> RetainedObject {
+        RetainedObject {
+            metadata: StoredObject {
+                content_hash: stored_as,
+                storage_class: StorageClass::Provenance,
+                byte_len: bytes.len() as u64,
+                stored_at: Timestamp::EPOCH,
+            },
+            bytes: Arc::new(bytes),
+        }
+    }
+
+    /// A carried payload becomes the retained allocation only where the history holds a verified
+    /// object with exactly its bytes; an absent, damaged or different object leaves the carried
+    /// copy as it was, and a named payload holds no bytes to share.
+    #[test]
+    fn a_carried_payload_becomes_the_retained_allocation_only_for_verified_equal_bytes() {
+        let (equal, absent, damaged) = (
+            b"carried and retained".to_vec(),
+            b"carried only".to_vec(),
+            b"carried, retained damaged".to_vec(),
+        );
+        let hash = |bytes: &Vec<u8>| ContentHash::of_bytes(bytes);
+        let mut broken = damaged.clone();
+        broken[3] ^= 1;
+        let history = RetainedHistory {
+            occurrences: Vec::new(),
+            objects: BTreeMap::from([
+                (hash(&equal), retained(equal.clone(), hash(&equal))),
+                (hash(&damaged), retained(broken, hash(&damaged))),
+            ]),
+        };
+        let carried: BTreeMap<ContentHash, Arc<Vec<u8>>> = [&equal, &absent, &damaged]
+            .into_iter()
+            .map(|bytes| (hash(bytes), Arc::new(bytes.clone())))
+            .collect();
+        let mut payloads = SeedPayloads::Carried(carried.clone());
+        payloads.share_retained(&history);
+        let SeedPayloads::Carried(shared) = &payloads else {
+            panic!("carried payloads stay carried");
+        };
+        assert_eq!(*shared, carried, "sharing changes no byte");
+        assert!(Arc::ptr_eq(
+            &shared[&hash(&equal)],
+            &history.objects[&hash(&equal)].bytes
+        ));
+        for other in [&absent, &damaged] {
+            assert!(
+                Arc::ptr_eq(&shared[&hash(other)], &carried[&hash(other)]),
+                "a payload without a verified equal object keeps the carried copy"
+            );
+        }
+
+        let names = BTreeSet::from([hash(&equal)]);
+        let mut named = SeedPayloads::Named(names.clone());
+        named.share_retained(&history);
+        assert_eq!(named, SeedPayloads::Named(names));
+    }
 }

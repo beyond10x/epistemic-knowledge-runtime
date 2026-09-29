@@ -139,7 +139,10 @@ pub fn seed() -> SeedDocument {
             assertions: BTreeMap::from([(assertion.id, assertion)]),
             evidence: BTreeMap::from([(evidence.id, evidence)]),
         },
-        evidence_payloads: BTreeMap::from([(ContentHash::of_bytes(STATEMENT), STATEMENT.to_vec())]),
+        evidence_payloads: BTreeMap::from([(
+            ContentHash::of_bytes(STATEMENT),
+            STATEMENT.to_vec().into(),
+        )]),
     }
 }
 

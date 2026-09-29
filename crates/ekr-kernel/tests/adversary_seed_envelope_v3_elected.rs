@@ -75,7 +75,7 @@ fn an_elected_seed_never_published_leaves_its_payload_bound_but_unreadable_and_u
         // Bound by the /3 preparation's own group, as § 100.2 says ...
         assert_eq!(
             blob(directory.path(), file, &hash.to_hex()),
-            Some(bytes),
+            Some(bytes.to_vec()),
             "file={file}"
         );
         // ... and reached by no read.

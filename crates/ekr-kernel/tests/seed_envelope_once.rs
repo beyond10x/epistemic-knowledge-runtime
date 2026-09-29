@@ -77,7 +77,7 @@ fn seed() -> SeedDocument {
             confidence: Confidence::from_basis_points(10000).unwrap(),
         };
         seed.graph.evidence.insert(evidence.id, evidence);
-        seed.evidence_payloads.insert(hash, bytes);
+        seed.evidence_payloads.insert(hash, bytes.into());
     }
     seed
 }

@@ -32,7 +32,7 @@ pub(super) fn run(
         // Equal bytes have an equal key, so a payload also written in the document, or a file
         // named twice, lands once; the kernel's own checks then run on the completed document.
         seed.evidence_payloads
-            .insert(ContentHash::of_bytes(&payload), payload);
+            .insert(ContentHash::of_bytes(&payload), payload.into());
     }
     Ok(open(&seed)?.seed(seed, now)?)
 }
