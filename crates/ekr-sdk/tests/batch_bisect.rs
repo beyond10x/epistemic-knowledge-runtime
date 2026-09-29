@@ -15,13 +15,13 @@ use std::process::Stdio;
 use std::sync::OnceLock;
 
 use ekr_sdk::batch::{
-    BatchError, BatchReport, Batcher, CallError, CommittedTransaction, Issue, RejectedOperation,
-    Rejection,
+    BatchError, BatchReport, Batcher, CallError, CommittedTransaction, Issue, RefusedBatch,
+    RejectedOperation, Rejection, UnknownOutcome,
 };
 use ekr_sdk::binary::EkrBinary;
 use ekr_sdk::document::{
-    AgentId, AliasAddition, GraphRootId, NodeDraft, NodeId, Operation, TransactionBuilder,
-    TransactionId, TypeId,
+    AgentId, AliasAddition, Confidence, EvidenceAddition, EvidenceSource, GraphRootId, NodeDraft,
+    NodeId, Operation, Timestamp, TransactionBuilder, TransactionId, TypeId,
 };
 use ekr_sdk::reply::{Answer, Reply};
 use ekr_sdk::session::{Backend, ProcessSession, SessionOptions, StoreConfig};
@@ -417,6 +417,7 @@ impl<T: Transport> Transport for Interfering<'_, T> {
 struct FailingSecondCommit<T> {
     inner: T,
     commits: usize,
+    failed: Option<TransactionId>,
 }
 
 impl<T: Transport> Transport for FailingSecondCommit<T> {
@@ -424,6 +425,7 @@ impl<T: Transport> Transport for FailingSecondCommit<T> {
         if request.verb() == "commit" {
             self.commits += 1;
             if self.commits == 2 {
+                self.failed = Some(id(&request.argv[1]));
                 return Err(TransportError::Replay {
                     verb: "commit".to_owned(),
                     detail: "the test fails the second commit".to_owned(),
@@ -434,7 +436,8 @@ impl<T: Transport> Transport for FailingSecondCommit<T> {
     }
 }
 
-/// A batch that stops part-way returns what it committed before it stopped, and why it stopped.
+/// A batch that stops part-way returns what it committed before it stopped, why it stopped, and
+/// the transaction whose `commit` got no reply, whose outcome the SDK cannot know.
 #[test]
 fn a_batch_that_stops_reports_what_it_committed() {
     let world = World::new(Backend::File);
@@ -442,12 +445,13 @@ fn a_batch_that_stops_reports_what_it_committed() {
     let mut failing = FailingSecondCommit {
         inner: &mut session,
         commits: 0,
+        failed: None,
     };
     let groups: Vec<Vec<Operation>> = (0..3)
         .map(|n| vec![organization_node(&format!("s-{n}")).into()])
         .collect();
 
-    let error: BatchError = Batcher::new(operator())
+    let error: Box<BatchError> = Batcher::new(operator())
         .with_limits(1, 1 << 20)
         .commit(&mut failing, &groups)
         .unwrap_err();
@@ -462,8 +466,165 @@ fn a_batch_that_stops_reports_what_it_committed() {
     assert_eq!(error.report.committed.len(), 1, "{error:?}");
     assert_eq!(error.report.committed[0].groups, [0]);
     assert!(error.report.rejected.is_empty());
+    let failed = failing.failed.expect("the second commit was asked");
+    let Some(UnknownOutcome {
+        transaction,
+        batch,
+        groups: in_flight,
+    }) = &error.outcome_unknown
+    else {
+        panic!("the in-flight commit is named: {error:?}")
+    };
+    assert_eq!(
+        (*transaction, *batch, in_flight.as_slice()),
+        (failed, 1, &[1][..])
+    );
+    assert!(error.to_string().contains(&failed.to_string()), "{error}");
     assert!(transactions(&mut session, "Committed")
         .contains(&error.report.committed[0].transaction.to_string()));
+}
+
+/// The validator agent of the example host: registered, and not the host operator.
+const VALIDATOR: &str = "00000000-0000-4000-8000-000000000102";
+
+/// A refusal of the transaction as a whole is not bisected: a batcher whose proposer is not the
+/// host operator sends one `propose`, no `validate`, and stops, naming the refusal once for every
+/// group it did not commit, across all its batches.
+#[test]
+fn a_wrong_proposer_stops_the_batch_after_one_proposal() {
+    let world = World::new(Backend::File);
+    let mut session = world.seeded();
+    let mut transport = RecordingTransport::record(&mut session);
+    let groups: Vec<Vec<Operation>> = (0..40)
+        .map(|n| vec![organization_node(&format!("w-{n}")).into()])
+        .collect();
+
+    let report = Batcher::new(id(VALIDATOR))
+        .with_limits(10, 1 << 20)
+        .commit(&mut transport, &groups)
+        .unwrap();
+
+    let verbs: Vec<&str> = transport
+        .recording()
+        .exchanges
+        .iter()
+        .map(|exchange| exchange.request.verb())
+        .collect();
+    assert_eq!(verbs, ["propose"], "one proposal, no validation");
+    assert!(
+        report.committed.is_empty() && report.rejected.is_empty(),
+        "{report:?}"
+    );
+    let Some(RefusedBatch {
+        batch,
+        groups: refused,
+        rejection,
+    }) = &report.refused
+    else {
+        panic!("{report:?}")
+    };
+    assert_eq!(*batch, 0);
+    assert_eq!(refused, &(0..40).collect::<Vec<_>>());
+    assert!(
+        matches!(rejection, Rejection::Refused(refusal) if refusal.code == "ekr.kernel.ProposalAttribution"),
+        "{rejection:?}"
+    );
+}
+
+/// `ekr.kernel.ProposalAttribution` for one operation's own attribution (an evidence entry
+/// extracted by another agent) is about that operation, and is bisected down to its group.
+#[test]
+fn an_operation_attribution_refusal_is_bisected_to_its_group() {
+    let world = World::new(Backend::File);
+    let mut session = world.seeded();
+    let mut groups: Vec<Vec<Operation>> = (0..10)
+        .map(|n| vec![organization_node(&format!("a-{n}")).into()])
+        .collect();
+    let misattributed: Operation = EvidenceAddition::new(
+        EvidenceSource::human("a reader"),
+        id(VALIDATOR),
+        Timestamp::EPOCH,
+        Confidence::CERTAIN,
+        b"read by someone else\n".to_vec(),
+    )
+    .into();
+    groups[4] = vec![misattributed.clone()];
+
+    let report = Batcher::new(operator())
+        .commit(&mut session, &groups)
+        .unwrap();
+
+    assert!(report.refused.is_none(), "{report:?}");
+    let [rejected] = report.rejected.as_slice() else {
+        panic!("{report:?}")
+    };
+    assert_eq!((rejected.group, &rejected.operation), (4, &misattributed));
+    assert!(matches!(
+        &rejected.rejection,
+        Rejection::Refused(refusal) if refusal.code == "ekr.kernel.ProposalAttribution"
+    ));
+    let mut others: Vec<usize> = (0..10).filter(|&g| g != 4).collect();
+    others.sort_unstable();
+    assert_eq!(committed_groups(&report), others);
+}
+
+/// Answers `propose` with a proposal record and `validate` with a rejection whose one issue is
+/// `proposer-is-validator`, counting both. The example host cannot reach that issue through
+/// `ekr` (its operator and validator differ), so the reply is scripted.
+struct ProposerIsValidator {
+    proposes: usize,
+    validates: usize,
+}
+
+impl Transport for ProposerIsValidator {
+    fn request(&mut self, request: &Request) -> Result<Reply, TransportError> {
+        let document = match request.verb() {
+            "propose" => {
+                self.proposes += 1;
+                serde_json::json!({"transaction_id": "unused"})
+            }
+            "validate" => {
+                self.validates += 1;
+                serde_json::json!({"kind": "Rejected", "issues": [{
+                    "transaction_id": request.argv[1],
+                    "validator": "Authorization",
+                    "code": "proposer-is-validator",
+                    "message": "the validating actor proposed this transaction",
+                }]})
+            }
+            verb => panic!("unexpected {verb}"),
+        };
+        Ok(Reply {
+            exit: 0,
+            document: Some(document),
+            stderr: String::new(),
+        })
+    }
+}
+
+/// A validation issue about the transaction as a whole, `proposer-is-validator`, stops the batch
+/// after one proposal and one validation instead of bisecting.
+#[test]
+fn a_proposer_is_validator_rejection_stops_the_batch_after_one_validation() {
+    let mut transport = ProposerIsValidator {
+        proposes: 0,
+        validates: 0,
+    };
+    let groups: Vec<Vec<Operation>> = (0..64)
+        .map(|n| vec![organization_node(&format!("v-{n}")).into()])
+        .collect();
+
+    let report = Batcher::new(operator())
+        .commit(&mut transport, &groups)
+        .unwrap();
+
+    assert_eq!((transport.proposes, transport.validates), (1, 1));
+    let refused = report.refused.expect("the batch was refused");
+    assert_eq!(refused.groups, (0..64).collect::<Vec<_>>());
+    assert!(matches!(
+        refused.rejection,
+        Rejection::Rejected { ref issues, .. } if issues[0].code == "proposer-is-validator"
+    ));
 }
 
 /// Acceptance: a forced `Stale` is committed on retry under a new id.

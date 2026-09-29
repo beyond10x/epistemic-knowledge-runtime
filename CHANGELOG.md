@@ -24,6 +24,13 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
     id, revision, batch and groups, and every rejected operation with its issues, batch and
     group. With one invalid operation planted among 2,000, that operation is the only rejection
     and the other 1,799 groups commit.
+  - A refusal of the transaction as a whole, such as a proposer that is not the host operator,
+    stops the run after one proposal instead of bisecting it. `BatchReport::refused` names that
+    refusal once, for every group not committed.
+  - A `commit` sent without an answered outcome, such as a lost reply, is named by
+    `BatchError::outcome_unknown` with its id, batch and groups. `docs/sdk.md` says how to settle
+    it from `ekr transactions`. The resolver keeps such nodes queued, and recognises its own
+    landed commit on the next flush.
 
 ## [0.0.19] — 2026-09-29
 

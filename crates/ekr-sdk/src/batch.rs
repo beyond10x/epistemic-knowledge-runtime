@@ -49,6 +49,9 @@ pub struct BatchReport {
     pub committed: Vec<CommittedTransaction>,
     /// Every operation of every group that was refused, in group order within its batch.
     pub rejected: Vec<RejectedOperation>,
+    /// A refusal of the transaction as a whole, which stopped the run; `None` when the run went
+    /// to its end.
+    pub refused: Option<RefusedBatch>,
 }
 
 /// One committed transaction.
@@ -149,13 +152,60 @@ pub enum CallError {
 
 /// A batch that stopped before its end: what was done, and why it stopped.
 #[derive(Debug, thiserror::Error)]
-#[error("the batch stopped after {} committed transactions: {cause}", report.committed.len())]
+#[error(
+    "the batch stopped after {} committed transactions{}: {cause}",
+    report.committed.len(),
+    unknown(outcome_unknown.as_ref())
+)]
 pub struct BatchError {
     /// What was committed and rejected before it stopped.
     pub report: BatchReport,
+    /// The transaction whose `commit` was sent and got no reply, or a fault: it may have been
+    /// committed. It is not in `report.committed`; settle it by reading
+    /// `ekr transactions --state Committed` for its id.
+    pub outcome_unknown: Option<UnknownOutcome>,
     /// Why it stopped.
     #[source]
     pub cause: Box<CallError>,
+}
+
+/// A transaction whose `commit` was sent and not answered with an outcome: committed or not, the
+/// SDK cannot tell.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct UnknownOutcome {
+    /// Its id.
+    pub transaction: TransactionId,
+    /// The batch it came from.
+    pub batch: usize,
+    /// The groups it carried, by their index in the input.
+    pub groups: Vec<usize>,
+}
+
+/// A refusal of the transaction as a whole rather than of an operation in it: the proposer is not
+/// the host operator (`ekr.kernel.ProposalAttribution` naming another submitter), or proposed and
+/// validates (`proposer-is-validator`). Every transaction of the run would be refused the same
+/// way, so the run stops, and the refusal is named once for every group not committed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RefusedBatch {
+    /// The batch that was refused.
+    pub batch: usize,
+    /// Every group of that batch and of every later batch, none of them committed or rejected.
+    pub groups: Vec<usize>,
+    /// The refusal.
+    pub rejection: Rejection,
+}
+
+/// The validator issues that concern the transaction as a whole.
+const TRANSACTION_ISSUES: [&str; 1] = ["proposer-is-validator"];
+
+/// ` (outcome unknown: <id>, batch …, groups …)`, or nothing.
+fn unknown(outcome: Option<&UnknownOutcome>) -> String {
+    outcome.map_or_else(String::new, |outcome| {
+        format!(
+            " (outcome unknown: transaction {}, batch {}, groups {:?})",
+            outcome.transaction, outcome.batch, outcome.groups
+        )
+    })
 }
 
 /// How one submission ended.
@@ -166,6 +216,14 @@ enum Attempt {
         stale: Vec<TransactionId>,
     },
     Refused(Rejection),
+    /// Refused as a whole: stop the run.
+    Stop(Rejection),
+}
+
+/// Where a run is: what it did, and the commit it has sent without an answer yet.
+struct Run {
+    report: BatchReport,
+    in_flight: Option<UnknownOutcome>,
 }
 
 impl Batcher {
@@ -188,26 +246,56 @@ impl Batcher {
         self
     }
 
-    /// Commit `groups`, each an atomic dependency group, in order. An empty group is skipped.
+    /// Commit `groups`, each an atomic dependency group, in order. An empty group is skipped. A
+    /// refusal of the transaction as a whole stops the run: [`BatchReport::refused`] names it.
     ///
     /// # Errors
-    /// [`BatchError`] when a request gets no answer the SDK can act on, carrying what was
-    /// committed and rejected until then.
+    /// [`BatchError`], boxed, when a request gets no answer the SDK can act on, carrying what was
+    /// committed and rejected until then, and the transaction whose commit went unanswered.
     pub fn commit<T: Transport + ?Sized>(
         &self,
         transport: &mut T,
         groups: &[Vec<Operation>],
-    ) -> Result<BatchReport, BatchError> {
-        let mut report = BatchReport::default();
-        for (batch, members) in self.plan(groups).iter().enumerate() {
-            if let Err(cause) = self.submit(transport, groups, members, batch, &mut report) {
-                return Err(BatchError {
-                    report,
-                    cause: Box::new(cause),
-                });
+    ) -> Result<BatchReport, Box<BatchError>> {
+        let plan = self.plan(groups);
+        let mut run = Run {
+            report: BatchReport::default(),
+            in_flight: None,
+        };
+        for (batch, members) in plan.iter().enumerate() {
+            match self.submit(transport, groups, members, batch, &mut run) {
+                Ok(None) => {}
+                Ok(Some(rejection)) => {
+                    let done: std::collections::BTreeSet<usize> = run
+                        .report
+                        .committed
+                        .iter()
+                        .flat_map(|committed| committed.groups.iter().copied())
+                        .chain(run.report.rejected.iter().map(|rejected| rejected.group))
+                        .collect();
+                    let remaining = plan[batch..]
+                        .iter()
+                        .flatten()
+                        .copied()
+                        .filter(|group| !done.contains(group))
+                        .collect();
+                    run.report.refused = Some(RefusedBatch {
+                        batch,
+                        groups: remaining,
+                        rejection,
+                    });
+                    break;
+                }
+                Err(cause) => {
+                    return Err(Box::new(BatchError {
+                        report: run.report,
+                        outcome_unknown: run.in_flight,
+                        cause: Box::new(cause),
+                    }));
+                }
             }
         }
-        Ok(report)
+        Ok(run.report)
     }
 
     /// The groups packed into batches, in order, under the caps.
@@ -240,14 +328,15 @@ impl Batcher {
     }
 
     /// Submit `members` as one transaction; if it is refused, each half again, down to one group.
+    /// `Some` is a refusal of the transaction as a whole, which stops the run.
     fn submit<T: Transport + ?Sized>(
         &self,
         transport: &mut T,
         groups: &[Vec<Operation>],
         members: &[usize],
         batch: usize,
-        report: &mut BatchReport,
-    ) -> Result<(), CallError> {
+        run: &mut Run,
+    ) -> Result<Option<Rejection>, CallError> {
         let built = members
             .iter()
             .flat_map(|&group| groups[group].iter().cloned())
@@ -257,13 +346,25 @@ impl Batcher {
             )
             .build();
         let attempt = match built {
-            Ok(document) if self.within(&document) => self.attempt(transport, document)?,
+            Ok(document) if self.within(&document) => {
+                let mut sent = None;
+                let attempt = self.attempt(transport, document, &mut sent);
+                if let Some(transaction) = sent {
+                    run.in_flight = Some(UnknownOutcome {
+                        transaction,
+                        batch,
+                        groups: members.to_vec(),
+                    });
+                }
+                attempt?
+            }
             Ok(_) => Attempt::Refused(Rejection::Document(format!(
                 "past this batcher's limit of {} bytes",
                 self.bytes
             ))),
             Err(error) => Attempt::Refused(Rejection::Document(error.to_string())),
         };
+        let report = &mut run.report;
         match attempt {
             Attempt::Committed {
                 transaction,
@@ -276,10 +377,14 @@ impl Batcher {
                 groups: members.to_vec(),
                 stale,
             }),
+            Attempt::Stop(rejection) => return Ok(Some(rejection)),
             Attempt::Refused(_) if members.len() > 1 => {
                 let (left, right) = members.split_at(members.len() / 2);
-                self.submit(transport, groups, left, batch, report)?;
-                self.submit(transport, groups, right, batch, report)?;
+                for half in [left, right] {
+                    if let Some(stop) = self.submit(transport, groups, half, batch, run)? {
+                        return Ok(Some(stop));
+                    }
+                }
             }
             Attempt::Refused(rejection) => {
                 for &group in members {
@@ -295,7 +400,7 @@ impl Batcher {
                 }
             }
         }
-        Ok(())
+        Ok(None)
     }
 
     /// Whether `document` is within this batcher's byte limit.
@@ -305,12 +410,29 @@ impl Batcher {
             .is_ok_and(|yaml| yaml.len() <= self.bytes)
     }
 
+    /// Whether `refusal` refuses this batcher's proposer rather than one operation's attribution.
+    /// `ekr.kernel.ProposalAttribution` reads "… does not match registered submitter <id>", the
+    /// host operator: a proposer other than that id refuses every transaction. When the proposer
+    /// is that id, the refusal is an assertion's `proposed_by` or an evidence entry's
+    /// `extracted_by`, and is bisected. A reason naming no id is taken as the proposer's.
+    fn refuses_proposer(&self, refusal: &Refusal) -> bool {
+        refusal.code == "ekr.kernel.ProposalAttribution"
+            && refusal
+                .reason
+                .rsplit(' ')
+                .next()
+                .and_then(|submitter| submitter.parse::<AgentId>().ok())
+                != Some(self.proposer)
+    }
+
     /// Propose, validate and commit `document`, proposing it again under a new id while its
-    /// commit finds the head moved.
+    /// commit finds the head moved. `sent` holds the id of a commit sent and not answered with an
+    /// outcome, a refusal or a usage message, which may have been applied.
     fn attempt<T: Transport + ?Sized>(
         &self,
         transport: &mut T,
         mut document: TransactionDocument,
+        sent: &mut Option<TransactionId>,
     ) -> Result<Attempt, CallError> {
         let mut stale = Vec::new();
         loop {
@@ -319,6 +441,9 @@ impl Batcher {
             let propose = Request::new(["propose", "-"]).with_stdin(document.to_yaml()?);
             match call(transport, &propose)? {
                 Answer::Outcome(_) => {}
+                Answer::Refusal(refusal) if self.refuses_proposer(&refusal) => {
+                    return Ok(Attempt::Stop(Rejection::Refused(refusal)))
+                }
                 Answer::Refusal(refusal) if DOCUMENT_REFUSALS.contains(&refusal.code.as_str()) => {
                     return Ok(Attempt::Refused(Rejection::Refused(refusal)))
                 }
@@ -328,7 +453,7 @@ impl Batcher {
             match call(transport, &validate)? {
                 Answer::Outcome(Outcome::Validated(_)) => {}
                 Answer::Outcome(Outcome::Rejected(record)) => {
-                    let issues = record
+                    let issues: Vec<Issue> = record
                         .get("issues")
                         .cloned()
                         .and_then(|issues| serde_json::from_value(issues).ok())
@@ -336,15 +461,32 @@ impl Batcher {
                             verb: "validate".to_owned(),
                             document: record.clone(),
                         })?;
-                    return Ok(Attempt::Refused(Rejection::Rejected {
+                    let whole = issues
+                        .iter()
+                        .any(|issue| TRANSACTION_ISSUES.contains(&issue.code.as_str()));
+                    let rejection = Rejection::Rejected {
                         transaction,
                         issues,
-                    }));
+                    };
+                    return Ok(if whole {
+                        Attempt::Stop(rejection)
+                    } else {
+                        Attempt::Refused(rejection)
+                    });
                 }
                 answer => return Err(unanswered(&validate, answer)),
             }
             let commit = Request::new(["commit", id.as_str()]);
-            match call(transport, &commit)? {
+            *sent = Some(transaction);
+            let answer = call(transport, &commit)?;
+            if matches!(
+                answer,
+                Answer::Outcome(Outcome::Stale(_)) | Answer::Refusal(_) | Answer::Usage(_)
+            ) {
+                // Nothing was applied.
+                *sent = None;
+            }
+            match answer {
                 Answer::Outcome(Outcome::Committed(receipt)) => {
                     let revision = receipt["result"]["revision"].as_u64().ok_or_else(|| {
                         CallError::Unexpected {
@@ -352,6 +494,7 @@ impl Batcher {
                             document: receipt.clone(),
                         }
                     })?;
+                    *sent = None;
                     return Ok(Attempt::Committed {
                         transaction,
                         revision,

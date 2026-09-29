@@ -188,6 +188,17 @@ The cache stays correct in three ways:
   the commit itself is rejected with `alias-already-exists` because such a node arrived between
   the head check and the commit. That rejection stays in the report.
 
+When a flush fails, nothing queued is lost:
+
+- A node whose commit reply was lost stays queued. The next flush sees a revision the resolver
+  does not know, and resolves the reference again. If it finds the queued id itself, the SDK's own
+  commit landed: the node is cached as resolved, and it is neither committed again nor listed in
+  `replaced`.
+- A node refused with `alias-already-exists` by a flush that then failed is resolved again by the
+  next flush, before anything is proposed. It ends up in `replaced` or queued again.
+- A stopped batch (`report.refused`, such as a resolver whose proposer is not the host operator)
+  leaves its nodes queued.
+
 ## Batches
 
 A `Batcher` commits a consumer's operations, given as atomic dependency groups (`Vec<Operation>`
@@ -214,6 +225,15 @@ for rejected in &report.rejected {
   If it is rejected, or refused by `ekr propose` for its document (`ekr.kernel.StructurallyInvalid`,
   `ekr.kernel.ProposalAttribution`), it is split in two and each half is submitted again, down to
   the single group that is refused. Every other group is committed.
+- **A refusal of the transaction as a whole stops the run.** Some refusals are about the
+  transaction rather than an operation in it, so every transaction of the run would be refused the
+  same way. These are `ekr.kernel.ProposalAttribution` naming a registered submitter other than
+  the batcher's proposer (the proposer is not the host operator), and a rejection with a
+  `proposer-is-validator` issue. Such a refusal is not bisected. The run stops after that one
+  proposal and validation, and `report.refused` names the refusal once, for every group not
+  committed. A `ProposalAttribution` naming the batcher's own proposer is about one operation's
+  attribution (an assertion's `proposed_by` or an evidence entry's `extracted_by`), and is
+  bisected like a rejection.
 
 A `BatchReport` holds:
 
@@ -221,6 +241,7 @@ A `BatchReport` holds:
 |---|---|
 | `committed` | every committed transaction, as `CommittedTransaction`: `transaction` (its id), `revision`, `batch`, the `groups` it carried (by index in the input), and the `stale` ids it was proposed under before |
 | `rejected` | every operation of every refused group, as `RejectedOperation`: `batch`, `group`, `index` within the group, the `operation` itself, and the `rejection` |
+| `refused` | `None`, or the `RefusedBatch` that stopped the run: the `batch`, every `groups` index it did not commit (that batch's and every later batch's), and the `rejection` |
 
 A `Rejection` is `Rejected { transaction, issues }` (each `Issue` has `validator`, `code` and
 `message`, as `ekr validate` prints them), `Refused(refusal)` for a propose refusal, or
@@ -228,10 +249,18 @@ A `Rejection` is `Rejected { transaction, issues }` (each `Issue` has `validator
 atomic, so every operation of a refused group is listed with the group's rejection. An issue's
 message names the operation it is about.
 
-If a request gets no answer the SDK can act on, `commit` returns a `BatchError`. Its `report`
+If a request gets no answer the SDK can act on, `commit` returns a boxed `BatchError`. Its `report`
 lists what was committed and rejected until then, and its `cause` is a boxed `CallError`: `Transport`,
 `Unanswered` (a refusal not about the document, a usage message or a fault), `Unexpected` (a
 document the SDK cannot read), `Document`, or `StaleRetries`.
+
+**An unanswered commit's outcome is unknown.** Sometimes a `commit` request is sent and no outcome
+comes back: the reply is lost to a timeout, a cancel or a dead session, or the verb answers a
+fault, or the receipt cannot be read. `ekr` may have applied that commit. `BatchError::outcome_unknown` then names it as
+an `UnknownOutcome`: the `transaction` id, its `batch`, and the `groups` it carried. It is not in
+`report.committed`. Settle it before sending those groups again. Read `ekr transactions --state
+Committed` (from a new session if this one failed): if the id is listed, its groups were committed
+and must not be sent again. If it is not listed, send them again.
 
 ## Recording and replay
 

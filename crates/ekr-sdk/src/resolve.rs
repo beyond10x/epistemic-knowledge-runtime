@@ -19,7 +19,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use ekr_core::{AgentId, GraphRootId, NodeId, TypeId};
 use serde_json::Value as Json;
 
-use crate::batch::{call, unanswered, BatchReport, Batcher, CallError, Rejection};
+use crate::batch::{call, unanswered, BatchError, BatchReport, Batcher, CallError, Rejection};
 use crate::document::{NodeDraft, Operation, TypedReference};
 use crate::reply::{Answer, Outcome};
 use crate::transport::{Request, Transport};
@@ -72,6 +72,10 @@ pub struct Resolver {
     batcher: Batcher,
     cache: BTreeMap<Key, NodeId>,
     queued: Vec<Queued>,
+    /// Queued nodes whose reference must be resolved again before they are proposed: refused as
+    /// `alias-already-exists` by a flush that then failed, or not yet resolved again when a
+    /// request failed. The next flush resolves them first.
+    recheck: Vec<Queued>,
     /// The head the cache is known to agree with; unread until the first resolve is asked.
     known: Option<u64>,
     /// Revisions the SDK committed past `known`.
@@ -89,6 +93,7 @@ impl Resolver {
             batcher: Batcher::new(proposer),
             cache: BTreeMap::new(),
             queued: Vec::new(),
+            recheck: Vec::new(),
             known: None,
             own: BTreeSet::new(),
             pending: Flushed::default(),
@@ -136,10 +141,10 @@ impl Resolver {
                 Resolution::Resolved(node)
             });
         }
-        let shares = self
-            .queued
-            .iter()
-            .any(|queued| queued.key.0 == key.0 && queued.key.1.iter().any(|a| key.1.contains(a)));
+        let shares =
+            self.queued.iter().chain(&self.recheck).any(|queued| {
+                queued.key.0 == key.0 && queued.key.1.iter().any(|a| key.1.contains(a))
+            });
         if shares {
             self.flush_queue(transport)?;
         }
@@ -225,11 +230,12 @@ impl Resolver {
         });
         self.own.retain(|&revision| revision > head);
         self.known = Some(head);
+        let mut again = std::mem::take(&mut self.recheck);
         if foreign {
             self.cache.clear();
-            let queued = std::mem::take(&mut self.queued);
-            self.reconcile(transport, queued)?;
+            again.splice(0..0, std::mem::take(&mut self.queued));
         }
+        self.reconcile(transport, again)?;
         if self.queued.is_empty() {
             return Ok(());
         }
@@ -240,7 +246,10 @@ impl Resolver {
             .collect();
         let (report, failure) = match self.batcher.commit(transport, &groups) {
             Ok(report) => (report, None),
-            Err(error) => (error.report, Some(*error.cause)),
+            Err(error) => {
+                let BatchError { report, cause, .. } = *error;
+                (report, Some(*cause))
+            }
         };
         self.own
             .extend(report.committed.iter().map(|committed| committed.revision));
@@ -279,7 +288,12 @@ impl Resolver {
         }
         self.pending.report.committed.extend(report.committed);
         self.pending.report.rejected.extend(report.rejected);
+        if report.refused.is_some() {
+            self.pending.report.refused = report.refused;
+        }
         if let Some(cause) = failure {
+            // Each refused node is resolved again by the next flush, before anything is proposed.
+            self.recheck.extend(again);
             return Err(cause);
         }
         // A node another process gave one of these aliases between the head check and the
@@ -288,7 +302,9 @@ impl Resolver {
     }
 
     /// Resolve each of `queued` again: a node the store now holds replaces the queued one, and
-    /// one it still does not hold stays queued.
+    /// one it still does not hold stays queued. A queued node found under its own id was committed
+    /// by the SDK, by a commit whose reply was lost: it is cached, and neither queued nor replaced.
+    /// If a request fails, the nodes not yet resolved again are kept for the next flush.
     fn reconcile<T: Transport + ?Sized>(
         &mut self,
         transport: &mut T,
@@ -300,6 +316,9 @@ impl Resolver {
                 Ok(Found::ProposeNew(_)) => {
                     self.cache.insert(queued.key.clone(), queued.draft.id);
                     self.queued.push(queued);
+                }
+                Ok(Found::Resolved(node)) if node == queued.draft.id => {
+                    self.cache.insert(queued.key, node);
                 }
                 Ok(Found::Resolved(node)) => {
                     self.cache.insert(queued.key, node);
@@ -313,8 +332,8 @@ impl Resolver {
                         .insert(queued.draft.id, Resolution::Ambiguous(candidates));
                 }
                 Err(error) => {
-                    self.queued.push(queued);
-                    self.queued.extend(rest);
+                    self.recheck.push(queued);
+                    self.recheck.extend(rest);
                     return Err(error);
                 }
             }

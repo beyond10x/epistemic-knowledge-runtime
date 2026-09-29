@@ -527,8 +527,6 @@ impl<T: Transport> Transport for LosesCommitReply<T> {
 /// committed, and neither the report nor the error names it, so a consumer that retries what the
 /// report does not list commits it twice.
 #[test]
-#[ignore = "defect: a BatchError after a commit whose reply was lost names neither the committed \
-            transaction nor the in-flight id, so the consumer cannot tell it landed"]
 fn a_commit_whose_reply_is_lost_is_named_by_the_batch_error() {
     let world = World::new();
     let mut session = world.seeded();
@@ -584,8 +582,6 @@ fn a_commit_whose_reply_is_lost_is_named_by_the_batch_error() {
 /// `Flushed::replaced` maps it to the new resolution." After a flush whose commit reply was lost,
 /// the next flush finds the queued node itself at the head and reports it as replaced by itself.
 #[test]
-#[ignore = "defect: after a lost commit reply, Flushed::replaced maps a queued id to itself, \
-            although the id was created"]
 fn a_queued_node_committed_under_a_lost_reply_is_not_replaced_by_itself() {
     let world = World::new();
     let mut session = world.seeded();
@@ -735,8 +731,6 @@ impl<T: Transport> Transport for RaceThenFail<'_, T> {
 /// queued id to it; `flush` keeps a node that was not committed queued. When a later request of
 /// the same flush fails, the refused node is neither replaced nor queued: it is dropped.
 #[test]
-#[ignore = "defect: a flush that fails after an alias-already-exists rejection drops the refused \
-            node: it is neither in Flushed::replaced nor queued"]
 fn a_flush_that_fails_after_an_alias_race_still_replaces_the_refused_node() {
     let world = World::new();
     let mut session = world.seeded();
