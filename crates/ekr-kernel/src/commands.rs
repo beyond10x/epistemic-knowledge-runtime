@@ -517,14 +517,21 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
     /// handle reached, when that head is past the retained checkpoint (design § 99.5), so that
     /// every later open continues from it rather than replaying the commits since the last one.
     /// A handle that has read nothing, or whose newest head is the retained checkpoint's, writes
-    /// nothing. Best effort, as every checkpoint write is: one that is not written costs a later
-    /// open time, never an answer.
+    /// nothing; nor does one when the store's newest pointer, read now, covers more occurrences
+    /// than its state: another writer verified further, and a checkpoint of this handle's older
+    /// state would replace that writer's newer one. Best effort, as every checkpoint write
+    /// is: one that is not written costs a later open time, never an answer.
     pub fn retain_checkpoint_at_rest(&self) {
         let Some(state) = self.published_state() else {
             return;
         };
-        if self.authority.checkpoint_behind(&state) {
-            self.write_checkpoint_of(&state);
+        if !self.authority.checkpoint_behind(&state) {
+            return;
+        }
+        match self.store.checkpoint_covered() {
+            Ok(Some(covered)) if covered > state.version => {}
+            Ok(_) => self.write_checkpoint_of(&state),
+            Err(_) => {}
         }
     }
     /// The state the publication just made reached: the newest this authority verified, which

@@ -1784,6 +1784,15 @@ fn commit_receipt(value: &CommitReceiptV1) -> Result<Node, TargetError> {
         ("committed_at", instant(value.committed_at)?),
         ("result", root(&value.result)?),
         ("result_hash", text(value.result_hash)),
+        (
+            "created",
+            optional(value.created.as_ref().map(|created| {
+                record(vec![
+                    ("nodes", Node::Seq(created.nodes.iter().map(text).collect())),
+                    ("edges", Node::Seq(created.edges.iter().map(text).collect())),
+                ])
+            })),
+        ),
     ]))
 }
 
@@ -1934,4 +1943,73 @@ fn contained(relative: &str) -> Result<PathBuf, String> {
         return Err(format!("{relative:?} is not a contained relative path"));
     }
     Ok(path.to_path_buf())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{commit_receipt, Node};
+    use ekr_kernel::CommitReceiptV1;
+    use serde_json::json;
+
+    /// A retained commit receipt of `format`, with `created` when it is given.
+    fn receipt(format: &str, created: Option<serde_json::Value>) -> CommitReceiptV1 {
+        let hash = "e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0";
+        let id = "00000000-0000-4000-8000-000000000050";
+        let root = json!({"revision":1,"parent":null,"ontology_root":hash,"knowledge_root":hash,
+            "evidence_root":hash,"agent_root":hash,"transaction":hash});
+        let basis = json!({"format":"ekr.validation-basis/1","graph_root_id":id,
+            "previous_revision_id":id,"previous_event_id":id,"previous_record_hash":hash,
+            "previous_root":root,"previous_root_hash":hash,"seed_hash":hash,"ontology_root":hash,
+            "authority_root":hash,"validation_profile_hash":hash});
+        let mut value = json!({"format":format,"event_id":id,"revision_id":id,
+            "proposal":{"format":"ekr.proposal-record/2","event_id":id,"submitted_at":0,
+                "submitter":id,"document_hash":hash,"document_bytes":"AQID","transaction_id":id,
+                "operation_count":1,"evidence_hash":hash,"canonical_transaction_hash":null,
+                "canonical_operations_hash":null},
+            "validation":{"format":"ekr.validation-receipt/1","event_id":id,
+                "proposed_event_id":id,"proposal_record_hash":hash,"transaction_hash":hash,
+                "operations_hash":hash,"evidence_hash":hash,"operation_count":1,"basis":basis,
+                "validators":[id],"validated_at":0,"validation_hash":hash},
+            "validation_record_hash":hash,"committer":id,"committed_at":0,"result":root,
+            "result_hash":hash});
+        if let Some(created) = created {
+            value["created"] = created;
+        }
+        CommitReceiptV1::from_bytes(&serde_json::to_vec(&value).unwrap()).unwrap()
+    }
+
+    fn created(node: &Node) -> &Node {
+        let Node::Map(fields) = node else {
+            panic!("a receipt projects as a record: {node:?}")
+        };
+        fields
+            .get("created")
+            .expect("the receipt projects `created`")
+    }
+
+    /// `CommitReceiptV1` declares `created` (design § 99.5): a `/3` receipt projects the ids it
+    /// names, and a `/2` receipt, which names none, projects the field as absent.
+    #[test]
+    fn a_commit_receipt_projects_the_identities_it_created() {
+        let node = "00000000-0000-4000-8000-000000000060";
+        let edge = "00000000-0000-4000-8000-000000000061";
+        let current = receipt(
+            CommitReceiptV1::FORMAT,
+            Some(json!({"nodes":[node],"edges":[edge]})),
+        );
+        let text = |value: &str| Node::Text(value.to_owned());
+        assert_eq!(
+            created(&commit_receipt(&current).unwrap()),
+            &Node::Map(
+                [
+                    ("nodes".to_owned(), Node::Seq(vec![text(node)])),
+                    ("edges".to_owned(), Node::Seq(vec![text(edge)])),
+                ]
+                .into_iter()
+                .collect()
+            )
+        );
+        let previous = receipt(CommitReceiptV1::FORMAT_V2, None);
+        assert_eq!(created(&commit_receipt(&previous).unwrap()), &Node::Null);
+    }
 }
