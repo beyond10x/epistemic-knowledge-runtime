@@ -1217,8 +1217,28 @@ async function main() {
     }
     return link ? {link} : null;
   }
+  // A held node pulls its neighbours along, as 3d-force-graph's own drag did: the layout is reheated when the drag
+  // starts and kept running while the node is held, at an alpha held near DRAG_ALPHA (3d-force-graph's alpha target
+  // while dragging, which it does not expose: the gravity force, which sees the alpha every tick, stops its decay
+  // there), and reheated again when the node is let go.
+  const DRAG_ALPHA = 0.3, ALPHA_DECAY = 0.0228;       // d3-force's default decay: 1 - 0.001^(1/300)
+  let alpha3D = 0;                                     // the layout's alpha at its last tick
+  function dragStart() {
+    drag3D.started = true;
+    fg.cooldownTicks(Infinity).cooldownTime(Infinity);
+    if (!engine3D || alpha3D < DRAG_ALPHA) fg.d3ReheatSimulation();
+    engine3D = true;
+  }
+  function dragEnd(dragged) {
+    const n = dragged.n;
+    n.fx = n.fy = n.fz = undefined;
+    if (!dragged.started) { wake3D(); return; }
+    fg.d3AlphaDecay(ALPHA_DECAY);
+    reheat3D(120, 3000);
+  }
   // a dragged node moves in the plane through it that faces the camera
   function dragTo(x, y) {
+    if (!drag3D.started) dragStart();
     const n = drag3D.n, o = fg.screen2GraphCoords(x, y, 0), f = fg.screen2GraphCoords(x, y, 1);
     const e = fg.camera().matrixWorld.elements, nx = -e[8], ny = -e[9], nz = -e[10];   // where the camera looks
     const dx = f.x - o.x, dy = f.y - o.y, dz = f.z - o.z, den = dx * nx + dy * ny + dz * nz;
@@ -1276,7 +1296,7 @@ async function main() {
       if (ev.button !== 0 || !down) return;
       const d = down, dragged = drag3D;
       down = null;
-      if (dragged) { drag3D = null; controls.enabled = true; dragged.n.fx = dragged.n.fy = dragged.n.fz = undefined; wake3D(); }
+      if (dragged) { drag3D = null; controls.enabled = true; dragEnd(dragged); }
       if (!d.moved) click3D(d.x, d.y, ev);
     });
     canvas.addEventListener("pointerleave", () => { last = null; shown = null; canvas.style.cursor = ""; });
@@ -1307,6 +1327,8 @@ async function main() {
     fg.d3Force("charge").distanceMax(260);
     // a weak pull to the centre (stronger for nodes without edges), so nothing drifts off to a far shell
     fg.d3Force("gravity", alpha => {
+      alpha3D = alpha;
+      if (drag3D?.started && !drag3D.held && alpha <= DRAG_ALPHA) { fg.d3AlphaDecay(0); drag3D.held = true; }
       for (const n of fgNodes.values()) {
         if (n.x == null) continue;
         const k = (n.a.deg ? 0.015 : 0.08) * alpha;
@@ -1772,7 +1794,7 @@ async function main() {
       else if (act.dataset.act === "show-graph") { setView("graph"); goTo(id); }
       else if (act.dataset.act === "stated-all") showNode(id, true);
       else if (act.dataset.act === "evidence-close") closeEvidence();
-      else if (act.dataset.act === "expand") expandFrom([id], 2);
+      else if (act.dataset.act === "expand") noteHops(id, 2, expandFrom([id], 2));
       else if (act.dataset.act === "stream-stop") streamLine?.handle?.cancel();
       else if (act.dataset.act === "stream-more" && streamLine?.next != null) {
         const l = streamLine;
@@ -1936,24 +1958,35 @@ async function main() {
   }
   // The page holds only what it has streamed, so a depth names a neighbourhood to stream, not only one to walk:
   // setting it to N streams /expand {seeds: [focus], depth: N}, as "Expand 2 hops" does, and the set is walked
-  // again when that stream ends. Each node's deepest neighbourhood streamed for the revision shown is noted, so
-  // a depth already streamed, or one inside it, is not streamed again.
+  // again when that stream ends. Each node's deepest neighbourhood streamed for the revision shown is noted once
+  // its stream has ended well, so a depth already streamed, or one inside it, is not streamed again; one still
+  // streaming covers the same, and when it fails or is closed, a shallower depth the slider now names is streamed.
+  // `/expand` answers at most MAX_HOPS, and the slider and an address go no deeper.
+  const MAX_HOPS = 2;
   const streamedHops = new Map();      // node id → the deepest neighbourhood of it streamed for this revision
+  const streamingHops = new Map();     // node id → the deepest neighbourhood of it streaming now
   const noteHops = (id, depth, handle) => {
-    if (handle && depth > (streamedHops.get(id) || 0)) streamedHops.set(id, depth);
+    if (!handle) return handle;
+    if (depth > (streamingHops.get(id) || 0)) streamingHops.set(id, depth);
+    // a stream that did not end well is not retried at its own depth, only one the focus now names that is shallower
+    const ended = ok => {
+      if (streamingHops.get(id) === depth) streamingHops.delete(id);
+      if (ok) { if (depth > (streamedHops.get(id) || 0)) streamedHops.set(id, depth); }
+      else if (scope && scope.trail[scope.trail.length - 1] === id && scope.hops < depth) streamHops();
+    };
+    handle.done.then(end => ended(!end.cancelled), () => ended(false));
     return handle;
   };
   function streamHops() {
     if (!scope) return;
     const root = scope.trail[scope.trail.length - 1], hops = scope.hops;
-    if ((streamedHops.get(root) || 0) >= hops) return;
+    if (Math.max(streamedHops.get(root) || 0, streamingHops.get(root) || 0) >= hops) return;
     const handle = noteHops(root, hops, expandFrom([root], hops));
     if (!handle) return;                 // over the render budget, the stream line asks first
     handle.done.then(end => {
-      if (end.cancelled) { if (streamedHops.get(root) === hops) streamedHops.delete(root); return; }
-      if (!scope || scope.trail[scope.trail.length - 1] !== root || scope.hops !== hops) return;
+      if (end.cancelled || !scope || scope.trail[scope.trail.length - 1] !== root || scope.hops !== hops) return;
       refreshScope(); renderCrumbs(); refresh();
-    }).catch(() => { if (streamedHops.get(root) === hops) streamedHops.delete(root); });
+    }).catch(() => {});                  // the stream line says why it failed
   }
   function scopeTo(id, push = true) {
     if (!graph.hasNode(id)) return;
@@ -1987,7 +2020,7 @@ async function main() {
     el.dataset.trail = trail;
     put(el, h("a", {"data-crumb": "-1"}, "All"), scope.trail.map((id, i) =>
       [h("span", {class: "sep"}, "›"), h("a", {"data-crumb": i, class: i === scope.trail.length - 1 ? "on" : ""}, short(nodeName(id)))]),
-      h("span", {class: "hopbox"}, "hops ", h("input", {type: "range", id: "hopsR", min: 1, max: 3, step: 1, value: scope.hops}), h("b", null, scope.hops)),
+      h("span", {class: "hopbox"}, "hops ", h("input", {type: "range", id: "hopsR", min: 1, max: MAX_HOPS, step: 1, value: scope.hops}), h("b", null, scope.hops)),
       h("span", {class: "n"}, `${fmt(scope.set.size)} nodes`));
     el.style.display = "flex";
   }
@@ -2362,7 +2395,7 @@ async function main() {
         if (moved) { applying = false; pushState(); return; }
       }
       if (trail.length) {
-        scope = {trail: trail.filter(id => graph.hasNode(id)), hops: Math.min(3, Math.max(1, Number(p.get("hops")) || 1)), set: null};
+        scope = {trail: trail.filter(id => graph.hasNode(id)), hops: Math.min(MAX_HOPS, Math.max(1, Number(p.get("hops")) || 1)), set: null};
         lastHops = scope.hops;
       }
       refreshScope(); renderCrumbs(); streamHops();
@@ -3368,7 +3401,7 @@ async function main() {
       tlM = null;                     // the timeline is rebuilt from the new overview when next needed
       tlDetail.id = null; tlDetail.d = null;
       tlRows = null; tlLanes = null;  // and its rows and lanes are read again from the revision shown
-      streamedHops.clear();           // what a revision streamed is dropped with it
+      streamedHops.clear(); streamingHops.clear();   // what a revision streamed is dropped with it
       details.clear();
       if (!typeSlot.size) seedSlots();
       const first = graph.order === 0;
