@@ -4,6 +4,18 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- **`ekr-sdk` commits a consumer's evidence with the assertions that cite it** (`docs/sdk.md`,
+  "Batches" and "Evidence items"). An `EvidenceItem` is a source identity, an observed-at time
+  and the exact bytes. `EvidenceSet::cite` hashes the bytes as `ekr hash` does and mints the
+  evidence id as `ekr mint evidence` does, with no request; the same item cited again gets the
+  same id. `Batcher::commit_with_evidence` puts each entry's `!AddEvidence` into the group of the
+  first assertion citing it in every transaction it proposes, until one commits it; later groups
+  cite the existing id. Bisection rebuilds each half the same way, so an assertion is never
+  submitted without the evidence it introduces, and an entry that only rejected groups cite is
+  never committed. `Batcher::commit` and its report are unchanged.
+
 ## [0.0.21] — 2026-09-30
 
 A store's quality, its rejections and the store names a consumer's code quotes are reads; the SDK's
