@@ -316,15 +316,45 @@ impl ProcessSession {
 
     /// End the session: close its input and wait, up to the request timeout, for it to exit —
     /// it writes the store's replay checkpoint first. A child still running then is killed.
-    pub fn close(mut self) -> Result<ExitStatus, TransportError> {
-        self.shutdown().ok_or_else(|| TransportError::Io {
-            verb: "session".to_owned(),
-            what: "waiting for the session to exit".to_owned(),
-            source: std::io::Error::other("the child's status could not be read"),
+    ///
+    /// `Ok(())` means the child exited 0. A child that exited with any other status, or was
+    /// killed at the timeout, is [`TransportError::CloseFailed`], carrying the status and the
+    /// last [`STDERR_TAIL_BYTES`] it wrote to stderr. A cancelled session is
+    /// [`TransportError::Cancelled`] and a failed one [`TransportError::Latched`]: the SDK
+    /// stopped that child itself.
+    pub fn close(mut self) -> Result<(), TransportError> {
+        let Some((status, killed)) = self.shutdown() else {
+            return Err(TransportError::Io {
+                verb: "session".to_owned(),
+                what: "waiting for the session to exit".to_owned(),
+                source: std::io::Error::other("the child's status could not be read"),
+            });
+        };
+        if status.success() {
+            return Ok(());
+        }
+        // The child of a cancelled or failed session was stopped by the SDK, not by its exit.
+        if self.cancelled() {
+            return Err(TransportError::Cancelled {
+                verb: "session".to_owned(),
+            });
+        }
+        if let Some(cause) = self.latched.clone() {
+            return Err(TransportError::Latched {
+                verb: "session".to_owned(),
+                cause,
+            });
+        }
+        Err(TransportError::CloseFailed {
+            status,
+            killed,
+            stderr_tail: self.stderr.settled(),
         })
     }
 
-    fn shutdown(&mut self) -> Option<ExitStatus> {
+    /// Close the child's input and wait for it to exit: its status, and whether it was killed —
+    /// at the deadline or on a cancel.
+    fn shutdown(&mut self) -> Option<(ExitStatus, bool)> {
         self.shared.closing.store(true, Ordering::SeqCst);
         self.requests = None;
         let deadline = Instant::now() + self.options.timeout;
@@ -334,12 +364,12 @@ impl ProcessSession {
                 child.try_wait()
             };
             match status {
-                Ok(Some(status)) => return Some(status),
+                Ok(Some(status)) => return Some((status, false)),
                 // The watcher has stopped; a cancel while closing is honoured here instead.
                 Ok(None) if Instant::now() < deadline && !self.cancelled() => {
                     std::thread::sleep(TICK)
                 }
-                _ => return self.shared.kill(),
+                _ => return self.shared.kill().map(|status| (status, true)),
             }
         }
     }

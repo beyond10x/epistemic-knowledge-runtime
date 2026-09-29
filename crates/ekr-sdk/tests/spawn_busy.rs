@@ -91,7 +91,7 @@ fn a_session_starts_from_a_binary_held_open_for_writing_once_the_writer_closes()
     let started = ProcessSession::start(&binary, store, SessionOptions::default());
     writer.join().unwrap();
     let session = started.unwrap_or_else(|error| panic!("the session did not start: {error:?}"));
-    assert!(session.close().unwrap().success());
+    session.close().unwrap();
 }
 
 #[test]

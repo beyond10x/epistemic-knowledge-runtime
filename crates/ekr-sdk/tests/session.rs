@@ -255,7 +255,7 @@ fn hash_seed_and_the_first_commit_run_through_exactly_one_ekr_process() {
             1,
             "{backend:?}: hash, mint, seed, propose, validate, commit and head in one process"
         );
-        assert!(session.close().unwrap().success());
+        session.close().unwrap();
     }
 }
 

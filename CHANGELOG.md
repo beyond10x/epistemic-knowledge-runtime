@@ -4,6 +4,16 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking: `ProcessSession::close()` returns `Result<(), TransportError>`**, no longer
+  `Result<ExitStatus, TransportError>` (`docs/sdk.md`, "Failure, the latch and cancellation").
+  A child that exits with a status other than 0, or is killed when it has not exited within the
+  timeout, is the new `TransportError::CloseFailed { status, killed, stderr_tail }`, carrying the
+  last 4096 bytes the child wrote to stderr, such as why it could not write its replay
+  checkpoint. A cancelled session closes as `Cancelled` and a failed one as `Latched`. A caller
+  that wrote `session.close()?.success()` writes `session.close()?`.
+
 ## [0.0.20] — 2026-09-29
 
 The SDK resolves through a cache, commits in bisected batches and types the views reads, which

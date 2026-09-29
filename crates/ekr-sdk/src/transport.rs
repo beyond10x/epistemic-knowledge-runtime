@@ -118,6 +118,24 @@ pub enum TransportError {
         /// The last bytes the process wrote to stderr.
         stderr_tail: String,
     },
+    /// A closed session did not exit 0: it exited with another status, or it was still running
+    /// when the close timeout ran out and was killed. Returned by
+    /// [`crate::session::ProcessSession::close`] only.
+    #[error(
+        "`session`: the ekr session {} ({status}); stderr tail: {}",
+        closed_how(*killed),
+        shown(stderr_tail)
+    )]
+    CloseFailed {
+        /// How the process ended, as the operating system reports it: its exit code, or the
+        /// signal that ended it.
+        status: std::process::ExitStatus,
+        /// Whether the SDK killed the process because it had not exited within the timeout.
+        killed: bool,
+        /// The last bytes the process wrote to stderr, at most
+        /// [`crate::session::STDERR_TAIL_BYTES`].
+        stderr_tail: String,
+    },
     /// The `ekr` process could not be started or spoken to.
     #[error("`{verb}`: {what}: {source}")]
     Io {
@@ -136,6 +154,15 @@ pub enum TransportError {
         /// How the request differs from the recording.
         detail: String,
     },
+}
+
+/// How a closed session ended, as [`TransportError::CloseFailed`] says it.
+fn closed_how(killed: bool) -> &'static str {
+    if killed {
+        "was killed when it did not exit within the close timeout"
+    } else {
+        "exited unsuccessfully when closed"
+    }
 }
 
 /// A stderr tail as an error message shows it.

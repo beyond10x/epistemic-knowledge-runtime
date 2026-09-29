@@ -118,9 +118,22 @@ signal_hook::flag::register(signal_hook::consts::SIGTERM, session.cancel_handle(
 ```
 
 `close()` closes the child's input and waits up to `timeout` for it to exit. Before exiting, the
-child writes the store's replay checkpoint. Dropping a healthy session does the same. A cancel
-while closing kills the child within 20 ms instead of waiting out the timeout. Dropping a failed
-or cancelled session kills the child.
+child writes the store's replay checkpoint. It returns `Result<(), TransportError>`:
+
+| result | when |
+|---|---|
+| `Ok(())` | the child exited 0 |
+| `TransportError::CloseFailed { status, killed, stderr_tail }` | the child exited with another status (`killed` is `false`), or was still running at `timeout` and was killed (`killed` is `true`, `status` is the signal). `stderr_tail` is the last 4096 bytes it wrote to stderr (`STDERR_TAIL_BYTES`), for example why it could not write the checkpoint |
+| `TransportError::Cancelled` | the session was cancelled, before or while closing |
+| `TransportError::Latched` | an earlier call failed the session, which stopped the child |
+
+An unclean exit is an error rather than a value beside the status, so `session.close()?`
+propagates a checkpoint the child could not write instead of dropping it. Up to 0.0.20, `close()`
+returned the bare `ExitStatus` and no stderr.
+
+Dropping a healthy session also closes it, but reports nothing. A cancel while closing kills the
+child within 20 ms instead of waiting out the timeout. Dropping a failed or cancelled session kills
+the child.
 
 ## Replies
 
