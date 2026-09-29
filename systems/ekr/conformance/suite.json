@@ -109,7 +109,7 @@
     "counts": {
       "authored": 17,
       "generated": 36,
-      "outside": 29,
+      "outside": 32,
       "refused": 0
     },
     "generated": [
@@ -322,6 +322,43 @@
         "needs": [
           {
             "kind": "command",
+            "name": "ekr.views.FindCodeNames"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.CodeNamesFound"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.FindCodeNames/outcome/found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.FindCodeNames"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.FindCodeNames/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.FindCodeNames"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.FindCodeNames/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
             "name": "ekr.views.ProjectGraph"
           }
         ],
@@ -514,8 +551,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "12c63bbad5bddb2a5a568d99ee4848deb98452bfc04167b77709fb80baf6dbcb",
-    "spec_digest": "27cb1880f65bd453dea76d234cbfbb92fe0c07a7c0e8ab09bd06370f5048bce2",
+    "contract_digest": "8c1aa97b38c0712a1c48e738584712eef060b8bf449503feb4f501314ee9eab7",
+    "spec_digest": "a43c698a4b253f49a01190721be04df786a27fdee9373d5f2a5ed700d7cb1f99",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"
@@ -636,6 +673,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -914,6 +955,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -1083,6 +1128,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -2388,6 +2437,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -2524,6 +2577,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -2770,6 +2827,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -2909,6 +2970,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -3013,6 +3078,10 @@
         },
         {
           "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
           "step": "expect_no_event"
         },
         {
@@ -3125,6 +3194,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -3550,6 +3623,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -3644,6 +3721,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -3759,6 +3840,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -3853,6 +3938,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -3967,6 +4056,10 @@
         },
         {
           "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
           "step": "expect_no_event"
         },
         {
@@ -5078,6 +5171,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -5456,6 +5553,10 @@
         },
         {
           "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
           "step": "expect_no_event"
         },
         {
@@ -6311,6 +6412,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -6678,6 +6783,10 @@
         },
         {
           "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
           "step": "expect_no_event"
         },
         {
@@ -7207,6 +7316,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -7595,6 +7708,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -7725,6 +7842,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -8091,6 +8212,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -8242,6 +8367,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -8520,6 +8649,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -8687,6 +8820,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -8890,6 +9027,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -9064,6 +9205,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -9310,6 +9455,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -9477,6 +9626,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -9680,6 +9833,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -9819,6 +9976,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -9933,6 +10094,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -10031,6 +10196,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -10145,6 +10314,10 @@
         },
         {
           "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
           "step": "expect_no_event"
         },
         {
@@ -10266,6 +10439,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -10438,6 +10615,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -10579,6 +10760,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -10693,6 +10878,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -10787,6 +10976,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -10904,6 +11097,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -11009,6 +11206,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -11614,6 +11815,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -11728,6 +11933,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -11909,6 +12118,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -12046,6 +12259,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -12164,6 +12381,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -12262,6 +12483,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -12375,6 +12600,10 @@
         },
         {
           "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
           "step": "expect_no_event"
         },
         {
@@ -12503,6 +12732,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -12706,6 +12939,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -12845,6 +13082,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -12963,6 +13204,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -13057,6 +13302,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -13168,6 +13417,10 @@
         },
         {
           "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
           "step": "expect_no_event"
         },
         {
@@ -13296,6 +13549,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -13496,6 +13753,10 @@
         },
         {
           "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
           "step": "expect_no_event"
         },
         {

@@ -4,6 +4,17 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- **`ekr code-names <file>...` reports the store's names a consumer's code quotes**
+  (`docs/cli.md`, `ekr code-names`). Every literal in the given source files — text between two
+  `"`, `'` or backtick quotes on one line — that equals a node or edge type's name, a property's
+  name, or a node's canonical name or alias is listed in one `ekr.code-names/1` document with its
+  file, line, column and every name it equals. Names that are also the runtime's own vocabulary
+  (the field names, enum variants and union tags of its specification) or the text of a store id
+  are never reported. The verb reads only, exits 0 whatever it finds and puts the count in
+  `meta.findings`; `ekr session` serves it, and `ekr-views` exposes it as `find_code_names`.
+
 ## [0.0.20] — 2026-09-29
 
 The SDK resolves through a cache, commits in bisected batches and types the views reads, which

@@ -783,6 +783,17 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
                 store,
             ],
         ),
+        (
+            "code-names",
+            &[
+                "ekr.code-names/1",
+                "writes nothing",
+                "vocabulary",
+                "meta.findings",
+                "ekr head",
+                store,
+            ],
+        ),
     ];
     let listed: BTreeSet<&str> = verbs.iter().map(String::as_str).collect();
     let rows: BTreeSet<&str> = own.iter().map(|(verb, _)| *verb).collect();

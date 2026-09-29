@@ -1,0 +1,209 @@
+format: ekr-seed/2
+ontology:
+  version:
+    id: 00000000-0000-4000-8000-00000000b001
+    number: 0
+    parent: null
+    created_at: 0
+  node_types:
+  - id: 00000000-0000-4000-8000-00000000b201
+    name: Volume
+    parents: []
+    properties:
+      00000000-0000-4000-8000-00000000b801:
+        id: 00000000-0000-4000-8000-00000000b801
+        name: leaf_count
+        value_type:
+          value_kind: Integer
+        cardinality: One
+        required: false
+        constraints: []
+      00000000-0000-4000-8000-00000000b802:
+        id: 00000000-0000-4000-8000-00000000b802
+        name: shelfmark
+        value_type:
+          value_kind: String
+        cardinality: One
+        required: false
+        constraints: []
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-00000000b202
+    name: Folio
+    parents: []
+    properties:
+      00000000-0000-4000-8000-00000000b803:
+        id: 00000000-0000-4000-8000-00000000b803
+        name: name
+        value_type:
+          value_kind: String
+        cardinality: One
+        required: false
+        constraints: []
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  edge_types:
+  - id: 00000000-0000-4000-8000-00000000b211
+    name: BOUND_IN
+    source_types:
+    - 00000000-0000-4000-8000-00000000b202
+    target_types:
+    - 00000000-0000-4000-8000-00000000b201
+    cardinality: One
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+  - id: 00000000-0000-4000-8000-00000000b212
+    name: CITES
+    source_types:
+    - 00000000-0000-4000-8000-00000000b202
+    target_types:
+    - 00000000-0000-4000-8000-00000000b202
+    cardinality: Many
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
+graph:
+  format: ekr.graph-document/2
+  graph:
+    root:
+      id: 00000000-0000-4000-8000-00000000b002
+      space: Canonical
+      schema_version_id: 00000000-0000-4000-8000-00000000b001
+      parent: null
+      created_at: 0
+    revision: 0
+    nodes:
+      00000000-0000-4000-8000-00000000b301:
+        id: 00000000-0000-4000-8000-00000000b301
+        root_id: 00000000-0000-4000-8000-00000000b002
+        type_id: 00000000-0000-4000-8000-00000000b201
+        canonical_name: Codex Aurum
+        aliases:
+        - Folio
+        type_state: null
+        properties:
+          00000000-0000-4000-8000-00000000b801:
+          - value_kind: Integer
+            value: 212
+          00000000-0000-4000-8000-00000000b802:
+          - value_kind: String
+            value: MS-12
+      00000000-0000-4000-8000-00000000b302:
+        id: 00000000-0000-4000-8000-00000000b302
+        root_id: 00000000-0000-4000-8000-00000000b002
+        type_id: 00000000-0000-4000-8000-00000000b201
+        canonical_name: Ledger of Tides
+        aliases:
+        - Tidal Register
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-00000000b311:
+        id: 00000000-0000-4000-8000-00000000b311
+        root_id: 00000000-0000-4000-8000-00000000b002
+        type_id: 00000000-0000-4000-8000-00000000b202
+        canonical_name: Folio Alpha
+        aliases:
+        - 00000000-0000-4000-8000-00000000b301
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-00000000b312:
+        id: 00000000-0000-4000-8000-00000000b312
+        root_id: 00000000-0000-4000-8000-00000000b002
+        type_id: 00000000-0000-4000-8000-00000000b202
+        canonical_name: Folio Beta
+        aliases:
+        - Accepted
+        type_state: null
+        properties: {}
+      00000000-0000-4000-8000-00000000b313:
+        id: 00000000-0000-4000-8000-00000000b313
+        root_id: 00000000-0000-4000-8000-00000000b002
+        type_id: 00000000-0000-4000-8000-00000000b202
+        canonical_name: Folio Gamma
+        aliases: []
+        type_state: null
+        properties: {}
+    edges:
+      00000000-0000-4000-8000-00000000b701:
+        id: 00000000-0000-4000-8000-00000000b701
+        root_id: 00000000-0000-4000-8000-00000000b002
+        type_id: 00000000-0000-4000-8000-00000000b211
+        source: 00000000-0000-4000-8000-00000000b311
+        target: 00000000-0000-4000-8000-00000000b301
+        properties: {}
+      00000000-0000-4000-8000-00000000b702:
+        id: 00000000-0000-4000-8000-00000000b702
+        root_id: 00000000-0000-4000-8000-00000000b002
+        type_id: 00000000-0000-4000-8000-00000000b211
+        source: 00000000-0000-4000-8000-00000000b312
+        target: 00000000-0000-4000-8000-00000000b301
+        properties: {}
+      00000000-0000-4000-8000-00000000b703:
+        id: 00000000-0000-4000-8000-00000000b703
+        root_id: 00000000-0000-4000-8000-00000000b002
+        type_id: 00000000-0000-4000-8000-00000000b211
+        source: 00000000-0000-4000-8000-00000000b313
+        target: 00000000-0000-4000-8000-00000000b302
+        properties: {}
+    assertions:
+      00000000-0000-4000-8000-00000000b510:
+        id: 00000000-0000-4000-8000-00000000b510
+        root_id: 00000000-0000-4000-8000-00000000b002
+        subject: !Node 00000000-0000-4000-8000-00000000b311
+        predicate: !Relation 00000000-0000-4000-8000-00000000b212
+        object: !Node 00000000-0000-4000-8000-00000000b313
+        evidence:
+        - 00000000-0000-4000-8000-00000000b401
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: null
+          to: null
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+      00000000-0000-4000-8000-00000000b511:
+        id: 00000000-0000-4000-8000-00000000b511
+        root_id: 00000000-0000-4000-8000-00000000b002
+        subject: !Node 00000000-0000-4000-8000-00000000b301
+        predicate: !Property 00000000-0000-4000-8000-00000000b802
+        object: !Value
+          value_kind: String
+          value: MS-12
+        evidence:
+        - 00000000-0000-4000-8000-00000000b402
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: null
+          to: null
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+    evidence:
+      00000000-0000-4000-8000-00000000b401:
+        id: 00000000-0000-4000-8000-00000000b401
+        source: !HumanStatement
+          identity: Runtime operator
+        content_hash: 8776ecc3c6fb57dd7a9388cea7725fc915e507dbfbf1efc8cfb7cc5ec2bc7ae7
+        extracted_by: 00000000-0000-4000-8000-000000000101
+        observed_at: 1772323200000
+        confidence: 8000
+      00000000-0000-4000-8000-00000000b402:
+        id: 00000000-0000-4000-8000-00000000b402
+        source: !HumanStatement
+          identity: Runtime operator
+        content_hash: 5a036353b50a41f7650b236c665c44d00d000b7514b3ad0aeedbcb614e28b0b4
+        extracted_by: 00000000-0000-4000-8000-000000000101
+        observed_at: 1772323200000
+        confidence: 10000
+evidence_payloads:
+  8776ecc3c6fb57dd7a9388cea7725fc915e507dbfbf1efc8cfb7cc5ec2bc7ae7: [70, 111, 108, 105, 111, 32, 65, 108, 112, 104, 97, 32, 99, 105, 116, 101, 115, 32, 70, 111, 108, 105, 111, 32, 71, 97, 109, 109, 97, 32, 111, 110, 32, 105, 116, 115, 32, 116, 104, 105, 114, 100, 32, 108, 101, 97, 102, 46]
+  5a036353b50a41f7650b236c665c44d00d000b7514b3ad0aeedbcb614e28b0b4: [67, 111, 100, 101, 120, 32, 65, 117, 114, 117, 109, 32, 99, 97, 114, 114, 105, 101, 115, 32, 115, 104, 101, 108, 102, 109, 97, 114, 107, 32, 77, 83, 45, 49, 50, 46]

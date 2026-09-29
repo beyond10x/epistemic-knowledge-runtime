@@ -34,8 +34,13 @@
 //! A sixth, [`Index::changes`] (`ekr.graph-changes/1`), answers what the revisions up to the
 //! indexed one changed after a revision or a time, reading each chosen revision's committed
 //! transaction; [`ChangesRequest`] holds its `since` and bounds.
+//!
+//! [`find_code_names`] (`ekr.code-names/1`) answers which of a revision's names a consumer's source
+//! files carry as literals, given their text as [`SourceText`]s; [`code_names`] is its pure half
+//! over a [`LoadedRevision`], and [`literals`] what it counts as a literal.
 
 mod changes;
+mod code_names;
 mod document;
 mod index;
 mod query;
@@ -43,6 +48,10 @@ mod timeline;
 
 pub use changes::{
     ChangesError, ChangesListed, ChangesRequest, SinceKind, SinceMalformed, CHANGES_FORMAT,
+};
+pub use code_names::{
+    code_names, find_code_names, literals, CodeNamesFound, Literal, SourceText, CODE_NAMES_FORMAT,
+    RUNTIME_VOCABULARY,
 };
 pub use index::{Index, IndexCache};
 pub use query::{

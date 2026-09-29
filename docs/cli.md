@@ -128,6 +128,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
 | `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent` |
+| `ekr code-names` | reads | one or more source files; `--at <revision>` | the `ekr.code-names/1` document: every literal in the files that equals one of the store's names, with file, line and what it names; exits 0 however many it finds |
 | `ekr guide` | none | none | the workflow, as text |
 | `ekr operations` | none | an operation kind, optionally | the kinds, or one kind's fields and example |
 | `ekr example` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `schema-change`, `ekr-seed/2`, `ekr.cli-host/1` or `typed-reference` (aliases `transaction` for `/2`, `seed`, `host`) | a complete example document |
@@ -280,6 +281,52 @@ committed schema change) and `schema_version_parent` (the version it was derived
 seed). These are the ids a transaction document uses for `type_id`, `predicate: !Relation` and
 property keys. A revision that does not exist is refused as `ekr.kernel.RevisionNotFound`, exit 2,
 as for `ekr snapshot --at`.
+
+### `ekr code-names`
+
+`ekr code-names <file>... [--at N]` checks that code which reads a store stays generic over any
+ontology: it reports every literal in the given source files that equals one of the store's names,
+at the head or as of revision `N`. It reads the files and the store and writes nothing.
+
+- **A literal** is the text between two quotes of the same character — `"`, `'` or a backtick — on
+  one line, paired left to right, with `\` escaping the character after it. Each quote character is
+  scanned on its own, so `'…'` around `"…"` yields both. A quote with no partner on its line opens
+  nothing, and no literal spans a line. The text is compared raw: no escape is decoded. A bare
+  identifier (`Volume` outside quotes) is not a literal; comments are not recognised, so a quoted
+  name in a comment is a literal like any other. The rule is the same for every language.
+- **A store name** is a node type's or edge type's name, a property's name, or a node's canonical
+  name or alias, at that revision. A literal equals a name when the two are the same text, case
+  included.
+- **Never reported:** a name that is also the runtime's own vocabulary — every field name, enum
+  variant and union tag its specification declares (`name`, `aliases`, `kind`, `String`,
+  `Accepted`, `CreateNode`, `ekr.graph-projection/1`, …), the words any reader of `ekr`'s documents
+  uses — and a name that is the text of one of the store's ids (a node's alias that is an old id,
+  say). A literal equal to such a name is counted in `meta.exempt` instead.
+
+It prints one `ekr.code-names/1` document:
+
+```json
+{
+  "meta": {"format": "ekr.code-names/1", "revision": 0, "files": 2, "literals": 14, "exempt": 4, "findings": 1},
+  "findings": [
+    {"file": "src/reader.ts", "line": 7, "column": 16, "literal": "Folio",
+     "names": [{"kind": "NodeType", "id": "<type id>"},
+               {"kind": "Alias", "id": "<node id>", "type_id": "<its type id>", "type_name": "Volume"}]}
+  ]
+}
+```
+
+`file` is the path as given on the command line. `line` is 1-based, `column` the 1-based position
+of the opening quote in characters. `names` lists every store name the literal equals: `kind` is
+`NodeType`, `EdgeType`, `Property`, `CanonicalName` or `Alias`, `id` the type's, property's or
+node's id, and for a node's name `type_id` and `type_name` its type. Files are read in order of
+their path and each once, findings follow in file, line and column order, so the same files and
+revision print the same document in any argument order.
+
+**Findings are not a failure: the verb exits 0** and `meta.findings` is the count. To fail a build
+on a finding, test that count. Exit 1 is a fault — a file that does not read or is not UTF-8 text
+(the message names it), or no store at `--store`. A revision the store does not hold is refused as
+`ekr.views.RevisionNotFound`, exit 2. `ekr session` serves the verb too.
 
 ### `ekr guide`
 
