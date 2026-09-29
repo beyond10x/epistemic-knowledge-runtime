@@ -557,14 +557,16 @@ fn missing_or_corrupt_required_support_refuses_the_whole_chain() {
                 "evidence record missing",
                 "evidence-root-disagrees",
                 Box::new(|r| {
-                    r.graph.evidence.remove(&case.seed.second);
+                    std::sync::Arc::make_mut(&mut r.graph)
+                        .evidence
+                        .remove(&case.seed.second);
                 }),
             ),
             (
                 "evidence payload not retained",
                 "evidence-root-disagrees",
                 Box::new(|r| {
-                    r.graph
+                    std::sync::Arc::make_mut(&mut r.graph)
                         .evidence
                         .get_mut(&case.seed.first)
                         .unwrap()
@@ -575,28 +577,32 @@ fn missing_or_corrupt_required_support_refuses_the_whole_chain() {
                 "replacement assertion missing",
                 "knowledge-root-disagrees",
                 Box::new(|r| {
-                    r.graph.assertions.remove(&case.replacement);
+                    std::sync::Arc::make_mut(&mut r.graph)
+                        .assertions
+                        .remove(&case.replacement);
                 }),
             ),
             (
                 "replacement acceptance missing",
                 "origin-missing",
                 Box::new(|r| {
-                    r.transactions.remove(&accepted_id);
+                    std::sync::Arc::make_mut(&mut r.transactions).remove(&accepted_id);
                 }),
             ),
             (
                 "lifecycle transaction missing",
                 "lifecycle-disagrees",
                 Box::new(|r| {
-                    r.transactions.remove(&superseded_id);
+                    std::sync::Arc::make_mut(&mut r.transactions).remove(&superseded_id);
                 }),
             ),
             (
                 "commit receipt differs from its retained record",
                 "commit-record-disagrees",
                 Box::new(|r| {
-                    let held = r.transactions.get_mut(&accepted_id).unwrap();
+                    let held = std::sync::Arc::make_mut(&mut r.transactions)
+                        .get_mut(&accepted_id)
+                        .unwrap();
                     held.committed.as_mut().unwrap().committer = context().validator;
                 }),
             ),
@@ -604,7 +610,9 @@ fn missing_or_corrupt_required_support_refuses_the_whole_chain() {
                 "validation differs from its retained record",
                 "validation-disagrees",
                 Box::new(|r| {
-                    let held = r.transactions.get_mut(&accepted_id).unwrap();
+                    let held = std::sync::Arc::make_mut(&mut r.transactions)
+                        .get_mut(&accepted_id)
+                        .unwrap();
                     held.validation_record_hash = Some(ContentHash::of_bytes(b"no such record"));
                 }),
             ),
@@ -612,7 +620,9 @@ fn missing_or_corrupt_required_support_refuses_the_whole_chain() {
                 "proposal differs from its retained record",
                 "proposal-record-disagrees",
                 Box::new(|r| {
-                    let held = r.transactions.get_mut(&accepted_id).unwrap();
+                    let held = std::sync::Arc::make_mut(&mut r.transactions)
+                        .get_mut(&accepted_id)
+                        .unwrap();
                     held.proposal_record_hash = ContentHash::of_bytes(b"no such record");
                 }),
             ),
@@ -775,8 +785,11 @@ fn every_capture_field_a_projection_reads_is_bound_to_the_retained_root_and_seed
                 "graph assertion rewritten",
                 "knowledge-root-disagrees",
                 Box::new(|r| {
-                    r.graph.assertions.get_mut(&old).unwrap().object =
-                        Object::Value(CanonicalValue::String("forged".into()));
+                    std::sync::Arc::make_mut(&mut r.graph)
+                        .assertions
+                        .get_mut(&old)
+                        .unwrap()
+                        .object = Object::Value(CanonicalValue::String("forged".into()));
                 }),
             ),
             (
@@ -784,7 +797,7 @@ fn every_capture_field_a_projection_reads_is_bound_to_the_retained_root_and_seed
                 "evidence-root-disagrees",
                 Box::new(|r| {
                     let second = r.graph.evidence[&case.seed.second].content_hash;
-                    r.graph
+                    std::sync::Arc::make_mut(&mut r.graph)
                         .evidence
                         .get_mut(&case.seed.first)
                         .unwrap()
@@ -795,7 +808,7 @@ fn every_capture_field_a_projection_reads_is_bound_to_the_retained_root_and_seed
                 "graph ontology replaced",
                 "ontology-root-disagrees",
                 Box::new(|r| {
-                    r.graph.ontology = kernel
+                    std::sync::Arc::make_mut(&mut r.graph).ontology = kernel
                         .read(Some(RevisionNumber::SEED))
                         .map(|seed| {
                             let mut document = r.seed_input.ontology.clone();
@@ -810,15 +823,16 @@ fn every_capture_field_a_projection_reads_is_bound_to_the_retained_root_and_seed
                 "graph root rewritten",
                 "graph-root-disagrees",
                 Box::new(|r| {
-                    r.graph.root.created_at = Timestamp::from_millis(987_654_321);
-                    r.graph.root.parent = Some(GraphRootId::mint());
+                    std::sync::Arc::make_mut(&mut r.graph).root.created_at =
+                        Timestamp::from_millis(987_654_321);
+                    std::sync::Arc::make_mut(&mut r.graph).root.parent = Some(GraphRootId::mint());
                 }),
             ),
             (
                 "graph revision relabelled",
                 "graph-revision-disagrees",
                 Box::new(|r| {
-                    r.graph.revision = RevisionNumber::new(1);
+                    std::sync::Arc::make_mut(&mut r.graph).revision = RevisionNumber::new(1);
                 }),
             ),
             (
@@ -839,7 +853,9 @@ fn every_capture_field_a_projection_reads_is_bound_to_the_retained_root_and_seed
                 "seed input rewritten",
                 "seed-envelope-disagrees",
                 Box::new(|r| {
-                    r.seed_input.evidence_payloads.clear();
+                    std::sync::Arc::make_mut(&mut r.seed_input)
+                        .evidence_payloads
+                        .clear();
                 }),
             ),
             (

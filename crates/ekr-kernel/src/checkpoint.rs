@@ -609,13 +609,14 @@ fn restored(
                 graph_root,
                 ontology: Arc::clone(&schema_at(number)?.1),
                 graph: if number == head { graph.take() } else { None },
+                aliases: Arc::default(),
             },
         );
     }
     Ok(ReplayState {
         seed,
         revisions,
-        transactions,
+        transactions: Arc::new(transactions),
         version,
         digest: Some(checkpoint.prefix),
         seed_payloads: checkpoint.seed_payloads,

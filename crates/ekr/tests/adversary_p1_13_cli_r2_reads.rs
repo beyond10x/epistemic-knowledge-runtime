@@ -180,8 +180,8 @@ impl World {
         self.runtime()
             .transactions()
             .unwrap()
-            .into_iter()
-            .map(|(id, record)| (id, record.state()))
+            .iter()
+            .map(|(id, record)| (*id, record.state()))
             .collect()
     }
 

@@ -175,7 +175,7 @@ impl World {
         let transactions = runtime
             .transactions()
             .unwrap()
-            .into_iter()
+            .iter()
             .map(|(id, record)| (id.to_string(), record.state()))
             .collect();
         (

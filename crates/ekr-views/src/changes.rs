@@ -531,7 +531,7 @@ impl Index {
         {
             runtime.transactions().map_err(ProjectError::from)?
         } else {
-            BTreeMap::new()
+            std::sync::Arc::default()
         };
         for entry in chosen {
             if entry.number == RevisionNumber::SEED {

@@ -264,25 +264,35 @@ fn a_consistent_forgery_of_the_captured_graph_is_refused_by_explain() {
             (
                 "evidence record redirected to another retained payload (recomputed address)",
                 Box::new(|r| {
-                    r.graph.evidence.get_mut(&seed.first).unwrap().content_hash = second_hash;
+                    std::sync::Arc::make_mut(&mut r.graph)
+                        .evidence
+                        .get_mut(&seed.first)
+                        .unwrap()
+                        .content_hash = second_hash;
                     seed.assertion
                 }),
             ),
             (
                 "evidence source identity rewritten",
                 Box::new(|r| {
-                    r.graph.evidence.get_mut(&seed.second).unwrap().source =
-                        EvidenceSource::HumanStatement {
-                            identity: Some("someone else".into()),
-                        };
+                    std::sync::Arc::make_mut(&mut r.graph)
+                        .evidence
+                        .get_mut(&seed.second)
+                        .unwrap()
+                        .source = EvidenceSource::HumanStatement {
+                        identity: Some("someone else".into()),
+                    };
                     replacement
                 }),
             ),
             (
                 "committed assertion's object rewritten",
                 Box::new(|r| {
-                    r.graph.assertions.get_mut(&replacement).unwrap().object =
-                        Object::Value(CanonicalValue::String("forged".into()));
+                    std::sync::Arc::make_mut(&mut r.graph)
+                        .assertions
+                        .get_mut(&replacement)
+                        .unwrap()
+                        .object = Object::Value(CanonicalValue::String("forged".into()));
                     replacement
                 }),
             ),
@@ -296,8 +306,13 @@ fn a_consistent_forgery_of_the_captured_graph_is_refused_by_explain() {
                     let mut declared = r.seed_input.graph.assertions[&seed.assertion].clone();
                     let id = forged.id;
                     declared.id = id;
-                    r.graph.assertions.insert(id, forged);
-                    r.seed_input.graph.assertions.insert(id, declared);
+                    std::sync::Arc::make_mut(&mut r.graph)
+                        .assertions
+                        .insert(id, forged);
+                    std::sync::Arc::make_mut(&mut r.seed_input)
+                        .graph
+                        .assertions
+                        .insert(id, declared);
                     id
                 }),
             ),
@@ -333,8 +348,11 @@ fn a_snapshot_never_pairs_a_root_with_a_graph_it_does_not_commit_to() {
         let directory = tempfile::tempdir().unwrap();
         let (_, replacement, _) = superseded_once(directory.path(), file);
         let mut read = open(directory.path(), file).read(None).unwrap();
-        read.graph.assertions.get_mut(&replacement).unwrap().object =
-            Object::Value(CanonicalValue::String("forged".into()));
+        std::sync::Arc::make_mut(&mut read.graph)
+            .assertions
+            .get_mut(&replacement)
+            .unwrap()
+            .object = Object::Value(CanonicalValue::String("forged".into()));
         match read.snapshot(None) {
             Err(_) => {}
             Ok(result) => {

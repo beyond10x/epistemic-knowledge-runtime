@@ -315,7 +315,7 @@ fn build_with_a_deleted_edge(path: &Path, file: bool) -> (SeedDocument, EdgeId) 
 type Answers = (
     Option<Root>,
     CanonicalGraph,
-    BTreeMap<TransactionId, TransactionRecord>,
+    std::sync::Arc<BTreeMap<TransactionId, TransactionRecord>>,
 );
 fn answers(runtime: &Runtime) -> Answers {
     (

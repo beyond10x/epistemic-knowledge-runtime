@@ -791,7 +791,7 @@ fn historical_capture_stops_loading_at_the_selected_revision_and_keeps_its_conte
         let captured = kernel.read(Some(RevisionNumber::new(1))).unwrap();
         assert_eq!(captured.context, context());
         assert_eq!(captured.authority, anchor());
-        assert_eq!(captured.seed_input, seed);
+        assert_eq!(*captured.seed_input, seed);
         assert_eq!(captured.seed, initial);
         assert!(captured.graph.nodes.contains_key(&node));
         assert!(captured.revisions.contains_key(&RevisionNumber::SEED));
