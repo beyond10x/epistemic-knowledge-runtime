@@ -35,11 +35,16 @@
 //! indexed one changed after a revision or a time, reading each chosen revision's committed
 //! transaction; [`ChangesRequest`] holds its `since` and bounds.
 //!
+//! [`find_code_names`] (`ekr.code-names/1`) answers which of a revision's names a consumer's source
+//! files carry as literals, given their text as [`SourceText`]s; [`code_names`] is its pure half
+//! over a [`LoadedRevision`], and [`literals`] what it counts as a literal.
+//!
 //! [`report_quality`] (`ekr.store-quality/1`) reports how well one revision's assertions are
 //! evidenced, its properties constrained and its nodes of one type named apart; [`quality`] is
 //! its pure half.
 
 mod changes;
+mod code_names;
 mod document;
 mod index;
 mod quality;
@@ -48,6 +53,10 @@ mod timeline;
 
 pub use changes::{
     ChangesError, ChangesListed, ChangesRequest, SinceKind, SinceMalformed, CHANGES_FORMAT,
+};
+pub use code_names::{
+    code_names, find_code_names, literals, runtime_vocabulary, CodeNamesFound, Literal, SourceText,
+    CODE_NAMES_FORMAT, EMBEDDED_DOMAINS,
 };
 pub use index::{Index, IndexCache};
 pub use quality::{quality, report_quality, StoreQualityReported, QUALITY_FORMAT};

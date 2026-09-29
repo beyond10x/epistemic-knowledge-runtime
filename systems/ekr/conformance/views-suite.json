@@ -21,6 +21,7 @@
       "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes",
       "ekr.views/authored/an-unknown-seed-is-refused-by-name",
       "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound",
+      "ekr.views/authored/code-names-reports-each-planted-name-and-no-id-or-vocabulary",
       "ekr.views/authored/seeded-evidence-is-projected-as-retained",
       "ekr.views/authored/the-edge-limit-cuts-a-page-between-a-node-and-its-edges",
       "ekr.views/authored/the-overview-derives-roles-and-timeline-from-valid-time"
@@ -126,6 +127,11 @@
         "disposition": "accepted",
         "scenario": "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound"
       },
+      "code-names-reports-each-planted-name-and-no-id-or-vocabulary.yaml": {
+        "digest": "sha256:176a2065bf27c8ddc666f5f9c3352516023110f977e02403fcf4282d3ceb56ee",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/code-names-reports-each-planted-name-and-no-id-or-vocabulary"
+      },
       "seeded-evidence-is-projected-as-retained.yaml": {
         "digest": "sha256:5abf4850b88699b2a07dcb8f401978ab313ca6ac37342fda7a3bc278fd80a793",
         "disposition": "accepted",
@@ -143,8 +149,8 @@
       }
     },
     "counts": {
-      "authored": 23,
-      "generated": 32,
+      "authored": 24,
+      "generated": 35,
       "outside": 36,
       "refused": 0
     },
@@ -163,6 +169,9 @@
       "ekr.views.ExpandNeighbourhood/outcome/node-not-found",
       "ekr.views.ExpandNeighbourhood/outcome/not-found",
       "ekr.views.ExpandNeighbourhood/outcome/not-seeded",
+      "ekr.views.FindCodeNames/outcome/found",
+      "ekr.views.FindCodeNames/outcome/not-found",
+      "ekr.views.FindCodeNames/outcome/not-seeded",
       "ekr.views.ProjectGraph/outcome/not-found",
       "ekr.views.ProjectGraph/outcome/not-seeded",
       "ekr.views.ProjectGraph/outcome/projected",
@@ -1135,8 +1144,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "a1e768cff506084827411723ae806a5f1393657743a12ddfb905cb402972e463",
-    "spec_digest": "b8c397c9b3b7606a79758a25a263f7fa5bc296e91bd2e3294491ed9909bce764",
+    "contract_digest": "e1ba74dacab3548b1c9e25bc20551f2fa9f97aebd5246c2c5cf54dcd96c0a096",
+    "spec_digest": "9d3d3575580860c8b52524271a7b3cd3711727933b6487c1b9478eba6b15240a",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -1223,6 +1232,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -1357,6 +1370,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -1471,6 +1488,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -1653,6 +1674,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -1804,6 +1829,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -1942,6 +1971,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -2052,6 +2085,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -2193,6 +2230,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -2303,6 +2344,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -2437,6 +2482,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -2547,6 +2596,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -2698,6 +2751,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -2800,6 +2857,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -2929,6 +2990,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -3035,6 +3100,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -3164,6 +3233,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -3270,6 +3343,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -3399,6 +3476,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -3513,6 +3594,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -3692,6 +3777,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -3798,6 +3887,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -3936,6 +4029,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -4046,6 +4143,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -4191,6 +4292,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -4301,6 +4406,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -4443,6 +4552,10 @@
         },
         {
           "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
           "step": "expect_no_event"
         },
         {
@@ -4559,6 +4672,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -4701,6 +4818,788 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.FindCodeNames/outcome/found": {
+      "purpose": "`ekr.views.FindCodeNames` answers `found` for an input no other branch's guard claims",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SourceText"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.FindCodeNames"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.FindCodeNames",
+            "outcome": "found"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.FindCodeNames",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "sources": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.FindCodeNames",
+            "outcome": "found"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "shape": {
+            "aliases": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "canonical_names": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "code_names_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "exempt": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "files": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "findings": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_file": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            },
+            "first_line": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "literals": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "runtime_word_findings": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.FindCodeNames/outcome/not-found": {
+      "purpose": "`ekr.views.FindCodeNames` answers `not-found` for the cause it declares as external, injected",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SourceText"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.FindCodeNames"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.FindCodeNames",
+            "outcome": "not-found"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.RevisionNotFound"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "force": {
+            "command": "ekr.views.FindCodeNames",
+            "outcome": "not-found"
+          },
+          "step": "configure_external_outcome"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.FindCodeNames",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "sources": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.FindCodeNames",
+            "outcome": "not-found"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.RevisionNotFound",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views.FindCodeNames/outcome/not-seeded": {
+      "purpose": "`ekr.views.FindCodeNames` answers `not-seeded` for the cause it declares as external, injected",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SourceText"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.FindCodeNames"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.FindCodeNames",
+            "outcome": "not-seeded"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.NotSeeded"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "force": {
+            "command": "ekr.views.FindCodeNames",
+            "outcome": "not-seeded"
+          },
+          "step": "configure_external_outcome"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.FindCodeNames",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "sources": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.FindCodeNames",
+            "outcome": "not-seeded"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.NotSeeded",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -4803,6 +5702,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -4928,6 +5831,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -5030,6 +5937,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -5155,6 +6066,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -5261,6 +6176,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -5437,6 +6356,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -5535,6 +6458,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -5657,6 +6584,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -5759,6 +6690,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -5888,6 +6823,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -5990,6 +6929,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -6119,6 +7062,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -6229,6 +7176,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -6446,6 +7397,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphProjected",
           "step": "expect_no_event"
         },
@@ -6556,6 +7511,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -6694,6 +7653,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -6808,6 +7771,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -6953,6 +7920,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -7067,6 +8038,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -7212,6 +8187,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -7330,6 +8309,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -7531,6 +8514,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -7629,6 +8616,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -7754,6 +8745,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -7856,6 +8851,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -7981,6 +8980,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -8087,6 +9090,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -8239,6 +9246,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -8337,6 +9348,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -8463,6 +9478,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -8565,6 +9584,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -8698,6 +9721,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -8800,6 +9827,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -8933,6 +9964,10 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -9043,6 +10078,10 @@
         {
           "kind": "event",
           "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
         },
         {
           "kind": "event",
@@ -9196,6 +10235,10 @@
         },
         {
           "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
           "step": "expect_no_event"
         },
         {
@@ -17680,6 +18723,426 @@
         },
         {
           "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.views/authored/code-names-reports-each-planted-name-and-no-id-or-vocabulary": {
+      "purpose": "A consumer's sources are reported for every planted type, property, canonical and alias name with file and line, runtime words flagged and ids never; the answer is independent of source order.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SourceText"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.FindCodeNames"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.FindCodeNames",
+            "outcome": "found"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.FindCodeNames",
+            "outcome": "not-found"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.RevisionNotFound"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.FindCodeNames",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "sources": {
+              "kind": "literal",
+              "value": [
+                {
+                  "path": "src/reader.ts",
+                  "text": "const kind = \"Subject\";\nconst relation = 'links';\nread(node, \"label\", `weight`);\nfind(\"alpha\") || find('beta-alias-a');\n// A bare word is no literal: Subject alpha links\nconst generic = [\"name\", \"aliases\", \"store\", \"String\"];\nconst ids = [\"00000000-0000-4000-8000-000000000110\", \"00000000-0000-4000-8000-000000000100\"];\nconst near = [\"subject\", \"alpha \", \"Alpha\", \"alpha-alias\"];\n"
+                },
+                {
+                  "path": "src/clean.ts",
+                  "text": "const kind = node.type_id;\n"
+                }
+              ]
+            },
+            "store": {
+              "kind": "literal",
+              "value": "edge-assertion"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.FindCodeNames",
+            "outcome": "found"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "payload": {
+            "aliases": 1.0,
+            "canonical_names": 1.0,
+            "edge_types": 1.0,
+            "exempt": 0.0,
+            "files": 2.0,
+            "findings": 6.0,
+            "first_file": "src/reader.ts",
+            "first_line": 1.0,
+            "literals": 16.0,
+            "node_types": 1.0,
+            "properties": 2.0,
+            "revision": 0.0,
+            "runtime_word_findings": 2.0
+          },
+          "shape": {
+            "aliases": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "canonical_names": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "code_names_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "exempt": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "files": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "findings": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_file": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            },
+            "first_line": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "literals": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "runtime_word_findings": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.FindCodeNames",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "sources": {
+              "kind": "literal",
+              "value": [
+                {
+                  "path": "src/clean.ts",
+                  "text": "const kind = node.type_id;\n"
+                },
+                {
+                  "path": "src/reader.ts",
+                  "text": "const kind = \"Subject\";\nconst relation = 'links';\nread(node, \"label\", `weight`);\nfind(\"alpha\") || find('beta-alias-a');\n// A bare word is no literal: Subject alpha links\nconst generic = [\"name\", \"aliases\", \"store\", \"String\"];\nconst ids = [\"00000000-0000-4000-8000-000000000110\", \"00000000-0000-4000-8000-000000000100\"];\nconst near = [\"subject\", \"alpha \", \"Alpha\", \"alpha-alias\"];\n"
+                },
+                {
+                  "path": "src/reader.ts",
+                  "text": "const kind = \"Subject\";\nconst relation = 'links';\nread(node, \"label\", `weight`);\nfind(\"alpha\") || find('beta-alias-a');\n// A bare word is no literal: Subject alpha links\nconst generic = [\"name\", \"aliases\", \"store\", \"String\"];\nconst ids = [\"00000000-0000-4000-8000-000000000110\", \"00000000-0000-4000-8000-000000000100\"];\nconst near = [\"subject\", \"alpha \", \"Alpha\", \"alpha-alias\"];\n"
+                }
+              ]
+            },
+            "store": {
+              "kind": "literal",
+              "value": "edge-assertion"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.FindCodeNames",
+            "outcome": "found"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "payload": {
+            "exempt": 0.0,
+            "files": 2.0,
+            "findings": 6.0,
+            "first_file": "src/reader.ts",
+            "first_line": 1.0,
+            "literals": 16.0,
+            "revision": 0.0,
+            "runtime_word_findings": 2.0
+          },
+          "shape": {
+            "aliases": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "canonical_names": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "code_names_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "exempt": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "files": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "findings": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_file": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            },
+            "first_line": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "literals": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "runtime_word_findings": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.FindCodeNames",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "sources": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "edge-assertion"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.FindCodeNames",
+            "outcome": "found"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "payload": {
+            "exempt": 0.0,
+            "files": 0.0,
+            "findings": 0.0,
+            "literals": 0.0,
+            "revision": 0.0,
+            "runtime_word_findings": 0.0
+          },
+          "shape": {
+            "aliases": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "canonical_names": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "code_names_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "exempt": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "files": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "findings": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_file": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            },
+            "first_line": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "literals": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "runtime_word_findings": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.FindCodeNames",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 5.0
+            },
+            "sources": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "edge-assertion"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.FindCodeNames",
+            "outcome": "not-found"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.RevisionNotFound",
+          "fields": {
+            "head": 0.0,
+            "requested": 5.0
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
           "step": "expect_no_event"
         }
       ]

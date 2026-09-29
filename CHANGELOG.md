@@ -6,6 +6,15 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Added
 
+- **`ekr code-names <file>...` reports the store's names a consumer's code quotes**
+  (`docs/cli.md`, `ekr code-names`). Every literal in the given source files — text between two
+  `"`, `'` or backtick quotes on one line — that equals a node or edge type's name, a property's
+  name, or a node's canonical name or alias is listed in one `ekr.code-names/1` document with its
+  file, line, column and every name it equals. A name that is also the runtime's own vocabulary
+  (the field names, enum variants and union tags of its specification) is reported flagged
+  `runtime_word` and counted in `meta.runtime_word_findings`; the text of a store id is never
+  reported. The verb reads only, exits 0 whatever it finds and puts the count in `meta.findings`;
+  `ekr session` serves it, and `ekr-views` exposes it as `find_code_names`.
 - **`ekr quality` reports a store's quality beyond its size** (`docs/cli.md`, `ekr quality`):
   the `ekr.store-quality/1` document of the head or of `--revision N`, a one-shot verb and an
   `ekr session` verb. It counts the active assertions with evidence and with evidence an

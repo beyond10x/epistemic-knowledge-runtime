@@ -11,6 +11,8 @@
 //! hash, and open no provider.
 //! `migrate` opens the configured store as those verbs do, reads it only, and hands it and the
 //! store it creates at `--to` to `Runtime::migrate_into`.
+//! `code-names` reads the source files it is given, then opens the store as those verbs do and
+//! reads it only (`code_names.rs`).
 //! `quality` opens the store as those verbs do and reads one revision through
 //! `ekr_views::report_quality` (`quality.rs`).
 //! `session` opens the store once and runs each request line through the same dispatch as the
@@ -24,6 +26,7 @@
 //! (`session.rs`).
 
 mod agent;
+mod code_names;
 mod commit;
 mod explain;
 mod hash;
@@ -271,6 +274,25 @@ pub enum Command {
     #[command(after_help = SEE)]
     Ontology {
         /// The committed revision whose schema to print; the newest (`ekr head`) when absent.
+        #[arg(long)]
+        at: Option<u64>,
+    },
+    /// Report every literal in the given source files that equals one of the store's names — a
+    /// node or edge type's, a property's, a node's canonical name or alias — as the
+    /// `ekr.code-names/1` document, with file, line and what each literal names.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST); it reads the store and
+    /// the files and writes nothing. A literal is text between two `"`, `'` or backtick quotes on
+    /// one line; bare identifiers are not literals, and a quoted name in a comment is. A name that
+    /// is also the runtime's own vocabulary is reported, flagged `"runtime_word": true` and counted
+    /// in `meta.runtime_word_findings`; the store's ids are never reported. Findings exit 0: the
+    /// count is `meta.findings`, and failing on it is the caller's choice.
+    #[command(after_help = SEE)]
+    CodeNames {
+        /// The source files to check, one or more.
+        #[arg(required = true, value_name = "FILE")]
+        files: Vec<PathBuf>,
+        /// The committed revision whose names to read; the newest (`ekr head`) when absent.
         #[arg(long)]
         at: Option<u64>,
     },
@@ -633,6 +655,12 @@ fn dispatch(
         Command::Ontology { at } => {
             let runtime = source.resolve("ontology")?.open()?;
             render(&ontology::run(&runtime, at)?)
+        }
+        Command::CodeNames { files, at } => {
+            let store = source.resolve("code-names")?;
+            let sources = code_names::read(&files)?;
+            let runtime = store.open()?;
+            code_names::run(&runtime, at, &sources).map(Printed::Document)
         }
         Command::Quality { revision } => {
             let runtime = source.resolve("quality")?.open()?;

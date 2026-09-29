@@ -67,6 +67,9 @@ WORKFLOW
      ekr mcp                                       read-only MCP tools over stdio for an agent's
                                                    client: overview, search, describe_node,
                                                    expand, timeline, explain, resolve
+     ekr code-names <file>... [--at N]             which store names your code quotes as literals:
+                                                   file, line and kind; exit 0, the count is
+                                                   meta.findings
 
 DOCUMENT LIMITS (fixed by the format version; write ekr.transaction-document/2)
   An ekr.transaction-document/2 holds 1 to 10000 operations and at most 10000 evidence entries
