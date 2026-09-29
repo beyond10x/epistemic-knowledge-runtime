@@ -4,6 +4,24 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Changed
+
+- **A checkpoint is due by commits and document bytes, not by operations** (design § 99.5). A commit
+  writes a replay checkpoint when it is the fifth past the retained one
+  (`REPLAY_CHECKPOINT_COMMITS` = 5) or when the transaction documents committed since hold 16 MiB
+  (`REPLAY_CHECKPOINT_BYTES`, which replaces `REPLAY_CHECKPOINT_OPERATIONS`). A consumer batch of
+  1,561 operations no longer writes a checkpoint every time: 57 batches in one session wrote 13
+  checkpoints instead of 58.
+- **`ekr session` leaves a checkpoint of its head when its input ends**, if that head is past the
+  last checkpoint (`Runtime::retain_checkpoint_at_rest`), so the next verb replays nothing the
+  session committed. A cold `ekr transactions` on a 57-batch store under profile v3: 5.07 → 2.33 s
+  of CPU (medians).
+- **New commit receipts name the identities they created.** `ekr.commit-receipt/3` is `/2` with
+  `created`, the node and edge ids of the transaction's `CreateNode` and `CreateEdge` operations
+  (`CommitReceiptV1::created`, `CreatedIdentitiesV1`); `/1` and `/2` receipts are read as before and
+  keep their bytes. Under validation profile v3 an open that admits a checkpoint reads them from the
+  receipt instead of parsing every committed proposal.
+
 ## [0.0.17] — 2026-09-29
 
 Reads share state instead of copying it; requests copy no retained bytes; validation scans nothing

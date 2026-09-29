@@ -460,8 +460,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "43b0c23da19215734b2f0ae8a545c3a1372f5561bbb3c65411e96e95a1ba290d",
-    "spec_digest": "fde1160a5eca9a842ffb927dad687e3aa93c3b050886c642d2ad49c1be79803a",
+    "contract_digest": "a1e79a94106e51fe1f4f4c92b9eb9aa4e77d940928002878be8c36f1b0363830",
+    "spec_digest": "d679f86eb266bb0f1df004db42779720e040cb9440ab1a3083d1db87e7d419bb",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"
@@ -1272,7 +1272,15 @@
         {
           "capture": {
             "declarations": {
+              "ekr.graph.EdgeId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
               "ekr.graph.GraphRootId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.graph.NodeId": {
                 "kind": "newtype",
                 "of": "Uuid"
               },
@@ -1366,6 +1374,10 @@
                   {
                     "name": "result_hash",
                     "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "created",
+                    "type": "Optional<ekr.kernel.CreatedIdentitiesV1>"
                   }
                 ],
                 "kind": "struct"
@@ -1373,6 +1385,19 @@
               "ekr.kernel.ContentHash": {
                 "kind": "newtype",
                 "of": "String"
+              },
+              "ekr.kernel.CreatedIdentitiesV1": {
+                "fields": [
+                  {
+                    "name": "nodes",
+                    "type": "List<ekr.graph.NodeId>"
+                  },
+                  {
+                    "name": "edges",
+                    "type": "List<ekr.graph.EdgeId>"
+                  }
+                ],
+                "kind": "struct"
               },
               "ekr.kernel.EventId": {
                 "kind": "newtype",
@@ -1869,7 +1894,15 @@
         {
           "capture": {
             "declarations": {
+              "ekr.graph.EdgeId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
               "ekr.graph.GraphRootId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.graph.NodeId": {
                 "kind": "newtype",
                 "of": "Uuid"
               },
@@ -1963,6 +1996,10 @@
                   {
                     "name": "result_hash",
                     "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "created",
+                    "type": "Optional<ekr.kernel.CreatedIdentitiesV1>"
                   }
                 ],
                 "kind": "struct"
@@ -1970,6 +2007,19 @@
               "ekr.kernel.ContentHash": {
                 "kind": "newtype",
                 "of": "String"
+              },
+              "ekr.kernel.CreatedIdentitiesV1": {
+                "fields": [
+                  {
+                    "name": "nodes",
+                    "type": "List<ekr.graph.NodeId>"
+                  },
+                  {
+                    "name": "edges",
+                    "type": "List<ekr.graph.EdgeId>"
+                  }
+                ],
+                "kind": "struct"
               },
               "ekr.kernel.EventId": {
                 "kind": "newtype",
@@ -3896,7 +3946,15 @@
       "source": [
         {
           "kind": "type",
+          "name": "ekr.graph.EdgeId"
+        },
+        {
+          "kind": "type",
           "name": "ekr.graph.GraphRootId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
         },
         {
           "kind": "type",
@@ -3921,6 +3979,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.CreatedIdentitiesV1"
         },
         {
           "kind": "type",
@@ -4147,7 +4209,15 @@
       "source": [
         {
           "kind": "type",
+          "name": "ekr.graph.EdgeId"
+        },
+        {
+          "kind": "type",
           "name": "ekr.graph.GraphRootId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.NodeId"
         },
         {
           "kind": "type",
@@ -4172,6 +4242,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.CreatedIdentitiesV1"
         },
         {
           "kind": "type",

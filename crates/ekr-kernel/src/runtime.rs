@@ -260,6 +260,15 @@ impl Runtime {
             Backend::Sqlite(kernel) => kernel.replay(revision),
         }
     }
+    /// At rest — a session at the end of its input: writes the replay checkpoint of the newest
+    /// head this runtime reached when it is past the retained checkpoint (design § 99.5). Best
+    /// effort: a checkpoint that is not written costs a later open time, never an answer.
+    pub fn retain_checkpoint_at_rest(&self) {
+        match &self.backend {
+            Backend::File(kernel) => kernel.retain_checkpoint_at_rest(),
+            Backend::Sqlite(kernel) => kernel.retain_checkpoint_at_rest(),
+        }
+    }
     /// How many replays this runtime's kernel has begun at the seed since it was opened: every
     /// verified read that could not continue from a state it had already reached, or from the
     /// store's replay checkpoint, counts one. A diagnostic of read cost; it changes nothing.

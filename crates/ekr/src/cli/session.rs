@@ -5,7 +5,9 @@
 //! parsed by the same clap definitions and run through the same dispatch as the one-shot verb,
 //! against the runtime the session holds instead of one it opens: every verb body in this
 //! directory runs unchanged. The runtime reads the store's retained history on every verb, so a
-//! commit a request makes is what the next request reads.
+//! commit a request makes is what the next request reads. At the end of input the session
+//! writes the replay checkpoint of the newest head it reached when that head is past the
+//! retained checkpoint (design § 99.5).
 //!
 //! On a path that holds no store the session starts without one. Until it holds one, a store
 //! verb opens the store as the one-shot verb does — `store-not-found` where there is none — and
@@ -92,7 +94,14 @@ pub fn serve(
         let whole = match next_line(input, &mut line, LINE_LIMIT)
             .map_err(|error| Failure::fault(format!("reading a session request: {error}")))?
         {
-            None => return Ok(()),
+            None => {
+                // At the end of input the session leaves the checkpoint of the head it reached,
+                // when that head is past the retained one (design § 99.5).
+                if let Some(runtime) = &session.runtime {
+                    runtime.retain_checkpoint_at_rest();
+                }
+                return Ok(());
+            }
             Some(whole) => whole,
         };
         let answered = if whole {

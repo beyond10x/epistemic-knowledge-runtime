@@ -718,6 +718,54 @@ fn the_page_lists_exactly_the_session_refusals_this_suite_draws() {
     }
 }
 
+/// The head revision of each replay checkpoint the file provider at `store` retains.
+fn retained_checkpoint_revisions(store: &Path) -> Vec<u64> {
+    let mut revisions: Vec<u64> = std::fs::read_dir(store.join("blobs"))
+        .unwrap()
+        .filter_map(|entry| {
+            let bytes = std::fs::read(entry.unwrap().path()).unwrap();
+            if !bytes.starts_with(br#"{"format":"ekr.replay-checkpoint/1""#) {
+                return None;
+            }
+            let checkpoint: Value = serde_json::from_slice(&bytes).unwrap();
+            checkpoint["revision"].as_u64()
+        })
+        .collect();
+    revisions.sort_unstable();
+    revisions
+}
+
+/// Design § 99.5: when its input ends, a session writes the replay checkpoint of the head it
+/// reached if that head is past the retained checkpoint, so that the next process continues from
+/// it. One commit is fewer than any commit bound, so without it the retained checkpoint would
+/// still be the seed's. Read off the file provider's blobs; the kernel's own case holds both
+/// providers (`crates/ekr-kernel/tests/replay_checkpoint.rs`,
+/// `a_handle_at_rest_writes_the_checkpoint_of_a_head_past_the_retained_one`).
+#[test]
+fn a_session_leaves_the_checkpoint_of_its_head_when_its_input_ends() {
+    let world = World::seeded("file");
+    assert_eq!(retained_checkpoint_revisions(&world.store()), [0]);
+    let lines = [
+        request(&["propose", "-"], Some(&create_globex())),
+        request(&["validate", TRANSACTION], None),
+        request(&["commit", TRANSACTION], None),
+    ];
+    let answers = world.session(&lines, true);
+    for (line, answer) in lines.iter().zip(&answers) {
+        assert_eq!(answer["exit"], 0, "{line}: {answer}");
+    }
+    assert_eq!(answers[2]["stdout"]["result"]["revision"], 1);
+    assert_eq!(
+        retained_checkpoint_revisions(&world.store()),
+        [1],
+        "the session's head, and only it"
+    );
+    let head = world.run(&["head"]);
+    assert_eq!(head.status.code(), Some(0));
+    let head: Value = serde_json::from_slice(&head.stdout).unwrap();
+    assert_eq!(head["revision"], 1);
+}
+
 #[test]
 fn a_commit_in_the_session_is_seen_by_the_next_head_and_resolve() {
     for backend in BACKENDS {

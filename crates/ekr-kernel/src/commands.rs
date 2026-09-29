@@ -513,6 +513,20 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             let _ = self.store.write_checkpoint(covered, binding, None);
         }
     }
+    /// At rest — a session at the end of its input: the replay checkpoint of the newest head this
+    /// handle reached, when that head is past the retained checkpoint (design § 99.5), so that
+    /// every later open continues from it rather than replaying the commits since the last one.
+    /// A handle that has read nothing, or whose newest head is the retained checkpoint's, writes
+    /// nothing. Best effort, as every checkpoint write is: one that is not written costs a later
+    /// open time, never an answer.
+    pub fn retain_checkpoint_at_rest(&self) {
+        let Some(state) = self.published_state() else {
+            return;
+        };
+        if self.authority.checkpoint_behind(&state) {
+            self.write_checkpoint_of(&state);
+        }
+    }
     /// The state the publication just made reached: the newest this authority verified, which
     /// is the published candidate it admitted before writing it. Whatever it is, what is written
     /// from it is bound to the prefix it covers and is admitted only for exactly that prefix.
@@ -584,6 +598,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 committed_at: at,
                 result: root,
                 result_hash: ContentHash::of(&root),
+                created: Some(crate::CreatedIdentitiesV1::of(validated.transaction())),
             };
             (
                 RevisionPayload::RevisionCommitted {
