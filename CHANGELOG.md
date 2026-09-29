@@ -6,11 +6,23 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Added
 
+- **Evidence after the seed.** `AddEvidence` (operation 12) in `ekr.transaction-document/1` and
+  `/2` carries one `ekr.graph.Evidence` and its payload bytes; an assertion in the same or a later
+  transaction may cite it, and the commit retains the payload as a Provenance object. Refusals: a
+  payload that does not hash to its entry, a reused evidence id (`identity-already-exists`,
+  `duplicate-identity`), an assertion citing evidence no revision holds (`unresolved-evidence`),
+  evidence other than a human statement (`evidence-unsupported-source`), and an `extracted_by` that
+  is not the submitter. A payload is at most 16,384 bytes in `/2` and 4,096 in `/1` (the
+  `sequence_elements` limit); a larger statement goes in the seed with `ekr seed --evidence`. The
+  kernel conformance suite holds 44 scenarios (4 new).
 - `ekr migrate --to <path>` (design § 100.3): writes a copy of the store at a new path whose seed is
   `ekr-seed-envelope/3`, re-publishing every decision with its original identities and times,
   carrying every other object and converting a legacy inline `ObjectStored` object into metadata
   and a blob; the new store is replayed in full against the old one, which is left untouched, and
-  the `ekr.store-migration/1` report maps each replaced record.
+  the `ekr.store-migration/1` report maps each replaced record. A destination that is, is inside or
+  contains the source is refused (`migrate-destination-is-source`,
+  `migrate-destination-inside-source`, `migrate-destination-contains-source`); a store whose
+  migration did not finish refuses every read as `migrate-incomplete`.
 
 ### Changed
 
@@ -22,6 +34,38 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   14,481-byte preparation, and each payload once. A `/2` store opens,
   replays and commits as before. A `/3` envelope naming a payload the store does not hold is
   refused `seed-evidence-payload-absent: <hash>`.
+- The `ekr.views` reads work out which evidence is retained in one pass over the verified history
+  instead of one history read per evidence entry: rendering a store with 400 added evidence
+  entries took 13.66 s on SQLite and takes 57.2 ms. The documents are unchanged.
+
+## [0.0.15] — 2026-09-29
+
+Agents and pages ask what changed since a revision or a time.
+
+### Added
+
+- `ekr.views` ChangesSince and its format `ekr.graph-changes/1`: every node and edge created and
+  every assertion added, superseded or retracted after a revision (`since_revision`), a valid time
+  (`since_valid`, assertion changes only) or a transaction time (`since_recorded`), up to `at` or
+  the head. Changes are ordered by revision, change kind and id; each carries its revision,
+  `recorded_at` and evidence ids, and a created node or edge carries the evidence of the assertions
+  its revision added about it. Paged by `limit` (1–2,000, 500 by default) and a cursor; the document
+  carries the revision it read and no head.
+- `ekr view` serves it as `GET /changes`; `ekr mcp` as the tool `changes_since`, with the same
+  argument names. A request naming none or two of the three since inputs is `invalid-query`
+  (`-32602` in MCP); a `since_revision` below 0 is `since-malformed`; a since past the head is
+  `revision-not-found` naming the head.
+
+### Changed
+
+- The views conformance suite holds 51 scenarios (10 new), passing on the file and SQLite
+  providers; the kernel suite was resynthesized for its specification digest only.
+
+### Known limits
+
+- `ekr mcp` has no `head` tool (`task:mcp-serves-the-head`), and a running `ekr mcp`, `ekr view` or
+  `ekr session` keeps answering from a store file replaced at its path until restarted
+  (`task:readers-reopen-a-replaced-store`).
 
 ## [0.0.14] — 2026-09-29
 
