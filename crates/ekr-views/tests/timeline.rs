@@ -368,7 +368,7 @@ fn the_default_overview_of_ten_types_dated_weekly_for_ten_years_stays_under_300_
             confidence: Confidence::from_basis_points(9_000).unwrap(),
         },
     );
-    document.evidence_payloads.insert(hash, bytes);
+    document.evidence_payloads.insert(hash, bytes.into());
     for t in 0..TYPES {
         let type_id: TypeId = id(0xee_1000 + t);
         let property: PropertyId = id(0xee_2000 + t);

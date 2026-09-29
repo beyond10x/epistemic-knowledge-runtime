@@ -4,7 +4,7 @@
 //! edges and bitemporal assertions with their validation state, evidence and observations. The
 //! crate holds no writer of its own; every change arrives as a transaction the kernel committed.
 //!
-//! Ten modules, in dependency order:
+//! Eleven modules, in dependency order:
 //!
 //! * [`value`] — [`CanonicalValue`], the values canonical state admits, and [`InadmissibleValue`],
 //!   the refusal of the one kind it does not (`architecture-decision-record:0005`).
@@ -20,6 +20,8 @@
 //! * [`snapshot`] — [`GraphSnapshot`], what a reader holds (design § 71). One read,
 //!   [`GraphSnapshot::valid_at`]: the runtime has no clock, so the caller supplies the instant and
 //!   gets the current world or a historical one from the same function.
+//! * [`aliases`] — [`AliasIndex`], a graph's nodes by type and alias, so that a typed reference
+//!   is looked up rather than scanned.
 //! * [`events`] — [`RevisionEvent`], the vocabulary the kernel publishes and the store persists.
 //!
 //! # The membrane is a type, not a rule
@@ -134,6 +136,7 @@
 //! # Ok::<(), ekr_ontology::OntologyError>(())
 //! ```
 
+pub mod aliases;
 pub mod assertion;
 pub mod canonical;
 pub mod edge;
@@ -148,6 +151,7 @@ pub mod value;
 #[cfg(feature = "schema")]
 mod schema;
 
+pub use aliases::AliasIndex;
 pub use assertion::{
     Assertion, AssertionLifecycle, Assessment, InvertedRange, Object, Predicate, RetractionReason,
     Subject, TemporalRange, TransactionTime,

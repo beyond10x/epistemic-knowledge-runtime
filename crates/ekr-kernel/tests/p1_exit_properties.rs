@@ -148,7 +148,7 @@ fn world() -> World {
     let assertion_id = assertion.id;
     seed.graph.assertions.insert(assertion.id, assertion);
     seed.graph.evidence.insert(evidence.id, evidence.clone());
-    seed.evidence_payloads.insert(hash, bytes);
+    seed.evidence_payloads.insert(hash, bytes.into());
     World {
         seed,
         node_type,
@@ -970,7 +970,7 @@ proptest! {
                 prop_assert_eq!(&kernel.read(Some(revision)).unwrap().root, root,
                     "file={} the committing process recomputes revision {}", file, revision);
                 prop_assert_eq!(
-                    kernel.replay(revision).unwrap(),
+                    std::sync::Arc::new(kernel.replay(revision).unwrap()),
                     kernel.read(Some(revision)).unwrap().graph,
                     "file={} replay and a verified read agree at revision {}", file, revision
                 );

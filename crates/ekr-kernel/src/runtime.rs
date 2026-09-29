@@ -55,13 +55,16 @@ impl Runtime {
             Backend::Sqlite(k) => k.propose_reader(reader, actor, now),
         }
     }
-    /// Reads every actual retained transaction state in one verified history capture.
+    /// Reads every actual retained transaction state in one verified history capture, shared
+    /// with the verified state rather than copied from it.
     /// # Errors
     /// Missing seed or invalid retained history.
     pub fn transactions(
         &self,
     ) -> Result<
-        std::collections::BTreeMap<ekr_core::TransactionId, crate::TransactionRecord>,
+        std::sync::Arc<
+            std::collections::BTreeMap<ekr_core::TransactionId, crate::TransactionRecord>,
+        >,
         crate::CommitError,
     > {
         match &self.backend {

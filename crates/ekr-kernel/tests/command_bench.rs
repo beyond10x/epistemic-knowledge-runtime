@@ -90,7 +90,7 @@ fn seed() -> SeedDocument {
         confidence: Confidence::from_basis_points(10000).unwrap(),
     };
     seed.graph.evidence.insert(evidence.id, evidence);
-    seed.evidence_payloads.insert(hash, bytes);
+    seed.evidence_payloads.insert(hash, bytes.into());
     seed
 }
 /// One new node with one evidenced assertion, so every revision adds records and objects.

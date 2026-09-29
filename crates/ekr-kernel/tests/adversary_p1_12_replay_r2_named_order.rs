@@ -86,7 +86,7 @@ fn fixture() -> SeedDocument {
     seed.graph.nodes.insert(node.id, node);
     seed.graph.assertions.insert(assertion.id, assertion);
     seed.graph.evidence.insert(evidence.id, evidence);
-    seed.evidence_payloads.insert(hash, bytes);
+    seed.evidence_payloads.insert(hash, bytes.into());
     seed
 }
 fn proposal(seed: &SeedDocument) -> (GraphTransaction, NodeId) {
@@ -410,9 +410,13 @@ fn with_forged_receipt(source: &Source, lie: impl FnOnce(&mut Root)) -> (Retaine
     let mut metadata = held.metadata.clone();
     metadata.content_hash = hash;
     metadata.byte_len = bytes.len() as u64;
-    forged
-        .objects
-        .insert(hash, ekr_store::RetainedObject { metadata, bytes });
+    forged.objects.insert(
+        hash,
+        ekr_store::RetainedObject {
+            metadata,
+            bytes: bytes.into(),
+        },
+    );
     forged.occurrences[at].event.record_hash = hash;
     (forged, at)
 }
@@ -438,9 +442,13 @@ fn forged_receipt_raw(
     let mut metadata = held.metadata.clone();
     metadata.content_hash = hash;
     metadata.byte_len = bytes.len() as u64;
-    forged
-        .objects
-        .insert(hash, ekr_store::RetainedObject { metadata, bytes });
+    forged.objects.insert(
+        hash,
+        ekr_store::RetainedObject {
+            metadata,
+            bytes: bytes.into(),
+        },
+    );
     forged.occurrences[at].event.record_hash = hash;
     forged
 }

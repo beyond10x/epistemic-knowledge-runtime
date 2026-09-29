@@ -129,7 +129,7 @@ fn seeded() -> Seeded {
         .graph
         .evidence
         .insert(evidence.id, evidence.clone());
-    document.evidence_payloads.insert(hash, bytes);
+    document.evidence_payloads.insert(hash, bytes.into());
     Seeded {
         document,
         subject_type,
@@ -497,11 +497,12 @@ fn schema_history_answers_a_revision_and_its_schema_versions_from_one_replay_on_
         let committed: BTreeMap<RevisionNumber, TransactionId> = kernel
             .transactions()
             .unwrap()
-            .into_iter()
+            .iter()
             .filter_map(|(id, record)| {
                 record
                     .committed
-                    .map(|receipt| (receipt.result.revision, id))
+                    .as_ref()
+                    .map(|receipt| (receipt.result.revision, *id))
             })
             .collect();
         drop(kernel);
@@ -524,7 +525,7 @@ fn schema_history_answers_a_revision_and_its_schema_versions_from_one_replay_on_
                 } else {
                     assert!(replays <= 1, "revision {number}: {replays} replays");
                 }
-                assert_eq!(history.graph, graphs[number as usize], "revision {number}");
+                assert_eq!(*history.graph, graphs[number as usize], "revision {number}");
                 assert_eq!(
                     history.schemas.keys().copied().collect::<Vec<_>>(),
                     boundaries,

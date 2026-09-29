@@ -8,7 +8,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use ekr_core::{GraphRootId, NodeId, RevisionNumber, SchemaVersionId, Timestamp, TypeId};
-use ekr_graph::{CanonicalGraph, GraphRoot, GraphSnapshot, Node, Space};
+use ekr_graph::{AliasIndex, CanonicalGraph, GraphRoot, GraphSnapshot, Node, Space};
 use ekr_integrate::{
     resolve, AmbiguousReference, ResolutionOutcome, ResolutionRefusal, ResolutionRefusalCode,
     ResolvedReference, TypedReference,
@@ -417,5 +417,50 @@ proptest! {
             .map(|node| node.id)
             .collect();
         prop_assert_eq!(matched(&base), expected);
+    }
+}
+
+/// Alias pool of the indexed-lookup case: the empty alias and a whitespace alias included.
+const ANY_ALIAS: [&str; 5] = ["p", "q", "", " p", "P"];
+
+/// Eight nodes, each of any of the six types (one undeclared), inside or outside the canonical
+/// root, each holding a sequence of pool aliases, repeats included.
+fn any_universe() -> impl Strategy<Value = Vec<(u64, bool, Vec<usize>)>> {
+    proptest::collection::vec(
+        (
+            1..=6u64,
+            any::<bool>(),
+            proptest::collection::vec(0..ANY_ALIAS.len(), 0..4),
+        ),
+        0..8,
+    )
+}
+
+proptest! {
+    #[test]
+    fn the_indexed_lookup_answers_byte_for_byte_what_the_scan_answers(
+        shape in any_universe(),
+        wanted_type in 1..=6u64,
+        wanted in proptest::collection::vec(0..ANY_ALIAS.len(), 0..4),
+    ) {
+        let state = graph(shape.iter().enumerate().map(|(n, (kind, inside, aliases))| {
+            let named: Vec<&str> = aliases.iter().map(|&at| ANY_ALIAS[at]).collect();
+            let mut held = node(n as u64, type_id(*kind), "same name", &named);
+            if !inside {
+                held.root_id = root_id(2);
+            }
+            held
+        }));
+        let wanted: Vec<&str> = wanted.iter().map(|&at| ANY_ALIAS[at]).collect();
+        let reference = reference(type_id(wanted_type), &wanted);
+        let scanned = resolve(GraphSnapshot::of(&state), &reference);
+        let index = AliasIndex::of(&state);
+        let looked_up =
+            ekr_integrate::resolve_indexed(GraphSnapshot::of(&state), &index, &reference);
+        prop_assert_eq!(
+            serde_json::to_vec(&scanned).expect("an outcome serialises"),
+            serde_json::to_vec(&looked_up).expect("an outcome serialises")
+        );
+        prop_assert_eq!(index, AliasIndex::of(&state.clone()));
     }
 }

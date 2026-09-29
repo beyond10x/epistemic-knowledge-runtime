@@ -2,16 +2,17 @@
 format: aep.planning-md/3
 id: task:object-payloads-belong-in-provider-blobs
 kind: task
-status: active
+status: implemented
 title: Move object payloads out of event bodies while preserving atomic publication
 relations:
 - derived_from: story:version-persisted-contracts
 - serves: vision:o2
 - derived_from: epic:p7-migration-cutover
-revision: 6
+revision: 7
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T23:00:44Z", actor: "agent:claude-coordinator", revision: 5}
 - {from: "proposed", to: "active", at: "2026-09-28T23:00:44Z", actor: "agent:claude-coordinator", revision: 6}
+- {from: "active", to: "implemented", at: "2026-09-29T07:07:33Z", actor: "human:timo", revision: 7, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## Confirmed persistence-contract mismatch
 

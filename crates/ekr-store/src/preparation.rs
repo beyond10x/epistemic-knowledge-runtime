@@ -996,7 +996,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
                     StoreError::Document("preparation-object-metadata-missing".into())
                 })?;
                 require(
-                    held.bytes == object.bytes
+                    *held.bytes == object.bytes
                         && held.metadata.storage_class.retention_rank()
                             >= object.storage_class.retention_rank(),
                     "preparation-unstated-object-binding",
@@ -1076,7 +1076,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
                         byte_len: object.bytes.len() as u64,
                         stored_at: object.stored_at,
                     },
-                    bytes: object.bytes.clone(),
+                    bytes: Arc::new(object.bytes.clone()),
                 },
             );
         }

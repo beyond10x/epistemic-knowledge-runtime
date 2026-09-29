@@ -4,6 +4,42 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.17] — 2026-09-29
+
+Reads share state instead of copying it; requests copy no retained bytes; validation scans nothing
+whole. Measured at a consumer's size (4,127 nodes, 57 commits, SQLite), CPU median inside
+`ekr session`: `resolve` 145.2 → 3.05 ms (file 90.7 → 1.31 ms); a 1,561-operation batch 3.5 → 1.6 s.
+
+### Changed
+
+- **Read verbs share the verified state instead of copying it.** `VerifiedRead` holds the kernel's
+  own graph, transaction records and seed input (`graph: Arc<CanonicalGraph>`,
+  `transactions: Arc<BTreeMap<..>>`, `seed_input: Arc<SeedDocument>`); `Runtime::transactions`
+  returns `Arc<BTreeMap<..>>`; `SchemaHistory::graph` and `ekr_views::LoadedRevision::graph` are
+  `Arc<CanonicalGraph>`. A read of an unchanged head copies none of them. Every answer is
+  byte-identical.
+- **`resolve` is a lookup.** `ekr_graph::AliasIndex` holds a graph's nodes by type and alias; the
+  kernel builds it once per head (`VerifiedRead::aliases`) and `ekr resolve` and the `resolve` MCP
+  tool answer through `ekr_integrate::resolve_indexed`, which answers exactly what
+  `ekr_integrate::resolve` answers.
+- **A request copies no retained bytes.** `RetainedObject.bytes` is `Arc<Vec<u8>>`, shared from the
+  bytes a handle verified; the seed input is assembled once per runtime and hands out the store's
+  own allocations (`SeedDocument.evidence_payloads` values are `Arc<Vec<u8>>`), and every read still
+  re-checks each held payload. Per-request cost no longer grows with seed evidence: `resolve` on a
+  store with 44 MB of evidence 96.4 → 2.0 ms (`/2`, file), 107.2 → 4.9 ms (`/2`, SQLite).
+- **Validation without whole-graph scans.** Edge cardinality counts and the alias check use indexes
+  built once per validation; refusals, codes, messages and their order are unchanged (a
+  differential over 3,000 generated transactions against 0.0.16). An edge-heavy batch at 10× a
+  consumer's size validates in 88 ms in-process instead of 3.18 s.
+
+### Known limits
+
+- A session `validate` at 10× still pays about 0.7–1 s per call outside the validators, and
+  `explain` (about 3 s at 1×) and `snapshot` (about 0.7 s) still rebuild what they answer
+  (`task:perf-audit-2026-09-29-remaining`).
+- A store handle keeps answering from verified bytes after their blob is deleted on disk
+  (`task:held-bytes-notice-deleted-blobs`).
+
 ## [0.0.16] — 2026-09-29
 
 Evidence after the seed; seed payloads out of the envelope; `ekr migrate`.

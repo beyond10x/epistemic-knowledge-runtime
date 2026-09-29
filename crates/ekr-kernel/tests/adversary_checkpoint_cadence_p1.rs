@@ -104,7 +104,7 @@ fn seed_with(evidence_bytes: &[u8]) -> SeedDocument {
         confidence: Confidence::from_basis_points(10000).unwrap(),
     };
     seed.graph.evidence.insert(evidence.id, evidence);
-    seed.evidence_payloads.insert(hash, bytes);
+    seed.evidence_payloads.insert(hash, bytes.into());
     seed
 }
 fn seed() -> SeedDocument {
@@ -201,7 +201,7 @@ fn schema(tag: u64) -> GraphTransaction {
 type Answers = (
     Option<Root>,
     CanonicalGraph,
-    BTreeMap<TransactionId, TransactionRecord>,
+    std::sync::Arc<BTreeMap<TransactionId, TransactionRecord>>,
 );
 fn answers(runtime: &Runtime) -> Answers {
     (

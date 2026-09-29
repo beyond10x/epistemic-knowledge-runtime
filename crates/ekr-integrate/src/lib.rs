@@ -39,7 +39,8 @@
 //! byte-wise and deduplicated. A refusal echoes the reference with its aliases sorted and
 //! deduplicated, an empty alias included; a proposal carries only the aliases that identify, which
 //! is every alias but the empty string. Candidates are read from the snapshot's id-ordered node
-//! map. Two permutations of one input give byte-identical outcomes.
+//! map, or looked up in an [`AliasIndex`] of it by [`resolve_indexed`], which answers exactly what
+//! [`resolve`] answers. Two permutations of one input give byte-identical outcomes.
 //!
 //! # No writer
 //!
@@ -94,8 +95,10 @@
 //! # Ok::<(), ekr_ontology::OntologyError>(())
 //! ```
 
+use std::collections::BTreeSet;
+
 use ekr_core::{NodeId, TypeId};
-use ekr_graph::GraphSnapshot;
+use ekr_graph::{AliasIndex, GraphSnapshot};
 use serde::{Deserialize, Serialize};
 
 /// A reference to a node by its type and the names it is known by, before it is resolved:
@@ -222,6 +225,50 @@ pub enum ResolutionOutcome {
 /// Resolves `reference` against `snapshot`. Reads only; see the [crate] documentation for the rule.
 #[must_use]
 pub fn resolve(snapshot: GraphSnapshot<'_>, reference: &TypedReference) -> ResolutionOutcome {
+    let graph = snapshot.graph();
+    outcome(snapshot, reference, |type_id, aliases| {
+        graph
+            .nodes
+            .values()
+            .filter(|node| node.root_id == graph.root.id && node.type_id == type_id)
+            .filter(|node| {
+                node.aliases
+                    .iter()
+                    .any(|alias| aliases.binary_search(alias).is_ok())
+            })
+            .map(|node| node.id)
+            .collect()
+    })
+}
+
+/// [`resolve`], with the candidates looked up in `index` instead of read off every node: the same
+/// outcome, at the cost of the reference's aliases rather than of the graph. `index` is
+/// [`AliasIndex::of`] the snapshot's graph; an index of any other graph answers for that graph.
+#[must_use]
+pub fn resolve_indexed(
+    snapshot: GraphSnapshot<'_>,
+    index: &AliasIndex,
+    reference: &TypedReference,
+) -> ResolutionOutcome {
+    outcome(snapshot, reference, |type_id, aliases| {
+        aliases
+            .iter()
+            .flat_map(|alias| index.nodes(type_id, alias))
+            .copied()
+            .collect::<BTreeSet<NodeId>>()
+            .into_iter()
+            .collect()
+    })
+}
+
+/// The rule, with the candidates — the snapshot's nodes of the reference's type one of whose
+/// aliases is one of the given identifying aliases (sorted, deduplicated, none empty), in id
+/// order — supplied by `candidates`.
+fn outcome(
+    snapshot: GraphSnapshot<'_>,
+    reference: &TypedReference,
+    candidates: impl FnOnce(TypeId, &[String]) -> Vec<NodeId>,
+) -> ResolutionOutcome {
     let mut aliases = reference.aliases.clone();
     aliases.sort_unstable();
     aliases.dedup();
@@ -263,17 +310,7 @@ pub fn resolve(snapshot: GraphSnapshot<'_>, reference: &TypedReference) -> Resol
         return refused(ResolutionRefusalCode::ReferenceTypeHasSubtypes);
     }
 
-    let candidates: Vec<NodeId> = graph
-        .nodes
-        .values()
-        .filter(|node| node.root_id == graph.root.id && node.type_id == reference.type_id)
-        .filter(|node| {
-            node.aliases
-                .iter()
-                .any(|alias| identifying.aliases.binary_search(alias).is_ok())
-        })
-        .map(|node| node.id)
-        .collect();
+    let candidates = candidates(identifying.type_id, &identifying.aliases);
     match candidates.as_slice() {
         [] => ResolutionOutcome::ProposeNew(identifying),
         [node_id] => ResolutionOutcome::Resolved(ResolvedReference { node_id: *node_id }),

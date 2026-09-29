@@ -83,7 +83,7 @@ fn fixture() -> SeedDocument {
     seed.graph.nodes.insert(node.id, node);
     seed.graph.assertions.insert(assertion.id, assertion);
     seed.graph.evidence.insert(evidence.id, evidence);
-    seed.evidence_payloads.insert(hash, bytes);
+    seed.evidence_payloads.insert(hash, bytes.into());
     seed
 }
 fn proposal(seed: &SeedDocument) -> (GraphTransaction, NodeId) {
@@ -791,7 +791,7 @@ fn historical_capture_stops_loading_at_the_selected_revision_and_keeps_its_conte
         let captured = kernel.read(Some(RevisionNumber::new(1))).unwrap();
         assert_eq!(captured.context, context());
         assert_eq!(captured.authority, anchor());
-        assert_eq!(captured.seed_input, seed);
+        assert_eq!(*captured.seed_input, seed);
         assert_eq!(captured.seed, initial);
         assert!(captured.graph.nodes.contains_key(&node));
         assert!(captured.revisions.contains_key(&RevisionNumber::SEED));
@@ -1362,7 +1362,7 @@ fn all_six_occurrences_refuse_readdressed_forged_and_missing_records_on_both_pro
                         let mut object = forged.objects.remove(&old).unwrap();
                         object.metadata.content_hash = hash;
                         object.metadata.byte_len = bytes.len() as u64;
-                        object.bytes = bytes;
+                        object.bytes = bytes.into();
                         forged.objects.insert(hash, object);
                         forged.occurrences.last_mut().unwrap().event.record_hash = hash;
                     }

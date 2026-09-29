@@ -77,7 +77,7 @@ fn seed() -> SeedDocument {
             confidence: Confidence::from_basis_points(10000).unwrap(),
         };
         seed.graph.evidence.insert(evidence.id, evidence);
-        seed.evidence_payloads.insert(hash, bytes);
+        seed.evidence_payloads.insert(hash, bytes.into());
     }
     seed
 }
@@ -178,15 +178,15 @@ fn build(path: &Path, file: bool) -> SeedDocument {
 fn exercise(runtime: &Runtime, seed: &SeedDocument) {
     let read = runtime.read(None).unwrap();
     assert_eq!(read.root.revision, RevisionNumber::new(1));
-    assert_eq!(read.seed_input, *seed);
+    assert_eq!(*read.seed_input, *seed);
     assert_eq!(
-        runtime.read(Some(RevisionNumber::SEED)).unwrap().seed_input,
+        *runtime.read(Some(RevisionNumber::SEED)).unwrap().seed_input,
         *seed
     );
     commit(runtime, seed, 2);
     let read = runtime.read(None).unwrap();
     assert_eq!(read.root.revision, RevisionNumber::new(2));
-    assert_eq!(read.seed_input, *seed);
+    assert_eq!(*read.seed_input, *seed);
     for (hash, bytes) in &seed.evidence_payloads {
         assert_eq!(read.content(hash), Some(bytes.as_slice()));
     }
@@ -235,7 +235,7 @@ fn a_runtime_that_writes_the_seed_decodes_the_staged_envelope_once() {
             .seed(seed.clone(), || Timestamp::from_millis(10))
             .unwrap();
         commit(&runtime, &seed, 1);
-        assert_eq!(runtime.read(None).unwrap().seed_input, seed);
+        assert_eq!(*runtime.read(None).unwrap().seed_input, seed);
         // The replay that admits the publication decodes the staged bytes, not the envelope
         // the handle built in memory (invariant 1); every later path takes that decode.
         assert_eq!(runtime.seed_envelope_decodes(), 1, "file={file}");

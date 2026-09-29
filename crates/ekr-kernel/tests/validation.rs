@@ -784,6 +784,162 @@ fn a_created_node_does_not_take_an_alias_its_type_already_identifies() {
     );
 }
 
+/// `story:validation-without-whole-graph-scans`: every alias and edge-cardinality refusal of one
+/// batch, pinned whole — validator, code and message, in the order raised.
+///
+/// The two checks stopped scanning the whole graph per created node and edge; what they say did
+/// not change. So this batch carries each thing the scans decided implicitly:
+///
+/// * the holder an `alias-already-exists` names is the lowest node id of the root and the type
+///   that holds the alias — a lower id in another root is not it;
+/// * a `CreateNode` repeating an alias is refused twice, held and duplicated, in that order, and
+///   its aliases are taken in sorted order;
+/// * an edge count is the graph as it would be if the transaction committed: every created edge
+///   in, a deleted one out, and an edge id created twice counted once, under the source of its
+///   last `CreateEdge`;
+/// * the edges a refusal lists are the ones that leave that source by that type, in id order.
+#[test]
+fn every_alias_and_edge_count_refusal_of_one_batch_keeps_its_message_and_order() {
+    let mut world = World::new();
+    let id = |text: &str| -> NodeId { text.parse().unwrap() };
+    let edge = |text: &str| -> EdgeId { text.parse().unwrap() };
+    let (foreign, twin) = (
+        id("00000000-0000-4000-8000-000000000001"),
+        id("00000000-0000-4000-8000-000000000002"),
+    );
+    let (a, b) = (
+        id("00000000-0000-4000-8000-0000000000a1"),
+        id("00000000-0000-4000-8000-0000000000b2"),
+    );
+    let [e1, e2, e3, e4, e5] = [
+        "00000000-0000-4000-8000-0000000000e5",
+        "00000000-0000-4000-8000-0000000000e4",
+        "00000000-0000-4000-8000-0000000000e3",
+        "00000000-0000-4000-8000-0000000000e2",
+        "00000000-0000-4000-8000-0000000000e1",
+    ]
+    .map(edge);
+
+    world.graph.nodes.get_mut(&world.open).unwrap().aliases = vec!["eventlog".to_owned()];
+    let mut twin_node = Node::new(twin, world.root_id, world.decision, "Eventlog, again");
+    twin_node.aliases = vec!["eventlog".to_owned()];
+    world.graph.nodes.insert(twin, twin_node);
+    let mut foreign_node = Node::new(foreign, GraphRootId::mint(), world.decision, "Elsewhere");
+    foreign_node.aliases = vec!["eventlog".to_owned()];
+    world.graph.nodes.insert(foreign, foreign_node);
+
+    let aliased = |id: NodeId, aliases: &[&str]| {
+        let mut draft = world.draft(id, "A decision named twice");
+        draft.aliases = aliases.iter().map(|a| (*a).to_owned()).collect();
+        GraphOperation::CreateNode(draft)
+    };
+    let depends = |id: EdgeId, source: NodeId, target: NodeId| {
+        GraphOperation::CreateEdge(EdgeDraft {
+            id,
+            root_id: world.root_id,
+            type_id: world.depends_on,
+            source,
+            target,
+            properties: BTreeMap::new(),
+        })
+    };
+    let issues = refuse(
+        &world,
+        vec![
+            aliased(a, &["membrane", "eventlog"]),
+            aliased(b, &["eventlog", "", "membrane"]),
+            depends(e1, world.open, world.decided),
+            depends(e2, a, world.decided),
+            depends(e3, a, b),
+            depends(e4, b, world.decided),
+            GraphOperation::DeleteEdge(e4),
+            depends(e5, world.open, world.decided),
+            depends(e5, world.decided, world.open),
+        ],
+    );
+
+    let listed = |edges: &[EdgeId]| {
+        edges
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>()
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+    };
+    let held = |node: NodeId| {
+        format!(
+            "node {node} is created with alias \"eventlog\", which node {twin} of the same type \
+             {} already holds; resolve the reference and use that node",
+            world.decision
+        )
+    };
+    let twice = |alias: &str| {
+        format!(
+            "alias {alias:?} of type {} is given to more than one node this transaction creates; \
+             one alias identifies one node of a type",
+            world.decision
+        )
+    };
+    let count = |source: NodeId, edges: &[EdgeId]| {
+        format!(
+            "depends_on is One and node {source} would have {} edges of it: {:?}",
+            edges.len(),
+            listed(edges)
+        )
+    };
+    let expected = vec![
+        (
+            ValidatorName::Structural,
+            "duplicate-identity",
+            format!("edge {e5} is created twice by one transaction"),
+        ),
+        (ValidatorName::Structural, "alias-already-exists", held(a)),
+        (ValidatorName::Structural, "alias-already-exists", held(b)),
+        (
+            ValidatorName::Structural,
+            "duplicate-alias",
+            twice("eventlog"),
+        ),
+        (
+            ValidatorName::Structural,
+            "duplicate-alias",
+            twice("membrane"),
+        ),
+        (
+            ValidatorName::Cardinality,
+            "edge-cardinality",
+            count(world.open, &[world.existing_edge, e1]),
+        ),
+        (
+            ValidatorName::Cardinality,
+            "edge-cardinality",
+            count(a, &[e2, e3]),
+        ),
+        (
+            ValidatorName::Cardinality,
+            "edge-cardinality",
+            count(a, &[e2, e3]),
+        ),
+        (
+            ValidatorName::Cardinality,
+            "edge-cardinality",
+            count(world.open, &[world.existing_edge, e1]),
+        ),
+    ];
+    let raised: Vec<_> = issues
+        .iter()
+        .map(|issue| (issue.validator, issue.code.as_str(), issue.message.clone()))
+        .collect();
+    assert_eq!(
+        raised,
+        expected
+            .iter()
+            .map(|(validator, code, message)| (*validator, *code, message.clone()))
+            .collect::<Vec<_>>()
+    );
+}
+
 /// A type the ontology already declares is not declared a second time.
 ///
 /// The fourth and fifth members of the identity class, and the last two: `ekr.kernel.OperationKind`

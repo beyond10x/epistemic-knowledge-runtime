@@ -100,7 +100,7 @@ fn seed_with(payload: &[u8], evidence_id: u64) -> SeedDocument {
     document.graph.evidence.insert(evidence.id, evidence);
     document
         .evidence_payloads
-        .insert(ContentHash::of_bytes(payload), payload.to_vec());
+        .insert(ContentHash::of_bytes(payload), payload.to_vec().into());
     document
 }
 

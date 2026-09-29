@@ -289,7 +289,7 @@ pub fn seed_v2(
     for (hash, payload) in &document.evidence_payloads {
         objects
             .entry(*hash)
-            .or_insert_with(|| object(StorageClass::Provenance, payload.clone()));
+            .or_insert_with(|| object(StorageClass::Provenance, payload.to_vec()));
     }
     let decision = Publication {
         event: RevisionEvent {

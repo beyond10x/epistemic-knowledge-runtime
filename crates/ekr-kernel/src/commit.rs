@@ -17,7 +17,12 @@ pub struct KernelAuthority {
     pub(crate) anchor: AuthorityStateV1,
     /// Verified replay states this authority reached, shared by every clone of it.
     pub(crate) cache: std::sync::Arc<std::sync::Mutex<crate::replay::ReplayCache>>,
+    /// The seed input this authority assembled from verified retained bytes, by the seed
+    /// envelope's address, shared by every clone of it and every read that returns it.
+    pub(crate) seed_input: std::sync::Arc<std::sync::Mutex<Option<HeldSeedInput>>>,
 }
+/// A seed input assembled from verified retained bytes, with the seed envelope address it is for.
+type HeldSeedInput = (ContentHash, Arc<SeedDocument>);
 impl CommitAuthority for KernelAuthority {
     /// The seed envelope's evidence payloads, and the payload of every evidence entry a committed
     /// `AddEvidence` brought: what a verified read, `explain` and replay read by content hash.
@@ -204,13 +209,48 @@ impl KernelAuthority {
         if let Some(held) = self.held_envelope(seed_hash)? {
             return Ok(held);
         }
-        let decoded = seed::envelope(bytes);
+        let decoded = seed::envelope(bytes).map(|mut envelope| {
+            // A carried payload is held as the retained object's allocation, not the decode's.
+            envelope.input.share_retained(history);
+            envelope
+        });
         let mut cache = self.cache()?;
         cache.envelope_decodes += 1;
         let envelope = Arc::new(decoded?);
         // Only an envelope decoded from verified retained bytes is ever held.
         cache.envelope = Some((seed_hash, Arc::clone(&envelope)));
         Ok(envelope)
+    }
+    /// The complete seed input `envelope`, the seed envelope `history` retains at `seed_hash`,
+    /// holds: assembled at most once by this authority, and shared, not copied, by every read
+    /// after.
+    ///
+    /// It is a function of that envelope's verified bytes and of the payloads it names, each
+    /// verified against its own address, so assembling it again would only copy the same bytes.
+    /// Every call still requires and checks each payload `history` must hold for it, in the order
+    /// and with the refusals assembling it would meet (`RetainedSeedInput::check_held`).
+    pub(crate) fn seed_document(
+        &self,
+        history: &RetainedHistory,
+        seed_hash: ContentHash,
+        envelope: &SeedEnvelope,
+    ) -> Result<Arc<SeedDocument>, StoreError> {
+        let poisoned = || StoreError::Document("seed-input-cache-poisoned".into());
+        let held = self
+            .seed_input
+            .lock()
+            .map_err(|_| poisoned())?
+            .as_ref()
+            .filter(|(held, _)| *held == seed_hash)
+            .map(|(_, document)| Arc::clone(document));
+        if let Some(document) = held {
+            envelope.input.check_held(history)?;
+            return Ok(document);
+        }
+        let document = Arc::new(envelope.input.document(history)?);
+        // Only an input assembled from verified retained bytes is ever held.
+        *self.seed_input.lock().map_err(|_| poisoned())? = Some((seed_hash, Arc::clone(&document)));
+        Ok(document)
     }
     /// The evidence payloads the seed envelope at `seed_hash` holds, and whether it names them
     /// rather than carrying them. The envelope is content-addressed, so its admission and its
@@ -385,6 +425,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             context,
             anchor,
             cache: std::sync::Arc::default(),
+            seed_input: std::sync::Arc::default(),
         };
         let store = open(authority.clone())?;
         Ok(Self { store, authority })
@@ -520,7 +561,7 @@ impl<S: RevisionLog + ObjectStore + Initialize> Commit<S> {
             objects.entry(*hash).or_insert_with(|| PublicationObject {
                 storage_class: StorageClass::Provenance,
                 stored_at: committed_at,
-                bytes: payload.clone(),
+                bytes: payload.to_vec(),
             });
         }
         let publication = Publication {

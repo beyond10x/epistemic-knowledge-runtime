@@ -8,6 +8,9 @@
 //! through the public kernel `Runtime` opened on the same store, and the store's head and published
 //! event count are read the same way before the server starts and after it is stopped.
 
+#[path = "support/rust_source.rs"]
+mod rust_source;
+
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
 use std::path::PathBuf;
@@ -792,4 +795,51 @@ fn ekr_view_has_no_option_that_binds_another_address() {
         })
         .collect();
     assert_eq!(own, ["--port"], "{help}");
+}
+
+/// Every `.rs` file at or below `directory`, with its text.
+fn rust_files(directory: &std::path::Path) -> Vec<(PathBuf, String)> {
+    let mut found = Vec::new();
+    for entry in std::fs::read_dir(directory).expect("a source directory") {
+        let path = entry.expect("a directory entry").path();
+        if path.is_dir() {
+            found.extend(rust_files(&path));
+        } else if path.extension().is_some_and(|extension| extension == "rs") {
+            let text = std::fs::read_to_string(&path).expect("a source file");
+            found.push((path, text));
+        }
+    }
+    found
+}
+
+/// No read route of the binary or of the views copies the head graph: each reads it through the
+/// kernel's shared verified read (`Runtime::read`, `Runtime::schema_history`), whose sharing
+/// `crates/ekr-kernel/tests/verified_read.rs::read_verbs_copy_no_transaction_record_and_no_graph`
+/// counts. `Runtime::snapshot()` hands back a copy of the whole head graph on every call, so a
+/// route calling it copies the graph per request; this case finds each such call in product
+/// source. It is a lexical tripwire: comments and string literals do not count, and a call
+/// written through another name for the same method would not be found.
+#[test]
+fn no_read_route_copies_the_head_graph_through_runtime_snapshot() {
+    let crates = manifest_dir().join("..");
+    let mut sources = rust_files(&crates.join("ekr/src"));
+    sources.extend(rust_files(&crates.join("ekr-views/src")));
+    assert!(
+        sources.len() > 10,
+        "the source scan found too few files: {}",
+        sources.len()
+    );
+    let copying: Vec<String> = sources
+        .iter()
+        .filter(|(_, text)| {
+            rust_source::tokens(text)
+                .windows(4)
+                .any(|call| call == [".", "snapshot", "(", ")"])
+        })
+        .map(|(path, _)| path.display().to_string())
+        .collect();
+    assert!(
+        copying.is_empty(),
+        "read routes that copy the head graph through `Runtime::snapshot()`: {copying:?}"
+    );
 }

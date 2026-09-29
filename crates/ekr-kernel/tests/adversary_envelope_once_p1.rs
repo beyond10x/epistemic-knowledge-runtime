@@ -97,7 +97,7 @@ fn fixture() -> (SeedDocument, ContentHash, AssertionId) {
     seed.graph.nodes.insert(node.id, node);
     seed.graph.assertions.insert(assertion.id, assertion);
     seed.graph.evidence.insert(evidence.id, evidence);
-    seed.evidence_payloads.insert(hash, bytes);
+    seed.evidence_payloads.insert(hash, bytes.into());
     (seed, hash, id)
 }
 
@@ -295,7 +295,13 @@ fn retained(bytes: Vec<u8>, like: &RetainedObject) -> (ContentHash, RetainedObje
     let mut metadata = like.metadata.clone();
     metadata.content_hash = hash;
     metadata.byte_len = bytes.len() as u64;
-    (hash, RetainedObject { metadata, bytes })
+    (
+        hash,
+        RetainedObject {
+            metadata,
+            bytes: bytes.into(),
+        },
+    )
 }
 
 /// A seed-only lineage whose envelope names its one evidence payload by the right address but

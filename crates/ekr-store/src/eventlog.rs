@@ -131,10 +131,11 @@ struct HeldObject {
     bytes: Arc<Vec<u8>>,
 }
 impl HeldObject {
+    /// The object as a history holds it: these very bytes, shared, never a copy of them.
     fn retained(&self) -> RetainedObject {
         RetainedObject {
             metadata: self.metadata.clone(),
-            bytes: Vec::clone(&self.bytes),
+            bytes: Arc::clone(&self.bytes),
         }
     }
 }
@@ -807,7 +808,7 @@ impl<S: EventStore> EventlogStore<S> {
             .into_iter()
             .map(|(hash, object, _)| (hash, object))
             .collect();
-        self.remember_verified(&read)?;
+        let read = self.remember_verified(read)?;
         self.refresh_verified(&refreshed)?;
         let mut read = read
             .into_iter()
@@ -911,23 +912,30 @@ impl<S: EventStore> EventlogStore<S> {
             .collect())
     }
     /// Keeps objects [`retained_object`] checked, and registers their bytes as verified for the
-    /// process while this handle keeps them.
-    fn remember_verified(&self, read: &[(ContentHash, CheckedObject)]) -> Result<(), StoreError> {
+    /// process while this handle keeps them. Returns them holding the kept bytes, so that the read
+    /// that loaded them shares them with every later read, as later reads share them.
+    fn remember_verified(
+        &self,
+        read: Vec<(ContentHash, CheckedObject)>,
+    ) -> Result<Vec<(ContentHash, CheckedObject)>, StoreError> {
         let mut held = self
             .verified
             .lock()
             .map_err(|_| StoreError::Document("verified-object-memo-poisoned".into()))?;
-        for (hash, CheckedObject(object)) in read {
-            let bytes = crate::verified::register(*hash, &object.bytes);
-            held.insert(
-                *hash,
-                HeldObject {
-                    metadata: object.metadata.clone(),
-                    bytes,
-                },
-            );
-        }
-        Ok(())
+        Ok(read
+            .into_iter()
+            .map(|(hash, CheckedObject(mut object))| {
+                object.bytes = crate::verified::register(hash, object.bytes);
+                held.insert(
+                    hash,
+                    HeldObject {
+                        metadata: object.metadata.clone(),
+                        bytes: Arc::clone(&object.bytes),
+                    },
+                );
+                (hash, CheckedObject(object))
+            })
+            .collect())
     }
     /// Records the retention class a stream re-read found for objects this handle holds.
     fn refresh_verified(&self, read: &[(ContentHash, CheckedObject)]) -> Result<(), StoreError> {
@@ -1160,7 +1168,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         let (expected, event) = if let Some((CheckedObject(held), version)) =
             self.object_versioned(hash)?
         {
-            if held.bytes != object.bytes {
+            if *held.bytes != object.bytes {
                 return Err(StoreError::Document("object-address-collision".into()));
             }
             if held.metadata.storage_class.retention_rank() >= object.storage_class.retention_rank()
@@ -1294,7 +1302,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
                         byte_len: object.bytes.len() as u64,
                         stored_at: object.stored_at,
                     },
-                    bytes: object.bytes.clone(),
+                    bytes: Arc::new(object.bytes.clone()),
                 };
                 if let Some(prior) = history.objects.get(hash) {
                     if prior.bytes != held.bytes {
@@ -1619,15 +1627,16 @@ impl<S: AtomicBlobEventStore> ObjectStore for EventlogStore<S> {
             self.confirm_held(&self.revision_stream()?, &mut held)?;
         }
         if let Some(held) = self.verified_objects(&[*hash])?.remove(hash) {
-            return Ok(Some(held.bytes));
+            return Ok(Some(held.bytes.to_vec()));
         }
         let Some((checked, _)) = self.object_versioned(*hash)? else {
             return Ok(None);
         };
-        let read = [(*hash, checked)];
-        self.remember_verified(&read)?;
-        let [(_, CheckedObject(object))] = read;
-        Ok(Some(object.bytes))
+        let read = self.remember_verified(vec![(*hash, checked)])?;
+        Ok(read
+            .into_iter()
+            .next()
+            .map(|(_, CheckedObject(object))| object.bytes.to_vec()))
     }
 }
 /// A stream read in progress: what it has accepted so far and where the next slice starts.
@@ -1744,14 +1753,16 @@ fn retained_object(
     })
 }
 /// [`retained_object`]'s checks of a stream, its metadata and `bytes`, however the bytes were
-/// obtained; `addressed` says whether they are the payload `hash` addresses.
+/// obtained; `addressed` says whether they are the payload `hash` addresses. Bytes read from the
+/// provider move into the shared allocation every later read holds; held bytes stay where they are.
 fn checked_object(
     hash: ContentHash,
     events: &[RecordedEvent],
     mut meta: ObjectMetadata,
-    bytes: Vec<u8>,
+    bytes: impl Into<Arc<Vec<u8>>>,
     addressed: impl FnOnce(&[u8]) -> bool,
 ) -> Result<(CheckedObject, u64), StoreError> {
+    let bytes = bytes.into();
     let later = events.get(1..).unwrap_or_default();
     if meta.content_hash != hash || meta.byte_len != bytes.len() as u64 || !addressed(&bytes) {
         return Err(StoreError::Document(

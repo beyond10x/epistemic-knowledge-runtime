@@ -9,11 +9,11 @@ use ekr_core::{
     AgentId, Canonical, ContentHash, Encoder, EventId, IssueId, RevisionId, RevisionNumber,
     Timestamp, TransactionId,
 };
-use ekr_graph::{CanonicalValue, GraphSnapshot, RevisionPayload};
+use ekr_graph::{AliasIndex, CanonicalValue, GraphSnapshot, RevisionPayload};
 use ekr_store::{AdmittedRevision, RecordedOccurrence, RetainedHistory, StorageClass, StoreError};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 /// Actual retained transaction lifecycle, independent of provider stream position.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -67,12 +67,13 @@ impl TransactionRecord {
 /// The state a complete verified replay reaches after some prefix of the revision stream.
 ///
 /// Cloning is cheap where it matters: every admitted revision, parsed document and sealed
-/// validation is shared, and only the retained records themselves are copied.
+/// validation is shared, and so are the retained records until a replay extending the clone
+/// changes one ([`Self::transactions_mut`]). A read shares them and never copies them.
 #[derive(Clone)]
 pub(crate) struct ReplayState {
     pub(crate) seed: SeedResultV1,
     pub(crate) revisions: BTreeMap<RevisionNumber, Revision>,
-    pub(crate) transactions: BTreeMap<TransactionId, TransactionRecord>,
+    pub(crate) transactions: Arc<BTreeMap<TransactionId, TransactionRecord>>,
     pub(crate) version: u64,
     /// The prefix digest of the occurrences this state covers, when replay computed it.
     pub(crate) digest: Option<ContentHash>,
@@ -163,6 +164,10 @@ impl ReplayState {
             .expect("state is constructed with verified seed")
             .1
     }
+    /// The retained records to change, copied first only if another state still shares them.
+    pub(crate) fn transactions_mut(&mut self) -> &mut BTreeMap<TransactionId, TransactionRecord> {
+        Arc::make_mut(&mut self.transactions)
+    }
     /// The retained proposal's parsed document, or a fresh parse of its verified bytes.
     pub(crate) fn document(
         &self,
@@ -222,6 +227,10 @@ pub(crate) struct ReplayCache {
     /// address. It is a function of that address, so every path that verified the retained bytes
     /// at the same address takes it instead of decoding them again.
     pub(crate) envelope: Option<(ContentHash, Arc<crate::seed::SeedEnvelope>)>,
+    /// The cell holding the [`AliasIndex`] of the newest head a read captured, by that head's
+    /// revision identity and root. One slot: a read of a newer head replaces it, so this
+    /// authority keeps the index of no head but the current one.
+    pub(crate) aliases: Option<(RevisionId, ekr_graph::Root, AliasCell)>,
     /// The retained replay checkpoint this authority knows of — the one it admitted, or the last
     /// it wrote — as the occurrences it covers and its head revision; `None` before either. What
     /// decides whether a commit writes the next one (design § 99).
@@ -237,8 +246,26 @@ pub(crate) struct ReplayCache {
     /// which it stops asking for the migration markers: a store with a history never gains one.
     pub(crate) migration_settled: bool,
 }
+/// Where one head's [`AliasIndex`] is built, by the first read that asks for it.
+pub(crate) type AliasCell = Arc<OnceLock<Arc<AliasIndex>>>;
 impl ReplayCache {
     const CAPACITY: usize = 4;
+    /// The alias-index cell of the head `revision_id` with `root`: the held one when it is that
+    /// head's, and otherwise a new one, which replaces it.
+    pub(crate) fn alias_cell(
+        &mut self,
+        revision_id: RevisionId,
+        root: ekr_graph::Root,
+    ) -> AliasCell {
+        match &self.aliases {
+            Some((held, at, cell)) if *held == revision_id && *at == root => Arc::clone(cell),
+            _ => {
+                let cell = AliasCell::default();
+                self.aliases = Some((revision_id, root, Arc::clone(&cell)));
+                cell
+            }
+        }
+    }
     /// The longest cached prefix of the history whose digests are `digests`.
     pub(crate) fn longest(&self, digests: &[ContentHash]) -> Option<(usize, Arc<ReplayState>)> {
         self.entries
@@ -515,7 +542,7 @@ impl KernelAuthority {
                 issue_ids: BTreeSet::new(),
                 seed: seed_result,
                 revisions: BTreeMap::from([(RevisionNumber::SEED, Revision::replayed(seed))]),
-                transactions: BTreeMap::new(),
+                transactions: Arc::default(),
                 documents: BTreeMap::new(),
                 validated: BTreeMap::new(),
                 version: first.version,
@@ -564,7 +591,7 @@ impl KernelAuthority {
                         "transaction-identity-reused",
                     )?;
                     state.documents.insert(transaction_id, Arc::new(document));
-                    state.transactions.insert(
+                    state.transactions_mut().insert(
                         transaction_id,
                         TransactionRecord {
                             proposal: record,
@@ -618,7 +645,7 @@ impl KernelAuthority {
                     state.validated.insert(transaction_id, Arc::new(validated));
                     state.note_basis(occurrence.version, against);
                     let tx = state
-                        .transactions
+                        .transactions_mut()
                         .get_mut(&transaction_id)
                         .expect("verified transaction");
                     tx.validation = Some(record);
@@ -674,7 +701,7 @@ impl KernelAuthority {
                     let basis = record.requested_basis.previous_root.revision;
                     state.note_basis(occurrence.version, basis);
                     state
-                        .transactions
+                        .transactions_mut()
                         .get_mut(&transaction_id)
                         .expect("verified transaction")
                         .rejection = Some(record);
@@ -799,7 +826,7 @@ impl KernelAuthority {
                     state.validated.remove(&transaction_id);
                     state.documents.remove(&transaction_id);
                     state
-                        .transactions
+                        .transactions_mut()
                         .get_mut(&transaction_id)
                         .expect("verified transaction")
                         .committed = Some(record);
@@ -835,7 +862,7 @@ impl KernelAuthority {
                         "stale-record-disagrees",
                     )?;
                     state
-                        .transactions
+                        .transactions_mut()
                         .get_mut(&transaction_id)
                         .expect("verified transaction")
                         .stale = Some(record);

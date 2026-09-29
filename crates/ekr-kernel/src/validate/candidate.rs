@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use ekr_core::{EdgeId, NodeId, PropertyId, TypeId};
-use ekr_graph::GraphSnapshot;
+use ekr_graph::{CanonicalGraph, GraphSnapshot};
 
 use crate::transaction::{GraphOperation, GraphTransaction};
 
@@ -14,18 +14,22 @@ pub(super) struct Edge {
 }
 
 /// Only the indexes validators need, derived by creation first and deletion last.
-pub(super) struct Candidate {
+pub(super) struct Candidate<'g> {
+    /// The canonical state the operation set applies to.
+    basis: &'g CanonicalGraph,
     pub(super) nodes: BTreeMap<NodeId, TypeId>,
     pub(super) edges: BTreeMap<EdgeId, Edge>,
-    /// Deletion targets may be created and cancelled in the same atomic transaction.
-    pub(super) available_edges: BTreeSet<EdgeId>,
+    /// The edges the operation set creates; see [`Candidate::available`].
+    created_edges: BTreeSet<EdgeId>,
+    /// The value count of each property of each node the operation set creates or updates.
     pub(super) property_counts: BTreeMap<NodeId, BTreeMap<PropertyId, usize>>,
 }
 
-impl Candidate {
-    pub(super) fn of(snapshot: &GraphSnapshot<'_>, proposal: &GraphTransaction) -> Self {
+impl<'g> Candidate<'g> {
+    pub(super) fn of(snapshot: &GraphSnapshot<'g>, proposal: &GraphTransaction) -> Self {
         let graph = snapshot.graph();
         let mut result = Self {
+            basis: graph,
             nodes: graph
                 .nodes
                 .iter()
@@ -44,20 +48,10 @@ impl Candidate {
                     )
                 })
                 .collect(),
-            available_edges: BTreeSet::new(),
-            property_counts: graph
-                .nodes
-                .iter()
-                .map(|(id, node)| {
-                    (
-                        *id,
-                        node.properties
-                            .iter()
-                            .map(|(property, values)| (*property, values.len()))
-                            .collect(),
-                    )
-                })
-                .collect(),
+            created_edges: BTreeSet::new(),
+            // Only a created node's counts are ever read, and creating a node replaces whatever
+            // canonical state held under its id, so canonical state's counts are not copied.
+            property_counts: BTreeMap::new(),
         };
         for operation in &proposal.operations {
             match operation {
@@ -73,6 +67,7 @@ impl Candidate {
                     );
                 }
                 GraphOperation::CreateEdge(draft) => {
+                    result.created_edges.insert(draft.id);
                     result.edges.insert(
                         draft.id,
                         Edge {
@@ -84,7 +79,6 @@ impl Candidate {
                 _ => {}
             }
         }
-        result.available_edges.extend(result.edges.keys().copied());
         for operation in &proposal.operations {
             match operation {
                 GraphOperation::DeleteEdge(id) => {
@@ -103,6 +97,27 @@ impl Candidate {
         result
     }
 
+    /// Whether `edge` is there to delete: canonical state holds it or the operation set creates
+    /// it, since a deletion target may be created and cancelled in the same atomic transaction.
+    pub(super) fn available(&self, edge: &EdgeId) -> bool {
+        self.basis.edges.contains_key(edge) || self.created_edges.contains(edge)
+    }
+
+    /// How many edges of each type leave each source once the operation set applies: one pass
+    /// over [`Candidate::edges`], so a validator asking about many created edges reads the graph
+    /// once rather than once per edge. An edge id created twice is counted once, under the source
+    /// and type of the `CreateEdge` that applied last, and a deleted edge is not counted, exactly
+    /// as [`Candidate::outgoing`] lists them.
+    pub(super) fn outgoing_counts(&self) -> BTreeMap<(NodeId, TypeId), usize> {
+        let mut counts = BTreeMap::new();
+        for edge in self.edges.values() {
+            *counts.entry((edge.source, edge.type_id)).or_insert(0) += 1;
+        }
+        counts
+    }
+
+    /// The edges of `type_id` that leave `source`, in id order: a whole-graph scan, for the
+    /// message of a refusal that has already been decided by [`Candidate::outgoing_counts`].
     pub(super) fn outgoing(&self, source: NodeId, type_id: TypeId) -> BTreeSet<EdgeId> {
         self.edges
             .iter()

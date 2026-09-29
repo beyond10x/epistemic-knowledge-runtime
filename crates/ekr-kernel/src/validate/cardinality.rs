@@ -51,6 +51,8 @@ impl Validator for Cardinality {
         let ontology = &graph.graph().ontology;
         let candidate = Candidate::of(graph, tx);
         let nodes = &candidate.nodes;
+        // Counted once, on the first `CreateEdge` of a declared type, and read by every one.
+        let mut outgoing = None;
         let mut issues = Vec::new();
 
         for operation in &tx.operations {
@@ -96,8 +98,14 @@ impl Validator for Cardinality {
                         let count = draft.properties.get(property).map_or(0, Vec::len);
                         count_property(tx, definition, *property, count, &mut issues);
                     }
-                    let out = candidate.outgoing(draft.source, draft.type_id);
-                    if !declared.cardinality.permits(out.len()) {
+                    let count = outgoing
+                        .get_or_insert_with(|| candidate.outgoing_counts())
+                        .get(&(draft.source, draft.type_id))
+                        .copied()
+                        .unwrap_or(0);
+                    if !declared.cardinality.permits(count) {
+                        // Only a refusal lists the edges, so only a refusal scans for them.
+                        let out = candidate.outgoing(draft.source, draft.type_id);
                         issues.push(issue(
                             tx,
                             ValidatorName::Cardinality,

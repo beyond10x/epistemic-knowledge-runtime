@@ -212,11 +212,14 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             .reconstruct_in_full(&history)?
             .ok_or(CommitError::NotSeeded)
     }
-    /// Captures all actual retained transaction records, including terminal decisions.
+    /// Captures all actual retained transaction records, including terminal decisions: the
+    /// records the verified state holds, shared rather than copied.
     /// # Errors
     /// Missing initialization or invalid required history.
-    pub fn transactions(&self) -> Result<BTreeMap<TransactionId, TransactionRecord>, CommitError> {
-        Ok(std::sync::Arc::unwrap_or_clone(self.read_state()?).transactions)
+    pub fn transactions(
+        &self,
+    ) -> Result<std::sync::Arc<BTreeMap<TransactionId, TransactionRecord>>, CommitError> {
+        Ok(std::sync::Arc::clone(&self.read_state()?.transactions))
     }
     /// Retains exact input bytes under a trusted registered submitter.
     /// # Errors

@@ -198,7 +198,8 @@ pub(super) fn type_id(text: &str) -> Result<TypeId, String> {
         .map_err(|e| format!("type_id {text:?} is not an id: {e}"))
 }
 
-/// Captures the requested (or newest) revision once and resolves `reference` against it. A
+/// Captures the requested (or newest) revision once and resolves `reference` against it, looking
+/// its aliases up in the capture's alias index, which the kernel builds once per revision. A
 /// refused reference is the named refusal of its code (exit 2); every other outcome is printed.
 pub(super) fn run(
     runtime: &Runtime,
@@ -206,7 +207,8 @@ pub(super) fn run(
     at: Option<u64>,
 ) -> Result<ResolutionOutcome, Failure> {
     let read = runtime.read(at.map(RevisionNumber::new))?;
-    match ekr_integrate::resolve(GraphSnapshot::of(&read.graph), reference) {
+    match ekr_integrate::resolve_indexed(GraphSnapshot::of(&read.graph), &read.aliases(), reference)
+    {
         ResolutionOutcome::Refused(refusal) => Err(refused(&refusal, read.graph.revision)),
         outcome => Ok(outcome),
     }

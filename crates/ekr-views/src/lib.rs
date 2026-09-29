@@ -54,6 +54,7 @@ pub use query::{
 pub use timeline::{BucketWidth, SubjectsTimelined, TimelineRequest, TIMELINE_FORMAT};
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 use ekr_core::{ContentHash, RevisionNumber, SchemaVersionId, Timestamp, TransactionId};
 use ekr_graph::CanonicalGraph;
@@ -170,8 +171,9 @@ pub struct LoadedRevisionEntry {
 /// a later commit does not change what a revision loads to.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LoadedRevision {
-    /// Canonical state as of the projected revision.
-    pub graph: CanonicalGraph,
+    /// Canonical state as of the projected revision: the kernel's verified graph, shared with it
+    /// rather than copied from it.
+    pub graph: Arc<CanonicalGraph>,
     /// Every revision from the seed through the projected one, ascending.
     pub revisions: Vec<LoadedRevisionEntry>,
     /// The ontology of every schema version some listed revision is valid against, with the
