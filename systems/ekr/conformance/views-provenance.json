@@ -28,6 +28,7 @@
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-cursor-pages-a-neighbourhood-to-its-end.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-cursor-pages-the-changes-to-their-end.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-node-is-not-found-at-a-revision-before-it-existed.yaml",
+    "crates/ekr-views/tests/fixtures/conformance/scenarios/a-quality-report-counts-evidence-constraints-and-shared-names.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-retracted-assertion-is-projected-with-its-lifecycle.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-revision-beyond-the-head-is-refused.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-revision-since-lists-the-changes-after-it.yaml",
@@ -44,6 +45,7 @@
     "crates/ekr-views/tests/fixtures/conformance/scenarios/an-overview-lists-at-most-its-limit-of-top-nodes.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/an-unknown-seed-is-refused-by-name.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/changes-refuse-a-malformed-since-and-each-bound.yaml",
+    "crates/ekr-views/tests/fixtures/conformance/scenarios/code-names-reports-each-planted-name-and-no-id-or-vocabulary.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/seeded-evidence-is-projected-as-retained.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/the-edge-limit-cuts-a-page-between-a-node-and-its-edges.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/the-overview-derives-roles-and-timeline-from-valid-time.yaml"

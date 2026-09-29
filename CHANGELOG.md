@@ -4,6 +4,50 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.21] — 2026-09-30
+
+A store's quality, its rejections and the store names a consumer's code quotes are reads; the SDK's
+`close()` reports why a session failed at its end.
+
+### Added
+
+- **`ekr code-names <file>...` reports the store's names a consumer's code quotes**
+  (`docs/cli.md`, `ekr code-names`). Every literal in the given source files — text between two
+  `"`, `'` or backtick quotes on one line — that equals a node or edge type's name, a property's
+  name, or a node's canonical name or alias is listed in one `ekr.code-names/1` document with its
+  file, line, column and every name it equals. A name that is also the runtime's own vocabulary
+  (the field names, enum variants and union tags of its specification) is reported flagged
+  `runtime_word` and counted in `meta.runtime_word_findings`; the text of a store id is never
+  reported. The verb reads only, exits 0 whatever it finds and puts the count in `meta.findings`;
+  `ekr session` serves it, and `ekr-views` exposes it as `find_code_names`.
+- **`ekr quality` reports a store's quality beyond its size** (`docs/cli.md`, `ekr quality`):
+  the `ekr.store-quality/1` document of the head or of `--revision N`, a one-shot verb and an
+  `ekr session` verb. It counts the active assertions with evidence and with evidence an
+  `AddEvidence` added after the seed, the property declarations that declare a constraint, and
+  every name two or more nodes of one type share, listed with the type and the nodes. Each
+  figure comes with its count and, where it has a whole, a share in basis points. It reads one
+  revision only, so two reads of that revision print the same bytes. Refused transactions and
+  open ambiguities are not part of it. Specified as `ekr.views.ReportStoreQuality` in
+  `systems/ekr/domains/views.yaml`, with `ekr_views::report_quality` in the library.
+- **`ekr rejections` reads the validation findings of rejected transactions** (`docs/cli.md`,
+  `ekr rejections`). It prints one `ekr.rejections/1` document: each rejected transaction with
+  the issues its rejection recorded (validator, code, message), keyed on the revision it was
+  validated against, for a range `--from N --to M` of those revisions. Committed transactions
+  carry no findings and never appear. Two reads of one range print the same bytes, before and
+  after a later commit. `ekr session` serves it too. The document and its view
+  `ekr.kernel.Rejections` are specified in `systems/ekr/domains/kernel.yaml`, and a kernel
+  conformance scenario holds it on both providers.
+
+### Changed
+
+- **Breaking: `ProcessSession::close()` returns `Result<(), TransportError>`**, no longer
+  `Result<ExitStatus, TransportError>` (`docs/sdk.md`, "Failure, the latch and cancellation").
+  A child that exits with a status other than 0, or is killed when it has not exited within the
+  timeout, is the new `TransportError::CloseFailed { status, killed, stderr_tail }`, carrying the
+  last 4096 bytes the child wrote to stderr, such as why it could not write its replay
+  checkpoint. A cancelled session closes as `Cancelled` and a failed one as `Latched`. A caller
+  that wrote `session.close()?.success()` writes `session.close()?`.
+
 ## [0.0.20] — 2026-09-29
 
 The SDK resolves through a cache, commits in bisected batches and types the views reads, which

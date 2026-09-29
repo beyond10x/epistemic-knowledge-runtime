@@ -13,8 +13,11 @@ summary: >-
   (ProjectOverview), ekr.graph-slice/1 (ExpandNeighbourhood), ekr.node-detail/1 (DescribeNode),
   ekr.node-matches/1 (SearchNodes) and ekr.graph-timeline/1 (ProjectTimeline), each generic over
   any ontology in the same way. A sixth, ekr.graph-changes/1 (ChangesSince), reads what the
-  revisions up to one revision changed after a revision or a time. This domain writes nothing;
-  its seven commands read.
+  revisions up to one revision changed after a revision or a time. ekr.store-quality/1
+  (ReportStoreQuality) reports how well one revision's assertions are evidenced, its properties
+  constrained and its nodes of one type named apart. ekr.code-names/1 (FindCodeNames) reports
+  which of a revision's names a consumer's source files carry as literals. This domain writes
+  nothing; its nine commands read.
 
   Determinism, which every renderer of ekr.graph-projection/1 holds to so that two renders of one
   revision are byte-identical. (1) Order. By id: every array whose members carry an `id`, and
@@ -89,6 +92,18 @@ summary: >-
   itself"). So `retained` is true for every evidence record a projection can be rendered from, and
   `retained: false` is unreachable. The flag is kept so the format does not change if a later
   decision admits evidence without bytes.
+
+  The store's quality, ekr.store-quality/1 (ReportStoreQuality), is a function of one revision
+  and nothing else: it counts that revision's canonical state, and no refusal, rejected
+  transaction or open ambiguity, none of which one revision holds. Rules (2) key order, (3)
+  encoding, (4) presence and (5) above hold for it as written for ekr.graph-projection/1; rule
+  (1), order: shared_names by type id, then name ascending by its UTF-8 bytes; each entry's
+  nodes by id. No other array appears in it. A share is basis points: 10000 times the count,
+  divided by the whole it is a share of and rounded down, so 10000 is all of it; a share of a
+  whole of 0 is omitted. Every assertion the kernel admits cites evidence (ekr.kernel's
+  provenance validator, `assertion-without-evidence`), and every cited record's bytes are
+  retained, so with_evidence equals active in every store the kernel wrote; it is counted, not
+  assumed, so a store that broke either rule would show it.
 
 naming:
   wire: views
@@ -1210,6 +1225,215 @@ types:
       - name: remaining
         type: Integer
 
+  - name: ekr.views.StoreQualityFormatV1
+    kind: enum
+    variants: [ekr.store-quality/1]
+
+  # A share in basis points, 0 to 10000: 10000 times a count divided by its whole, rounded down.
+  - name: ekr.views.BasisPoints
+    kind: newtype
+    of: Integer
+
+  # `revision` is the revision read: `at`, or the head as it stood at the request when `at` is
+  # absent. The head itself is not carried (rule (5)).
+  - name: ekr.views.QualityMeta
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.StoreQualityFormatV1
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+
+  # The revision's assertions whose lifecycle is Active; a retracted or superseded one is no
+  # longer a claim of the revision and is not counted. `with_evidence` counts those citing at
+  # least one evidence record the revision holds and retains the bytes of. `with_item_evidence`
+  # counts those citing at least one evidence record that entered after the seed, through an
+  # ekr.kernel AddEvidence operation: evidence for one source item, where a seed's evidence is
+  # whatever corpus the seed carried. It is 0 in a store whose evidence all came with its seed.
+  # The two shares are of `active`, omitted when `active` is 0.
+  - name: ekr.views.AssertionQuality
+    kind: struct
+    fields:
+      - name: active
+        type: Integer
+      - name: with_evidence
+        type: Integer
+      - name: with_item_evidence
+        type: Integer
+      - name: with_evidence_share
+        type: Optional<ekr.views.BasisPoints>
+      - name: with_item_evidence_share
+        type: Optional<ekr.views.BasisPoints>
+
+  # `declared` counts the property declarations of the revision's ontology: each property each
+  # node type and each edge type declares itself, so a property two types declare counts twice
+  # and one a type inherits counts once, at its declarer. `constrained` counts those declaring at
+  # least one constraint (design § 11.2 `constraints`). The share is of `declared`, omitted when
+  # `declared` is 0.
+  - name: ekr.views.PropertyQuality
+    kind: struct
+    fields:
+      - name: declared
+        type: Integer
+      - name: constrained
+        type: Integer
+      - name: constrained_share
+        type: Optional<ekr.views.BasisPoints>
+
+  # One name two or more nodes of one type hold: `type` is the nodes' own type, `name` a canonical
+  # name or an alias, compared exactly as text, and `nodes` every node of that type holding it as
+  # either, two or more, by id. A node holding one name as its canonical name and as an alias is
+  # listed once. The empty name identifies nothing (ekr.kernel's `empty-alias`) and is never
+  # listed.
+  - name: ekr.views.SharedName
+    kind: struct
+    fields:
+      - name: type
+        type: ekr.ontology.TypeId
+      - name: name
+        type: String
+      - name: nodes
+        type: List<ekr.graph.NodeId>
+
+  # ekr.store-quality/1: the quality of one revision beyond its size. `shared_names` lists every
+  # name two or more nodes of one type hold; `sharing_nodes` counts the distinct nodes it lists.
+  - name: ekr.views.StoreQualityV1
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.QualityMeta
+      - name: assertions
+        type: ekr.views.AssertionQuality
+      - name: properties
+        type: ekr.views.PropertyQuality
+      - name: shared_names
+        type: List<ekr.views.SharedName>
+      - name: sharing_nodes
+        type: Integer
+
+  # ekr.code-names/1: the store's names found in a consumer's source files, so its store-reading
+  # code stays generic over any ontology (story:store-reading-code-names-no-contents).
+  - name: ekr.views.CodeNamesFormatV1
+    kind: enum
+    variants: [ekr.code-names/1]
+
+  # One source file as the caller read it: `path` exactly as given, never resolved, and its whole
+  # text. The command reads no file itself; the host reads each one and says which it was.
+  - name: ekr.views.SourceText
+    kind: struct
+    fields:
+      - name: path
+        type: String
+      - name: text
+        type: String
+
+  # Which of the store's names a literal equals: a node type's or an edge type's name, a
+  # property's name, or a node's canonical name or one of its aliases.
+  - name: ekr.views.CodeNameKind
+    kind: enum
+    variants: [NodeType, EdgeType, Property, CanonicalName, Alias]
+
+  # One store name a literal equals. `id` is the type's, the property's or the node's. For a
+  # CanonicalName or an Alias, `type_id` and `type_name` are the node's type, its id and its name;
+  # for the other kinds both are omitted.
+  - name: ekr.views.CodeNameMatch
+    kind: struct
+    fields:
+      - name: kind
+        type: ekr.views.CodeNameKind
+      - name: id
+        type: Uuid
+      - name: type_id
+        type: Optional<ekr.ontology.TypeId>
+      - name: type_name
+        type: Optional<String>
+
+  # One literal that equals at least one store name. `file` is the source's path as given; `line`
+  # is 1-based; `column` is the 1-based position, in Unicode scalar values, of the literal's
+  # opening quote on that line; `literal` is the text between the quotes; `runtime_word` is true
+  # exactly when that text is also one of the runtime's own words (below); `names` is every store
+  # name it equals.
+  - name: ekr.views.CodeNameFinding
+    kind: struct
+    fields:
+      - name: file
+        type: String
+      - name: line
+        type: Integer
+      - name: column
+        type: Integer
+      - name: literal
+        type: String
+      - name: runtime_word
+        type: Boolean
+      - name: names
+        type: List<ekr.views.CodeNameMatch>
+
+  # `revision` is the revision whose names were read: `at`, or the head as it stood at the
+  # request. `files` counts the distinct sources, `literals` every literal found in them,
+  # `exempt` the literals that equal a store id's text (below), `findings` every finding and
+  # `runtime_word_findings` those of them whose `runtime_word` is true. A literal is both exempt
+  # and a finding never.
+  - name: ekr.views.CodeNamesMeta
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.CodeNamesFormatV1
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: files
+        type: Integer
+      - name: literals
+        type: Integer
+      - name: exempt
+        type: Integer
+      - name: findings
+        type: Integer
+      - name: runtime_word_findings
+        type: Integer
+
+  # ekr.code-names/1. What a literal is: in each line of a source's text (lines split at `\n`),
+  # the text between an opening quote — `"`, `'` or a backtick — and the next quote of the same
+  # character on the same line that no backslash escapes. Each line is scanned twice, and a
+  # literal either scan finds is one, counted once: (a) one pass left to right over all three
+  # characters at once, which skips a backslash and the character after it and consumes a whole
+  # literal before it looks for the next opening quote, so a quote inside a literal of another
+  # kind (`'"'`, `"can't"`) opens nothing; (b) one pass per character, blind to the other two,
+  # paired left to right, so a literal of one kind is found inside a literal of another. In both,
+  # a quote with no closing partner on its line opens nothing. A literal is its raw text: no
+  # escape is decoded, and none spans a line. Identifiers — a bare word outside quotes — are not
+  # literals, and comments are not recognised: a quoted name in a comment is a literal like any
+  # other, because the check is the same for every language. Finding the literals is linear in
+  # the length of the text.
+  #
+  # The store's names are those the revision holds: every node type's and edge type's name, the
+  # name of every property any type declares, and every node's canonical name and aliases. A
+  # literal equals a name when the two are the same text, byte for byte, case included; an empty
+  # or blank name equals nothing. A finding is a literal equal to a name that is not exempt.
+  # A name is exempt, and so never found, when it is a store id: the text, in any case, of an id
+  # the revision holds — the graph root's, a schema version's, a transaction's, a type's, a
+  # property's, a node's, an edge's, an assertion's, an evidence record's, or an agent's that an
+  # assertion or evidence record names. A literal equal to an exempt name is counted in
+  # meta.exempt and not reported. A name that is also one of the runtime's own words is reported,
+  # flagged `runtime_word: true`, never dropped: the runtime's words are every field name, enum
+  # variant, union tag and union variant name the ESS domains of this runtime declare
+  # (systems/ekr/domains/*.yaml), which a reader of the runtime's documents names whatever the
+  # ontology, so such a finding may be the runtime's word and not the store's name, and the
+  # reader decides.
+  #
+  # Determinism: sources are read in ascending order of their path text, and a path given twice
+  # is read once; findings are ordered by that path, then line, then column; each finding's names
+  # by kind in the order ekr.views.CodeNameKind declares its variants, then id. Rules (2) key
+  # order, (3) encoding, (4) presence and (5) hold as for the five bounded formats, except that
+  # a finding's `file` is the path the request gave, which is part of the request.
+  - name: ekr.views.CodeNamesV1
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.CodeNamesMeta
+      - name: findings
+        type: List<ekr.views.CodeNameFinding>
+
 actors:
   - name: ekr.views.Reader
     may:
@@ -1220,6 +1444,8 @@ actors:
       - ekr.views.SearchNodes
       - ekr.views.ProjectTimeline
       - ekr.views.ChangesSince
+      - ekr.views.ReportStoreQuality
+      - ekr.views.FindCodeNames
     naming:
       display: Reader
 
@@ -1696,6 +1922,95 @@ commands:
         error: ekr.views.NotSeeded
         summary: Nothing was answered; no head is reported, because there is none.
 
+  # The quality of one revision (ekr.views.StoreQualityV1). `at` is the revision read, the head
+  # when absent. No input bound: the answer is one document of counts, and its shared_names are
+  # the revision's own. Its not-found and not-seeded outcomes are external for the reason
+  # ProjectGraph's are.
+  - name: ekr.views.ReportStoreQuality
+    naming:
+      wire: report-store-quality
+      display: Report the store's quality
+    input:
+      - name: store
+        type: ekr.views.StoreLocation
+      - name: at
+        type: Optional<ekr.kernel.RevisionNumber>
+    response:
+      - name: quality
+        type: ekr.views.StoreQualityV1
+    outcomes:
+      - name: reported
+        emits:
+          - ekr.views.StoreQualityReported
+        payload:
+          ekr.views.StoreQualityReported:
+            revision: {generated: true}
+            active_assertions: {generated: true}
+            with_evidence: {generated: true}
+            with_item_evidence: {generated: true}
+            properties: {generated: true}
+            constrained_properties: {generated: true}
+            shared_names: {generated: true}
+            sharing_nodes: {generated: true}
+            quality_hash: {generated: true}
+        summary: One ekr.store-quality/1 document of the requested revision, byte-identical to every other answer to the same request with `at` resolved.
+      - name: not-found
+        external: the store holds no committed revision with the requested number
+        error: ekr.views.RevisionNotFound
+        summary: Nothing was answered.
+      - name: not-seeded
+        external: the store has never been seeded
+        error: ekr.views.NotSeeded
+        summary: Nothing was answered; no head is reported, because there is none.
+
+  # The store's names in a consumer's source files (ekr.views.CodeNamesV1). `sources` is what
+  # the host read, one entry per file. The answer reports findings; it is not a refusal to find
+  # one, and a host exits 0 for every answer whatever meta.findings counts — failing on a count
+  # is the caller's choice. Reads the revision and nothing else, and writes nothing.
+  - name: ekr.views.FindCodeNames
+    naming:
+      wire: find-code-names
+      display: Find store names in code
+    input:
+      - name: store
+        type: ekr.views.StoreLocation
+      - name: at
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: sources
+        type: List<ekr.views.SourceText>
+    response:
+      - name: code_names
+        type: ekr.views.CodeNamesV1
+    outcomes:
+      - name: found
+        emits:
+          - ekr.views.CodeNamesFound
+        payload:
+          ekr.views.CodeNamesFound:
+            revision: {generated: true}
+            files: {generated: true}
+            literals: {generated: true}
+            exempt: {generated: true}
+            findings: {generated: true}
+            runtime_word_findings: {generated: true}
+            node_types: {generated: true}
+            edge_types: {generated: true}
+            properties: {generated: true}
+            canonical_names: {generated: true}
+            aliases: {generated: true}
+            first_file: {generated: true}
+            first_line: {generated: true}
+            code_names_hash: {generated: true}
+        summary: One ekr.code-names/1 document, byte-identical to every other answer to the same request with `at` resolved, however many findings it holds.
+      - name: not-found
+        external: the store holds no committed revision with the requested number
+        error: ekr.views.RevisionNotFound
+        summary: Nothing was answered.
+      - name: not-seeded
+        external: the store has never been seeded
+        error: ekr.views.NotSeeded
+        summary: Nothing was answered; no head is reported, because there is none.
+
 events:
   # What one render returned, counted over the document it returned, so a suite can hold a
   # renderer to it without parsing the response. `projection_hash` is the hex SHA-256 of the
@@ -1932,4 +2247,66 @@ events:
       - name: last_revision
         type: Optional<ekr.kernel.RevisionNumber>
       - name: changes_hash
+        type: ekr.kernel.ContentHash
+
+  # What one quality report returned, every field a function of the document. `revision` is
+  # meta's; `active_assertions`, `with_evidence` and `with_item_evidence` are assertions';
+  # `properties` and `constrained_properties` are properties' declared and constrained;
+  # `shared_names` the length of shared_names and `sharing_nodes` the document's;
+  # `quality_hash` the hex SHA-256 of the document's exact bytes.
+  - name: ekr.views.StoreQualityReported
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: active_assertions
+        type: Integer
+      - name: with_evidence
+        type: Integer
+      - name: with_item_evidence
+        type: Integer
+      - name: properties
+        type: Integer
+      - name: constrained_properties
+        type: Integer
+      - name: shared_names
+        type: Integer
+      - name: sharing_nodes
+        type: Integer
+      - name: quality_hash
+        type: ekr.kernel.ContentHash
+
+  # What one code-names answer returned. `revision`, `files`, `literals`, `exempt`, `findings` and
+  # `runtime_word_findings` are meta's; the five kind counts count the names of every finding of
+  # each ekr.views.CodeNameKind, so a literal equal to two names counts in two; `first_file` and
+  # `first_line` are the first finding's, omitted when there is none; `code_names_hash` the hex
+  # SHA-256 of the document's exact bytes.
+  - name: ekr.views.CodeNamesFound
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: files
+        type: Integer
+      - name: literals
+        type: Integer
+      - name: exempt
+        type: Integer
+      - name: findings
+        type: Integer
+      - name: runtime_word_findings
+        type: Integer
+      - name: node_types
+        type: Integer
+      - name: edge_types
+        type: Integer
+      - name: properties
+        type: Integer
+      - name: canonical_names
+        type: Integer
+      - name: aliases
+        type: Integer
+      - name: first_file
+        type: Optional<String>
+      - name: first_line
+        type: Optional<Integer>
+      - name: code_names_hash
         type: ekr.kernel.ContentHash

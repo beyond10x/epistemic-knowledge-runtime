@@ -127,7 +127,10 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr resolve` | reads | a `typed-reference` file, or `-`; `--at <revision>` | the resolution: `kind` is `Resolved` (with `node_id`), `ProposeNew` (with `type_id` and `aliases`) or `Ambiguous` (with `candidates`) |
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
+| `ekr rejections` | reads | `--from <revision>`, `--to <revision>` | the `ekr.rejections/1` document: each rejected transaction with its validation issues, by the revision it was validated against |
 | `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent` |
+| `ekr code-names` | reads | one or more source files; `--at <revision>` | the `ekr.code-names/1` document: every literal in the files that equals one of the store's names, with file, line and what it names; exits 0 however many it finds |
+| `ekr quality` | reads | `--revision <revision>` | the `ekr.store-quality/1` document: evidenced assertions, constrained properties, names shared within a type |
 | `ekr guide` | none | none | the workflow, as text |
 | `ekr operations` | none | an operation kind, optionally | the kinds, or one kind's fields and example |
 | `ekr example` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `schema-change`, `ekr-seed/2`, `ekr.cli-host/1` or `typed-reference` (aliases `transaction` for `/2`, `seed`, `host`) | a complete example document |
@@ -271,6 +274,23 @@ Lists every retained transaction with `transaction_id`, `state`, `proposer`, `op
 `submitted_at`. `--state` filters by one of `Proposed`, `Validated`, `Committed`, `Rejected` or
 `Stale`.
 
+### `ekr rejections`
+
+Lists each rejected transaction with the validation issues its rejection recorded, keyed on the
+revision it was validated against: the `ekr.rejections/1` document (`ekr.kernel.RejectionsV1` in
+`systems/ekr/domains/kernel.yaml`). `--from N` and `--to M` select the basis revisions `N` to `M`,
+both included; either may be left out, and a range with `N` above `M` selects nothing. Each entry
+of `rejections` carries `transaction_id`, `against` (the revision `ekr validate --against` named),
+`proposer`, `rejected_at` and `issues`: every issue exactly as `ekr validate` printed it in its
+`Rejected` result — `id`, `transaction_id`, `validator`, `code` and `message`, in the order the
+rejection recorded them. Entries are ordered by `against`, then `transaction_id`; `from` and `to`
+echo the request and are left out when it gave none.
+
+Only rejections appear. A committed transaction has no issues: the kernel commits a transaction
+only when no validator raised one. The document names neither the head nor the time of the read,
+so two reads of one range print the same bytes, and a later commit changes nothing already
+printed; only a new rejection in the range does.
+
 ### `ekr ontology`
 
 Prints the schema in force at the head, or at `--at N` as of that committed revision:
@@ -280,6 +300,119 @@ committed schema change) and `schema_version_parent` (the version it was derived
 seed). These are the ids a transaction document uses for `type_id`, `predicate: !Relation` and
 property keys. A revision that does not exist is refused as `ekr.kernel.RevisionNotFound`, exit 2,
 as for `ekr snapshot --at`.
+
+### `ekr code-names`
+
+`ekr code-names <file>... [--at N]` checks that code which reads a store stays generic over any
+ontology: it reports every literal in the given source files that equals one of the store's names,
+at the head or as of revision `N`. It reads the files and the store and writes nothing.
+
+- **A literal** is the text between two quotes of the same character — `"`, `'` or a backtick — on
+  one line, with `\` escaping the character after it. Each line is scanned twice and a literal either
+  scan finds counts once: one pass over all three characters at once consumes whole literals, so
+  the `"` in `'"'` or the `'` in `"can't"` opens nothing and the literal after it is still found;
+  one pass per character, blind to the other two, finds `"…"` inside `'…'` as well. A quote with no
+  partner on its line opens nothing, and no literal spans a line. The text is compared raw: no
+  escape is decoded. A bare identifier (`Volume` outside quotes) is not a literal; comments are not
+  recognised, so a quoted name in a comment is a literal like any other. The rule is the same for
+  every language, and the scan is linear in the length of a file.
+- **A store name** is a node type's or edge type's name, a property's name, or a node's canonical
+  name or alias, at that revision. A literal equals a name when the two are the same text, case
+  included.
+- **Flagged, not dropped:** a store name that is also one of the runtime's own words — every field
+  name, enum variant and union tag its specification declares (`name`, `aliases`, `kind`, `String`,
+  `Accepted`, `CreateNode`, `ekr.graph-projection/1`, …), the words any reader of `ekr`'s documents
+  uses — is reported with `"runtime_word": true`, and `meta.runtime_word_findings` counts those
+  findings: the literal may be the runtime's word rather than the store's name, and you decide.
+- **Never reported:** a name that is the text of one of the store's ids (a node's alias that is an
+  old id, say). A literal equal to such a name is counted in `meta.exempt` instead.
+
+It prints one `ekr.code-names/1` document:
+
+```json
+{
+  "meta": {"format": "ekr.code-names/1", "revision": 0, "files": 2, "literals": 14, "exempt": 1,
+           "findings": 1, "runtime_word_findings": 0},
+  "findings": [
+    {"file": "src/reader.ts", "line": 7, "column": 16, "literal": "Folio", "runtime_word": false,
+     "names": [{"kind": "NodeType", "id": "<type id>"},
+               {"kind": "Alias", "id": "<node id>", "type_id": "<its type id>", "type_name": "Volume"}]}
+  ]
+}
+```
+
+`file` is the path as given on the command line. `line` is 1-based, `column` the 1-based position
+of the opening quote in characters. `names` lists every store name the literal equals: `kind` is
+`NodeType`, `EdgeType`, `Property`, `CanonicalName` or `Alias`, `id` the type's, property's or
+node's id, and for a node's name `type_id` and `type_name` its type. `runtime_word` is `true` when
+the literal is also a runtime word. Files are read in order of their path and each once, findings
+follow in file, line and column order, so the same files and revision print the same document in
+any argument order.
+
+**Findings are not a failure: the verb exits 0** and `meta.findings` is the count. To fail a build
+on a finding, test that count. Exit 1 is a fault — a file that does not read or is not UTF-8 text
+(the message names it), or no store at `--store`. A revision the store does not hold is refused as
+`ekr.views.RevisionNotFound`, exit 2. `ekr session` serves the verb too.
+
+### `ekr quality`
+
+Prints how good the store's knowledge is at the head, or at `--revision N` as of that committed
+revision, beyond how much of it there is: the `ekr.store-quality/1` document
+(`ekr.views.ReportStoreQuality`). It counts that revision's canonical state only, so two reads of
+one revision print the same bytes, before and after any later commit. Refused transactions are not
+in it; `ekr transactions --state Rejected` lists them.
+
+```console
+ekr quality --revision 1
+```
+
+```json
+{
+  "assertions": {
+    "active": 4,
+    "with_evidence": 4,
+    "with_evidence_share": 10000,
+    "with_item_evidence": 1,
+    "with_item_evidence_share": 2500
+  },
+  "meta": {
+    "format": "ekr.store-quality/1",
+    "revision": 1
+  },
+  "properties": {
+    "constrained": 0,
+    "constrained_share": 0,
+    "declared": 1
+  },
+  "shared_names": [
+    {
+      "name": "Alice",
+      "nodes": [
+        "00000000-0000-4000-8000-000000000301",
+        "00000000-0000-4000-8000-000000000901"
+      ],
+      "type": "00000000-0000-4000-8000-000000000201"
+    }
+  ],
+  "sharing_nodes": 2
+}
+```
+
+| field | what it counts |
+|---|---|
+| `assertions.active` | the revision's assertions whose lifecycle is `Active`; a retracted or superseded one is not counted |
+| `assertions.with_evidence` | of those, the ones citing at least one evidence entry the store holds with its bytes. Every assertion the kernel admits cites evidence, so this equals `active` in a store `ekr` wrote |
+| `assertions.with_item_evidence` | of those, the ones citing at least one evidence entry added after the seed by an `AddEvidence` ([Evidence after the seed](#evidence-after-the-seed)): the figure counts when evidence entered, not how finely it was cut: a seed that carries one evidence entry per assertion still reports `0` here |
+| `properties.declared` | the property declarations of the revision's schema: each property each node type and edge type declares itself |
+| `properties.constrained` | of those, the ones declaring at least one entry in `constraints` |
+| `shared_names` | every name — a canonical name or an alias, compared exactly as text — that two or more nodes of one type hold: the `type`, the `name` and the `nodes`, by id. Ordered by type id, then name; the empty name is never listed |
+| `sharing_nodes` | the distinct nodes `shared_names` lists |
+
+A `_share` is basis points: 10000 times the count divided by its whole, rounded down, so `10000` is
+all of it; it is left out when the whole is `0`. The document is printed as every verb prints its
+JSON, keys in alphabetical order; `ekr session` answers it as `"stdout"`. A store never seeded is
+refused as `ekr.views.NotSeeded` and a revision it does not hold as `ekr.views.RevisionNotFound`,
+exit 2, as the `ekr.views` reads refuse them.
 
 ### `ekr guide`
 
@@ -574,7 +707,7 @@ writes through one process instead of one each:
 ```
 
 A session serves `propose`, `validate`, `commit`, `snapshot`, `explain`, `resolve`, `head`,
-`transactions`, `ontology`, `mint`, `hash` and `schema`, the `ekr.views` reads
+`transactions`, `rejections`, `ontology`, `quality`, `mint`, `hash` and `schema`, the `ekr.views` reads
 ([below](#session-views)), and `seed` when it was started with `--create`. It refuses these, each
 answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"stderr"`:
 

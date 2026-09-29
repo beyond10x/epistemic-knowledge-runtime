@@ -1,6 +1,8 @@
-//! The ESS conformance target over `ekr_views`' seven reads, on one native provider:
-//! `ekr_views::project` for `ProjectGraph`, and an [`ekr_views::Index`] of the requested revision
-//! for `ProjectOverview`, `ExpandNeighbourhood`, `DescribeNode`, `SearchNodes`,
+//! The ESS conformance target over `ekr_views`' nine reads, on one native provider:
+//! `ekr_views::project` for `ProjectGraph`, `ekr_views::report_quality` for
+//! `ReportStoreQuality`, `ekr_views::find_code_names` for `FindCodeNames`, whose `sources` input
+//! is the list of `{path, text}` it answers for, and an [`ekr_views::Index`] of the requested
+//! revision for `ProjectOverview`, `ExpandNeighbourhood`, `DescribeNode`, `SearchNodes`,
 //! `ProjectTimeline` and `ChangesSince`.
 //!
 //! * **Isolation.** Every scenario gets a fresh directory below the caller's work directory, and
@@ -30,10 +32,10 @@ use std::path::PathBuf;
 use ekr_core::{NodeId, RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{
-    BucketWidth, ChangesError, ChangesListed, ChangesRequest, ExpandRequest, GraphOverviewed,
-    GraphProjected, Index, LimitExceeded, NeighbourhoodExpanded, NodeDescribed, NodesSearched,
-    OverviewRequest, ProjectError, QueryError, SearchRequest, SinceKind, SubjectsTimelined,
-    TimelineRequest,
+    BucketWidth, ChangesError, ChangesListed, ChangesRequest, CodeNamesFound, ExpandRequest,
+    GraphOverviewed, GraphProjected, Index, LimitExceeded, NeighbourhoodExpanded, NodeDescribed,
+    NodesSearched, OverviewRequest, ProjectError, QueryError, SearchRequest, SinceKind, SourceText,
+    StoreQualityReported, SubjectsTimelined, TimelineRequest,
 };
 use ess_conformance::target::{
     ConformanceTarget, DeclaredErrorValue, EventObservationRequest, ExternalOutcomeControl,
@@ -53,7 +55,9 @@ const DESCRIBE_NODE: &str = "ekr.views.DescribeNode";
 const SEARCH_NODES: &str = "ekr.views.SearchNodes";
 const PROJECT_TIMELINE: &str = "ekr.views.ProjectTimeline";
 const CHANGES_SINCE: &str = "ekr.views.ChangesSince";
-const COMMANDS: [&str; 7] = [
+const FIND_CODE_NAMES: &str = "ekr.views.FindCodeNames";
+const REPORT_STORE_QUALITY: &str = "ekr.views.ReportStoreQuality";
+const COMMANDS: [&str; 9] = [
     PROJECT_GRAPH,
     PROJECT_OVERVIEW,
     EXPAND_NEIGHBOURHOOD,
@@ -61,6 +65,8 @@ const COMMANDS: [&str; 7] = [
     SEARCH_NODES,
     PROJECT_TIMELINE,
     CHANGES_SINCE,
+    FIND_CODE_NAMES,
+    REPORT_STORE_QUALITY,
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -101,6 +107,8 @@ enum Read {
     Search(Result<SearchRequest, LimitExceeded>),
     Timeline(Result<TimelineRequest, LimitExceeded>),
     Changes(Result<ChangesRequest, ChangesError>),
+    CodeNames(Vec<SourceText>),
+    Quality,
 }
 
 fn unavailable(operation: &str, detail: impl std::fmt::Display) -> TargetError {
@@ -281,6 +289,74 @@ fn changes_listed(summary: &ChangesListed) -> Result<ObservedEvent, TargetError>
     }
     fields.push(("changes_hash", Node::Text(summary.changes_hash.clone())));
     observed("ekr.views.ChangesListed", fields)
+}
+
+fn code_names_found(summary: &CodeNamesFound) -> Result<ObservedEvent, TargetError> {
+    let mut fields = counts(&[
+        ("revision", summary.revision),
+        ("files", summary.files),
+        ("literals", summary.literals),
+        ("exempt", summary.exempt),
+        ("findings", summary.findings),
+        ("runtime_word_findings", summary.runtime_word_findings),
+        ("node_types", summary.node_types),
+        ("edge_types", summary.edge_types),
+        ("properties", summary.properties),
+        ("canonical_names", summary.canonical_names),
+        ("aliases", summary.aliases),
+    ])?;
+    if let Some(file) = &summary.first_file {
+        fields.push(("first_file", Node::Text(file.clone())));
+    }
+    if let Some(line) = summary.first_line {
+        fields.push(("first_line", integer(line)?));
+    }
+    fields.push((
+        "code_names_hash",
+        Node::Text(summary.code_names_hash.clone()),
+    ));
+    observed("ekr.views.CodeNamesFound", fields)
+}
+
+/// `FindCodeNames`' `sources`: a list of `{path, text}`.
+fn sources(request: &SemanticCommandRequest) -> Result<Vec<SourceText>, TargetError> {
+    let Some(Node::Seq(sources)) = request.input.get("sources") else {
+        return Err(unavailable("reading `sources`", "not a list"));
+    };
+    sources
+        .iter()
+        .map(|source| {
+            let field = |name: &str| match source {
+                Node::Map(fields) => match fields.get(name) {
+                    Some(Node::Text(text)) => Ok(text.clone()),
+                    _ => Err(unavailable(
+                        "reading `sources`",
+                        format!("a source's `{name}` is not a text"),
+                    )),
+                },
+                _ => Err(unavailable("reading `sources`", "a source is not a map")),
+            };
+            Ok(SourceText {
+                path: field("path")?,
+                text: field("text")?,
+            })
+        })
+        .collect()
+}
+
+fn store_quality_reported(summary: &StoreQualityReported) -> Result<ObservedEvent, TargetError> {
+    let mut fields = counts(&[
+        ("revision", summary.revision),
+        ("active_assertions", summary.active_assertions),
+        ("with_evidence", summary.with_evidence),
+        ("with_item_evidence", summary.with_item_evidence),
+        ("properties", summary.properties),
+        ("constrained_properties", summary.constrained_properties),
+        ("shared_names", summary.shared_names),
+        ("sharing_nodes", summary.sharing_nodes),
+    ])?;
+    fields.push(("quality_hash", Node::Text(summary.quality_hash.clone())));
+    observed("ekr.views.StoreQualityReported", fields)
 }
 
 /// `ChangesSince`'s input, bounded: its since kind by name, its since, and its page.
@@ -467,6 +543,8 @@ fn read(request: &SemanticCommandRequest, command: &str) -> Result<Read, TargetE
         )),
         PROJECT_TIMELINE => Read::Timeline(timeline_request(request)?),
         CHANGES_SINCE => Read::Changes(changes_request(request)?),
+        FIND_CODE_NAMES => Read::CodeNames(sources(request)?),
+        REPORT_STORE_QUALITY => Read::Quality,
         _ => Read::Graph,
     })
 }
@@ -537,6 +615,15 @@ fn answer(
             Err(error) => Ok((refused(command, QueryError::Project(error))?, None)),
         };
     }
+    if let Read::Quality = read {
+        return match ekr_views::report_quality(runtime, at) {
+            Ok(answer) => Ok((
+                took("reported", store_quality_reported(&answer.summary)?)?,
+                None,
+            )),
+            Err(error) => Ok((refused(command, QueryError::Project(error))?, None)),
+        };
+    }
     if let Read::Changes(request) = read {
         // The since and the bounds first: a broken one is refused before the store is read.
         let listed = request.and_then(|request| {
@@ -548,10 +635,18 @@ fn answer(
             Err(refusal) => Ok((changes_refused(command, refusal)?, None)),
         };
     }
+    if let Read::CodeNames(sources) = read {
+        return match ekr_views::find_code_names(runtime, at, &sources) {
+            Ok(answer) => Ok((took("found", code_names_found(&answer.summary)?)?, None)),
+            Err(error) => Ok((refused(command, QueryError::Project(error))?, None)),
+        };
+    }
     let result = (|| -> Result<Result<SemanticCommandResult, TargetError>, QueryError> {
         // The bound first: a broken one is refused before the store is read.
         match read {
-            Read::Graph | Read::Changes(_) => unreachable!("answered above"),
+            Read::Graph | Read::Changes(_) | Read::CodeNames(_) | Read::Quality => {
+                unreachable!("answered above")
+            }
             Read::Overview(request) => {
                 let request = request?;
                 let index = Index::load(runtime, at)?;
@@ -643,7 +738,7 @@ impl ConformanceTarget for ViewsTarget {
         let Some(command) = COMMANDS.iter().copied().find(|known| *known == command) else {
             return Err(TargetError::unsupported(
                 format!("executing `{}`", request.command),
-                "the views target answers the seven ekr.views commands only",
+                "the views target answers the ekr.views commands only",
             ));
         };
         let store = match request.input.get("store") {

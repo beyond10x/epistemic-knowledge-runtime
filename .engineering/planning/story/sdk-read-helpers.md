@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:sdk-read-helpers
 kind: story
-status: active
+status: implemented
 title: The session serves the views reads and the SDK types them
 relations:
 - depends_on: story:sdk-session-transport
@@ -16,10 +16,11 @@ scope:
   path: crates/ekr/src/cli/session.rs
 - confidence: inferred
   path: docs/cli.md
-revision: 7
+revision: 8
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-29T18:41:42Z", actor: "human:timo", revision: 6}
 - {from: "proposed", to: "active", at: "2026-09-29T18:41:42Z", actor: "human:timo", revision: 7}
+- {from: "active", to: "implemented", at: "2026-09-29T20:35:57Z", actor: "human:timo", revision: 8, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}}
 ---
 ## Context
 

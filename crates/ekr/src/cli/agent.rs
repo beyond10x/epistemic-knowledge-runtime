@@ -56,12 +56,20 @@ WORKFLOW
   8. ekr commit <transaction_id>                   -> a new revision
   9. ekr head                                      the head revision number and root
      ekr transactions [--state <State>]            retained transactions, id, state, proposer
+     ekr rejections [--from N] [--to M]            rejected transactions and their issues, by the
+                                                   revision each was validated against
      ekr snapshot [--at N] [--valid-at YYYY-MM-DD]  read the result back
      ekr explain <assertion_id>                    why an assertion is what it is
+     ekr quality [--revision N]                    the store's quality beyond its size:
+                                                   evidenced assertions, constrained
+                                                   properties, names shared within a type
      ekr view [--port N]                           a read-only viewer on 127.0.0.1, until interrupted
      ekr mcp                                       read-only MCP tools over stdio for an agent's
                                                    client: overview, search, describe_node,
                                                    expand, timeline, explain, resolve
+     ekr code-names <file>... [--at N]             which store names your code quotes as literals:
+                                                   file, line and kind; exit 0, the count is
+                                                   meta.findings
 
 DOCUMENT LIMITS (fixed by the format version; write ekr.transaction-document/2)
   An ekr.transaction-document/2 holds 1 to 10000 operations and at most 10000 evidence entries

@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:store-quality-report
 kind: story
-status: draft
+status: active
 title: A read reports a store's quality beyond its size
 relations:
 - serves: vision:o6
@@ -30,7 +30,10 @@ scope:
   path: systems/ekr/conformance/views-suite.json
 - confidence: inferred
   path: systems/ekr/domains/views.yaml
-revision: 5
+revision: 7
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-29T20:35:57Z", actor: "human:timo", revision: 6}
+- {from: "proposed", to: "active", at: "2026-09-29T20:35:57Z", actor: "human:timo", revision: 7}
 ---
 ## Context
 

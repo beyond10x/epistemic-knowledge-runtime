@@ -1,15 +1,15 @@
 {
   "format": "ekr.conformance-baseline/1",
   "suite": "systems/ekr/conformance/suite.json",
-  "suite_digest": "sha256:96fef67fb27c19d9082b836a767b62fa7548e7d3a580bd85a56e2ab498939ef7",
+  "suite_digest": "sha256:d58e21d216a3569af84e81b00a382eb7f3b7210a6167ff57b92ebc67b96a5c77",
   "suite_version": "ess-conformance/13",
   "component": "ekr-kernel",
   "providers": [
     "file",
     "sqlite"
   ],
-  "total": 53,
-  "answered_floor": 53,
+  "total": 54,
+  "answered_floor": 54,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -64,6 +64,7 @@
     "ekr.kernel/authored/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name",
     "ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it",
     "ekr.kernel/authored/one-alias-added-twice-in-a-transaction-is-rejected-by-name",
+    "ekr.kernel/authored/rejections-list-every-planted-issue-by-its-basis-revision",
     "ekr.kernel/authored/snapshot-at-a-past-revision-reports-that-revision",
     "ekr.kernel/authored/snapshot-without-a-revision-reports-the-newest"
   ]

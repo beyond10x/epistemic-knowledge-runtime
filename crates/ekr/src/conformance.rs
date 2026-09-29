@@ -25,8 +25,10 @@
 //!   its retained record read back from the verified history, and a store event
 //!   (`ekr.store.ObjectStored`, `PublicationPrepared`, `ObjectRetentionRaised`) by the payload the
 //!   provider logged. A retained retry adds none. Views are rows reconstructed from the verified
-//!   history. Records project into ESS values with exact integer constructors, RFC 3339 instants,
-//!   padded base64 bytes and `kind`/`value` tagged unions.
+//!   history. `ekr.kernel.Rejections`, the one view with parameters, is read at its `from`/`to`
+//!   range through the selection `ekr rejections` prints (`cli::rejections::select`). Records
+//!   project into ESS values with exact integer constructors, RFC 3339 instants, padded base64
+//!   bytes and `kind`/`value` tagged unions.
 //! * **Responses.** Seed, Propose, Validate and Commit answer their declared response. Snapshot and
 //!   Explain answer none (`None`), although `kernel.yaml` declares `SnapshotResult` and
 //!   `ExplanationResult`: ESS 0.29.0 cannot observe a command response from any scenario, so a
@@ -177,6 +179,8 @@ const VALIDATE: &str = "ekr.kernel.Validate";
 const COMMIT: &str = "ekr.kernel.Commit";
 const SNAPSHOT: &str = "ekr.kernel.Snapshot";
 const EXPLAIN: &str = "ekr.kernel.Explain";
+/// The one kernel view that declares parameters: `from` and `to`, a range of basis revisions.
+const REJECTIONS: &str = "ekr.kernel.Rejections";
 
 /// The first instant the kernel's host clock reads in every scenario; each sample adds a second.
 const CLOCK_START_MS: i64 = 1_800_000_000_000;
@@ -881,8 +885,13 @@ impl KernelTarget {
         }
     }
 
-    /// The rows of one declared view, all from the same verified capture.
-    fn rows(read: Option<&VerifiedRead>, view: &str) -> Result<Vec<ViewRow>, TargetError> {
+    /// The rows of one declared view, all from the same verified capture. `range` is the
+    /// `from`/`to` pair `ekr.kernel.Rejections` is read with.
+    fn rows(
+        read: Option<&VerifiedRead>,
+        view: &str,
+        range: Option<(Option<u64>, Option<u64>)>,
+    ) -> Result<Vec<ViewRow>, TargetError> {
         if !matches!(
             view,
             "ekr.kernel.Transactions"
@@ -891,6 +900,7 @@ impl KernelTarget {
                 | "ekr.kernel.CurrentRevision"
                 | "ekr.kernel.ValidationIssues"
                 | "ekr.kernel.RetainedEvidence"
+                | REJECTIONS
         ) {
             return Err(TargetError::unsupported(
                 format!("the view `{view}`"),
@@ -958,6 +968,30 @@ impl KernelTarget {
                     ])
                 })
                 .collect()),
+            // One row per issue of the `ekr.rejections/1` document `ekr rejections` prints for
+            // the same range, built by the same selection.
+            REJECTIONS => {
+                let (from, to) = range.unwrap_or_default();
+                let mut rows = Vec::new();
+                for rejected in
+                    crate::cli::rejections::select(&read.transactions, from, to).rejections
+                {
+                    for issue in &rejected.issues {
+                        rows.push(BTreeMap::from([
+                            ("transaction_id".to_owned(), text(rejected.transaction_id)),
+                            ("against".to_owned(), integer(rejected.against)?),
+                            ("issue_id".to_owned(), text(issue.id)),
+                            (
+                                "validator".to_owned(),
+                                Node::Text(format!("{:?}", issue.validator)),
+                            ),
+                            ("code".to_owned(), Node::Text(issue.code.clone())),
+                            ("message".to_owned(), Node::Text(issue.message.clone())),
+                        ]));
+                    }
+                }
+                Ok(rows)
+            }
             // The head's evidence whose payload the verified read holds at its content hash.
             "ekr.kernel.RetainedEvidence" => Ok(read
                 .graph
@@ -1056,12 +1090,20 @@ impl ConformanceTarget for KernelTarget {
     }
 
     fn query_view(&self, request: SemanticViewRequest) -> Result<SemanticViewResult, TargetError> {
-        if !request.params.is_empty() {
+        let view = request.view.to_string();
+        let range = if view == REJECTIONS {
+            Some((
+                range_bound(&request.params, "from")?,
+                range_bound(&request.params, "to")?,
+            ))
+        } else if request.params.is_empty() {
+            None
+        } else {
             return Err(TargetError::unsupported(
-                format!("parameters of `{}`", request.view),
-                "no ekr-kernel view declares parameters",
+                format!("parameters of `{view}`"),
+                "only ekr.kernel.Rejections declares parameters",
             ));
-        }
+        };
         let read = self.capture()?;
         if let QueryConsistency::AtLeast { token } = &request.consistency {
             let wanted = token
@@ -1079,7 +1121,8 @@ impl ConformanceTarget for KernelTarget {
         }
         Ok(SemanticViewResult::of(Self::rows(
             read.as_ref(),
-            &request.view.to_string(),
+            &view,
+            range,
         )?))
     }
 
@@ -1913,6 +1956,27 @@ where
 
 fn transaction_input(request: &SemanticCommandRequest) -> Result<TransactionId, TargetError> {
     parse_text(request, "transaction_id")
+}
+
+/// One bound of `ekr.kernel.Rejections`: absent or null is unbounded, otherwise a revision number.
+fn range_bound(params: &BTreeMap<String, Node>, name: &str) -> Result<Option<u64>, TargetError> {
+    match params.get(name) {
+        None | Some(Node::Null) => Ok(None),
+        Some(Node::Number(number)) => number
+            .as_i64()
+            .and_then(|exact| u64::try_from(exact).ok())
+            .map(Some)
+            .ok_or_else(|| {
+                unavailable(
+                    &format!("reading the parameter `{name}`"),
+                    format!("{number} is not a revision number"),
+                )
+            }),
+        Some(other) => Err(unavailable(
+            &format!("reading the parameter `{name}`"),
+            format!("{} is not a revision number", other.type_name()),
+        )),
+    }
 }
 
 fn revision_input(
