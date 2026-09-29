@@ -1121,8 +1121,8 @@ impl Live {
         }
     }
 
-    /// The answer's document, which must have exit 0.
-    fn ask(&mut self, argv: &[&str], stdin: Option<&str>) -> Value {
+    /// The whole answer line, whatever its exit.
+    fn answer(&mut self, argv: &[&str], stdin: Option<&str>) -> Value {
         use std::io::BufRead as _;
         let input = self.stdin.as_mut().unwrap();
         input
@@ -1131,7 +1131,12 @@ impl Live {
         input.flush().unwrap();
         let mut line = String::new();
         self.stdout.read_line(&mut line).unwrap();
-        let answer: Value = serde_json::from_str(&line).unwrap();
+        serde_json::from_str(&line).unwrap_or_else(|error| panic!("{argv:?}: {error}: {line:?}"))
+    }
+
+    /// The answer's document, which must have exit 0.
+    fn ask(&mut self, argv: &[&str], stdin: Option<&str>) -> Value {
+        let answer = self.answer(argv, stdin);
         assert_eq!(answer["exit"], 0, "{argv:?}: {answer}");
         answer["stdout"].clone()
     }
@@ -1141,6 +1146,112 @@ impl Live {
         let output = self.child.wait_with_output().unwrap();
         assert_eq!(output.status.code(), Some(0));
         assert!(output.stderr.is_empty());
+    }
+}
+
+/// `path` with `suffix` appended to its last component.
+fn suffixed(path: &Path, suffix: &str) -> PathBuf {
+    let mut text = path.as_os_str().to_owned();
+    text.push(suffix);
+    PathBuf::from(text)
+}
+
+/// Moves what is at `store` to `aside` and `from` into its place, each by rename, as a host
+/// promoting a new store does. A SQLite database moves with its `-wal` and `-shm` files.
+fn replace(store: &Path, aside: &Path, from: &Path) {
+    for suffix in ["", "-wal", "-shm"] {
+        let at = suffixed(store, suffix);
+        if std::fs::symlink_metadata(&at).is_ok() {
+            std::fs::rename(&at, suffixed(aside, suffix)).unwrap();
+        }
+    }
+    for suffix in ["", "-wal", "-shm"] {
+        let at = suffixed(from, suffix);
+        if std::fs::symlink_metadata(&at).is_ok() {
+            std::fs::rename(&at, suffixed(store, suffix)).unwrap();
+        }
+    }
+}
+
+/// `task:readers-reopen-a-replaced-store`: a running session whose store is replaced by rename
+/// answers the next store verb from the store now at its path. While a transaction the session
+/// proposed is neither committed nor rejected, it refuses a replacement by name,
+/// `store-replaced-proposals-open`, on every store verb — never dropping the proposal, never
+/// answering from the replaced store — and serves again once the store it opened is back. A file
+/// that is not a store is `store-replaced`, exit 1, on every later store verb. Verbs that open no
+/// store are served throughout.
+#[test]
+fn a_session_answers_from_a_store_replaced_by_rename_and_keeps_its_open_proposals() {
+    const PROPOSED: &str = "00000000-0000-4000-8000-000000000904";
+    const PROPOSED_NODE: &str = "00000000-0000-4000-8000-000000000905";
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        let original = world.directory.path().join("original");
+        let second = world.directory.path().join("second");
+        let mut live = Live::start(&world, &["session"]);
+        assert_eq!(live.ask(&["head"], None)["revision"], 0, "{backend}");
+
+        let replacement = World::seeded(backend);
+        let proposed = one_shot_document(&replacement.run(&["propose", "create.yaml"]), "propose");
+        let id = proposed["transaction_id"].as_str().unwrap().to_owned();
+        one_shot_document(&replacement.run(&["validate", &id]), "validate");
+        one_shot_document(&replacement.run(&["commit", &id]), "commit");
+        replace(&world.store(), &original, &replacement.store());
+
+        let head = live.answer(&["head"], None);
+        assert_answers_as(&head, &world.run(&["head"]), &format!("{backend} head"));
+        assert_eq!(head["stdout"]["revision"], 1, "{backend}");
+        let resolved = live.ask(&["resolve", "reference.yaml"], None);
+        assert_eq!(resolved["node_id"], NODE, "{backend}: {resolved}");
+
+        // A proposal of this session is open: the store it lives in is not dropped.
+        let initech = create_globex_as(PROPOSED, PROPOSED_NODE).replace("Globex", "Initech");
+        live.ask(&["propose", "-"], Some(&initech));
+        replace(&world.store(), &second, &original);
+        for argv in [
+            &["head"][..],
+            &["validate", PROPOSED],
+            &["commit", PROPOSED],
+        ] {
+            let refused = live.answer(argv, None);
+            assert_eq!(refused["exit"], 2, "{backend} {argv:?}: {refused}");
+            assert!(refused["stdout"].is_null(), "{backend}: {refused}");
+            let stderr = refused["stderr"].as_str().unwrap();
+            assert!(
+                stderr.starts_with("ekr: store-replaced-proposals-open: ")
+                    && stderr.contains(PROPOSED),
+                "{backend} {argv:?}: {stderr}"
+            );
+        }
+        live.ask(&["mint", "node"], None);
+        replace(&world.store(), &original, &second);
+        assert_eq!(live.ask(&["head"], None)["revision"], 1, "{backend}");
+        assert_eq!(live.ask(&["validate", PROPOSED], None)["kind"], "Validated");
+        assert_eq!(live.ask(&["commit", PROPOSED], None)["kind"], "Committed");
+
+        // Nothing open: the next replacement is followed.
+        replace(&world.store(), &second, &original);
+        let head = live.answer(&["head"], None);
+        assert_answers_as(&head, &world.run(&["head"]), &format!("{backend} head"));
+        assert_eq!(head["stdout"]["revision"], 0, "{backend}");
+
+        // A file that is not a store.
+        let junk = world.directory.path().join("junk");
+        std::fs::write(&junk, "not a store\n").unwrap();
+        replace(&world.store(), &original, &junk);
+        for argv in [&["head"][..], &["resolve", "reference.yaml"], &["head"]] {
+            let refused = live.answer(argv, None);
+            assert_eq!(refused["exit"], 1, "{backend} {argv:?}: {refused}");
+            assert!(refused["stdout"].is_null(), "{backend}: {refused}");
+            let stderr = refused["stderr"].as_str().unwrap();
+            assert!(
+                stderr.starts_with("ekr: store-replaced: ")
+                    && stderr.contains(&world.store().display().to_string()),
+                "{backend} {argv:?}: {stderr}"
+            );
+        }
+        live.ask(&["mint", "node"], None);
+        live.close();
     }
 }
 
