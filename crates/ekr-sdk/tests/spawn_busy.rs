@@ -15,12 +15,23 @@ use std::time::{Duration, Instant};
 
 use ekr_sdk::binary::{BinaryError, EkrBinary, Version};
 use ekr_sdk::session::{Backend, ProcessSession, SessionOptions, StoreConfig};
+use ekr_sdk::viewer::Viewer;
 
 /// The SDK's retries stop within this; a refusal returned without retrying comes well inside it.
 const BOUND: Duration = Duration::from_secs(1);
 
-/// A stand-in that answers `--version` as `ekr 0.0.19` and exits 0 to anything else.
-const STAND_IN: &str = "#!/bin/sh\ncase \"$1\" in --version) echo 'ekr 0.0.19' ;; esac\nexit 0\n";
+/// The URL the stand-in prints as `ekr view`.
+const VIEW_URL: &str = "http://127.0.0.1:4242/";
+
+/// A stand-in that answers `--version` as `ekr 0.0.19`; answers `view` as `ekr view` does, with
+/// its `{"url": …}` line, and then serves until killed; and exits 0 to anything else.
+const STAND_IN: &str = r#"#!/bin/sh
+case "$1" in --version) echo 'ekr 0.0.19'; exit 0 ;; esac
+for arg in "$@"; do
+  if [ "$arg" = view ]; then echo '{"url": "http://127.0.0.1:4242/"}'; exec sleep 30; fi
+done
+exit 0
+"#;
 
 fn stand_in(directory: &Path, mode: u32) -> PathBuf {
     let path = directory.join("ekr");
@@ -81,6 +92,24 @@ fn a_session_starts_from_a_binary_held_open_for_writing_once_the_writer_closes()
     writer.join().unwrap();
     let session = started.unwrap_or_else(|error| panic!("the session did not start: {error:?}"));
     assert!(session.close().unwrap().success());
+}
+
+#[test]
+fn a_viewer_starts_from_a_binary_held_open_for_writing_once_the_writer_closes() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = stand_in(directory.path(), 0o755);
+    let binary = probe(&path).unwrap();
+    let store = StoreConfig {
+        host: directory.path().join("host.json"),
+        store: directory.path().join("store"),
+        backend: Backend::File,
+    };
+    let writer = hold_open_for_writing(&path, Duration::from_millis(100));
+    let started = Viewer::spawn(&binary, &store, 0);
+    writer.join().unwrap();
+    let viewer = started.unwrap_or_else(|error| panic!("the viewer did not start: {error:?}"));
+    assert_eq!(viewer.url(), VIEW_URL);
+    viewer.stop();
 }
 
 #[test]

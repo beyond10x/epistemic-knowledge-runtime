@@ -65,8 +65,8 @@ therefore starts when the consumer's own `PATH` is empty.
 
 A binary that Linux refuses to start as busy (`ETXTBSY`: some process, possibly a child another
 thread forked, still holds it open for writing) is retried for up to 630 ms before the refusal is
-returned. This applies to the `--version` and `operations` probes, the session and one-shot
-requests. Every other start error is returned at once.
+returned. This applies to the `--version` and `operations` probes, the session, one-shot
+requests and `Viewer::spawn`. Every other start error is returned at once.
 
 ### Requests over the line cap
 
