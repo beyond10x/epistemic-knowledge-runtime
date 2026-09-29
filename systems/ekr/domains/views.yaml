@@ -67,11 +67,15 @@ summary: >-
   the head as it stands at the request, and its answer is byte for byte the answer to the same
   request naming that revision, which meta.revision carries. meta.revision is the revision read,
   never a report of the head: the same request naming that revision answers the same bytes after
-  any later commit. A reader that pages keeps `at` fixed to the first page's meta.revision.
+  any later commit. A reader that pages keeps `at` fixed to the first page's meta.revision. A
+  refusal is outside that rule: a since_revision past the head is refused as RevisionNotFound
+  naming the head, and after a later commit the same request may answer an empty page.
   Bounds and the order of refusals, for the six: a bound over the input (depth, hops, limit,
   edge_limit, after) is checked before the store is read, and a broken one answers LimitExceeded
   naming the first broken input in the command's declared input order — for ChangesSince a
-  `since` that is not exactly one of its three inputs answers SinceMalformed before any bound;
+  since_revision below 0 answers SinceMalformed before any bound, while a request naming none or
+  two of the three since inputs is malformed input that never reaches the command (the endpoint
+  answers invalid-query, the MCP tool -32602);
   then an unseeded store answers NotSeeded; then a revision beyond the head answers
   RevisionNotFound — for ChangesSince `at` first, then since_revision; then a node the revision
   does not hold answers NodeNotFound.

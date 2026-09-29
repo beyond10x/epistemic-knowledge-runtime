@@ -436,8 +436,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "71190f35cf57e6c465fcb8db819b84fa332dc16df7b9ae28c9fbaa26a65f7e5f",
-    "spec_digest": "4c02de682f81435c994a37545390cc02a64592fe83b2ae30a61514fea78e9750",
+    "contract_digest": "4113e60bac5454017d1756b0c754ecd8390854d21773a5d19e95764121d0456a",
+    "spec_digest": "39dc7ca16443171e93d89428845bef7fae4a58098325f0adb459481349a78858",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"
