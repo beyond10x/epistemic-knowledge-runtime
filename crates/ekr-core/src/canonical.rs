@@ -77,6 +77,13 @@ mod tag {
 /// must encode equally exactly when they are equal.
 pub trait Canonical {
     /// Appends this value's canonical bytes to `out`.
+    ///
+    /// An implementation writes; it does not read `out`. [`ContentHash::of`] hands it an encoder
+    /// that hashes the bytes as they arrive and holds only a window of them, so there
+    /// [`Encoder::as_bytes`] and [`Encoder::finish`] refuse rather than answer with part of the
+    /// encoding, and `Debug` shows no content on any encoder. Encoding a part on its own takes an
+    /// [`Encoder::new`] of its own. What `ContentHash::of` addresses is the encoder left in `out`
+    /// when this returns, which is what [`Canonical::canonical_bytes`] returns too.
     fn encode(&self, out: &mut Encoder);
 
     /// This value's canonical bytes, on their own.
@@ -108,12 +115,11 @@ pub struct Encoder {
     digest: Option<Sha256>,
 }
 
+/// The same text for every encoder: what one holds is not part of it, because the hashing encoder
+/// holds only a window and an implementation that formatted it would change its own address.
 impl std::fmt::Debug for Encoder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Encoder")
-            .field("bytes", &self.bytes)
-            .field("hashing", &self.digest.is_some())
-            .finish()
+        f.debug_struct("Encoder").finish_non_exhaustive()
     }
 }
 
@@ -124,35 +130,60 @@ impl Encoder {
         Self::default()
     }
 
-    /// An empty encoder that hashes `domain` and then every byte written into it, holding at most
-    /// a window of them.
-    pub(crate) fn hashing(domain: &[u8]) -> Self {
+    /// An empty encoder that hashes [`ContentHash::VALUE_DOMAIN`] and then every byte written
+    /// into it, holding at most a window of them.
+    pub(crate) fn hashing_values() -> Self {
         let mut digest = Sha256::new();
-        digest.update(domain);
+        digest.update(ContentHash::VALUE_DOMAIN);
         Self {
             bytes: Vec::new(),
             digest: Some(digest),
         }
     }
 
-    /// The SHA-256 of everything [`Encoder::hashing`] was opened with and every byte written
-    /// since; on a buffering encoder, of the bytes it holds.
-    pub(crate) fn digest(self) -> [u8; 32] {
-        let mut digest = self.digest.unwrap_or_default();
+    /// The value-domain digest of every byte written into this encoder. An implementation that
+    /// put a buffering encoder in the hashing one's place (`std::mem::replace`) left that one's
+    /// bytes to be addressed, which are the bytes a buffering encoder would hold too.
+    pub(crate) fn value_digest(self) -> [u8; 32] {
+        let mut digest = self.digest.unwrap_or_else(|| {
+            let mut digest = Sha256::new();
+            digest.update(ContentHash::VALUE_DOMAIN);
+            digest
+        });
         digest.update(&self.bytes);
         digest.finalize().into()
     }
 
+    /// Refuses on the hashing encoder, which no longer holds what it hashed: a partial answer
+    /// would give the implementation that read it a different address.
+    fn buffering(&self, what: &str) {
+        assert!(
+            self.digest.is_none(),
+            "{what} is unavailable on a hashing encoder"
+        );
+    }
+
     /// The bytes written so far.
+    ///
+    /// # Panics
+    ///
+    /// On the encoder [`ContentHash::of`] writes through, moved out of the `&mut Encoder` an
+    /// implementation is handed: `finish is unavailable on a hashing encoder`.
     #[must_use]
     pub fn finish(self) -> Vec<u8> {
+        self.buffering("finish");
         self.bytes
     }
 
-    /// The bytes written so far, without consuming the encoder. On the encoder
-    /// [`ContentHash::of`] writes through, the bytes written since it last hashed a window.
+    /// The bytes written so far, without consuming the encoder.
+    ///
+    /// # Panics
+    ///
+    /// On the encoder [`ContentHash::of`] writes through: `as_bytes is unavailable on a hashing
+    /// encoder`.
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
+        self.buffering("as_bytes");
         &self.bytes
     }
 
@@ -477,5 +508,60 @@ impl Canonical for ContentHash {
 impl Canonical for RevisionNumber {
     fn encode(&self, out: &mut Encoder) {
         out.unsigned(u128::from(self.get()));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Canonical, Encoder};
+    use crate::ContentHash;
+    use std::cell::Cell;
+
+    /// The most unhashed bytes an encoder may hold while [`ContentHash::of`] writes into it.
+    const BOUND: usize = 1 << 20;
+
+    /// `chunks` strings of `chunk` bytes each, noting the most bytes its encoder held at any
+    /// point. It reads the encoder's own field: `as_bytes` refuses on the hashing encoder.
+    struct Large {
+        chunks: usize,
+        chunk: usize,
+        held: Cell<usize>,
+    }
+    impl Canonical for Large {
+        fn encode(&self, out: &mut Encoder) {
+            for n in 0..self.chunks {
+                let byte = b'a' + u8::try_from(n % 26).expect("a letter");
+                out.string(&String::from_utf8(vec![byte; self.chunk]).expect("ascii"));
+                self.held.set(self.held.get().max(out.bytes.len()));
+            }
+        }
+    }
+
+    /// `story:commit-hashes-the-graph-once`: a knowledge root is the address of a whole graph,
+    /// and building that encoding in memory before hashing it held the graph's bytes a second
+    /// time and reallocated the buffer on the way up (12% of a commit's hashing in the
+    /// performance audit of 2026-09-29). [`ContentHash::of`] holds only a bounded window.
+    #[test]
+    fn hashing_a_value_holds_a_bounded_window_of_its_encoding() {
+        // Sixteen MiB of strings: the whole encoding, held at once, is sixteen times the bound.
+        let large = Large {
+            chunks: 4096,
+            chunk: 4096,
+            held: Cell::new(0),
+        };
+        let _ = ContentHash::of(&large);
+        assert!(
+            large.held.get() <= BOUND,
+            "ContentHash::of held {} bytes of the encoding at once; the bound is {BOUND}",
+            large.held.get()
+        );
+        // A buffering encoder still holds every byte, which is what `canonical_bytes` returns.
+        let buffered = Large {
+            chunks: 4096,
+            chunk: 4096,
+            held: Cell::new(0),
+        };
+        assert_eq!(buffered.canonical_bytes().len(), 4096 * (1 + 8 + 4096));
+        assert_eq!(buffered.held.get(), 4096 * (1 + 8 + 4096));
     }
 }

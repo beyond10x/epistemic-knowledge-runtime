@@ -85,9 +85,9 @@ impl ContentHash {
     /// a bounded window of it, never the whole, which for a knowledge root is a whole graph.
     #[must_use]
     pub fn of<T: Canonical + ?Sized>(value: &T) -> Self {
-        let mut encoder = crate::canonical::Encoder::hashing(Self::VALUE_DOMAIN);
+        let mut encoder = crate::canonical::Encoder::hashing_values();
         value.encode(&mut encoder);
-        Self(encoder.digest())
+        Self(encoder.value_digest())
     }
 
     /// A digest that was computed before — read back from storage, say.
