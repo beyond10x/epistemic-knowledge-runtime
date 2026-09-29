@@ -20,14 +20,14 @@ use ekr::exit::Failure;
 use ekr_sdk::document as sdk;
 use ekr_sdk::document::{
     payload_hash, to_yaml, AgentId, Assertion, AssertionId, AssertionLifecycle, Assessment,
-    Cardinality, Confidence, DocumentError, EdgeDraft, EdgeId, EdgeType, EdgeTypeSpec,
-    EdgeWidening, EntityMerge, Evidence, EvidenceAddition, EvidenceId, EvidenceSource, GraphRoot,
-    GraphRootId, GraphSection, Invocation, Lifecycle, NodeDraft, NodeId, NodeType, NodeTypeSpec,
-    Object, Ontology, OntologyError, OntologySection, OntologySpec, Operation, OperationDefinition,
-    OperationKind, Predicate, PropertyDefinition, PropertyId, PropertyModification,
-    PropertyMutation, PropertySpec, Retraction, SchemaChange, SchemaVersion, SchemaVersionId,
-    SeedBuilder, SeedDocument, SeedGraph, SeedNode, Space, Subject, Supersession, TemporalRange,
-    Timestamp, Transaction, TransactionBuilder, TransactionDocument, TransactionId,
+    Cardinality, Confidence, DocumentError, DocumentLimit, DocumentLimits, EdgeDraft, EdgeId,
+    EdgeType, EdgeTypeSpec, EdgeWidening, EntityMerge, Evidence, EvidenceAddition, EvidenceId,
+    EvidenceSource, GraphRoot, GraphRootId, GraphSection, Invocation, Lifecycle, NodeDraft, NodeId,
+    NodeType, NodeTypeSpec, Object, Ontology, OntologyError, OntologySection, OntologySpec,
+    Operation, OperationDefinition, OperationKind, Predicate, PropertyDefinition, PropertyId,
+    PropertyModification, PropertyMutation, PropertySpec, Retraction, SchemaChange, SchemaVersion,
+    SchemaVersionId, SeedBuilder, SeedDocument, SeedGraph, SeedNode, Space, Subject, Supersession,
+    TemporalRange, Timestamp, Transaction, TransactionBuilder, TransactionDocument, TransactionId,
     TransactionTime, Transition, TypeId, TypedReference, ValidationProfile, Value, ValueSpec,
     ValueType,
 };
@@ -561,50 +561,52 @@ fn a_local_mint_is_the_function_ekr_mint_runs() {
     );
 }
 
-#[test]
-fn the_sdk_links_no_kernel_store_or_graph_and_no_tokio() {
-    let path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("Cargo.toml");
-    let text = std::fs::read_to_string(&path).unwrap();
-    let manifest: toml::Table = text.parse().expect("the SDK's manifest is TOML");
-    let normal = manifest["dependencies"]
-        .as_table()
-        .expect("the SDK declares dependencies");
-    let workspace_crates: Vec<&String> = normal
-        .keys()
-        .filter(|name| name.starts_with("ekr"))
+/// Every package `manifest` links outside `[dev-dependencies]`, by package name: a dependency
+/// renamed with `package = "…"` is the package it names, and a target-specific table is as linked
+/// as the plain one.
+fn linked_packages(manifest: &toml::Table) -> Vec<String> {
+    let mut tables: Vec<&toml::Table> = ["dependencies", "build-dependencies"]
+        .iter()
+        .filter_map(|section| manifest.get(*section).and_then(toml::Value::as_table))
         .collect();
-    assert_eq!(
-        workspace_crates,
-        ["ekr-core"],
-        "the SDK depends on ekr-core alone among this workspace's crates"
-    );
-    for forbidden in ["ekr-kernel", "ekr-store", "ekr-graph"] {
-        assert!(
-            !normal.contains_key(forbidden),
-            "{forbidden} is a normal dependency"
-        );
-    }
-    let mut tables: Vec<(&str, &toml::Table)> = Vec::new();
-    for section in ["dependencies", "build-dependencies"] {
-        if let Some(table) = manifest.get(section).and_then(toml::Value::as_table) {
-            tables.push((section, table));
-        }
-    }
     if let Some(targets) = manifest.get("target").and_then(toml::Value::as_table) {
         for target in targets.values().filter_map(toml::Value::as_table) {
             for section in ["dependencies", "build-dependencies"] {
                 if let Some(table) = target.get(section).and_then(toml::Value::as_table) {
-                    tables.push((section, table));
+                    tables.push(table);
                 }
             }
         }
     }
-    for (section, table) in tables {
-        assert!(!table.contains_key("tokio"), "tokio in {section}");
-        for forbidden in ["ekr-kernel", "ekr-store", "ekr-graph"] {
-            assert!(!table.contains_key(forbidden), "{forbidden} in {section}");
-        }
-    }
+    tables
+        .into_iter()
+        .flat_map(|table| table.iter())
+        .map(|(key, spec)| {
+            spec.get("package")
+                .and_then(toml::Value::as_str)
+                .unwrap_or(key)
+                .to_owned()
+        })
+        .collect()
+}
+
+/// Every workspace crate but `ekr-core` among [`linked_packages`].
+fn linked_workspace_crates(manifest: &toml::Table) -> Vec<String> {
+    linked_packages(manifest)
+        .into_iter()
+        .filter(|package| package == "ekr" || package.starts_with("ekr-"))
+        .filter(|package| package != "ekr-core")
+        .collect()
+}
+
+#[test]
+fn the_sdk_links_no_workspace_crate_but_ekr_core_under_any_name_and_no_tokio() {
+    let path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("Cargo.toml");
+    let manifest: toml::Table = std::fs::read_to_string(path).unwrap().parse().unwrap();
+    assert_eq!(linked_workspace_crates(&manifest), Vec::<String>::new());
+    let linked = linked_packages(&manifest);
+    assert!(linked.contains(&"ekr-core".to_owned()), "{linked:?}");
+    assert!(!linked.contains(&"tokio".to_owned()), "the SDK links tokio");
     let features = manifest
         .get("features")
         .map(ToString::to_string)
@@ -613,6 +615,262 @@ fn the_sdk_links_no_kernel_store_or_graph_and_no_tokio() {
         !features.contains("tokio"),
         "a feature names tokio: {features}"
     );
+
+    // What the check must see and a key lookup does not: a rename, and the `ekr` binary crate
+    // (which links the kernel, the store and the graph) under a target table.
+    let renamed: toml::Table = "[dependencies]\nekr-core = { path = \"../ekr-core\" }\n\
+         kernel = { package = \"ekr-kernel\", path = \"../ekr-kernel\" }\n\
+         runtime = { package = \"tokio\", version = \"1\" }\n\
+         [target.'cfg(unix)'.dependencies]\nekr = { path = \"../ekr\" }\n"
+        .parse()
+        .unwrap();
+    assert_eq!(linked_workspace_crates(&renamed), ["ekr-kernel", "ekr"]);
+    assert!(linked_packages(&renamed).contains(&"tokio".to_owned()));
+}
+
+// ----- the frozen limits -----
+
+#[test]
+fn the_sdk_pins_the_kernels_frozen_transaction_document_limits_by_name_and_bound() {
+    // No `..`: a limit the kernel adds does not compile here.
+    let ekr_kernel::DocumentLimits {
+        input_bytes,
+        depth,
+        nodes,
+        mapping_entries,
+        sequence_elements,
+        string_bytes,
+        key_bytes,
+        total_string_bytes,
+        operations,
+        evidence,
+    } = ekr_kernel::DOCUMENT_V2_LIMITS;
+    let pinned: DocumentLimits = sdk::TRANSACTION_LIMITS;
+    assert_eq!(
+        pinned,
+        DocumentLimits {
+            input_bytes,
+            depth,
+            nodes,
+            mapping_entries,
+            sequence_elements,
+            string_bytes,
+            key_bytes,
+            total_string_bytes,
+            operations,
+            evidence,
+        }
+    );
+    for limit in DocumentLimit::ALL {
+        use ekr_kernel::DocumentLimit as K;
+        let (kernel, bound) = match limit {
+            DocumentLimit::InputBytes => (K::InputBytes, input_bytes),
+            DocumentLimit::Depth => (K::Depth, depth),
+            DocumentLimit::Nodes => (K::Nodes, nodes),
+            DocumentLimit::MappingEntries => (K::MappingEntries, mapping_entries),
+            DocumentLimit::SequenceElements => (K::SequenceElements, sequence_elements),
+            DocumentLimit::StringBytes => (K::StringBytes, string_bytes),
+            DocumentLimit::KeyBytes => (K::KeyBytes, key_bytes),
+            DocumentLimit::TotalStringBytes => (K::TotalStringBytes, total_string_bytes),
+            DocumentLimit::Operations => (K::Operations, operations),
+            DocumentLimit::Evidence => (K::Evidence, evidence),
+        };
+        assert_eq!(limit.name(), kernel.to_string());
+        assert_eq!(limit.bound(), bound, "{limit:?}");
+    }
+}
+
+/// A transaction document assembled without the builder, so that one past a limit can be
+/// written and given to the kernel.
+fn assembled(
+    operator: AgentId,
+    operations: Vec<Operation>,
+    evidence: BTreeSet<EvidenceId>,
+) -> TransactionDocument {
+    TransactionDocument {
+        format: sdk::TRANSACTION_FORMAT.to_owned(),
+        transaction: Transaction {
+            id: TransactionId::mint(),
+            proposer: operator,
+            operations,
+            evidence,
+            schema_version: None,
+        },
+    }
+}
+
+/// The limit the kernel's reader refuses `document` by, if any.
+fn kernel_limit(document: &TransactionDocument) -> Option<String> {
+    let yaml = document.to_yaml().expect("an SDK document writes");
+    match ekr_kernel::TransactionDocument::parse(yaml.as_bytes()) {
+        Ok(_) => None,
+        Err(ekr_kernel::DocumentError::Limit(limit, _)) => Some(limit.to_string()),
+        Err(other) => panic!("the kernel refuses for another reason: {other}"),
+    }
+}
+
+/// The limit the SDK refuses `document` by, if any, with its bound and a value past it.
+fn sdk_limit(document: &TransactionDocument) -> Option<String> {
+    match document.check_limits() {
+        Ok(()) => None,
+        Err(DocumentError::Limit {
+            limit,
+            bound,
+            value,
+        }) => {
+            assert_eq!(bound, limit.bound());
+            assert!(value > bound, "{limit:?}: {value} is not past {bound}");
+            Some(limit.name().to_owned())
+        }
+        Err(other) => panic!("the SDK refuses for another reason: {other}"),
+    }
+}
+
+#[test]
+fn every_limit_the_sdk_checks_it_refuses_where_the_kernel_does_and_by_the_same_name() {
+    let operator = AgentId::mint();
+    let root = GraphRootId::mint();
+    let deletes = |count: usize| {
+        (0..count)
+            .map(|_| Operation::DeleteEdge(EdgeId::mint()))
+            .collect::<Vec<_>>()
+    };
+    let payloads = |count: usize, bytes: usize| {
+        (0..count)
+            .map(|_| {
+                EvidenceAddition::new(
+                    EvidenceSource::human("desk"),
+                    operator,
+                    Timestamp::EPOCH,
+                    Confidence::CERTAIN,
+                    vec![0; bytes],
+                )
+                .into()
+            })
+            .collect::<Vec<Operation>>()
+    };
+    let node = |name: String, values: Vec<(PropertyId, Value)>| -> Vec<Operation> {
+        vec![values
+            .into_iter()
+            .fold(
+                NodeDraft::new(root, TypeId::mint(), name),
+                |node, (id, value)| node.with_property(id, value),
+            )
+            .into()]
+    };
+    let properties = |count: usize| {
+        (0..count)
+            .map(|_| (PropertyId::mint(), Value::Integer(1)))
+            .collect::<Vec<_>>()
+    };
+    let nested = |levels: usize| {
+        vec![(
+            PropertyId::mint(),
+            (0..levels).fold(Value::Integer(1), |inner, _| Value::List(vec![inner])),
+        )]
+    };
+    let claim = |levels: usize| -> Vec<Operation> {
+        let object = (0..levels).fold(Value::Integer(1), |inner, _| Value::List(vec![inner]));
+        vec![Assertion::new(
+            root,
+            Subject::Node(NodeId::mint()),
+            Predicate::Property(PropertyId::mint()),
+            Object::Value(object),
+            operator,
+        )
+        .into()]
+    };
+    let keyed = |bytes: usize| {
+        vec![(
+            PropertyId::mint(),
+            Value::Record([("k".repeat(bytes), Value::Integer(1))].into()),
+        )]
+    };
+    let names = |count: usize| {
+        (0..count)
+            .flat_map(|_| node("n".repeat(65_000), Vec::new()))
+            .collect::<Vec<_>>()
+    };
+    let ids = |count: usize| {
+        (0..count)
+            .map(|_| EvidenceId::mint())
+            .collect::<BTreeSet<_>>()
+    };
+    let none = BTreeSet::new;
+
+    let cases = [
+        (
+            "operations",
+            (deletes(10_000), none()),
+            (deletes(10_001), none()),
+        ),
+        (
+            "evidence_elements",
+            (deletes(1), ids(10_000)),
+            (deletes(1), ids(10_001)),
+        ),
+        (
+            "sequence_elements",
+            (payloads(1, 16_384), none()),
+            (payloads(1, 16_385), none()),
+        ),
+        (
+            "mapping_entries",
+            (node("n".into(), properties(4_096)), none()),
+            (node("n".into(), properties(4_097)), none()),
+        ),
+        (
+            "string_bytes",
+            (node("n".repeat(65_536), Vec::new()), none()),
+            (node("n".repeat(65_537), Vec::new()), none()),
+        ),
+        (
+            "key_bytes",
+            (node("n".into(), keyed(4_096)), none()),
+            (node("n".into(), keyed(4_097)), none()),
+        ),
+        (
+            "container_depth",
+            (node("n".into(), nested(12)), none()),
+            (node("n".into(), nested(13)), none()),
+        ),
+        // One tag more on the way down (`!Value`), so the depth is odd: 33 past the bound is
+        // refused only by a count that takes each tag as a level.
+        ("container_depth", (claim(12), none()), (claim(13), none())),
+        ("input_bytes", (names(120), none()), (names(130), none())),
+    ];
+    let checked: BTreeSet<&str> = cases.iter().map(|(name, _, _)| *name).collect();
+    for (name, (within_operations, within_evidence), (past_operations, past_evidence)) in cases {
+        let within = assembled(operator, within_operations, within_evidence);
+        assert_eq!(
+            kernel_limit(&within),
+            None,
+            "{name}: the kernel refuses the bound"
+        );
+        assert_eq!(
+            sdk_limit(&within),
+            None,
+            "{name}: the SDK refuses the bound"
+        );
+        let past = assembled(operator, past_operations, past_evidence);
+        assert_eq!(
+            kernel_limit(&past).as_deref(),
+            Some(name),
+            "{name}: the kernel"
+        );
+        assert_eq!(sdk_limit(&past).as_deref(), Some(name), "{name}: the SDK");
+    }
+    // Two limits no document the SDK writes reaches before `input_bytes`, measured on 2026-09-29:
+    // its densest node is a payload byte, written `    - 0\n` (8 bytes), so 1,048,577 nodes take
+    // more than 8,388,608 bytes (64 payloads of 16,384 zeros: 8,409,769 bytes, refused by both
+    // as input_bytes); and every string byte is at least one input byte, against a 33,554,432
+    // cap. Both are checked all the same.
+    let unreachable: BTreeSet<&str> = DocumentLimit::ALL
+        .iter()
+        .map(|limit| limit.name())
+        .filter(|name| !checked.contains(name))
+        .collect();
+    assert_eq!(unreachable, ["expanded_nodes", "total_string_bytes"].into());
 }
 
 // ----- a store -----

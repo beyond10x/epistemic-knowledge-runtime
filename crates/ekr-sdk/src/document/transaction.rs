@@ -34,6 +34,17 @@ impl TransactionDocument {
     pub fn to_yaml(&self) -> Result<String, DocumentError> {
         super::to_yaml(self)
     }
+
+    /// Whether the document, as [`Self::to_yaml`] writes it, is within the frozen limits of
+    /// `ekr.transaction-document/2` ([`TRANSACTION_LIMITS`](super::TRANSACTION_LIMITS)).
+    /// [`TransactionBuilder::build`] runs it; a document assembled by hand should too.
+    ///
+    /// # Errors
+    /// [`DocumentError::Limit`] naming the first limit it is past, its bound and the document's
+    /// value, and [`DocumentError::Yaml`] when the writer refuses a value.
+    pub fn check_limits(&self) -> Result<(), DocumentError> {
+        super::limits::check(&self.to_yaml()?)
+    }
 }
 
 /// One proposed transaction.
@@ -100,8 +111,10 @@ impl TransactionBuilder {
     /// The document.
     ///
     /// # Errors
-    /// [`DocumentError::EmptyTransaction`] with no operation, and
-    /// [`DocumentError::MixedSchemaTransaction`] when schema and data operations are mixed.
+    /// [`DocumentError::EmptyTransaction`] with no operation,
+    /// [`DocumentError::MixedSchemaTransaction`] when schema and data operations are mixed, and
+    /// [`DocumentError::Limit`] for a document past one of the format's frozen limits
+    /// ([`TransactionDocument::check_limits`]).
     pub fn build(self) -> Result<TransactionDocument, DocumentError> {
         if self.operations.is_empty() {
             return Err(DocumentError::EmptyTransaction);
@@ -125,7 +138,7 @@ impl TransactionBuilder {
             .collect();
         let schema_version =
             (schema != 0).then(|| self.schema_version.unwrap_or_else(SchemaVersionId::mint));
-        Ok(TransactionDocument {
+        let document = TransactionDocument {
             format: TRANSACTION_FORMAT.to_owned(),
             transaction: Transaction {
                 id: self.id,
@@ -134,7 +147,9 @@ impl TransactionBuilder {
                 evidence,
                 schema_version,
             },
-        })
+        };
+        document.check_limits()?;
+        Ok(document)
     }
 }
 
@@ -363,7 +378,9 @@ impl Supersession {
 pub struct EvidenceAddition {
     /// The entry; its `content_hash` is the payload's.
     pub evidence: Evidence,
-    /// The bytes, at most 16,384 in one `ekr.transaction-document/2`.
+    /// The bytes, written as one list element each, so at most `sequence_elements` (16,384) of
+    /// them; [`TransactionBuilder::build`] refuses more by that name. A larger statement goes
+    /// into the seed, or is split into several entries.
     pub payload: Vec<u8>,
 }
 

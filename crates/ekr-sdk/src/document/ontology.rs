@@ -608,43 +608,21 @@ impl Ontology {
                 new_nodes.insert(node.name.clone());
             }
         }
-        let mut define_nodes = Vec::new();
-        let mut modify = Vec::new();
+        // Every type's parents are settled before any property is, so inheritance below reads the
+        // whole hierarchy whatever order the spec lists its types in.
         for node in &spec.node_types {
             let parents: BTreeSet<TypeId> = node
                 .parents
                 .iter()
                 .map(|parent| next.node_id(parent))
                 .collect::<Result<_, _>>()?;
-            let wanted: Vec<PropertyDefinition> = node
-                .properties
-                .iter()
-                .map(|property| next.definition(property))
-                .collect::<Result<_, _>>()?;
-            let owner = next.node_types[&node.name].id;
+            let held = next
+                .node_types
+                .get_mut(&node.name)
+                .expect("every node type of the spec is in the map");
             if new_nodes.contains(&node.name) {
-                let entry = next.node_types.get_mut(&node.name).expect("inserted above");
-                entry.parents.clone_from(&parents);
-                entry.properties = wanted
-                    .iter()
-                    .map(|property| (property.name.clone(), property.clone()))
-                    .collect();
-                define_nodes.push(NodeType {
-                    id: owner,
-                    name: node.name.clone(),
-                    parents,
-                    properties: wanted
-                        .into_iter()
-                        .map(|property| (property.id, property))
-                        .collect(),
-                    abstract_type: node.abstract_type,
-                    lifecycle: None,
-                    operations: BTreeMap::new(),
-                });
-                continue;
-            }
-            let held = &next.node_types[&node.name];
-            if held.abstract_type != node.abstract_type || held.parents != parents {
+                held.parents = parents;
+            } else if held.abstract_type != node.abstract_type || held.parents != parents {
                 return Err(OntologyError::Conflict {
                     kind: "node type",
                     name: node.name.clone(),
@@ -653,24 +631,27 @@ impl Ontology {
                         .to_owned(),
                 });
             }
-            for mut property in wanted {
+        }
+        // Ancestors first, so a property a parent gains here is one its subtypes inherit rather
+        // than declare again. New and held types follow one rule: a property the type or an
+        // ancestor declares the same way is met, one an ancestor declares differently is a
+        // conflict, one the type itself declares differently is redeclared under its id.
+        let order = ancestors_first(spec)?;
+        let mut modify = Vec::new();
+        for node in &order {
+            let owner = next.node_types[&node.name].id;
+            let new = new_nodes.contains(&node.name);
+            for wanted in &node.properties {
+                let mut property = next.definition(wanted)?;
                 let own = next.node_types[&node.name]
                     .properties
                     .get(&property.name)
                     .cloned();
                 match own {
-                    Some(held) if same_declaration(&held, &property) => {}
-                    Some(held) => {
-                        property.id = held.id;
-                        modify.push(PropertyModification::new(owner, property.clone()));
-                        next.node_types
-                            .get_mut(&node.name)
-                            .expect("held above")
-                            .properties
-                            .insert(property.name.clone(), property);
-                    }
+                    Some(held) if same_declaration(&held, &property) => continue,
+                    Some(held) => property.id = held.id,
                     None => match next.inherited(&node.name, &property.name) {
-                        Some(held) if same_declaration(held, &property) => {}
+                        Some(held) if same_declaration(held, &property) => continue,
                         Some(_) => {
                             return Err(OntologyError::Conflict {
                                 kind: "property",
@@ -679,19 +660,39 @@ impl Ontology {
                                     .to_owned(),
                             })
                         }
-                        None => {
-                            modify.push(PropertyModification::new(owner, property.clone()));
-                            next.node_types
-                                .get_mut(&node.name)
-                                .expect("held above")
-                                .properties
-                                .insert(property.name.clone(), property);
-                        }
+                        None => {}
                     },
                 }
+                if !new {
+                    modify.push(PropertyModification::new(owner, property.clone()));
+                }
+                next.node_types
+                    .get_mut(&node.name)
+                    .expect("every node type of the spec is in the map")
+                    .properties
+                    .insert(property.name.clone(), property);
             }
         }
-        let define_nodes = parents_first(define_nodes, &new_nodes, &next)?;
+        let define_nodes: Vec<NodeType> = order
+            .iter()
+            .filter(|node| new_nodes.contains(&node.name))
+            .map(|node| {
+                let entry = &next.node_types[&node.name];
+                NodeType {
+                    id: entry.id,
+                    name: node.name.clone(),
+                    parents: entry.parents.clone(),
+                    properties: entry
+                        .properties
+                        .values()
+                        .map(|property| (property.id, property.clone()))
+                        .collect(),
+                    abstract_type: node.abstract_type,
+                    lifecycle: None,
+                    operations: BTreeMap::new(),
+                }
+            })
+            .collect();
 
         let mut define_edges = Vec::new();
         let mut widen = Vec::new();
@@ -823,23 +824,22 @@ fn check_unique(spec: &OntologySpec) -> Result<(), OntologyError> {
     Ok(())
 }
 
-/// The new node types ordered so that each follows every new parent it names.
-fn parents_first(
-    mut pending: Vec<NodeType>,
-    new_nodes: &BTreeSet<String>,
-    next: &Ontology,
-) -> Result<Vec<NodeType>, OntologyError> {
-    let new_ids: BTreeSet<TypeId> = new_nodes
+/// The spec's node types ordered so that each follows every parent the spec also lists; a parent
+/// the spec does not list is one the store holds. Among types free to go, the spec's order holds.
+fn ancestors_first(spec: &OntologySpec) -> Result<Vec<&NodeTypeSpec>, OntologyError> {
+    let listed: BTreeSet<&str> = spec
+        .node_types
         .iter()
-        .filter_map(|name| next.node_type(name))
+        .map(|node| node.name.as_str())
         .collect();
+    let mut pending: Vec<&NodeTypeSpec> = spec.node_types.iter().collect();
     let mut placed = BTreeSet::new();
     let mut ordered = Vec::with_capacity(pending.len());
     while !pending.is_empty() {
         let ready = pending.iter().position(|node| {
             node.parents
                 .iter()
-                .all(|parent| !new_ids.contains(parent) || placed.contains(parent))
+                .all(|parent| !listed.contains(parent.as_str()) || placed.contains(parent))
         });
         let Some(at) = ready else {
             return Err(OntologyError::Conflict {
@@ -849,7 +849,7 @@ fn parents_first(
             });
         };
         let node = pending.remove(at);
-        placed.insert(node.id);
+        placed.insert(node.name.clone());
         ordered.push(node);
     }
     Ok(ordered)

@@ -25,6 +25,7 @@
 //! `ekr schema` and to a real store.
 
 mod graph;
+mod limits;
 mod ontology;
 mod reference;
 mod seed;
@@ -41,6 +42,7 @@ pub use graph::{
     Assertion, AssertionLifecycle, Assessment, Confidence, EdgeDraft, Evidence, EvidenceSource,
     NodeDraft, Object, Predicate, Subject, TemporalRange, TransactionTime,
 };
+pub use limits::{DocumentLimit, DocumentLimits, TRANSACTION_LIMITS};
 pub use ontology::{
     EdgeTypeSpec, NodeTypeSpec, Ontology, OntologyError, OntologySpec, PropertySpec, SchemaChange,
     ValidationProfile, ValueSpec,
@@ -79,6 +81,21 @@ pub enum DocumentError {
     /// mixture (`mixed-schema-transaction`, or `unsupported-operation` under profile v1).
     #[error("a schema change travels alone: this transaction mixes schema and data operations")]
     MixedSchemaTransaction,
+    /// The document is past one of the format's frozen limits, which `ekr propose` would refuse
+    /// by the same name: split the change into several transactions, or put a larger statement
+    /// into the seed.
+    #[error(
+        "transaction document limit: {name} (at most {bound}): this document has {value}",
+        name = limit.name()
+    )]
+    Limit {
+        /// The limit.
+        limit: DocumentLimit,
+        /// Its inclusive bound.
+        bound: usize,
+        /// What the document has.
+        value: usize,
+    },
     /// The YAML writer refused the value.
     #[error("writing YAML: {0}")]
     Yaml(#[from] serde_yaml_ng::Error),
