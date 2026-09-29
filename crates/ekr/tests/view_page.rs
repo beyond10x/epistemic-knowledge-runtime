@@ -41,9 +41,6 @@ const PAGE_ADDRESSES: [&str; 7] = [
     "/evidence/",
 ];
 
-/// The four addresses the earlier page at `/alt` reads, and no other.
-const ALT_ADDRESSES: [&str; 4] = ["/head", "/projection", "/roles", "/evidence/"];
-
 /// How many nodes the page draws before it asks first.
 const RENDER_BUDGET: &str = "20000";
 
@@ -66,14 +63,9 @@ fn page() -> String {
     std::fs::read_to_string(manifest_dir().join("src/cli/viewer/index.html")).unwrap()
 }
 
-/// The earlier page `ekr view` keeps at `/alt`.
-fn alt_page() -> String {
-    std::fs::read_to_string(manifest_dir().join("src/cli/viewer/alt.html")).unwrap()
-}
-
-/// Both embedded pages, each held to the same data-free and no-markup rules.
-fn pages() -> [(&'static str, String); 2] {
-    [("index.html", page()), ("alt.html", alt_page())]
+/// The embedded page, held to the data-free and no-markup rules.
+fn pages() -> [(&'static str, String); 1] {
+    [("index.html", page())]
 }
 
 /// Every store directory under `tests/fixtures/<collection>`, or `None` when the collection is
@@ -551,11 +543,6 @@ fn each_embedded_page_reads_only_its_own_addresses() {
         &without_pinned_libraries(&page()),
         &PAGE_ADDRESSES,
     );
-    reads_only(
-        "alt.html",
-        &without_pinned_libraries(&alt_page()),
-        &ALT_ADDRESSES,
-    );
 }
 
 /// The page reads an expansion as it arrives, can close it, and names its render budget.
@@ -609,7 +596,6 @@ fn reads_only(file: &str, page: &str, addresses: &[&str]) {
 #[test]
 fn ekr_view_serves_each_fixture_store_the_page_its_projection_and_roles_or_none() {
     let page = page();
-    let alt = alt_page();
     for fixture in fixture_stores() {
         let seeded = Seeded::new(&fixture);
         let expected = seeded.projection_bytes();
@@ -622,12 +608,11 @@ fn ekr_view_serves_each_fixture_store_the_page_its_projection_and_roles_or_none(
             "{}: the embedded page",
             fixture.display()
         );
-        let (status, body) = server.get("/alt");
-        assert_eq!(status, 200, "{}: GET /alt", fixture.display());
+        let (status, _) = server.get("/alt");
         assert_eq!(
-            body,
-            alt.as_bytes(),
-            "{}: the earlier page at /alt",
+            status,
+            404,
+            "{}: GET /alt, the retired earlier page",
             fixture.display()
         );
         let (status, body) = server.get("/projection");

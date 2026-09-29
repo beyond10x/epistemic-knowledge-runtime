@@ -48,6 +48,12 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   keep their bytes. Under validation profile v3 an open that admits a checkpoint reads them from the
   receipt instead of parsing every committed proposal.
 
+### Removed
+
+- **`ekr view` no longer serves the earlier viewer page at `GET /alt`.** The streamed page at `/`
+  is the only page the binary embeds; `/alt` answers 404 like any other unknown path, and the
+  binary is 65,297 bytes of HTML lighter. `/projection` and `/roles` are still served.
+
 ## [0.0.17] — 2026-09-29
 
 Reads share state instead of copying it; requests copy no retained bytes; validation scans nothing

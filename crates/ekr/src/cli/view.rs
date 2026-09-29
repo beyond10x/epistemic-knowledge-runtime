@@ -38,8 +38,8 @@
 //! Before each request of a path that reads the store, the store at the configured path is checked
 //! (`session.rs`): one that replaced the store opened — by a rename, say — is opened and answered
 //! from, with every index and rendered answer of the replaced one dropped, and one that does not
-//! open is 503 `store-replaced`, never an answer from the replaced store. `GET /` and `GET /alt`
-//! read no store and are not checked.
+//! open is 503 `store-replaced`, never an answer from the replaced store. `GET /` reads no store
+//! and is not checked.
 //!
 //! A revision is loaded once: the first request of a revision, whichever path, loads and indexes
 //! it through one [`IndexCache`] of [`IndexCache::DEFAULT_CAPACITY`] revisions, keyed by the
@@ -53,8 +53,7 @@
 //! | request | answer |
 //! |---|---|
 //! | `GET /` | the embedded viewer page, `text/html; charset=utf-8` |
-//! | `GET /alt` | the embedded earlier viewer page, kept while the new one is accepted, `text/html; charset=utf-8` |
-//! | `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision read at the request, `application/json`; no document names it, and both pages read it here. Any query is 400 `invalid-query`, an unseeded store 404 `ekr.views.NotSeeded` |
+//! | `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision read at the request, `application/json`; no document names it, and the page reads it here. Any query is 400 `invalid-query`, an unseeded store 404 `ekr.views.NotSeeded` |
 //! | `GET /projection` | the `ekr.graph-projection/1` bytes `ekr-views` renders at the head, `application/json` |
 //! | `GET /projection?revision=N` | the same at revision `N`; an absent revision is 404 `ekr.views.RevisionNotFound` |
 //! | `GET /roles[?revision=N]` | the `ekr.view-roles/1` node-type roles of that revision (the head when absent), derived by [`super::view_roles`] from the same loaded revision the projection renders, `application/json`; refused as `/projection` refuses |
@@ -108,8 +107,6 @@ use crate::exit::Failure;
 
 /// The viewer page, embedded at build time; nothing is read from disk at run time.
 const PAGE: &str = include_str!("viewer/index.html");
-/// The earlier viewer page, served at `/alt` under the same policy.
-const ALT_PAGE: &str = include_str!("viewer/alt.html");
 /// The most revisions whose answers are kept in memory at once.
 const CACHE_LIMIT: usize = 8;
 /// The page's Content-Security-Policy as its `<meta>` carries it; the header adds
@@ -612,7 +609,6 @@ impl Reply {
 #[derive(Clone, Copy)]
 enum Route<'a> {
     Page,
-    AltPage,
     Head,
     Projection,
     Roles,
@@ -632,7 +628,6 @@ fn route(path: &str) -> Option<Route<'_>> {
     };
     match path {
         "/" => Some(Route::Page),
-        "/alt" => Some(Route::AltPage),
         "/head" => Some(Route::Head),
         "/projection" => Some(Route::Projection),
         "/roles" => Some(Route::Roles),
@@ -712,7 +707,7 @@ fn answer(held: &mut Held, memory: &mut Memory, port: u16, asked: &Asked) -> Ans
             "request-body-refused: a GET carries no body",
         ));
     }
-    if let Route::Page | Route::AltPage = route {
+    if let Route::Page = route {
         return route_answer(None, memory, route, query);
     }
     let first = route_answer(Some(held.current()), memory, route, query);
@@ -735,7 +730,7 @@ fn answered_diverged(answered: &Answered) -> bool {
     }
 }
 
-/// Answers `route` from the store `checked` holds — none for the pages, which read no store: a
+/// Answers `route` from the store `checked` holds — none for the page, which reads no store: a
 /// store opened again empties [`Memory`], and one that does not open is 503
 /// [`STORE_REPLACED`].
 fn route_answer(
@@ -745,14 +740,7 @@ fn route_answer(
     query: &str,
 ) -> Answered {
     let runtime = match checked {
-        None => {
-            let page = if let Route::AltPage = route {
-                ALT_PAGE
-            } else {
-                PAGE
-            };
-            return Answered::Whole(Reply::ok(HTML, page.as_bytes().to_vec()));
-        }
+        None => return Answered::Whole(Reply::ok(HTML, PAGE.as_bytes().to_vec())),
         Some(Ok(Checked::Same(runtime))) => runtime,
         Some(Ok(Checked::Reopened(runtime))) => {
             *memory = Memory::default();
@@ -764,7 +752,6 @@ fn route_answer(
     };
     let reply = match route {
         Route::Page => Reply::ok(HTML, PAGE.as_bytes().to_vec()),
-        Route::AltPage => Reply::ok(HTML, ALT_PAGE.as_bytes().to_vec()),
         Route::Head => head(runtime, query),
         Route::Projection => rendered(runtime, memory, query, "projection", |r| &r.projection),
         Route::Roles => rendered(runtime, memory, query, "roles", |r| &r.roles),
@@ -1436,12 +1423,10 @@ mod tests {
     /// two cannot drift apart.
     #[test]
     fn the_page_header_policy_is_the_meta_policy_and_refuses_framing() {
-        for (name, page) in [("/", PAGE), ("/alt", ALT_PAGE)] {
-            assert!(
-                page.contains(&format!("content=\"{PAGE_POLICY}\"")),
-                "the <meta> policy of {name} is not PAGE_POLICY"
-            );
-        }
+        assert!(
+            PAGE.contains(&format!("content=\"{PAGE_POLICY}\"")),
+            "the <meta> policy of / is not PAGE_POLICY"
+        );
         let head = String::from_utf8(Reply::ok(HTML, Vec::new()).into_bytes())
             .expect("a reply head is text");
         assert!(
@@ -1606,9 +1591,8 @@ mod tests {
     }
 
     #[test]
-    fn only_the_twelve_routes_exist() {
+    fn only_the_eleven_routes_exist() {
         assert!(matches!(route("/"), Some(Route::Page)));
-        assert!(matches!(route("/alt"), Some(Route::AltPage)));
         assert!(matches!(route("/head"), Some(Route::Head)));
         assert!(matches!(route("/projection"), Some(Route::Projection)));
         assert!(matches!(route("/roles"), Some(Route::Roles)));
@@ -1632,8 +1616,8 @@ mod tests {
             "/evidence/",
             "/evidence/a/b",
             "/evidence",
+            "/alt",
             "/alt/",
-            "/alt.html",
             "/head/",
             "/heads",
             "/overview/",
