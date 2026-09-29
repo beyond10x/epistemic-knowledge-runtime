@@ -1,0 +1,12 @@
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-8000-000000000741
+  proposer: 00000000-0000-4000-8000-000000000101
+  operations:
+  - !AddAlias
+    node: 00000000-0000-4000-8000-000000000398
+    alias: the-first-unknown
+  - !AddAlias
+    node: 00000000-0000-4000-8000-000000000399
+    alias: the-second-unknown
+  evidence: []

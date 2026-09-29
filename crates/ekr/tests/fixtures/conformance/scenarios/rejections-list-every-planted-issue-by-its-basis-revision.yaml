@@ -1,0 +1,153 @@
+# story:validation-findings-read, acceptance 1 and 2.
+#
+# The target is seeded from `seed.yaml` and has committed revision 1 before the first act. Two
+# rejections are planted, on two basis revisions: `planted_early` (`rejections-two-issues.yaml`)
+# adds aliases to nodes 0398 and 0399, which no revision holds, and is validated against revision
+# 0, so Reference raises unresolved-node once for each; `planted_late` (`propose-rejected.yaml`)
+# retracts assertion 0599, which no revision holds, and is validated against revision 1, so
+# Reference raises unresolved-assertion. A third transaction (`propose-node.yaml`) is proposed,
+# validated and committed as revision 2.
+#
+# Rejections keys each rejection on the revision it was validated against: a range of revision 0
+# holds exactly the two issues of the early one, a range of revision 1 exactly the one issue of
+# the late one, the whole range all three, and a range from revision 2 none. The committed
+# transaction has no row in any range.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: rejections-list-every-planted-issue-by-its-basis-revision
+summary: Two transactions rejected against revisions 0 and 1 answer Rejections with each of their issues under the revision each was validated against, and the transaction committed beside them has no row.
+
+arrange:
+  - instance: early
+    entity: ekr.kernel.GraphTransaction
+  - instance: late
+    entity: ekr.kernel.GraphTransaction
+  - instance: kept
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: planted_early
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: early, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: early}
+      against: 0
+    outcome: rejected
+    events:
+      - event: ekr.kernel.TransactionRejected
+        payload:
+          issues: 2
+
+  - at: 2027-01-15T08:00:02Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: planted_late
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: late, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:03Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: late}
+      against: 1
+    outcome: rejected
+    events:
+      - event: ekr.kernel.TransactionRejected
+        payload:
+          issues: 1
+
+  - at: 2027-01-15T08:00:04Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: transaction_document
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: kept, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:05Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: kept}
+      against: 1
+    outcome: validated
+    events:
+      - event: ekr.kernel.TransactionValidated
+        payload:
+          against: 1
+
+  - at: 2027-01-15T08:00:06Z
+    command: ekr.kernel.Commit
+    actor: ekr.kernel.Committer
+    input:
+      transaction_id: {$instance: kept}
+    outcome: committed
+    events:
+      - event: ekr.kernel.RevisionCommitted
+        payload:
+          number: 2
+
+assert:
+  - view: ekr.kernel.Rejections
+    params: {from: 0, to: 0}
+    contains:
+      transaction_id: {$instance: early}
+      against: 0
+      validator: Reference
+      code: unresolved-node
+      message: node 00000000-0000-4000-8000-000000000398 is not in the graph
+
+  - view: ekr.kernel.Rejections
+    params: {from: 0, to: 0}
+    contains:
+      transaction_id: {$instance: early}
+      against: 0
+      validator: Reference
+      code: unresolved-node
+      message: node 00000000-0000-4000-8000-000000000399 is not in the graph
+
+  - view: ekr.kernel.Rejections
+    params: {from: 0, to: 0}
+    counts: {at_least: 2, at_most: 2}
+
+  - view: ekr.kernel.Rejections
+    params: {from: 1, to: 1}
+    contains:
+      transaction_id: {$instance: late}
+      against: 1
+      validator: Reference
+      code: unresolved-assertion
+      message: assertion 00000000-0000-4000-8000-000000000599 is not in the graph
+
+  - view: ekr.kernel.Rejections
+    params: {from: 1, to: 1}
+    counts: {at_least: 1, at_most: 1}
+
+  - view: ekr.kernel.Rejections
+    params: {from: 0}
+    counts: {at_least: 3, at_most: 3}
+
+  - view: ekr.kernel.Rejections
+    params: {from: 0}
+    excludes:
+      transaction_id: {$instance: kept}
+
+  - view: ekr.kernel.Rejections
+    params: {from: 2}
+    counts: {at_most: 0}

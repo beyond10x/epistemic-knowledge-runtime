@@ -4,6 +4,17 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- **`ekr rejections` reads the validation findings of rejected transactions** (`docs/cli.md`,
+  `ekr rejections`). It prints one `ekr.rejections/1` document: each rejected transaction with
+  the issues its rejection recorded (validator, code, message), keyed on the revision it was
+  validated against, for a range `--from N --to M` of those revisions. Committed transactions
+  carry no findings and never appear. Two reads of one range print the same bytes, before and
+  after a later commit. `ekr session` serves it too. The document and its view
+  `ekr.kernel.Rejections` are specified in `systems/ekr/domains/kernel.yaml`, and a kernel
+  conformance scenario holds it on both providers.
+
 ## [0.0.20] — 2026-09-29
 
 The SDK resolves through a cache, commits in bisected batches and types the views reads, which

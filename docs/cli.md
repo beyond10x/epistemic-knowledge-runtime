@@ -127,6 +127,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr resolve` | reads | a `typed-reference` file, or `-`; `--at <revision>` | the resolution: `kind` is `Resolved` (with `node_id`), `ProposeNew` (with `type_id` and `aliases`) or `Ambiguous` (with `candidates`) |
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
+| `ekr rejections` | reads | `--from <revision>`, `--to <revision>` | the `ekr.rejections/1` document: each rejected transaction with its validation issues, by the revision it was validated against |
 | `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent` |
 | `ekr guide` | none | none | the workflow, as text |
 | `ekr operations` | none | an operation kind, optionally | the kinds, or one kind's fields and example |
@@ -270,6 +271,23 @@ that a commit landed.
 Lists every retained transaction with `transaction_id`, `state`, `proposer`, `operation_count` and
 `submitted_at`. `--state` filters by one of `Proposed`, `Validated`, `Committed`, `Rejected` or
 `Stale`.
+
+### `ekr rejections`
+
+Lists each rejected transaction with the validation issues its rejection recorded, keyed on the
+revision it was validated against: the `ekr.rejections/1` document (`ekr.kernel.RejectionsV1` in
+`systems/ekr/domains/kernel.yaml`). `--from N` and `--to M` select the basis revisions `N` to `M`,
+both included; either may be left out, and a range with `N` above `M` selects nothing. Each entry
+of `rejections` carries `transaction_id`, `against` (the revision `ekr validate --against` named),
+`proposer`, `rejected_at` and `issues`: every issue exactly as `ekr validate` printed it in its
+`Rejected` result — `id`, `transaction_id`, `validator`, `code` and `message`, in the order the
+rejection recorded them. Entries are ordered by `against`, then `transaction_id`; `from` and `to`
+echo the request and are left out when it gave none.
+
+Only rejections appear. A committed transaction has no issues: the kernel commits a transaction
+only when no validator raised one. The document names neither the head nor the time of the read,
+so two reads of one range print the same bytes, and a later commit changes nothing already
+printed; only a new rejection in the range does.
 
 ### `ekr ontology`
 
@@ -574,7 +592,7 @@ writes through one process instead of one each:
 ```
 
 A session serves `propose`, `validate`, `commit`, `snapshot`, `explain`, `resolve`, `head`,
-`transactions`, `ontology`, `mint`, `hash` and `schema`, the `ekr.views` reads
+`transactions`, `rejections`, `ontology`, `mint`, `hash` and `schema`, the `ekr.views` reads
 ([below](#session-views)), and `seed` when it was started with `--create`. It refuses these, each
 answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"stderr"`:
 

@@ -678,6 +678,7 @@ fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
         | Command::Resolve { .. }
         | Command::Head
         | Command::Transactions { .. }
+        | Command::Rejections { .. }
         | Command::Ontology { .. }
         | Command::Schema { .. }
         | Command::Mint { .. }
