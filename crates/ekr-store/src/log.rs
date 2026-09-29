@@ -6,6 +6,19 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+thread_local! {
+    static KNOWLEDGE_ROOTS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+/// How many knowledge roots, each a hash of a whole graph, the calling thread has computed.
+///
+/// Test instrumentation, as [`crate::ReadWork`] is: it lets a test show that a commit hashes the
+/// graph once. Counted per thread because every store and kernel call runs on its caller's
+/// thread, and tests in one binary run on several.
+#[doc(hidden)]
+#[must_use]
+pub fn knowledge_roots_hashed() -> u64 {
+    KNOWLEDGE_ROOTS.with(std::cell::Cell::get)
+}
 /// Value-domain address of complete node, edge and assertion collections, in that order.
 #[must_use]
 pub fn knowledge_root(graph: &CanonicalGraph) -> ContentHash {
@@ -17,6 +30,7 @@ pub fn knowledge_root(graph: &CanonicalGraph) -> ContentHash {
             self.0.assertions.encode(out);
         }
     }
+    KNOWLEDGE_ROOTS.with(|count| count.set(count.get() + 1));
     ContentHash::of(&Knowledge(graph))
 }
 /// Value-domain address of the complete evidence collection.

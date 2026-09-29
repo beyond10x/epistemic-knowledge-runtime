@@ -45,6 +45,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use sha2::{Digest, Sha256};
+
 use crate::hash::ContentHash;
 use crate::identity::RevisionNumber;
 
@@ -75,6 +77,13 @@ mod tag {
 /// must encode equally exactly when they are equal.
 pub trait Canonical {
     /// Appends this value's canonical bytes to `out`.
+    ///
+    /// An implementation writes; it does not read `out`. [`ContentHash::of`] hands it an encoder
+    /// that hashes the bytes as they arrive and holds only a window of them, so there
+    /// [`Encoder::as_bytes`] and [`Encoder::finish`] refuse rather than answer with part of the
+    /// encoding, and `Debug` shows no content on any encoder. Encoding a part on its own takes an
+    /// [`Encoder::new`] of its own. What `ContentHash::of` addresses is the encoder left in `out`
+    /// when this returns, which is what [`Canonical::canonical_bytes`] returns too.
     fn encode(&self, out: &mut Encoder);
 
     /// This value's canonical bytes, on their own.
@@ -86,14 +95,32 @@ pub trait Canonical {
     }
 }
 
+/// How many unhashed bytes an encoder that hashes as it writes holds before it hashes them.
+const WINDOW: usize = 64 * 1024;
+
 /// The buffer a [`Canonical`] implementation writes into.
 ///
 /// Every write goes through a method that emits the tag and the length prefix together, so the
 /// two rules that keep the encoding unambiguous are kept in one place rather than at each call
 /// site.
-#[derive(Debug, Default)]
+///
+/// The encoder [`ContentHash::of`] writes through hashes the bytes as they arrive and holds at
+/// most a window of them, so an address over a whole graph never holds that graph's encoding in
+/// memory. It produces the digest of exactly the bytes a buffering encoder would hold.
+#[derive(Default)]
 pub struct Encoder {
     bytes: Vec<u8>,
+    /// Where the bytes go on an encoder that hashes as it writes: the digest of its domain and of
+    /// every byte written before `bytes`. `None` on a buffering encoder, which keeps them all.
+    digest: Option<Sha256>,
+}
+
+/// The same text for every encoder: what one holds is not part of it, because the hashing encoder
+/// holds only a window and an implementation that formatted it would change its own address.
+impl std::fmt::Debug for Encoder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Encoder").finish_non_exhaustive()
+    }
 }
 
 impl Encoder {
@@ -103,52 +130,117 @@ impl Encoder {
         Self::default()
     }
 
+    /// An empty encoder that hashes [`ContentHash::VALUE_DOMAIN`] and then every byte written
+    /// into it, holding at most a window of them.
+    pub(crate) fn hashing_values() -> Self {
+        let mut digest = Sha256::new();
+        digest.update(ContentHash::VALUE_DOMAIN);
+        Self {
+            bytes: Vec::new(),
+            digest: Some(digest),
+        }
+    }
+
+    /// The value-domain digest of every byte written into this encoder. An implementation that
+    /// put a buffering encoder in the hashing one's place (`std::mem::replace`) left that one's
+    /// bytes to be addressed, which are the bytes a buffering encoder would hold too.
+    pub(crate) fn value_digest(self) -> [u8; 32] {
+        let mut digest = self.digest.unwrap_or_else(|| {
+            let mut digest = Sha256::new();
+            digest.update(ContentHash::VALUE_DOMAIN);
+            digest
+        });
+        digest.update(&self.bytes);
+        digest.finalize().into()
+    }
+
+    /// Refuses on the hashing encoder, which no longer holds what it hashed: a partial answer
+    /// would give the implementation that read it a different address.
+    fn buffering(&self, what: &str) {
+        assert!(
+            self.digest.is_none(),
+            "{what} is unavailable on a hashing encoder"
+        );
+    }
+
     /// The bytes written so far.
+    ///
+    /// # Panics
+    ///
+    /// On the encoder [`ContentHash::of`] writes through, moved out of the `&mut Encoder` an
+    /// implementation is handed: `finish is unavailable on a hashing encoder`.
     #[must_use]
     pub fn finish(self) -> Vec<u8> {
+        self.buffering("finish");
         self.bytes
     }
 
     /// The bytes written so far, without consuming the encoder.
+    ///
+    /// # Panics
+    ///
+    /// On the encoder [`ContentHash::of`] writes through: `as_bytes is unavailable on a hashing
+    /// encoder`.
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
+        self.buffering("as_bytes");
         &self.bytes
     }
 
+    /// Appends `data`: to the buffer, or on a hashing encoder to the window, hashing the window
+    /// once it is full. A run as long as a window is hashed where it lies, never copied.
+    fn write(&mut self, data: &[u8]) {
+        match &mut self.digest {
+            None => self.bytes.extend_from_slice(data),
+            Some(digest) if data.len() >= WINDOW => {
+                digest.update(&self.bytes);
+                self.bytes.clear();
+                digest.update(data);
+            }
+            Some(digest) => {
+                self.bytes.extend_from_slice(data);
+                if self.bytes.len() >= WINDOW {
+                    digest.update(&self.bytes);
+                    self.bytes.clear();
+                }
+            }
+        }
+    }
+
     fn tag(&mut self, tag: u8) {
-        self.bytes.push(tag);
+        self.write(&[tag]);
     }
 
     fn length(&mut self, length: usize) {
-        self.bytes.extend_from_slice(&(length as u64).to_be_bytes());
+        self.write(&(length as u64).to_be_bytes());
     }
 
     /// A tagged, length-prefixed run of raw bytes.
     pub fn bytes(&mut self, bytes: &[u8]) {
         self.tag(tag::BYTES);
         self.length(bytes.len());
-        self.bytes.extend_from_slice(bytes);
+        self.write(bytes);
     }
 
     /// A tagged, length-prefixed string, as UTF-8.
     pub fn string(&mut self, text: &str) {
         self.tag(tag::STRING);
         self.length(text.len());
-        self.bytes.extend_from_slice(text.as_bytes());
+        self.write(text.as_bytes());
     }
 
     /// An unsigned integer, widened to sixteen big-endian bytes so that the same number encodes
     /// the same whichever width it was held in.
     pub fn unsigned(&mut self, value: u128) {
         self.tag(tag::UNSIGNED);
-        self.bytes.extend_from_slice(&value.to_be_bytes());
+        self.write(&value.to_be_bytes());
     }
 
     /// A signed integer, widened to sixteen big-endian bytes. A negative number and an unsigned
     /// one never share an encoding: the tag differs.
     pub fn signed(&mut self, value: i128) {
         self.tag(tag::SIGNED);
-        self.bytes.extend_from_slice(&value.to_be_bytes());
+        self.write(&value.to_be_bytes());
     }
 
     /// A boolean.
@@ -164,13 +256,13 @@ impl Encoder {
     /// An id: sixteen big-endian bytes of UUID.
     pub fn id(&mut self, bits: u128) {
         self.tag(tag::ID);
-        self.bytes.extend_from_slice(&bits.to_be_bytes());
+        self.write(&bits.to_be_bytes());
     }
 
     /// A content hash: its thirty-two bytes, which are already fixed-width.
     pub fn hash(&mut self, digest: &[u8; 32]) {
         self.tag(tag::HASH);
-        self.bytes.extend_from_slice(digest);
+        self.write(digest);
     }
 
     /// An ordered sequence: the count, then each element in its own order.
@@ -194,6 +286,11 @@ impl Encoder {
     ) {
         let mut items: Vec<&T> = items.collect();
         items.sort_unstable();
+        self.ordered_set(items.into_iter());
+    }
+
+    /// [`Encoder::set`] over elements already in ascending order, as a [`BTreeSet`] yields them.
+    fn ordered_set<'a, T: Canonical + 'a>(&mut self, items: impl ExactSizeIterator<Item = &'a T>) {
         self.tag(tag::SET);
         self.length(items.len());
         for item in items {
@@ -209,11 +306,22 @@ impl Encoder {
     /// writer's order in the bytes, and rule 3 of this module holds without qualification or it
     /// is not a rule. Repeated keys are not deduplicated — an entry the caller passed twice is
     /// two entries, and a map cannot produce one at all.
+    ///
+    /// Where no key repeats, key order alone is that order, and each value is encoded where it
+    /// lies instead of into a buffer of its own; only a repeated key has its values encoded first,
+    /// to be ordered by their bytes.
     pub fn map<'a, K: Canonical + Ord + 'a, V: Canonical + 'a>(
         &mut self,
         entries: impl ExactSizeIterator<Item = (&'a K, &'a V)>,
     ) {
+        let mut entries: Vec<(&K, &V)> = entries.collect();
+        entries.sort_by(|left, right| left.0.cmp(right.0));
+        if entries.windows(2).all(|pair| pair[0].0 != pair[1].0) {
+            self.ordered_map(entries.into_iter());
+            return;
+        }
         let mut entries: Vec<(&K, Vec<u8>)> = entries
+            .into_iter()
             .map(|(key, value)| {
                 let mut encoded = Encoder::new();
                 value.encode(&mut encoded);
@@ -225,7 +333,21 @@ impl Encoder {
         self.length(entries.len());
         for (key, value) in entries {
             key.encode(self);
-            self.bytes.extend_from_slice(&value);
+            self.write(&value);
+        }
+    }
+
+    /// [`Encoder::map`] over entries whose keys are already strictly ascending, as a [`BTreeMap`]
+    /// yields them: each value is encoded where it lies.
+    fn ordered_map<'a, K: Canonical + 'a, V: Canonical + 'a>(
+        &mut self,
+        entries: impl ExactSizeIterator<Item = (&'a K, &'a V)>,
+    ) {
+        self.tag(tag::MAP);
+        self.length(entries.len());
+        for (key, value) in entries {
+            key.encode(self);
+            value.encode(self);
         }
     }
 
@@ -247,7 +369,7 @@ impl Encoder {
     /// transcribing the six numbers and by reading its source for the declaration order.
     pub fn variant(&mut self, index: u32) {
         self.tag(tag::VARIANT);
-        self.bytes.extend_from_slice(&index.to_be_bytes());
+        self.write(&index.to_be_bytes());
     }
 
     /// An optional value. Absence is not emptiness and does not encode as it.
@@ -360,15 +482,20 @@ impl<K: Canonical + Ord, V: Canonical> Canonical for BTreeMap<K, V> {
     ///
     /// A key is a `Canonical + Ord` type, and no float is either, so a float key is a compile
     /// error rather than a rule someone has to remember.
+    ///
+    /// The map yields its keys strictly ascending under that same `Ord`, which is the order
+    /// [`Encoder::map`] imposes, so the entries are written as they come: the bytes are the ones
+    /// `Encoder::map` would write, without collecting the entries first.
     fn encode(&self, out: &mut Encoder) {
-        out.map(self.iter());
+        out.ordered_map(self.iter());
     }
 }
 
 impl<T: Canonical + Ord> Canonical for BTreeSet<T> {
-    /// In the set's own sorted order, for the same reason a map encodes in key order.
+    /// In the set's own sorted order, for the same reason a map encodes in key order: the order
+    /// [`Encoder::set`] imposes, so the elements are written as they come.
     fn encode(&self, out: &mut Encoder) {
-        out.set(self.iter());
+        out.ordered_set(self.iter());
     }
 }
 
@@ -381,5 +508,60 @@ impl Canonical for ContentHash {
 impl Canonical for RevisionNumber {
     fn encode(&self, out: &mut Encoder) {
         out.unsigned(u128::from(self.get()));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Canonical, Encoder};
+    use crate::ContentHash;
+    use std::cell::Cell;
+
+    /// The most unhashed bytes an encoder may hold while [`ContentHash::of`] writes into it.
+    const BOUND: usize = 1 << 20;
+
+    /// `chunks` strings of `chunk` bytes each, noting the most bytes its encoder held at any
+    /// point. It reads the encoder's own field: `as_bytes` refuses on the hashing encoder.
+    struct Large {
+        chunks: usize,
+        chunk: usize,
+        held: Cell<usize>,
+    }
+    impl Canonical for Large {
+        fn encode(&self, out: &mut Encoder) {
+            for n in 0..self.chunks {
+                let byte = b'a' + u8::try_from(n % 26).expect("a letter");
+                out.string(&String::from_utf8(vec![byte; self.chunk]).expect("ascii"));
+                self.held.set(self.held.get().max(out.bytes.len()));
+            }
+        }
+    }
+
+    /// `story:commit-hashes-the-graph-once`: a knowledge root is the address of a whole graph,
+    /// and building that encoding in memory before hashing it held the graph's bytes a second
+    /// time and reallocated the buffer on the way up (12% of a commit's hashing in the
+    /// performance audit of 2026-09-29). [`ContentHash::of`] holds only a bounded window.
+    #[test]
+    fn hashing_a_value_holds_a_bounded_window_of_its_encoding() {
+        // Sixteen MiB of strings: the whole encoding, held at once, is sixteen times the bound.
+        let large = Large {
+            chunks: 4096,
+            chunk: 4096,
+            held: Cell::new(0),
+        };
+        let _ = ContentHash::of(&large);
+        assert!(
+            large.held.get() <= BOUND,
+            "ContentHash::of held {} bytes of the encoding at once; the bound is {BOUND}",
+            large.held.get()
+        );
+        // A buffering encoder still holds every byte, which is what `canonical_bytes` returns.
+        let buffered = Large {
+            chunks: 4096,
+            chunk: 4096,
+            held: Cell::new(0),
+        };
+        assert_eq!(buffered.canonical_bytes().len(), 4096 * (1 + 8 + 4096));
+        assert_eq!(buffered.held.get(), 4096 * (1 + 8 + 4096));
     }
 }
