@@ -4,6 +4,14 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- **The SDK types the store checks** (`docs/sdk.md`, Typed reads). `ekr_sdk::read::Reader` and
+  `OneShotReader` gain `quality(revision)`, `rejections(from, to)` and `code_names(files, at)`,
+  which return `StoreQuality` (`ekr.store-quality/1`), `Rejections` (`ekr.rejections/1`) and
+  `CodeNames` (`ekr.code-names/1`) through a session or as one-shot `ekr` processes. Each value
+  writes back exactly the document `ekr` printed and ignores a field a newer `ekr` adds.
+
 ## [0.0.21] — 2026-09-30
 
 A store's quality, its rejections and the store names a consumer's code quotes are reads; the SDK's

@@ -567,6 +567,9 @@ let changed = reader.changes(Since::Revision(0), None, None, None)?; // Changes
 | `ontology(at)` | `ontology` | `Ontology`: node and edge types by name and id, the schema version |
 | `transactions(state)` | `transactions` | `Transactions`: each id, state, proposer, time and operation count |
 | `explain(assertion)` | `explain` | `Explanation`: `links`, one `ExplanationLink` per kind |
+| `quality(revision)` | `quality` | `StoreQuality`, `ekr.store-quality/1`: evidenced assertions, constrained properties, `shared_names` |
+| `rejections(from, to)` | `rejections` | `Rejections`, `ekr.rejections/1`: each `RejectedTransaction` with its `issues` |
+| `code_names(files, at)` | `code-names` | `CodeNames`, `ekr.code-names/1`: each `CodeNameFinding` with `file`, `line`, `column`, `runtime_word` and `names` |
 
 The first six are the [`ekr.views` reads](cli.md#session-views), which `ekr` serves in a session
 only. Each reads the store as it stands when `ekr` reads the request, so a commit made by this
@@ -581,7 +584,25 @@ first page read, so a commit between two pages neither drops nor repeats a node 
 an error, the iterator ends. `changes` pages by hand: pass each page's `next` as `after`, and the
 first page's `meta.revision` as `at`.
 
-`head`, `snapshot`, `ontology`, `transactions` and `explain` also run without a session.
+The last three are the store checks ([`ekr quality`](cli.md#ekr-quality),
+[`ekr rejections`](cli.md#ekr-rejections), [`ekr code-names`](cli.md#ekr-code-names)).
+`quality(revision)` reads the head when `revision` is `None`; a share is `None` when its whole is
+0. `rejections(from, to)` selects the basis revisions `from` to `to`, both included, and a `None`
+bound is unbounded. `code_names(files, at)` takes the source paths as strings; `ekr` reads a
+relative one from its working directory (`SessionOptions::current_dir`), and each finding's `file`
+is the path as given. A finding is not an error: test `meta.findings` to fail on one.
+
+```rust
+let quality = reader.quality(None)?;                       // StoreQuality
+let rejected = reader.rejections(Some(0), None)?;         // Rejections
+let found = reader.code_names(["src/reader.ts"], None)?;  // CodeNames
+for finding in &found.findings {
+    println!("{}:{} {}", finding.file, finding.line, finding.literal); // and .runtime_word
+}
+```
+
+`head`, `snapshot`, `ontology`, `transactions`, `explain`, `quality`, `rejections` and
+`code_names` also run without a session.
 `OneShotReader::new(&binary, store, options)` runs each read as its own
 `ekr --host … --store … --backend … <verb>` process. It starts the process the way a session does,
 with the same environment and working directory, and stops it after `options.timeout`. It returns
@@ -601,7 +622,8 @@ The values are serde models of what `ekr` prints. A reader ignores a field it do
 newer `ekr` does not break an older consumer. Each value writes back exactly the document it was
 read from. `crates/ekr-sdk/tests/read.rs` checks this against every document that the `ekr-views`
 conformance fixture stores render and against real `ekr` output, so if a format gains a field
-without an SDK update, that test fails and names the field. In `Snapshot` and `Explanation`, the
+without an SDK update, that test fails and names the field; `crates/ekr-sdk/tests/check_reads.rs`
+does the same for the three store checks. In `Snapshot` and `Explanation`, the
 parts that vary by kind stay JSON `Value`s, read by their tag as [the page](cli.md#ekr-snapshot)
 documents them. These are an assertion's `object`, `assessment` and `lifecycle`, an evidence
 entry's `source`, and the origin links of an explanation.

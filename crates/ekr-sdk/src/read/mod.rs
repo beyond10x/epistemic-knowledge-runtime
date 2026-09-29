@@ -17,12 +17,16 @@
 //! | [`Reader::ontology`] | `ontology` | [`Ontology`] |
 //! | [`Reader::transactions`] | `transactions` | [`Transactions`] |
 //! | [`Reader::explain`] | `explain` | [`Explanation`] |
+//! | [`Reader::quality`] | `quality` | [`StoreQuality`], `ekr.store-quality/1` |
+//! | [`Reader::rejections`] | `rejections` | [`Rejections`], `ekr.rejections/1` |
+//! | [`Reader::code_names`] | `code-names` | [`CodeNames`], `ekr.code-names/1` |
 //!
-//! The first six are the `ekr.views` reads, which `ekr` serves in a session only. The last five
+//! The first six are the `ekr.views` reads, which `ekr` serves in a session only. The last eight
 //! are one-shot verbs too, and [`OneShotReader`] runs each as its own `ekr` process, with no
 //! session open. Every call is blocking and reads the store as it stands when `ekr` reads the
 //! request: a commit another process made is what the next call reads.
 
+mod checks;
 mod kernel;
 mod one_shot;
 mod views;
@@ -35,6 +39,11 @@ use crate::reply::{Answer, Fault, Refusal};
 use crate::session::{SessionOptions, StoreConfig};
 use crate::transport::{Request, Transport, TransportError};
 
+pub use checks::{
+    AssertionQuality, CodeNameFinding, CodeNameKind, CodeNameMatch, CodeNames, CodeNamesMeta,
+    PropertyQuality, QualityMeta, RejectedTransaction, RejectionIssue, Rejections, SharedName,
+    StoreQuality,
+};
 pub use kernel::{
     ExplainedEvidence, Explanation, ExplanationLink, Head, ListedTransaction, NamedType, Ontology,
     OntologyEdgeType, OntologyNodeType, OntologyProperty, OntologyValueType, RecordedTime, Root,
@@ -433,7 +442,8 @@ impl<T: Transport> Iterator for ExpandPages<'_, T> {
     }
 }
 
-/// `head`, `snapshot`, `ontology`, `transactions` and `explain`, each as its own `ekr` process
+/// `head`, `snapshot`, `ontology`, `transactions`, `explain`, `quality`, `rejections` and
+/// `code-names`, each as its own `ekr` process
 /// with no session open: `ekr --host … --store … --backend … <verb>`, started as a session's
 /// processes are, in the environment and working directory `options` give, stopped after
 /// `options.timeout`.
