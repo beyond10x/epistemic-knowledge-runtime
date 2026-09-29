@@ -275,7 +275,7 @@ fn a_verified_read_carries_every_committed_record_on_both_providers() {
         assert_eq!(Some(read.root), kernel.head().unwrap());
         assert_eq!(read.root, receipt.result);
         assert_eq!(read.seed, seeded);
-        assert_eq!(read.seed_input, seed);
+        assert_eq!(*read.seed_input, seed);
         assert_eq!(read.context, context());
         assert_eq!(read.authority, anchor());
         for (hash, bytes) in &seed.evidence_payloads {

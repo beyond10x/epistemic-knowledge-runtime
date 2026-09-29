@@ -264,7 +264,7 @@ fn the_kernels_authority_stands_behind_exactly_what_it_validated() {
                     byte_len: bytes.len() as u64,
                     stored_at: Timestamp::from_millis(20),
                 },
-                bytes,
+                bytes: bytes.into(),
             },
         );
         assert!(

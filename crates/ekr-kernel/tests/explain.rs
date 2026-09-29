@@ -839,7 +839,9 @@ fn every_capture_field_a_projection_reads_is_bound_to_the_retained_root_and_seed
                 "seed input rewritten",
                 "seed-envelope-disagrees",
                 Box::new(|r| {
-                    r.seed_input.evidence_payloads.clear();
+                    std::sync::Arc::make_mut(&mut r.seed_input)
+                        .evidence_payloads
+                        .clear();
                 }),
             ),
             (

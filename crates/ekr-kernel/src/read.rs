@@ -31,8 +31,9 @@ pub struct VerifiedRead {
     pub root: Root,
     /// Actual original seed result, even after later head advancement.
     pub seed: SeedResultV1,
-    /// Original admitted seed input, including complete ontology and evidence declarations.
-    pub seed_input: SeedDocument,
+    /// Original admitted seed input, including complete ontology and evidence declarations,
+    /// shared with every other read of the same runtime rather than copied into each.
+    pub seed_input: std::sync::Arc<SeedDocument>,
     /// Actual retained bootstrap identities checked against the host at this same boundary.
     pub context: BootstrapContext,
     /// Complete original registry and validation profile, verified against the host anchor.
@@ -41,13 +42,13 @@ pub struct VerifiedRead {
     pub revisions: BTreeMap<RevisionNumber, VerifiedRevision>,
     /// Actual retained transaction decisions through this boundary.
     pub transactions: BTreeMap<TransactionId, TransactionRecord>,
-    objects: BTreeMap<ContentHash, Vec<u8>>,
+    objects: BTreeMap<ContentHash, std::sync::Arc<Vec<u8>>>,
 }
 impl VerifiedRead {
     /// Already verified retained bytes, with no provider access or new history observation.
     #[must_use]
     pub fn content(&self, hash: &ContentHash) -> Option<&[u8]> {
-        self.objects.get(hash).map(Vec::as_slice)
+        self.objects.get(hash).map(|bytes| bytes.as_slice())
     }
 }
 /// One revision's canonical state with the schema history of its lineage, from one verified
@@ -186,7 +187,9 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         let envelope = self
             .authority
             .seed_envelope(&history, state.seed.seed_hash)?;
-        let seed_input = envelope.input.document(&history)?;
+        let seed_input = self
+            .authority
+            .seed_document(&history, state.seed.seed_hash, &envelope)?;
         let head = state.head();
         let graph = head.graph()?.clone();
         let root = head.root;

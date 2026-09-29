@@ -153,7 +153,7 @@ fn an_inventory_reads_legacy_and_current_objects_and_writes_nothing_on_both_prov
         assert_eq!(inventory.events, 3, "file={file}: two stored, one raise");
         let held: &InventoriedObject = &inventory.objects[&legacy];
         assert!(held.legacy, "file={file}");
-        assert_eq!(held.object.bytes, INLINE);
+        assert_eq!(*held.object.bytes, INLINE);
         assert_eq!(held.object.metadata.content_hash, legacy);
         assert_eq!(held.object.metadata.storage_class, StorageClass::Provenance);
         assert_eq!(held.object.metadata.stored_at, Timestamp::from_millis(5));
@@ -161,7 +161,7 @@ fn an_inventory_reads_legacy_and_current_objects_and_writes_nothing_on_both_prov
         assert!(held.raised_to.is_empty());
         let held = &inventory.objects[&current];
         assert!(!held.legacy, "file={file}");
-        assert_eq!(held.object.bytes, CURRENT);
+        assert_eq!(*held.object.bytes, CURRENT);
         assert_eq!(held.stored_as, StorageClass::Cache);
         assert_eq!(held.raised_to, [StorageClass::Canonical]);
         assert_eq!(held.object.metadata.storage_class, StorageClass::Canonical);

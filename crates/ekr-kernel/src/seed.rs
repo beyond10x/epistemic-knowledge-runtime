@@ -169,6 +169,18 @@ impl RetainedSeedInput {
             evidence_payloads,
         })
     }
+
+    /// What [`Self::document`] requires of `history`, checked in the same order and refused the
+    /// same way, without copying any bytes: each named payload held and verified. A carried
+    /// payload is read from the envelope, so it requires nothing of `history`.
+    pub(crate) fn check_held(&self, history: &RetainedHistory) -> Result<(), StoreError> {
+        if let SeedPayloads::Named(keys) = &self.payloads {
+            for hash in keys {
+                payload(history, *hash)?;
+            }
+        }
+        Ok(())
+    }
 }
 
 /// A named evidence payload's retained bytes, or `seed-evidence-payload-absent` naming it where

@@ -295,7 +295,13 @@ fn retained(bytes: Vec<u8>, like: &RetainedObject) -> (ContentHash, RetainedObje
     let mut metadata = like.metadata.clone();
     metadata.content_hash = hash;
     metadata.byte_len = bytes.len() as u64;
-    (hash, RetainedObject { metadata, bytes })
+    (
+        hash,
+        RetainedObject {
+            metadata,
+            bytes: bytes.into(),
+        },
+    )
 }
 
 /// A seed-only lineage whose envelope names its one evidence payload by the right address but

@@ -297,7 +297,10 @@ fn a_consistent_forgery_of_the_captured_graph_is_refused_by_explain() {
                     let id = forged.id;
                     declared.id = id;
                     r.graph.assertions.insert(id, forged);
-                    r.seed_input.graph.assertions.insert(id, declared);
+                    std::sync::Arc::make_mut(&mut r.seed_input)
+                        .graph
+                        .assertions
+                        .insert(id, declared);
                     id
                 }),
             ),

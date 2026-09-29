@@ -4,6 +4,7 @@ use ekr_core::{Canonical, ContentHash, Encoder, EventId, RevisionId, RevisionNum
 use ekr_graph::{CanonicalGraph, RevisionEvent, Root};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 
 /// Value-domain address of complete node, edge and assertion collections, in that order.
 #[must_use]
@@ -40,7 +41,12 @@ pub struct RetainedObject {
     /// Verified object address, size, retention and original storage time.
     pub metadata: StoredObject,
     /// Actual native blob bytes, already checked against metadata and content address.
-    pub bytes: Vec<u8>,
+    ///
+    /// Shared, not owned: every history a store handle returns holds the one allocation that
+    /// handle verified, so a later read of the same object copies nothing. Changing them
+    /// (`Arc::make_mut`) or replacing them gives them another allocation, which
+    /// [`RetainedHistory::content`] checks in full.
+    pub bytes: Arc<Vec<u8>>,
 }
 /// Immutable inputs to pure kernel replay, assembled outside a provider transaction.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -53,9 +59,10 @@ pub struct RetainedHistory {
 impl RetainedHistory {
     /// Reads verified bytes at a minimum retention strength.
     ///
-    /// The bytes are checked against `hash` on every call. Bytes equal to a copy this process
-    /// already hashed to `hash` are compared rather than hashed again, which gives the same
-    /// answer (`crate::verified`); any other bytes are hashed.
+    /// The bytes are checked against `hash` on every call. Bytes that are the very allocation
+    /// this process already hashed to `hash` are that copy and are neither compared nor hashed;
+    /// bytes equal to it in another allocation are compared rather than hashed again, which gives
+    /// the same answer (`crate::verified`); any other bytes are hashed.
     /// # Errors
     /// Missing, corrupt or insufficiently retained objects refuse replay.
     pub fn content(&self, hash: ContentHash, class: StorageClass) -> Result<&[u8], StoreError> {
@@ -70,7 +77,7 @@ impl RetainedHistory {
         {
             return Err(StoreError::Document("required-object-integrity".into()));
         }
-        Ok(&held.bytes)
+        Ok(held.bytes.as_slice())
     }
 }
 /// A state independently reconstructed and verified by the kernel.

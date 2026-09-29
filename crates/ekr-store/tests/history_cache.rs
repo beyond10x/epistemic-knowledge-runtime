@@ -257,6 +257,57 @@ fn a_second_read_on_one_handle_reads_and_hashes_no_blob_the_first_verified_file(
 }
 
 // ---------------------------------------------------------------------------------------------
+// 1b. A later read shares the bytes the handle holds (`story:retained-bytes-shared-not-copied`).
+// ---------------------------------------------------------------------------------------------
+
+/// Every object of a later history read on one handle is the allocation the handle already
+/// holds, the one the first read returned, and not a copy of it; and the replay's `content`
+/// checks of those bytes compare none of them, because they are the registered verified copy.
+fn a_later_read_copies_no_retained_object<S: RevisionLog + ObjectStore + Initialize>(
+    open: impl Fn() -> S,
+) {
+    {
+        let writer = open();
+        written(&writer, "shared bytes", 2);
+    }
+    let reader = open();
+    let first = reader.history().unwrap();
+    assert_eq!(first.objects.len(), 4);
+    restart_count();
+
+    let second = reader.history().unwrap();
+    let at_seed = reader.history_at(RevisionNumber::SEED).unwrap();
+    let work = read_work();
+    for later in [&second, &at_seed] {
+        for (hash, object) in &later.objects {
+            assert_eq!(
+                object.bytes.as_ptr(),
+                first.objects[hash].bytes.as_ptr(),
+                "a later read copied the retained object {hash} instead of sharing it"
+            );
+        }
+    }
+    assert_eq!(at_seed.objects.len(), 2);
+    assert_eq!(
+        work,
+        ReadWork::default(),
+        "a later read fetched, hashed or compared bytes the handle already verified"
+    );
+}
+
+#[test]
+fn a_later_read_on_one_handle_copies_no_retained_object_sqlite() {
+    let directory = TempDir::new().unwrap();
+    a_later_read_copies_no_retained_object(|| sqlite(directory.path()));
+}
+
+#[test]
+fn a_later_read_on_one_handle_copies_no_retained_object_file() {
+    let directory = TempDir::new().unwrap();
+    a_later_read_copies_no_retained_object(|| file(directory.path()));
+}
+
+// ---------------------------------------------------------------------------------------------
 // 2. An occurrence appended through another handle is seen by the next read.
 // ---------------------------------------------------------------------------------------------
 
@@ -284,7 +335,7 @@ fn another_handles_append_is_seen<S: RevisionLog + ObjectStore + Initialize>(ope
     assert_eq!(after.occurrences[..2], before.occurrences[..]);
     assert_eq!(after.occurrences[2].event, late.event);
     assert_eq!(
-        after.objects[&late.event.record_hash].bytes, record,
+        *after.objects[&late.event.record_hash].bytes, record,
         "the other handle's record is loaded"
     );
     assert_eq!(
@@ -424,7 +475,9 @@ fn a_tampered_copy_is_refused<S: RevisionLog + ObjectStore + Initialize>(open: i
 
     let refused = |change: &dyn Fn(&mut Vec<u8>)| {
         let mut copy = history.clone();
-        change(&mut copy.objects.get_mut(&hash).unwrap().bytes);
+        change(std::sync::Arc::make_mut(
+            &mut copy.objects.get_mut(&hash).unwrap().bytes,
+        ));
         let length = copy.objects[&hash].bytes.len() as u64;
         copy.objects.get_mut(&hash).unwrap().metadata.byte_len = length;
         copy.content(hash, StorageClass::Canonical).unwrap_err()
