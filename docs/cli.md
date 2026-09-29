@@ -345,8 +345,7 @@ prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`, then answers:
 | request | answer |
 |---|---|
 | `GET /` | the viewer page, built into the binary: the graph in 2D and 3D, a timeline with a heatmap and swimlanes, property history, the schema history, a command palette (Ctrl+K), navigation between committed revisions, and the state in the URL after `#` |
-| `GET /alt` | the earlier viewer page, built into the binary, kept while the new one is accepted |
-| `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision as it stands at the request, `application/json`. No `ekr.views` document carries the head, so a render of a revision is the same bytes before and after any later commit; the pages read the head here. It takes no query (any is 400 `invalid-query`) |
+| `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision as it stands at the request, `application/json`. No `ekr.views` document carries the head, so a render of a revision is the same bytes before and after any later commit; the page reads the head here. It takes no query (any is 400 `invalid-query`) |
 | `GET /projection` | the `ekr.graph-projection/1` document at the head, `application/json`, byte for byte what the projection renders |
 | `GET /projection?revision=N` | the same as of revision `N`; a revision the store does not hold is 404 with `{"refusal": "ekr.views.RevisionNotFound", …}` |
 | `GET /evidence/<evidence id>` | that evidence's retained bytes: `text/plain; charset=utf-8` when they are UTF-8, otherwise `application/octet-stream`; 404 for an id the head does not hold or bytes the store did not retain |
@@ -383,8 +382,8 @@ replaced store; each later request tries again. A file store replaced under the 
 inode — deleted and created again, or its files replaced inside the directory — passes that
 comparison, but the reader's next read finds the history there diverged from the one it holds;
 it then opens the store at the path once and answers the request from it. `ekr view` answers
-`store-replaced` 503 with `{"refusal": "store-replaced", …}`; `GET /` and `GET /alt` read no
-store and are served throughout. Move a SQLite database together with its `-wal` and `-shm` files.
+`store-replaced` 503 with `{"refusal": "store-replaced", …}`; `GET /` reads no store and is
+served throughout. Move a SQLite database together with its `-wal` and `-shm` files.
 
 The query of `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and `/changes` is
 `name=value` pairs joined by `&`, each name one the path takes and at most once, each value
@@ -457,8 +456,7 @@ The page reads `/head`, `/overview`, `/expand`, `/node/<id>`, `/search`, `/timel
 head after it, a neighbourhood as it streams in, a node's detail when it is opened, and the
 timeline's rows — one per subject of the chosen row type, with its events within the chosen
 hops — and a subject's swimlanes from `/timeline`. It fetches evidence only by an id an assertion
-it has read cites, and writes everything a store holds as text. The earlier page at `/alt` reads
-`/projection`, `/roles`, `/head` and `/evidence/<id>`.
+it has read cites, and writes everything a store holds as text.
 
 #### Roles
 

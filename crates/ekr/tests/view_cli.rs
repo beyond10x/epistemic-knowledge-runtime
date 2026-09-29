@@ -380,6 +380,7 @@ fn ekr_view_serves_the_page_the_projection_and_evidence_and_writes_nothing_on_bo
             "/evidence/not-an-id".to_owned(),
             "/elsewhere".to_owned(),
             "/projection/extra".to_owned(),
+            "/alt".to_owned(),
         ] {
             let missing = server.get(&path);
             assert_eq!(missing.status, 404, "{backend} GET {path}");
