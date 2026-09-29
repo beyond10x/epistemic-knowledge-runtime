@@ -34,6 +34,7 @@ mod migrate;
 mod ontology;
 mod propose;
 mod quality;
+pub(crate) mod rejections;
 mod resolve;
 mod schema;
 mod seed;
@@ -246,6 +247,21 @@ pub enum Command {
         /// Only transactions in this state.
         #[arg(long, value_enum, ignore_case = true)]
         state: Option<StateFilter>,
+    },
+    /// List rejected transactions with their validation issues, keyed on the revision each was
+    /// validated against: the `ekr.rejections/1` document.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST). Reads the rejections
+    /// `ekr validate` recorded, each with the issues it printed; a committed transaction has no
+    /// issues and never appears. Two reads of one range print the same bytes.
+    #[command(after_help = SEE)]
+    Rejections {
+        /// The lowest basis revision to include (`ekr head` numbers them); unbounded when absent.
+        #[arg(long)]
+        from: Option<u64>,
+        /// The highest basis revision to include; unbounded when absent.
+        #[arg(long)]
+        to: Option<u64>,
     },
     /// Print node types, edge types and properties, by name and id, and the schema version in
     /// force (id, number, parent), at the head or at a past revision.
@@ -609,6 +625,10 @@ fn dispatch(
         Command::Transactions { state } => {
             let runtime = source.resolve("transactions")?.open()?;
             render(&transactions::run(&runtime, state)?)
+        }
+        Command::Rejections { from, to } => {
+            let runtime = source.resolve("rejections")?.open()?;
+            render(&rejections::run(&runtime, from, to)?)
         }
         Command::Ontology { at } => {
             let runtime = source.resolve("ontology")?.open()?;

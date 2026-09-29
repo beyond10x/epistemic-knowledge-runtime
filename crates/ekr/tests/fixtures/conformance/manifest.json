@@ -76,6 +76,10 @@
     },
     "ekr.kernel/authored/an-alias-for-a-node-no-revision-holds-is-rejected-by-name": {
       "addition": "add-alias-unknown-node.yaml"
+    },
+    "ekr.kernel/authored/rejections-list-every-planted-issue-by-its-basis-revision": {
+      "planted_early": "rejections-two-issues.yaml",
+      "planted_late": "propose-rejected.yaml"
     }
   },
   "setups": {

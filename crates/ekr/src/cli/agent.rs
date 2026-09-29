@@ -56,6 +56,8 @@ WORKFLOW
   8. ekr commit <transaction_id>                   -> a new revision
   9. ekr head                                      the head revision number and root
      ekr transactions [--state <State>]            retained transactions, id, state, proposer
+     ekr rejections [--from N] [--to M]            rejected transactions and their issues, by the
+                                                   revision each was validated against
      ekr snapshot [--at N] [--valid-at YYYY-MM-DD]  read the result back
      ekr explain <assertion_id>                    why an assertion is what it is
      ekr quality [--revision N]                    the store's quality beyond its size:
