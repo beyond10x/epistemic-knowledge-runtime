@@ -143,9 +143,11 @@ request, so a document can be built before a session exists, or with none.
 | `TypedReference::new` | a typed reference | [`ekr resolve`](cli.md#ekr-resolve) |
 | `OntologySpec` with `Ontology::ensure` | the schema operations a store lacks | `ekr propose`, as one transaction |
 
-`to_yaml()` writes each of them as YAML, with every variant as a tag (`!CreateNode`,
-`!Node <id>`, `!HumanStatement`). The readers refuse the one-key JSON form of a tag, so a document
-is never written with `serde_json`.
+`TransactionDocument::to_yaml`, `SeedDocument::to_yaml` and `TypedReference::to_yaml` write the
+three documents as YAML, with every variant as a tag (`!CreateNode`, `!Node <id>`,
+`!HumanStatement`). A `SchemaChange` is not a document: `SchemaChange::transaction` builds its
+`TransactionDocument`. The readers refuse the one-key JSON form of a tag, so a document is never
+written with `serde_json`.
 
 In the examples below, `session` is a `ProcessSession` on a store that does not exist yet
 ([A session](#a-session)), and `operator` is the host document's `context.operator`, an `AgentId`.
@@ -174,8 +176,9 @@ A consumer names types and properties; a store knows them by id. `OntologySpec` 
 on the type or on its nearest ancestor that declares it.
 
 `OntologySpec::seed(created_at)` returns a `SeedBuilder` declaring the spec, with an empty graph,
-and the `Ontology` of what it declares. `SeedBuilder::node` adds a `NodeDraft` in its type's
-`initial` lifecycle state (`None` for a type without a lifecycle). `SeedBuilder::edge`,
+and the `Ontology` of what it declares. `SeedBuilder::node` adds a `NodeDraft` in the lifecycle
+state its caller passes, stored as given and not looked up. An `OntologySpec` declares no
+lifecycle, so a node of one of its types takes `None`. `SeedBuilder::edge`,
 `SeedBuilder::assertion` and `SeedBuilder::evidence` add the rest; the last files the payload under
 its hash in `evidence_payloads`. Every entity names `SeedBuilder::root_id`. `SeedBuilder::build`
 cannot fail.
@@ -208,10 +211,11 @@ let seeded = session.request(&Request::new(["seed", "-"]).with_stdin(seed.to_yam
 ### Building a transaction
 
 `TransactionBuilder::new(proposer)` starts a transaction under a minted id, and
-`TransactionBuilder::push` appends an operation. Every payload converts into its `Operation`
-(`NodeDraft` into `!CreateNode`, `EvidenceAddition` into `!AddEvidence`, `AliasAddition` into
-`!AddAlias`, …), so a push reads `.push(draft.into())`. The proposer is the host's
-`context.operator`.
+`TransactionBuilder::push` appends an operation. Every payload type converts into its
+`Operation` (`NodeDraft` into `!CreateNode`, `EvidenceAddition` into `!AddEvidence`,
+`AliasAddition` into `!AddAlias`, …), so a push reads `.push(draft.into())`. `!DeleteEdge` carries
+only an `EdgeId`, which has no such conversion: push `Operation::DeleteEdge(edge_id)`. The
+proposer is the host's `context.operator`.
 
 `TransactionBuilder::build` fills in what the kernel checks against the operations: the `evidence`
 list is exactly the set the `!AddAssertion`s cite, and a schema change names a minted

@@ -11,10 +11,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
-use ekr_sdk::document::{
-    DocumentError, DocumentLimit, Lifecycle, NodeDraft, NodeType, OntologyError, OntologySection,
-    SchemaVersion, SeedBuilder, Timestamp, Transition,
-};
+use ekr_sdk::document::{DocumentError, DocumentLimit, OntologyError};
 
 fn workspace_root() -> PathBuf {
     let manifest = std::env::var_os("CARGO_MANIFEST_DIR")
@@ -366,35 +363,4 @@ fn the_fence_check_refuses_a_tilde_block() {
         1,
     );
     assert!(check_fences(&edited).is_err());
-}
-
-// ----- a sentence of the section -----
-
-/// `docs/sdk.md` § "The ontology by name and the seed": "`SeedBuilder::node` adds a `NodeDraft`
-/// in its type's `initial` lifecycle state (`None` for a type without a lifecycle)". It adds it in
-/// the state its caller passes, whatever the type's lifecycle.
-#[test]
-#[ignore = "defect: docs/sdk.md says SeedBuilder::node adds a node in its type's initial lifecycle \
-            state; it stores whatever type_state its caller passes"]
-fn seed_builder_node_puts_a_node_in_its_type_s_initial_state() {
-    let mut manuscript = NodeType::new("Manuscript");
-    manuscript.lifecycle = Some(Lifecycle::new(
-        "Draft",
-        ["Draft", "Published"],
-        [Transition::new("Draft", "Published")],
-    ));
-    let section = OntologySection {
-        version: SchemaVersion::seed(Timestamp::EPOCH),
-        node_types: vec![manuscript.clone()],
-        edge_types: Vec::new(),
-    };
-    let seed = SeedBuilder::new(section, Timestamp::EPOCH);
-    let draft = NodeDraft::new(seed.root_id(), manuscript.id, "A manuscript");
-    let id = draft.id;
-    let document = seed.node(draft, None).build();
-    assert_eq!(
-        document.graph.graph.nodes[&id].type_state.as_deref(),
-        Some("Draft"),
-        "the node's state is its type's `initial`"
-    );
 }

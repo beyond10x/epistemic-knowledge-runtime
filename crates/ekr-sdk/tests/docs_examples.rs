@@ -11,10 +11,15 @@
 //!
 //! [`every_api_name_the_section_uses_is_compiled_here`] holds the section's prose the same way:
 //! every name in backticks that has the shape of a Rust path (`TransactionBuilder`,
-//! `Ontology::ensure`, `ekr_sdk::document`) or of a call (`to_yaml()`) must occur in this file's
-//! code, outside comments and string literals, which the compiler holds to the public API. The
-//! prose names that no example uses are spelled out in [`names_the_prose_uses`], which the same
-//! case also runs.
+//! `Ontology::ensure`, `ekr_sdk::document`) or of a call (`payload_hash()`) must resolve in the
+//! SDK's public API: it must occur in the example regions or in [`names_the_prose_uses`], which
+//! the compiler builds, as a path whose head this file imports from `ekr_sdk` ([`unresolved`]).
+//! A name only this file defines, such as a test helper, does not resolve
+//! ([`the_name_check_refuses_a_name_only_this_file_defines`]). The prose names that no example
+//! uses are spelled out in [`names_the_prose_uses`], which the same case also runs.
+//!
+//! No name an example region uses is imported at module level, so each region compiles on its own
+//! `use` lines and those of the regions before it in the same function.
 
 use std::collections::BTreeSet;
 use std::error::Error;
@@ -22,14 +27,10 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
+// No name an example region uses is imported here, so each region compiles on its own `use`
+// lines and those of the regions before it.
 use ekr_sdk::binary::EkrBinary;
-use ekr_sdk::document::{
-    AgentId, Assertion, Confidence, DocumentError, DocumentLimit, EdgeDraft, EdgeId, Evidence,
-    EvidenceAddition, EvidenceSource, NodeDraft, NodeId, Object, Ontology, OntologyError,
-    OntologySpec, Operation, Predicate, PropertyId, SchemaChange, SchemaVersionId, SeedBuilder,
-    SeedDocument, Subject, Timestamp, TransactionBuilder, TransactionDocument, TransactionId,
-    TypeId, TypedReference, ValidationProfile, TRANSACTION_LIMITS,
-};
+use ekr_sdk::document::{AgentId, OntologyError, TRANSACTION_LIMITS};
 use ekr_sdk::reply::{Answer, Outcome};
 use ekr_sdk::session::{Backend, ProcessSession, SessionOptions, StoreConfig};
 use serde_json::Value as Json;
@@ -272,7 +273,122 @@ fn the_section_s_rust_blocks_are_the_regions_this_file_compiles_and_runs() {
 }
 
 #[test]
+fn the_name_check_refuses_a_name_only_this_file_defines() {
+    let prose = format!(
+        "{}\n`World::new`, `World`, `ekr_path()` and `names_the_prose_uses()`.\n",
+        prose(&section())
+    );
+    let refused = unresolved(&api_names(&prose), &this_file());
+    assert_eq!(
+        refused,
+        ["World", "World::new", "ekr_path(", "names_the_prose_uses("],
+        "a name this test file defines is not the public API"
+    );
+}
+
+/// Every identifier a `use ekr_sdk::…;` statement of `code` holds: the SDK's modules and the
+/// public items this file imports from them. A name defined in this file is never among them.
+fn sdk_imports(code: &str) -> BTreeSet<String> {
+    let mut names = BTreeSet::new();
+    for (at, _) in code.match_indices("use ekr_sdk::") {
+        if code[..at].chars().next_back().is_some_and(is_ident) {
+            continue;
+        }
+        let statement = &code[at..];
+        let end = statement.find(';').expect("a use statement ends with `;`");
+        names.extend(
+            statement[..end]
+                .split(|c: char| !is_ident(c))
+                .filter(|word| !word.is_empty() && *word != "use")
+                .map(str::to_owned),
+        );
+    }
+    names
+}
+
+/// Every path of `code` from its head: `a::b::c` where nothing that continues a path or a method
+/// call comes before `a`. A path stops at `::{` or `::<`.
+fn paths(code: &str) -> BTreeSet<String> {
+    let mut found = BTreeSet::new();
+    let mut at = 0;
+    while at < code.len() {
+        let c = code[at..].chars().next().expect("in bounds");
+        let before = code[..at].chars().next_back();
+        if !(c.is_ascii_alphabetic() || c == '_') || before.is_some_and(is_ident) {
+            at += c.len_utf8();
+            continue;
+        }
+        let mut end = at;
+        loop {
+            end = code[end..]
+                .find(|c: char| !is_ident(c))
+                .map_or(code.len(), |n| end + n);
+            let next = code[end..].strip_prefix("::");
+            match next.and_then(|rest| rest.chars().next()) {
+                Some(c) if c.is_ascii_alphabetic() || c == '_' => end += 2,
+                _ => break,
+            }
+        }
+        let head = code[..at].trim_end();
+        if !head.ends_with("::") && !head.ends_with('.') {
+            found.insert(code[at..end].to_owned());
+        }
+        at = end;
+    }
+    found
+}
+
+/// The code the section's names resolve against: the example regions and
+/// [`names_the_prose_uses`], its signature included. Neither defines anything; each only uses
+/// what the SDK exports.
+fn resolving_code(source: &str) -> String {
+    let witness: String = source
+        .lines()
+        .skip_while(|line| !line.starts_with("fn names_the_prose_uses("))
+        .take_while(|line| *line != "}")
+        .map(|line| format!("{line}\n"))
+        .collect();
+    assert!(!witness.is_empty(), "this file has `names_the_prose_uses`");
+    code(&(regions(source).concat() + &witness))
+}
+
+/// The names of `names` that do not resolve in the SDK's public API. A path resolves when a path
+/// of [`resolving_code`] whose head is a name [`sdk_imports`] finds is that path, extends it, or,
+/// for one capitalised word, holds it as a segment (`Limit` in `DocumentError::Limit`). A call
+/// `f(` resolves as an SDK function called there, or a method called there on an SDK value. The
+/// prelude's `None`, `Some`, `Ok` and `Err` resolve.
+fn unresolved(names: &BTreeSet<String>, source: &str) -> Vec<String> {
+    let sdk = sdk_imports(&code(source));
+    let scope = resolving_code(source);
+    let rooted: Vec<String> = paths(&scope)
+        .into_iter()
+        .filter(|path| sdk.contains(path.split("::").next().unwrap_or_default()))
+        .collect();
+    let resolves = |name: &String| {
+        if ["None", "Some", "Ok", "Err"].contains(&name.as_str()) {
+            return true;
+        }
+        if let Some(function) = name.strip_suffix('(') {
+            return (sdk.contains(function) && occurs(&scope, name))
+                || scope.contains(&format!(".{name}"));
+        }
+        rooted.iter().any(|path| {
+            path == name
+                || path.starts_with(&format!("{name}::"))
+                || (!name.contains("::") && path.split("::").any(|segment| segment == name))
+        })
+    };
+    names
+        .iter()
+        .filter(|name| !resolves(name))
+        .cloned()
+        .collect()
+}
+
+#[test]
 fn every_api_name_the_section_uses_is_compiled_here() -> Result<(), Box<dyn Error>> {
+    use ekr_sdk::document::{DocumentError, Ontology, OntologySpec, ValidationProfile};
+
     let names = api_names(&prose(&section()));
     for required in [
         "TransactionBuilder",
@@ -285,8 +401,7 @@ fn every_api_name_the_section_uses_is_compiled_here() -> Result<(), Box<dyn Erro
             "the section names `{required}`: {names:?}"
         );
     }
-    let code = code(&this_file());
-    let missing: Vec<&String> = names.iter().filter(|name| !occurs(&code, name)).collect();
+    let missing = unresolved(&names, &this_file());
     assert!(
         missing.is_empty(),
         "the section names what no code here compiles: {missing:?}"
@@ -306,15 +421,26 @@ fn every_api_name_the_section_uses_is_compiled_here() -> Result<(), Box<dyn Erro
 }
 
 /// Every public name the section's prose uses and no example does, in code the compiler holds
-/// to the public API.
+/// to the public API. It defines nothing and uses only what the SDK exports, which
+/// [`unresolved`] relies on.
 fn names_the_prose_uses(
-    spec: &OntologySpec,
-    change: &SchemaChange,
-    error: &DocumentError,
+    spec: &ekr_sdk::document::OntologySpec,
+    change: &ekr_sdk::document::SchemaChange,
+    error: &ekr_sdk::document::DocumentError,
     refusal: &OntologyError,
     outcome: &Outcome,
     operator: AgentId,
 ) -> Result<(), Box<dyn Error>> {
+    use ekr_sdk::document::{
+        Assertion, Confidence, DocumentError, DocumentLimit, EdgeDraft, EdgeId, Evidence,
+        EvidenceAddition, EvidenceSource, NodeDraft, NodeId, Object, Ontology, OntologySpec,
+        Operation, Predicate, PropertyId, SchemaChange, SchemaVersionId, SeedBuilder, SeedDocument,
+        Subject, Timestamp, TransactionBuilder, TransactionDocument, TransactionId, TypeId,
+        TypedReference, ValidationProfile,
+    };
+    use ekr_sdk::session::ProcessSession;
+
+    let _ = std::any::type_name::<ProcessSession>();
     let (seed, held): (SeedBuilder, Ontology) = OntologySpec::seed(spec, Timestamp::EPOCH)?;
     let root = SeedBuilder::root_id(&seed);
     let node = NodeDraft::with_id(NodeDraft::new(root, TypeId::mint(), "n"), NodeId::mint());
@@ -347,7 +473,11 @@ fn names_the_prose_uses(
     let seed = SeedBuilder::assertion(seed, claim);
     let seed = SeedBuilder::evidence(seed, evidence);
     let _: SeedDocument = SeedBuilder::build(seed);
-    let _ = TypedReference::new(TypeId::mint(), ["a"]).to_yaml()?;
+    let reference = TypedReference::new(TypeId::mint(), ["a"]);
+    let _ = TypedReference::to_yaml(&reference)?;
+    let _ = SeedDocument::to_yaml(&SeedBuilder::build(
+        OntologySpec::seed(spec, Timestamp::EPOCH)?.0,
+    ))?;
 
     let _ = Ontology::read("{}").is_err();
     let _ = Ontology::node_type(&held, "n");
@@ -375,6 +505,7 @@ fn names_the_prose_uses(
     );
     let document: TransactionDocument = TransactionBuilder::build(push)?;
     TransactionDocument::check_limits(&document)?;
+    let _ = TransactionDocument::to_yaml(&document)?;
     let _ = (
         TRANSACTION_LIMITS,
         DocumentLimit::ALL.map(DocumentLimit::name),
