@@ -3,8 +3,9 @@
 `ekr-sdk` is a Rust library for driving an EKR store from a program. It runs a child
 [`ekr session`](cli.md#ekr-session) and exchanges one JSON line per request with it, so a consumer
 links neither the kernel nor the store. This page covers how the child is started, how requests
-and replies are typed, how failures are handled, resolving references through a cache, committing
-in batches, typed reads, and how to test without an `ekr` binary.
+and replies are typed, how failures are handled, building the documents a consumer writes,
+resolving references through a cache, committing in batches, typed reads, and how to test without
+an `ekr` binary.
 
 The API is blocking and depends on no async runtime in any feature. A Tokio program calls it inside
 `spawn_blocking`.
@@ -49,7 +50,8 @@ let reply = session.request(&Request::new(["seed", "-"]).with_stdin(seed_yaml))?
 
 `ProcessSession::start` runs `ekr --host … --store … --backend … session --create`. The child
 serves `seed` as well as every other verb a session serves, whether or not the store exists yet. So
-hashing, minting, seeding and the first writes all go through one process.
+seeding and the first writes go through one process. Ids and hashes need no process: the SDK
+computes them itself ([Documents](#documents)).
 `processes_started()` reports how many `ekr` processes the session has started.
 
 `SessionOptions` controls how the child runs:
@@ -135,6 +137,258 @@ printed (`None` for nothing) and its stderr. `reply.answer()` returns an `Answer
 | `Fault(Fault { exit, message })` | 1, or any other status | a provider, verification, input or configuration failure |
 
 A refusal or a fault is still a reply. An `Err` from `request` means no reply was read.
+
+## Documents
+
+`ekr_sdk::document` builds every document a consumer writes. It runs in process and sends no
+request, so a document can be built before a session exists, or with none.
+
+| builder | document | read by |
+|---|---|---|
+| `TransactionBuilder` | `TransactionDocument`, `ekr.transaction-document/2` | [`ekr propose`](cli.md#ekr-propose) |
+| `SeedBuilder`, from `OntologySpec::seed` | `SeedDocument`, `ekr-seed/2` | [`ekr seed`](cli.md#ekr-seed) |
+| `TypedReference::new` | a typed reference | [`ekr resolve`](cli.md#ekr-resolve) |
+| `OntologySpec` with `Ontology::ensure` | the schema operations a store lacks | `ekr propose`, as one transaction |
+
+`TransactionDocument::to_yaml`, `SeedDocument::to_yaml` and `TypedReference::to_yaml` write the
+three documents as YAML, with every variant as a tag (`!CreateNode`, `!Node <id>`,
+`!HumanStatement`). A `SchemaChange` is not a document: `SchemaChange::transaction` builds its
+`TransactionDocument`. The readers refuse the one-key JSON form of a tag, so a document is never
+written with `serde_json`.
+
+In the examples below, `session` is a `ProcessSession` on a store that does not exist yet
+([A session](#a-session)), and `operator` is the host document's `context.operator`, an `AgentId`.
+
+### Ids and hashes are local
+
+Every builder that creates something mints its id: `NodeDraft::new`, `EdgeDraft::new`,
+`Assertion::new`, `Evidence::for_payload`, `TransactionBuilder::new`, and `OntologySpec::seed` for
+every type, property, the schema version and the graph root. A minted id is `ekr-core`'s
+`NodeId::mint()` (`TypeId::mint()`, `TransactionId::mint()`, …), which `ekr_sdk::document`
+re-exports and which is the function [`ekr mint`](cli.md#ekr-mint) runs. `NodeDraft::with_id`
+and the other `with_id` methods set a given id instead, which a test replaying a recording needs
+([Recording and replay](#recording-and-replay)).
+
+`payload_hash(bytes)` is the `ekr.payload.v1` hash that [`ekr hash`](cli.md#ekr-hash) prints as
+`content_hash`, trailing newline included. `EvidenceAddition::new` hashes its payload and mints
+its evidence id, so an entry and its bytes cannot disagree. `crates/ekr-sdk/tests/document_drift.rs`
+holds both to the verbs.
+
+### The ontology by name and the seed
+
+A consumer names types and properties; a store knows them by id. `OntologySpec` declares node types
+(`NodeTypeSpec`), edge types (`EdgeTypeSpec`) and their properties (`PropertySpec`, of a
+`ValueSpec`) by name. `Ontology` maps each name to the id a store holds: `Ontology::node_type`,
+`Ontology::edge_type`, `Ontology::edge_property`, and `Ontology::property`, which finds a property
+on the type or on its nearest ancestor that declares it.
+
+`OntologySpec::seed(created_at)` returns a `SeedBuilder` declaring the spec, with an empty graph,
+and the `Ontology` of what it declares. `SeedBuilder::node` adds a `NodeDraft` in the lifecycle
+state its caller passes, stored as given and not looked up. An `OntologySpec` declares no
+lifecycle, so a node of one of its types takes `None`. `SeedBuilder::edge`,
+`SeedBuilder::assertion` and `SeedBuilder::evidence` add the rest; the last files the payload under
+its hash in `evidence_payloads`. Every entity names `SeedBuilder::root_id`. `SeedBuilder::build`
+cannot fail.
+
+```rust
+use ekr_sdk::document::{
+    Cardinality, EdgeTypeSpec, NodeDraft, NodeTypeSpec, OntologySpec, PropertySpec, Timestamp,
+    ValueSpec,
+};
+use ekr_sdk::transport::{Request, Transport};
+
+let spec = OntologySpec::new()
+    .with_node_type(NodeTypeSpec::new("Author"))
+    .with_node_type(
+        NodeTypeSpec::new("Book")
+            .with_property(PropertySpec::new("title", ValueSpec::String).as_required()),
+    )
+    .with_edge_type(
+        EdgeTypeSpec::new("WROTE", ["Author"], ["Book"]).with_cardinality(Cardinality::Many),
+    );
+let (seed, names) = spec.seed(Timestamp::from_millis(1_790_000_000_000))?;
+let root = seed.root_id();
+let author_type = names.node_type("Author").ok_or("no Author type")?;
+let author =
+    NodeDraft::new(root, author_type, "The Field Naturalist").with_alias("field-naturalist");
+let seed = seed.node(author, None).build();
+let seeded = session.request(&Request::new(["seed", "-"]).with_stdin(seed.to_yaml()?))?;
+```
+
+### Building a transaction
+
+`TransactionBuilder::new(proposer)` starts a transaction under a minted id, and
+`TransactionBuilder::push` appends an operation. Every payload type converts into its
+`Operation` (`NodeDraft` into `!CreateNode`, `EvidenceAddition` into `!AddEvidence`,
+`AliasAddition` into `!AddAlias`, …), so a push reads `.push(draft.into())`. `!DeleteEdge` carries
+only an `EdgeId`, which has no such conversion: push `Operation::DeleteEdge(edge_id)`. The
+proposer is the host's `context.operator`.
+
+`TransactionBuilder::build` fills in what the kernel checks against the operations: the `evidence`
+list is exactly the set the `!AddAssertion`s cite, and a schema change names a minted
+`schema_version` (`TransactionBuilder::with_schema_version` sets a given one). It refuses:
+
+| refusal | when |
+|---|---|
+| `DocumentError::EmptyTransaction` | the transaction has no operation |
+| `DocumentError::MixedSchemaTransaction` | it mixes schema changes and data operations, which every profile refuses |
+| `DocumentError::Limit` | the document is past one of the ten limits ([below](#the-ten-limits)) |
+| `DocumentError::Yaml` | the YAML writer refused a value |
+
+The document is sent as `propose -`, then `validate <id>` and `commit <id>`, three ordinary
+requests whose replies read as in [Replies](#replies). A commit answered `Outcome::Stale` applied
+nothing: propose it again under a new transaction id, which building the document again mints.
+A `Batcher` sends all three for operations given as groups, and handles `Stale` and rejections
+itself ([Batches](#batches)).
+
+```rust
+use ekr_sdk::document::{
+    payload_hash, Assertion, Confidence, EvidenceAddition, EvidenceSource, Object, Predicate,
+    Subject, TransactionBuilder, Value,
+};
+
+let book_type = names.node_type("Book").ok_or("no Book type")?;
+let title = names.property("Book", "title").ok_or("no Book.title")?;
+let name = Value::String("A Field Guide to Lichens".into());
+let book = NodeDraft::new(root, book_type, "A Field Guide to Lichens")
+    .with_property(title, name.clone())
+    .with_alias("lichen-guide");
+let statement = b"The title page reads: A Field Guide to Lichens.\n".to_vec();
+let hash = payload_hash(&statement); // what `ekr hash` prints for the same bytes
+let evidence = EvidenceAddition::new(
+    EvidenceSource::human("Catalogue desk"),
+    operator,
+    Timestamp::from_millis(1_790_000_000_000),
+    Confidence::CERTAIN,
+    statement,
+);
+let claim = Assertion::new(
+    root,
+    Subject::Node(book.id),
+    Predicate::Property(title),
+    Object::Value(name),
+    operator,
+)
+.citing(evidence.evidence.id);
+let document = TransactionBuilder::new(operator)
+    .push(book.into())
+    .push(evidence.into())
+    .push(claim.into())
+    .build()?;
+
+let id = document.transaction.id.to_string();
+let proposed =
+    session.request(&Request::new(["propose", "-"]).with_stdin(document.to_yaml()?))?;
+let validated = session.request(&Request::new(["validate", id.as_str()]))?;
+let committed_book = session.request(&Request::new(["commit", id.as_str()]))?;
+```
+
+### Ensuring an ontology
+
+`Ontology::read(printed)` reads the document [`ekr ontology`](cli.md#ekr-ontology) prints, as
+JSON text. `Ontology::ensure(&spec, profile)` compares it with a spec and returns a
+`SchemaChange`: the schema operations that make the store declare everything the spec declares,
+and `SchemaChange::ontology`, the name-to-id map once they commit, holding the ids minted for what
+they add. It sends nothing.
+
+| the store | `ensure` emits |
+|---|---|
+| lacks a node type | `!DefineNodeType`, with the properties the spec declares on it |
+| lacks an edge type | `!DefineEdgeType`, with its properties |
+| holds the type and lacks one of its properties | `!ModifyProperty` on that type |
+| declares the property differently on that type | `!ModifyProperty` redeclaring it under the id the store holds. The kernel decides whether the store's data admits it |
+| holds an edge type without one of the spec's ends | `!WidenEdgeType`, writing each end whole |
+| declares everything the spec declares | nothing: `SchemaChange::is_empty` |
+
+What the store holds beyond the spec is left alone. `SchemaChange::operations` lists node types,
+then edge types, then properties, then widenings. `SchemaChange::transaction(proposer)` builds them
+into one schema-change transaction, `None` when nothing is missing. A `Batcher` given them as one
+group does the same, never puts them in a batch with data, and skips the group when it is empty.
+
+| `OntologyError` | when |
+|---|---|
+| `SchemaFixed { missing }` | the store runs profile v1 (below) and the spec needs `missing` schema operations |
+| `Conflict { kind, name, reason }` | the store declares what no schema operation changes: a node type's parents or abstractness, an edge type's cardinality, a property an ancestor declares differently. Also a spec whose parents form a cycle |
+| `UnknownName { kind, name }` | the spec names a node type it does not declare and the store does not hold |
+| `DuplicateName { kind, name }` | two node types, two edge types or two properties of one type share a name, in the spec or in the store |
+| `Read` | the text is not a document `ekr ontology` prints |
+
+**Profile v1 fixes the schema.** `ensure` takes the store's validation profile, which it does not
+read from the store: `ValidationProfile::V1` for a host whose `authority.validation_profile.ruleset`
+is `ekr.p1-deterministic/1`, `ValidationProfile::V2` for `ekr.p2-deterministic/1` and
+`ValidationProfile::V3` for `ekr.p3-deterministic/1`. Under v1 a spec the store already declares
+gives an empty change, so `ensure` still checks a v1 store against a spec. A spec that needs any
+operation is `SchemaFixed`, and no operation moves a store from v1 to v2: seed a new store under
+v2 or v3 ([Evolve the schema](cli.md#evolve-the-schema)).
+
+```rust
+use ekr_sdk::batch::Batcher;
+use ekr_sdk::document::{Ontology, ValidationProfile};
+
+let printed = session.request(&Request::new(["ontology"]))?;
+let held = Ontology::read(&printed.document.unwrap_or_default().to_string())?;
+let grown = spec.with_node_type(
+    NodeTypeSpec::new("Journal").with_property(PropertySpec::new("issn", ValueSpec::String)),
+);
+let change = held.ensure(&grown, ValidationProfile::V2)?;
+let report = Batcher::new(operator).commit(&mut session, &[change.operations().to_vec()])?;
+let names = change.ontology();
+let journal_type = names.node_type("Journal").ok_or("no Journal type")?;
+```
+
+### The ten limits
+
+`ekr.transaction-document/2` freezes ten limits ([Document limits](cli.md#document-limits)), and
+`ekr propose` refuses a document past any of them. `TransactionBuilder::build` checks the document
+it writes against the same limits first, counting what the kernel's reader counts, so such a
+document is refused before any request. `TransactionDocument::check_limits` checks a document
+assembled by hand. `TRANSACTION_LIMITS` holds the bounds. `DocumentLimit::ALL` lists the ten, each
+with `DocumentLimit::name` and `DocumentLimit::bound`.
+
+| `DocumentLimit` | name | at most |
+|---|---|---|
+| `InputBytes` | `input_bytes` | 8,388,608 bytes of YAML (8 MiB) |
+| `Operations` | `operations` | 10,000 operations |
+| `Evidence` | `evidence_elements` | 10,000 ids in the transaction's `evidence` |
+| `Depth` | `container_depth` | 32 levels of nesting, a tag counting as one |
+| `Nodes` | `expanded_nodes` | 1,048,576 values, keys and tags |
+| `MappingEntries` | `mapping_entries` | 4,096 entries in one mapping |
+| `SequenceElements` | `sequence_elements` | 16,384 elements in any other sequence |
+| `StringBytes` | `string_bytes` | 65,536 bytes in one string or tag name |
+| `KeyBytes` | `key_bytes` | 4,096 bytes in one mapping key |
+| `TotalStringBytes` | `total_string_bytes` | 33,554,432 bytes of strings, keys and tag names in all |
+
+The refusal is `DocumentError::Limit { limit, bound, value }`: the first limit the document is
+past, its bound and the document's count. Its message names the limit as `ekr propose` would. Split
+the change into several transactions, or let a `Batcher` pack groups under the caps.
+
+An `!AddEvidence` payload is written one list element per byte, so a payload over 16,384 bytes is
+refused as `sequence_elements`. Put a larger statement into the seed, or split it into several
+evidence entries.
+
+```rust
+use ekr_sdk::document::{
+    AliasAddition, DocumentError, DocumentLimit, NodeId, TransactionBuilder,
+};
+
+let node = NodeId::mint();
+let too_many = (0..10_001).fold(TransactionBuilder::new(operator), |builder, n| {
+    builder.push(AliasAddition::new(node, format!("alias-{n}")).into())
+});
+let refused = too_many.build().unwrap_err();
+assert!(matches!(
+    refused,
+    DocumentError::Limit {
+        limit: DocumentLimit::Operations,
+        bound: 10_000,
+        value: 10_001
+    }
+));
+assert_eq!(
+    refused.to_string(),
+    "transaction document limit: operations (at most 10000): this document has 10001"
+);
+```
 
 ## Resolve before you create
 
