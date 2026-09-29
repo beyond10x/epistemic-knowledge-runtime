@@ -1,0 +1,65 @@
+# story:changes-since-read: a transaction-time since (ekr.views.GraphChangesV1).
+#
+# The store `changes` is the one a-revision-since-lists-the-changes-after-it describes. Its host
+# clock starts at 1800000000000 ms and reads one millisecond per sample, one for the seed and three
+# for each commit, so the seed is committed at 1800000000001 and revision n at
+# 1800000000001 + 3n: revision 1 at 1800000000004.
+#   - since 1800000000000, before the seed: every revision, 12 changes — the seed's 2 nodes,
+#     1 edge and 2 assertions, then revisions 1 to 3's 7 — from revision 0 to 3;
+#   - since 1800000000004, revision 1's own committed_at: revisions 2 and 3 only, 3 changes; a read
+#     that chooses committed_at >= T lists revision 1 too.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-transaction-time-since-lists-the-revisions-committed-after-it
+summary: A transaction time before the seed lists all 12 changes from revision 0, and revision 1's own commit time lists only revisions 2 and 3.
+
+timeline:
+  - at: 2027-01-15T12:10:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: changes
+      since_kind: TransactionTime
+      since: 1800000000000
+      at: 3
+      limit: null
+      after: null
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          revision: 3
+          changes: 12
+          total: 12
+          nodes_created: 3
+          edges_created: 2
+          assertions_added: 5
+          assertions_superseded: 1
+          assertions_retracted: 1
+          first_revision: 0
+          last_revision: 3
+
+  - at: 2027-01-15T12:11:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: changes
+      since_kind: TransactionTime
+      since: 1800000000004
+      at: 3
+      limit: null
+      after: null
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          revision: 3
+          changes: 3
+          total: 3
+          nodes_created: 0
+          edges_created: 0
+          assertions_added: 1
+          assertions_superseded: 1
+          assertions_retracted: 1
+          first_revision: 2
+          last_revision: 3

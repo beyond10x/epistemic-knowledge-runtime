@@ -2,12 +2,14 @@
 format: aep.planning-md/3
 id: decision-blocker:adapter-unit-ownership
 kind: decision-blocker
-status: open
+status: cleared
 title: Nobody has decided whether an adapter or its declaration owns the set of source units it polls
 relations:
 - blocks: epic:p2-observation-layer
 - blocks: story:v1-chat-raw-becomes-observations
-revision: 2
+revision: 4
+transitions:
+- {from: "open", to: "cleared", at: "2026-09-28T23:00:28Z", actor: "agent:claude-coordinator", revision: 4}
 ---
 ## Question
 
@@ -32,3 +34,7 @@ For `SourceAdapter → SourceUnit` (one adapter, many units):
 ## What it stops
 
 The `SourceAdapter` trait (whether `poll` takes a unit), and the fixture adapter behind that trait. `story:observe-domain-model` carries this as an `UNMAPPED:` marker. `story:fixture-records-become-observations` has a single fixture source and does not depend on it.
+
+## Answer
+
+Answered by `architecture-decision-record:0012-source-adapters-are-a-contract` (operator, 2026-09-29): connectors live in consumers and implement a contract the engine specifies, so the consumer's adapter owns its units and declares them to the engine for coverage, as `story:source-adapter-contract` specifies.

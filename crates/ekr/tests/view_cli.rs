@@ -17,6 +17,7 @@ use std::time::Duration;
 use ekr::host::CliHostConfigurationV1;
 use ekr_core::{ContentHash, RevisionNumber};
 use ekr_kernel::Runtime;
+use ekr_views::{ChangesRequest, Index, SinceKind};
 use serde_json::Value;
 
 const BACKENDS: [&str; 2] = ["file", "sqlite"];
@@ -659,6 +660,95 @@ fn ekr_view_serves_the_head_at_head_and_a_past_revision_unchanged_across_a_commi
             let expected = if query == "?" { 200 } else { 400 };
             assert_eq!(refused.status, expected, "{backend} GET /head{query}");
         }
+        server.stop();
+    }
+}
+
+/// `GET /changes` serves the `ekr.graph-changes/1` bytes `ekr_views::Index::changes` returns for
+/// a revision, a valid-time and a transaction-time since, and a request naming `at` serves the
+/// same bytes before and after a later commit, while one naming none reads the new head.
+#[test]
+fn ekr_view_serves_the_changes_since_as_ekr_views_reads_them_across_a_commit() {
+    for backend in BACKENDS {
+        let world = World::new(backend);
+        let seed = fixture("seed.yaml").display().to_string();
+        assert_eq!(world.ok(&["seed", &seed])["result"]["revision"], 0);
+        let server = world.serve();
+        let requests = [
+            ("since_revision=0&at=0", SinceKind::Revision, 0, None, None),
+            (
+                "since_recorded=0&at=0",
+                SinceKind::TransactionTime,
+                0,
+                None,
+                None,
+            ),
+            (
+                "since_recorded=0&at=0&limit=2&after=1",
+                SinceKind::TransactionTime,
+                0,
+                Some(2),
+                Some(1),
+            ),
+            ("since_valid=0&at=0", SinceKind::ValidTime, 0, None, None),
+        ];
+        let runtime = world.runtime();
+        let index = Index::load(&runtime, Some(RevisionNumber::new(0))).unwrap();
+        let mut before = Vec::new();
+        for (query, kind, since, limit, after) in requests {
+            let served = server.get(&format!("/changes?{query}"));
+            assert_eq!(served.status, 200, "{backend} GET /changes?{query}");
+            assert_eq!(served.header("content-type"), Some("application/json"));
+            served.assert_plain(query);
+            let expected = index
+                .changes(
+                    &runtime,
+                    &ChangesRequest::new(kind, since, limit, after).unwrap(),
+                )
+                .unwrap()
+                .bytes;
+            assert!(
+                served.body == expected,
+                "{backend} GET /changes?{query}\nserved   {}\nexpected {}",
+                String::from_utf8_lossy(&served.body),
+                String::from_utf8_lossy(&expected)
+            );
+            before.push(served.body);
+        }
+        let seeded: Value = serde_json::from_slice(&before[1]).unwrap();
+        assert!(seeded["meta"]["total"].as_u64().unwrap() > 0, "{seeded}");
+
+        let propose = fixture("propose-alice.yaml").display().to_string();
+        assert_eq!(world.ok(&["propose", &propose])["transaction_id"], T_ALICE);
+        assert_eq!(
+            world.ok(&["validate", T_ALICE, "--against", "0"])["kind"],
+            "Validated"
+        );
+        assert_eq!(world.ok(&["commit", T_ALICE])["result"]["revision"], 1);
+
+        for ((query, ..), before) in requests.iter().zip(&before) {
+            let after = server.get(&format!("/changes?{query}"));
+            assert!(
+                &after.body == before,
+                "{backend} GET /changes?{query}: the bytes changed after a commit"
+            );
+        }
+        let newest: Value =
+            serde_json::from_slice(&server.get("/changes?since_revision=0").body).unwrap();
+        assert_eq!(newest["meta"]["revision"], 1, "{backend}: {newest}");
+        assert!(newest["meta"].get("head").is_none(), "{backend}");
+        assert!(
+            newest["changes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|change| change["revision"] == 1),
+            "{backend}: {newest}"
+        );
+        assert!(
+            !newest["changes"].as_array().unwrap().is_empty(),
+            "{newest}"
+        );
         server.stop();
     }
 }

@@ -2,13 +2,15 @@
 format: aep.planning-md/3
 id: decision-blocker:evidence-entry-after-seed
 kind: decision-blocker
-status: open
+status: cleared
 title: Nobody has decided how evidence enters canonical state after the seed
 relations:
 - blocks: epic:p2-observation-layer
 - informed_by: task:agent-cannot-add-evidence
 - blocks: story:add-evidence-operation
-revision: 2
+revision: 4
+transitions:
+- {from: "open", to: "cleared", at: "2026-09-28T23:00:27Z", actor: "agent:claude-coordinator", revision: 4}
 ---
 ## Question
 
@@ -36,3 +38,7 @@ Relation: `Transaction → Evidence` (may a transaction introduce evidence, and 
 ## What it stops
 
 "Assertions cite that observation, not a file" and "evidence can enter after the seed". That is the proper route for `task:agent-cannot-add-evidence`. No story was drafted for either. The task is related here and not absorbed.
+
+## Answer
+
+The operator chose option 1, `AddEvidence`, in the coordinator session on 2026-09-29 ("1 AddEvidence"). A transaction carries the new evidence beside the assertion citing it; `story:add-evidence-operation` builds it (wave ingest-02).

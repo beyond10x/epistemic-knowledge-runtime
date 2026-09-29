@@ -12,7 +12,9 @@ summary: >-
   Five bounded reads draw from the same revision without exporting it: ekr.graph-overview/1
   (ProjectOverview), ekr.graph-slice/1 (ExpandNeighbourhood), ekr.node-detail/1 (DescribeNode),
   ekr.node-matches/1 (SearchNodes) and ekr.graph-timeline/1 (ProjectTimeline), each generic over
-  any ontology in the same way. This domain writes nothing; its six commands read.
+  any ontology in the same way. A sixth, ekr.graph-changes/1 (ChangesSince), reads what the
+  revisions up to one revision changed after a revision or a time. This domain writes nothing;
+  its seven commands read.
 
   Determinism, which every renderer of ekr.graph-projection/1 holds to so that two renders of one
   revision are byte-identical. (1) Order. By id: every array whose members carry an `id`, and
@@ -59,11 +61,24 @@ summary: >-
   then type id; rows by total descending, then id; each row's cells and strip by start
   ascending, then type id; events by start ascending, then id; each event's path from the
   subject outward, which is not id order.
-  Bounds and the order of refusals, for the five: a bound over the input (depth, hops, limit,
+  ekr.graph-changes/1 — changes by revision ascending, then change kind in the order
+  ekr.views.ChangeKind declares its variants, then id ascending; each change's evidence by id.
+  Its answer is a function of the request with `at` resolved: a request that names no `at` reads
+  the head as it stands at the request, and its answer is byte for byte the answer to the same
+  request naming that revision, which meta.revision carries. meta.revision is the revision read,
+  never a report of the head: the same request naming that revision answers the same bytes after
+  any later commit. A reader that pages keeps `at` fixed to the first page's meta.revision. A
+  refusal is outside that rule: a since_revision past the head is refused as RevisionNotFound
+  naming the head, and after a later commit the same request may answer an empty page.
+  Bounds and the order of refusals, for the six: a bound over the input (depth, hops, limit,
   edge_limit, after) is checked before the store is read, and a broken one answers LimitExceeded
-  naming the first broken input in the command's declared input order; then an unseeded store
-  answers NotSeeded; then a revision beyond the head answers RevisionNotFound; then a node the
-  revision does not hold answers NodeNotFound.
+  naming the first broken input in the command's declared input order — for ChangesSince a
+  since_revision below 0 answers SinceMalformed before any bound, while a request naming none or
+  two of the three since inputs is malformed input that never reaches the command (the endpoint
+  answers invalid-query, the MCP tool -32602);
+  then an unseeded store answers NotSeeded; then a revision beyond the head answers
+  RevisionNotFound — for ChangesSince `at` first, then since_revision; then a node the revision
+  does not hold answers NodeNotFound.
 
   UNMAPPED under decision-blocker:evidence-entry-after-seed: evidence without retained bytes. Every
   evidence record the kernel admits today arrives with the seed, and the seed retains its bytes.
@@ -1061,6 +1076,138 @@ types:
       - name: events
         type: List<ekr.views.TimelineEvent>
 
+  # ---------------------------------------------------------------------------------------------
+  # ekr.graph-changes/1: what the committed revisions up to one revision `at` changed after a
+  # revision or a time `since` (ChangesSince), so an agent that reacts to change need not diff two
+  # snapshots.
+  #
+  # The changes of one revision are read off the transaction it committed, and the seed's
+  # (revision 0) off its canonical state: every node it created (NodeCreated), every edge it
+  # created (EdgeCreated), every assertion it added (AssertionAdded), superseded
+  # (AssertionSuperseded) or retracted (AssertionRetracted). An edge a later revision deletes
+  # stays the change its creating revision made. A property update, a named operation, an edge
+  # deletion and a schema change are not changes of this format.
+  #
+  # `since` is one revision, valid time or transaction time, and it chooses the changes:
+  #   - a revision N (since_revision): every change of the revisions after N, up to and including
+  #     `at`;
+  #   - a transaction time T (since_recorded): every change of the revisions committed after T
+  #     (committed_at > T), up to and including `at`. A revision records its changes at its
+  #     committed_at: an added assertion's recorded_from and a superseded or retracted one's
+  #     recorded_to are it;
+  #   - a valid time T (since_valid): every assertion change, of every revision from the seed up
+  #     to and including `at`, whose valid time is after T (valid_time > T, below). A node or an
+  #     edge has no valid time of its own (ekr.views.ProjectedEdge), so NodeCreated and
+  #     EdgeCreated are never chosen by a valid time, and an assertion with no valid_from is not
+  #     either.
+  # ---------------------------------------------------------------------------------------------
+
+  - name: ekr.views.GraphChangesFormatV1
+    kind: enum
+    variants: [ekr.graph-changes/1]
+
+  # Which of the three a `since` is: Revision, a revision number; ValidTime and TransactionTime,
+  # an EpochMillis.
+  - name: ekr.views.SinceKind
+    kind: enum
+    variants: [Revision, ValidTime, TransactionTime]
+
+  - name: ekr.views.ChangeKind
+    kind: enum
+    variants: [NodeCreated, EdgeCreated, AssertionAdded, AssertionSuperseded, AssertionRetracted]
+
+  # The position in the change sequence: the number of changes the earlier pages delivered. A
+  # page's `next` is its own `after` plus the changes it delivered. Like ekr.views.SliceCursor it
+  # names no revision, so a reader that pages keeps `at` fixed to the first page's meta.revision.
+  - name: ekr.views.ChangeCursor
+    kind: newtype
+    of: Integer
+
+  # One change. `revision` is the revision that made it and `recorded_at` that revision's
+  # committed_at; `id` is the node's, the edge's or the assertion's. Exactly the payload its kind
+  # carries is present:
+  #   - NodeCreated: `type` and `name`, the node's type and canonical_name as created;
+  #   - EdgeCreated: `type`, `source` and `target`;
+  #   - AssertionAdded, AssertionSuperseded and AssertionRetracted: `subject_kind` and `subject`,
+  #     the assertion's subject; AssertionSuperseded also `by`, the replacing assertion.
+  # `valid_time` is the valid time an assertion change is chosen by under since_valid: the
+  # assertion's valid_from for AssertionAdded and AssertionRetracted, and the supersession's
+  # effective_from for AssertionSuperseded; omitted for an assertion with no valid_from and for a
+  # node or an edge.
+  # `evidence` is, for an assertion change, the ids of the evidence the assertion cites; for a
+  # NodeCreated or EdgeCreated, the ids of the evidence cited by the assertions the same revision
+  # added whose subject is that node or edge — empty when it added none.
+  - name: ekr.views.GraphChange
+    kind: struct
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: recorded_at
+        type: ekr.views.EpochMillis
+      - name: change
+        type: ekr.views.ChangeKind
+      - name: id
+        type: Uuid
+      - name: type
+        type: Optional<ekr.ontology.TypeId>
+      - name: name
+        type: Optional<String>
+      - name: source
+        type: Optional<ekr.graph.NodeId>
+      - name: target
+        type: Optional<ekr.graph.NodeId>
+      - name: subject_kind
+        type: Optional<ekr.graph.SubjectKind>
+      - name: subject
+        type: Optional<Uuid>
+      - name: by
+        type: Optional<ekr.graph.AssertionId>
+      - name: valid_time
+        type: Optional<ekr.views.EpochMillis>
+      - name: evidence
+        type: List<ekr.graph.EvidenceId>
+
+  # `revision` is the revision read: `at`, or the head as it stood at the request when `at` is
+  # absent. Exactly one of since_revision, since_valid and since_recorded is present: the
+  # request's. `limit` and `after` are the request's after their defaults; `total` counts every
+  # change the request chooses, not this page.
+  - name: ekr.views.ChangesMeta
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.GraphChangesFormatV1
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: since_revision
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: since_valid
+        type: Optional<ekr.views.EpochMillis>
+      - name: since_recorded
+        type: Optional<ekr.views.EpochMillis>
+      - name: limit
+        type: Integer
+      - name: after
+        type: ekr.views.ChangeCursor
+      - name: total
+        type: Integer
+
+  # ekr.graph-changes/1: one page of the chosen changes, in the format's order. A page takes the
+  # changes from position `after` onward, at most `limit` of them. `next` is present exactly when
+  # changes remain after the page, and is `after` plus the changes the page holds; `remaining`
+  # counts them, 0 exactly when there is no `next`. A cursor at or past the end answers an empty
+  # page with no `next`. Every fact here that one assertion states carries that assertion's id.
+  - name: ekr.views.GraphChangesV1
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.ChangesMeta
+      - name: changes
+        type: List<ekr.views.GraphChange>
+      - name: next
+        type: Optional<ekr.views.ChangeCursor>
+      - name: remaining
+        type: Integer
+
 actors:
   - name: ekr.views.Reader
     may:
@@ -1070,6 +1217,7 @@ actors:
       - ekr.views.DescribeNode
       - ekr.views.SearchNodes
       - ekr.views.ProjectTimeline
+      - ekr.views.ChangesSince
     naming:
       display: Reader
 
@@ -1112,6 +1260,16 @@ errors:
         type: Integer
       - name: maximum
         type: Optional<Integer>
+
+  # `kind` and `requested` are the request's since_kind and since: a revision since below 0,
+  # which names no revision.
+  - name: ekr.views.SinceMalformed
+    summary: A ChangesSince request's since is no revision, valid time or transaction time; the store was not read and nothing was answered.
+    fields:
+      - name: kind
+        type: ekr.views.SinceKind
+      - name: requested
+        type: Integer
 
 commands:
   # Design § 82. A read of one immutable revision; the default is the newest. Writes no canonical
@@ -1464,6 +1622,78 @@ commands:
         error: ekr.views.NotSeeded
         summary: Nothing was answered; no head is reported, because there is none.
 
+  # What changed (ekr.views.GraphChangesV1). `since` is one revision, valid time or transaction
+  # time: `since_kind` says which and `since` is its value, a revision number or an EpochMillis.
+  # A host that takes it as three inputs, since_revision, since_valid and since_recorded, takes
+  # exactly one of them, and one given none or more than one refuses the request as its own
+  # malformed input. `at` is the last revision read, the head when absent. `limit` is 1 to 2,000
+  # changes per page, 500 when absent; `after` a cursor from an earlier page's `next`, 0 or more.
+  # A revision since at or after `at` that the store holds chooses no change and is no refusal;
+  # one beyond the head is not-found, decided after `at` is.
+  - name: ekr.views.ChangesSince
+    naming:
+      wire: changes-since
+      display: List changes since
+    input:
+      - name: store
+        type: ekr.views.StoreLocation
+      - name: since_kind
+        type: ekr.views.SinceKind
+      - name: since
+        type: Integer
+      - name: at
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: limit
+        type: Optional<Integer>
+      - name: after
+        type: Optional<ekr.views.ChangeCursor>
+    response:
+      - name: changes
+        type: ekr.views.GraphChangesV1
+    outcomes:
+      - name: listed
+        emits:
+          - ekr.views.ChangesListed
+        payload:
+          ekr.views.ChangesListed:
+            revision: {generated: true}
+            after: {generated: true}
+            changes: {generated: true}
+            total: {generated: true}
+            remaining: {generated: true}
+            nodes_created: {generated: true}
+            edges_created: {generated: true}
+            assertions_added: {generated: true}
+            assertions_superseded: {generated: true}
+            assertions_retracted: {generated: true}
+            first_revision: {generated: true}
+            last_revision: {generated: true}
+            changes_hash: {generated: true}
+        summary: One ekr.graph-changes/1 page, byte-identical to every other answer to the same request with `at` resolved.
+      - name: since-malformed
+        when:
+          all:
+            - since_kind == Revision
+            - since < 0
+        error: ekr.views.SinceMalformed
+        summary: The store was not read; the refusal names the since's kind and its value, a revision number below 0.
+      - name: limit-exceeded
+        when:
+          any:
+            - limit < 1
+            - limit > 2000
+            - after < 0
+        error: ekr.views.LimitExceeded
+        summary: The store was not read; the refusal names the first broken input of limit and after, its value and its bounds.
+      - name: not-found
+        external: the store holds no committed revision with the requested number, as at or as since_revision
+        error: ekr.views.RevisionNotFound
+        summary: Nothing was answered.
+      - name: not-seeded
+        external: the store has never been seeded
+        error: ekr.views.NotSeeded
+        summary: Nothing was answered; no head is reported, because there is none.
+
 events:
   # What one render returned, counted over the document it returned, so a suite can hold a
   # renderer to it without parsing the response. `projection_hash` is the hex SHA-256 of the
@@ -1666,4 +1896,38 @@ events:
       - name: listed_events
         type: Integer
       - name: timeline_hash
+        type: ekr.kernel.ContentHash
+
+  # What one page of changes returned. `revision`, `after` and `total` are meta's; `changes` the
+  # length of changes and `remaining` the document's; the five kind counts count this page's
+  # changes of each ekr.views.ChangeKind; `first_revision` and `last_revision` are the revisions
+  # of the page's first and last change, omitted when the page is empty; `changes_hash` the hex
+  # SHA-256 of the document's exact bytes.
+  - name: ekr.views.ChangesListed
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: after
+        type: Integer
+      - name: changes
+        type: Integer
+      - name: total
+        type: Integer
+      - name: remaining
+        type: Integer
+      - name: nodes_created
+        type: Integer
+      - name: edges_created
+        type: Integer
+      - name: assertions_added
+        type: Integer
+      - name: assertions_superseded
+        type: Integer
+      - name: assertions_retracted
+        type: Integer
+      - name: first_revision
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: last_revision
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: changes_hash
         type: ekr.kernel.ContentHash

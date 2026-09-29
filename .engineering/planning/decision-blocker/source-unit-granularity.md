@@ -7,6 +7,7 @@ title: Nobody has decided whether a source unit is one observed item or the stre
 relations:
 - blocks: epic:p2-observation-layer
 - blocks: story:observations-are-retained
+- blocks: story:source-adapter-contract
 revision: 2
 ---
 ## Question

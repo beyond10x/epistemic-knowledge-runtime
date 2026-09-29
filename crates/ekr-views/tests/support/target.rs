@@ -1,7 +1,7 @@
-//! The ESS conformance target over `ekr_views`' six reads, on one native provider:
+//! The ESS conformance target over `ekr_views`' seven reads, on one native provider:
 //! `ekr_views::project` for `ProjectGraph`, and an [`ekr_views::Index`] of the requested revision
-//! for `ProjectOverview`, `ExpandNeighbourhood`, `DescribeNode`, `SearchNodes` and
-//! `ProjectTimeline`.
+//! for `ProjectOverview`, `ExpandNeighbourhood`, `DescribeNode`, `SearchNodes`,
+//! `ProjectTimeline` and `ChangesSince`.
 //!
 //! * **Isolation.** Every scenario gets a fresh directory below the caller's work directory, and
 //!   every store a scenario names is a fresh provider root inside it.
@@ -30,9 +30,10 @@ use std::path::PathBuf;
 use ekr_core::{NodeId, RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{
-    BucketWidth, ExpandRequest, GraphOverviewed, GraphProjected, Index, LimitExceeded,
-    NeighbourhoodExpanded, NodeDescribed, NodesSearched, OverviewRequest, ProjectError, QueryError,
-    SearchRequest, SubjectsTimelined, TimelineRequest,
+    BucketWidth, ChangesError, ChangesListed, ChangesRequest, ExpandRequest, GraphOverviewed,
+    GraphProjected, Index, LimitExceeded, NeighbourhoodExpanded, NodeDescribed, NodesSearched,
+    OverviewRequest, ProjectError, QueryError, SearchRequest, SinceKind, SubjectsTimelined,
+    TimelineRequest,
 };
 use ess_conformance::target::{
     ConformanceTarget, DeclaredErrorValue, EventObservationRequest, ExternalOutcomeControl,
@@ -51,13 +52,15 @@ const EXPAND_NEIGHBOURHOOD: &str = "ekr.views.ExpandNeighbourhood";
 const DESCRIBE_NODE: &str = "ekr.views.DescribeNode";
 const SEARCH_NODES: &str = "ekr.views.SearchNodes";
 const PROJECT_TIMELINE: &str = "ekr.views.ProjectTimeline";
-const COMMANDS: [&str; 6] = [
+const CHANGES_SINCE: &str = "ekr.views.ChangesSince";
+const COMMANDS: [&str; 7] = [
     PROJECT_GRAPH,
     PROJECT_OVERVIEW,
     EXPAND_NEIGHBOURHOOD,
     DESCRIBE_NODE,
     SEARCH_NODES,
     PROJECT_TIMELINE,
+    CHANGES_SINCE,
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -97,6 +100,7 @@ enum Read {
     Describe(NodeId),
     Search(Result<SearchRequest, LimitExceeded>),
     Timeline(Result<TimelineRequest, LimitExceeded>),
+    Changes(Result<ChangesRequest, ChangesError>),
 }
 
 fn unavailable(operation: &str, detail: impl std::fmt::Display) -> TargetError {
@@ -256,6 +260,72 @@ fn subjects_timelined(summary: &SubjectsTimelined) -> Result<ObservedEvent, Targ
     observed("ekr.views.SubjectsTimelined", fields)
 }
 
+fn changes_listed(summary: &ChangesListed) -> Result<ObservedEvent, TargetError> {
+    let mut fields = counts(&[
+        ("revision", summary.revision),
+        ("after", summary.after),
+        ("changes", summary.changes),
+        ("total", summary.total),
+        ("remaining", summary.remaining),
+        ("nodes_created", summary.nodes_created),
+        ("edges_created", summary.edges_created),
+        ("assertions_added", summary.assertions_added),
+        ("assertions_superseded", summary.assertions_superseded),
+        ("assertions_retracted", summary.assertions_retracted),
+    ])?;
+    if let Some(first) = summary.first_revision {
+        fields.push(("first_revision", integer(first)?));
+    }
+    if let Some(last) = summary.last_revision {
+        fields.push(("last_revision", integer(last)?));
+    }
+    fields.push(("changes_hash", Node::Text(summary.changes_hash.clone())));
+    observed("ekr.views.ChangesListed", fields)
+}
+
+/// `ChangesSince`'s input, bounded: its since kind by name, its since, and its page.
+fn changes_request(
+    request: &SemanticCommandRequest,
+) -> Result<Result<ChangesRequest, ChangesError>, TargetError> {
+    let kind = match text(request, "since_kind")?.as_str() {
+        "Revision" => SinceKind::Revision,
+        "ValidTime" => SinceKind::ValidTime,
+        "TransactionTime" => SinceKind::TransactionTime,
+        other => {
+            return Err(unavailable(
+                "reading `since_kind`",
+                format!("{other} is no since kind"),
+            ))
+        }
+    };
+    Ok(ChangesRequest::new(
+        kind,
+        required_integer(request, "since")?,
+        optional_integer(request, "limit")?,
+        optional_integer(request, "after")?,
+    ))
+}
+
+/// A `ChangesSince` that answered nothing, as the outcome and error it names.
+fn changes_refused(
+    command: &str,
+    refusal: ChangesError,
+) -> Result<SemanticCommandResult, TargetError> {
+    match refusal {
+        ChangesError::SinceMalformed(malformed) => {
+            Ok(
+                SemanticCommandResult::took(outcome_ref(command, "since-malformed")?).with_error(
+                    error("ekr.views.SinceMalformed")?
+                        .with("kind", Node::Text(malformed.kind.name().to_owned()))
+                        .with("requested", signed(malformed.requested)),
+                ),
+            )
+        }
+        ChangesError::LimitExceeded(refusal) => limit_exceeded(command, &refusal),
+        ChangesError::Project(error) => refused(command, QueryError::Project(error)),
+    }
+}
+
 /// An optional text input: `None` when absent or null.
 fn optional_text(
     request: &SemanticCommandRequest,
@@ -396,6 +466,7 @@ fn read(request: &SemanticCommandRequest, command: &str) -> Result<Read, TargetE
             required_integer(request, "limit")?,
         )),
         PROJECT_TIMELINE => Read::Timeline(timeline_request(request)?),
+        CHANGES_SINCE => Read::Changes(changes_request(request)?),
         _ => Read::Graph,
     })
 }
@@ -466,10 +537,21 @@ fn answer(
             Err(error) => Ok((refused(command, QueryError::Project(error))?, None)),
         };
     }
+    if let Read::Changes(request) = read {
+        // The since and the bounds first: a broken one is refused before the store is read.
+        let listed = request.and_then(|request| {
+            let index = Index::load(runtime, at)?;
+            index.changes(runtime, &request)
+        });
+        return match listed {
+            Ok(answer) => Ok((took("listed", changes_listed(&answer.summary)?)?, None)),
+            Err(refusal) => Ok((changes_refused(command, refusal)?, None)),
+        };
+    }
     let result = (|| -> Result<Result<SemanticCommandResult, TargetError>, QueryError> {
         // The bound first: a broken one is refused before the store is read.
         match read {
-            Read::Graph => unreachable!("answered above"),
+            Read::Graph | Read::Changes(_) => unreachable!("answered above"),
             Read::Overview(request) => {
                 let request = request?;
                 let index = Index::load(runtime, at)?;
@@ -561,7 +643,7 @@ impl ConformanceTarget for ViewsTarget {
         let Some(command) = COMMANDS.iter().copied().find(|known| *known == command) else {
             return Err(TargetError::unsupported(
                 format!("executing `{}`", request.command),
-                "the views target answers the six ekr.views commands only",
+                "the views target answers the seven ekr.views commands only",
             ));
         };
         let store = match request.input.get("store") {

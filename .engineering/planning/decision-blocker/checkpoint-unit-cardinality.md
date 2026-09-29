@@ -7,6 +7,7 @@ title: Nobody has decided how many checkpoints a source unit has, or which of th
 relations:
 - blocks: epic:p2-observation-layer
 - blocks: story:observations-are-retained
+- blocks: story:source-adapter-contract
 revision: 2
 ---
 ## Question
