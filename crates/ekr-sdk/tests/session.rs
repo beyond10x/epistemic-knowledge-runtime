@@ -790,7 +790,9 @@ fn a_replayed_recording_passes_with_no_ekr_binary() {
     let installed = world.path().join("bin");
     std::fs::create_dir(&installed).unwrap();
     let copy = installed.join("ekr");
-    std::fs::copy(ekr_path(), &copy).unwrap();
+    // A link, not a copy: a copy is written by this process, and a test thread that forks while
+    // the write is open leaves the new file busy (ETXTBSY) when it is executed.
+    std::os::unix::fs::symlink(std::fs::canonicalize(ekr_path()).unwrap(), &copy).unwrap();
     let seed = world.read("seed.yaml");
 
     let recording_file = world.path().join("recording.json");
