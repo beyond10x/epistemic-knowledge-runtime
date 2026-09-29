@@ -14,16 +14,32 @@
 //! the verbs that open no store answer as always. Started with `--create`, it also serves `seed`
 //! through the one-shot verb's own path; the seed that creates the store leaves the session
 //! holding it, opened once as at the start.
+//!
+//! **A store replaced at its path.** A long-running reader — this session, `ekr mcp`, `ekr view` —
+//! compares, before each request that reads the store, the identity of what is at its configured
+//! path ([`Identity`]: device and inode of the file store's root directory or of the SQLite
+//! database file) with the one it opened. That is one `stat` of the path and no store read. When
+//! they differ, the store was replaced (by a rename, say): the reader drops the runtime it holds,
+//! closing the replaced store before it opens another, then opens the store now at the path and
+//! answers from it, and a reader that keeps indexes empties them. If that open fails it answers
+//! [`STORE_REPLACED`], naming the path, and never the replaced store's data; the next request
+//! tries again. A session holding a transaction it proposed that is neither committed nor
+//! rejected refuses the replacement instead, as [`PROPOSALS_OPEN`], on every store verb until the
+//! store it opened is back at the path.
 
+use std::cell::Cell;
+use std::collections::BTreeSet;
 use std::io::{BufRead, Write};
+use std::path::Path;
 
 use clap::error::ErrorKind;
 use clap::Parser;
-use ekr_core::Timestamp;
+use ekr_core::{Timestamp, TransactionId};
+use ekr_kernel::Runtime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::{Cli, Command, Configured, Session, Source};
+use super::{Cli, Command, Configured, Session, Source, Store};
 use crate::exit::Failure;
 
 /// A line that is not a request: not JSON, not an object, without `argv`, with a field a request
@@ -37,6 +53,13 @@ const REFUSED: &str = "session-verb-refused";
 const OPTION: &str = "session-option-refused";
 /// A line longer than [`LINE_LIMIT`]: longer than any request a verb could accept.
 const TOO_LARGE: &str = "session-request-too-large";
+/// The store at a long-running reader's path is not the one it opened, and what is there now does
+/// not open. `ekr session` answers it as a fault (exit 1), `ekr mcp` as a tool refusal and
+/// `ekr view` as 503.
+pub(super) const STORE_REPLACED: &str = "store-replaced";
+/// The store at a session's path was replaced while a transaction the session proposed is neither
+/// committed nor rejected: the session keeps the store that holds it.
+const PROPOSALS_OPEN: &str = "store-replaced-proposals-open";
 
 /// The most bytes of one request line, its newline excluded: 25 231 360. The largest input a verb
 /// reads is an `ekr.transaction-document/2` of 8 388 608 bytes, and JSON-escaping text in a string
@@ -84,10 +107,16 @@ pub fn serve(
     let (configured, command) = Configured::split(cli);
     let create = matches!(command, Command::Session { create: true });
     let store = configured.resolve("session")?;
+    let opened = identity(&store.store);
     let mut session = Session {
         runtime: store.open_if_any()?,
         store,
         create,
+    };
+    let mut watch = Watch {
+        held: session.runtime.is_some(),
+        opened,
+        proposed: BTreeSet::new(),
     };
     let mut line = Vec::new();
     loop {
@@ -96,16 +125,19 @@ pub fn serve(
         {
             None => {
                 // At the end of input the session leaves the checkpoint of the head it reached,
-                // when that head is past the retained one (design § 99.5).
+                // when that head is past the retained one (design § 99.5) — into the store it
+                // opened only, never into one that replaced it at the path.
                 if let Some(runtime) = &session.runtime {
-                    runtime.retain_checkpoint_at_rest();
+                    if identity(&session.store.store) == watch.opened {
+                        runtime.retain_checkpoint_at_rest();
+                    }
                 }
                 return Ok(());
             }
             Some(whole) => whole,
         };
         let answered = if whole {
-            respond(&line, &mut session, now)
+            respond(&line, &mut session, &mut watch, now)
         } else {
             Err(Failure::refused(
                 TOO_LARGE,
@@ -171,11 +203,30 @@ pub(super) fn next_line(
     }
 }
 
+/// What a session knows of the store it holds beyond its runtime: whether it has held one, the
+/// identity of the store it opened, and the transactions it proposed that are neither committed
+/// nor rejected.
+struct Watch {
+    held: bool,
+    opened: Option<Identity>,
+    proposed: BTreeSet<TransactionId>,
+}
+
+/// What a request does to the session's open proposals once it has answered.
+enum Tracked {
+    Proposes,
+    Validates(TransactionId),
+    Commits(TransactionId),
+    Nothing,
+}
+
 /// The request's verb run against the session's store, and the document it prints. A seed that
-/// succeeds in a session holding no store has created it: the session opens and holds it.
+/// succeeds in a session holding no store has created it: the session opens and holds it. A store
+/// verb first follows a store replaced at the session's path ([`follow`]).
 fn respond(
     line: &[u8],
     session: &mut Session,
+    watch: &mut Watch,
     now: &dyn Fn() -> Timestamp,
 ) -> Result<Value, Failure> {
     let request: Request = serde_json::from_slice(line).map_err(|error| {
@@ -187,19 +238,239 @@ fn respond(
     let cli = parse(&request.argv)?;
     admit(&cli, session.create)?;
     let seeds = matches!(cli.command, Command::Seed { .. });
+    let tracked = match &cli.command {
+        Command::Propose { .. } => Tracked::Proposes,
+        Command::Validate { transaction_id, .. } => Tracked::Validates(*transaction_id),
+        Command::Commit { transaction_id } => Tracked::Commits(*transaction_id),
+        _ => Tracked::Nothing,
+    };
+    if !matches!(
+        cli.command,
+        Command::Mint { .. } | Command::Hash { .. } | Command::Schema { .. }
+    ) {
+        follow(session, watch)?;
+    }
     let mut stdin = request.stdin.as_deref().unwrap_or_default().as_bytes();
     let printed = super::dispatch(cli.command, Source::Session(session), now, &mut stdin)?;
     if seeds && session.runtime.is_none() {
         // Where this open fails, the seed's answer still stands and the session stays without a
         // store: each store verb then opens it as the one-shot verb does and says why it cannot.
+        let opened = identity(&session.store.store);
         if let Ok(Some(runtime)) = session.store.open_if_any() {
             session.runtime = Some(runtime);
+            watch.held = true;
+            watch.opened = opened;
         }
     }
-    match printed {
-        super::Printed::Document(document) => Ok(document),
+    let document = match printed {
+        super::Printed::Document(document) => document,
         super::Printed::Text(_) => {
-            Err(Failure::fault("the verb printed text, not a JSON document"))
+            return Err(Failure::fault("the verb printed text, not a JSON document"))
+        }
+    };
+    match tracked {
+        Tracked::Proposes => {
+            if let Some(id) = document["transaction_id"]
+                .as_str()
+                .and_then(|id| id.parse().ok())
+            {
+                watch.proposed.insert(id);
+            }
+        }
+        Tracked::Validates(id) if document["kind"] == "Rejected" => {
+            watch.proposed.remove(&id);
+        }
+        Tracked::Commits(id) if document["kind"] == "Committed" => {
+            watch.proposed.remove(&id);
+        }
+        Tracked::Validates(_) | Tracked::Commits(_) | Tracked::Nothing => {}
+    }
+    Ok(document)
+}
+
+/// Before a store verb: when the store at the session's path is not the one it opened, reopens
+/// there, unless a transaction the session proposed is open ([`PROPOSALS_OPEN`]). A reopen that
+/// fails is [`STORE_REPLACED`], a fault as `store-not-found` is, and leaves the session holding no
+/// runtime, so no later request is answered from the replaced store and each tries again.
+fn follow(session: &mut Session, watch: &mut Watch) -> Result<(), Failure> {
+    if !watch.held {
+        return Ok(());
+    }
+    let now = check(&session.store.store);
+    if now == watch.opened && session.runtime.is_some() {
+        return Ok(());
+    }
+    if session.runtime.is_some() && !watch.proposed.is_empty() {
+        let open: Vec<String> = watch.proposed.iter().map(ToString::to_string).collect();
+        return Err(Failure::refused(
+            PROPOSALS_OPEN,
+            format!(
+                "the store at {} is not the one this session opened, and the session's \
+                 transactions {} are neither committed nor rejected; they stay in the store it \
+                 opened. Put that store back at the path, or end the session and start one on \
+                 the store now there",
+                session.store.store.display(),
+                open.join(", ")
+            ),
+        ));
+    }
+    session.runtime = None;
+    let runtime = reopen(&session.store)
+        .map_err(|replaced| Failure::fault(format!("{STORE_REPLACED}: {}", replaced.message)))?;
+    session.runtime = Some(runtime);
+    watch.opened = now;
+    Ok(())
+}
+
+/// The identity of a store: the device and inode of what its path names, symbolic links
+/// followed — the file store's root directory or the SQLite database file.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct Identity {
+    device: u64,
+    inode: u64,
+}
+
+/// The identity of what is at `path`, or `None` where nothing is.
+pub(super) fn identity(path: &Path) -> Option<Identity> {
+    let metadata = std::fs::metadata(path).ok()?;
+    Some(of(&metadata))
+}
+
+#[cfg(unix)]
+fn of(metadata: &std::fs::Metadata) -> Identity {
+    use std::os::unix::fs::MetadataExt as _;
+    Identity {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+    }
+}
+
+/// Without inodes, a replacement is told by its creation time.
+#[cfg(not(unix))]
+fn of(metadata: &std::fs::Metadata) -> Identity {
+    let created = metadata
+        .created()
+        .ok()
+        .and_then(|at| at.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |at| u64::try_from(at.as_nanos()).unwrap_or(u64::MAX));
+    Identity {
+        device: 0,
+        inode: created,
+    }
+}
+
+/// What long-running readers did on this thread to follow a replaced store.
+///
+/// Test instrumentation, as `ekr_store::read_work` is: it lets a case show that a request without
+/// a replacement costs the check — one `stat` — and no store open or read.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) struct ReaderWork {
+    /// Identity checks of a store path before a request.
+    pub(super) checks: u64,
+    /// Stores opened again because the one at the path was not the one opened.
+    pub(super) reopens: u64,
+}
+
+thread_local! {
+    static WORK: Cell<ReaderWork> = const { Cell::new(ReaderWork { checks: 0, reopens: 0 }) };
+}
+
+/// The work counted on this thread since the last call, which starts the count again.
+#[cfg(test)]
+pub(super) fn reader_work() -> ReaderWork {
+    WORK.with(|work| work.replace(ReaderWork::default()))
+}
+
+fn count(add: impl FnOnce(&mut ReaderWork)) {
+    WORK.with(|work| {
+        let mut now = work.get();
+        add(&mut now);
+        work.set(now);
+    });
+}
+
+/// [`identity`], counted as a check.
+fn check(path: &Path) -> Option<Identity> {
+    count(|work| work.checks += 1);
+    identity(path)
+}
+
+/// Why a reader answered nothing from its store: the store at its path is not the one it opened
+/// and does not open. `message` names the path and why.
+#[derive(Debug)]
+pub(super) struct Replaced {
+    pub(super) message: String,
+}
+
+/// Opens the store now at `store`'s path, counted as a reopen.
+fn reopen(store: &Store) -> Result<Runtime, Replaced> {
+    count(|work| work.reopens += 1);
+    store.open().map_err(|failure| {
+        let why = match failure {
+            Failure::Refused { name, message } => format!("{name}: {message}"),
+            Failure::Fault { message } | Failure::Usage { message } => message,
+        };
+        Replaced {
+            message: format!(
+                "the store at {} is not the one this process opened, and what is there now does \
+                 not open: {why}",
+                store.store.display()
+            ),
+        }
+    })
+}
+
+/// A long-running reader's store: its configuration, the runtime of the store it opened — none
+/// after a reopen failed — and that store's identity.
+pub(super) struct Held {
+    store: Store,
+    runtime: Option<Runtime>,
+    opened: Option<Identity>,
+}
+
+/// The runtime a request reads: the one held, or one opened just now at the path.
+pub(super) enum Checked<'a> {
+    Same(&'a Runtime),
+    /// The store was replaced and this is the new one's: whatever was kept of the old is stale.
+    Reopened(&'a Runtime),
+}
+
+impl Held {
+    /// Opens the existing store `store` names, as a store verb does.
+    ///
+    /// # Errors
+    ///
+    /// What [`Store::open`] reports.
+    pub(super) fn open(store: Store) -> Result<Self, Failure> {
+        let opened = identity(&store.store);
+        let runtime = store.open()?;
+        Ok(Self {
+            store,
+            runtime: Some(runtime),
+            opened,
+        })
+    }
+
+    /// The runtime of the store at the configured path: the one held while the path still names
+    /// it, else — the held one dropped first — the store now there, opened.
+    ///
+    /// # Errors
+    ///
+    /// [`Replaced`] when that store does not open; the next call tries again.
+    pub(super) fn current(&mut self) -> Result<Checked<'_>, Replaced> {
+        let now = check(&self.store.store);
+        let same = now == self.opened && self.runtime.is_some();
+        if !same {
+            self.runtime = None;
+            self.runtime = Some(reopen(&self.store)?);
+            self.opened = now;
+        }
+        match (&self.runtime, same) {
+            (Some(runtime), true) => Ok(Checked::Same(runtime)),
+            (Some(runtime), false) => Ok(Checked::Reopened(runtime)),
+            (None, _) => Err(Replaced {
+                message: format!("no store is held for {}", self.store.store.display()),
+            }),
         }
     }
 }
@@ -286,3 +557,9 @@ fn stderr(failure: &Failure) -> String {
         failure => format!("{failure}\n"),
     }
 }
+
+#[cfg(test)]
+pub(super) mod fixture;
+
+#[cfg(test)]
+mod tests;

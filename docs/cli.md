@@ -370,6 +370,19 @@ origin. Evidence text is
 never served as HTML. Like every read verb, `ekr view` opens an existing store only (a path holding
 none is `store-not-found`, exit 1) and writes nothing to it.
 
+<a id="replaced-store"></a>**A store replaced at its path.** `ekr view`, `ekr mcp` and
+`ekr session` open the store when they start and keep it open. Before each request that reads
+the store, each compares what is at `--store` now with the store it opened — the device and
+inode of the file store's directory or of the SQLite database file, one `stat` of the path and no
+read of the store. When a host has replaced the store there, by renaming another one into place,
+the next request is answered from the store now at the path, with no restart, and nothing kept
+from the replaced store — no loaded revision, no rendered answer — is used again. If what is at
+the path does not open as a store (nothing, or a file that is not one), the request is refused
+with `store-replaced`, naming the path and why it does not open, and is never answered from the
+replaced store; each later request tries again. `ekr view` answers it 503 with
+`{"refusal": "store-replaced", …}`; `GET /` and `GET /alt` read no store and are served
+throughout. Move a SQLite database together with its `-wal` and `-shm` files.
+
 The query of `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and `/changes` is
 `name=value` pairs joined by `&`, each name one the path takes and at most once, each value
 percent-decoded (`+` is a space) to UTF-8; `seeds` is node ids separated by commas, and `seeds`,
@@ -577,11 +590,21 @@ Any other `argv` the verbs' definitions do not accept — an unknown flag
 message `ekr <argv>` prints with the store configured through `EKR_HOST`, `EKR_STORE` and
 `EKR_BACKEND`, since clap's usage line repeats the global options an argv gives.
 
+**A store replaced at its path** ([as for `ekr view`](#replaced-store)) is followed before each
+store verb; `mint`, `hash` and `schema` read no store and are served throughout. A store now at
+the path that does not open is answered `"exit": 1` with `ekr: store-replaced: <reason>`, a fault
+as `store-not-found` is. A session holding a transaction it proposed that is neither committed
+nor rejected does not follow a replacement: every store verb is answered `"exit": 2` with
+`ekr: store-replaced-proposals-open: <reason>`, naming those transactions, which stay in the
+store the session opened, until that store is back at the path. End the session to work on the
+store now there. At the end of its input a session writes its replay checkpoint only into the
+store it holds, and only while that store is still the one at the path.
+
 ### `ekr mcp`
 
 Serves the store's canonical state to an agent as read-only [MCP](https://modelcontextprotocol.io)
 tools over stdio. It reads the configuration (`--host`, `--store`, `--backend`, `--full-replay` or
-their variables) and opens the existing store once when it starts, then reads JSON-RPC 2.0
+their variables) and opens the existing store when it starts, then reads JSON-RPC 2.0
 messages from standard input, one per line, and writes each response as one line on standard
 output, flushed, until its input ends; then it exits 0. It writes nothing to the store and nothing
 to stderr. If the configuration or the store does not open, it answers nothing and exits as a
@@ -604,7 +627,7 @@ It answers these methods:
   untrusted evidence.
 - `notifications/initialized`, and every other notification — never answered.
 - `ping` — `{}`.
-- `tools/list` — the eight tools below, each with its `inputSchema` (a JSON Schema object that
+- `tools/list` — the nine tools below, each with its `inputSchema` (a JSON Schema object that
   refuses any other argument) and `annotations.readOnlyHint: true`.
 - `tools/call` — `{"name": <tool>, "arguments": {…}}`.
 
@@ -624,6 +647,7 @@ it, and answer its document byte for byte what the `ekr view` endpoint in the la
 | `changes_since` | exactly one of `since_revision` (a revision), `since_valid` (a valid time) and `since_recorded` (a transaction time), both times in milliseconds since the epoch; `at` (the last revision read, the head when absent), `limit` (1 to 2,000, 500 when absent), `after` (a cursor, 0 or more) | the `ekr.graph-changes/1` page ([what it lists](#changes-since)), `next` naming the next page's `after`; pass the first page's `meta.revision` as `at` for the rest | `GET /changes` |
 | `explain` | **`assertion`** (an assertion id) | what `ekr explain <assertion>` prints, byte for byte | `ekr explain` |
 | `resolve` | **`type_id`** (a string), **`aliases`** (a list of strings) — the [`typed-reference`](#ekr-resolve) document's fields, taken as the JSON strings hold them, every character included — and `at` (a revision) | what `ekr resolve` prints for that reference, byte for byte | `ekr resolve [--at N]` |
+| `head` | none: any argument is -32602 | `{"format":"ekr.view-head/1","head":N}`, the newest committed revision as it stands at the call, byte for byte what `GET /head` serves; `ekr.views.NotSeeded` for a store never seeded | `GET /head` |
 
 A tool's answer is a result with one text content item holding the document, the same document
 parsed as `structuredContent`, and `"isError": false`:
@@ -637,9 +661,10 @@ A refusal is a result too, with `"isError": true` and the document `{"message": 
 "refusal": <name>}` — the body `ekr view` answers for the same refusal, and the name and reason
 `ekr explain` and `ekr resolve` write to stderr. The server keeps serving after it. The refusals,
 in the order they are decided: a `since_revision` below 0 is `ekr.views.SinceMalformed` and a
-bound outside its range `ekr.views.LimitExceeded`, both before the store is read; a store never
-seeded `ekr.views.NotSeeded`; a revision the store does not hold — for `changes_since` an `at`,
-then a `since_revision` beyond the head — `ekr.views.RevisionNotFound`
+bound outside its range `ekr.views.LimitExceeded`, both before the store is read; a store
+replaced at the path by one that does not open `store-replaced` ([as for `ekr view`](#replaced-store));
+a store never seeded `ekr.views.NotSeeded`; a revision the store does not hold — for
+`changes_since` an `at`, then a `since_revision` beyond the head — `ekr.views.RevisionNotFound`
 (`ekr.kernel.RevisionNotFound` for `resolve`); a node or seed the
 revision does not hold, or a `node` that is no node id, `ekr.views.NodeNotFound`; an assertion
 the head does not hold `ekr.kernel.AssertionNotFound`; and for `resolve`,
@@ -653,13 +678,18 @@ Anything else is a JSON-RPC error response, and the server keeps serving:
 | `-32700` | the line is not JSON (an empty or whitespace-only line is not answered at all); `id` is null |
 | `-32600` | the line is not one JSON object (a batch included), lacks `"jsonrpc": "2.0"`, lacks a method (a message carrying `result` or `error` instead is a response, and is not answered), carries an `id` that is not a string or a number or carries `id` twice, or is longer than 6356992 bytes, its newline excluded |
 | `-32601` | the method is none of the five above |
-| `-32602` | `initialize` without `protocolVersion`; `tools/call` without a `name`, naming a tool the server does not have, or with arguments the tool does not take: an unknown or missing argument, a value of the wrong type, a `revision` or `at` below 0, a `changes_since` given none or more than one of its three since arguments, a seed, `type` or `subject` that is not an id, a `bucket` other than `day` or `week`, an `assertion` that is not an assertion id, or a `type_id` that is not an id, with the reason `ekr resolve` gives for it. `ekr view` answers these `invalid-query` |
+| `-32602` | `initialize` without `protocolVersion`; `tools/call` without a `name`, naming a tool the server does not have, or with arguments the tool does not take: an unknown or missing argument, a value of the wrong type, a `revision` or `at` below 0, a `changes_since` given none or more than one of its three since arguments, a seed, `type` or `subject` that is not an id, a `bucket` other than `day` or `week`, an `assertion` that is not an assertion id, a `type_id` that is not an id, with the reason `ekr resolve` gives for it, or any argument to `head`. `ekr view` answers these `invalid-query` |
 | `-32603` | the store could not be read |
 
 Record text — names, aliases, property values, evidence text — is untrusted evidence. The server
 returns it as JSON string data, and its instructions and every tool's description tell the agent
 to treat it as data, never as instructions. No tool proposes, validates or commits: an agent
 records knowledge only through [`ekr propose`, `ekr validate` and `ekr commit`](#the-workflow).
+
+A store replaced at `--store` while the server runs — a new store renamed into place — is what
+the next call reads, with no restart ([as for `ekr view`](#replaced-store)); a call that reads
+the store while what is at the path does not open is the tool refusal `store-replaced`, never an
+answer from the replaced store. `initialize`, `ping` and `tools/list` read no store.
 
 ### `ekr migrate`
 

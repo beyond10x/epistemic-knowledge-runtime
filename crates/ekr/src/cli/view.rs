@@ -35,6 +35,12 @@
 //! [`Runtime::replay`]), [`Runtime::snapshot`] and [`Runtime::content`]. A local read-only page is
 //! not an outward write (design § 82, § 83).
 //!
+//! Before each request of a path that reads the store, the store at the configured path is checked
+//! (`session.rs`): one that replaced the store opened — by a rename, say — is opened and answered
+//! from, with every index and rendered answer of the replaced one dropped, and one that does not
+//! open is 503 `store-replaced`, never an answer from the replaced store. `GET /` and `GET /alt`
+//! read no store and are not checked.
+//!
 //! A revision is loaded once: the first request of a revision, whichever path, loads and indexes
 //! it through one [`IndexCache`] of [`IndexCache::DEFAULT_CAPACITY`] revisions, keyed by the
 //! revision, and every endpoint of that revision answers from that index. `/projection` and
@@ -88,7 +94,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use ekr_core::{EvidenceId, NodeId, RevisionNumber, TypeId};
-use ekr_kernel::Runtime;
+use ekr_kernel::{PersistenceError, Runtime};
 use ekr_views::{
     BucketWidth, ChangesError, ChangesRequest, ExpandRequest, IndexCache, LimitExceeded,
     OverviewRequest, ProjectError, QueryError, SearchRequest, SinceKind, SliceEdge, SliceMeta,
@@ -96,6 +102,8 @@ use ekr_views::{
 };
 use serde::Serialize;
 
+use super::session::{Checked, Held, STORE_REPLACED};
+use super::Store;
 use crate::exit::Failure;
 
 /// The viewer page, embedded at build time; nothing is read from disk at run time.
@@ -160,13 +168,16 @@ impl Default for Memory {
     }
 }
 
-/// Binds 127.0.0.1 on `port` (0 picks a free one), prints `{"url": …}` as one JSON line on
-/// stdout, and answers requests until the process is interrupted.
+/// Opens the existing store `store` names, binds 127.0.0.1 on `port` (0 picks a free one),
+/// prints `{"url": …}` as one JSON line on stdout, and answers requests until the process is
+/// interrupted.
 ///
 /// # Errors
 ///
-/// The address does not bind, stdout cannot be written, or the accept loop stops.
-pub(super) fn run(runtime: &Runtime, port: u16) -> Result<String, Failure> {
+/// The store does not open, the address does not bind, stdout cannot be written, or the accept
+/// loop stops.
+pub(super) fn run(store: &Store, port: u16) -> Result<String, Failure> {
+    let mut held = Held::open(store.clone())?;
     let listener = TcpListener::bind(("127.0.0.1", port))
         .map_err(|error| Failure::fault(format!("binding 127.0.0.1:{port}: {error}")))?;
     let address = listener
@@ -188,7 +199,7 @@ pub(super) fn run(runtime: &Runtime, port: u16) -> Result<String, Failure> {
     let mut memory = Memory::default();
     for (asked, reply_to) in store_thread {
         // A connection that timed out meanwhile is its own business.
-        let _ = reply_to.send(answer(runtime, &mut memory, port, &asked));
+        let _ = reply_to.send(answer(&mut held, &mut memory, port, &asked));
     }
     Err(Failure::fault("the accept loop stopped"))
 }
@@ -670,8 +681,11 @@ fn own_host(hosts: &[String], port: u16) -> bool {
 
 /// Answers one request, and touches the store only for a `GET` of a known path that names this
 /// server as its `Host` and announces no body: another `Host` (or none) is 421, an unknown path
-/// 404 whatever the method, a known path 405 for any method but `GET`, and a body 413.
-fn answer(runtime: &Runtime, memory: &mut Memory, port: u16, asked: &Asked) -> Answered {
+/// 404 whatever the method, a known path 405 for any method but `GET`, and a body 413. Before a
+/// path that reads the store, the store at the configured path is checked ([`Held::current`]): a
+/// replaced one is opened and everything [`Memory`] kept of the old is dropped, and one that does
+/// not open is 503 [`STORE_REPLACED`].
+fn answer(held: &mut Held, memory: &mut Memory, port: u16, asked: &Asked) -> Answered {
     if !own_host(&asked.hosts, port) {
         return Answered::Whole(Reply::text(
             421,
@@ -695,6 +709,20 @@ fn answer(runtime: &Runtime, memory: &mut Memory, port: u16, asked: &Asked) -> A
             "request-body-refused: a GET carries no body",
         ));
     }
+    let runtime = match route {
+        Route::Page => return Answered::Whole(Reply::ok(HTML, PAGE.as_bytes().to_vec())),
+        Route::AltPage => return Answered::Whole(Reply::ok(HTML, ALT_PAGE.as_bytes().to_vec())),
+        _ => match held.current() {
+            Ok(Checked::Same(runtime)) => runtime,
+            Ok(Checked::Reopened(runtime)) => {
+                *memory = Memory::default();
+                runtime
+            }
+            Err(replaced) => {
+                return Answered::Whole(Reply::refusal(503, STORE_REPLACED, replaced.message))
+            }
+        },
+    };
     let reply = match route {
         Route::Page => Reply::ok(HTML, PAGE.as_bytes().to_vec()),
         Route::AltPage => Reply::ok(HTML, ALT_PAGE.as_bytes().to_vec()),
@@ -1146,14 +1174,21 @@ fn head(runtime: &Runtime, query: &str) -> Reply {
     if !query.is_empty() {
         return invalid_query(format!("/head takes no query; it was given {query:?}"));
     }
-    match runtime.head() {
-        Ok(Some(root)) => {
-            let body = serde_json::json!({ "format": HEAD_FORMAT, "head": root.revision.get() });
-            Reply::ok(JSON, body.to_string().into_bytes())
-        }
+    match head_document(runtime) {
+        Ok(Some(body)) => Reply::ok(JSON, body),
         Ok(None) => refused("head", ProjectError::NotSeeded { requested: None }),
         Err(error) => Reply::text(500, format!("head: reading the head: {error}")),
     }
+}
+
+/// The `/head` body, `{"format":"ekr.view-head/1","head":N}`, of the newest committed revision
+/// read now; `None` for a store never seeded. `ekr mcp`'s `head` tool answers these same bytes.
+pub(super) fn head_document(runtime: &Runtime) -> Result<Option<Vec<u8>>, PersistenceError> {
+    Ok(runtime.head()?.map(|root| {
+        serde_json::json!({ "format": HEAD_FORMAT, "head": root.revision.get() })
+            .to_string()
+            .into_bytes()
+    }))
 }
 
 /// `/projection` or `/roles` (`what`) of the revision the query names, the head when it names
@@ -1253,7 +1288,70 @@ fn content_type(bytes: &[u8]) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use super::super::session::fixture::{replace, seeded, BACKENDS};
+    use super::super::session::{reader_work, ReaderWork};
     use super::*;
+
+    /// `GET <target>` to a server on port 9, answered whole.
+    fn get(held: &mut Held, memory: &mut Memory, target: &str) -> Reply {
+        let asked = Asked {
+            method: "GET".to_owned(),
+            target: target.to_owned(),
+            hosts: vec!["127.0.0.1:9".to_owned()],
+            announces_body: false,
+            framing: Framing::Chunked,
+        };
+        match answer(held, memory, 9, &asked) {
+            Answered::Whole(reply) => reply,
+            Answered::Stream(_) => panic!("{target} answered a stream"),
+        }
+    }
+
+    /// Without a replacement a request that reads the store costs the identity check and no
+    /// store open; the page reads no store and is not checked; a replacement costs one reopen.
+    #[test]
+    fn a_request_checks_the_store_without_opening_it_and_a_replacement_reopens_it_once() {
+        for backend in BACKENDS {
+            let directory = tempfile::tempdir().expect("a temporary directory");
+            let store = seeded(directory.path(), backend, "store");
+            let path = store.store.clone();
+            let mut held = Held::open(store).expect("the store opens");
+            let mut memory = Memory::default();
+            let _ = reader_work();
+            for _ in 0..3 {
+                let head = get(&mut held, &mut memory, "/head");
+                assert_eq!(head.body, br#"{"format":"ekr.view-head/1","head":0}"#);
+                assert_eq!(get(&mut held, &mut memory, "/overview").status, 200);
+                assert_eq!(get(&mut held, &mut memory, "/").status, 200);
+            }
+            assert_eq!(
+                reader_work(),
+                ReaderWork {
+                    checks: 6,
+                    reopens: 0
+                },
+                "{backend:?}"
+            );
+            assert_eq!(memory.indexes.len(), 1, "{backend:?}");
+
+            let next = seeded(directory.path(), backend, "next");
+            replace(&path, &directory.path().join("replaced"), &next.store);
+            assert_eq!(get(&mut held, &mut memory, "/head").status, 200);
+            assert!(
+                memory.indexes.is_empty(),
+                "{backend:?}: the old index is gone"
+            );
+            assert_eq!(get(&mut held, &mut memory, "/head").status, 200);
+            assert_eq!(
+                reader_work(),
+                ReaderWork {
+                    checks: 2,
+                    reopens: 1
+                },
+                "{backend:?}"
+            );
+        }
+    }
 
     /// A reader with no deadline, for heads read from memory.
     #[allow(clippy::unnecessary_wraps)]
@@ -1910,10 +2008,10 @@ mod tests {
     }
 
     /// The named refusal `answer` gives `target` on port 9, or `None` when it answers otherwise.
-    fn refusal_name(runtime: &Runtime, memory: &mut Memory, target: &str) -> Option<String> {
+    fn refusal_name(held: &mut Held, memory: &mut Memory, target: &str) -> Option<String> {
         let head = format!("GET {target} HTTP/1.1\r\nHost: 127.0.0.1:9\r\n\r\n");
         let asked = read_head(&mut head.as_bytes(), no_deadline).unwrap();
-        let Answered::Whole(reply) = answer(runtime, memory, 9, &asked) else {
+        let Answered::Whole(reply) = answer(held, memory, 9, &asked) else {
             return None;
         };
         let body: serde_json::Value = serde_json::from_slice(&reply.body).ok()?;
@@ -1936,6 +2034,12 @@ mod tests {
         )
         .unwrap();
         let directory = tempfile::tempdir().unwrap();
+        let store = Store {
+            host: host.clone(),
+            store: directory.path().join("store"),
+            backend: super::super::Backend::File,
+            full_replay: false,
+        };
         let runtime = Runtime::file(
             &directory.path().join("store"),
             &host.tenant,
@@ -1944,6 +2048,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(runtime.head().unwrap(), None, "the store is unseeded");
+        let mut held = Held::open(store).unwrap();
         let node = "00000000-0000-4000-8000-000000000399";
         let mut memory = Memory::default();
         for (target, name) in [
@@ -2020,7 +2125,7 @@ mod tests {
             ("/head?revision=0".to_owned(), "invalid-query"),
         ] {
             assert_eq!(
-                refusal_name(&runtime, &mut memory, &target).as_deref(),
+                refusal_name(&mut held, &mut memory, &target).as_deref(),
                 Some(name),
                 "GET {target}"
             );
