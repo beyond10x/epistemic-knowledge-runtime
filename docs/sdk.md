@@ -447,7 +447,9 @@ The cache stays correct in three ways:
 - **Queued nodes are flushed before any resolve that shares an alias with them.** When a resolve
   the cache cannot answer shares an alias with a queued node of the same type, the queue is
   flushed first, so `ekr resolve` finds that node rather than proposing a second one with the same
-  alias.
+  alias. Queuing a node also drops every other cached key of its type that shares one of its
+  aliases, because once the node is committed `ekr resolve` no longer answers such a key with the
+  node it cached; it may answer `Ambiguous`.
 - **Invalidation is per alias.** `invalidate(type_id, alias)` drops every cached key of that type
   that holds the alias. `observe(&report, &groups)` records a consumer's own `Batcher` commits.
   Their revisions count as the SDK's, and every alias that a committed `CreateNode` or `AddAlias`

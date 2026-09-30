@@ -6,13 +6,16 @@
 //! change the key, and a reference to a supertype is a different key from one to its subtype
 //! (`decision-blocker:typed-reference-subtype-matching` is open).
 //!
-//! A `ProposeNew` answer mints a node id and queues a `CreateNode` carrying the answer's aliases;
-//! [`Resolver::flush`] commits the queue through a [`Batcher`], one group per node. A resolve the
-//! cache cannot answer that shares an alias with a queued node of the same type flushes first, so
-//! `ekr resolve` sees that node instead of proposing a second. Each flush first reads `ekr head`:
-//! a revision the SDK did not commit drops the cache, and every queued reference is resolved
-//! again, so a node another process created meanwhile replaces the queued one instead of
-//! colliding with it (`alias-already-exists`).
+//! A `ProposeNew` answer mints a node id and queues a `CreateNode` carrying the answer's aliases,
+//! and drops every other cached key of the same type id that shares one of those aliases: once
+//! the node is committed, `ekr resolve` no longer answers such a key with the node it cached (it
+//! may answer `Ambiguous`), the same rule [`Resolver::observe`] applies to a committed
+//! `CreateNode`. [`Resolver::flush`] commits the queue through a [`Batcher`], one group per node.
+//! A resolve the cache cannot answer that shares an alias with a queued node of the same type
+//! flushes first, so `ekr resolve` sees that node instead of proposing a second. Each flush first
+//! reads `ekr head`: a revision the SDK did not commit drops the cache, and every queued reference
+//! is resolved again, so a node another process created meanwhile replaces the queued one instead
+//! of colliding with it (`alias-already-exists`).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -162,6 +165,11 @@ impl Resolver {
                 node.type_id = key.0;
                 node.aliases = aliases;
                 let id = node.id;
+                // A cached answer sharing an alias with the queued node is one `ekr resolve`
+                // stops giving once the node is committed.
+                for alias in &node.aliases {
+                    self.invalidate(key.0, alias);
+                }
                 self.cache.insert(key.clone(), id);
                 self.queued.push(Queued { key, draft: node });
                 Resolution::Queued(id)
