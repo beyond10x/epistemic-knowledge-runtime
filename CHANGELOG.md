@@ -4,6 +4,11 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.24] — 2026-09-30
+
+A store exports as an OCEL 2.0 event log; the viewer's compact mode works from the keyboard and in
+narrow windows; a validate command builds one candidate view.
+
 ### Added
 
 - **`ekr ocel` exports a store as an OCEL 2.0 event log** (`docs/cli.md`, `ekr ocel`): the

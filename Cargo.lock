@@ -513,7 +513,7 @@ checksum = "252afb9ae5eaa683babdc6a068b3f5726eb19e05070c731f9b2a23a7c3e8ed34"
 
 [[package]]
 name = "ekr"
-version = "0.0.23"
+version = "0.0.24"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -538,7 +538,7 @@ dependencies = [
 
 [[package]]
 name = "ekr-core"
-version = "0.0.23"
+version = "0.0.24"
 dependencies = [
  "hex",
  "proptest",
@@ -553,7 +553,7 @@ dependencies = [
 
 [[package]]
 name = "ekr-graph"
-version = "0.0.23"
+version = "0.0.24"
 dependencies = [
  "ekr-core",
  "ekr-ontology",
@@ -566,7 +566,7 @@ dependencies = [
 
 [[package]]
 name = "ekr-integrate"
-version = "0.0.23"
+version = "0.0.24"
 dependencies = [
  "ekr-core",
  "ekr-graph",
@@ -580,7 +580,7 @@ dependencies = [
 
 [[package]]
 name = "ekr-kernel"
-version = "0.0.23"
+version = "0.0.24"
 dependencies = [
  "ekr-core",
  "ekr-graph",
@@ -603,7 +603,7 @@ dependencies = [
 
 [[package]]
 name = "ekr-observe"
-version = "0.0.23"
+version = "0.0.24"
 dependencies = [
  "ekr-core",
  "ekr-graph",
@@ -615,7 +615,7 @@ dependencies = [
 
 [[package]]
 name = "ekr-ontology"
-version = "0.0.23"
+version = "0.0.24"
 dependencies = [
  "ekr-core",
  "proptest",
@@ -628,7 +628,7 @@ dependencies = [
 
 [[package]]
 name = "ekr-sdk"
-version = "0.0.23"
+version = "0.0.24"
 dependencies = [
  "ekr",
  "ekr-core",
@@ -648,7 +648,7 @@ dependencies = [
 
 [[package]]
 name = "ekr-store"
-version = "0.0.23"
+version = "0.0.24"
 dependencies = [
  "ekr-core",
  "ekr-graph",
@@ -669,7 +669,7 @@ dependencies = [
 
 [[package]]
 name = "ekr-views"
-version = "0.0.23"
+version = "0.0.24"
 dependencies = [
  "ekr-core",
  "ekr-graph",
@@ -2564,7 +2564,7 @@ checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
 name = "xtask"
-version = "0.0.23"
+version = "0.0.24"
 dependencies = [
  "clap",
 ]
