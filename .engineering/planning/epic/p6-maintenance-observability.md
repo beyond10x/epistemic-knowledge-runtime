@@ -2,13 +2,16 @@
 format: aep.planning-md/3
 id: epic:p6-maintenance-observability
 kind: epic
-status: draft
+status: active
 title: P6 — Maintenance and observability
 relations:
 - decomposes: initiative:epistemic-knowledge-runtime
 - depends_on: epic:p3-incubation-integration
 - serves: vision:o6
-revision: 1
+revision: 3
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-30T12:21:07Z", actor: "human:timo", revision: 2}
+- {from: "proposed", to: "active", at: "2026-09-30T12:21:07Z", actor: "human:timo", revision: 3}
 ---
 ## Context
 

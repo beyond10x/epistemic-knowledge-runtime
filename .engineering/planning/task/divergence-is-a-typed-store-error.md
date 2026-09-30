@@ -6,8 +6,8 @@ status: draft
 title: Store divergence reaches the CLI as a typed error, not a message
 relations:
 - serves: vision:o5
-- decomposes: epic:p4-operator-surface
-revision: 1
+- decomposes: epic:p1-kernel-ontology-core
+revision: 2
 ---
 ## Context
 
@@ -27,3 +27,12 @@ that the CLI matches instead of message text; a case for a SQLite database overw
 - No CLI code matches a provider message string for divergence (a source guard).
 - A SQLite store overwritten in place is followed or refused by name, never answered from the old
   state.
+
+## Surface
+
+- **Files:** `crates/ekr-store/src/eventlog.rs` (where the provider's divergence condition is mapped
+  once, to a typed error) and `crates/ekr/src/cli/session.rs:622` (the `DIVERGED` message match and
+  the reopen path, also used by `view` and `mcp`) — found by grep for the message text, inferred
+- **Collides with:** `story:extraction-verb-shares-the-sdk-path` (`session.rs`) and
+  `story:preparation-blobs-are-reclaimed` (`eventlog.rs`) in wave extract-07; the coordinator merges
+  them (`release-plan:next-waves-2026-09-30`)

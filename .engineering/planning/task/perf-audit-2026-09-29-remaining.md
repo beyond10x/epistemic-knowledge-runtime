@@ -6,7 +6,7 @@ status: draft
 title: 'Performance audit 2026-09-29: findings not yet scheduled'
 relations:
 - serves: vision:o5
-- decomposes: epic:ingestion-throughput
+- decomposes: epic:read-and-storage-cost
 revision: 1
 ---
 ## Context

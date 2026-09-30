@@ -6,7 +6,7 @@ status: draft
 title: Decide whether a live store handle notices a retained blob deleted under it
 relations:
 - serves: vision:o2
-- decomposes: epic:ingestion-throughput
+- decomposes: epic:p6-maintenance-observability
 revision: 1
 ---
 ## Context

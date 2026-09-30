@@ -2,12 +2,14 @@
 format: aep.planning-md/3
 id: task:session-request-cost-grows-with-evidence
 kind: task
-status: draft
+status: archived
 title: An ekr session request costs 20-34 ms on a store with 11 MB of evidence
 relations:
 - serves: vision:o5
 - derived_from: story:ekr-session
-revision: 1
+revision: 2
+transitions:
+- {from: "draft", to: "archived", at: "2026-09-30T12:21:07Z", actor: "human:timo", revision: 2}
 ---
 ## What is wrong
 

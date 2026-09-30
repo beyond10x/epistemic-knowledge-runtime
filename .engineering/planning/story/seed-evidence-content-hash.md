@@ -7,6 +7,7 @@ title: The binary prints the content hash a seed evidence entry needs
 relations:
 - serves: vision:o5
 - derived_from: task:agent-cannot-add-evidence
+- decomposes: epic:p2-observation-layer
 scope:
 - confidence: inferred
   path: crates/ekr-core/src/hash.rs

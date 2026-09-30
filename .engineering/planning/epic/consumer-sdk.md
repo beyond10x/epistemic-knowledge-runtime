@@ -2,11 +2,15 @@
 format: aep.planning-md/3
 id: epic:consumer-sdk
 kind: epic
-status: draft
+status: active
 title: A consumer drives an EKR store through one library and writes only its own domain code
 relations:
 - serves: vision:o5
-revision: 2
+- decomposes: initiative:epistemic-knowledge-runtime
+revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-30T12:21:07Z", actor: "human:timo", revision: 3}
+- {from: "proposed", to: "active", at: "2026-09-30T12:21:07Z", actor: "human:timo", revision: 4}
 ---
 ## Context
 

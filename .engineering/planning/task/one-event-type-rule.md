@@ -6,6 +6,7 @@ status: draft
 title: One rule decides which node types are events
 relations:
 - serves: vision:o5
+- decomposes: epic:p4-operator-surface
 revision: 1
 ---
 ## Context

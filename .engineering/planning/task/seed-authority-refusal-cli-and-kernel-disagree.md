@@ -6,6 +6,7 @@ status: draft
 title: The CLI and the kernel refuse a seed under another host authority differently
 relations:
 - derived_from: story:store-open-semantics
+- serves: vision:o5
 revision: 1
 ---
 ## Context

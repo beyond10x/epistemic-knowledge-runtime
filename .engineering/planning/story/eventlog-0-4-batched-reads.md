@@ -7,6 +7,7 @@ title: Eventlog 0.4.0 and batched history reads, so file-provider commands stop 
 relations:
 - serves: vision:o2
 - derived_from: task:store-reads-rehash-the-whole-log
+- decomposes: epic:ingestion-throughput
 scope:
 - confidence: cited
   path: Cargo.lock

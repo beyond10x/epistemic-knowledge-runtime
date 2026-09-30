@@ -6,6 +6,7 @@ status: draft
 title: The graph projection carries each type's own property definitions
 relations:
 - serves: vision:o5
+- decomposes: epic:p4-operator-surface
 revision: 1
 ---
 ## Context

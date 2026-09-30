@@ -6,7 +6,8 @@ status: draft
 title: ekr seed bounds the size and alias expansion of its document
 relations:
 - serves: vision:o5
-revision: 2
+- decomposes: epic:p1-kernel-ontology-core
+revision: 4
 ---
 ## Context
 
@@ -26,11 +27,10 @@ store.
 
 ## Acceptance
 
-A seed document that uses YAML aliases to decode past a stated limit, or that is itself over a
-stated size, is refused with a named error before anything is committed, and the limit is stated
-in `docs/cli.md`.
+- A seed document that uses YAML aliases to decode past a stated limit, or that is itself over a
+  stated size, is refused with a named error before anything is committed, and the limit is stated
+  in `docs/cli.md`.
+- A seed or transaction document nested past a stated depth is refused before it is loaded (the
+  YAML loader is quadratic in flow nesting depth: 120 KB took 9.6 s,
+  `review-result:adversary-p2p3p4-03-resolve-pass-2` F1; `ekr resolve` already refuses depth 64).
 
-
-## Also: nesting depth
-
-The YAML loader is quadratic in flow nesting depth inside a block mapping (`review-result:adversary-p2p3p4-03-resolve-pass-2` F1: 120 KB took 9.6 s, 400 KB 402 s). `ekr resolve` refuses a document nested deeper than 64 levels before loading it; the seed and propose readers do not yet. The acceptance extends to: a seed or transaction document nested past a stated depth is refused before it is loaded.

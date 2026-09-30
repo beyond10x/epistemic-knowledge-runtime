@@ -2,14 +2,16 @@
 format: aep.planning-md/3
 id: epic:ingestion-throughput
 kind: epic
-status: active
+status: implemented
 title: A long ingest is bound by its work, not by ekr process start-up
 relations:
 - serves: vision:o5
-revision: 3
+- decomposes: initiative:epistemic-knowledge-runtime
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T09:14:10Z", actor: "agent:claude-coordinator", revision: 2}
 - {from: "proposed", to: "active", at: "2026-09-28T09:14:10Z", actor: "agent:claude-coordinator", revision: 3}
+- {from: "active", to: "implemented", at: "2026-09-30T12:21:59Z", actor: "human:timo", revision: 4}
 ---
 ## Context
 
