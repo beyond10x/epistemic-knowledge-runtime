@@ -667,11 +667,21 @@ A read that returns no value fails with a `ReadError` that names the verb:
 | `Transport(error)` | no reply was read |
 
 The values are serde models of what `ekr` prints. A reader ignores a field it does not know, so a
-newer `ekr` does not break an older consumer. Each value writes back exactly the document it was
-read from. `crates/ekr-sdk/tests/read.rs` checks this against every document that the `ekr-views`
-conformance fixture stores render and against real `ekr` output, so if a format gains a field
-without an SDK update, that test fails and names the field; `crates/ekr-sdk/tests/check_reads.rs`
-does the same for the three store checks. In `Snapshot` and `Explanation`, the
+newer `ekr` does not break an older consumer. A kind it does not know does not break the read
+either: every closed set of kinds in these values ends in `Other`, and a kind a newer `ekr` adds
+reads as `Other` while the rest of the document reads as usual. For a `changes` page, that change
+has `change: ChangeKind::Other` with its `revision`, `recorded_at`, `id` and the other fields this
+SDK models intact, and every other change of the page is unaffected. The same holds for
+`MatchTier`, `MatchField`, `TransactionState` and `CodeNameKind`, and for `ViewValue`,
+`OntologyValueType` and `ExplanationLink`, whose `Other` drops the unknown kind's own payload. An
+`Other` writes back as `Other`, not as the kind `ekr` printed, and `TransactionState::Other` is
+no state `transactions` can filter by. `ChangeKind::EvidenceAdded`, evidence an `AddEvidence`
+brought after the seed, is modelled, with its `locator` and `content_hash`. A value holding no
+`Other` writes back exactly the document it was read from. `crates/ekr-sdk/tests/read.rs`
+checks this against every document that the `ekr-views` conformance fixture stores render and
+against real `ekr` output, so if a format gains a field or a kind without an SDK update, that
+test fails and names it by its pointer; `crates/ekr-sdk/tests/check_reads.rs` does the same for
+the three store checks. In `Snapshot` and `Explanation`, the
 parts that vary by kind stay JSON `Value`s, read by their tag as [the page](cli.md#ekr-snapshot)
 documents them. These are an assertion's `object`, `assessment` and `lifecycle`, an evidence
 entry's `source`, and the origin links of an explanation.

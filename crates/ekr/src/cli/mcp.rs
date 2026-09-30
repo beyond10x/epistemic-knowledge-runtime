@@ -904,9 +904,10 @@ fn tools() -> Vec<Value> {
         tool(
             "changes_since",
             "Changes since",
-            "The ekr.graph-changes/1 document: every node and edge created and every assertion \
-             added, superseded or retracted after the since and up to the revision at, each with \
-             its revision, its kind of change and its evidence ids, by revision. Give exactly one \
+            "The ekr.graph-changes/1 document: every node and edge created, every assertion \
+             added, superseded or retracted and every evidence entry added after the since and \
+             up to the revision at, each with its revision, its kind of change and its evidence \
+             ids, by revision. Give exactly one \
              of since_revision, since_valid and since_recorded. Ask again with after set to the \
              page's next, and at set to the first page's meta.revision, for the next page.",
             object(

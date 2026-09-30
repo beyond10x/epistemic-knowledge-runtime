@@ -7,8 +7,8 @@
     "file",
     "sqlite"
   ],
-  "total": 59,
-  "answered_floor": 59,
+  "total": 60,
+  "answered_floor": 60,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -62,6 +62,7 @@
     "ekr.views/authored/a-timeline-row-is-a-subject-with-its-events-within-hops",
     "ekr.views/authored/a-transaction-time-since-lists-the-revisions-committed-after-it",
     "ekr.views/authored/a-valid-time-since-lists-the-assertion-changes-valid-after-it",
+    "ekr.views/authored/an-add-evidence-is-listed-once-as-evidence-added",
     "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge",
     "ekr.views/authored/an-expansion-refuses-each-input-outside-its-bound",
     "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes",
@@ -132,6 +133,10 @@
     "ekr.views/authored/a-valid-time-since-lists-the-assertion-changes-valid-after-it": {
       "file": "a-valid-time-since-lists-the-assertion-changes-valid-after-it.yaml",
       "digest": "sha256:5aa1a17e55d40afc8dfc267e1b96834f1608763730946eacb8e9523cce4eb8ce"
+    },
+    "ekr.views/authored/an-add-evidence-is-listed-once-as-evidence-added": {
+      "file": "an-add-evidence-is-listed-once-as-evidence-added.yaml",
+      "digest": "sha256:140bc5f0e0bfba007d8e67d14eb941760e90aa158a11355f27e6dd7fe29dd669"
     },
     "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge": {
       "file": "an-assertion-about-an-edge-is-carried-by-that-edge.yaml",
@@ -483,6 +488,11 @@
       "execute_command": 2,
       "expect_event": 2,
       "expect_outcome": 2
+    },
+    "ekr.views/authored/an-add-evidence-is-listed-once-as-evidence-added": {
+      "execute_command": 4,
+      "expect_event": 4,
+      "expect_outcome": 4
     },
     "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge": {
       "execute_command": 1,

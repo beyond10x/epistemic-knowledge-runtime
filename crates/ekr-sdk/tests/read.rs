@@ -409,16 +409,26 @@ fn changes_hold(changes: &Changes) {
         .all(|pair| pair[0].revision <= pair[1].revision));
     for change in listed {
         let kind: ChangeKind = change.change;
+        assert_ne!(kind, ChangeKind::Other, "every kind ekr writes is modelled");
         assert_eq!(
             change.subject.is_some(),
-            !matches!(kind, ChangeKind::NodeCreated | ChangeKind::EdgeCreated)
+            matches!(
+                kind,
+                ChangeKind::AssertionAdded
+                    | ChangeKind::AssertionSuperseded
+                    | ChangeKind::AssertionRetracted
+            )
         );
+        let added = kind == ChangeKind::EvidenceAdded;
+        assert_eq!(change.locator.is_some(), added);
+        assert_eq!(change.content_hash.is_some(), added);
+        assert!(!added || change.evidence.is_empty());
     }
 }
 
 // ---- every conformance fixture document --------------------------------------------------------
 
-const FIXTURES: [&str; 11] = [
+const FIXTURES: [&str; 12] = [
     "seed-only",
     "seeded-evidence",
     "edge-assertion",
@@ -430,6 +440,7 @@ const FIXTURES: [&str; 11] = [
     "growth",
     "subjects",
     "changes",
+    "quality",
 ];
 
 /// Every document each conformance fixture store renders, at every revision: the overview at
@@ -540,6 +551,11 @@ fn every_conformance_fixture_document_reads_exactly_into_its_typed_reader() {
                     let changes = exact::<Changes>(&at, &page.bytes);
                     changes_hold(&changes);
                     *read.entry("changes").or_default() += 1;
+                    *read.entry("evidence added").or_default() += changes
+                        .changes
+                        .iter()
+                        .filter(|change| change.change == ChangeKind::EvidenceAdded)
+                        .count();
                     match changes.next {
                         Some(next) => after = i64::try_from(next).unwrap(),
                         None => break,
@@ -564,6 +580,7 @@ fn every_conformance_fixture_document_reads_exactly_into_its_typed_reader() {
         ("expand", 40),
         ("timeline", 40),
         ("changes", 60),
+        ("evidence added", 2),
         ("snapshot", 20),
     ] {
         assert!(
@@ -693,6 +710,119 @@ fn a_field_added_to_a_views_format_without_an_sdk_update_fails_the_exact_read() 
             "{what}"
         );
     }
+}
+
+// ---- a kind a newer ekr adds -------------------------------------------------------------------
+
+/// `task:sdk-read-enums-tolerate-new-kinds`: a changes document whose second change is of a kind
+/// this SDK does not model reads, with that change's kind as [`ChangeKind::Other`] and every
+/// other change exactly as it read before; the exact read still names the drift by its pointer.
+#[test]
+fn a_change_kind_the_sdk_does_not_model_reads_as_other_with_every_other_change_intact() {
+    let directory = tempfile::tempdir().unwrap();
+    let runtime = fixtures::open(directory.path(), fixtures::Provider::File);
+    fixtures::Fixture::named("changes").unwrap().build(&runtime);
+    let index = Index::load(&runtime, None).unwrap();
+    let bytes = index
+        .changes(
+            &runtime,
+            &ChangesRequest::new(SinceKind::Revision, 0, None, None).unwrap(),
+        )
+        .unwrap()
+        .bytes;
+    let document: Value = serde_json::from_slice(&bytes).unwrap();
+    let known: Changes = exact("changes", &bytes);
+    assert!(known.changes.len() >= 3, "{document}");
+
+    let mut newer = document.clone();
+    newer["changes"][1]["change"] = json!("PropertyReworded");
+    newer["changes"][1]["reworded_to"] = json!("a field only that kind carries");
+    let read: Changes = serde_json::from_value(newer.clone())
+        .unwrap_or_else(|error| panic!("an unknown change kind fails the whole read: {error}"));
+    assert_eq!(read.changes[1].change, ChangeKind::Other);
+    assert_eq!(read.changes.len(), known.changes.len());
+    for (at, (read, known)) in read.changes.iter().zip(&known.changes).enumerate() {
+        if at != 1 {
+            assert_eq!(read, known, "change {at}");
+        }
+    }
+    assert_eq!(
+        exactly::<Changes>(&newer).map(drop),
+        Err(vec![
+            "/changes/1/change".to_owned(),
+            "/changes/1/reworded_to".to_owned()
+        ])
+    );
+}
+
+/// Every other closed enum of the read models reads a kind a newer `ekr` adds as its `Other`,
+/// and the exact read reports the drift at that kind's pointer.
+#[test]
+fn every_closed_read_enum_reads_a_kind_a_newer_ekr_adds_as_other() {
+    fn other<T>(what: &str, document: Value, expected: &T, pointer: &str)
+    where
+        T: DeserializeOwned + Serialize + PartialEq + std::fmt::Debug,
+    {
+        let read: T = serde_json::from_value(document.clone())
+            .unwrap_or_else(|error| panic!("{what}: a new kind fails the read: {error}"));
+        assert_eq!(&read, expected, "{what}");
+        let drift = exactly::<T>(&document).map(drop).unwrap_err();
+        assert!(
+            drift.iter().any(|at| at == pointer),
+            "{what}: {drift:?} does not name {pointer}"
+        );
+    }
+    other("a match tier", json!("Phonetic"), &MatchTier::Other, "");
+    other("a match field", json!("Summary"), &MatchField::Other, "");
+    other(
+        "a transaction state",
+        json!("Quarantined"),
+        &TransactionState::Other,
+        "",
+    );
+    other(
+        "a view value",
+        json!({"kind": "Geo", "value": [52.5, 13.4]}),
+        &ViewValue::Other,
+        "/kind",
+    );
+    other(
+        "an ontology value type",
+        json!({"value_kind": "Geo", "parameters": {"datum": "WGS84"}}),
+        &OntologyValueType::Other,
+        "/value_kind",
+    );
+    other(
+        "an explanation link",
+        json!({"kind": "Attestation", "by": OPERATOR}),
+        &ExplanationLink::Other,
+        "/kind",
+    );
+    assert_eq!(TransactionState::Other.as_str(), "Other");
+
+    // A new kind nested in a known one is the known one holding `Other`; a known kind whose
+    // content is wrong is still refused, not read as `Other`.
+    assert_eq!(
+        serde_json::from_value::<ViewValue>(
+            json!({"kind": "List", "value": [{"kind": "Geo", "value": 1}]})
+        )
+        .unwrap(),
+        ViewValue::List(vec![ViewValue::Other])
+    );
+    assert_eq!(
+        serde_json::from_value::<OntologyValueType>(
+            json!({"value_kind": "List", "parameters": {"value_kind": "Geo", "parameters": 1}})
+        )
+        .unwrap(),
+        OntologyValueType::List(Box::new(OntologyValueType::Other))
+    );
+    assert!(
+        serde_json::from_value::<ViewValue>(json!({"kind": "Integer", "value": "seven"})).is_err()
+    );
+    assert!(serde_json::from_value::<OntologyValueType>(
+        json!({"value_kind": "NodeRef", "parameters": {"allowed_types": 7}})
+    )
+    .is_err());
 }
 
 // ---- through a real session --------------------------------------------------------------------

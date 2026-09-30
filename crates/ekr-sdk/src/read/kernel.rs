@@ -227,7 +227,9 @@ pub struct OntologyEdgeType {
     pub properties: Vec<OntologyProperty>,
 }
 
-/// A retained transaction's state, as `ekr transactions` prints and `--state` takes it.
+/// A retained transaction's state, as `ekr transactions` prints and `--state` takes it. A state a
+/// newer `ekr` adds reads as [`TransactionState::Other`] and writes back as `Other`; `ekr` names
+/// no state `Other`, so passing it to `--state` is refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TransactionState {
     /// Proposed, not yet validated.
@@ -240,6 +242,9 @@ pub enum TransactionState {
     Rejected,
     /// The head moved after validation.
     Stale,
+    /// A state this SDK does not know, added by a newer `ekr`.
+    #[serde(other)]
+    Other,
 }
 
 impl TransactionState {
@@ -252,6 +257,7 @@ impl TransactionState {
             Self::Committed => "Committed",
             Self::Rejected => "Rejected",
             Self::Stale => "Stale",
+            Self::Other => "Other",
         }
     }
 }
@@ -287,7 +293,8 @@ pub struct Explanation {
     pub links: Vec<ExplanationLink>,
 }
 
-/// One link of an explanation, by its `kind`.
+/// One link of an explanation, by its `kind`. A kind a newer `ekr` adds reads as
+/// [`ExplanationLink::Other`], its fields dropped, and writes back as `{"kind": "Other"}`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum ExplanationLink {
@@ -305,6 +312,9 @@ pub enum ExplanationLink {
     Lifecycle(Map<String, Value>),
     /// Evidence cited, with its retained bytes.
     Evidence(ExplainedEvidence),
+    /// A kind this SDK does not know, added by a newer `ekr`.
+    #[serde(other)]
+    Other,
 }
 
 /// An evidence link: the entry, its retained bytes and, when they are UTF-8, their text.
@@ -370,9 +380,11 @@ pub struct OntologyProperty {
     pub constraints: Vec<String>,
 }
 
-/// A declared value type, `{value_kind, parameters}`, as `ekr ontology` prints it.
+/// A declared value type, `{value_kind, parameters}`, as `ekr ontology` prints it. A kind a
+/// newer `ekr` adds reads as [`OntologyValueType::Other`], its parameters dropped, and writes
+/// back as `{"value_kind": "Other"}`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "value_kind", content = "parameters")]
+#[serde(remote = "Self", tag = "value_kind", content = "parameters")]
 pub enum OntologyValueType {
     /// Text.
     String,
@@ -402,4 +414,21 @@ pub enum OntologyValueType {
     List(Box<OntologyValueType>),
     /// Exactly these fields.
     Record(BTreeMap<String, OntologyValueType>),
+    /// A kind this SDK does not know, added by a newer `ekr`.
+    #[serde(other)]
+    Other,
+}
+
+impl Serialize for OntologyValueType {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        Self::serialize(self, serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for OntologyValueType {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        super::tolerant(deserializer, "parameters", Self::deserialize, |read| {
+            *read == Self::Other
+        })
+    }
 }

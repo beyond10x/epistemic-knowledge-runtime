@@ -4,6 +4,23 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- **The changes list evidence added after the seed** (`docs/cli.md`, `ekr view`, "changes
+  since"). `ekr.graph-changes/1` gains the change kind `EvidenceAdded`: every evidence entry an
+  `!AddEvidence` brought, once, as a change of the revision that committed it, with its id, its
+  `locator` (the statement's source identity) and the `content_hash` of its payload, ordered
+  after the revision's assertion changes. `GET /changes`, the MCP tool `changes_since` and the
+  session verb `changes` answer it; `ekr.views.ChangesListed` counts it as `evidence_added`. The
+  seed's own evidence is no change, a valid-time since never chooses one, and a range holding no
+  `AddEvidence` answers the same bytes as before.
+- **The SDK's reads tolerate a kind a newer `ekr` adds** (`docs/sdk.md`, Typed reads). Every
+  closed set of kinds in `ekr_sdk::read` — `ChangeKind`, `MatchTier`, `MatchField`,
+  `TransactionState`, `ViewValue`, `OntologyValueType` and `ExplanationLink`, as `CodeNameKind`
+  already did — ends in `Other`: an unknown kind reads as `Other` and the rest of the document
+  reads as before, where it failed the whole read. `ChangeKind::EvidenceAdded` is modelled, with
+  `GraphChange::locator` and `GraphChange::content_hash`.
+
 ## [0.0.22] — 2026-09-30
 
 The SDK types the store checks and carries evidence with the assertions that cite it; a commit

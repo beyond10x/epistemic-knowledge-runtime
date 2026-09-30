@@ -60,6 +60,36 @@ pub use views::{
     ViewLifecycle, ViewNodeType, ViewOntology, ViewProperty, ViewValue,
 };
 
+/// Reads an adjacently tagged enum whose unit `Other` is its catch-all. `derived` is the enum's
+/// derived reader (`#[serde(remote = "Self")]`), which reads a kind it does not know as `Other`
+/// only when that kind carries no content. So a document it refuses is read once more with its
+/// `content` key removed, and answers only if that reads as `Other`; a known kind whose content
+/// is wrong keeps its first error.
+fn tolerant<'de, D, T>(
+    deserializer: D,
+    content: &str,
+    derived: fn(serde_json::Value) -> Result<T, serde_json::Error>,
+    is_other: fn(&T) -> bool,
+) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error as _;
+    use serde::Deserialize as _;
+
+    let document = serde_json::Value::deserialize(deserializer)?;
+    let mut bare = document.clone();
+    derived(document).or_else(|error| {
+        if let Some(fields) = bare.as_object_mut() {
+            fields.remove(content);
+        }
+        match derived(bare) {
+            Ok(read) if is_other(&read) => Ok(read),
+            _ => Err(D::Error::custom(error)),
+        }
+    })
+}
+
 /// Why a read returned no typed value. Each variant names the verb it read.
 #[derive(Debug, thiserror::Error)]
 pub enum ReadError {

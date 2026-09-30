@@ -280,6 +280,7 @@ fn changes_listed(summary: &ChangesListed) -> Result<ObservedEvent, TargetError>
         ("assertions_added", summary.assertions_added),
         ("assertions_superseded", summary.assertions_superseded),
         ("assertions_retracted", summary.assertions_retracted),
+        ("evidence_added", summary.evidence_added),
     ])?;
     if let Some(first) = summary.first_revision {
         fields.push(("first_revision", integer(first)?));

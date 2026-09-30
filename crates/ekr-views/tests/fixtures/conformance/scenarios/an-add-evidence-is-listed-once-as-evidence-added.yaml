@@ -1,0 +1,124 @@
+# task:changes-since-lists-added-evidence: evidence added after the seed is a change
+# (ekr.views.GraphChangesV1, EvidenceAdded).
+#
+# The store `quality` is the one a-quality-report-counts-evidence-constraints-and-shared-names
+# describes. Its changes after the seed:
+#   - revision 1: AddEvidence X0; the item i6; a4 and a5 added — 1 evidence, 1 node, 2 assertions;
+#   - revision 2: a1 retracted;
+#   - revision 3: AddEvidence X1; a6 added and a2 superseded by it — 1 evidence, 1 assertion
+#     added, 1 superseded.
+# The seed's evidence E0 and E1 came with the seed, not through an AddEvidence, and is no change.
+#   - since revision 0, at 3: 8 changes, X0 and X1 each once. A read without EvidenceAdded lists
+#     6; one that also lists the seed's evidence counts 4 evidence entries;
+#   - since revision 2, at 3: revision 3's 3 changes, X1 among them;
+#   - since revision 1, at 2: the retraction alone, and no evidence: a range without an
+#     AddEvidence;
+#   - since valid time 0, at 3: the 8 assertion changes, every one valid from 500 or 3000 ms, and
+#     no evidence, which has no valid time.
+type: ess-scenario/1
+domain: ekr.views
+scenario: an-add-evidence-is-listed-once-as-evidence-added
+summary: Since revision 0 at 3 lists both added evidence entries once among 8 changes, since 2 the one of revision 3, and since 1 at 2 or a valid time none.
+
+timeline:
+  - at: 2027-01-15T14:00:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: quality
+      since_kind: Revision
+      since: 0
+      at: 3
+      limit: null
+      after: null
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          revision: 3
+          after: 0
+          changes: 8
+          total: 8
+          remaining: 0
+          nodes_created: 1
+          edges_created: 0
+          assertions_added: 3
+          assertions_superseded: 1
+          assertions_retracted: 1
+          evidence_added: 2
+          first_revision: 1
+          last_revision: 3
+
+  - at: 2027-01-15T14:01:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: quality
+      since_kind: Revision
+      since: 2
+      at: 3
+      limit: null
+      after: null
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          revision: 3
+          changes: 3
+          total: 3
+          nodes_created: 0
+          edges_created: 0
+          assertions_added: 1
+          assertions_superseded: 1
+          assertions_retracted: 0
+          evidence_added: 1
+          first_revision: 3
+          last_revision: 3
+
+  - at: 2027-01-15T14:02:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: quality
+      since_kind: Revision
+      since: 1
+      at: 2
+      limit: null
+      after: null
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          revision: 2
+          changes: 1
+          total: 1
+          assertions_retracted: 1
+          evidence_added: 0
+          first_revision: 2
+          last_revision: 2
+
+  - at: 2027-01-15T14:03:00Z
+    command: ekr.views.ChangesSince
+    actor: ekr.views.Reader
+    input:
+      store: quality
+      since_kind: ValidTime
+      since: 0
+      at: 3
+      limit: null
+      after: null
+    outcome: listed
+    events:
+      - event: ekr.views.ChangesListed
+        payload:
+          revision: 3
+          changes: 8
+          total: 8
+          nodes_created: 0
+          edges_created: 0
+          assertions_added: 6
+          assertions_superseded: 1
+          assertions_retracted: 1
+          evidence_added: 0
+          first_revision: 0
+          last_revision: 3
