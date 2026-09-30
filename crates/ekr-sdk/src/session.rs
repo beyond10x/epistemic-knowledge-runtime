@@ -24,7 +24,7 @@ use serde_json::Value;
 
 use crate::binary::{spawn, spawn_within, EkrBinary, SpawnRefused};
 use crate::reply::Reply;
-use crate::transport::{Request, Transport, TransportError};
+use crate::transport::{answer_start, Request, Transport, TransportError};
 
 /// The longest request line `ekr session` serves, newline excluded: three times the 8388608-byte
 /// `ekr.transaction-document/2` cap plus 65536 bytes (`session-request-too-large` above it).
@@ -517,6 +517,7 @@ impl ProcessSession {
                 serde_json::from_slice(&stdout).map_err(|error| TransportError::Protocol {
                     verb,
                     detail: format!("a one-shot ekr printed something that is not JSON: {error}"),
+                    answer: answer_start(&stdout),
                     stderr_tail: tail(&stderr_text),
                 })?,
             )
@@ -619,6 +620,7 @@ impl ProcessSession {
                             Err(self.fail(TransportError::Protocol {
                                 verb,
                                 detail: error.to_string(),
+                                answer: answer_start(&bytes),
                                 stderr_tail,
                             }))
                         }

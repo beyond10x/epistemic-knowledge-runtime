@@ -99,13 +99,13 @@ later call return an error, and the session is never restarted. To continue, sta
 |---|---|
 | `TransportError::Died` | the child ended before answering. The message names the verb, how the child ended (for example `signal: 9 (SIGKILL)`) and the last 4096 bytes it wrote to stderr (`STDERR_TAIL_BYTES`) |
 | `TransportError::TimedOut` | no reply within `timeout`; the child was killed |
-| `TransportError::Protocol` | the child printed a line that is not a reply |
+| `TransportError::Protocol` | the child printed a line that is not a reply. `answer` holds the start of that line: at most 400 bytes (`ANSWER_BYTES`), cut back to a character boundary and ended with ` [cut]` (`ANSWER_CUT`) when it was longer. The message shows it quoted, beside the verb, what was wrong with it and the stderr tail |
 | `TransportError::Cancelled` | the session was cancelled (below) |
 | `TransportError::Latched` | a call made after any of the above. It names this call's verb and the original failure |
 
 A one-shot process that times out, ends on a signal, or prints something other than JSON fails
-only its own call. The error carries the last 4096 bytes of its stderr, and the session is not
-latched.
+only its own call. The error carries the last 4096 bytes of its stderr and, for output that is
+not JSON, the start of what it printed in `answer`. The session is not latched.
 
 `cancel_handle()` returns a `CancelHandle`. `cancel()` only stores `true` in an atomic flag, which
 is async-signal-safe, so a signal handler can call it. A thread in the session checks the flag
@@ -664,7 +664,7 @@ A read that returns no value fails with a `ReadError` that names the verb:
 | `Usage { verb, message }` | `ekr` did not accept the argv, for example because the binary predates the verb |
 | `Fault { verb, fault }` | a store that does not open or cannot be read, including one never seeded for `head` |
 | `Document { verb, source }` | the document does not read as the verb's value |
-| `Transport(error)` | no reply was read |
+| `Transport(error)` | no reply was read. A one-shot `ekr` that printed something other than JSON is `TransportError::Protocol`, whose `answer` holds the start of what it printed |
 
 The values are serde models of what `ekr` prints. A reader ignores a field it does not know, so a
 newer `ekr` does not break an older consumer. A kind it does not know does not break the read

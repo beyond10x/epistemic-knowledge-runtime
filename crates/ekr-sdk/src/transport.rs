@@ -109,12 +109,16 @@ pub enum TransportError {
         cause: String,
     },
     /// The process answered with something that is not a reply.
-    #[error("`{verb}`: the ekr process answered with something that is not a reply ({detail}); stderr tail: {}", shown(stderr_tail))]
+    #[error("`{verb}`: the ekr process answered with something that is not a reply ({detail}): {answer:?}; stderr tail: {}", shown(stderr_tail))]
     Protocol {
         /// The verb of the request in flight.
         verb: String,
         /// What was wrong with the answer.
         detail: String,
+        /// The start of what the process printed, without its final line end: at most
+        /// [`ANSWER_BYTES`], cut back to a character boundary and ended with [`ANSWER_CUT`] when
+        /// it was longer. Bytes that are not UTF-8 read as U+FFFD.
+        answer: String,
         /// The last bytes the process wrote to stderr.
         stderr_tail: String,
     },
@@ -163,6 +167,26 @@ fn closed_how(killed: bool) -> &'static str {
     } else {
         "exited unsuccessfully when closed"
     }
+}
+
+/// The most bytes of an answer [`TransportError::Protocol`] keeps, [`ANSWER_CUT`] included.
+pub const ANSWER_BYTES: usize = 400;
+
+/// What ends a [`TransportError::Protocol`] answer that was cut to [`ANSWER_BYTES`].
+pub const ANSWER_CUT: &str = " [cut]";
+
+/// The start of `printed` as [`TransportError::Protocol`] keeps it.
+pub(crate) fn answer_start(printed: &[u8]) -> String {
+    let text = String::from_utf8_lossy(printed);
+    let text = text.trim_end_matches(['\n', '\r']);
+    if text.len() <= ANSWER_BYTES {
+        return text.to_owned();
+    }
+    let mut end = ANSWER_BYTES - ANSWER_CUT.len();
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    format!("{}{ANSWER_CUT}", &text[..end])
 }
 
 /// A stderr tail as an error message shows it.
