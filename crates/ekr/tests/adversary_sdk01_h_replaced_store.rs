@@ -97,7 +97,12 @@ fn inode(path: &Path) -> (u64, u64) {
 /// it often is (measured: the first run of these cases); this makes it certain, by creating
 /// directories until one is handed the freed inode and renaming that one into place, which
 /// keeps its inode.
-fn recreate_on_the_freed_inode(store: &Path, from: &Path) {
+///
+/// Returns `false`, with nothing at `store`, when no directory is handed the freed inode: another
+/// process on the same filesystem took it first, which a machine running other builds and tests
+/// does (measured: a full `cargo test` in parallel). The inode is then gone for good, and the
+/// replacement this helper exists to stage cannot be made.
+fn recreate_on_the_freed_inode(store: &Path, from: &Path) -> bool {
     let freed = inode(store);
     std::fs::remove_dir_all(store).unwrap();
     let parent = store.parent().unwrap();
@@ -115,7 +120,9 @@ fn recreate_on_the_freed_inode(store: &Path, from: &Path) {
     for candidate in spare {
         std::fs::remove_dir(candidate).unwrap();
     }
-    let found = found.expect("precondition: a directory is handed the freed inode");
+    let Some(found) = found else {
+        return false;
+    };
     std::fs::rename(&found, store).unwrap();
     copy_tree(from, store);
     assert_eq!(
@@ -123,6 +130,27 @@ fn recreate_on_the_freed_inode(store: &Path, from: &Path) {
         freed,
         "precondition: the same device and inode"
     );
+    true
+}
+
+/// [`recreate_on_the_freed_inode`], or `false` after writing why the variant is skipped to the
+/// test output. The line goes to the process's standard error directly rather than through
+/// `eprintln!`, which the test harness captures and shows only for a failing case.
+fn recreate_on_the_freed_inode_or_skip(store: &Path, from: &Path) -> bool {
+    if recreate_on_the_freed_inode(store, from) {
+        return true;
+    }
+    let mut stderr = std::io::stderr().lock();
+    writeln!(
+        stderr,
+        "skipped: adversary_h_mcp_answers_from_a_file_store_replaced_under_the_same_inode_\
+         without_a_restart, variant \"deleted and created again\": no directory created in {} \
+         was handed the inode the deleted store freed (another process on the filesystem took \
+         it), so a store replaced under the same inode could not be staged",
+        store.parent().unwrap().display()
+    )
+    .ok();
+    false
 }
 
 struct World {
@@ -335,7 +363,8 @@ fn adversary_h_a_session_follows_a_replacement_once_another_process_committed_it
 
 /// Deletes every entry of the file store directory `store` and copies `from`'s into it, as
 /// `rsync -a --delete from/ store/` does: the root directory, and so its device and inode, stay.
-fn replace_the_files_inside(store: &Path, from: &Path) {
+/// Always stages the replacement.
+fn replace_the_files_inside(store: &Path, from: &Path) -> bool {
     for entry in std::fs::read_dir(store).unwrap() {
         let path = entry.unwrap().path();
         if path.is_dir() {
@@ -345,6 +374,7 @@ fn replace_the_files_inside(store: &Path, from: &Path) {
         }
     }
     copy_tree(from, store);
+    true
 }
 
 /// task:readers-reopen-a-replaced-store, Context: the reader kept answering from the replaced
@@ -353,12 +383,16 @@ fn replace_the_files_inside(store: &Path, from: &Path) {
 /// created again (`rm -rf store && cp -r new store`, which ext4 hands the freed inode), or its
 /// files replaced inside it (`rsync --delete`) — is not seen by the identity check. The server
 /// must answer, by the third call at the latest, what a server started on the store now answers.
+///
+/// The first variant needs the filesystem to hand the freed inode back. Where another process
+/// took it first, that variant is skipped and says so in the test output; when the inode comes
+/// back, the reopen is asserted as before. The second variant keeps its inode and always runs.
 #[test]
 fn adversary_h_mcp_answers_from_a_file_store_replaced_under_the_same_inode_without_a_restart() {
     for (how, recreate) in [
         (
             "deleted and created again",
-            recreate_on_the_freed_inode as fn(&Path, &Path),
+            recreate_on_the_freed_inode_or_skip as fn(&Path, &Path) -> bool,
         ),
         ("files replaced inside", replace_the_files_inside),
     ] {
@@ -371,7 +405,10 @@ fn adversary_h_mcp_answers_from_a_file_store_replaced_under_the_same_inode_witho
         let replacement = World::seeded("file");
         replacement.commit("b.yaml", TX_B);
         replacement.commit("c.yaml", TX_C);
-        recreate(&world.store(), &replacement.store());
+        if !recreate(&world.store(), &replacement.store()) {
+            server.close();
+            continue;
+        }
 
         let mut fresh = mcp(&world);
         let expected_head = fresh.call("head", json!({}));

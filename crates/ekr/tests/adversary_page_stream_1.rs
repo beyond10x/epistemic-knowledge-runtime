@@ -13,7 +13,7 @@ use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
@@ -1207,6 +1207,14 @@ fn a_stream_the_page_gives_up_on_after_a_malformed_line_is_closed() {
 
 /// A stream that ends without its `end` line (the server's 60 s write deadline, a dropped
 /// connection) is reported failed, and what arrived before the cut stays drawn.
+///
+/// The cut comes after the page has drawn what arrived, never on a timer: a cut that reaches the
+/// browser before the page has read the bytes ahead of it errors the response body and drops
+/// those bytes unread (measured: 5 of 5 runs with the cut written right after the lines, and 10 of
+/// 12 at load 50 with it 200 ms after them), so "what arrived" would be nothing the page could
+/// keep; the page has no timeout of its own on this path. The probe asks for the cut (`/cut`) once
+/// both nodes are drawn; the front server holds the stream open until then, or for 60 s of real
+/// time when the page never draws them.
 #[test]
 fn a_stream_cut_before_its_end_line_is_failed_and_keeps_what_arrived() {
     let browser = need_browser!();
@@ -1214,7 +1222,17 @@ fn a_stream_cut_before_its_end_line_is_failed_and_keeps_what_arrived() {
     let server = seeded.serve();
     let (kind, a, b) = (gid(1, 1), gid(9, 1), gid(9, 2));
     let (kind_, a_, b_) = (kind.clone(), a.clone(), b.clone());
+    let asked = Arc::new((Mutex::new(false), Condvar::new()));
     let answer: Answer = Box::new(move |target: &str, stream: &mut TcpStream| {
+        let (cut, bell) = &*asked;
+        if target == "/cut" {
+            *cut.lock().unwrap() = true;
+            bell.notify_all();
+            stream
+                .write_all(b"HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n")
+                .ok();
+            return true;
+        }
         if !(target.starts_with("/expand?") && target.contains("depth=0")) {
             return false;
         }
@@ -1226,13 +1244,30 @@ fn a_stream_cut_before_its_end_line_is_failed_and_keeps_what_arrived() {
             node_line(&b_, &kind_, "streamed-b")
         );
         chunk(stream, &text);
-        std::thread::sleep(Duration::from_millis(200));
+        // the cut, once the page has drawn both nodes; the request is answered once
+        let asked = cut.lock().unwrap();
+        let (mut asked, _) = bell
+            .wait_timeout_while(asked, Duration::from_secs(60), |asked| !*asked)
+            .unwrap();
+        *asked = false;
+        drop(asked);
         stream.shutdown(std::net::Shutdown::Both).ok();
         true
     });
+    // A mutation observer, which the page's own drawing triggers, asks for the cut in the turn the
+    // second node is drawn, rather than a timer polling for it.
     let probe = format!(
         r##"
+    let askedForTheCut = false;
+    const askForTheCut = () => {{
+      if (askedForTheCut || !window.__viewer || !__viewer.graph.hasNode("{a}") || !__viewer.graph.hasNode("{b}")) return;
+      askedForTheCut = true;
+      fetch("/cut", {{cache: "no-store"}});
+    }};
+    new MutationObserver(askForTheCut).observe(document.body, {{childList: true, subtree: true, characterData: true}});
+    askForTheCut();
     await until(() => window.__viewer && /failed|records/.test(document.getElementById("stream").textContent) && !/streaming/.test(document.getElementById("stream").textContent), 30000);
+    // 500 ms more of virtual time: a removal the page schedules after marking the stream failed is seen
     await sleep(500);
     out.stream = document.getElementById("stream").textContent;
     out.drawn = [__viewer.graph.hasNode("{a}"), __viewer.graph.hasNode("{b}")];
