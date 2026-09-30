@@ -33,7 +33,8 @@ use ekr_ontology::{
     incompatibilities, EvolveError, InstanceState, Ontology, SchemaChange, Value, ValueKind,
 };
 
-use super::{finish, issue, OntologyConstraint, Validator};
+use super::candidate::Candidate;
+use super::{finish, issue, Check, OntologyConstraint, Validator};
 use crate::issue::{ValidationIssue, ValidatorName};
 use crate::transaction::{GraphOperation, GraphTransaction};
 
@@ -113,8 +114,19 @@ impl Validator for SchemaOntology {
         graph: &GraphSnapshot<'_>,
         tx: &GraphTransaction,
     ) -> Result<(), Vec<ValidationIssue>> {
+        self.check(graph, tx, &Candidate::of(graph, tx))
+    }
+}
+
+impl Check for SchemaOntology {
+    fn check<'g>(
+        &self,
+        graph: &GraphSnapshot<'g>,
+        tx: &GraphTransaction,
+        candidate: &Candidate<'g>,
+    ) -> Result<(), Vec<ValidationIssue>> {
         let mut issues = OntologyConstraint
-            .validate(graph, tx)
+            .check(graph, tx, candidate)
             .err()
             .unwrap_or_default();
         issues.extend(admission(graph.graph(), tx, &self.lineage));

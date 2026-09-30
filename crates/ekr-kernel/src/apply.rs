@@ -18,6 +18,11 @@ use std::sync::{Arc, Weak};
 /// second application takes the root the kernel already computed rather than hashing the whole
 /// graph a second time (`story:commit-hashes-the-graph-once`). The root is still the kernel's.
 ///
+/// The graph is the same pure function of the same inputs, so the decision also leaves the graph
+/// it applied here ([`decide`]), and that second application takes it instead of cloning the
+/// head graph and applying the transaction again (`task:commit-applies-once`). The graph is
+/// still the kernel's: this module computed it, from the inputs the key names.
+///
 /// The prior graph is identified by its allocation. The weak reference keeps that allocation
 /// from being reused while it is held, so an equal address is the same graph; it does not keep
 /// the graph's contents alive.
@@ -29,6 +34,8 @@ struct Applied {
     at: Timestamp,
     /// The result; its `transaction` is the content address of the transaction applied.
     root: Root,
+    /// The graph the decision applied, until the application that admits it takes it.
+    graph: Option<CanonicalGraph>,
 }
 impl Applied {
     fn holds(
@@ -49,8 +56,58 @@ impl Applied {
 }
 thread_local! {
     static APPLIED: RefCell<Option<Applied>> = const { RefCell::new(None) };
+    static GRAPHS_APPLIED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
+/// How many times the calling thread has cloned a prior revision's graph and applied a
+/// transaction to it.
+///
+/// Test instrumentation, as `ekr_store::knowledge_roots_hashed` is: it lets a test show that a
+/// commit clones and applies the head graph once. Counted per thread because every store and
+/// kernel call runs on its caller's thread, and tests in one binary run on several.
+#[doc(hidden)]
+#[must_use]
+pub fn graphs_applied() -> u64 {
+    GRAPHS_APPLIED.with(std::cell::Cell::get)
+}
+
+/// Releases the graph a decision left for the application that admits it, when that application
+/// did not take it: dropped at the end of a commit command, so a graph is held only while its
+/// publication is in flight. The remembered root stays.
+pub(crate) struct ReleaseDecided;
+impl Drop for ReleaseDecided {
+    fn drop(&mut self) {
+        let _ = APPLIED.try_with(|applied| {
+            if let Ok(mut applied) = applied.try_borrow_mut() {
+                if let Some(applied) = applied.as_mut() {
+                    applied.graph = None;
+                }
+            }
+        });
+    }
+}
+
+/// The root of `validated` applied to `prior` at `at`, for a commit the kernel is deciding. The
+/// graph is left for the application that admits the publication ([`apply`] with the same
+/// inputs), which takes it rather than applying the transaction again.
+pub(crate) fn decide(
+    prior: &Revision,
+    validated: &ValidatedTransaction,
+    validators: &BTreeSet<AgentId>,
+    at: Timestamp,
+) -> Result<Root, StoreError> {
+    let (graph, root) = apply(prior, validated, validators, at)?;
+    // The entry either held these inputs already or was just written for them.
+    APPLIED.with(|applied| {
+        if let Some(applied) = applied.borrow_mut().as_mut() {
+            applied.graph = Some(graph);
+        }
+    });
+    Ok(root)
+}
+
+/// The graph and root of `validated` applied to `prior` at `at`: the ones the last application on
+/// this thread computed when it had exactly these inputs, and otherwise computed now.
 pub(crate) fn apply(
     prior: &Revision,
     validated: &ValidatedTransaction,
@@ -66,17 +123,18 @@ pub(crate) fn apply(
         .ok_or_else(|| crate::replay::refuse(crate::replay::GRAPH_NOT_HELD))?;
     let tx = validated.transaction();
     let transaction = ContentHash::of(tx);
-    let graph = applied_graph(prior, held, tx, validators, at)?;
     let reused = APPLIED.with(|applied| {
         applied
-            .borrow()
-            .as_ref()
+            .borrow_mut()
+            .as_mut()
             .filter(|applied| applied.holds(prior, held, transaction, validators, at))
-            .map(|applied| applied.root)
+            .map(|applied| (applied.root, applied.graph.take()))
     });
-    let root = match reused {
-        Some(root) => root,
+    let (graph, root) = match reused {
+        Some((root, Some(graph))) => (graph, root),
+        Some((root, None)) => (applied_graph(prior, held, tx, validators, at)?, root),
         None => {
+            let graph = applied_graph(prior, held, tx, validators, at)?;
             let root = Root {
                 revision: graph.revision,
                 parent: Some(ContentHash::of(&prior.root)),
@@ -94,9 +152,10 @@ pub(crate) fn apply(
                     validators: validators.clone(),
                     at,
                     root,
+                    graph: None,
                 });
             });
-            root
+            (graph, root)
         }
     };
     Ok((graph, root))
@@ -110,6 +169,7 @@ fn applied_graph(
     validators: &BTreeSet<AgentId>,
     at: Timestamp,
 ) -> Result<CanonicalGraph, StoreError> {
+    GRAPHS_APPLIED.with(|count| count.set(count.get() + 1));
     let mut graph = held.clone();
     graph.revision = prior
         .root

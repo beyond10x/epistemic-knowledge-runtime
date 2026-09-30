@@ -54,6 +54,9 @@ pub struct Authorization {
     pub actor: AgentId,
 }
 
+/// Reads no candidate view: who is validating is not a question about the graph.
+impl super::Check for Authorization {}
+
 impl Validator for Authorization {
     fn name(&self) -> ValidatorName {
         ValidatorName::Authorization

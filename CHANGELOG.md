@@ -24,6 +24,19 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   committed, and a batch an entry moved into is split rather than proposed past the operation
   limit. `Batcher::commit` and its report are unchanged.
 
+### Changed
+
+- **A commit clones and applies the head graph once.** The replay that admits a commit takes the
+  graph the kernel applied when it decided the commit, keyed by the same inputs as the root it
+  already reused, instead of cloning the head graph and applying the transaction again. Roots and
+  receipts are unchanged.
+- **A validation builds its candidate view once.** The node and edge index of canonical state with
+  the operation set applied is built once per validation and read by every validator, where five
+  validators built one each; canonical state's assertions about edges are indexed by edge once.
+  Refusals, their messages and their order are unchanged.
+- **The bench targets compile in the gate.** `command_bench` builds again, and `task test`
+  compiles `cargo test -p ekr-kernel --features bench --no-run`.
+
 ## [0.0.21] — 2026-09-30
 
 A store's quality, its rejections and the store names a consumer's code quotes are reads; the SDK's
