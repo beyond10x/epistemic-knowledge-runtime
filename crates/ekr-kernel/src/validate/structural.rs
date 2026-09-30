@@ -67,7 +67,8 @@ use std::sync::Arc;
 use ekr_core::{EdgeId, EvidenceId, NodeId, RevisionNumber, TypeId};
 use ekr_graph::{CanonicalGraph, GraphSnapshot, ValueSpace};
 
-use super::{finish, issue, node_types, Validator};
+use super::candidate::Candidate;
+use super::{finish, issue, Check, Validator};
 use crate::issue::{ValidationIssue, ValidatorName};
 use crate::transaction::{GraphOperation, GraphTransaction};
 
@@ -131,7 +132,18 @@ impl Validator for Structural {
         graph: &GraphSnapshot<'_>,
         tx: &GraphTransaction,
     ) -> Result<(), Vec<ValidationIssue>> {
-        check(graph, tx, false)
+        self.check(graph, tx, &Candidate::of(graph, tx))
+    }
+}
+
+impl Check for Structural {
+    fn check<'g>(
+        &self,
+        graph: &GraphSnapshot<'g>,
+        tx: &GraphTransaction,
+        candidate: &Candidate<'g>,
+    ) -> Result<(), Vec<ValidationIssue>> {
+        check(graph, tx, candidate, false)
     }
 }
 
@@ -149,7 +161,18 @@ impl Validator for SchemaStructural {
         graph: &GraphSnapshot<'_>,
         tx: &GraphTransaction,
     ) -> Result<(), Vec<ValidationIssue>> {
-        check(graph, tx, true)
+        self.check(graph, tx, &Candidate::of(graph, tx))
+    }
+}
+
+impl Check for SchemaStructural {
+    fn check<'g>(
+        &self,
+        graph: &GraphSnapshot<'g>,
+        tx: &GraphTransaction,
+        candidate: &Candidate<'g>,
+    ) -> Result<(), Vec<ValidationIssue>> {
+        check(graph, tx, candidate, true)
     }
 }
 
@@ -666,7 +689,18 @@ impl Validator for IdentityStructural {
         graph: &GraphSnapshot<'_>,
         tx: &GraphTransaction,
     ) -> Result<(), Vec<ValidationIssue>> {
-        let mut issues = check(graph, tx, true).err().unwrap_or_default();
+        self.check(graph, tx, &Candidate::of(graph, tx))
+    }
+}
+
+impl Check for IdentityStructural {
+    fn check<'g>(
+        &self,
+        graph: &GraphSnapshot<'g>,
+        tx: &GraphTransaction,
+        candidate: &Candidate<'g>,
+    ) -> Result<(), Vec<ValidationIssue>> {
+        let mut issues = check(graph, tx, candidate, true).err().unwrap_or_default();
         once_held(graph, &self.held, tx, &mut issues);
         finish(issues)
     }
@@ -756,6 +790,7 @@ fn once_held(
 fn check(
     graph: &GraphSnapshot<'_>,
     tx: &GraphTransaction,
+    candidate: &Candidate<'_>,
     admits_schema: bool,
 ) -> Result<(), Vec<ValidationIssue>> {
     let mut issues = Vec::new();
@@ -904,7 +939,7 @@ fn check(
         ));
     }
 
-    let node_types = node_types(graph, tx);
+    let node_types = &candidate.nodes;
     let mut properties = BTreeMap::new();
     let mut lifecycle_writes = BTreeSet::new();
     for operation in &tx.operations {

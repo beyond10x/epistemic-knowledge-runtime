@@ -119,6 +119,8 @@ pub mod seed;
 pub mod transaction;
 pub mod validate;
 
+#[doc(hidden)]
+pub use apply::graphs_applied;
 pub use authority::{Agent, AuthorityStateV1, ValidationProfileV1};
 pub use checkpoint::{REPLAY_CHECKPOINT_BYTES, REPLAY_CHECKPOINT_COMMITS};
 pub use commands::{CommitCommandResult, ValidationCommandResult};

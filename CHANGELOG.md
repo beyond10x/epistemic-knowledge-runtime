@@ -4,6 +4,44 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.22] — 2026-09-30
+
+The SDK types the store checks and carries evidence with the assertions that cite it; a commit
+applies the head graph once and a validation builds one candidate view.
+
+### Added
+
+- **The SDK types the store checks** (`docs/sdk.md`, Typed reads). `ekr_sdk::read::Reader` and
+  `OneShotReader` gain `quality(revision)`, `rejections(from, to)` and `code_names(files, at)`,
+  which return `StoreQuality` (`ekr.store-quality/1`), `Rejections` (`ekr.rejections/1`) and
+  `CodeNames` (`ekr.code-names/1`) through a session or as one-shot `ekr` processes. Each value
+  writes back exactly the document `ekr` printed and ignores a field a newer `ekr` adds.
+- **`ekr-sdk` commits a consumer's evidence with the assertions that cite it** (`docs/sdk.md`,
+  "Batches" and "Evidence items"). An `EvidenceItem` is a source identity, an observed-at time
+  and the exact bytes. `EvidenceSet::cite` hashes the bytes as `ekr hash` does and mints the
+  evidence id as `ekr mint evidence` does, with no request; the same item cited again through
+  one set gets the same id. `EvidenceSet::from_store` rebuilds a set from the entries a store
+  holds, so a consumer that restarts adds no second entry for an item.
+  `Batcher::commit_with_evidence` puts each entry's `!AddEvidence` into the group of the first
+  assertion citing it in every transaction it proposes, until one commits it; later groups cite
+  the existing id. Bisection rebuilds each half the same way, so an assertion is never submitted
+  without the evidence it introduces, an entry that only rejected groups cite is never
+  committed, and a batch an entry moved into is split rather than proposed past the operation
+  limit. `Batcher::commit` and its report are unchanged.
+
+### Changed
+
+- **A commit clones and applies the head graph once.** The replay that admits a commit takes the
+  graph the kernel applied when it decided the commit, keyed by the same inputs as the root it
+  already reused, instead of cloning the head graph and applying the transaction again. Roots and
+  receipts are unchanged.
+- **A validation builds its candidate view once.** The node and edge index of canonical state with
+  the operation set applied is built once per validation and read by every validator, where five
+  validators built one each; canonical state's assertions about edges are indexed by edge once.
+  Refusals, their messages and their order are unchanged.
+- **The bench targets compile in the gate.** `command_bench` builds again, and `task test`
+  compiles `cargo test -p ekr-kernel --features bench --no-run`.
+
 ## [0.0.21] — 2026-09-30
 
 A store's quality, its rejections and the store names a consumer's code quotes are reads; the SDK's

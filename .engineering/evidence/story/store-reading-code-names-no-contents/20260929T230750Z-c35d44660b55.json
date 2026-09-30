@@ -1,0 +1,13 @@
+{
+  "at": "2026-09-29T23:07:50Z",
+  "actor": "human:timo",
+  "artifact": "story:store-reading-code-names-no-contents",
+  "kind": "story",
+  "revision": 6,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Repository correctness run on PR #53 head 15232b61, success",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/36642372497"
+  }
+}

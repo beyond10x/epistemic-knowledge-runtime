@@ -409,6 +409,8 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         actor: AgentId,
         now: impl FnOnce() -> Timestamp,
     ) -> Result<CommitCommandResult, CommitError> {
+        // A graph a decision below leaves for the admitting replay is not held past this command.
+        let _release = crate::apply::ReleaseDecided;
         let state = self.read_state()?;
         let tx = target(&state, id)?;
         replay::registered(&self.authority.anchor, actor)?;
@@ -585,7 +587,9 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                     .map_err(|_| replay::refuse("retained-validation-refused"))?,
                 ),
             };
-            let (_, root) = crate::apply::apply(head, &validated, &validation.validators, at)?;
+            // The graph stays with the kernel's remembered root, keyed by the same inputs, for
+            // the replay that admits this publication to take instead of applying it again.
+            let root = crate::apply::decide(head, &validated, &validation.validators, at)?;
             evidence_payloads = added_payloads(validated.transaction());
             let record = CommitReceiptV1 {
                 format: CommitReceiptV1::FORMAT.into(),

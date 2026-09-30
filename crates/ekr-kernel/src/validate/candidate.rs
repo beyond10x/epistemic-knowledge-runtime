@@ -1,9 +1,10 @@
 //! Shared projection of the unordered operation set for deterministic validators.
 
+use std::cell::OnceCell;
 use std::collections::{BTreeMap, BTreeSet};
 
-use ekr_core::{EdgeId, NodeId, PropertyId, TypeId};
-use ekr_graph::{CanonicalGraph, GraphSnapshot};
+use ekr_core::{AssertionId, EdgeId, NodeId, PropertyId, TypeId};
+use ekr_graph::{CanonicalGraph, GraphSnapshot, Subject};
 
 use crate::transaction::{GraphOperation, GraphTransaction};
 
@@ -23,10 +24,22 @@ pub(super) struct Candidate<'g> {
     created_edges: BTreeSet<EdgeId>,
     /// The value count of each property of each node the operation set creates or updates.
     pub(super) property_counts: BTreeMap<NodeId, BTreeMap<PropertyId, usize>>,
+    /// Canonical state's assertions about edges, by edge; see [`Candidate::asserted_edges`].
+    asserted_edges: OnceCell<BTreeMap<EdgeId, Vec<AssertionId>>>,
+}
+
+thread_local! {
+    static BUILT: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// How many candidate views the calling thread has built; see [`super::candidates_built`].
+pub(super) fn built() -> u64 {
+    BUILT.with(std::cell::Cell::get)
 }
 
 impl<'g> Candidate<'g> {
     pub(super) fn of(snapshot: &GraphSnapshot<'g>, proposal: &GraphTransaction) -> Self {
+        BUILT.with(|count| count.set(count.get() + 1));
         let graph = snapshot.graph();
         let mut result = Self {
             basis: graph,
@@ -52,6 +65,7 @@ impl<'g> Candidate<'g> {
             // Only a created node's counts are ever read, and creating a node replaces whatever
             // canonical state held under its id, so canonical state's counts are not copied.
             property_counts: BTreeMap::new(),
+            asserted_edges: OnceCell::new(),
         };
         for operation in &proposal.operations {
             match operation {
@@ -101,6 +115,21 @@ impl<'g> Candidate<'g> {
     /// it, since a deletion target may be created and cancelled in the same atomic transaction.
     pub(super) fn available(&self, edge: &EdgeId) -> bool {
         self.basis.edges.contains_key(edge) || self.created_edges.contains(edge)
+    }
+
+    /// Every assertion canonical state holds about an edge, by that edge, each list in the order
+    /// canonical state holds the assertions: built from one pass over the assertions, on first
+    /// use, and read by every validator of the validation this view is shared by.
+    pub(super) fn asserted_edges(&self) -> &BTreeMap<EdgeId, Vec<AssertionId>> {
+        self.asserted_edges.get_or_init(|| {
+            let mut index: BTreeMap<EdgeId, Vec<AssertionId>> = BTreeMap::new();
+            for (id, assertion) in &self.basis.assertions {
+                if let Subject::Edge(edge) = assertion.subject {
+                    index.entry(edge.id()).or_default().push(*id);
+                }
+            }
+            index
+        })
     }
 
     /// How many edges of each type leave each source once the operation set applies: one pass

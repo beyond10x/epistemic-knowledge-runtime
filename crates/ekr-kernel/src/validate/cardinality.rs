@@ -22,7 +22,7 @@ use ekr_core::PropertyId;
 use ekr_graph::GraphSnapshot;
 use ekr_ontology::{NodeTypes, PropertyDefinition};
 
-use super::{candidate::Candidate, finish, issue, Validator};
+use super::{candidate::Candidate, finish, issue, Check, Validator};
 use crate::issue::{ValidationIssue, ValidatorName};
 use crate::transaction::{GraphOperation, GraphTransaction};
 
@@ -48,8 +48,18 @@ impl Validator for Cardinality {
         graph: &GraphSnapshot<'_>,
         tx: &GraphTransaction,
     ) -> Result<(), Vec<ValidationIssue>> {
+        self.check(graph, tx, &Candidate::of(graph, tx))
+    }
+}
+
+impl Check for Cardinality {
+    fn check<'g>(
+        &self,
+        graph: &GraphSnapshot<'g>,
+        tx: &GraphTransaction,
+        candidate: &Candidate<'g>,
+    ) -> Result<(), Vec<ValidationIssue>> {
         let ontology = &graph.graph().ontology;
-        let candidate = Candidate::of(graph, tx);
         let nodes = &candidate.nodes;
         // Counted once, on the first `CreateEdge` of a declared type, and read by every one.
         let mut outgoing = None;

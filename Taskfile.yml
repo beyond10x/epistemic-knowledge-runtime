@@ -27,6 +27,7 @@ tasks:
     desc: every unit, integration and doc test
     cmds:
       - cargo test --workspace --locked
+      - cargo test -p ekr-kernel --features bench --no-run --locked
 
   doc-check:
     desc: rustdoc with broken intra-doc links as errors

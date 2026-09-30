@@ -35,7 +35,7 @@ use ekr_core::{NodeId, PropertyId, TypeId};
 use ekr_graph::{GraphSnapshot, Object, Predicate, Subject};
 use ekr_ontology::{CheckReason, NodeTypes, Ontology, PropertyDefinition, Value};
 
-use super::{candidate::Candidate, finish, issue, Validator};
+use super::{candidate::Candidate, finish, issue, Check, Validator};
 use crate::issue::{ValidationIssue, ValidatorName};
 use crate::transaction::{GraphOperation, GraphTransaction};
 
@@ -76,8 +76,18 @@ impl Validator for Types {
         graph: &GraphSnapshot<'_>,
         tx: &GraphTransaction,
     ) -> Result<(), Vec<ValidationIssue>> {
+        self.check(graph, tx, &Candidate::of(graph, tx))
+    }
+}
+
+impl Check for Types {
+    fn check<'g>(
+        &self,
+        graph: &GraphSnapshot<'g>,
+        tx: &GraphTransaction,
+        candidate: &Candidate<'g>,
+    ) -> Result<(), Vec<ValidationIssue>> {
         let ontology = &graph.graph().ontology;
-        let candidate = Candidate::of(graph, tx);
         let nodes = &candidate.nodes;
         let mut issues = Vec::new();
 

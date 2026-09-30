@@ -508,6 +508,15 @@ for rejected in &report.rejected {
   committed. A `ProposalAttribution` naming the batcher's own proposer is about one operation's
   attribution (an assertion's `proposed_by` or an evidence entry's `extracted_by`), and is
   bisected like a rejection.
+- **Evidence travels with the assertions citing it.** `commit_with_evidence(transport, groups,
+  evidence)` is `commit` with an `EvidenceSet` (below). Each transaction it proposes carries an
+  entry's `!AddEvidence` in the group of the first assertion citing it, ahead of that group's
+  operations, until a transaction that carries it commits. A group committed later cites the
+  existing id. Bisection rebuilds each half the same way, so an assertion is never submitted
+  without the evidence it introduces: if the group that first cited an entry is rejected, the
+  next group citing it carries the entry instead, and an entry only rejected groups cite is never
+  committed. A batch that the moved entry would take past the operation limit of `with_limits`
+  is split in two rather than proposed.
 
 A `BatchReport` holds:
 
@@ -535,6 +544,43 @@ an `UnknownOutcome`: the `transaction` id, its `batch`, and the `groups` it carr
 `report.committed`. Settle it before sending those groups again. Read `ekr transactions --state
 Committed` (from a new session if this one failed): if the id is listed, its groups were committed
 and must not be sent again. If it is not listed, send them again.
+
+### Evidence items
+
+A consumer that holds its evidence outside the store, one statement per message or document,
+cites it through `ekr_sdk::evidence`. An `EvidenceItem` is a source identity, an observed-at
+`Timestamp` and the exact bytes. `EvidenceSet::new(operator)` holds the entries, extracted by the
+host operator. `EvidenceSet::cite(item)` returns the `EvidenceId` to cite with
+`Assertion::citing`. The first time, it hashes the bytes with `payload_hash`, which is what
+[`ekr hash`](cli.md#ekr-hash) prints. It then mints the id with `EvidenceId::mint`, which is what
+`ekr mint evidence` runs, and builds an `EvidenceAddition` of source `!HumanStatement {identity}`
+and confidence `Confidence::CERTAIN`. No request is sent. Within one set, an item with the same
+source, observed-at time and bytes gets the same id, so 100 assertions citing 40 items add exactly
+40 entries. A new set knows nothing of the store: a consumer that restarts builds its set with
+`EvidenceSet::from_store(transport, operator)`, which reads `ekr snapshot` at the head and keys
+every `!HumanStatement` entry the store holds by its identity, observed-at time and content hash.
+An item the store already holds then gets that entry's id, and is not added again. An entry
+another process commits after that read is not known to the set.
+
+```rust
+use ekr_sdk::evidence::{EvidenceItem, EvidenceSet};
+
+let mut evidence = EvidenceSet::new(operator);
+let cites = evidence.cite(EvidenceItem::new("Catalogue desk", observed_at, message_bytes));
+let groups = vec![vec![book.into(), claim.citing(cites).into()]];
+let report = Batcher::new(operator).commit_with_evidence(&mut session, &groups, &mut evidence)?;
+```
+
+`EvidenceSet::is_committed(id)` says whether the store holds the entry: a transaction committed
+with the set added it, or `from_store` read it. `EvidenceSet::entry(id)` returns the
+`EvidenceAddition` of an entry the set minted; an entry read by `from_store` has none. Do not
+push a set's entry into a group yourself: the batcher adds it, and a second copy is refused as
+`duplicate-identity`. An entry carries at most 16,384 bytes (`sequence_elements`,
+[the ten limits](#the-ten-limits)); a group citing a larger item is rejected as
+`Rejection::Document`. The report lists each group's own operations, never the `!AddEvidence`
+the batcher added to it. If a commit's outcome is unknown (above) and `ekr transactions` lists it
+as committed, mark the entries its groups cite with `EvidenceSet::mark_committed`, or rebuild the
+set with `EvidenceSet::from_store`, so no later run adds them again.
 
 ## Typed reads
 
@@ -567,6 +613,9 @@ let changed = reader.changes(Since::Revision(0), None, None, None)?; // Changes
 | `ontology(at)` | `ontology` | `Ontology`: node and edge types by name and id, the schema version |
 | `transactions(state)` | `transactions` | `Transactions`: each id, state, proposer, time and operation count |
 | `explain(assertion)` | `explain` | `Explanation`: `links`, one `ExplanationLink` per kind |
+| `quality(revision)` | `quality` | `StoreQuality`, `ekr.store-quality/1`: evidenced assertions, constrained properties, `shared_names` |
+| `rejections(from, to)` | `rejections` | `Rejections`, `ekr.rejections/1`: each `RejectedTransaction` with its `issues` |
+| `code_names(files, at)` | `code-names` | `CodeNames`, `ekr.code-names/1`: each `CodeNameFinding` with `file`, `line`, `column`, `runtime_word` and `names` |
 
 The first six are the [`ekr.views` reads](cli.md#session-views), which `ekr` serves in a session
 only. Each reads the store as it stands when `ekr` reads the request, so a commit made by this
@@ -581,7 +630,27 @@ first page read, so a commit between two pages neither drops nor repeats a node 
 an error, the iterator ends. `changes` pages by hand: pass each page's `next` as `after`, and the
 first page's `meta.revision` as `at`.
 
-`head`, `snapshot`, `ontology`, `transactions` and `explain` also run without a session.
+The last three are the store checks ([`ekr quality`](cli.md#ekr-quality),
+[`ekr rejections`](cli.md#ekr-rejections), [`ekr code-names`](cli.md#ekr-code-names)).
+`quality(revision)` reads the head when `revision` is `None`; a share is `None` when its whole is
+0. `rejections(from, to)` selects the basis revisions `from` to `to`, both included, and a `None`
+bound is unbounded. `code_names(files, at)` takes the source paths as strings; `ekr` reads a
+relative one from its working directory (`SessionOptions::current_dir`), and each finding's `file`
+is the path as given. A finding is not an error: test `meta.findings` to fail on one. A match's
+`kind` is a `CodeNameKind`; a kind a newer `ekr` adds reads as `CodeNameKind::Other`, with its
+`id` and the rest of the finding intact, and writes back as `Other`.
+
+```rust
+let quality = reader.quality(None)?;                       // StoreQuality
+let rejected = reader.rejections(Some(0), None)?;         // Rejections
+let found = reader.code_names(["src/reader.ts"], None)?;  // CodeNames
+for finding in &found.findings {
+    println!("{}:{} {}", finding.file, finding.line, finding.literal); // and .runtime_word
+}
+```
+
+`head`, `snapshot`, `ontology`, `transactions`, `explain`, `quality`, `rejections` and
+`code_names` also run without a session.
 `OneShotReader::new(&binary, store, options)` runs each read as its own
 `ekr --host … --store … --backend … <verb>` process. It starts the process the way a session does,
 with the same environment and working directory, and stops it after `options.timeout`. It returns
@@ -601,7 +670,8 @@ The values are serde models of what `ekr` prints. A reader ignores a field it do
 newer `ekr` does not break an older consumer. Each value writes back exactly the document it was
 read from. `crates/ekr-sdk/tests/read.rs` checks this against every document that the `ekr-views`
 conformance fixture stores render and against real `ekr` output, so if a format gains a field
-without an SDK update, that test fails and names the field. In `Snapshot` and `Explanation`, the
+without an SDK update, that test fails and names the field; `crates/ekr-sdk/tests/check_reads.rs`
+does the same for the three store checks. In `Snapshot` and `Explanation`, the
 parts that vary by kind stay JSON `Value`s, read by their tag as [the page](cli.md#ekr-snapshot)
 documents them. These are an assertion's `object`, `assessment` and `lifecycle`, an evidence
 entry's `source`, and the origin links of an explanation.
