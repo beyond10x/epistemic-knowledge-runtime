@@ -4,6 +4,17 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Fixed
+
+- **Queuing a node drops cached answers that share its aliases** (`ekr-sdk`, `Resolver`). When
+  `resolve` or `resolve_with` queues a node for a `ProposeNew` answer, it now drops every other
+  cached key of the same type that shares an alias with that node, the rule `observe` already
+  applied to a committed `CreateNode`. Before, a key cached earlier (`["Ada", "X"]` resolved to the
+  node holding `X`) went on answering that node after a node holding `Ada` was queued, where
+  `ekr resolve` against the flushed store answers `Ambiguous`, so a consumer could assert a fact
+  about the wrong node. Keys of other types, and keys sharing no alias with the queued node, stay
+  cached.
+
 ## [0.0.24] — 2026-09-30
 
 A store exports as an OCEL 2.0 event log; the viewer's compact mode works from the keyboard and in

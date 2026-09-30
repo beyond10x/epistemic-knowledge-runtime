@@ -460,6 +460,116 @@ fn invalidation_is_per_alias_and_ambiguous_is_a_value() {
     assert_eq!(resolves(&transport), 5, "beta was not");
 }
 
+/// `task:resolver-queue-drops-shared-alias-answers`: queuing a node drops every cached answer of
+/// its type that shares an alias with it. `M` holds `X`; `{Ada, X}` resolves to `M` and is cached;
+/// `["Ada"]` then queues `N`, and `{Ada, X}` must answer what `ekr resolve` answers once `N` is
+/// flushed, `Ambiguous` with `M` and `N`, not `M` from the cache. A key of another type holding
+/// `Ada`, and keys of the same type sharing no alias with `N`, are still the cache's.
+#[test]
+fn queuing_a_node_drops_cached_answers_that_share_its_aliases() {
+    for backend in BACKENDS {
+        let world = World::new(backend);
+        let mut session = world.seeded();
+        let m = NodeDraft::new(root(), organization(), "M").with_alias("X");
+        let o = NodeDraft::new(root(), organization(), "O").with_alias("Y");
+        let p = NodeDraft::new(root(), person(), "P").with_alias("Ada");
+        let (m_id, o_id, p_id) = (m.id, o.id, p.id);
+        let existing = vec![vec![m.into()], vec![o.into()], vec![p.into()]];
+        let before = Batcher::new(operator())
+            .commit(&mut session, &existing)
+            .unwrap();
+        assert!(before.rejected.is_empty(), "{backend:?}: {before:?}");
+
+        let mut transport = RecordingTransport::record(&mut session);
+        let mut resolver = Resolver::new(root(), operator());
+        let x = TypedReference::new(organization(), ["X"]);
+        let y = TypedReference::new(organization(), ["Y"]);
+        let ada_x = TypedReference::new(organization(), ["Ada", "X"]);
+        let ada = TypedReference::new(organization(), ["Ada"]);
+        let ada_person = TypedReference::new(person(), ["Ada"]);
+
+        // 1 and 2, and the keys that must survive: another type holding `Ada`, and `Y`.
+        assert_eq!(
+            resolver.resolve(&mut transport, &x).unwrap(),
+            Resolution::Resolved(m_id),
+            "{backend:?}: step 1"
+        );
+        assert_eq!(
+            resolver.resolve(&mut transport, &ada_x).unwrap(),
+            Resolution::Resolved(m_id),
+            "{backend:?}: step 2"
+        );
+        assert_eq!(
+            resolver.resolve(&mut transport, &ada_person).unwrap(),
+            Resolution::Resolved(p_id),
+            "{backend:?}"
+        );
+        assert_eq!(
+            resolver.resolve(&mut transport, &y).unwrap(),
+            Resolution::Resolved(o_id),
+            "{backend:?}"
+        );
+        assert_eq!(resolves(&transport), 4, "{backend:?}");
+
+        // 3.
+        let queued = resolver.resolve(&mut transport, &ada).unwrap();
+        let Resolution::Queued(n_id) = queued else {
+            panic!("{backend:?}: step 3: {queued:?}")
+        };
+        assert_eq!(resolves(&transport), 5, "{backend:?}");
+
+        // A key of another type, and keys sharing no alias with `N`, are still the cache's.
+        for (reference, node) in [(&ada_person, p_id), (&x, m_id), (&y, o_id)] {
+            assert_eq!(
+                resolver.resolve(&mut transport, reference).unwrap(),
+                Resolution::Resolved(node),
+                "{backend:?}: {reference:?}"
+            );
+        }
+        assert_eq!(
+            resolver.resolve(&mut transport, &ada).unwrap(),
+            Resolution::Queued(n_id),
+            "{backend:?}: the queued node's own key"
+        );
+        assert_eq!(
+            resolves(&transport),
+            5,
+            "{backend:?}: no resolve asked for a key that shares no alias with N"
+        );
+
+        // 4.
+        let mut both = [m_id, n_id];
+        both.sort();
+        assert_eq!(
+            resolver.resolve(&mut transport, &ada_x).unwrap(),
+            Resolution::Ambiguous(both.to_vec()),
+            "{backend:?}: step 4"
+        );
+        assert_eq!(
+            resolves(&transport),
+            6,
+            "{backend:?}: step 4 asked ekr resolve"
+        );
+        let flushed = resolver.flush(&mut transport).unwrap();
+        assert_eq!(
+            flushed.report.committed.len(),
+            1,
+            "{backend:?}: step 4 flushed N first: {flushed:?}"
+        );
+        assert!(flushed.replaced.is_empty(), "{backend:?}: {flushed:?}");
+        let store = ok(
+            &mut transport,
+            Request::new(["resolve", "-"]).with_stdin(ada_x.to_yaml().unwrap()),
+        );
+        assert_eq!(store["kind"], "Ambiguous", "{backend:?}: {store}");
+        assert_eq!(
+            store["candidates"],
+            serde_json::json!([both[0].to_string(), both[1].to_string()]),
+            "{backend:?}: the store's answer is the resolver's"
+        );
+    }
+}
+
 /// Acceptance: an alias committed by a second process between two resolves produces no duplicate
 /// node and no `alias-already-exists`. Once where the second resolve is a cache hit and the
 /// explicit flush finds the foreign commit, once where the second resolve shares an alias with
