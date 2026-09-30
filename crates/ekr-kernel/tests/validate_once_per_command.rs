@@ -1,6 +1,9 @@
-//! A `validate` command builds one candidate view, and a session builds each revision's per-edge
-//! assertion index once (`task:validate-builds-one-view-per-command`), on both providers and under
-//! every profile.
+//! A `validate` command against a revision the session holds builds one candidate view, and a
+//! session builds the per-edge assertion index of each revision it holds once
+//! (`task:validate-builds-one-view-per-command`), on both providers and under every profile.
+//! Against a revision whose graph the session has released, the command first rebuilds that graph
+//! by replaying the history, which revalidates every retained validation up to it
+//! (`adversary_validate_once.rs`, ignored for `task:rebuilt-revision-reuses-retained-verdicts`).
 //!
 //! The command decides the publication by validating the proposal, and the store then admits the
 //! staged candidate by replaying it through the same kernel, which reaches the same verdict from

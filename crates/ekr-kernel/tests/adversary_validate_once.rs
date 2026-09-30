@@ -742,8 +742,8 @@ fn a_revisions_edge_index_is_released_with_its_graph() {
 /// and the count grows with the history. The edge index is built once per revision only while the
 /// revision holds its graph.
 #[test]
-#[ignore = "defect: validate --against a revision whose graph is released builds one candidate \
-            view per retained validation up to it (9 at revision 7 of 8), not one"]
+#[ignore = "rebuilding a released revision revalidates its history; \
+            task:rebuilt-revision-reuses-retained-verdicts"]
 fn a_validate_command_against_an_older_released_revision_builds_one_candidate_view() {
     for (profile, authority) in profiles() {
         for file in [true, false] {
@@ -764,8 +764,6 @@ fn a_validate_command_against_an_older_released_revision_builds_one_candidate_vi
 /// attempt takes the decided verdict and is refused as a conflict, and the retry's admitting
 /// replay validates the same document against the same revision again: two candidate views.
 #[test]
-#[ignore = "defect: a validate command retried after an unrelated append validates its own \
-            document twice; the first, conflicted admission consumed the verdict"]
 fn a_validate_command_retried_after_an_unrelated_proposal_builds_one_candidate_view() {
     for (profile, authority) in profiles() {
         for file in [true, false] {

@@ -123,9 +123,9 @@ pub(crate) struct Revision {
     pub(crate) graph: Option<Arc<ekr_graph::CanonicalGraph>>,
     /// The index of this revision's assertions about edges, by edge, kept with its graph: built by
     /// the first validation against this revision that reads it and shared by every state that
-    /// holds this revision, so a session builds it once per revision. Every graph of one revision
-    /// is the same graph, so the index holds for whichever copy a state holds; it is released with
-    /// the graph.
+    /// holds this revision, so a session builds it once per revision while it holds the graph.
+    /// Every graph of one revision is the same graph, so the index holds for whichever copy a state
+    /// holds; it is released with the graph, and a graph rebuilt later builds it again.
     pub(crate) asserted_edges: AssertedEdgesCell,
 }
 impl Revision {
@@ -529,13 +529,13 @@ pub(crate) fn validate(
 pub(crate) type Verdict = Result<Arc<ValidatedTransaction>, Vec<crate::ValidationIssue>>;
 
 /// The verdict the last validate decision on this thread reached, with every input it is a
-/// function of, until the replay that admits the publication takes it.
+/// function of, until the validate command that decided it ends.
 ///
 /// A validate command validates the proposal when it decides the publication, and the store then
 /// admits the staged candidate by replaying it through the same kernel, which validates the same
 /// document against the same revision under the same profile and validator. The verdict is a pure
 /// function of those inputs ([`validate`]): the revision's graph, which its root and allocation
-/// name, and the lineage and held identities before it, which its root chains. So the replay takes
+/// name, and the lineage and held identities before it, which its root chains. So the replay reads
 /// the verdict the decision reached instead of running the pipeline a second time
 /// (`task:validate-builds-one-view-per-command`). The verdict is still the kernel's: this module
 /// computed it, from the inputs the key names.
@@ -574,8 +574,8 @@ thread_local! {
 }
 
 /// [`validate`] for a validate command deciding its publication. The verdict is left for the
-/// replay that admits the publication ([`verdict`] with the same inputs), which takes it rather
-/// than validating again.
+/// replay that admits the publication ([`verdict`] with the same inputs), and for each retry of
+/// that admission, which read it rather than validating again.
 pub(crate) fn decide_validation(
     document: &TransactionDocument,
     revisions: &BTreeMap<RevisionNumber, Revision>,
@@ -600,7 +600,11 @@ pub(crate) fn decide_validation(
 }
 
 /// The verdict of `document` against `prior`: the one the last decision on this thread reached
-/// when it had exactly these inputs, taken, and otherwise [`validate`]'s now.
+/// when it had exactly these inputs, and otherwise [`validate`]'s now.
+///
+/// The decided verdict is shared, not taken: a publication refused as a conflict by an unrelated
+/// append is admitted again by a second replay of the same occurrence (design § 91.6), which
+/// reads the same verdict. It stays until the command ends ([`ReleaseDecidedValidation`]).
 fn verdict(
     document: &TransactionDocument,
     revisions: &BTreeMap<RevisionNumber, Revision>,
@@ -609,26 +613,22 @@ fn verdict(
     anchor: &AuthorityStateV1,
     validator: AgentId,
 ) -> Result<Verdict, StoreError> {
-    let taken = DECIDED.with(|decided| {
-        let mut decided = decided.borrow_mut();
-        if decided
+    let decided = DECIDED.with(|decided| {
+        decided
+            .borrow()
             .as_ref()
-            .is_some_and(|decided| decided.holds(document, prior, anchor, validator))
-        {
-            decided.take().map(|decided| decided.verdict)
-        } else {
-            None
-        }
+            .filter(|decided| decided.holds(document, prior, anchor, validator))
+            .map(|decided| decided.verdict.clone())
     });
-    match taken {
+    match decided {
         Some(verdict) => Ok(verdict),
         None => Ok(validate(document, revisions, held, prior, anchor, validator)?.map(Arc::new)),
     }
 }
 
-/// Releases the verdict a validate decision left for the replay that admits it, when that replay
-/// did not take it: dropped at the end of a validate command, so a verdict is held only while its
-/// publication is in flight.
+/// Releases the verdict a validate decision left for the replays that admit its publication:
+/// dropped at the end of a validate command, so a verdict is held only while its publication is in
+/// flight.
 pub(crate) struct ReleaseDecidedValidation;
 impl Drop for ReleaseDecidedValidation {
     fn drop(&mut self) {

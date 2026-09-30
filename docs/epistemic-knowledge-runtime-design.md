@@ -3874,6 +3874,59 @@ reads inside a provider transaction. Corrupt commits refuse reopen; they do not 
 from the fold or return the seed as if it were the latest revision. Historical reconstruction
 stops at the selected committed revision and preserves its own schema, authority and graph.
 
+## 91.5.1 Amendment of 2026-09-30: one validation per validate command
+
+*Added 2026-09-30 by wave ops-05 (`task:validate-builds-one-view-per-command`). Qualifies "It
+reruns the same pure validation" in § 91.5 for the replay that admits a validate command's own
+publication. No verdict, refusal, message, issue order, record format or root changes.*
+
+**What was measured.** One `ekr validate` validated its proposal twice: once to decide the
+publication, and again in the replay through which the store admits the staged occurrence. Each
+run built a candidate view, which copies every node and edge of the basis graph, and an index of
+the graph's assertions about edges, a pass over every assertion.
+
+**The rule.** Within one validate command, the admitting replay reads the verdict the decision
+reached instead of running the pipeline again, when its inputs are the decision's. The key is:
+
+- the hash of the proposal's document bytes;
+- the basis revision's graph, by the address of the shared allocation the replay holds, and its
+  full root;
+- the hash of the anchor's validation profile, which selects the pipeline;
+- the validator.
+
+This is equivalent because the verdict, a sealed transaction or every issue in order, is a pure
+function of that key. The pipeline reads the document's transaction, the basis graph, the
+lineage of schema versions and, under profile v3, the identities held up to the basis. The root
+names the graph by its knowledge, evidence and ontology roots and chains every earlier root, so
+it fixes the lineage and the held identities too. The profile and the validator fix which
+validators run and who asks. The allocation is held weakly while the verdict is kept, so an equal
+address is the same graph. A replay whose inputs differ in any part validates as before.
+
+The verdict is kept on the calling thread from the decision until the command ends. Every
+admitting replay of that command reads it, including a retry after an unrelated append refused
+the first attempt as a conflict (§ 91.6). The command's end releases it. Replay of retained
+history outside the deciding command still reruns the validation, as § 91.5 says: a fresh handle,
+a full replay, a checkpoint restore, and another command in the same process.
+
+**The edge index lives with its revision's graph.** The index of a revision's assertions about
+edges is built by the first validation against that revision that reads it. It is kept beside the
+revision's graph in the replay state and shared by every state holding that revision, so a
+session builds it once per revision while it holds the graph. It is released with the graph.
+
+**What it still costs.** `validate --against` a revision whose graph the session has released
+first rebuilds that graph by replaying the history to it, which revalidates every retained
+validation on the way. One command against revision 7 of an eight-commit session builds nine
+candidate views and nine edge indexes. `task:rebuilt-revision-reuses-retained-verdicts` owns that
+case.
+
+Executed by `crates/ekr-kernel/tests/validate_once_per_command.rs` (one candidate view per
+command, validated or rejected, and the index once per revision, under profiles v1 to v3 on both
+providers), `crates/ekr-kernel/tests/adversary_validate_once.rs` (session verdicts against a
+fresh pipeline over seeded histories, the retry after an unrelated proposal, and another writer's
+validation landing between decision and admission; the released-revision case is ignored for the
+task above) and `crates/ekr-kernel/tests/adversary_sdk03_p.rs`
+(`a_validate_command_builds_its_candidate_view_once`).
+
 ## 91.6 Trusted time, occurrence idempotency and atomic publication
 
 Resolve each trusted actor, domain occurrence id and timestamp once per logical decision.
