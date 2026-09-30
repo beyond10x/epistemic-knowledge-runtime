@@ -27,6 +27,7 @@
   "authored_scenarios": [
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-cursor-pages-a-neighbourhood-to-its-end.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-cursor-pages-the-changes-to-their-end.yaml",
+    "crates/ekr-views/tests/fixtures/conformance/scenarios/a-lineage-lists-widened-ends-and-modified-properties.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-node-is-not-found-at-a-revision-before-it-existed.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-quality-report-counts-evidence-constraints-and-shared-names.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-retracted-assertion-is-projected-with-its-lifecycle.yaml",

@@ -274,6 +274,38 @@ pub struct SchemaVersionChange {
     pub added: Vec<SchemaMember>,
     /// What it removed.
     pub removed: Vec<SchemaMember>,
+    /// The edge-type ends it widened against its parent; the document omits it when empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub widened: Vec<WidenedEnd>,
+    /// The property declarations it modified against its parent; the document omits it when
+    /// empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub modified: Vec<ModifiedProperty>,
+}
+
+/// An edge-type end a schema version widened.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WidenedEnd {
+    /// The edge type.
+    pub edge_type: TypeId,
+    /// `Source` or `Target`.
+    pub side: String,
+    /// The node types the end gained.
+    pub node_types: Vec<TypeId>,
+}
+
+/// A property declaration a schema version modified.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ModifiedProperty {
+    /// The node type or edge type that declares it.
+    pub owner: TypeId,
+    /// The property's id.
+    pub property: String,
+    /// Its name in the version.
+    pub name: String,
+    /// What differs: `Declared`, `Undeclared`, `Name`, `ValueType`, `Cardinality`, `Required`,
+    /// `Constraints`, or a kind a newer `ekr` adds.
+    pub changed: Vec<String>,
 }
 
 /// A type or property a schema version added or removed.

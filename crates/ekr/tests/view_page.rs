@@ -715,6 +715,8 @@ struct Engine {
     page: Vec<u8>,
     /// A pause after each flushed chunk of an expansion, so one can be seen in progress.
     delay: Duration,
+    /// A change made to every `/overview` answer before it is served, if any.
+    edit: Option<fn(&mut Value)>,
 }
 
 struct Double {
@@ -726,6 +728,11 @@ struct Double {
 
 impl Seeded {
     fn double(&self, delay: Duration) -> Double {
+        self.edited_double(delay, None)
+    }
+
+    /// [`Seeded::double`], serving every `/overview` answer as `edit` changes it.
+    fn edited_double(&self, delay: Duration, edit: Option<fn(&mut Value)>) -> Double {
         let runtime = self.runtime();
         let head = runtime.head().unwrap().unwrap().revision.get();
         let mut indexes = BTreeMap::new();
@@ -745,6 +752,7 @@ impl Seeded {
             evidence,
             page: page().into_bytes(),
             delay,
+            edit,
         })
     }
 }
@@ -913,7 +921,12 @@ fn answer(mut stream: TcpStream, engine: &Engine, log: &Mutex<Vec<String>>) {
             };
             match OverviewRequest::new(limit) {
                 Ok(request) => {
-                    let bytes = index.overview(&request).unwrap().bytes;
+                    let mut bytes = index.overview(&request).unwrap().bytes;
+                    if let Some(edit) = engine.edit {
+                        let mut document: Value = serde_json::from_slice(&bytes).unwrap();
+                        edit(&mut document);
+                        bytes = serde_json::to_vec(&document).unwrap();
+                    }
                     reply(&mut stream, 200, "application/json", &bytes);
                 }
                 Err(limit) => refusal(&mut stream, 400, "LimitExceeded", &limit.to_string()),
@@ -1165,6 +1178,82 @@ fn the_page_draws_each_store_from_its_overview_and_never_reads_the_projection() 
         );
         reads_no_projection(&double.requests(), &fixture.display().to_string());
     }
+}
+
+/// The schema history's card of version `number` in a dumped DOM: from its id to the next card's,
+/// or to the page's script, whose text a dumped DOM also holds.
+fn version_card(dom: &str, number: u64) -> &str {
+    dom.split(&format!("id=\"ver-{number}\""))
+        .nth(1)
+        .and_then(|rest| rest.split("id=\"ver-").next())
+        .and_then(|card| card.split("<script").next())
+        .unwrap_or_default()
+}
+
+/// `task:lineage-shows-widened-ends-and-modified-properties`: the schema history lists each
+/// version's widened edge ends and modified properties, and calls a version empty only when the
+/// overview lists nothing for it. `tests/fixtures/view-lineage/volumes` is the `archive` stand-in
+/// with two more versions: v2 widens `CITES`' source to take a `Volume` as well as a `Folio`, and
+/// v3 makes `shelfmark` on `Volume` `Many`. Neither adds a type or a property. Served again with
+/// v2's `widened` taken out of every `/overview` — exactly what a version whose ontology is its
+/// parent's answers — v2 is the one card the page calls empty.
+#[test]
+fn the_schema_history_lists_widened_ends_and_modified_properties_and_calls_only_an_unchanged_version_empty(
+) {
+    const EMPTY: &str = "changes nothing against its parent";
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/view-lineage/volumes"));
+    let double = seeded.double(Duration::ZERO);
+    let dom = rendered(&browser, &format!("{}#schema=1", double.url));
+    let widened = version_card(&dom, 2);
+    assert!(
+        widened.contains("widens 1 edge end")
+            && widened.contains("Widened edge ends · 1")
+            && widened.contains("CITES")
+            && widened.contains("source + Volume"),
+        "v2 lists the end it widened: {widened}"
+    );
+    let modified = version_card(&dom, 3);
+    assert!(
+        modified.contains("modifies 1 property declaration")
+            && modified.contains("Modified properties · 1")
+            && modified.contains("shelfmark")
+            && modified.contains("cardinality"),
+        "v3 lists the property it modified: {modified}"
+    );
+    for number in 0..=3 {
+        let card = version_card(&dom, number);
+        assert!(!card.is_empty(), "v{number} has a card: {dom}");
+        assert!(
+            !card.contains(EMPTY) && !card.contains("adds no types or properties"),
+            "v{number} changed its ontology and is not called empty: {card}"
+        );
+    }
+    drop(double);
+
+    let unchanged = seeded.edited_double(
+        Duration::ZERO,
+        Some(|overview: &mut Value| {
+            for version in overview["schema"]["versions"].as_array_mut().unwrap() {
+                if version["number"] == 2 {
+                    version.as_object_mut().unwrap().remove("widened");
+                }
+            }
+        }),
+    );
+    let dom = rendered(&browser, &format!("{}#schema=1", unchanged.url));
+    for number in 0..=3 {
+        let card = version_card(&dom, number);
+        assert_eq!(
+            card.contains(EMPTY),
+            number == 2,
+            "v{number}: only the version the overview lists nothing for is called empty: {card}"
+        );
+    }
+    assert!(version_card(&dom, 2).contains("changes nothing"));
 }
 
 /// `task:timeline-rows-are-subjects`: the timeline's rows are subjects — one per node of the first

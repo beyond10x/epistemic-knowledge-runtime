@@ -18,9 +18,10 @@ use ekr_graph::{
     Object, Predicate, RetractionReason, Subject, TemporalRange, TransactionTime,
 };
 use ekr_kernel::{
-    Agent, AuthorityStateV1, BootstrapContext, CommitCommandResult, EdgeDraft, EvidenceAddition,
-    GraphOperation, GraphTransaction, NodeDraft, PropertyModification, PropertyMutation,
-    Retraction, Runtime, SeedDocument, Supersession, ValidationCommandResult, ValidationProfileV1,
+    Agent, AuthorityStateV1, BootstrapContext, CommitCommandResult, EdgeDraft, EdgeWidening,
+    EvidenceAddition, GraphOperation, GraphTransaction, NodeDraft, PropertyModification,
+    PropertyMutation, Retraction, Runtime, SeedDocument, Supersession, ValidationCommandResult,
+    ValidationProfileV1,
 };
 use ekr_ontology::{Cardinality, EdgeType, NodeType, PropertyDefinition, Value, ValueType};
 use serde::Serialize;
@@ -119,6 +120,11 @@ const SUMMARY: u64 = 0x108;
 const STRENGTH: u64 = 0x109;
 const VERSION_2: u64 = 0x10a;
 const SOURCE: u64 = 0x10b;
+// `schema-changes`: a-lineage-lists-widened-ends-and-modified-properties.yaml and
+// `tests/lineage.rs`.
+const WIDENED_VERSION: u64 = 0x10c;
+const MODIFIED_VERSION: u64 = 0x10d;
+const DECLARED_VERSION: u64 = 0x10e;
 const ALPHA: u64 = 0x110;
 const BETA: u64 = 0x111;
 const GAMMA: u64 = 0x112;
@@ -294,6 +300,12 @@ pub enum Fixture {
     /// two constrained property declarations, names shared within a type, a retraction and a
     /// supersession ([`build_quality`]).
     Quality,
+    /// Four schema changes after the seed, each its own version: version 1 as
+    /// [`Fixture::SchemaEvolution`]'s (revision 1); `observes` widened, its source gaining `Subject`
+    /// and its target `Observation` (revision 2); `label` on `Subject` renamed `title` and made
+    /// `Many` (revision 3); `note` declared on `Observation` too (revision 4). See
+    /// [`build_schema_changes`].
+    SchemaChanges,
 }
 
 impl Fixture {
@@ -312,6 +324,7 @@ impl Fixture {
             "subjects" => Self::Subjects,
             "changes" => Self::Changes,
             "quality" => Self::Quality,
+            "schema-changes" => Self::SchemaChanges,
             _ => return None,
         })
     }
@@ -403,6 +416,7 @@ impl Fixture {
                 writer.commit(retraction(CHANGED_NODE_CLAIM), None);
             }
             Self::Quality => build_quality(&mut writer),
+            Self::SchemaChanges => build_schema_changes(&mut writer),
             Self::Evolved => {
                 let mut document = seed(3, true, false, 2);
                 let described = Node::<Value>::new(
@@ -646,6 +660,41 @@ pub fn commit_later_quality(runtime: &Runtime) {
             &[Q_EVIDENCE],
         )))],
         None,
+    );
+}
+
+/// [`Fixture::SchemaChanges`]: the seed's `Subject` (0x100) with `label` (0x101) and `alpha`;
+/// version 1 (0x107) adds `Observation` (0x104), `observes` (0x105, `Observation` → `Subject`) and
+/// `note` (0x106) on `Subject`; version 2 (0x10c) widens `observes` to `Observation | Subject` →
+/// `Subject | Observation`; version 3 (0x10d) redeclares `label` on `Subject` as `title`, `Many`;
+/// version 4 (0x10e) declares `note` on `Observation` as `Subject` declares it.
+fn build_schema_changes(writer: &mut Writer<'_>) {
+    writer.seed(seed(0, false, false, 1));
+    writer.commit(first_schema_change(false), Some(id(VERSION_1)));
+    let both: BTreeSet<TypeId> = [id(OBSERVATION), id(SUBJECT)].into_iter().collect();
+    writer.commit(
+        vec![GraphOperation::WidenEdgeType(EdgeWidening {
+            edge_type: id(OBSERVES),
+            source_types: both.clone(),
+            target_types: both,
+        })],
+        Some(id(WIDENED_VERSION)),
+    );
+    let mut title = PropertyDefinition::new(id(LABEL), "title", ValueType::String);
+    title.cardinality = Cardinality::Many;
+    writer.commit(
+        vec![GraphOperation::ModifyProperty(PropertyModification {
+            owner: Some(id(SUBJECT)),
+            property: title,
+        })],
+        Some(id(MODIFIED_VERSION)),
+    );
+    writer.commit(
+        vec![GraphOperation::ModifyProperty(PropertyModification {
+            owner: Some(id(OBSERVATION)),
+            property: PropertyDefinition::new(id(NOTE), "note", ValueType::String),
+        })],
+        Some(id(DECLARED_VERSION)),
     );
 }
 

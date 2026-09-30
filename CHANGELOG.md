@@ -4,6 +4,20 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Changed
+
+- **The schema lineage lists widened edge ends and modified properties.** In
+  `ekr.graph-overview/1`, each version of `schema.versions` also carries `widened` (each edge-type
+  end that gained node types against its parent: `edge_type`, `side`, `node_types`) and `modified`
+  (each property declaration that differs from its owner's in the parent: `owner`, `property`,
+  `name`, and what `changed` — `Name`, `ValueType`, `Cardinality`, `Required`, `Constraints`, or
+  `Declared` for a property an owner newly declares). Both are omitted when empty, so a store
+  without a `WidenEdgeType` or `ModifyProperty` of an existing property answers the same bytes as
+  before. `added` and `removed` are unchanged. The `ekr view` schema history shows both, and calls
+  a version empty only when its ontology is its parent's; a version made only by `WidenEdgeType`
+  no longer reads "adds no types or properties". `ekr_sdk::read::SchemaVersionChange` gains
+  `widened` (`WidenedEnd`) and `modified` (`ModifiedProperty`).
+
 ## [0.0.22] — 2026-09-30
 
 The SDK types the store checks and carries evidence with the assertions that cite it; a commit
