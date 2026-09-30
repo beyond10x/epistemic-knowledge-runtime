@@ -4,6 +4,15 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Changed
+
+- **A validate command builds one candidate view.** The replay that admits a validation or a
+  rejection takes the verdict the kernel reached when it decided the command, keyed by the
+  document, the basis revision's graph and root, the profile and the validator, instead of running
+  the validation pipeline a second time. The index of canonical state's assertions about edges is
+  kept with each revision's graph, so a session builds it once per revision rather than once per
+  validation. Verdicts, refusals, their messages and their order, and roots are unchanged.
+
 ## [0.0.23] — 2026-09-30
 
 The viewer collapses its sidebars and solos a type; the schema lineage shows every schema change;

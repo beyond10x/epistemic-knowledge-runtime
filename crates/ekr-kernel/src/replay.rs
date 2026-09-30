@@ -1,9 +1,9 @@
 //! Complete retained decision verification; the same pure authority checks new publications.
 use crate::{
-    validate::HeldIdentities, AuthorityStateV1, CommitReceiptV1, GraphOperation, GraphTransaction,
-    KernelAuthority, Pipeline, ProposalRecordV1, RejectionRecordV1, SeedResultV1, StaleRecordV1,
-    TransactionDocument, ValidatedTransaction, ValidationBasisV1, ValidationMaterialV1,
-    ValidationReceiptV1,
+    validate::{AssertedEdgesCell, HeldIdentities},
+    AuthorityStateV1, CommitReceiptV1, GraphOperation, GraphTransaction, KernelAuthority, Pipeline,
+    ProposalRecordV1, RejectionRecordV1, SeedResultV1, StaleRecordV1, TransactionDocument,
+    ValidatedTransaction, ValidationBasisV1, ValidationMaterialV1, ValidationReceiptV1,
 };
 use ekr_core::{
     AgentId, Canonical, ContentHash, Encoder, EventId, IssueId, RevisionId, RevisionNumber,
@@ -121,6 +121,12 @@ pub(crate) struct Revision {
     /// The schema in force at this revision.
     pub(crate) ontology: Arc<ekr_ontology::Ontology>,
     pub(crate) graph: Option<Arc<ekr_graph::CanonicalGraph>>,
+    /// The index of this revision's assertions about edges, by edge, kept with its graph: built by
+    /// the first validation against this revision that reads it and shared by every state that
+    /// holds this revision, so a session builds it once per revision. Every graph of one revision
+    /// is the same graph, so the index holds for whichever copy a state holds; it is released with
+    /// the graph.
+    pub(crate) asserted_edges: AssertedEdgesCell,
 }
 impl Revision {
     pub(crate) fn replayed(admitted: AdmittedRevision) -> Self {
@@ -133,7 +139,13 @@ impl Revision {
             graph_root: admitted.graph.root.id,
             ontology: Arc::new(admitted.graph.ontology.clone()),
             graph: Some(Arc::new(admitted.graph)),
+            asserted_edges: AssertedEdgesCell::default(),
         }
+    }
+    /// Releases this revision's graph and the index kept with it.
+    fn release_graph(&mut self) {
+        self.graph = None;
+        self.asserted_edges = AssertedEdgesCell::default();
     }
     /// The graph at this revision, or [`GRAPH_NOT_HELD`].
     pub(crate) fn graph(&self) -> Result<&ekr_graph::CanonicalGraph, StoreError> {
@@ -175,7 +187,7 @@ impl ReplayState {
             return;
         }
         if let Some(revision) = self.revisions.get_mut(&number) {
-            revision.graph = None;
+            revision.release_graph();
         }
     }
     /// Releases every graph but the head's and those `kept` keeps.
@@ -183,7 +195,7 @@ impl ReplayState {
         let head = self.head().root.revision;
         for (number, revision) in &mut self.revisions {
             if *number != head && revision.graph.is_some() && !kept(*number) {
-                revision.graph = None;
+                revision.release_graph();
             }
         }
     }
@@ -506,7 +518,126 @@ pub(crate) fn validate(
     } else {
         Pipeline::deterministic(validator)
     };
-    Ok(pipeline.validate(&GraphSnapshot::of(graph), document.transaction()))
+    Ok(pipeline.validate_kept(
+        &GraphSnapshot::of(graph),
+        document.transaction(),
+        &prior.asserted_edges,
+    ))
+}
+
+/// What [`validate`] answers: the sealed transaction, shared, or every issue raised.
+pub(crate) type Verdict = Result<Arc<ValidatedTransaction>, Vec<crate::ValidationIssue>>;
+
+/// The verdict the last validate decision on this thread reached, with every input it is a
+/// function of, until the replay that admits the publication takes it.
+///
+/// A validate command validates the proposal when it decides the publication, and the store then
+/// admits the staged candidate by replaying it through the same kernel, which validates the same
+/// document against the same revision under the same profile and validator. The verdict is a pure
+/// function of those inputs ([`validate`]): the revision's graph, which its root and allocation
+/// name, and the lineage and held identities before it, which its root chains. So the replay takes
+/// the verdict the decision reached instead of running the pipeline a second time
+/// (`task:validate-builds-one-view-per-command`). The verdict is still the kernel's: this module
+/// computed it, from the inputs the key names.
+///
+/// The prior graph is identified by its allocation, as the remembered root of
+/// [`crate::apply`] is: the weak reference keeps that allocation from being reused while it is
+/// held, so an equal address is the same graph.
+struct Decided {
+    prior: std::sync::Weak<ekr_graph::CanonicalGraph>,
+    prior_root: ekr_graph::Root,
+    document: ContentHash,
+    profile: ContentHash,
+    validator: AgentId,
+    verdict: Verdict,
+}
+impl Decided {
+    fn holds(
+        &self,
+        document: &TransactionDocument,
+        prior: &Revision,
+        anchor: &AuthorityStateV1,
+        validator: AgentId,
+    ) -> bool {
+        prior
+            .graph
+            .as_ref()
+            .is_some_and(|graph| std::ptr::eq(self.prior.as_ptr(), Arc::as_ptr(graph)))
+            && self.prior_root == prior.root
+            && self.document == document.hash()
+            && self.validator == validator
+            && self.profile == ContentHash::of(&anchor.validation_profile)
+    }
+}
+thread_local! {
+    static DECIDED: std::cell::RefCell<Option<Decided>> = const { std::cell::RefCell::new(None) };
+}
+
+/// [`validate`] for a validate command deciding its publication. The verdict is left for the
+/// replay that admits the publication ([`verdict`] with the same inputs), which takes it rather
+/// than validating again.
+pub(crate) fn decide_validation(
+    document: &TransactionDocument,
+    revisions: &BTreeMap<RevisionNumber, Revision>,
+    held: &HeldIdentities,
+    prior: &Revision,
+    anchor: &AuthorityStateV1,
+    validator: AgentId,
+) -> Result<Verdict, StoreError> {
+    let verdict = validate(document, revisions, held, prior, anchor, validator)?.map(Arc::new);
+    let graph = prior.graph.as_ref().ok_or_else(|| refuse(GRAPH_NOT_HELD))?;
+    DECIDED.with(|decided| {
+        *decided.borrow_mut() = Some(Decided {
+            prior: Arc::downgrade(graph),
+            prior_root: prior.root,
+            document: document.hash(),
+            profile: ContentHash::of(&anchor.validation_profile),
+            validator,
+            verdict: verdict.clone(),
+        });
+    });
+    Ok(verdict)
+}
+
+/// The verdict of `document` against `prior`: the one the last decision on this thread reached
+/// when it had exactly these inputs, taken, and otherwise [`validate`]'s now.
+fn verdict(
+    document: &TransactionDocument,
+    revisions: &BTreeMap<RevisionNumber, Revision>,
+    held: &HeldIdentities,
+    prior: &Revision,
+    anchor: &AuthorityStateV1,
+    validator: AgentId,
+) -> Result<Verdict, StoreError> {
+    let taken = DECIDED.with(|decided| {
+        let mut decided = decided.borrow_mut();
+        if decided
+            .as_ref()
+            .is_some_and(|decided| decided.holds(document, prior, anchor, validator))
+        {
+            decided.take().map(|decided| decided.verdict)
+        } else {
+            None
+        }
+    });
+    match taken {
+        Some(verdict) => Ok(verdict),
+        None => Ok(validate(document, revisions, held, prior, anchor, validator)?.map(Arc::new)),
+    }
+}
+
+/// Releases the verdict a validate decision left for the replay that admits it, when that replay
+/// did not take it: dropped at the end of a validate command, so a verdict is held only while its
+/// publication is in flight.
+pub(crate) struct ReleaseDecidedValidation;
+impl Drop for ReleaseDecidedValidation {
+    fn drop(&mut self) {
+        let _ = DECIDED.try_with(|decided| {
+            if let Ok(mut decided) = decided.try_borrow_mut() {
+                *decided = None;
+            }
+        });
+    }
 }
 pub(crate) fn validation_record(
     proposal: &ProposalRecordV1,
@@ -837,7 +968,7 @@ impl KernelAuthority {
                             && record.validated_at >= prior.committed_at,
                         "validation-time-order",
                     )?;
-                    let validated = validate(
+                    let validated = verdict(
                         &*state.document(&tx.proposal)?,
                         &state.revisions,
                         &state.held,
@@ -859,7 +990,7 @@ impl KernelAuthority {
                         record == expected && record.validation_hash == validation_hash,
                         "validation-record-disagrees",
                     )?;
-                    state.validated.insert(transaction_id, Arc::new(validated));
+                    state.validated.insert(transaction_id, validated);
                     state.note_basis(occurrence.version, against);
                     state.release(against, |number| kept(number, occurrence.version));
                     let tx = state
@@ -890,7 +1021,7 @@ impl KernelAuthority {
                             && record.rejected_at >= prior.committed_at,
                         "rejection-record-disagrees",
                     )?;
-                    let actual = validate(
+                    let actual = verdict(
                         &*state.document(&tx.proposal)?,
                         &state.revisions,
                         &state.held,
@@ -1050,6 +1181,7 @@ impl KernelAuthority {
                             graph_root,
                             ontology,
                             graph: Some(Arc::new(graph)),
+                            asserted_edges: AssertedEdgesCell::default(),
                         },
                     );
                     state.release(superseded, |number| kept(number, occurrence.version));
