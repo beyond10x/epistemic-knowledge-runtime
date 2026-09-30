@@ -1,27 +1,28 @@
 //! `ExportOcel` and its format `ekr.ocel/1` ([`export_ocel`]): one revision as an OCEL 2.0
-//! object-centric event log (`views.yaml`, `ekr.views.OcelLogV1`), wrapped with its revision.
+//! object-centric event log (`views.yaml`, `ekr.views.OcelLogV1`), wrapped with its revision and
+//! the names of the ids it uses.
 //!
-//! Every role comes from the store's shape, never from a name. A node type whose every node has a
-//! valid-time start — the least `valid_from` of the unretracted assertions about the node — is an
-//! event type, each of its nodes an event at that start; every other node type is an object type.
-//! Edges are the log's relationships, qualified by their type id, and a node's properties its
+//! The event types are the overview's — the reference viewer's valid-time rule the timeline uses
+//! (`ekr.views.TypeTiming`) — unless the request names them; every other node type is an object
+//! type. Each node of an event type is an event at its timeline time; one without a time is left
+//! out. Edges are the log's relationships, qualified by their type id, and a node's properties its
 //! attributes. Types, attributes and qualifiers are named by id, because two of the store's types
-//! or properties may share a name and OCEL 2.0 identifies both by it.
+//! or properties may share a name and OCEL 2.0 identifies both by it; `names` labels them.
 //!
-//! [`export_ocel`] reads the revision as [`crate::load`] does; [`ocel`] is the pure half: the same
-//! revision gives the same bytes.
+//! [`export_ocel`] reads the revision as [`crate::Index::load`] does; [`ocel`] is the pure half:
+//! the same index and request give the same bytes.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use ekr_core::{NodeId, PropertyId, RevisionNumber, TypeId};
-use ekr_graph::{AssertionLifecycle, CanonicalValue, Subject};
+use ekr_graph::CanonicalValue;
 use ekr_kernel::Runtime;
 use ekr_ontology::{Cardinality, PropertyDefinition, ValueType};
 use serde::Serialize;
 
 use crate::document::ProjectedValue;
 use crate::query::{encode, hash, Answer};
-use crate::{LoadedRevision, ProjectError};
+use crate::{Index, ProjectError};
 
 /// The format literal every export carries in `meta.format`.
 pub const OCEL_FORMAT: &str = "ekr.ocel/1";
@@ -50,10 +51,32 @@ pub struct OcelExported {
     pub event_object_relationships: u64,
     /// Relationships the objects hold.
     pub object_object_relationships: u64,
-    /// The revision's edges both of whose ends are events, which the log does not carry.
+    /// The revision's edges both of whose ends are events in the log, which it does not carry.
     pub edges_between_events: u64,
+    /// Nodes of an event type left out of the log for want of a writable time.
+    pub undated_events: u64,
+    /// Edges with such a node at an end, which the log does not carry.
+    pub edges_of_undated_events: u64,
     /// The lowercase hex SHA-256 of the document's exact bytes.
     pub ocel_hash: String,
+}
+
+/// Why an export answered nothing.
+#[derive(Debug, thiserror::Error)]
+pub enum OcelError {
+    /// What the revision's read refuses: `ekr.views.NotSeeded`, `ekr.views.RevisionNotFound`, or
+    /// a store or revision that cannot be read.
+    #[error(transparent)]
+    Project(#[from] ProjectError),
+    /// `ekr.views.EventTypeNotFound`: no node type of the revision's ontology holds `name`, the
+    /// first such name the request lists as an event type.
+    #[error("revision {revision} has no node type named {name:?}")]
+    EventTypeNotFound {
+        /// The name, as requested.
+        name: String,
+        /// The revision read.
+        revision: RevisionNumber,
+    },
 }
 
 /// `ekr.views.OcelMeta`.
@@ -61,6 +84,21 @@ pub struct OcelExported {
 struct OcelMeta {
     format: &'static str,
     revision: u64,
+}
+
+/// `ekr.views.OcelName`.
+#[derive(Serialize, PartialEq, Eq, PartialOrd, Ord)]
+struct OcelName {
+    id: String,
+    name: String,
+}
+
+/// `ekr.views.OcelNames`.
+#[derive(Serialize)]
+struct OcelNames {
+    node_types: Vec<OcelName>,
+    edge_types: Vec<OcelName>,
+    properties: Vec<OcelName>,
 }
 
 /// `ekr.views.OcelTypeAttribute`.
@@ -137,85 +175,111 @@ struct Ocel20Log {
 #[derive(Serialize)]
 struct OcelLogV1 {
     meta: OcelMeta,
+    names: OcelNames,
     ocel: Ocel20Log,
 }
 
+/// Where a node stands in the log.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Role {
+    /// An event at this time, in milliseconds.
+    Event(i64),
+    /// A node of an event type with no writable time: not in the log.
+    Undated,
+    Object,
+}
+
 /// Exports revision `at` of `runtime`'s store, or its head when `at` is `None`, as an OCEL 2.0
-/// event log.
+/// event log. `events` names the event types by node type name; empty, the overview's rule
+/// decides them.
 ///
 /// # Errors
 ///
-/// What [`crate::load`] refuses — [`ProjectError::NotSeeded`], [`ProjectError::RevisionNotFound`]
-/// or the kernel's refusal of the store's history — and what [`ocel`] refuses.
+/// [`OcelError::Project`] for what [`crate::Index::load`] refuses — [`ProjectError::NotSeeded`],
+/// [`ProjectError::RevisionNotFound`] or the kernel's refusal of the store's history — and what
+/// [`ocel`] refuses.
 pub fn export_ocel(
     runtime: &Runtime,
     at: Option<RevisionNumber>,
-) -> Result<Answer<OcelExported>, ProjectError> {
-    ocel(&crate::load(runtime, at)?)
+    events: &[String],
+) -> Result<Answer<OcelExported>, OcelError> {
+    ocel(&Index::load(runtime, at)?, events)
 }
 
-/// The pure half of [`export_ocel`]: the `ekr.ocel/1` document of `loaded`.
+/// The pure half of [`export_ocel`]: the `ekr.ocel/1` document of `index`'s revision, with the
+/// event types `events` names, or the overview's when it names none.
 ///
 /// # Errors
 ///
+/// [`OcelError::EventTypeNotFound`] for the first name of `events` no node type holds;
 /// [`ProjectError::Inconsistent`] for an edge whose end the revision does not hold, which a
 /// revision the kernel admitted never has, or a document that does not encode.
-pub fn ocel(loaded: &LoadedRevision) -> Result<Answer<OcelExported>, ProjectError> {
-    let graph = &loaded.graph;
+pub fn ocel(index: &Index, events: &[String]) -> Result<Answer<OcelExported>, OcelError> {
+    let graph = &index.loaded.graph;
+    let declared = graph.ontology.to_document();
 
-    // Each node's valid-time start: the least writable valid_from of the unretracted assertions
-    // about it.
-    let mut starts: BTreeMap<NodeId, i64> = BTreeMap::new();
-    for assertion in graph.assertions.values() {
-        let Subject::Node(node) = &assertion.subject else {
-            continue;
-        };
-        if matches!(assertion.lifecycle, AssertionLifecycle::Retracted { .. }) {
-            continue;
-        }
-        let Some(from) = assertion.valid_time.from.map(|at| at.millis()) else {
-            continue;
-        };
-        if !(FIRST_WRITABLE_MS..=LAST_WRITABLE_MS).contains(&from) {
-            continue;
-        }
-        starts
-            .entry(node.id())
-            .and_modify(|start| *start = (*start).min(from))
-            .or_insert(from);
-    }
-
-    // Every declared node type and every type a node has, by id text; an event type has a node
-    // and every node of it a start.
-    let mut types: BTreeMap<String, TypeId> = graph
-        .ontology
-        .to_document()
+    // Every declared node type and every type a node has, by id text.
+    let mut types: BTreeMap<String, TypeId> = declared
         .node_types
         .iter()
-        .map(|declared| (declared.id.to_string(), declared.id))
+        .map(|node_type| (node_type.id.to_string(), node_type.id))
         .collect();
-    let mut dated: BTreeMap<TypeId, (u64, u64)> = BTreeMap::new();
     for node in graph.nodes.values() {
         types
             .entry(node.type_id.to_string())
             .or_insert(node.type_id);
-        let (nodes, with_start) = dated.entry(node.type_id).or_default();
-        *nodes += 1;
-        if starts.contains_key(&node.id) {
-            *with_start += 1;
-        }
     }
-    let event_types: BTreeSet<TypeId> = dated
-        .iter()
-        .filter(|(_, (nodes, with_start))| *nodes > 0 && nodes == with_start)
-        .map(|(type_id, _)| *type_id)
-        .collect();
-    let is_event = |node: &NodeId| {
-        graph
-            .nodes
-            .get(node)
-            .is_some_and(|held| event_types.contains(&held.type_id))
+
+    // The event types: those named, or the overview's.
+    let event_types: BTreeSet<TypeId> = if events.is_empty() {
+        index
+            .overview
+            .roles
+            .types
+            .iter()
+            .filter(|timing| timing.event)
+            .map(|timing| timing.type_id)
+            .collect()
+    } else {
+        let mut named = BTreeSet::new();
+        for name in events {
+            let holders: Vec<TypeId> = declared
+                .node_types
+                .iter()
+                .filter(|node_type| node_type.name == *name)
+                .map(|node_type| node_type.id)
+                .collect();
+            if holders.is_empty() {
+                return Err(OcelError::EventTypeNotFound {
+                    name: name.clone(),
+                    revision: graph.revision,
+                });
+            }
+            named.extend(holders);
+        }
+        named
     };
+
+    // Each node's role, by its index position.
+    let roles: BTreeMap<NodeId, Role> = index
+        .node_ids
+        .iter()
+        .enumerate()
+        .map(|(at, node)| {
+            let type_id = index.node_type[at];
+            let role = if !event_types.contains(&type_id) {
+                Role::Object
+            } else {
+                match index.node_time[at] {
+                    Some((time, _)) if (FIRST_WRITABLE_MS..=LAST_WRITABLE_MS).contains(&time) => {
+                        Role::Event(time)
+                    }
+                    _ => Role::Undated,
+                }
+            };
+            (*node, role)
+        })
+        .collect();
 
     // Each type's attributes: its properties, its ancestors' included, by id.
     let declarations: BTreeMap<TypeId, BTreeMap<PropertyId, &PropertyDefinition>> = types
@@ -224,7 +288,7 @@ pub fn ocel(loaded: &LoadedRevision) -> Result<Answer<OcelExported>, ProjectErro
         .collect();
     let (mut ocel_event_types, mut ocel_object_types) = (Vec::new(), Vec::new());
     for (name, type_id) in &types {
-        let declared = OcelType {
+        let described = OcelType {
             name: name.clone(),
             attributes: declarations[type_id]
                 .iter()
@@ -235,32 +299,37 @@ pub fn ocel(loaded: &LoadedRevision) -> Result<Answer<OcelExported>, ProjectErro
                 .collect(),
         };
         if event_types.contains(type_id) {
-            ocel_event_types.push(declared);
+            ocel_event_types.push(described);
         } else {
-            ocel_object_types.push(declared);
+            ocel_object_types.push(described);
         }
     }
 
     // Each edge, once per (holder, object, qualifier).
     let mut related: BTreeMap<NodeId, BTreeSet<(String, String)>> = BTreeMap::new();
-    let mut edges_between_events = 0_u64;
+    let (mut edges_between_events, mut edges_of_undated_events) = (0_u64, 0_u64);
     for edge in graph.edges.values() {
         let (source, target) = (edge.source.id(), edge.target.id());
-        for end in [source, target] {
-            if !graph.nodes.contains_key(&end) {
-                return Err(ProjectError::Inconsistent(format!(
+        let role = |end: NodeId| {
+            roles.get(&end).copied().ok_or_else(|| {
+                ProjectError::Inconsistent(format!(
                     "edge {} names node {end}, which revision {} does not hold",
                     edge.id, graph.revision
-                )));
+                ))
+            })
+        };
+        let (from, to) = (role(source)?, role(target)?);
+        let (holder, object) = match (from, to) {
+            (Role::Undated, _) | (_, Role::Undated) => {
+                edges_of_undated_events += 1;
+                continue;
             }
-        }
-        let (holder, object) = match (is_event(&source), is_event(&target)) {
-            (true, true) => {
+            (Role::Event(_), Role::Event(_)) => {
                 edges_between_events += 1;
                 continue;
             }
-            (false, true) => (target, source),
-            (true, false) | (false, false) => (source, target),
+            (Role::Object, Role::Event(_)) => (target, source),
+            (Role::Event(_) | Role::Object, Role::Object) => (source, target),
         };
         related
             .entry(holder)
@@ -281,66 +350,103 @@ pub fn ocel(loaded: &LoadedRevision) -> Result<Answer<OcelExported>, ProjectErro
             .unwrap_or_default()
     };
 
-    let mut events = Vec::new();
+    let mut ocel_events = Vec::new();
     let mut objects = Vec::new();
-    let (mut event_object, mut object_object) = (0_u64, 0_u64);
+    let (mut event_object, mut object_object, mut undated_events) = (0_u64, 0_u64, 0_u64);
     for node in graph.nodes.values() {
-        let declared = &declarations[&node.type_id];
+        let role = roles[&node.id];
+        if role == Role::Undated {
+            undated_events += 1;
+            continue;
+        }
+        let described = &declarations[&node.type_id];
         let mut attributes = Vec::with_capacity(node.properties.len());
         for (property, values) in &node.properties {
             attributes.push((
                 property.to_string(),
-                value_text(declared.get(property).copied(), values)?,
+                value_text(described.get(property).copied(), values)?,
             ));
         }
         let held = relationships(&node.id);
-        match starts.get(&node.id) {
-            Some(start) if event_types.contains(&node.type_id) => {
-                event_object += held.len() as u64;
-                events.push((
-                    *start,
-                    OcelEvent {
-                        id: node.id.to_string(),
-                        event_type: node.type_id.to_string(),
-                        time: rfc3339(*start).unwrap_or_default(),
-                        attributes: attributes
-                            .into_iter()
-                            .map(|(name, value)| OcelEventAttribute { name, value })
-                            .collect(),
-                        relationships: held,
-                    },
-                ));
-            }
-            _ => {
-                object_object += held.len() as u64;
-                objects.push(OcelObject {
+        if let Role::Event(time) = role {
+            event_object += held.len() as u64;
+            ocel_events.push((
+                time,
+                OcelEvent {
                     id: node.id.to_string(),
-                    object_type: node.type_id.to_string(),
+                    event_type: node.type_id.to_string(),
+                    time: rfc3339(time).unwrap_or_default(),
                     attributes: attributes
                         .into_iter()
-                        .map(|(name, value)| OcelObjectAttribute {
-                            name,
-                            value,
-                            time: INITIAL,
-                        })
+                        .map(|(name, value)| OcelEventAttribute { name, value })
                         .collect(),
                     relationships: held,
-                });
-            }
+                },
+            ));
+        } else {
+            object_object += held.len() as u64;
+            objects.push(OcelObject {
+                id: node.id.to_string(),
+                object_type: node.type_id.to_string(),
+                attributes: attributes
+                    .into_iter()
+                    .map(|(name, value)| OcelObjectAttribute {
+                        name,
+                        value,
+                        time: INITIAL,
+                    })
+                    .collect(),
+                relationships: held,
+            });
         }
     }
-    events.sort_by(|(a, left), (b, right)| a.cmp(b).then_with(|| left.id.cmp(&right.id)));
+    ocel_events.sort_by(|(a, left), (b, right)| a.cmp(b).then_with(|| left.id.cmp(&right.id)));
     objects.sort_by(|left, right| left.id.cmp(&right.id));
+
+    // The names of the ids the log uses, as the revision's ontology holds them.
+    let named = |id: String, name: &str| OcelName {
+        id,
+        name: name.to_owned(),
+    };
+    let mut node_type_names: Vec<OcelName> = declared
+        .node_types
+        .iter()
+        .map(|node_type| named(node_type.id.to_string(), &node_type.name))
+        .collect();
+    node_type_names.sort();
+    let mut edge_type_names: Vec<OcelName> = declared
+        .edge_types
+        .iter()
+        .map(|edge_type| named(edge_type.id.to_string(), &edge_type.name))
+        .collect();
+    edge_type_names.sort();
+    let property_names: BTreeSet<OcelName> = declared
+        .node_types
+        .iter()
+        .flat_map(|node_type| node_type.properties.values())
+        .chain(
+            declared
+                .edge_types
+                .iter()
+                .flat_map(|edge_type| edge_type.properties.values()),
+        )
+        .map(|property| named(property.id.to_string(), &property.name))
+        .collect();
 
     let document = OcelLogV1 {
         meta: OcelMeta {
             format: OCEL_FORMAT,
             revision: graph.revision.get(),
         },
+        names: OcelNames {
+            node_types: node_type_names,
+            edge_types: edge_type_names,
+            properties: property_names.into_iter().collect(),
+        },
         ocel: Ocel20Log {
             event_types: ocel_event_types,
             object_types: ocel_object_types,
-            events: events.into_iter().map(|(_, event)| event).collect(),
+            events: ocel_events.into_iter().map(|(_, event)| event).collect(),
             objects,
         },
     };
@@ -354,6 +460,8 @@ pub fn ocel(loaded: &LoadedRevision) -> Result<Answer<OcelExported>, ProjectErro
         event_object_relationships: event_object,
         object_object_relationships: object_object,
         edges_between_events,
+        undated_events,
+        edges_of_undated_events,
         ocel_hash: hash(&bytes),
     };
     Ok(Answer { bytes, summary })

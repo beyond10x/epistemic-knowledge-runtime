@@ -317,16 +317,22 @@ pub enum Command {
     /// Print one revision as an OCEL 2.0 object-centric event log: the `ekr.ocel/1` document
     /// (`ekr.views.ExportOcel`), whose `ocel` member is the OCEL 2.0 JSON log.
     ///
-    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST); it reads only. A node
-    /// type whose every node has a valid time is an event type, each node an event at its
-    /// earliest valid time; every other node type is an object type. Edges are relationships
-    /// qualified by their type id, properties are attributes, and types and attributes are named
-    /// by id (`ekr ontology` names them). Two reads of one revision print the same bytes.
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST); it reads only. The
+    /// event types are the viewer's, by its valid-time rule (the timeline's), unless --events
+    /// names them; every other node type is an object type. Each node of an event type is an
+    /// event at its timeline time; one with no time is left out. Edges are relationships
+    /// qualified by their type id and properties are attributes; types and attributes are named
+    /// by id, and the document's `names` gives each id its name. Two reads of one request print
+    /// the same bytes.
     #[command(after_help = SEE)]
     Ocel {
         /// The committed revision to export; the newest (`ekr head`) when absent.
         #[arg(long)]
         revision: Option<u64>,
+        /// The node types, by name, that are the event types instead of the viewer's rule's. A
+        /// name no node type holds is refused as `ekr.views.EventTypeNotFound` (exit 2).
+        #[arg(long, value_name = "TYPE_NAME", num_args = 1..)]
+        events: Vec<String>,
     },
     /// Serve a read-only viewer of the store on 127.0.0.1 until interrupted: the page, the
     /// `ekr.graph-projection/1` at the head or at a revision, its bounded reads, and retained
@@ -731,9 +737,9 @@ fn dispatch(
             let runtime = source.resolve("quality")?.open()?;
             quality::run(&runtime, revision).map(Printed::Document)
         }
-        Command::Ocel { revision } => {
+        Command::Ocel { revision, events } => {
             let runtime = source.resolve("ocel")?.open()?;
-            ocel::run(&runtime, revision).map(Printed::Document)
+            ocel::run(&runtime, revision, &events).map(Printed::Document)
         }
         Command::View { port } => {
             let store = source.configured("view")?;

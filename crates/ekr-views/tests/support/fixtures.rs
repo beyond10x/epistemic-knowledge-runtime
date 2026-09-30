@@ -268,13 +268,12 @@ pub const O_ABOUT: u64 = 0xe8_0010;
 pub const O_TOUCHES: u64 = 0xe8_0011;
 pub const O_HOLDS: u64 = 0xe8_0012;
 pub const O_FOLLOWS: u64 = 0xe8_0013;
-/// `case`'s title (String), size (Integer), tags (String, Many) and opened (Timestamp);
-/// `subcase`'s depth (Integer); `step`'s outcome (Enum) and cost (Decimal); `note`'s text
-/// (String).
+/// `case`'s title (String), size (Integer) and tags (String, Many); `subcase`'s depth (Integer);
+/// `step`'s at (Timestamp), outcome (Enum) and cost (Decimal); `note`'s text (String).
 pub const O_TITLE: u64 = 0xe8_0020;
 pub const O_SIZE: u64 = 0xe8_0021;
 pub const O_TAGS: u64 = 0xe8_0022;
-pub const O_OPENED: u64 = 0xe8_0023;
+pub const O_AT: u64 = 0xe8_0023;
 pub const O_DEPTH: u64 = 0xe8_0024;
 pub const O_OUTCOME: u64 = 0xe8_0025;
 pub const O_COST: u64 = 0xe8_0026;
@@ -335,7 +334,8 @@ pub enum Fixture {
     /// supersession ([`build_quality`]).
     Quality,
     /// Events, objects and the edges between them over two revisions after the seed: a step
-    /// whose earliest valid time moves at revision 1 and back at 2 ([`build_ocel`]).
+    /// whose time moves at revision 1 and stays at 2, when the fact moving it is retracted
+    /// ([`build_ocel`]).
     Ocel,
     /// Four schema changes after the seed, each its own version: version 1 as
     /// [`Fixture::SchemaEvolution`]'s (revision 1); `observes` widened, its source gaining `Subject`
@@ -730,13 +730,18 @@ fn ocel_fact(
 /// The `ocel` store, as an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest.yaml
 /// states it. Valid times count from `JANUARY_FIRST_0900_MS` (T0).
 ///
-/// Seed: cases c1 (title, size, tags "red" and "blue", opened T0 - 1 day) and c2 (title), the
-/// subcase s1 (title, depth), steps p1 (outcome `done`, cost `12.50`), p2 (outcome `failed`) and
-/// p3, notes n1 (text) and n2; no `unused` node. Assertions: a1 c1's title from T0, a2 p1's
-/// outcome from T0 + 2 h, a3 p2's outcome and a4 p3's cost from T0 + 1 h, a5 n1's text from
-/// T0 + 3 h. Edges: e1 and e2 `about` p1 → c1, e3 `about` p2 → c2, e4 `touches` c1 → p3, e5 and
-/// e6 `holds` c1 → n1 and c1 → n2, e7 `follows` p1 → p2, e8 `about` p3 → s1.
-/// Revision 1: a6, p2's outcome from T0 - 1 day. Revision 2: a6 retracted.
+/// Seed: cases c1 (title, size, tags "red" and "blue") and c2 (title), the subcase s1 (title,
+/// depth), steps p1 (at T0 + 2 h, outcome `done`, cost `12.50`), p2 (at T0 + 1 h, outcome
+/// `failed`) and p3, notes n1 (text) and n2; no `unused` node. Assertions: a1 c1's title from T0,
+/// a2 p1's outcome from T0 + 2 h, a3 p2's outcome and a4 p3's cost from T0 + 1 h, a5 n1's text
+/// from T0 + 3 h. Edges: e1 and e2 `about` p1 → c1, e3 `about` p2 → c2, e4 `touches` c1 → p3, e5
+/// and e6 `holds` c1 → n1 and c1 → n2, e7 `follows` p1 → p2, e8 `about` p3 → s1.
+/// Revision 1: a6, p3's cost from T0 - 1 day. Revision 2: a6 retracted.
+///
+/// Under the overview's rule `step` is the one event type: p1 and p2 are timestamped, so judged
+/// and instant, and p3, with one dated fact, is not judged; no other type has a judged node. p3's
+/// time is its earliest dated fact: T0 + 1 h, then T0 - 1 day from revision 1 on, since a dated
+/// fact counts whatever its lifecycle.
 fn build_ocel(writer: &mut Writer<'_>) {
     let t0 = JANUARY_FIRST_0900_MS;
     let mut document = empty_seed();
@@ -751,7 +756,6 @@ fn build_ocel(writer: &mut Writer<'_>) {
         property(O_TITLE, "title", ValueType::String),
         property(O_SIZE, "size", ValueType::Integer),
         tags,
-        property(O_OPENED, "opened", ValueType::Timestamp),
     ] {
         case.properties.insert(declared.id, declared);
     }
@@ -763,6 +767,7 @@ fn build_ocel(writer: &mut Writer<'_>) {
     let mut step = NodeType::new(id(O_STEP), "step");
     let outcomes = ["done", "failed"].into_iter().map(String::from).collect();
     for declared in [
+        property(O_AT, "at", ValueType::Timestamp),
         property(O_OUTCOME, "outcome", ValueType::Enum { variants: outcomes }),
         property(O_COST, "cost", ValueType::Decimal),
     ] {
@@ -792,6 +797,7 @@ fn build_ocel(writer: &mut Writer<'_>) {
         edge_type(O_FOLLOWS, "follows", &[O_STEP], &[O_STEP]),
     ]);
     let text = |value: &str| Value::String(value.into());
+    let at = |millis: i64| Value::Timestamp(Timestamp::from_millis(millis));
     let nodes: [OcelNode; 8] = [
         (
             1,
@@ -801,10 +807,6 @@ fn build_ocel(writer: &mut Writer<'_>) {
                 (O_TITLE, vec![text("first case")]),
                 (O_SIZE, vec![Value::Integer(3)]),
                 (O_TAGS, vec![text("red"), text("blue")]),
-                (
-                    O_OPENED,
-                    vec![Value::Timestamp(Timestamp::from_millis(t0 - DAY_MS))],
-                ),
             ],
         ),
         (2, O_CASE, "c2", vec![(O_TITLE, vec![text("second case")])]),
@@ -822,6 +824,7 @@ fn build_ocel(writer: &mut Writer<'_>) {
             O_STEP,
             "p1",
             vec![
+                (O_AT, vec![at(t0 + 2 * HOUR_MS)]),
                 (O_OUTCOME, vec![Value::Enum("done".into())]),
                 (O_COST, vec![Value::Decimal("12.50".into())]),
             ],
@@ -830,7 +833,10 @@ fn build_ocel(writer: &mut Writer<'_>) {
             0x12,
             O_STEP,
             "p2",
-            vec![(O_OUTCOME, vec![Value::Enum("failed".into())])],
+            vec![
+                (O_AT, vec![at(t0 + HOUR_MS)]),
+                (O_OUTCOME, vec![Value::Enum("failed".into())]),
+            ],
         ),
         (0x13, O_STEP, "p3", Vec::new()),
         (0x21, O_NOTE, "n1", vec![(O_TEXT, vec![text("seen")])]),
@@ -892,9 +898,9 @@ fn build_ocel(writer: &mut Writer<'_>) {
     writer.commit(
         vec![GraphOperation::AddAssertion(Box::new(ocel_fact(
             6,
-            0x12,
-            O_OUTCOME,
-            Value::Enum("failed".into()),
+            0x13,
+            O_COST,
+            Value::Decimal("3.00".into()),
             t0 - DAY_MS,
         )))],
         None,
@@ -902,8 +908,11 @@ fn build_ocel(writer: &mut Writer<'_>) {
     writer.commit(retraction(O_ASSERTIONS + 6), None);
 }
 
+/// A node type name no fixture declares: the `event-type-not-found` control's name.
+pub const UNDECLARED_TYPE_NAME: &str = "no such node type";
+
 /// Commits one more transaction onto a built [`Fixture::Ocel`] store: a7, n2's text from
-/// T0 + 4 h, as revision 3, after which every note has a valid-time start.
+/// T0 + 4 h, as revision 3, after which every note has a dated fact.
 pub fn commit_later_ocel(runtime: &Runtime) {
     let mut writer = Writer {
         runtime,

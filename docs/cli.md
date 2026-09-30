@@ -155,7 +155,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent` |
 | `ekr code-names` | reads | one or more source files; `--at <revision>` | the `ekr.code-names/1` document: every literal in the files that equals one of the store's names, with file, line and what it names; exits 0 however many it finds |
 | `ekr quality` | reads | `--revision <revision>` | the `ekr.store-quality/1` document: evidenced assertions, constrained properties, names shared within a type |
-| `ekr ocel` | reads | `--revision <revision>` | the `ekr.ocel/1` document: the revision as an OCEL 2.0 event log in its `ocel` member |
+| `ekr ocel` | reads | `--revision <revision>`, `--events <type name>...` | the `ekr.ocel/1` document: the revision as an OCEL 2.0 event log in its `ocel` member, and `names` for its ids |
 | `ekr guide` | none | none | the workflow, as text |
 | `ekr operations` | none | an operation kind, optionally | the kinds, or one kind's fields and example |
 | `ekr example` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `schema-change`, `ekr-seed/2`, `ekr.cli-host/1` or `typed-reference` (aliases `transaction` for `/2`, `seed`, `host`) | a complete example document |
@@ -449,16 +449,30 @@ exit 2, as the `ekr.views` reads refuse them.
 
 Prints the store at the head, or at `--revision N` as of that committed revision, as an
 object-centric event log in the [OCEL 2.0](https://www.ocel-standard.org/) JSON format: the
-`ekr.ocel/1` document (`ekr.views.ExportOcel`), whose `meta` names the revision and whose `ocel`
-member is the log. The `ocel` member is what an OCEL 2.0 reader reads; write it to a file of its
-own, for example with `jq .ocel`. Two reads of one revision print the same bytes, before and after
-any later commit.
+`ekr.ocel/1` document (`ekr.views.ExportOcel`). Its `meta` names the revision, its `names` gives
+every type and property id the ontology's name for it, and its `ocel` member is the log. The `ocel`
+member is what an OCEL 2.0 reader reads; write it to a file of its own, for example with
+`jq .ocel`. Two reads of one request print the same bytes, before and after any later commit.
 
 ```console
 ekr ocel --revision 0
+ekr ocel --events Person
 ```
 
-On the example seed (`ekr example ekr-seed/2`):
+The event types are the viewer's: a node type the overview marks as an event type
+(`roles.types[].event` of `ekr.graph-overview/1`), by the valid-time rule the timeline uses. A node
+is judged when it holds a timestamp-like property value (a `Timestamp`, or an `Integer` of epoch
+milliseconds from 1,000,000,000,000 up to 10,000,000,000,000), or when it has at least two dated
+facts: `valid_time.from` of assertions of any lifecycle whose subject it is, or whose relation
+object it is. It is instant when it is timestamped or its dated facts lie within one hour. A type is
+an event type when it has a judged node and at least 60% of its judged nodes are instant.
+`--events <type name>...` names the event types instead: exactly the node types with those names,
+a name two types share naming both; a name no node type holds is refused as
+`ekr.views.EventTypeNotFound` (exit 2), naming it.
+
+The example seed (`ekr example ekr-seed/2`) has no event type under the rule. Bob's two dated facts
+lie six years apart and Alice has one, so Person has no instant node; Organization's Acme is the
+relation object of facts spread over the same years. The log is every node as an object:
 
 ```json
 {
@@ -466,35 +480,38 @@ On the example seed (`ekr example ekr-seed/2`):
     "format": "ekr.ocel/1",
     "revision": 0
   },
+  "names": {
+    "edge_types": [
+      {
+        "id": "00000000-0000-4000-8000-000000000203",
+        "name": "CEO_OF"
+      }
+    ],
+    "node_types": [
+      {
+        "id": "00000000-0000-4000-8000-000000000201",
+        "name": "Person"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000202",
+        "name": "Organization"
+      }
+    ],
+    "properties": [
+      {
+        "id": "00000000-0000-4000-8000-000000000801",
+        "name": "legal_name"
+      }
+    ]
+  },
   "ocel": {
-    "eventTypes": [
+    "eventTypes": [],
+    "events": [],
+    "objectTypes": [
       {
         "attributes": [],
         "name": "00000000-0000-4000-8000-000000000201"
-      }
-    ],
-    "events": [
-      {
-        "attributes": [],
-        "id": "00000000-0000-4000-8000-000000000301",
-        "relationships": [
-          {
-            "objectId": "00000000-0000-4000-8000-000000000303",
-            "qualifier": "00000000-0000-4000-8000-000000000203"
-          }
-        ],
-        "time": "2020-01-01T00:00:00.000Z",
-        "type": "00000000-0000-4000-8000-000000000201"
       },
-      {
-        "attributes": [],
-        "id": "00000000-0000-4000-8000-000000000302",
-        "relationships": [],
-        "time": "2020-01-01T00:00:00.000Z",
-        "type": "00000000-0000-4000-8000-000000000201"
-      }
-    ],
-    "objectTypes": [
       {
         "attributes": [
           {
@@ -508,6 +525,23 @@ On the example seed (`ekr example ekr-seed/2`):
     "objects": [
       {
         "attributes": [],
+        "id": "00000000-0000-4000-8000-000000000301",
+        "relationships": [
+          {
+            "objectId": "00000000-0000-4000-8000-000000000303",
+            "qualifier": "00000000-0000-4000-8000-000000000203"
+          }
+        ],
+        "type": "00000000-0000-4000-8000-000000000201"
+      },
+      {
+        "attributes": [],
+        "id": "00000000-0000-4000-8000-000000000302",
+        "relationships": [],
+        "type": "00000000-0000-4000-8000-000000000201"
+      },
+      {
+        "attributes": [],
         "id": "00000000-0000-4000-8000-000000000303",
         "relationships": [],
         "type": "00000000-0000-4000-8000-000000000202"
@@ -517,27 +551,29 @@ On the example seed (`ekr example ekr-seed/2`):
 }
 ```
 
-The log is read off the store's shape, never off a name:
+`ekr ocel --events Person` makes Alice and Bob events at their earliest dated fact,
+`2020-01-01T00:00:00.000Z`, and the CEO_OF edge an event-to-object relationship on Alice.
 
 | OCEL 2.0 | what the store gives it |
 |---|---|
-| event type | a node type that has at least one node and whose every node has a valid time: the subject of an assertion, not retracted, with a `valid_time.from` |
-| event | each node of an event type, at its earliest such `valid_time.from` |
+| event type | a node type the rule above marks, or one `--events` names |
+| event | each node of an event type, at its time as the timeline places it: its least timestamp-like property value, else its earliest dated fact. A node of an event type with no time is left out, and so is every edge to it |
 | object type | every other node type, one with no node included |
 | object | each node of an object type |
 | attribute | each property a node holds a value of; a type's attributes are the properties it declares or inherits |
 | relationship | each edge, qualified by its type id: on the event when one end is an event and the other an object, on the source when both are objects; an edge between two events is left out, since OCEL 2.0 relates events to objects only |
 
 Types, attributes and qualifiers are named by id, not by name: OCEL 2.0 identifies a type and an
-attribute by its name, and two of a store's types or properties may share one. `ekr ontology --at
-N` names them. A time is RFC 3339 in UTC with milliseconds. Every attribute value is a string, as
-the OCEL 2.0 JSON schema requires: a single value of a `One` property of a scalar kind is its text
-(an integer in decimal, a `Timestamp` as a time, a `NodeRef` as the node's id), and any other value
-list is its JSON as the projection writes `props`. An object's attribute values carry the time
-`1970-01-01T00:00:00.000Z`, which OCEL 2.0 gives an object's initial values; the store holds a
-node's properties without a time. A node's name, aliases and lifecycle state, and an edge's
-properties, are not part of the log. `ekr session` serves the verb too; the refusals are
-`ekr quality`'s.
+attribute by its name, and two of a store's types or properties may share one. `names` maps each
+id back: `node_types` and `edge_types` one entry per declared type, `properties` one entry per
+property id and name a type declares it under, each ordered by id. A time is RFC 3339 in UTC with
+milliseconds. Every attribute value is a string, as the OCEL 2.0 JSON schema requires: a single
+value of a `One` property of a scalar kind is its text (an integer in decimal, a `Timestamp` as a
+time, a `NodeRef` as the node's id), and any other value list is its JSON as the projection writes
+`props`. An object's attribute values carry the time `1970-01-01T00:00:00.000Z`, which OCEL 2.0
+gives an object's initial values; the store holds a node's properties without a time. A node's
+name, aliases and lifecycle state, and an edge's properties, are not part of the log. `ekr session`
+serves the verb too; the other refusals are `ekr quality`'s.
 
 ### `ekr guide`
 

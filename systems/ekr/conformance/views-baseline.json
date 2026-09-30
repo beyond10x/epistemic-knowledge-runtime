@@ -7,8 +7,8 @@
     "file",
     "sqlite"
   ],
-  "total": 65,
-  "answered_floor": 65,
+  "total": 66,
+  "answered_floor": 66,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -26,6 +26,7 @@
     "ekr.views.ExpandNeighbourhood/outcome/node-not-found",
     "ekr.views.ExpandNeighbourhood/outcome/not-found",
     "ekr.views.ExpandNeighbourhood/outcome/not-seeded",
+    "ekr.views.ExportOcel/outcome/event-type-not-found",
     "ekr.views.ExportOcel/outcome/exported",
     "ekr.views.ExportOcel/outcome/not-found",
     "ekr.views.ExportOcel/outcome/not-seeded",
@@ -157,7 +158,7 @@
     },
     "ekr.views/authored/an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest": {
       "file": "an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest.yaml",
-      "digest": "sha256:0292dc03e0395fc14ebe8fa1b3cecda2c01f0371e33fd4c7a02553983fd9cdd5"
+      "digest": "sha256:5f04cf388deb12347cea99929755c051ede6f66d7bda300a2b7f563f458f8da5"
     },
     "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes": {
       "file": "an-overview-lists-at-most-its-limit-of-top-nodes.yaml",
@@ -279,6 +280,13 @@
       "execute_command": 1,
       "expect_error": 1,
       "expect_no_event": 18,
+      "expect_outcome": 1
+    },
+    "ekr.views.ExportOcel/outcome/event-type-not-found": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 22,
       "expect_outcome": 1
     },
     "ekr.views.ExportOcel/outcome/exported": {
@@ -545,9 +553,11 @@
       "expect_outcome": 11
     },
     "ekr.views/authored/an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest": {
-      "execute_command": 3,
-      "expect_event": 3,
-      "expect_outcome": 3
+      "execute_command": 5,
+      "expect_error": 1,
+      "expect_event": 4,
+      "expect_no_event": 1,
+      "expect_outcome": 5
     },
     "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes": {
       "execute_command": 5,

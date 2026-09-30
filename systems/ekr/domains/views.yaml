@@ -1520,26 +1520,31 @@ types:
   # ekr.ocel/1 (ExportOcel): one revision as an object-centric event log in the OCEL 2.0 JSON
   # format (OCEL 2.0 specification § 8; its JSON schema,
   # https://www.ocel-standard.org/2.0/ocel20-schema-json.json, JSON Schema draft-07), wrapped with
-  # `meta`. `ocel` is the log: it validates against that schema and is what an OCEL 2.0 reader
-  # reads. Every role in it is taken from the store's shape, never from a name, and it holds
-  # nothing the revision does not.
-  #
-  # Valid-time start. A node's valid-time start is the least valid_from of the assertions whose
-  # subject is the node and whose lifecycle is Active or Superseded. A retracted assertion claims
-  # nothing and is not read, and neither is a valid_from that the time form below cannot write (a
-  # year outside 0000–9999). A node with no such valid_from has no valid-time start.
+  # `meta` and `names`. `ocel` is the log: it validates against that schema and is what an OCEL 2.0
+  # reader reads. It holds nothing the revision does not.
   #
   # Event and object types. Every node type the revision's ontology declares, and every type a
-  # node of the revision has, is exactly one of the two. A node type is an event type when it has
-  # at least one node and every node of it has a valid-time start; every other node type, one with
-  # no node included, is an object type. Each node of an event type is an event at its valid-time
-  # start; each node of an object type is an object. An edge type is neither: it qualifies.
+  # node of the revision has, is exactly one of the two. When the request names no event type,
+  # the event types are the overview's: a node type whose ekr.views.TypeTiming `event` is true,
+  # by the reference viewer's valid-time rule as TypeTiming states it (the rule the timeline
+  # uses), so EKR has one definition of an event type. When the request names event types, they
+  # are exactly the node types whose name, compared exactly as text, is one of the names, a name
+  # that two types share naming both; a name no node type of the revision's ontology holds is
+  # refused (ekr.views.EventTypeNotFound, the first such name in request order) and nothing is
+  # answered. Every other node type, one with no node included, is an object type. An edge type
+  # is neither: it qualifies.
+  #
+  # Events and objects. Each node of an event type is an event at its time as the timeline defines
+  # it (ekr.graph-timeline/1: its least timestamp-like property value, else the earliest of its
+  # dated facts). A node of an event type with no time, or with a time the time form below cannot
+  # write (a year outside 0000–9999), is not in the log: OCEL 2.0 gives every event a time.
+  # Each node of an object type is an object.
   #
   # Identities. A type's `name` is its type id, an event's or object's `id` its node id, an
   # attribute's `name` its property id and a relationship's `qualifier` its edge's type id. They
   # are ids because OCEL 2.0 identifies a type and an attribute by its name and two of the store's
-  # types or properties may share one; a reader takes the names from the ontology and the
-  # projection of the same revision.
+  # types or properties may share one. `names` gives each id the names the revision's ontology
+  # holds for it, so that a consumer labels the log without a second read.
   #
   # Attributes. A type's attributes are the properties ekr.ontology's properties_of gives for it
   # (its own and its ancestors', the most specific declaration winning). A declaration is scalar
@@ -1561,14 +1566,20 @@ types:
   # one end is an event and the other an object, an event-to-object relationship on the event
   # naming the object, whichever end is the source; when both ends are objects, an
   # object-to-object relationship on the source naming the target; when both ends are events,
-  # none, since OCEL 2.0 relates an event to objects only. Relationships are a set, so two edges of
-  # one type between the same ends give one.
+  # none, since OCEL 2.0 relates an event to objects only; when an end is a node of an event type
+  # that is not in the log, none. Relationships are a set, so two edges of one type between the
+  # same ends give one.
   #
-  # Determinism, so that two answers to one revision are byte-identical. Order: eventTypes and
+  # Names. `names.node_types` and `names.edge_types` hold one entry per type the revision's
+  # ontology declares, its id and its name; `names.properties` one entry per distinct pair of a
+  # property id and a name that a node type or an edge type of the ontology declares it under. Two
+  # entries may carry one name, and two property entries one id.
+  #
+  # Determinism, so that two answers to one request are byte-identical. Order: eventTypes and
   # objectTypes by name; each type's attributes by name; events by time, then id; objects by id;
-  # each event's and object's attributes by name and relationships by objectId, then qualifier.
-  # Rules (2) key order, (3) encoding, (4) presence and (5) hold as for the five bounded formats,
-  # and no field of this format is Optional.
+  # each event's and object's attributes by name and relationships by objectId, then qualifier;
+  # each list of `names` by id, then name. Rules (2) key order, (3) encoding, (4) presence and (5)
+  # hold as for the five bounded formats, and no field of this format is Optional.
   - name: ekr.views.OcelFormatV1
     kind: enum
     variants: [ekr.ocel/1]
@@ -1674,11 +1685,31 @@ types:
       - name: revision
         type: ekr.kernel.RevisionNumber
 
+  - name: ekr.views.OcelName
+    kind: struct
+    fields:
+      - name: id
+        type: String
+      - name: name
+        type: String
+
+  - name: ekr.views.OcelNames
+    kind: struct
+    fields:
+      - name: node_types
+        type: List<ekr.views.OcelName>
+      - name: edge_types
+        type: List<ekr.views.OcelName>
+      - name: properties
+        type: List<ekr.views.OcelName>
+
   - name: ekr.views.OcelLogV1
     kind: struct
     fields:
       - name: meta
         type: ekr.views.OcelMeta
+      - name: names
+        type: ekr.views.OcelNames
       - name: ocel
         type: ekr.views.Ocel20Log
 
@@ -1747,6 +1778,16 @@ errors:
         type: ekr.views.SinceKind
       - name: requested
         type: Integer
+
+  # `name` is the first name of the request's `events` that no node type of the revision's
+  # ontology holds; `revision` is the revision that was read.
+  - name: ekr.views.EventTypeNotFound
+    summary: The revision's ontology holds no node type with a name the request lists as an event type; nothing was answered.
+    fields:
+      - name: name
+        type: String
+      - name: revision
+        type: ekr.kernel.RevisionNumber
 
 commands:
   # Design § 82. A read of one immutable revision; the default is the newest. Writes no canonical
@@ -2264,8 +2305,10 @@ commands:
         summary: Nothing was answered; no head is reported, because there is none.
 
   # One revision as an OCEL 2.0 event log (ekr.views.OcelLogV1). `at` is the revision exported,
-  # the head when absent. No input bound: the log is the revision's own, whole. Its not-found and
-  # not-seeded outcomes are external for the reason ProjectGraph's are.
+  # the head when absent. `events` names the event types by node type name; empty, the overview's
+  # rule decides them (ekr.views.OcelLogV1). No input bound: the log is the revision's own, whole.
+  # Its not-found, not-seeded and event-type-not-found outcomes are external for the reason
+  # ProjectGraph's are: what decides them is store state, which no guard reads.
   - name: ekr.views.ExportOcel
     naming:
       wire: export-ocel
@@ -2275,6 +2318,8 @@ commands:
         type: ekr.views.StoreLocation
       - name: at
         type: Optional<ekr.kernel.RevisionNumber>
+      - name: events
+        type: List<String>
     response:
       - name: log
         type: ekr.views.OcelLogV1
@@ -2292,6 +2337,8 @@ commands:
             event_object_relationships: {generated: true}
             object_object_relationships: {generated: true}
             edges_between_events: {generated: true}
+            undated_events: {generated: true}
+            edges_of_undated_events: {generated: true}
             ocel_hash: {generated: true}
         summary: One ekr.ocel/1 document of the requested revision, byte-identical to every other answer to the same request with `at` resolved.
       - name: not-found
@@ -2302,6 +2349,10 @@ commands:
         external: the store has never been seeded
         error: ekr.views.NotSeeded
         summary: Nothing was answered; no head is reported, because there is none.
+      - name: event-type-not-found
+        external: the revision's ontology holds no node type with a name the request lists in events
+        error: ekr.views.EventTypeNotFound
+        summary: Nothing was answered; the refusal names the first such name.
 
 events:
   # What one render returned, counted over the document it returned, so a suite can hold a
@@ -2614,8 +2665,10 @@ events:
   # `event_types`, `object_types`, `events` and `objects` the lengths of the log's four arrays;
   # `event_object_relationships` the relationships its events hold and
   # `object_object_relationships` those its objects hold; `edges_between_events` the revision's
-  # edges both of whose ends are events, which the log does not carry; `ocel_hash` the hex
-  # SHA-256 of the document's exact bytes.
+  # edges both of whose ends are events in the log; `undated_events` the nodes of an event type
+  # left out of the log for want of a writable time, and `edges_of_undated_events` the edges with
+  # such a node at an end, neither of which the log carries; `ocel_hash` the hex SHA-256 of the
+  # document's exact bytes.
   - name: ekr.views.OcelExported
     fields:
       - name: revision
@@ -2633,6 +2686,10 @@ events:
       - name: object_object_relationships
         type: Integer
       - name: edges_between_events
+        type: Integer
+      - name: undated_events
+        type: Integer
+      - name: edges_of_undated_events
         type: Integer
       - name: ocel_hash
         type: ekr.kernel.ContentHash

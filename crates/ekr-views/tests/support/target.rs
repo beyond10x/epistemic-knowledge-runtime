@@ -14,11 +14,13 @@
 //! * **External outcomes.** A control establishes the state its branch declares and never selects
 //!   the reported outcome: `not-found` builds the named store as the seed alone, so the requested
 //!   revision does not exist; `not-seeded` opens the named store's provider without seeding it;
-//!   and `node-not-found` builds it as `schema-evolution` — revision 1 exists, and
-//!   [`fixtures::DESCRIBED`], the node the generated scenarios name, does not. An expansion that
-//!   names no seed is given that node as its one seed, which is what makes a seed unknown; the
-//!   generated `ExpandNeighbourhood` scenarios send `seeds: []`. The reads then answer whatever
-//!   they answer.
+//!   `node-not-found` and `event-type-not-found` build it as `schema-evolution` — revision 1
+//!   exists, and [`fixtures::DESCRIBED`], the node the generated scenarios name, does not, nor
+//!   does a node type named [`fixtures::UNDECLARED_TYPE_NAME`]. An expansion that names no seed is
+//!   given that node as its one seed, and an export that names no event type that name as its
+//!   one, which is what makes a seed or a name unknown; the generated `ExpandNeighbourhood` and
+//!   `ExportOcel` scenarios send `seeds: []` and `events: []`. The reads then answer whatever they
+//!   answer.
 //! * **Observations.** A command reports the event built from the summary the read returned, and
 //!   every event the provider log gained while it ran, by its logged name — so a read that wrote
 //!   anything is caught by the suite's `expect_no_event` steps.
@@ -34,8 +36,8 @@ use ekr_kernel::Runtime;
 use ekr_views::{
     BucketWidth, ChangesError, ChangesListed, ChangesRequest, CodeNamesFound, ExpandRequest,
     GraphOverviewed, GraphProjected, Index, LimitExceeded, NeighbourhoodExpanded, NodeDescribed,
-    NodesSearched, OcelExported, OverviewRequest, ProjectError, QueryError, SearchRequest,
-    SinceKind, SourceText, StoreQualityReported, SubjectsTimelined, TimelineRequest,
+    NodesSearched, OcelError, OcelExported, OverviewRequest, ProjectError, QueryError,
+    SearchRequest, SinceKind, SourceText, StoreQualityReported, SubjectsTimelined, TimelineRequest,
 };
 use ess_conformance::target::{
     ConformanceTarget, DeclaredErrorValue, EventObservationRequest, ExternalOutcomeControl,
@@ -76,6 +78,7 @@ enum Control {
     RevisionAbsent,
     Unseeded,
     NodeAbsent,
+    EventTypeAbsent,
 }
 
 struct Scenario {
@@ -111,7 +114,7 @@ enum Read {
     Changes(Result<ChangesRequest, ChangesError>),
     CodeNames(Vec<SourceText>),
     Quality,
-    Ocel,
+    Ocel(Vec<String>),
 }
 
 fn unavailable(operation: &str, detail: impl std::fmt::Display) -> TargetError {
@@ -350,6 +353,20 @@ fn sources(request: &SemanticCommandRequest) -> Result<Vec<SourceText>, TargetEr
         .collect()
 }
 
+/// `ExportOcel`'s `events`: the node type names, in request order.
+fn event_names(request: &SemanticCommandRequest) -> Result<Vec<String>, TargetError> {
+    let Some(Node::Seq(names)) = request.input.get("events") else {
+        return Err(unavailable("reading `events`", "not a list"));
+    };
+    names
+        .iter()
+        .map(|name| match name {
+            Node::Text(text) => Ok(text.clone()),
+            _ => Err(unavailable("reading `events`", "a name is not a text")),
+        })
+        .collect()
+}
+
 fn store_quality_reported(summary: &StoreQualityReported) -> Result<ObservedEvent, TargetError> {
     let mut fields = counts(&[
         ("revision", summary.revision),
@@ -381,6 +398,8 @@ fn ocel_exported(summary: &OcelExported) -> Result<ObservedEvent, TargetError> {
             summary.object_object_relationships,
         ),
         ("edges_between_events", summary.edges_between_events),
+        ("undated_events", summary.undated_events),
+        ("edges_of_undated_events", summary.edges_of_undated_events),
     ])?;
     fields.push(("ocel_hash", Node::Text(summary.ocel_hash.clone())));
     observed("ekr.views.OcelExported", fields)
@@ -572,7 +591,7 @@ fn read(request: &SemanticCommandRequest, command: &str) -> Result<Read, TargetE
         CHANGES_SINCE => Read::Changes(changes_request(request)?),
         FIND_CODE_NAMES => Read::CodeNames(sources(request)?),
         REPORT_STORE_QUALITY => Read::Quality,
-        EXPORT_OCEL => Read::Ocel,
+        EXPORT_OCEL => Read::Ocel(event_names(request)?),
         _ => Read::Graph,
     })
 }
@@ -652,10 +671,21 @@ fn answer(
             Err(error) => Ok((refused(command, QueryError::Project(error))?, None)),
         };
     }
-    if let Read::Ocel = read {
-        return match ekr_views::export_ocel(runtime, at) {
+    if let Read::Ocel(events) = read {
+        return match ekr_views::export_ocel(runtime, at, &events) {
             Ok(answer) => Ok((took("exported", ocel_exported(&answer.summary)?)?, None)),
-            Err(error) => Ok((refused(command, QueryError::Project(error))?, None)),
+            Err(OcelError::EventTypeNotFound { name, revision }) => Ok((
+                SemanticCommandResult::took(outcome_ref(command, "event-type-not-found")?)
+                    .with_error(
+                        error("ekr.views.EventTypeNotFound")?
+                            .with("name", Node::Text(name))
+                            .with("revision", integer(revision.get())?),
+                    ),
+                None,
+            )),
+            Err(OcelError::Project(error)) => {
+                Ok((refused(command, QueryError::Project(error))?, None))
+            }
         };
     }
     if let Read::Changes(request) = read {
@@ -678,7 +708,7 @@ fn answer(
     let result = (|| -> Result<Result<SemanticCommandResult, TargetError>, QueryError> {
         // The bound first: a broken one is refused before the store is read.
         match read {
-            Read::Graph | Read::Changes(_) | Read::CodeNames(_) | Read::Quality | Read::Ocel => {
+            Read::Graph | Read::Changes(_) | Read::CodeNames(_) | Read::Quality | Read::Ocel(_) => {
                 unreachable!("answered above")
             }
             Read::Overview(request) => {
@@ -792,6 +822,13 @@ impl ConformanceTarget for ViewsTarget {
                 format!("the store `{store}` is already built in this scenario"),
             ));
         }
+        if control == Some(Control::EventTypeAbsent) {
+            if let Read::Ocel(events) = &read {
+                if events.is_empty() {
+                    read = Read::Ocel(vec![fixtures::UNDECLARED_TYPE_NAME.to_owned()]);
+                }
+            }
+        }
         if control == Some(Control::NodeAbsent) {
             if let Read::Expand(Ok(expansion)) = &read {
                 if expansion.seeds().is_empty() {
@@ -817,7 +854,9 @@ impl ConformanceTarget for ViewsTarget {
             match control {
                 Some(Control::Unseeded) => {}
                 Some(Control::RevisionAbsent) => Fixture::SeedOnly.build(&runtime),
-                Some(Control::NodeAbsent) => Fixture::SchemaEvolution.build(&runtime),
+                Some(Control::NodeAbsent | Control::EventTypeAbsent) => {
+                    Fixture::SchemaEvolution.build(&runtime);
+                }
                 None => fixture.build(&runtime),
             }
             scenario.stores.insert(store.clone(), runtime);
@@ -881,6 +920,7 @@ impl ConformanceTarget for ViewsTarget {
             (command, "not-found") if COMMANDS.contains(&command) => Control::RevisionAbsent,
             (command, "not-seeded") if COMMANDS.contains(&command) => Control::Unseeded,
             (EXPAND_NEIGHBOURHOOD | DESCRIBE_NODE, "node-not-found") => Control::NodeAbsent,
+            (EXPORT_OCEL, "event-type-not-found") => Control::EventTypeAbsent,
             _ => {
                 return Err(TargetError::unsupported(
                     format!("establishing `{}`", request.force),

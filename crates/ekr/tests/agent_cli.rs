@@ -783,7 +783,14 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         ),
         (
             "ocel",
-            &["ekr.ocel/1", "OCEL 2.0", "valid time", "ekr head", store],
+            &[
+                "ekr.ocel/1",
+                "OCEL 2.0",
+                "valid-time rule",
+                "--events",
+                "ekr head",
+                store,
+            ],
         ),
         (
             "resolve",

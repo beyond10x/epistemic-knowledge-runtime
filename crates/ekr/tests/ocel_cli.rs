@@ -1,15 +1,13 @@
 //! `task:store-exports-ocel-event-log`: `ekr ocel` prints the `ekr.ocel/1` document of one
 //! revision (`ekr.views.ExportOcel`), as a one-shot verb and as an `ekr session` verb, on both
-//! providers.
+//! providers, with the event types the viewer's rule gives or the ones `--events` names.
 //!
-//! The store is the example seed. Its two Person nodes are each the subject of a CEO_OF
-//! assertion with a valid time, so Person is an event type — Alice and Bob events at their
-//! earliest valid time, 2020-01-01 — and Organization, whose one node Acme is the subject of
-//! none, an object type. The CEO_OF edge from Alice to Acme is Alice's one relationship. Then the
-//! example transaction, one more CEO_OF assertion about Alice valid from the same instant, as
-//! revision 1: the log is the same, and only `meta.revision` moves. The rules themselves are held
-//! on a richer store, with an OCEL 2.0 reader, in `crates/ekr-views/tests/ocel.rs` and the views
-//! conformance suite.
+//! The store is the example seed; then the example transaction, one more CEO_OF assertion about
+//! Alice valid from 2020-01-01, as revision 1. By the viewer's rule the store has no event type
+//! at either revision, so every node is an object and only `meta.revision` moves. Named with
+//! `--events Person`, Alice and Bob are events at their earliest dated fact, 2020-01-01. The
+//! rules themselves are held on a richer store, with an OCEL 2.0 reader, in
+//! `crates/ekr-views/tests/ocel.rs` and the views conformance suite.
 
 use std::io::Write;
 use std::path::PathBuf;
@@ -155,8 +153,43 @@ impl World {
     }
 }
 
-/// The example store's log, at any of its revisions.
+/// Each id of the example store with its name.
+fn example_names() -> Value {
+    json!({
+        "node_types": [
+            {"id": PERSON, "name": "Person"},
+            {"id": ORGANIZATION, "name": "Organization"},
+        ],
+        "edge_types": [{"id": CEO_OF, "name": "CEO_OF"}],
+        "properties": [{"id": LEGAL_NAME, "name": "legal_name"}],
+    })
+}
+
+fn organization() -> Value {
+    json!({"name": ORGANIZATION, "attributes": [{"name": LEGAL_NAME, "type": "string"}]})
+}
+
+/// The example store's log by the viewer's rule, at either revision: no type is an event type —
+/// Person's Bob and Organization's Acme each have dated facts spread over years, and Alice alone
+/// is not enough — so every node is an object, and the CEO_OF edge an object-to-object
+/// relationship on Alice.
 fn example_log() -> Value {
+    let object = |id: &str, object_type: &str, relationships: Value| json!({"id": id, "type": object_type, "attributes": [], "relationships": relationships});
+    json!({
+        "eventTypes": [],
+        "objectTypes": [{"name": PERSON, "attributes": []}, organization()],
+        "events": [],
+        "objects": [
+            object(ALICE, PERSON, json!([{"objectId": ACME, "qualifier": CEO_OF}])),
+            object(BOB, PERSON, json!([])),
+            object(ACME, ORGANIZATION, json!([])),
+        ],
+    })
+}
+
+/// The example store's log with Person named as the event type: Alice and Bob events at their
+/// earliest dated fact, 2020-01-01, and the CEO_OF edge on Alice.
+fn person_log() -> Value {
     let event = |id: &str, relationships: Value| {
         json!({
             "id": id,
@@ -168,9 +201,7 @@ fn example_log() -> Value {
     };
     json!({
         "eventTypes": [{"name": PERSON, "attributes": []}],
-        "objectTypes": [
-            {"name": ORGANIZATION, "attributes": [{"name": LEGAL_NAME, "type": "string"}]},
-        ],
+        "objectTypes": [organization()],
         "events": [
             event(ALICE, json!([{"objectId": ACME, "qualifier": CEO_OF}])),
             event(BOB, json!([])),
@@ -181,26 +212,73 @@ fn example_log() -> Value {
     })
 }
 
+fn document(revision: u64, log: Value) -> Value {
+    json!({
+        "meta": {"format": "ekr.ocel/1", "revision": revision},
+        "names": example_names(),
+        "ocel": log,
+    })
+}
+
 #[test]
 fn ocel_prints_each_revision_of_the_example_store_as_an_ocel_2_0_log_on_both_providers() {
     for backend in BACKENDS {
         let world = World::seeded(backend);
+        assert_eq!(world.ok(&["ocel"]), document(0, example_log()), "{backend}");
+        world.commit_revision_one();
+        assert_eq!(world.ok(&["ocel"]), document(1, example_log()), "{backend}");
         assert_eq!(
-            world.ok(&["ocel"]),
-            json!({"meta": {"format": "ekr.ocel/1", "revision": 0}, "ocel": example_log()}),
+            world.ok(&["ocel", "--revision", "0"]),
+            document(0, example_log()),
+            "{backend}: revision 0 after revision 1"
+        );
+    }
+}
+
+#[test]
+fn events_names_the_event_types_instead_of_the_rule() {
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        assert_eq!(
+            world.ok(&["ocel", "--events", "Person"]),
+            document(0, person_log()),
             "{backend}"
         );
         world.commit_revision_one();
         assert_eq!(
-            world.ok(&["ocel"]),
-            json!({"meta": {"format": "ekr.ocel/1", "revision": 1}, "ocel": example_log()}),
+            world.ok(&["ocel", "--revision", "1", "--events", "Person"]),
+            document(1, person_log()),
             "{backend}"
         );
+        // Both types, as one flag with two values or the flag twice.
+        let both = world.stdout(&["ocel", "--events", "Person", "Organization"]);
         assert_eq!(
-            world.ok(&["ocel", "--revision", "0"])["meta"]["revision"],
-            0,
-            "{backend}: revision 0 after revision 1"
+            both,
+            world.stdout(&["ocel", "--events", "Organization", "--events", "Person"]),
+            "{backend}"
         );
+        let both: Value = serde_json::from_slice(&both).unwrap();
+        assert_eq!(
+            both["ocel"]["events"].as_array().unwrap().len(),
+            3,
+            "{backend}"
+        );
+        assert_eq!(both["ocel"]["objects"], json!([]), "{backend}");
+    }
+}
+
+#[test]
+fn a_name_no_node_type_holds_is_refused_by_name() {
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        let refused = world.run(&["ocel", "--events", "Person", "Nope"]);
+        assert_eq!(refused.status.code(), Some(2), "{backend}");
+        let stderr = String::from_utf8_lossy(&refused.stderr);
+        assert!(
+            stderr.contains("ekr.views.EventTypeNotFound") && stderr.contains("\"Nope\""),
+            "{backend}: {stderr}"
+        );
+        assert!(refused.stdout.is_empty(), "{backend}");
     }
 }
 
@@ -210,6 +288,7 @@ fn two_reads_of_one_revision_print_the_same_bytes_on_both_providers() {
     for backend in BACKENDS {
         let world = World::seeded(backend);
         let seeded = world.stdout(&["ocel"]);
+        let named = world.stdout(&["ocel", "--events", "Person"]);
         world.commit_revision_one();
         let first = world.stdout(&["ocel", "--revision", "1"]);
         assert_eq!(
@@ -223,8 +302,13 @@ fn two_reads_of_one_revision_print_the_same_bytes_on_both_providers() {
             world.stdout(&["ocel", "--revision", "0"]),
             "{backend}: revision 0 before and after revision 1"
         );
+        assert_eq!(
+            named,
+            world.stdout(&["ocel", "--revision", "0", "--events", "Person"]),
+            "{backend}: named, revision 0 before and after revision 1"
+        );
         assert_ne!(first, seeded, "{backend}: meta.revision differs");
-        per_backend.push((seeded, first));
+        per_backend.push((seeded, named, first));
     }
     assert_eq!(per_backend[0], per_backend[1], "file and sqlite");
 }
@@ -236,26 +320,28 @@ fn a_session_serves_ocel_as_the_one_shot_verb_prints_it() {
         world.commit_revision_one();
         let answers = world.session(&[
             json!({"argv": ["ocel"]}),
-            json!({"argv": ["ocel", "--revision", "0"]}),
+            json!({"argv": ["ocel", "--revision", "0", "--events", "Person"]}),
             json!({"argv": ["ocel", "--revision", "7"]}),
+            json!({"argv": ["ocel", "--events", "Nope"]}),
         ]);
-        assert_eq!(answers.len(), 3, "{backend}");
-        for (answer, one_shot) in answers
-            .iter()
-            .zip([world.ok(&["ocel"]), world.ok(&["ocel", "--revision", "0"])])
-        {
+        assert_eq!(answers.len(), 4, "{backend}");
+        for (answer, one_shot) in answers.iter().zip([
+            world.ok(&["ocel"]),
+            world.ok(&["ocel", "--revision", "0", "--events", "Person"]),
+        ]) {
             assert_eq!(answer["exit"], 0, "{backend}: {answer}");
             assert_eq!(answer["stdout"], one_shot, "{backend}");
         }
-        assert_eq!(answers[2]["exit"], 2, "{backend}: {}", answers[2]);
-        assert!(
-            answers[2]["stderr"]
-                .as_str()
-                .unwrap()
-                .contains("ekr.views.RevisionNotFound"),
-            "{backend}: {}",
-            answers[2]
-        );
+        for (answer, refusal) in answers[2..]
+            .iter()
+            .zip(["ekr.views.RevisionNotFound", "ekr.views.EventTypeNotFound"])
+        {
+            assert_eq!(answer["exit"], 2, "{backend}: {answer}");
+            assert!(
+                answer["stderr"].as_str().unwrap().contains(refusal),
+                "{backend}: {answer}"
+            );
+        }
     }
 }
 
