@@ -7,8 +7,8 @@
     "file",
     "sqlite"
   ],
-  "total": 61,
-  "answered_floor": 61,
+  "total": 65,
+  "answered_floor": 65,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -26,6 +26,9 @@
     "ekr.views.ExpandNeighbourhood/outcome/node-not-found",
     "ekr.views.ExpandNeighbourhood/outcome/not-found",
     "ekr.views.ExpandNeighbourhood/outcome/not-seeded",
+    "ekr.views.ExportOcel/outcome/exported",
+    "ekr.views.ExportOcel/outcome/not-found",
+    "ekr.views.ExportOcel/outcome/not-seeded",
     "ekr.views.FindCodeNames/outcome/found",
     "ekr.views.FindCodeNames/outcome/not-found",
     "ekr.views.FindCodeNames/outcome/not-seeded",
@@ -66,6 +69,7 @@
     "ekr.views/authored/an-add-evidence-is-listed-once-as-evidence-added",
     "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge",
     "ekr.views/authored/an-expansion-refuses-each-input-outside-its-bound",
+    "ekr.views/authored/an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest",
     "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes",
     "ekr.views/authored/an-unknown-seed-is-refused-by-name",
     "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound",
@@ -150,6 +154,10 @@
     "ekr.views/authored/an-expansion-refuses-each-input-outside-its-bound": {
       "file": "an-expansion-refuses-each-input-outside-its-bound.yaml",
       "digest": "sha256:e3022088b504e97a431817a75b16d4866f697f4eedccd12172c56e2a074599fd"
+    },
+    "ekr.views/authored/an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest": {
+      "file": "an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest.yaml",
+      "digest": "sha256:0292dc03e0395fc14ebe8fa1b3cecda2c01f0371e33fd4c7a02553983fd9cdd5"
     },
     "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes": {
       "file": "an-overview-lists-at-most-its-limit-of-top-nodes.yaml",
@@ -271,6 +279,26 @@
       "execute_command": 1,
       "expect_error": 1,
       "expect_no_event": 18,
+      "expect_outcome": 1
+    },
+    "ekr.views.ExportOcel/outcome/exported": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_no_event": 21,
+      "expect_outcome": 1
+    },
+    "ekr.views.ExportOcel/outcome/not-found": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 22,
+      "expect_outcome": 1
+    },
+    "ekr.views.ExportOcel/outcome/not-seeded": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 22,
       "expect_outcome": 1
     },
     "ekr.views.FindCodeNames/outcome/found": {
@@ -515,6 +543,11 @@
       "expect_event": 3,
       "expect_no_event": 8,
       "expect_outcome": 11
+    },
+    "ekr.views/authored/an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest": {
+      "execute_command": 3,
+      "expect_event": 3,
+      "expect_outcome": 3
     },
     "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes": {
       "execute_command": 5,

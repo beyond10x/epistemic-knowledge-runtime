@@ -63,6 +63,8 @@ WORKFLOW
      ekr quality [--revision N]                    the store's quality beyond its size:
                                                    evidenced assertions, constrained
                                                    properties, names shared within a type
+     ekr ocel [--revision N]                       one revision as an OCEL 2.0 event log
+                                                   (its `ocel` member), types and attributes by id
      ekr view [--port N]                           a read-only viewer on 127.0.0.1, until interrupted
      ekr mcp                                       read-only MCP tools over stdio for an agent's
                                                    client: overview, search, describe_node,

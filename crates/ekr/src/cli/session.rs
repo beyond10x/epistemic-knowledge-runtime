@@ -703,6 +703,7 @@ fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
         | Command::Ontology { .. }
         | Command::CodeNames { .. }
         | Command::Quality { .. }
+        | Command::Ocel { .. }
         | Command::Schema { .. }
         | Command::Mint { .. }
         | Command::Hash { .. } => Ok(()),

@@ -1,8 +1,8 @@
-//! The ESS conformance target over `ekr_views`' nine reads, on one native provider:
-//! `ekr_views::project` for `ProjectGraph`, `ekr_views::report_quality` for
-//! `ReportStoreQuality`, `ekr_views::find_code_names` for `FindCodeNames`, whose `sources` input
-//! is the list of `{path, text}` it answers for, and an [`ekr_views::Index`] of the requested
-//! revision for `ProjectOverview`, `ExpandNeighbourhood`, `DescribeNode`, `SearchNodes`,
+//! The ESS conformance target over `ekr_views`' ten reads, on one native provider:
+//! `ekr_views::project` for `ProjectGraph`, `ekr_views::report_quality` for `ReportStoreQuality`,
+//! `ekr_views::export_ocel` for `ExportOcel`, `ekr_views::find_code_names` for `FindCodeNames`, whose
+//! `sources` input is the list of `{path, text}` it answers for, and an [`ekr_views::Index`] of the
+//! requested revision for `ProjectOverview`, `ExpandNeighbourhood`, `DescribeNode`, `SearchNodes`,
 //! `ProjectTimeline` and `ChangesSince`.
 //!
 //! * **Isolation.** Every scenario gets a fresh directory below the caller's work directory, and
@@ -34,8 +34,8 @@ use ekr_kernel::Runtime;
 use ekr_views::{
     BucketWidth, ChangesError, ChangesListed, ChangesRequest, CodeNamesFound, ExpandRequest,
     GraphOverviewed, GraphProjected, Index, LimitExceeded, NeighbourhoodExpanded, NodeDescribed,
-    NodesSearched, OverviewRequest, ProjectError, QueryError, SearchRequest, SinceKind, SourceText,
-    StoreQualityReported, SubjectsTimelined, TimelineRequest,
+    NodesSearched, OcelExported, OverviewRequest, ProjectError, QueryError, SearchRequest,
+    SinceKind, SourceText, StoreQualityReported, SubjectsTimelined, TimelineRequest,
 };
 use ess_conformance::target::{
     ConformanceTarget, DeclaredErrorValue, EventObservationRequest, ExternalOutcomeControl,
@@ -57,7 +57,8 @@ const PROJECT_TIMELINE: &str = "ekr.views.ProjectTimeline";
 const CHANGES_SINCE: &str = "ekr.views.ChangesSince";
 const FIND_CODE_NAMES: &str = "ekr.views.FindCodeNames";
 const REPORT_STORE_QUALITY: &str = "ekr.views.ReportStoreQuality";
-const COMMANDS: [&str; 9] = [
+const EXPORT_OCEL: &str = "ekr.views.ExportOcel";
+const COMMANDS: [&str; 10] = [
     PROJECT_GRAPH,
     PROJECT_OVERVIEW,
     EXPAND_NEIGHBOURHOOD,
@@ -67,6 +68,7 @@ const COMMANDS: [&str; 9] = [
     CHANGES_SINCE,
     FIND_CODE_NAMES,
     REPORT_STORE_QUALITY,
+    EXPORT_OCEL,
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -109,6 +111,7 @@ enum Read {
     Changes(Result<ChangesRequest, ChangesError>),
     CodeNames(Vec<SourceText>),
     Quality,
+    Ocel,
 }
 
 fn unavailable(operation: &str, detail: impl std::fmt::Display) -> TargetError {
@@ -362,6 +365,27 @@ fn store_quality_reported(summary: &StoreQualityReported) -> Result<ObservedEven
     observed("ekr.views.StoreQualityReported", fields)
 }
 
+fn ocel_exported(summary: &OcelExported) -> Result<ObservedEvent, TargetError> {
+    let mut fields = counts(&[
+        ("revision", summary.revision),
+        ("event_types", summary.event_types),
+        ("object_types", summary.object_types),
+        ("events", summary.events),
+        ("objects", summary.objects),
+        (
+            "event_object_relationships",
+            summary.event_object_relationships,
+        ),
+        (
+            "object_object_relationships",
+            summary.object_object_relationships,
+        ),
+        ("edges_between_events", summary.edges_between_events),
+    ])?;
+    fields.push(("ocel_hash", Node::Text(summary.ocel_hash.clone())));
+    observed("ekr.views.OcelExported", fields)
+}
+
 /// `ChangesSince`'s input, bounded: its since kind by name, its since, and its page.
 fn changes_request(
     request: &SemanticCommandRequest,
@@ -548,6 +572,7 @@ fn read(request: &SemanticCommandRequest, command: &str) -> Result<Read, TargetE
         CHANGES_SINCE => Read::Changes(changes_request(request)?),
         FIND_CODE_NAMES => Read::CodeNames(sources(request)?),
         REPORT_STORE_QUALITY => Read::Quality,
+        EXPORT_OCEL => Read::Ocel,
         _ => Read::Graph,
     })
 }
@@ -627,6 +652,12 @@ fn answer(
             Err(error) => Ok((refused(command, QueryError::Project(error))?, None)),
         };
     }
+    if let Read::Ocel = read {
+        return match ekr_views::export_ocel(runtime, at) {
+            Ok(answer) => Ok((took("exported", ocel_exported(&answer.summary)?)?, None)),
+            Err(error) => Ok((refused(command, QueryError::Project(error))?, None)),
+        };
+    }
     if let Read::Changes(request) = read {
         // The since and the bounds first: a broken one is refused before the store is read.
         let listed = request.and_then(|request| {
@@ -647,7 +678,7 @@ fn answer(
     let result = (|| -> Result<Result<SemanticCommandResult, TargetError>, QueryError> {
         // The bound first: a broken one is refused before the store is read.
         match read {
-            Read::Graph | Read::Changes(_) | Read::CodeNames(_) | Read::Quality => {
+            Read::Graph | Read::Changes(_) | Read::CodeNames(_) | Read::Quality | Read::Ocel => {
                 unreachable!("answered above")
             }
             Read::Overview(request) => {

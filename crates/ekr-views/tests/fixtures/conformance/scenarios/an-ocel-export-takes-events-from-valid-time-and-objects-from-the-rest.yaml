@@ -1,0 +1,80 @@
+# task:store-exports-ocel-event-log: every count of ekr.ocel/1 equals the fixture's
+# (ekr.views.OcelLogV1).
+#
+# The store `ocel` (crates/ekr-views/tests/support/fixtures.rs, `Fixture::Ocel`):
+#   - node types case, subcase (a case), step, note and unused; edge types about (step to case
+#     or subcase), touches (case to step), holds (case to note) and follows (step to step).
+#   - nodes: cases c1 and c2, the subcase s1, steps p1, p2 and p3, notes n1 and n2; unused has
+#     none.
+#   - assertions with a valid_from: about c1, p1, p2, p3 and n1. Every step has a valid-time
+#     start, so step is the one event type; c2, s1 and n2 have none, so case, subcase and note
+#     are object types, and unused, with no node, is one too: 1 event type, 4 object types, 3
+#     events, 5 objects.
+#   - edges: e1 and e2 about p1 to c1 (one relationship), e3 about p2 to c2, e4 touches c1 to
+#     p3 (on the event p3), e8 about p3 to s1 — 4 event-to-object relationships; e5 and e6 holds
+#     c1 to n1 and c1 to n2 — 2 object-to-object; e7 follows p1 to p2, between two events, is
+#     not carried.
+#   - revision 1 adds an earlier valid time to p2 and revision 2 retracts it: the counts hold
+#     at every revision, and only p2's time moves (held byte for byte in tests/ocel.rs).
+type: ess-scenario/1
+domain: ekr.views
+scenario: an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest
+summary: The OCEL 2.0 export of revisions 0, 1 and the head takes the step nodes, all of them dated, as the events, every other node as an object and every edge but one between two events as a relationship.
+
+timeline:
+  - at: 2027-01-15T14:00:00Z
+    command: ekr.views.ExportOcel
+    actor: ekr.views.Reader
+    input:
+      store: ocel
+      at: 0
+    outcome: exported
+    events:
+      - event: ekr.views.OcelExported
+        payload:
+          revision: 0
+          event_types: 1
+          object_types: 4
+          events: 3
+          objects: 5
+          event_object_relationships: 4
+          object_object_relationships: 2
+          edges_between_events: 1
+
+  - at: 2027-01-15T14:01:00Z
+    command: ekr.views.ExportOcel
+    actor: ekr.views.Reader
+    input:
+      store: ocel
+      at: 1
+    outcome: exported
+    events:
+      - event: ekr.views.OcelExported
+        payload:
+          revision: 1
+          event_types: 1
+          object_types: 4
+          events: 3
+          objects: 5
+          event_object_relationships: 4
+          object_object_relationships: 2
+          edges_between_events: 1
+
+  - at: 2027-01-15T14:02:00Z
+    command: ekr.views.ExportOcel
+    actor: ekr.views.Reader
+    input:
+      store: ocel
+      at: null
+    outcome: exported
+    events:
+      - event: ekr.views.OcelExported
+        payload:
+          revision: 2
+          event_types: 1
+          object_types: 4
+          events: 3
+          objects: 5
+          event_object_relationships: 4
+          object_object_relationships: 2
+          edges_between_events: 1

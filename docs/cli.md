@@ -155,6 +155,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent` |
 | `ekr code-names` | reads | one or more source files; `--at <revision>` | the `ekr.code-names/1` document: every literal in the files that equals one of the store's names, with file, line and what it names; exits 0 however many it finds |
 | `ekr quality` | reads | `--revision <revision>` | the `ekr.store-quality/1` document: evidenced assertions, constrained properties, names shared within a type |
+| `ekr ocel` | reads | `--revision <revision>` | the `ekr.ocel/1` document: the revision as an OCEL 2.0 event log in its `ocel` member |
 | `ekr guide` | none | none | the workflow, as text |
 | `ekr operations` | none | an operation kind, optionally | the kinds, or one kind's fields and example |
 | `ekr example` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `schema-change`, `ekr-seed/2`, `ekr.cli-host/1` or `typed-reference` (aliases `transaction` for `/2`, `seed`, `host`) | a complete example document |
@@ -443,6 +444,100 @@ all of it; it is left out when the whole is `0`. The document is printed as ever
 JSON, keys in alphabetical order; `ekr session` answers it as `"stdout"`. A store never seeded is
 refused as `ekr.views.NotSeeded` and a revision it does not hold as `ekr.views.RevisionNotFound`,
 exit 2, as the `ekr.views` reads refuse them.
+
+### `ekr ocel`
+
+Prints the store at the head, or at `--revision N` as of that committed revision, as an
+object-centric event log in the [OCEL 2.0](https://www.ocel-standard.org/) JSON format: the
+`ekr.ocel/1` document (`ekr.views.ExportOcel`), whose `meta` names the revision and whose `ocel`
+member is the log. The `ocel` member is what an OCEL 2.0 reader reads; write it to a file of its
+own, for example with `jq .ocel`. Two reads of one revision print the same bytes, before and after
+any later commit.
+
+```console
+ekr ocel --revision 0
+```
+
+On the example seed (`ekr example ekr-seed/2`):
+
+```json
+{
+  "meta": {
+    "format": "ekr.ocel/1",
+    "revision": 0
+  },
+  "ocel": {
+    "eventTypes": [
+      {
+        "attributes": [],
+        "name": "00000000-0000-4000-8000-000000000201"
+      }
+    ],
+    "events": [
+      {
+        "attributes": [],
+        "id": "00000000-0000-4000-8000-000000000301",
+        "relationships": [
+          {
+            "objectId": "00000000-0000-4000-8000-000000000303",
+            "qualifier": "00000000-0000-4000-8000-000000000203"
+          }
+        ],
+        "time": "2020-01-01T00:00:00.000Z",
+        "type": "00000000-0000-4000-8000-000000000201"
+      },
+      {
+        "attributes": [],
+        "id": "00000000-0000-4000-8000-000000000302",
+        "relationships": [],
+        "time": "2020-01-01T00:00:00.000Z",
+        "type": "00000000-0000-4000-8000-000000000201"
+      }
+    ],
+    "objectTypes": [
+      {
+        "attributes": [
+          {
+            "name": "00000000-0000-4000-8000-000000000801",
+            "type": "string"
+          }
+        ],
+        "name": "00000000-0000-4000-8000-000000000202"
+      }
+    ],
+    "objects": [
+      {
+        "attributes": [],
+        "id": "00000000-0000-4000-8000-000000000303",
+        "relationships": [],
+        "type": "00000000-0000-4000-8000-000000000202"
+      }
+    ]
+  }
+}
+```
+
+The log is read off the store's shape, never off a name:
+
+| OCEL 2.0 | what the store gives it |
+|---|---|
+| event type | a node type that has at least one node and whose every node has a valid time: the subject of an assertion, not retracted, with a `valid_time.from` |
+| event | each node of an event type, at its earliest such `valid_time.from` |
+| object type | every other node type, one with no node included |
+| object | each node of an object type |
+| attribute | each property a node holds a value of; a type's attributes are the properties it declares or inherits |
+| relationship | each edge, qualified by its type id: on the event when one end is an event and the other an object, on the source when both are objects; an edge between two events is left out, since OCEL 2.0 relates events to objects only |
+
+Types, attributes and qualifiers are named by id, not by name: OCEL 2.0 identifies a type and an
+attribute by its name, and two of a store's types or properties may share one. `ekr ontology --at
+N` names them. A time is RFC 3339 in UTC with milliseconds. Every attribute value is a string, as
+the OCEL 2.0 JSON schema requires: a single value of a `One` property of a scalar kind is its text
+(an integer in decimal, a `Timestamp` as a time, a `NodeRef` as the node's id), and any other value
+list is its JSON as the projection writes `props`. An object's attribute values carry the time
+`1970-01-01T00:00:00.000Z`, which OCEL 2.0 gives an object's initial values; the store holds a
+node's properties without a time. A node's name, aliases and lifecycle state, and an edge's
+properties, are not part of the log. `ekr session` serves the verb too; the refusals are
+`ekr quality`'s.
 
 ### `ekr guide`
 
@@ -742,7 +837,7 @@ writes through one process instead of one each:
 ```
 
 A session serves `propose`, `validate`, `commit`, `snapshot`, `explain`, `resolve`, `head`,
-`transactions`, `rejections`, `ontology`, `quality`, `mint`, `hash` and `schema`, the `ekr.views` reads
+`transactions`, `rejections`, `ontology`, `quality`, `ocel`, `mint`, `hash` and `schema`, the `ekr.views` reads
 ([below](#session-views)), and `seed` when it was started with `--create`. It refuses these, each
 answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"stderr"`:
 

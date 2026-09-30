@@ -4,6 +4,26 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- **`ekr ocel` exports a store as an OCEL 2.0 event log** (`docs/cli.md`, `ekr ocel`): the
+  `ekr.ocel/1` document of the head or of `--revision N`, a one-shot verb and an `ekr session`
+  verb, whose `ocel` member is an object-centric event log in the OCEL 2.0 JSON format. Roles come
+  from the store's shape, never from names: a node type whose every node has a valid time is an
+  event type, each node an event at its earliest valid time; every other node type is an object
+  type; edges are relationships qualified by their type id, and properties are attributes. Types,
+  attributes and qualifiers are named by id, which `ekr ontology` names. Two reads of one revision
+  print the same bytes. Specified as `ekr.views.ExportOcel` in `systems/ekr/domains/views.yaml`,
+  with `ekr_views::export_ocel` in the library.
+
+### Fixed
+
+- **The schema lineage lists a version that reuses another kind's id** (`ekr view`, the
+  overview's `schema.versions`). A version that declared a property under an id the parent used
+  for a type, or a type under a property's id, listed nothing it added, and the viewer called the
+  version empty. A lineage member is now its kind and id together, ordered by id, then kind; a
+  store without such ids reads the same bytes as before.
+
 ## [0.0.23] — 2026-09-30
 
 The viewer collapses its sidebars and solos a type; the schema lineage shows every schema change;

@@ -16,8 +16,9 @@ summary: >-
   revisions up to one revision changed after a revision or a time. ekr.store-quality/1
   (ReportStoreQuality) reports how well one revision's assertions are evidenced, its properties
   constrained and its nodes of one type named apart. ekr.code-names/1 (FindCodeNames) reports
-  which of a revision's names a consumer's source files carry as literals. This domain writes
-  nothing; its nine commands read.
+  which of a revision's names a consumer's source files carry as literals. ekr.ocel/1
+  (ExportOcel) exports one revision as an OCEL 2.0 object-centric event log. This domain writes
+  nothing; its ten commands read.
 
   Determinism, which every renderer of ekr.graph-projection/1 holds to so that two renders of one
   revision are byte-identical. (1) Order. By id: every array whose members carry an `id`, and
@@ -51,7 +52,8 @@ summary: >-
   ordered as rule (1) orders it; and ids ascend in the lowercase hyphenated text of the UUID. Rule
   (1), order, is per format, and in each no array appears that is not named:
   ekr.graph-overview/1 — ontology as rule (1); schema.versions and schema.revisions by number
-  ascending; each version's added and removed by id; each version's widened by edge type id, a
+  ascending; each version's added and removed by id, then kind in the order
+  ekr.views.SchemaMemberKind declares its variants; each version's widened by edge type id, a
   Source end before a Target end, and each widened end's node_types by id; each version's
   modified by owner id, then property id, and each one's changed in the order
   ekr.views.PropertyAspect declares its variants; node_types, edge_types and roles.types by
@@ -467,7 +469,9 @@ types:
         type: Integer
 
   # What a schema version declares that its neighbour in the lineage does not: a node type, an
-  # edge type or a property definition, by id, with the name the declaring version gives it.
+  # edge type or a property definition, by kind and id together, with the name the declaring
+  # version gives it. One UUID may be both a type's id and a property's (ekr.ontology does not
+  # refuse an id reused across kinds), and each is its own member.
   - name: ekr.views.SchemaMemberKind
     kind: enum
     variants: [NodeType, EdgeType, Property]
@@ -483,17 +487,18 @@ types:
         type: String
 
   # One version of the lineage. `revision` is the first revision whose canonical state is valid
-  # against it. `added` is every type and property id it declares and its parent does not (for the
-  # seed's version, every id it declares), named as this version names it; `removed` every id its
-  # parent declares and it does not, named as the parent names it (empty for the seed's version).
-  # A property is compared by its id alone, so a property that moves from one type to another is
-  # in neither list. Only versions whose `revision` is at most the overviewed revision are listed.
+  # against it. `added` is every member — a kind and an id — it declares and its parent does not
+  # (for the seed's version, every member it declares), named as this version names it; `removed`
+  # every member its parent declares and it does not, named as the parent names it (empty for the
+  # seed's version). A version that declares a property under an id the parent declares only as
+  # a type, or the reverse, adds it. A property is compared by its id alone among properties, so
+  # a property that moves from one type to another is in neither list. Only versions whose `revision` is at most the overviewed revision are listed.
   # `widened` and `modified` say what else the version changed against its parent (nothing for
   # the seed's version, which has none): `widened` every end of an edge type both declare that
   # holds a node type in this version and not in the parent (ekr.views.WidenedEnd, what
   # WidenEdgeType does); `modified` every property declaration of a node or edge type that
-  # differs from that type's declaration of it in the parent, for a property whose id is in
-  # neither `added` nor `removed` (ekr.views.ModifiedProperty, what ModifyProperty does to a
+  # differs from that type's declaration of it in the parent, for a property that is in neither
+  # `added` nor `removed` as a Property (ekr.views.ModifiedProperty, what ModifyProperty does to a
   # property that exists). No schema change alters any other part of a type's declaration
   # (DefineNodeType and DefineEdgeType declare new ids only), so a committed version lists nothing
   # in all four exactly when its ontology is its parent's. `added` and `removed` keep
@@ -1511,6 +1516,172 @@ types:
       - name: findings
         type: List<ekr.views.CodeNameFinding>
 
+  # ---------------------------------------------------------------------------------------------
+  # ekr.ocel/1 (ExportOcel): one revision as an object-centric event log in the OCEL 2.0 JSON
+  # format (OCEL 2.0 specification § 8; its JSON schema,
+  # https://www.ocel-standard.org/2.0/ocel20-schema-json.json, JSON Schema draft-07), wrapped with
+  # `meta`. `ocel` is the log: it validates against that schema and is what an OCEL 2.0 reader
+  # reads. Every role in it is taken from the store's shape, never from a name, and it holds
+  # nothing the revision does not.
+  #
+  # Valid-time start. A node's valid-time start is the least valid_from of the assertions whose
+  # subject is the node and whose lifecycle is Active or Superseded. A retracted assertion claims
+  # nothing and is not read, and neither is a valid_from that the time form below cannot write (a
+  # year outside 0000–9999). A node with no such valid_from has no valid-time start.
+  #
+  # Event and object types. Every node type the revision's ontology declares, and every type a
+  # node of the revision has, is exactly one of the two. A node type is an event type when it has
+  # at least one node and every node of it has a valid-time start; every other node type, one with
+  # no node included, is an object type. Each node of an event type is an event at its valid-time
+  # start; each node of an object type is an object. An edge type is neither: it qualifies.
+  #
+  # Identities. A type's `name` is its type id, an event's or object's `id` its node id, an
+  # attribute's `name` its property id and a relationship's `qualifier` its edge's type id. They
+  # are ids because OCEL 2.0 identifies a type and an attribute by its name and two of the store's
+  # types or properties may share one; a reader takes the names from the ontology and the
+  # projection of the same revision.
+  #
+  # Attributes. A type's attributes are the properties ekr.ontology's properties_of gives for it
+  # (its own and its ancestors', the most specific declaration winning). A declaration is scalar
+  # when its cardinality is One and its value type is String, Enum or NodeRef (typed `string`),
+  # Boolean (`boolean`), Integer or Duration (`integer`), Float or Decimal (`float`), or Timestamp
+  # (`time`); every other declaration is typed `string`. A node's attributes are its property
+  # values, one attribute per property it holds a value of: under a scalar declaration, a single
+  # value of the declared kind is written as its text — a String's or an Enum's text, `true` or
+  # `false`, the decimal integer, a Decimal's exact text, a Timestamp in the time form below (its
+  # decimal milliseconds outside years 0000–9999), a NodeRef's node id; any other value list is
+  # the compact JSON of the list as ekr.views.ProjectedValue writes it in a projection's props.
+  # Every value is a JSON string, as the OCEL 2.0 JSON schema requires. An object's attribute
+  # values carry the time 1970-01-01T00:00:00.000Z, which OCEL 2.0 (§ 6.4) gives an object's
+  # initial values: the store holds a node's properties without a time. A node's canonical name,
+  # aliases and lifecycle state are not properties and are not attributes. An edge's properties
+  # are not carried: an OCEL 2.0 relationship holds an object and a qualifier only.
+  #
+  # Relationships. Each edge of the revision is one relationship qualified by its type id: when
+  # one end is an event and the other an object, an event-to-object relationship on the event
+  # naming the object, whichever end is the source; when both ends are objects, an
+  # object-to-object relationship on the source naming the target; when both ends are events,
+  # none, since OCEL 2.0 relates an event to objects only. Relationships are a set, so two edges of
+  # one type between the same ends give one.
+  #
+  # Determinism, so that two answers to one revision are byte-identical. Order: eventTypes and
+  # objectTypes by name; each type's attributes by name; events by time, then id; objects by id;
+  # each event's and object's attributes by name and relationships by objectId, then qualifier.
+  # Rules (2) key order, (3) encoding, (4) presence and (5) hold as for the five bounded formats,
+  # and no field of this format is Optional.
+  - name: ekr.views.OcelFormatV1
+    kind: enum
+    variants: [ekr.ocel/1]
+
+  # RFC 3339 in UTC with milliseconds: YYYY-MM-DDTHH:MM:SS.mmmZ, a four-digit year.
+  - name: ekr.views.OcelTime
+    kind: newtype
+    of: String
+
+  # The attribute types OCEL 2.0 names.
+  - name: ekr.views.OcelAttributeType
+    kind: enum
+    variants: [string, time, integer, float, boolean]
+
+  - name: ekr.views.OcelTypeAttribute
+    kind: struct
+    fields:
+      - name: name
+        type: String
+      - name: type
+        type: ekr.views.OcelAttributeType
+
+  - name: ekr.views.OcelType
+    kind: struct
+    fields:
+      - name: name
+        type: String
+      - name: attributes
+        type: List<ekr.views.OcelTypeAttribute>
+
+  - name: ekr.views.OcelEventAttribute
+    kind: struct
+    fields:
+      - name: name
+        type: String
+      - name: value
+        type: String
+
+  - name: ekr.views.OcelObjectAttribute
+    kind: struct
+    fields:
+      - name: name
+        type: String
+      - name: value
+        type: String
+      - name: time
+        type: ekr.views.OcelTime
+
+  - name: ekr.views.OcelRelationship
+    kind: struct
+    fields:
+      - name: objectId
+        type: String
+      - name: qualifier
+        type: String
+
+  - name: ekr.views.OcelEvent
+    kind: struct
+    fields:
+      - name: id
+        type: String
+      - name: type
+        type: String
+      - name: time
+        type: ekr.views.OcelTime
+      - name: attributes
+        type: List<ekr.views.OcelEventAttribute>
+      - name: relationships
+        type: List<ekr.views.OcelRelationship>
+
+  - name: ekr.views.OcelObject
+    kind: struct
+    fields:
+      - name: id
+        type: String
+      - name: type
+        type: String
+      - name: attributes
+        type: List<ekr.views.OcelObjectAttribute>
+      - name: relationships
+        type: List<ekr.views.OcelRelationship>
+
+  # The OCEL 2.0 log itself, its four top-level arrays.
+  - name: ekr.views.Ocel20Log
+    kind: struct
+    fields:
+      - name: eventTypes
+        type: List<ekr.views.OcelType>
+      - name: objectTypes
+        type: List<ekr.views.OcelType>
+      - name: events
+        type: List<ekr.views.OcelEvent>
+      - name: objects
+        type: List<ekr.views.OcelObject>
+
+  # `revision` is the revision exported: `at`, or the head as it stood at the request. The head
+  # itself is not carried (rule (5)).
+  - name: ekr.views.OcelMeta
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.OcelFormatV1
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+
+  - name: ekr.views.OcelLogV1
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.OcelMeta
+      - name: ocel
+        type: ekr.views.Ocel20Log
+
 actors:
   - name: ekr.views.Reader
     may:
@@ -1523,6 +1694,7 @@ actors:
       - ekr.views.ChangesSince
       - ekr.views.ReportStoreQuality
       - ekr.views.FindCodeNames
+      - ekr.views.ExportOcel
     naming:
       display: Reader
 
@@ -2091,6 +2263,46 @@ commands:
         error: ekr.views.NotSeeded
         summary: Nothing was answered; no head is reported, because there is none.
 
+  # One revision as an OCEL 2.0 event log (ekr.views.OcelLogV1). `at` is the revision exported,
+  # the head when absent. No input bound: the log is the revision's own, whole. Its not-found and
+  # not-seeded outcomes are external for the reason ProjectGraph's are.
+  - name: ekr.views.ExportOcel
+    naming:
+      wire: export-ocel
+      display: Export an OCEL 2.0 event log
+    input:
+      - name: store
+        type: ekr.views.StoreLocation
+      - name: at
+        type: Optional<ekr.kernel.RevisionNumber>
+    response:
+      - name: log
+        type: ekr.views.OcelLogV1
+    outcomes:
+      - name: exported
+        emits:
+          - ekr.views.OcelExported
+        payload:
+          ekr.views.OcelExported:
+            revision: {generated: true}
+            event_types: {generated: true}
+            object_types: {generated: true}
+            events: {generated: true}
+            objects: {generated: true}
+            event_object_relationships: {generated: true}
+            object_object_relationships: {generated: true}
+            edges_between_events: {generated: true}
+            ocel_hash: {generated: true}
+        summary: One ekr.ocel/1 document of the requested revision, byte-identical to every other answer to the same request with `at` resolved.
+      - name: not-found
+        external: the store holds no committed revision with the requested number
+        error: ekr.views.RevisionNotFound
+        summary: Nothing was answered.
+      - name: not-seeded
+        external: the store has never been seeded
+        error: ekr.views.NotSeeded
+        summary: Nothing was answered; no head is reported, because there is none.
+
 events:
   # What one render returned, counted over the document it returned, so a suite can hold a
   # renderer to it without parsing the response. `projection_hash` is the hex SHA-256 of the
@@ -2396,4 +2608,31 @@ events:
       - name: first_line
         type: Optional<Integer>
       - name: code_names_hash
+        type: ekr.kernel.ContentHash
+
+  # What one OCEL export returned, every field a function of the document. `revision` is meta's;
+  # `event_types`, `object_types`, `events` and `objects` the lengths of the log's four arrays;
+  # `event_object_relationships` the relationships its events hold and
+  # `object_object_relationships` those its objects hold; `edges_between_events` the revision's
+  # edges both of whose ends are events, which the log does not carry; `ocel_hash` the hex
+  # SHA-256 of the document's exact bytes.
+  - name: ekr.views.OcelExported
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: event_types
+        type: Integer
+      - name: object_types
+        type: Integer
+      - name: events
+        type: Integer
+      - name: objects
+        type: Integer
+      - name: event_object_relationships
+        type: Integer
+      - name: object_object_relationships
+        type: Integer
+      - name: edges_between_events
+        type: Integer
+      - name: ocel_hash
         type: ekr.kernel.ContentHash

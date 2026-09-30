@@ -42,11 +42,15 @@
 //! [`report_quality`] (`ekr.store-quality/1`) reports how well one revision's assertions are
 //! evidenced, its properties constrained and its nodes of one type named apart; [`quality`] is
 //! its pure half.
+//!
+//! [`export_ocel`] (`ekr.ocel/1`) exports one revision as an OCEL 2.0 object-centric event log,
+//! its event and object types read off the store's shape; [`ocel`] is its pure half.
 
 mod changes;
 mod code_names;
 mod document;
 mod index;
+mod ocel;
 mod quality;
 mod query;
 mod timeline;
@@ -59,6 +63,7 @@ pub use code_names::{
     CODE_NAMES_FORMAT, EMBEDDED_DOMAINS,
 };
 pub use index::{Index, IndexCache};
+pub use ocel::{export_ocel, ocel, OcelExported, OCEL_FORMAT};
 pub use quality::{quality, report_quality, StoreQualityReported, QUALITY_FORMAT};
 pub use query::{
     Answer, ExpandRequest, GraphOverviewed, LimitExceeded, NeighbourhoodExpanded, NodeDescribed,

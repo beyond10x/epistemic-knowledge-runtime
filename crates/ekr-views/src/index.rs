@@ -378,11 +378,11 @@ impl Index {
             let (widened, modified) =
                 parent.map_or_else(Default::default, |parent| changes(parent, schema));
             let difference =
-                |from: &BTreeMap<String, (&'static str, String)>,
-                 without: &BTreeMap<String, (&'static str, String)>| {
+                |from: &BTreeMap<MemberKey, (&'static str, String)>,
+                 without: &BTreeMap<MemberKey, (&'static str, String)>| {
                     from.iter()
-                        .filter(|(id, _)| !without.contains_key(*id))
-                        .map(|(id, (kind, name))| SchemaMember {
+                        .filter(|(key, _)| !without.contains_key(*key))
+                        .map(|((id, _), (kind, name))| SchemaMember {
                             id: id.clone(),
                             kind,
                             name: name.clone(),
@@ -738,9 +738,14 @@ pub(crate) fn bucket_width(span: Option<(i64, i64)>, weekly: bool) -> i64 {
     }
 }
 
-/// Every type and property id `ontology` declares, with its kind and the name it gives it:
-/// node types, then edge types, each by id, and a property under the first type declaring it.
-fn members(ontology: &Ontology) -> BTreeMap<String, (&'static str, String)> {
+/// A lineage member's key (`views.yaml`, `ekr.views.SchemaMember`): its id's text, then its kind
+/// in the order `ekr.views.SchemaMemberKind` declares — one UUID a type's and a property's is two
+/// members.
+type MemberKey = (String, u8);
+
+/// Every type and property `ontology` declares, keyed by id and kind, with its kind and the name
+/// it gives it: a property under the first type declaring it.
+fn members(ontology: &Ontology) -> BTreeMap<MemberKey, (&'static str, String)> {
     let document = ontology.to_document();
     let mut node_types: Vec<_> = document.node_types.iter().collect();
     node_types.sort_by_key(|declared| declared.id);
@@ -749,12 +754,12 @@ fn members(ontology: &Ontology) -> BTreeMap<String, (&'static str, String)> {
     let mut members = BTreeMap::new();
     for declared in &node_types {
         members
-            .entry(declared.id.to_string())
+            .entry((declared.id.to_string(), 0))
             .or_insert(("NodeType", declared.name.clone()));
     }
     for declared in &edge_types {
         members
-            .entry(declared.id.to_string())
+            .entry((declared.id.to_string(), 1))
             .or_insert(("EdgeType", declared.name.clone()));
     }
     let properties = node_types
@@ -767,7 +772,7 @@ fn members(ontology: &Ontology) -> BTreeMap<String, (&'static str, String)> {
         );
     for property in properties {
         members
-            .entry(property.id.to_string())
+            .entry((property.id.to_string(), 2))
             .or_insert(("Property", property.name.clone()));
     }
     members
