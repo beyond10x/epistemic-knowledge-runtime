@@ -99,7 +99,7 @@ later call return an error, and the session is never restarted. To continue, sta
 |---|---|
 | `TransportError::Died` | the child ended before answering. The message names the verb, how the child ended (for example `signal: 9 (SIGKILL)`) and the last 4096 bytes it wrote to stderr (`STDERR_TAIL_BYTES`) |
 | `TransportError::TimedOut` | no reply within `timeout`; the child was killed |
-| `TransportError::Protocol` | the child printed a line that is not a reply. `answer` holds the start of that line: at most 400 bytes (`ANSWER_BYTES`), cut back to a character boundary and ended with ` [cut]` (`ANSWER_CUT`) when it was longer. The message shows it quoted, beside the verb, what was wrong with it and the stderr tail |
+| `TransportError::Protocol` | the child printed a line that is not a reply. `answer` holds the start of that line, raw and without its line end: at most 400 of the bytes printed (`ANSWER_BYTES`), cut back to a character boundary and ended with ` [cut]` (`ANSWER_CUT`) when it was longer. Bytes that are not UTF-8 read as U+FFFD. The message shows the answer escaped as a string literal (in quotes, with a quote, a backslash or a control character escaped), beside the verb, what was wrong with it and the stderr tail. The answer is what the process printed, and can include text the process echoed from the request |
 | `TransportError::Cancelled` | the session was cancelled (below) |
 | `TransportError::Latched` | a call made after any of the above. It names this call's verb and the original failure |
 

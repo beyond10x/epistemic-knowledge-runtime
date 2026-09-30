@@ -154,3 +154,91 @@ fn an_answer_of_exactly_the_bound_is_kept_whole() {
     let (answer, _) = protocol(&error);
     assert_eq!(answer, exact);
 }
+
+/// What a session keeps of the answer line `printed`, line end included by the caller.
+fn session_answer(printed: &[u8]) -> String {
+    let directory = tempfile::tempdir().unwrap();
+    std::fs::write(directory.path().join("answer.bin"), printed).unwrap();
+    let mut session = start(directory.path(), SESSION_ANSWERS_THE_FILE);
+    let error = session
+        .request(&Request::new(["ontology"]))
+        .expect_err("the stand-in's line is not a reply");
+    protocol(&error).0
+}
+
+/// What a one-shot read keeps of `printed`, all of its output.
+fn one_shot_answer(printed: &[u8]) -> String {
+    let directory = tempfile::tempdir().unwrap();
+    std::fs::write(directory.path().join("answer.bin"), printed).unwrap();
+    let binary = stand_in(
+        directory.path(),
+        "cat >/dev/null\ncat \"$(dirname \"$0\")/answer.bin\"\n",
+    );
+    let mut reader =
+        OneShotReader::new(&binary, store(directory.path()), SessionOptions::default());
+    match reader.head() {
+        Err(ReadError::Transport(error)) => protocol(&error).0,
+        other => panic!("expected a transport error, got {other:?}"),
+    }
+}
+
+/// The bound is counted in the bytes the process printed, not in the decoded text: a byte that
+/// is not UTF-8 reads as a three-byte U+FFFD, and that does not make an answer that fits read as
+/// cut. A cut steps back only over a character that is valid UTF-8; bytes that are not are cut
+/// where the bound falls.
+#[test]
+fn the_bound_is_counted_in_printed_bytes() {
+    let room = ANSWER_BYTES - ANSWER_CUT.len();
+    let replaced = |count: usize| "\u{FFFD}".repeat(count);
+
+    // Exactly the bound, none of it UTF-8: kept whole.
+    let answer = one_shot_answer(&[0xFF; ANSWER_BYTES]);
+    assert_eq!(answer, replaced(ANSWER_BYTES));
+    // One byte over: cut to the room before the marker.
+    let answer = one_shot_answer(&[0xFF; ANSWER_BYTES + 1]);
+    assert_eq!(answer, format!("{}{ANSWER_CUT}", replaced(room)));
+    // The same on a session line.
+    let mut line = vec![0xFF; ANSWER_BYTES];
+    line.push(b'\n');
+    assert_eq!(session_answer(&line), replaced(ANSWER_BYTES));
+
+    // A valid three-byte character straddling the cut after bytes that are not UTF-8: the cut
+    // steps back over it.
+    let mut printed = vec![0xFF; room - 1];
+    printed.extend_from_slice("€".repeat(ANSWER_BYTES).as_bytes());
+    let answer = one_shot_answer(&printed);
+    assert_eq!(answer, format!("{}{ANSWER_CUT}", replaced(room - 1)));
+
+    // A sequence that is not valid UTF-8 (a three-byte start with one continuation, then ASCII)
+    // straddling the cut: nothing to keep whole, so it is cut where the bound falls.
+    let mut printed = b"x".repeat(room - 1);
+    printed.extend_from_slice(&[0xE2, 0x82]);
+    printed.extend_from_slice(&b"y".repeat(ANSWER_BYTES));
+    let answer = one_shot_answer(&printed);
+    assert_eq!(
+        answer,
+        format!("{}\u{FFFD}{ANSWER_CUT}", "x".repeat(room - 1))
+    );
+}
+
+/// Only one final line end, `\n` or `\r\n`, is dropped, on a session line and on a one-shot's
+/// output alike; every other CR and LF is kept. (A one-shot that printed only whitespace printed
+/// no document, so it is not a `Protocol` error at all.)
+#[test]
+fn one_final_line_end_is_dropped_and_no_more() {
+    for (printed, kept) in [
+        (&b"x\n\n"[..], "x\n"),
+        (b"x\r\n\r\n", "x\r\n"),
+        (b"x\r\r\n", "x\r"),
+        (b"x\n\r\n", "x\n"),
+    ] {
+        assert_eq!(one_shot_answer(printed), kept, "one-shot {printed:?}");
+    }
+    // A one-shot's output need not end in a line end; a lone CR is not one.
+    assert_eq!(one_shot_answer(b"x"), "x");
+    assert_eq!(one_shot_answer(b"x\r"), "x\r");
+    // A session line ends at its first `\n`; a CR before it is part of the line end, one before
+    // that is not.
+    assert_eq!(session_answer(b"x\r\r\n"), "x\r");
+    assert_eq!(session_answer(b"x\r\n"), "x");
+}

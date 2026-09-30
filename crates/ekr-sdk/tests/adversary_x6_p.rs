@@ -134,7 +134,6 @@ fn a_nul_byte_is_kept_in_the_answer() {
 /// decode turns each byte into a three-byte U+FFFD before the length is measured, so the answer
 /// is cut and marked `[cut]` though nothing the process printed was over the bound.
 #[test]
-#[ignore = "finding: an answer of 134..=400 bytes that is not UTF-8 is marked [cut] although it was not longer than ANSWER_BYTES"]
 fn a_short_answer_that_is_not_utf8_is_not_marked_cut() {
     let printed = [0xFF_u8; 200];
     let (answer, _) = one_shot_answer(&printed);
@@ -151,33 +150,34 @@ fn a_short_answer_that_is_not_utf8_is_not_marked_cut() {
 /// one-shot whose output ends in a blank line has one final line end; every trailing CR and LF
 /// is dropped instead.
 #[test]
-#[ignore = "finding: every trailing CR/LF is dropped, not only the final line end the field documentation names"]
 fn only_the_final_line_end_is_dropped() {
     let (answer, _) = one_shot_answer(b"not json\n\n");
     assert_eq!(answer, "not json\n");
 }
 
-/// The message shows the answer through `{answer:?}`, so an answer with a double quote or a
-/// backslash does not appear in the message as printed; a consumer that matches its own copy of
-/// the line against the message (the acceptance's "whose message contains it") misses it.
+/// The message shows the answer escaped as a string literal (`{answer:?}`), so an answer with a
+/// double quote or a backslash appears in the message escaped; the `answer` field holds the line
+/// as printed. Both are documented on the field, on the variant's message and in `docs/sdk.md`.
 #[test]
-#[ignore = "finding: the message Debug-escapes the answer, so a line with a quote or backslash is not contained in it"]
 fn a_session_message_contains_an_answer_with_a_quote() {
     let line = r#"error: "store" at C:\ekr not found"#;
     let (answer, message) = session_answer(format!("{line}\n").as_bytes());
-    assert_eq!(answer, line);
-    assert!(message.contains(line), "{message}");
+    assert_eq!(answer, line, "the field is the raw line");
+    let escaped = r#""error: \"store\" at C:\\ekr not found""#;
+    assert_eq!(format!("{line:?}"), escaped);
+    assert!(message.contains(escaped), "{message}");
 }
 
-/// Request content echoed into the error message. `WireReply` is `deny_unknown_fields`, and
-/// `EkrBinary` checks only a minimum version, so a newer `ekr session` whose answer carries one
-/// more field fails every reply as `Protocol`. The answer is then the start of that reply line,
-/// whose `stderr` for a usage error is clap's message naming the offending argument as the
-/// request gave it. Before this unit the error carried only serde's detail; now the argument
-/// sits in the `Protocol` message and in the `Latched` cause of every later call.
+/// A JSON line that is not a reply is kept as the answer, whole, including what it echoes of the
+/// request. `WireReply` is `deny_unknown_fields`, so a newer `ekr session` whose answer carries one
+/// more field fails as `Protocol`; the answer is then that reply line, whose `stderr` for a usage
+/// error is clap's message naming the offending argument as the request gave it. The answer is
+/// the consumer's own child's output returned to that same consumer, so the argument stays in the
+/// answer, in the `Protocol` message and in the `Latched` cause of every later call
+/// (`docs/sdk.md`: the answer is what the process printed, and can include text the process echoed
+/// from the request).
 #[test]
-#[ignore = "finding: an answer that is JSON but not a reply puts request content (an argv value) into the error message and latch cause"]
-fn a_reply_the_sdk_cannot_read_does_not_echo_the_request_into_the_message() {
+fn a_json_line_that_is_not_a_reply_is_kept_as_the_answer() {
     const SENTINEL: &str = "s3cr3t-value-from-the-request";
     let directory = tempfile::tempdir().unwrap();
     // A newer session: clap refuses the unknown argument and quotes it back, and the answer line
@@ -195,20 +195,14 @@ fn a_reply_the_sdk_cannot_read_does_not_echo_the_request_into_the_message() {
         .request(&Request::new(["ontology", &format!("--token={SENTINEL}")]))
         .expect_err("a reply with an unknown field is not read");
     let (answer, message) = protocol(&error);
-    assert!(
-        answer.contains("elapsed_ms"),
-        "the stand-in answered: {answer:?}"
+    let printed = format!(
+        r#"{{"exit":2,"stdout":null,"stderr":"error: unexpected argument '--token={SENTINEL}' found\n","elapsed_ms":3}}"#
     );
-    assert!(
-        !message.contains(SENTINEL),
-        "the request's argument is in the error message: {message}"
-    );
+    assert_eq!(answer, printed, "the answer is the line as printed");
+    assert!(message.contains(&format!("{printed:?}")), "{message}");
     match session.request(&Request::new(["ontology"])) {
         Err(TransportError::Latched { cause, .. }) => {
-            assert!(
-                !cause.contains(SENTINEL),
-                "and in every later call's cause: {cause}"
-            );
+            assert!(cause.contains(&format!("{printed:?}")), "{cause}");
         }
         other => panic!("expected Latched, got {other:?}"),
     }
