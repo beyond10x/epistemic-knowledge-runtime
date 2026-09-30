@@ -535,14 +535,17 @@ hold is 404 `ekr.views.NodeNotFound`, and a revision the store does not hold —
 store never seeded), each a whole JSON refusal decided before any byte of an answer is sent.
 
 <a id="changes-since"></a>`/changes` answers what the committed revisions up to `at` changed:
-every node and edge created, and every assertion added, superseded or retracted. Each change
+every node and edge created, every assertion added, superseded or retracted, and every evidence
+entry added by an `!AddEvidence` ([Evidence after the seed](#evidence-after-the-seed)). Each change
 carries the revision that made it and that revision's `recorded_at`, its `change`
-(`NodeCreated`, `EdgeCreated`, `AssertionAdded`, `AssertionSuperseded` or `AssertionRetracted`),
-the `id` of the node, edge or assertion, the node's `type` and `name`, the edge's `type`, `source`
-and `target`, the assertion's `subject_kind` and `subject` (and `by` for a supersession), its
-`valid_time`, and `evidence`: the evidence ids the assertion cites, or for a node or an edge those
-the same revision's assertions about it cite. The changes are ordered by revision, then change
-kind in that order, then id:
+(`NodeCreated`, `EdgeCreated`, `AssertionAdded`, `AssertionSuperseded`, `AssertionRetracted` or
+`EvidenceAdded`), the `id` of the node, edge, assertion or evidence entry, the node's `type` and
+`name`, the edge's `type`, `source` and `target`, the assertion's `subject_kind` and `subject` (and
+`by` for a supersession), its `valid_time`, the evidence entry's `locator` (its source identity:
+the `identity` of its `!HumanStatement`) and `content_hash` (the address of its payload), and
+`evidence`: the evidence ids the assertion cites, or for a node or an edge those the same
+revision's assertions about it cite, and empty for an evidence entry. The seed's own evidence is
+not a change. The changes are ordered by revision, then change kind in that order, then id:
 
 - `since_revision=N` chooses the changes of the revisions after `N`; one at or after `at` chooses
   none;
@@ -550,7 +553,7 @@ kind in that order, then id:
   included when it was;
 - `since_valid=T` chooses the assertion changes whose valid time is after `T` — an added or
   retracted assertion's `valid_from`, a supersession's `effective_from` — from every revision up
-  to `at`. A node or an edge has no valid time, and is never chosen by one.
+  to `at`. A node, an edge or an evidence entry has no valid time, and is never chosen by one.
 
 `meta` echoes the since, `revision` (the revision read), `limit`, `after` and `total`; `next`,
 present while changes remain, is the next page's `after`, and `remaining` counts what is left.
@@ -1311,7 +1314,9 @@ transaction:
 An `!AddAssertion` in the same transaction, or in any later one, may cite the new id; list it in
 `transaction.evidence` only in a transaction whose assertions cite it. Committing applies the entry
 and stores the payload as an object of its own, in the Provenance class the seed's payloads use;
-`ekr explain` prints it for every assertion that cites it. Validation refuses, as named issues:
+`ekr explain` prints it for every assertion that cites it, and [`/changes`](#changes-since) lists
+the entry once, as an `EvidenceAdded` of the revision that committed it, whether or not an
+assertion cites it. Validation refuses, as named issues:
 
 | issue | validator | when |
 |---|---|---|

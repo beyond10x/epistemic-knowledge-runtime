@@ -41,6 +41,7 @@
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-timeline-row-is-a-subject-with-its-events-within-hops.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-transaction-time-since-lists-the-revisions-committed-after-it.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/a-valid-time-since-lists-the-assertion-changes-valid-after-it.yaml",
+    "crates/ekr-views/tests/fixtures/conformance/scenarios/an-add-evidence-is-listed-once-as-evidence-added.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/an-assertion-about-an-edge-is-carried-by-that-edge.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/an-expansion-refuses-each-input-outside-its-bound.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/an-overview-lists-at-most-its-limit-of-top-nodes.yaml",

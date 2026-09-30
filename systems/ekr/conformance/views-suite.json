@@ -17,6 +17,7 @@
       "ekr.views/authored/a-timeline-row-is-a-subject-with-its-events-within-hops",
       "ekr.views/authored/a-transaction-time-since-lists-the-revisions-committed-after-it",
       "ekr.views/authored/a-valid-time-since-lists-the-assertion-changes-valid-after-it",
+      "ekr.views/authored/an-add-evidence-is-listed-once-as-evidence-added",
       "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge",
       "ekr.views/authored/an-expansion-refuses-each-input-outside-its-bound",
       "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes",
@@ -108,6 +109,11 @@
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-valid-time-since-lists-the-assertion-changes-valid-after-it"
       },
+      "an-add-evidence-is-listed-once-as-evidence-added.yaml": {
+        "digest": "sha256:140bc5f0e0bfba007d8e67d14eb941760e90aa158a11355f27e6dd7fe29dd669",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/an-add-evidence-is-listed-once-as-evidence-added"
+      },
       "an-assertion-about-an-edge-is-carried-by-that-edge.yaml": {
         "digest": "sha256:6af4281ad03aa69d90d2f551aa26c2c2cf0d9d3e7d8090262f4a6e2106197aa0",
         "disposition": "accepted",
@@ -155,7 +161,7 @@
       }
     },
     "counts": {
-      "authored": 25,
+      "authored": 26,
       "generated": 35,
       "outside": 36,
       "refused": 0
@@ -1150,8 +1156,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "4f94a32b36b4451300d22abb9f2fc73f643b8ffd9c6867dd088dfb2f2ed8ea7b",
-    "spec_digest": "3d631772a61b47dab5efbb1160d69ee56613514c93697373a001a0ed2773ac29",
+    "contract_digest": "989008e940858b11b583710ffac152ab5706525d684e8cef41748193e154005b",
+    "spec_digest": "2219ad9a41dbe57924d3b7d24df96ba75ddc75259ef271a0489669b72e5cc335",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -1599,6 +1605,10 @@
               "kind": "string"
             },
             "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence_added": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -10852,6 +10862,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "evidence_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "first_revision": {
               "holds": "primitive",
               "kind": "integer",
@@ -10955,6 +10969,10 @@
               "kind": "string"
             },
             "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence_added": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -11064,6 +11082,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "evidence_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "first_revision": {
               "holds": "primitive",
               "kind": "integer",
@@ -11165,6 +11187,10 @@
               "kind": "string"
             },
             "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence_added": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -13461,6 +13487,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "evidence_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "first_revision": {
               "holds": "primitive",
               "kind": "integer",
@@ -13571,6 +13601,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "evidence_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "first_revision": {
               "holds": "primitive",
               "kind": "integer",
@@ -13672,6 +13706,10 @@
               "kind": "string"
             },
             "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence_added": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -13782,6 +13820,10 @@
               "kind": "string"
             },
             "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence_added": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -16697,6 +16739,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "evidence_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "first_revision": {
               "holds": "primitive",
               "kind": "integer",
@@ -16804,6 +16850,10 @@
               "kind": "string"
             },
             "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence_added": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -16967,6 +17017,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "evidence_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "first_revision": {
               "holds": "primitive",
               "kind": "integer",
@@ -17074,6 +17128,518 @@
               "kind": "string"
             },
             "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/an-add-evidence-is-listed-once-as-evidence-added": {
+      "purpose": "Since revision 0 at 3 lists both added evidence entries once among 8 changes, since 2 the one of revision 3, and since 1 at 2 or a valid time none.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.ChangeCursor"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SinceKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ChangesSince"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "quality"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "after": 0.0,
+            "assertions_added": 3.0,
+            "assertions_retracted": 1.0,
+            "assertions_superseded": 1.0,
+            "changes": 8.0,
+            "edges_created": 0.0,
+            "evidence_added": 2.0,
+            "first_revision": 1.0,
+            "last_revision": 3.0,
+            "nodes_created": 1.0,
+            "remaining": 0.0,
+            "revision": 3.0,
+            "total": 8.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "quality"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "assertions_added": 1.0,
+            "assertions_retracted": 0.0,
+            "assertions_superseded": 1.0,
+            "changes": 3.0,
+            "edges_created": 0.0,
+            "evidence_added": 1.0,
+            "first_revision": 3.0,
+            "last_revision": 3.0,
+            "nodes_created": 0.0,
+            "revision": 3.0,
+            "total": 3.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "Revision"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "quality"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "assertions_retracted": 1.0,
+            "changes": 1.0,
+            "evidence_added": 0.0,
+            "first_revision": 2.0,
+            "last_revision": 2.0,
+            "revision": 2.0,
+            "total": 1.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "last_revision": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "nodes_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "remaining": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "total": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ChangesSince",
+          "input": {
+            "after": {
+              "kind": "literal",
+              "value": null
+            },
+            "at": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "since": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "since_kind": {
+              "kind": "literal",
+              "value": "ValidTime"
+            },
+            "store": {
+              "kind": "literal",
+              "value": "quality"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ChangesSince",
+            "outcome": "listed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "payload": {
+            "assertions_added": 6.0,
+            "assertions_retracted": 1.0,
+            "assertions_superseded": 1.0,
+            "changes": 8.0,
+            "edges_created": 0.0,
+            "evidence_added": 0.0,
+            "first_revision": 0.0,
+            "last_revision": 3.0,
+            "nodes_created": 0.0,
+            "revision": 3.0,
+            "total": 8.0
+          },
+          "shape": {
+            "after": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_retracted": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions_superseded": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "changes_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence_added": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -19216,6 +19782,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "evidence_added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "first_revision": {
               "holds": "primitive",
               "kind": "integer",
@@ -19315,6 +19885,10 @@
               "kind": "string"
             },
             "edges_created": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence_added": {
               "holds": "primitive",
               "kind": "integer"
             },

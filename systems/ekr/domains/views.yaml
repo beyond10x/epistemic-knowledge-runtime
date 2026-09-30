@@ -1166,9 +1166,12 @@ types:
   # The changes of one revision are read off the transaction it committed, and the seed's
   # (revision 0) off its canonical state: every node it created (NodeCreated), every edge it
   # created (EdgeCreated), every assertion it added (AssertionAdded), superseded
-  # (AssertionSuperseded) or retracted (AssertionRetracted). An edge a later revision deletes
-  # stays the change its creating revision made. A property update, a named operation, an edge
-  # deletion and a schema change are not changes of this format.
+  # (AssertionSuperseded) or retracted (AssertionRetracted), and every evidence entry an
+  # ekr.kernel AddEvidence operation of its transaction added (EvidenceAdded). The seed's evidence
+  # came with the seed and not through an AddEvidence, so it is no change of this format, and a
+  # range holding no AddEvidence answers exactly as it did before EvidenceAdded was declared. An
+  # edge a later revision deletes stays the change its creating revision made. A property update,
+  # a named operation, an edge deletion and a schema change are not changes of this format.
   #
   # `since` is one revision, valid time or transaction time, and it chooses the changes:
   #   - a revision N (since_revision): every change of the revisions after N, up to and including
@@ -1179,9 +1182,9 @@ types:
   #     recorded_to are it;
   #   - a valid time T (since_valid): every assertion change, of every revision from the seed up
   #     to and including `at`, whose valid time is after T (valid_time > T, below). A node or an
-  #     edge has no valid time of its own (ekr.views.ProjectedEdge), so NodeCreated and
-  #     EdgeCreated are never chosen by a valid time, and an assertion with no valid_from is not
-  #     either.
+  #     edge has no valid time of its own (ekr.views.ProjectedEdge), and neither has an evidence
+  #     entry, so NodeCreated, EdgeCreated and EvidenceAdded are never chosen by a valid time, and
+  #     an assertion with no valid_from is not either.
   # ---------------------------------------------------------------------------------------------
 
   - name: ekr.views.GraphChangesFormatV1
@@ -1196,7 +1199,7 @@ types:
 
   - name: ekr.views.ChangeKind
     kind: enum
-    variants: [NodeCreated, EdgeCreated, AssertionAdded, AssertionSuperseded, AssertionRetracted]
+    variants: [NodeCreated, EdgeCreated, AssertionAdded, AssertionSuperseded, AssertionRetracted, EvidenceAdded]
 
   # The position in the change sequence: the number of changes the earlier pages delivered. A
   # page's `next` is its own `after` plus the changes it delivered. Like ekr.views.SliceCursor it
@@ -1206,19 +1209,24 @@ types:
     of: Integer
 
   # One change. `revision` is the revision that made it and `recorded_at` that revision's
-  # committed_at; `id` is the node's, the edge's or the assertion's. Exactly the payload its kind
-  # carries is present:
+  # committed_at; `id` is the node's, the edge's, the assertion's or the evidence entry's. Exactly
+  # the payload its kind carries is present:
   #   - NodeCreated: `type` and `name`, the node's type and canonical_name as created;
   #   - EdgeCreated: `type`, `source` and `target`;
   #   - AssertionAdded, AssertionSuperseded and AssertionRetracted: `subject_kind` and `subject`,
-  #     the assertion's subject; AssertionSuperseded also `by`, the replacing assertion.
+  #     the assertion's subject; AssertionSuperseded also `by`, the replacing assertion;
+  #   - EvidenceAdded: `locator`, the entry's source identity as ekr.graph.Evidence's locator
+  #     (an AddEvidence admits only a HumanStatement, so it is the statement's identity, empty
+  #     when the statement records none), and `content_hash`, the address of the payload bytes
+  #     the AddEvidence brought and its commit retained.
   # `valid_time` is the valid time an assertion change is chosen by under since_valid: the
   # assertion's valid_from for AssertionAdded and AssertionRetracted, and the supersession's
   # effective_from for AssertionSuperseded; omitted for an assertion with no valid_from and for a
   # node or an edge.
   # `evidence` is, for an assertion change, the ids of the evidence the assertion cites; for a
   # NodeCreated or EdgeCreated, the ids of the evidence cited by the assertions the same revision
-  # added whose subject is that node or edge — empty when it added none.
+  # added whose subject is that node or edge — empty when it added none; for an EvidenceAdded,
+  # empty.
   - name: ekr.views.GraphChange
     kind: struct
     fields:
@@ -1246,6 +1254,10 @@ types:
         type: Optional<ekr.graph.AssertionId>
       - name: valid_time
         type: Optional<ekr.views.EpochMillis>
+      - name: locator
+        type: Optional<String>
+      - name: content_hash
+        type: Optional<ekr.kernel.ContentHash>
       - name: evidence
         type: List<ekr.graph.EvidenceId>
 
@@ -1961,6 +1973,7 @@ commands:
             assertions_added: {generated: true}
             assertions_superseded: {generated: true}
             assertions_retracted: {generated: true}
+            evidence_added: {generated: true}
             first_revision: {generated: true}
             last_revision: {generated: true}
             changes_hash: {generated: true}
@@ -2288,7 +2301,7 @@ events:
         type: ekr.kernel.ContentHash
 
   # What one page of changes returned. `revision`, `after` and `total` are meta's; `changes` the
-  # length of changes and `remaining` the document's; the five kind counts count this page's
+  # length of changes and `remaining` the document's; the six kind counts count this page's
   # changes of each ekr.views.ChangeKind; `first_revision` and `last_revision` are the revisions
   # of the page's first and last change, omitted when the page is empty; `changes_hash` the hex
   # SHA-256 of the document's exact bytes.
@@ -2313,6 +2326,8 @@ events:
       - name: assertions_superseded
         type: Integer
       - name: assertions_retracted
+        type: Integer
+      - name: evidence_added
         type: Integer
       - name: first_revision
         type: Optional<ekr.kernel.RevisionNumber>
