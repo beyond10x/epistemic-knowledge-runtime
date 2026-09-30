@@ -621,7 +621,6 @@ macro_rules! need_browser {
 /// focused chip leaves the document and the focus falls to `body`; only the chip's own Enter and
 /// Space put it back.
 #[test]
-#[ignore = "defect: a stream batch redraws the chips and drops the keyboard focus to body"]
 fn a_focused_type_chip_keeps_the_focus_when_the_page_draws_the_chips_again() {
     let browser = need_browser!();
     let front = Front::start();
@@ -879,7 +878,6 @@ fn every_way_a_detail_reaches_the_collapsed_panel_marks_the_strip() {
 /// address that names the node the panel already shows re-renders it (`applyState` calls
 /// `showNode` for the focused node), and the strip is marked as though a new detail arrived.
 #[test]
-#[ignore = "defect: back to an address naming the node already shown marks the strip for a detail the reader has seen"]
 fn back_to_the_node_already_shown_does_not_mark_the_strip() {
     let browser = need_browser!();
     let front = Front::start();
@@ -1027,7 +1025,6 @@ fn the_narrow_rule_holds_below_970_px_only_and_compact_0_keeps_every_parameter()
 /// to such an entry reads the missing `compact` as the narrow default and collapses both sidebars
 /// the reader had open: history changes the layout although the reader changed nothing about it.
 #[test]
-#[ignore = "defect: back in a narrowed window to an entry written wide collapses both sidebars"]
 fn back_in_a_narrowed_window_keeps_the_sidebars_the_reader_has_open() {
     let browser = need_browser!();
     let front = Front::start();

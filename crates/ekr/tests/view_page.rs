@@ -2396,16 +2396,25 @@ impl Driven {
 
     /// One press of Enter or Space with `modifiers` (8 is Shift), sent to whatever holds the focus.
     fn press(&mut self, key: &str, modifiers: u8) {
+        self.hold(key, modifiers, 0);
+    }
+
+    /// [`Driven::press`] with the key held down for `repeats` auto-repeated key downs before it is
+    /// let go, as a reader who holds it.
+    fn hold(&mut self, key: &str, modifiers: u8, repeats: usize) {
         let (code, keycode, text) = match key {
             "Enter" => ("Enter", 13, "\r"),
             " " => ("Space", 32, " "),
             other => panic!("press: {other:?} is neither Enter nor Space"),
         };
-        self.call(
-            "Input.dispatchKeyEvent",
-            serde_json::json!({"type": "keyDown", "key": key, "code": code, "text": text,
-                "unmodifiedText": text, "windowsVirtualKeyCode": keycode, "modifiers": modifiers}),
-        );
+        for at in 0..=repeats {
+            self.call(
+                "Input.dispatchKeyEvent",
+                serde_json::json!({"type": "keyDown", "key": key, "code": code, "text": text,
+                    "unmodifiedText": text, "windowsVirtualKeyCode": keycode, "modifiers": modifiers,
+                    "autoRepeat": at > 0}),
+            );
+        }
         self.call(
             "Input.dispatchKeyEvent",
             serde_json::json!({"type": "keyUp", "key": key, "code": code,
@@ -3218,7 +3227,82 @@ fn a_type_chip_hides_and_solos_its_type_from_the_keyboard_and_the_toggles_are_na
     );
 }
 
-/// `task:viewer-compact-follow-ups`, acceptance 3: a window narrower than the two sidebars and a
+/// `task:viewer-compact-follow-ups`, adversary pass 1 (F4): a key held on a type chip toggles once,
+/// not once per auto-repeat. Enter held through three repeats (four key downs) hides the type, where
+/// a toggle per key down would leave it shown; Shift+Space held likewise shows the type alone; the
+/// address takes one entry per press.
+#[test]
+fn a_key_held_on_a_type_chip_toggles_its_type_once() {
+    const SHIFT: u8 = 8;
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/view-page/sounding"));
+    let double = seeded.double(Duration::ZERO);
+    let mut driven = Driven::launch(&browser, &format!("{}#view=2d", double.url));
+    assert!(
+        driven.wait_for(
+            &format!("{SETTLED} && !!window.__viewer.renderer && !!document.querySelector('#nodeTypes .chip')"),
+            90
+        ),
+        "the page settled"
+    );
+    let types =
+        driven.eval("[...document.querySelectorAll('#nodeTypes .chip')].map(c => c.dataset.type)");
+    let types: Vec<&str> = types
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t.as_str().unwrap())
+        .collect();
+    assert!(types.len() >= 2, "{types:?}");
+    let a = types[0];
+    let entries = driven.eval("history.length").as_u64().unwrap();
+    driven.eval(&format!(
+        "document.querySelector(\"#nodeTypes .chip[data-type='{a}']\").focus()"
+    ));
+    driven.hold("Enter", 0, 3);
+    std::thread::sleep(Duration::from_millis(500));
+    let offs = "[...document.querySelectorAll('#nodeTypes .chip.off')].map(c => c.dataset.type)";
+    assert_eq!(
+        driven.eval(offs),
+        serde_json::json!([a]),
+        "a held Enter hid {a} once"
+    );
+    assert_eq!(
+        driven.eval("history.length").as_u64().unwrap(),
+        entries + 1,
+        "one history entry for one press"
+    );
+
+    driven.press("Enter", 0);
+    assert!(
+        driven.wait_for(
+            "document.querySelectorAll('#nodeTypes .chip.off').length === 0",
+            20
+        ),
+        "Enter showed {a} again"
+    );
+    driven.hold(" ", SHIFT, 3);
+    std::thread::sleep(Duration::from_millis(500));
+    assert_eq!(
+        driven.eval(&format!(
+            "document.querySelectorAll('#nodeTypes .chip.off').length === {} && !document.querySelector(\"#nodeTypes .chip[data-type='{a}']\").classList.contains('off') && document.activeElement?.dataset.type === '{a}'",
+            types.len() - 1
+        )),
+        true,
+        "a held Shift+Space showed {a} alone, once: {}",
+        driven.eval(offs)
+    );
+    assert!(
+        driven.errors.is_empty(),
+        "the page reported errors: {:?}",
+        driven.errors
+    );
+}
+
+/// `task:viewer-compact-follow-ups`, acceptance 3:a window narrower than the two sidebars and a
 /// usable graph (290 + 360 + 320 = 970 px) opens compact, so a 600 px window draws a graph of all
 /// but the two strips; the address carries `compact=1`. Shown again, the sidebars write `compact=0`,
 /// which a reload keeps: the address says otherwise.

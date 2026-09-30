@@ -679,14 +679,16 @@ function revFromHash(hash) {
 
 // The sidebars: each collapses to a strip at its edge. The address's `compact` is 1 when both are
 // collapsed, else the side that is, or 0 when both are shown in a narrow window; absent, both are shown,
-// except in a window narrower than NARROW, which opens with both collapsed.
+// except when the page opens in a window narrower than NARROW, which opens with both collapsed. Back and
+// forward (`later`) read an absent `compact` as both shown: history does not change the layout because
+// the window has narrowed since the entry was written.
 // NARROW: the two sidebars (290 + 360 px) and a graph of at least 320 px.
 const NARROW = 970;
 const narrow = () => window.innerWidth < NARROW;
 const folded = side => document.body.classList.contains(`${side}-min`);
-function foldsFrom(hash) {
+function foldsFrom(hash, later = false) {
   const c = new URLSearchParams(hash.replace(/^#/, "")).get("compact");
-  if (c == null && narrow()) return [true, true];
+  if (c == null && !later && narrow()) return [true, true];
   return [c === "1" || c === "left", c === "1" || c === "right"];
 }
 const foldParam = () => folded("left") && folded("right") ? "1" : folded("left") ? "left" : folded("right") ? "right" : narrow() ? "0" : null;
@@ -698,7 +700,7 @@ function setFolds(left, right) {
   document.body.classList.toggle("right-min", right);
   $("compact").classList.toggle("on", left && right);
   $("compact").setAttribute("aria-pressed", String(left && right));
-  if (!right) markStrip(null);
+  if (!right) { panelSeen = panelSubject(); markStrip(null); }
   window.dispatchEvent(new Event("resize"));
   return true;
 }
@@ -709,8 +711,19 @@ function markStrip(what) {
   strip.title = what == null ? "Show the right sidebar" : `Show the right sidebar: ${what}`;
   strip.setAttribute("aria-label", what == null ? "Show the details" : `Show the details: ${what}`);
 }
+// The panel's subject: what its first id line starts with (a node's id, while its detail is read and once
+// it is; `edge …` or `assertion …` for an edge), else its heading (a path), so a detail drawn again for the
+// same subject — back to the node shown, a revision or the entities toggle reading it again — is not new.
+const panelSubject = () => {
+  const panel = $("panel");
+  return panel.querySelector(".idline")?.textContent.split(" · ")[0] || `\n${panel.querySelector("h1")?.textContent ?? ""}`;
+};
+// what the reader last saw in the panel: the subject while it was shown, or when it was restored
+let panelSeen = panelSubject();
 new MutationObserver(() => {
-  if (folded("right")) markStrip($("panel").querySelector("h1")?.textContent ?? "new detail");
+  const subject = panelSubject();
+  if (!folded("right")) { panelSeen = subject; return; }
+  markStrip(subject === panelSeen ? null : $("panel").querySelector("h1")?.textContent ?? "new detail");
 }).observe($("panel"), {childList: true});
 
 async function main() {
@@ -1898,12 +1911,16 @@ async function main() {
   $("graph3d").addEventListener("mouseleave", hideTip);
 
   // ---- filters ----
+  // The chips are drawn again on every render (a stream batch, a toggle, a revision): a chip that held the
+  // focus hands it to the new chip of the same type, so a keyboard reader keeps their place.
   function chips(container, counts, hidden, isNode) {
+    const had = container.contains(document.activeElement) ? document.activeElement.dataset.type : undefined;
     put(container, [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([t, n]) =>
       h("div", {class: `chip ${hidden.has(t) ? "off" : ""}`, "data-type": t, role: "button", tabindex: 0, "aria-pressed": String(!hidden.has(t)),
         title: `${t}\nclick, Enter or Space: hide or show · with shift: only this type, or all again`},
         isNode ? h("span", {class: "sw", style: swatch(t)}) : h("span", {class: "sw edge", style: t === CO ? "background:#5fa39a" : null}),
         h("span", null, isNode ? tname(t) : ename(t)), h("span", {class: "n"}, fmt(n)))));
+    if (had !== undefined) [...container.querySelectorAll(".chip")].find(chip => chip.dataset.type === had)?.focus();
   }
   // A click hides or shows one type. A shift+click inverts that: it shows only the clicked type, and
   // when that type is already the only one shown, it shows every type again.
@@ -1922,15 +1939,13 @@ async function main() {
   };
   $("nodeTypes").addEventListener("click", ev => toggleType(hiddenNodeTypes, ev));
   $("edgeTypes").addEventListener("click", ev => toggleType(hiddenEdgeTypes, ev));
-  // Enter or Space on a focused chip is its click, Shift with either its shift+click; the chips are drawn
-  // again, so the focus returns to the chip of the same type
+  // Enter or Space on a focused chip is its click, Shift with either its shift+click; a held key toggles
+  // once, not once per repeat (`chips` keeps the focus on the chip it draws again)
   for (const [id, hidden] of [["nodeTypes", hiddenNodeTypes], ["edgeTypes", hiddenEdgeTypes]]) $(id).addEventListener("keydown", ev => {
     if ((ev.key !== "Enter" && ev.key !== " ") || ev.ctrlKey || ev.metaKey || ev.altKey) return;
-    const t = ev.target.closest(".chip")?.dataset.type;
-    if (t == null) return;
+    if (ev.target.closest(".chip")?.dataset.type == null) return;
     ev.preventDefault(); ev.stopPropagation();
-    toggleType(hidden, ev);
-    [...ev.currentTarget.querySelectorAll(".chip")].find(chip => chip.dataset.type === t)?.focus();
+    if (!ev.repeat) toggleType(hidden, ev);
   });
   for (const id of ["showSuperseded", "showIsolated", "showEdgeLabels"]) $(id).addEventListener("change", () => { refreshScope(); refresh(); });
 
@@ -2449,13 +2464,14 @@ async function main() {
     const s = stateString();
     if (s !== location.hash) history.pushState(null, "", s);
   }
-  async function applyState(hash) {
+  // `first`: the address the page opened at, read once at load; every other call is back or forward
+  async function applyState(hash, first = false) {
     const p = new URLSearchParams(hash.replace(/^#/, ""));
     const turn = ++applyTurn;
     applying = true;
     try {
       stopPlay();
-      setFolds(...foldsFrom(hash));
+      setFolds(...foldsFrom(hash, !first));
       const want = Math.min(revFromHash(hash) ?? doc.meta.head, doc.meta.head);
       if (want !== doc.meta.revision) {
         const next = await Data.overview(want === doc.meta.head ? null : want);
@@ -3595,7 +3611,7 @@ async function main() {
     get dim() { return dim; }, setDim, get doc() { return doc; }, goRevision,
     get layoutRunning() { return !!layoutTimer || (!!fg && hud.textContent !== ""); }};
   // a reload restores the navigation state; the first entry is replaced, not pushed
-  if (location.hash.length > 1) await applyState(location.hash);
+  if (location.hash.length > 1) await applyState(location.hash, true);
   history.replaceState(null, "", stateString());
 }
 
