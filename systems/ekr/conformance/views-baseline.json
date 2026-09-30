@@ -7,8 +7,8 @@
     "file",
     "sqlite"
   ],
-  "total": 59,
-  "answered_floor": 59,
+  "total": 60,
+  "answered_floor": 60,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -49,6 +49,7 @@
     "ekr.views.SearchNodes/outcome/searched",
     "ekr.views/authored/a-cursor-pages-a-neighbourhood-to-its-end",
     "ekr.views/authored/a-cursor-pages-the-changes-to-their-end",
+    "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties",
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed",
     "ekr.views/authored/a-quality-report-counts-evidence-constraints-and-shared-names",
     "ekr.views/authored/a-retracted-assertion-is-projected-with-its-lifecycle",
@@ -80,6 +81,10 @@
     "ekr.views/authored/a-cursor-pages-the-changes-to-their-end": {
       "file": "a-cursor-pages-the-changes-to-their-end.yaml",
       "digest": "sha256:2721cf55e98e140224e0f99a9bac18b49d3b8b2513dc9c30651e2bdc5f7bb1da"
+    },
+    "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties": {
+      "file": "a-lineage-lists-widened-ends-and-modified-properties.yaml",
+      "digest": "sha256:32b3fe5d95bd60801aac8513548100747a12adebe1498bd69e73bdcf81594f54"
     },
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed": {
       "file": "a-node-is-not-found-at-a-revision-before-it-existed.yaml",
@@ -407,6 +412,11 @@
       "expect_outcome": 4
     },
     "ekr.views/authored/a-cursor-pages-the-changes-to-their-end": {
+      "execute_command": 4,
+      "expect_event": 4,
+      "expect_outcome": 4
+    },
+    "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties": {
       "execute_command": 4,
       "expect_event": 4,
       "expect_outcome": 4

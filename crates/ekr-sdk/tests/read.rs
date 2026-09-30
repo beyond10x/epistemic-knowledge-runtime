@@ -30,16 +30,16 @@ use ekr_sdk::binary::EkrBinary;
 use ekr_sdk::read::{
     Bucket, ChangeKind, Changes, ChangesMeta, DetailMeta, DetailNode, ExpandPages, ExpandQuery,
     ExplainedEvidence, Explanation, ExplanationLink, GraphChange, Head, ListedTransaction,
-    MatchField, MatchTier, MatchesMeta, NamedType, NodeDetail, NodeMatch, NodeMatches, NodeSummary,
-    OneShotReader, Ontology, OntologyEdgeType, OntologyNodeType, OntologyProperty,
-    OntologyValueType, Overview, OverviewMeta, OverviewRevision, OverviewRoles, OverviewSchema,
-    OverviewTimeline, ReadError, Reader, RecordedTime, ReferencingAssertion, Root, SchemaMember,
-    SchemaVersionChange, Since, Slice, SliceEdge, SliceMeta, SliceNode, Snapshot,
+    MatchField, MatchTier, MatchesMeta, ModifiedProperty, NamedType, NodeDetail, NodeMatch,
+    NodeMatches, NodeSummary, OneShotReader, Ontology, OntologyEdgeType, OntologyNodeType,
+    OntologyProperty, OntologyValueType, Overview, OverviewMeta, OverviewRevision, OverviewRoles,
+    OverviewSchema, OverviewTimeline, ReadError, Reader, RecordedTime, ReferencingAssertion, Root,
+    SchemaMember, SchemaVersionChange, Since, Slice, SliceEdge, SliceMeta, SliceNode, Snapshot,
     SnapshotAssertion, SnapshotEdge, SnapshotEvidence, SnapshotGraph, SnapshotGraphDocument,
     SnapshotNode, SnapshotRoot, Timeline, TimelineBucket, TimelineCell, TimelineEvent,
     TimelineMeta, TimelineQuery, TimelineRow, TimelineRowType, TimelineStep, TransactionState,
     Transactions, TypeCount, TypeTiming, ValidTime, ViewAssertion, ViewAssessment, ViewEdge,
-    ViewEdgeType, ViewLifecycle, ViewNodeType, ViewOntology, ViewProperty, ViewValue,
+    ViewEdgeType, ViewLifecycle, ViewNodeType, ViewOntology, ViewProperty, ViewValue, WidenedEnd,
 };
 use ekr_sdk::session::{Backend, ProcessSession, SessionOptions, StoreConfig};
 use ekr_sdk::transport::{RecordingTransport, Request, Transport};
@@ -311,6 +311,15 @@ fn overview_holds(overview: &Overview) {
             let member: &SchemaMember = member;
             assert!(!member.kind.is_empty());
         }
+        for end in &version.widened {
+            let end: &WidenedEnd = end;
+            assert!(["Source", "Target"].contains(&end.side.as_str()));
+            assert!(!end.node_types.is_empty());
+        }
+        for property in &version.modified {
+            let property: &ModifiedProperty = property;
+            assert!(!property.changed.is_empty() && !property.name.is_empty());
+        }
     }
     let revisions: &[OverviewRevision] = &schema.revisions;
     assert_eq!(
@@ -418,7 +427,7 @@ fn changes_hold(changes: &Changes) {
 
 // ---- every conformance fixture document --------------------------------------------------------
 
-const FIXTURES: [&str; 11] = [
+const FIXTURES: [&str; 12] = [
     "seed-only",
     "seeded-evidence",
     "edge-assertion",
@@ -430,6 +439,7 @@ const FIXTURES: [&str; 11] = [
     "growth",
     "subjects",
     "changes",
+    "schema-changes",
 ];
 
 /// Every document each conformance fixture store renders, at every revision: the overview at
@@ -463,7 +473,12 @@ fn every_conformance_fixture_document_reads_exactly_into_its_typed_reader() {
             let overview = index
                 .overview(&OverviewRequest::new(Some(OverviewRequest::MAX_LIMIT)).unwrap())
                 .unwrap();
-            overview_holds(&exact::<Overview>(&at, &overview.bytes));
+            let typed = exact::<Overview>(&at, &overview.bytes);
+            overview_holds(&typed);
+            for version in &typed.schema.versions {
+                *read.entry("widened").or_default() += version.widened.len();
+                *read.entry("modified").or_default() += version.modified.len();
+            }
             *read.entry("overview").or_default() += 1;
 
             let search = SearchRequest::new(String::new(), SearchRequest::MAX_LIMIT).unwrap();
@@ -559,6 +574,10 @@ fn every_conformance_fixture_document_reads_exactly_into_its_typed_reader() {
     }
     for (what, least) in [
         ("overview", 20),
+        // `schema-changes`: two widened ends at revisions 2, 3 and 4; one modified property at
+        // 3 and two at 4.
+        ("widened", 6),
+        ("modified", 3),
         ("search", 20),
         ("describe", 600),
         ("expand", 40),

@@ -52,12 +52,12 @@ pub use kernel::{
 };
 pub use views::{
     ChangeKind, Changes, ChangesMeta, DetailMeta, DetailNode, GraphChange, MatchField, MatchTier,
-    MatchesMeta, NodeDetail, NodeMatch, NodeMatches, NodeSummary, Overview, OverviewMeta,
-    OverviewRevision, OverviewRoles, OverviewSchema, OverviewTimeline, ReferencingAssertion,
-    SchemaMember, SchemaVersionChange, Slice, SliceEdge, SliceMeta, SliceNode, Timeline,
-    TimelineBucket, TimelineCell, TimelineEvent, TimelineMeta, TimelineRow, TimelineRowType,
-    TimelineStep, TypeCount, TypeTiming, ViewAssertion, ViewAssessment, ViewEdge, ViewEdgeType,
-    ViewLifecycle, ViewNodeType, ViewOntology, ViewProperty, ViewValue,
+    MatchesMeta, ModifiedProperty, NodeDetail, NodeMatch, NodeMatches, NodeSummary, Overview,
+    OverviewMeta, OverviewRevision, OverviewRoles, OverviewSchema, OverviewTimeline,
+    ReferencingAssertion, SchemaMember, SchemaVersionChange, Slice, SliceEdge, SliceMeta,
+    SliceNode, Timeline, TimelineBucket, TimelineCell, TimelineEvent, TimelineMeta, TimelineRow,
+    TimelineRowType, TimelineStep, TypeCount, TypeTiming, ViewAssertion, ViewAssessment, ViewEdge,
+    ViewEdgeType, ViewLifecycle, ViewNodeType, ViewOntology, ViewProperty, ViewValue, WidenedEnd,
 };
 
 /// Why a read returned no typed value. Each variant names the verb it read.

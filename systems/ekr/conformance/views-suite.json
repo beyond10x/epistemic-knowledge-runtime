@@ -3,6 +3,7 @@
     "authored": [
       "ekr.views/authored/a-cursor-pages-a-neighbourhood-to-its-end",
       "ekr.views/authored/a-cursor-pages-the-changes-to-their-end",
+      "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties",
       "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed",
       "ekr.views/authored/a-quality-report-counts-evidence-constraints-and-shared-names",
       "ekr.views/authored/a-retracted-assertion-is-projected-with-its-lifecycle",
@@ -36,6 +37,11 @@
         "digest": "sha256:2721cf55e98e140224e0f99a9bac18b49d3b8b2513dc9c30651e2bdc5f7bb1da",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-cursor-pages-the-changes-to-their-end"
+      },
+      "a-lineage-lists-widened-ends-and-modified-properties.yaml": {
+        "digest": "sha256:32b3fe5d95bd60801aac8513548100747a12adebe1498bd69e73bdcf81594f54",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties"
       },
       "a-node-is-not-found-at-a-revision-before-it-existed.yaml": {
         "digest": "sha256:d65a72a1823d4e0b8c73c142e250a5698151b333a51ca6165069eef0c5974227",
@@ -149,7 +155,7 @@
       }
     },
     "counts": {
-      "authored": 24,
+      "authored": 25,
       "generated": 35,
       "outside": 36,
       "refused": 0
@@ -1144,8 +1150,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "e1ba74dacab3548b1c9e25bc20551f2fa9f97aebd5246c2c5cf54dcd96c0a096",
-    "spec_digest": "9d3d3575580860c8b52524271a7b3cd3711727933b6487c1b9478eba6b15240a",
+    "contract_digest": "4f94a32b36b4451300d22abb9f2fc73f643b8ffd9c6867dd088dfb2f2ed8ea7b",
+    "spec_digest": "3d631772a61b47dab5efbb1160d69ee56613514c93697373a001a0ed2773ac29",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -7276,6 +7282,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "node_types": {
               "holds": "primitive",
               "kind": "integer"
@@ -7338,6 +7348,10 @@
               "kind": "integer"
             },
             "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "widened": {
               "holds": "primitive",
               "kind": "integer"
             }
@@ -11185,6 +11199,632 @@
         }
       ]
     },
+    "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties": {
+      "purpose": "A version made by WidenEdgeType lists its widened ends and one made by ModifyProperty its modified property, each from its own revision on, while added counts only new ids.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.TypeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ProjectOverview"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ProjectOverview",
+            "outcome": "overviewed"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectOverview",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "schema-changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectOverview",
+            "outcome": "overviewed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "payload": {
+            "added": 5.0,
+            "modified": 0.0,
+            "removed": 0.0,
+            "revision": 1.0,
+            "schema_versions": 2.0,
+            "widened": 0.0
+          },
+          "shape": {
+            "added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "dated_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "observation_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "overview_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "removed": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_buckets": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "top": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "undated_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "unrecorded_edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "widened": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectOverview",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "schema-changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectOverview",
+            "outcome": "overviewed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "payload": {
+            "added": 5.0,
+            "modified": 0.0,
+            "removed": 0.0,
+            "revision": 2.0,
+            "schema_versions": 3.0,
+            "widened": 2.0
+          },
+          "shape": {
+            "added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "dated_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "observation_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "overview_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "removed": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_buckets": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "top": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "undated_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "unrecorded_edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "widened": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectOverview",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 3.0
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "schema-changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectOverview",
+            "outcome": "overviewed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "payload": {
+            "added": 5.0,
+            "modified": 1.0,
+            "removed": 0.0,
+            "revision": 3.0,
+            "schema_versions": 4.0,
+            "widened": 2.0
+          },
+          "shape": {
+            "added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "dated_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "observation_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "overview_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "removed": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_buckets": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "top": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "undated_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "unrecorded_edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "widened": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ProjectOverview",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": null
+            },
+            "limit": {
+              "kind": "literal",
+              "value": null
+            },
+            "store": {
+              "kind": "literal",
+              "value": "schema-changes"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ProjectOverview",
+            "outcome": "overviewed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "payload": {
+            "added": 5.0,
+            "modified": 2.0,
+            "removed": 0.0,
+            "revision": 4.0,
+            "schema_versions": 5.0,
+            "widened": 2.0
+          },
+          "shape": {
+            "added": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "bucket_ms": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "dated_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "observation_type": {
+              "holds": "primitive",
+              "kind": "uuid",
+              "optional": true
+            },
+            "overview_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "removed": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision_zero_nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revisions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "schema_versions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "timeline_buckets": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "top": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "undated_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "unrecorded_edges": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "widened": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed": {
       "purpose": "A node created at revision 1 is not found at revision 0 by describe or expand, is described at revision 1, and the overview counts it from the revision that recorded it.",
       "source": [
@@ -11849,6 +12489,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "node_types": {
               "holds": "primitive",
               "kind": "integer"
@@ -11911,6 +12555,10 @@
               "kind": "integer"
             },
             "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "widened": {
               "holds": "primitive",
               "kind": "integer"
             }
@@ -17554,6 +18202,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "node_types": {
               "holds": "primitive",
               "kind": "integer"
@@ -17616,6 +18268,10 @@
               "kind": "integer"
             },
             "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "widened": {
               "holds": "primitive",
               "kind": "integer"
             }
@@ -17686,6 +18342,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "node_types": {
               "holds": "primitive",
               "kind": "integer"
@@ -17748,6 +18408,10 @@
               "kind": "integer"
             },
             "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "widened": {
               "holds": "primitive",
               "kind": "integer"
             }
@@ -17818,6 +18482,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "node_types": {
               "holds": "primitive",
               "kind": "integer"
@@ -17880,6 +18548,10 @@
               "kind": "integer"
             },
             "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "widened": {
               "holds": "primitive",
               "kind": "integer"
             }
@@ -19648,6 +20320,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "node_types": {
               "holds": "primitive",
               "kind": "integer"
@@ -19710,6 +20386,10 @@
               "kind": "integer"
             },
             "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "widened": {
               "holds": "primitive",
               "kind": "integer"
             }
@@ -19789,6 +20469,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "node_types": {
               "holds": "primitive",
               "kind": "integer"
@@ -19851,6 +20535,10 @@
               "kind": "integer"
             },
             "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "widened": {
               "holds": "primitive",
               "kind": "integer"
             }
@@ -19930,6 +20618,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "modified": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "node_types": {
               "holds": "primitive",
               "kind": "integer"
@@ -19992,6 +20684,10 @@
               "kind": "integer"
             },
             "unrecorded_nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "widened": {
               "holds": "primitive",
               "kind": "integer"
             }

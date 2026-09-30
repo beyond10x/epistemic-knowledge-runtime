@@ -11,12 +11,13 @@
 //! Every document type here is one of `views.yaml`'s, its fields in the order the specification
 //! declares them, as `document.rs` holds `ekr.graph-projection/1` to rules (2) to (5): serde
 //! writes a struct's fields in declaration order, an absent `Option` is skipped and a present one
-//! written, and every list and map is always written. Each array is built in the order the
+//! written, and every list and map is always written but a lineage version's `widened` and
+//! `modified`, which `views.yaml` omits when empty. Each array is built in the order the
 //! format's own paragraph of rule (1) names.
 
 use std::collections::BTreeSet;
 
-use ekr_core::{AssertionId, EdgeId, NodeId, RevisionNumber, TypeId};
+use ekr_core::{AssertionId, EdgeId, NodeId, PropertyId, RevisionNumber, TypeId};
 use ekr_graph::{Assertion, Object, Subject};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -283,6 +284,10 @@ pub struct GraphOverviewed {
     pub added: u64,
     /// Members of every listed version's `removed`.
     pub removed: u64,
+    /// Entries of every listed version's `widened`.
+    pub widened: u64,
+    /// Entries of every listed version's `modified`.
+    pub modified: u64,
     /// `schema.unrecorded_nodes`.
     pub unrecorded_nodes: u64,
     /// `schema.unrecorded_edges`.
@@ -558,6 +563,30 @@ pub(crate) struct OverviewSchemaVersion {
     pub(crate) revision: u64,
     pub(crate) added: Vec<SchemaMember>,
     pub(crate) removed: Vec<SchemaMember>,
+    /// Present only when not empty (`views.yaml`, `ekr.views.OverviewSchemaVersion`), so a
+    /// version with none answers the bytes it answered before the field existed.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) widened: Vec<WidenedEnd>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) modified: Vec<ModifiedProperty>,
+}
+
+/// `ekr.views.WidenedEnd`.
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct WidenedEnd {
+    pub(crate) edge_type: TypeId,
+    pub(crate) side: &'static str,
+    pub(crate) node_types: Vec<TypeId>,
+}
+
+/// `ekr.views.ModifiedProperty`; `changed` holds `ekr.views.PropertyAspect` variants in their
+/// declared order.
+#[derive(Clone, Debug, Serialize)]
+pub(crate) struct ModifiedProperty {
+    pub(crate) owner: TypeId,
+    pub(crate) property: PropertyId,
+    pub(crate) name: String,
+    pub(crate) changed: Vec<&'static str>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -807,6 +836,12 @@ impl Index {
             revisions: schema.revisions.len() as u64,
             added: schema.versions.iter().map(|v| v.added.len() as u64).sum(),
             removed: schema.versions.iter().map(|v| v.removed.len() as u64).sum(),
+            widened: schema.versions.iter().map(|v| v.widened.len() as u64).sum(),
+            modified: schema
+                .versions
+                .iter()
+                .map(|v| v.modified.len() as u64)
+                .sum(),
             unrecorded_nodes: schema.unrecorded_nodes,
             unrecorded_edges: schema.unrecorded_edges,
             revision_zero_nodes: revision_zero.map_or(0, |entry| entry.nodes),

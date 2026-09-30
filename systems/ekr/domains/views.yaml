@@ -51,7 +51,10 @@ summary: >-
   ordered as rule (1) orders it; and ids ascend in the lowercase hyphenated text of the UUID. Rule
   (1), order, is per format, and in each no array appears that is not named:
   ekr.graph-overview/1 — ontology as rule (1); schema.versions and schema.revisions by number
-  ascending; each version's added and removed by id; node_types, edge_types and roles.types by
+  ascending; each version's added and removed by id; each version's widened by edge type id, a
+  Source end before a Target end, and each widened end's node_types by id; each version's
+  modified by owner id, then property id, and each one's changed in the order
+  ekr.views.PropertyAspect declares its variants; node_types, edge_types and roles.types by
   type id; timeline.buckets by start ascending, then type id; top by degree descending, then id.
   ekr.graph-slice/1 — nodes and edges in record-sequence order (ekr.views.GraphSliceV1: distance
   ascending, degree descending, id ascending, each node followed by the edges it closes by id),
@@ -485,6 +488,19 @@ types:
   # parent declares and it does not, named as the parent names it (empty for the seed's version).
   # A property is compared by its id alone, so a property that moves from one type to another is
   # in neither list. Only versions whose `revision` is at most the overviewed revision are listed.
+  # `widened` and `modified` say what else the version changed against its parent (nothing for
+  # the seed's version, which has none): `widened` every end of an edge type both declare that
+  # holds a node type in this version and not in the parent (ekr.views.WidenedEnd, what
+  # WidenEdgeType does); `modified` every property declaration of a node or edge type that
+  # differs from that type's declaration of it in the parent, for a property whose id is in
+  # neither `added` nor `removed` (ekr.views.ModifiedProperty, what ModifyProperty does to a
+  # property that exists). No schema change alters any other part of a type's declaration
+  # (DefineNodeType and DefineEdgeType declare new ids only), so a committed version lists nothing
+  # in all four exactly when its ontology is its parent's. `added` and `removed` keep
+  # their meaning. Presence: `widened` and `modified` are present only when they would list at
+  # least one entry, and never emitted empty — an exception to presence rule (4) for these two
+  # fields alone — so a version that widens and modifies nothing answers exactly the bytes it
+  # answered before the two fields existed.
   - name: ekr.views.OverviewSchemaVersion
     kind: struct
     fields:
@@ -500,6 +516,55 @@ types:
         type: List<ekr.views.SchemaMember>
       - name: removed
         type: List<ekr.views.SchemaMember>
+      - name: widened
+        type: Optional<List<ekr.views.WidenedEnd>>
+      - name: modified
+        type: Optional<List<ekr.views.ModifiedProperty>>
+
+  # Which end of an edge type: its source_types or its target_types.
+  - name: ekr.views.EdgeSide
+    kind: enum
+    variants: [Source, Target]
+
+  # One end of an edge type that a schema version widened: `node_types` are the node types the
+  # end holds in the version and not in its parent, at least one. An end the version leaves as
+  # the parent had it is not listed. No schema change narrows an end (docs/schema-evolution.md,
+  # edge-endpoint-removed), so a type an end loses is not a field.
+  - name: ekr.views.WidenedEnd
+    kind: struct
+    fields:
+      - name: edge_type
+        type: ekr.ontology.TypeId
+      - name: side
+        type: ekr.views.EdgeSide
+      - name: node_types
+        type: List<ekr.ontology.TypeId>
+
+  # What differs between a type's declaration of a property in a schema version and its
+  # declaration of it in the parent. Declared: the type declares it and in the parent did not,
+  # while the parent declares the property's id on another type. Undeclared: the reverse; no
+  # schema change removes a declaration, so a committed lineage has none. Name, ValueType,
+  # Cardinality, Required and Constraints: the type declares it in both, and that part of the
+  # declaration (ekr.ontology.PropertyDefinition's name, value_type, cardinality, required,
+  # constraints) differs.
+  - name: ekr.views.PropertyAspect
+    kind: enum
+    variants: [Declared, Undeclared, Name, ValueType, Cardinality, Required, Constraints]
+
+  # One property declaration a schema version changed: `owner` is the node type or edge type
+  # that declares it, `property` its id, `name` the name this version gives it (the parent's for
+  # Undeclared), and `changed` every aspect that differs, at least one.
+  - name: ekr.views.ModifiedProperty
+    kind: struct
+    fields:
+      - name: owner
+        type: ekr.ontology.TypeId
+      - name: property
+        type: ekr.ontology.PropertyId
+      - name: name
+        type: String
+      - name: changed
+        type: List<ekr.views.PropertyAspect>
 
   # One committed revision up to and including the overviewed one, with what the overviewed
   # revision's canonical state says existed by then. Growth is read from recorded time, never by
@@ -1588,6 +1653,8 @@ commands:
             revisions: {generated: true}
             added: {generated: true}
             removed: {generated: true}
+            widened: {generated: true}
+            modified: {generated: true}
             unrecorded_nodes: {generated: true}
             unrecorded_edges: {generated: true}
             revision_zero_nodes: {generated: true}
@@ -2054,7 +2121,8 @@ events:
   # What one overview returned, every field a function of the document. `nodes`, `edges`,
   # `assertions` and `evidence` are its meta counts; `node_types` and `edge_types` the lengths of
   # its two type-count lists; `schema_versions` and `revisions` of schema.versions and
-  # schema.revisions; `added` and `removed` the members summed over every listed version;
+  # schema.revisions; `added` and `removed` the members summed over every listed version,
+  # `widened` and `modified` the entries of its widened and modified lists summed likewise;
   # `unrecorded_nodes` and `unrecorded_edges` schema's; the three `revision_zero_` counts are
   # revision 0's entry in schema.revisions; `event_types` counts roles.types with event true, and
   # `observation_type` is roles.observation_type; `bucket_ms` is timeline.bucket_ms,
@@ -2084,6 +2152,10 @@ events:
       - name: added
         type: Integer
       - name: removed
+        type: Integer
+      - name: widened
+        type: Integer
+      - name: modified
         type: Integer
       - name: unrecorded_nodes
         type: Integer
