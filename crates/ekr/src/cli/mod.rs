@@ -4,9 +4,12 @@
 //! under the trusted host document and calls exactly one kernel handler or read; nothing here
 //! applies, validates or persists anything itself. Only `seed` and `migrate` may create a store,
 //! through `Runtime::file` or `Runtime::sqlite`: `seed` only for a seed `Runtime::admit_seed`
-//! admits, `migrate` only at its `--to`; every other store verb opens an existing one through
-//! `Runtime::file_existing` or `Runtime::sqlite_existing` and refuses a path holding none as
-//! `store-not-found`. The agent verbs — `guide`, `operations`, `example`, `schema`, `mint`,
+//! admits, `migrate` only at its `--to`; every other store verb opens an existing one and refuses
+//! a path holding none as `store-not-found`. How it opens it is its [`Access`], from
+//! [`Command::access`]: a verb that writes through `Runtime::file_existing` or
+//! `Runtime::sqlite_existing`, which refuse a store this process may not write — `store-read-only`,
+//! exit 2 — and a verb that only reads through `Runtime::file_reading` or
+//! `Runtime::sqlite_reading`, which open such a store read-only. The agent verbs — `guide`, `operations`, `example`, `schema`, `mint`,
 //! `hash` — print static, tested text, a generated JSON Schema, a fresh id or a payload's content
 //! hash, and open no provider.
 //! `migrate` opens the configured store as those verbs do, reads it only, and hands it and the
@@ -378,6 +381,51 @@ pub enum Command {
     },
 }
 
+/// What a verb does to the store it opens.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Access {
+    /// It only reads: on a store this process may not write, it opens the store read-only and
+    /// answers as on a writable one.
+    Read,
+    /// It writes: on a store this process may not write, it is refused as `store-read-only`
+    /// (exit 2) before it opens anything.
+    Write,
+}
+
+impl Command {
+    /// Whether this verb writes the store it opens — the one place that says so. A verb that
+    /// opens no store only reads. `session` opens its store as a reader does and refuses each
+    /// write request on a read-only store by that request's own verb; `migrate` only reads the
+    /// store it migrates.
+    pub(crate) fn access(&self) -> Access {
+        match self {
+            Self::Seed { .. }
+            | Self::Propose { .. }
+            | Self::Validate { .. }
+            | Self::Commit { .. } => Access::Write,
+            Self::Snapshot { .. }
+            | Self::Explain { .. }
+            | Self::Resolve { .. }
+            | Self::Guide
+            | Self::Operations { .. }
+            | Self::Example { .. }
+            | Self::Schema { .. }
+            | Self::Mint { .. }
+            | Self::Hash { .. }
+            | Self::Head
+            | Self::Transactions { .. }
+            | Self::Rejections { .. }
+            | Self::Ontology { .. }
+            | Self::CodeNames { .. }
+            | Self::Quality { .. }
+            | Self::View { .. }
+            | Self::Session { .. }
+            | Self::Mcp
+            | Self::Migrate { .. } => Access::Read,
+        }
+    }
+}
+
 /// The system clock in milliseconds since the Unix epoch, for a new decision only.
 #[must_use]
 pub fn system_time() -> Timestamp {
@@ -690,6 +738,8 @@ struct Configured {
     store: Option<PathBuf>,
     backend: Option<Backend>,
     full_replay: bool,
+    /// What its verb does to the store, from [`Command::access`].
+    access: Access,
 }
 
 impl Configured {
@@ -708,6 +758,7 @@ impl Configured {
                 store,
                 backend,
                 full_replay,
+                access: command.access(),
             },
             command,
         )
@@ -721,6 +772,8 @@ struct Store {
     store: PathBuf,
     backend: Backend,
     full_replay: bool,
+    /// What the verb it was resolved for does to the store: how [`Store::open`] opens it.
+    access: Access,
 }
 
 /// A flag's value, else its environment variable's; an empty value of either is unset. Read
@@ -794,22 +847,37 @@ impl Configured {
             store,
             backend,
             full_replay,
+            access: self.access,
         })
     }
 }
 
 impl Store {
-    /// Opens an existing store only, through the constructor that creates nothing.
-    fn open_existing(&self) -> Result<Runtime, PersistenceError> {
+    /// Opens an existing store only, through a constructor that creates nothing: for `access`
+    /// [`Access::Write`] one that refuses a store this process may not write
+    /// ([`PersistenceError::ReadOnly`]), for [`Access::Read`] one that opens such a store
+    /// read-only.
+    fn open_existing(&self, access: Access) -> Result<Runtime, PersistenceError> {
         let CliHostConfigurationV1 {
             tenant,
             context,
             authority,
             ..
         } = self.host.clone();
-        let mut runtime = match self.backend {
-            Backend::File => Runtime::file_existing(&self.store, &tenant, context, authority),
-            Backend::Sqlite => Runtime::sqlite_existing(&self.store, &tenant, context, authority),
+        let (store, tenant) = (&self.store, &tenant);
+        let mut runtime = match (self.backend, access) {
+            (Backend::File, Access::Write) => {
+                Runtime::file_existing(store, tenant, context, authority)
+            }
+            (Backend::File, Access::Read) => {
+                Runtime::file_reading(store, tenant, context, authority)
+            }
+            (Backend::Sqlite, Access::Write) => {
+                Runtime::sqlite_existing(store, tenant, context, authority)
+            }
+            (Backend::Sqlite, Access::Read) => {
+                Runtime::sqlite_reading(store, tenant, context, authority)
+            }
         }?;
         runtime.set_full_replay(self.full_replay);
         Ok(runtime)
@@ -820,18 +888,33 @@ impl Store {
     /// directory, an empty file, a symlink to nothing, a SQLite database without the owner
     /// tables, a file-store directory the provider has not written a manifest to — is the named
     /// configuration fault `store-not-found` (exit 1), and nothing is created there.
+    ///
+    /// It opens as its verb's [`Access`] says: a verb that writes, on a store this process may
+    /// not write, is the named refusal `store-read-only` (exit 2), and a verb that reads opens
+    /// such a store read-only.
     fn open(&self) -> Result<Runtime, Failure> {
-        self.open_existing().map_err(|error| match error {
+        self.open_existing(self.access)
+            .map_err(|error| self.failure(error))
+    }
+
+    /// What an open that failed with `error` reports: `store-not-found` and `store-read-only` by
+    /// name, anything else as the provider fault it is.
+    fn failure(&self, error: PersistenceError) -> Failure {
+        let backend = match self.backend {
+            Backend::File => "file",
+            Backend::Sqlite => "sqlite",
+        };
+        match error {
             PersistenceError::NoStore(_) => Failure::fault(format!(
-                "store-not-found: no {} store at {}; `ekr seed` creates one",
-                match self.backend {
-                    Backend::File => "file",
-                    Backend::Sqlite => "sqlite",
-                },
+                "store-not-found: no {backend} store at {}; `ekr seed` creates one",
+                self.store.display()
+            )),
+            PersistenceError::ReadOnly(why) => read_only(&format!(
+                "the {backend} store at {} is read-only to this process: {why}",
                 self.store.display()
             )),
             error => opening(error),
-        })
+        }
     }
 
     /// Opens or creates the store `ekr migrate` writes at `to`, of this configuration's backend
@@ -854,10 +937,10 @@ impl Store {
     /// Opens the store as [`Store::open`] does, or nothing where the path holds no store: a
     /// session starts before its store exists, and holds it once a seed has created it.
     fn open_if_any(&self) -> Result<Option<Runtime>, Failure> {
-        match self.open_existing() {
+        match self.open_existing(self.access) {
             Ok(runtime) => Ok(Some(runtime)),
             Err(PersistenceError::NoStore(_)) => Ok(None),
-            Err(error) => Err(opening(error)),
+            Err(error) => Err(self.failure(error)),
         }
     }
 
@@ -875,7 +958,7 @@ impl Store {
             ..
         } = self.host.clone();
         Runtime::check_anchor(context, &authority).map_err(opening)?;
-        match self.open_existing() {
+        match self.open_existing(Access::Write) {
             Ok(runtime) => {
                 if let Err(mismatch @ PersistenceError::AuthorityMismatch) = runtime.head() {
                     return Err(Failure::fault(mismatch));
@@ -891,9 +974,24 @@ impl Store {
                 }
                 .map_err(opening)
             }
-            Err(error) => Err(opening(error)),
+            Err(error) => Err(self.failure(error)),
         }
     }
+}
+
+/// The name of the refusal of a write to a store this process may not write.
+pub(crate) const STORE_READ_ONLY: &str = "store-read-only";
+
+/// The named refusal `store-read-only` (exit 2) of a verb that writes, on a store this process
+/// may not write: nothing was written, and the verbs that only read answer on the same store.
+pub(crate) fn read_only(message: &str) -> Failure {
+    Failure::refused(
+        STORE_READ_ONLY,
+        format!(
+            "{message}; a verb that writes needs write access to the store, and the verbs that \
+             only read answer on it as it is"
+        ),
+    )
 }
 
 /// A provider that did not open: an operational or configuration fault.

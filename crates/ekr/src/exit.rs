@@ -89,6 +89,7 @@ impl From<SeedError> for Failure {
             SeedError::Store(PersistenceError::AlreadySeeded) => {
                 Self::refused("ekr.kernel.AlreadySeeded", PersistenceError::AlreadySeeded)
             }
+            SeedError::Store(PersistenceError::ReadOnly(why)) => crate::cli::read_only(&why),
             SeedError::Store(other) => Self::fault(other),
         }
     }
@@ -115,6 +116,8 @@ impl From<CommitError> for Failure {
             error @ CommitError::TransactionNotFound { .. } => {
                 Self::refused("ekr.kernel.TransactionNotFound", error)
             }
+            // A write that reached a store opened read-only: the refusal a writing open names.
+            CommitError::Store(PersistenceError::ReadOnly(why)) => crate::cli::read_only(&why),
             error @ (CommitError::NotSeeded | CommitError::Store(_)) => Self::fault(error),
         }
     }

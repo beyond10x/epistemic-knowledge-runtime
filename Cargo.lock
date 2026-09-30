@@ -349,6 +349,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml_ng",
+ "signal-hook",
  "tempfile",
  "time",
 ]
@@ -473,6 +474,8 @@ dependencies = [
  "eventlog-core",
  "eventlog-file",
  "eventlog-sqlite",
+ "rusqlite",
+ "rustix",
  "serde",
  "serde_json",
  "serde_yaml_ng",

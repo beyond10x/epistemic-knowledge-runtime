@@ -10,8 +10,28 @@ use std::process::ExitCode;
 use clap::Parser;
 use ekr::cli::{execute, serve, serve_mcp, system_time, Cli, Command};
 
+/// `ekr view` serves until it is interrupted and `ekr mcp` until its input ends or it is stopped;
+/// neither drops its store then. On SIGTERM, SIGINT or SIGHUP this removes the private copy a
+/// read-only File store is read through (`ekr_store`'s `read_only.rs`) and exits with 128 plus
+/// the signal's number, as a shell reports a process that signal ended.
+fn remove_copies_when_terminated() {
+    use signal_hook::consts::{SIGHUP, SIGINT, SIGTERM};
+    let Ok(mut signals) = signal_hook::iterator::Signals::new([SIGTERM, SIGINT, SIGHUP]) else {
+        return;
+    };
+    std::thread::spawn(move || {
+        if let Some(signal) = signals.forever().next() {
+            ekr_kernel::Runtime::remove_read_only_copies();
+            std::process::exit(128 + signal);
+        }
+    });
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
+    if matches!(cli.command, Command::View { .. } | Command::Mcp) {
+        remove_copies_when_terminated();
+    }
     let mut stdin = std::io::stdin().lock();
     if matches!(cli.command, Command::Session { .. } | Command::Mcp) {
         // A session and an MCP server answer each message as it is read, so they write to stdout
