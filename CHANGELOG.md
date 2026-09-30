@@ -4,6 +4,19 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Fixed
+
+- **The read verbs answer on a store this process may not write** (`docs/cli.md`,
+  Configuration). `ekr head`, `ontology`, `snapshot`, `code-names` and every other verb that only
+  reads — and `ekr session`, `view`, `mcp` and `migrate`'s source — exited 1 with `the store is
+  unavailable: … Permission denied` on a store mounted read-only or owned by another user, on both
+  providers. Such a store now opens read-only: a file store is read through a private copy taken
+  under a shared lock, a SQLite database through a read-only connection into memory, and nothing
+  is written at the store's path. The answers are the bytes a writable store gives.
+- **A verb that writes such a store is refused by name.** `ekr seed`, `propose`, `validate` and
+  `commit`, and those requests in a session, are the refusal `store-read-only` (exit 2) before
+  anything is opened, instead of a fault. Which verbs write is the verb table's `store` column.
+
 ## [0.0.22] — 2026-09-30
 
 The SDK types the store checks and carries evidence with the assertions that cite it; a commit

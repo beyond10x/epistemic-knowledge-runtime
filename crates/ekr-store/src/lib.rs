@@ -126,6 +126,12 @@ pub enum StoreError {
     #[error("no store at {0}")]
     NoStore(String),
 
+    /// This process may not write the store: a writing open found a path of it this process
+    /// cannot write, or a write reached a store opened read-only. Nothing was written. A reader
+    /// opens such a store with `file_reading` or `sqlite_reading` instead.
+    #[error("the store is read-only to this process: {0}")]
+    ReadOnly(String),
+
     /// A record could not be read as what it should be — or could not be written as one.
     #[error("a stored document could not be read: {0}")]
     Document(String),

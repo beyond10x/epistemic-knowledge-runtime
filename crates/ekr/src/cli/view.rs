@@ -2096,6 +2096,7 @@ mod tests {
             store: directory.path().join("store"),
             backend: super::super::Backend::File,
             full_replay: false,
+            access: super::super::Access::Read,
         };
         let runtime = Runtime::file(
             &directory.path().join("store"),

@@ -61,6 +61,14 @@ The store need not exist before `ekr seed`: the file provider creates the direct
 parents, the SQLite provider creates the database file but not its directory. `guide`, `operations`,
 `example`, `mint`, `hash` and `schema` open no store, need none of the settings and ignore the variables.
 
+A store this process may read but not write — on a read-only mount, or owned by another user —
+still answers every verb that only reads it. Such a verb opens the store read-only: it reads a file
+store through a private copy in the temporary directory, taken under a shared lock that excludes
+every writer, and a SQLite database through a read-only connection into memory, so it writes
+nothing at the store's path and keeps no replay checkpoint there. It prints the same bytes it prints
+on a writable store. A verb that writes is refused `store-read-only` (exit 2,
+[Common refusals](#common-refusals)) before it opens anything.
+
 ```console
 export EKR_HOST=host.json EKR_STORE=./store EKR_BACKEND=file
 ```
@@ -107,7 +115,7 @@ exactly that.
 |---|---|---|
 | 0 | a declared outcome | one JSON document on stdout. A validation that rejects (`"kind": "Rejected"`) and a commit that finds the head moved (`"kind": "Stale"`) are outcomes too: read `kind` |
 | 1 | a fault: provider, verification, unreadable input, host configuration, a store that is not seeded, no store at `--store` (`store-not-found`) | a message on stderr |
-| 2 | a named refusal or a usage error. Nothing was recorded | `ekr: ekr.kernel.<Name>: <reason>` on stderr, or clap's usage message |
+| 2 | a named refusal or a usage error. Nothing was recorded | `ekr: ekr.kernel.<Name>: <reason>` on stderr, `ekr: store-read-only: <reason>` for a verb that writes a store this process may not write, or clap's usage message |
 
 `guide`, `operations` and `example` print text; `session` prints one JSON line per request; every
 other verb prints one JSON document. In JSON output a tagged value is an object with one key —
@@ -143,6 +151,12 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr migrate` | reads, and writes a new store | `--to <path>`: where the migrated store is written, holding no store yet | the `ekr.store-migration/1` report: `destination_seed_hash` and which record replaced which |
 
 Every verb has `--help`.
+
+The `store` column is the binary's own: on a store this process may not write, a verb that `writes`
+is refused `store-read-only` (exit 2) and one that `reads` answers as on a writable store
+([Configuration](#configuration)). `crates/ekr/tests/read_only_store.rs` runs every verb of both
+kinds but `view`, which serves until interrupted, on a read-only store of each provider against
+this table, and `session` and `migrate` on one too.
 
 ### `ekr seed`
 
@@ -474,8 +488,10 @@ The printed `description` names every place the schema and the reader differ:
 ### `ekr view`
 
 Serves a read-only viewer of an existing store on 127.0.0.1 — never another address — until the
-process is interrupted: `ekr view --port 8080`, or `--port 0` (the default) for a free port. It
-prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`, then answers:
+process is interrupted: `ekr view --port 8080`, or `--port 0` (the default) for a free port. A store
+this process may not write it opens read-only, as every verb that reads does
+([Configuration](#configuration)). It prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`,
+then answers:
 
 | request | answer |
 |---|---|
@@ -719,6 +735,11 @@ answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"
 | `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `migrate`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, write a second store, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
 | `session-option-refused` | 2 | the request sets `--host`, `--store`, `--backend` or `--full-replay` | the session's store is fixed when it starts; start another session for another store |
 
+A session opens its store as a verb that reads does, so on a store this process may not write it
+starts, holds the store read-only and serves every read; a `propose`, `validate`, `commit` or
+`seed` request is answered `"exit": 2` with `ekr: store-read-only: <reason>`, as the one-shot verb
+is refused ([Common refusals](#common-refusals)), and the session serves the next line.
+
 Any other `argv` the verbs' definitions do not accept — an unknown flag
 (`["--sto", "x", "head"]`, `["head", "-V"]`), a missing argument, a value of the wrong kind
 (`["snapshot", "--at", "zero"]`) — is answered as the one-shot verb answers the same argv:
@@ -785,7 +806,8 @@ their variables) and opens the existing store when it starts, then reads JSON-RP
 messages from standard input, one per line, and writes each response as one line on standard
 output, flushed, until its input ends; then it exits 0. It writes nothing to the store and nothing
 to stderr. If the configuration or the store does not open, it answers nothing and exits as a
-store verb does (`store-not-found`, exit 1). To register it with an MCP client, give the client
+store verb does (`store-not-found`, exit 1). A store this process may not write it opens read-only
+and serves as on a writable one ([Configuration](#configuration)). To register it with an MCP client, give the client
 the command `ekr mcp` with `EKR_HOST`, `EKR_STORE` and `EKR_BACKEND` in its environment.
 
 A line that is empty or holds only whitespace is not a message: it is read and not answered.
@@ -880,6 +902,9 @@ same shape in a new store.
 ```console
 ekr migrate --to library-v3                       # the --store, --backend and --host of every verb
 ```
+
+It only reads `--store`, so a store this process may not write migrates too, opened read-only
+([Configuration](#configuration)); `--to` must be writable.
 
 `--to` is a directory for `file` and a database file for `sqlite`, of the same backend as
 `--store`, and must hold no store. The migration reads the whole store and replays it from its
@@ -2203,7 +2228,8 @@ is refused. Either way most of the work is in the seed. What holds up:
 There are three forms, and the `exit` column says which one each refusal takes:
 
 - **A named refusal, exit 2.** Nothing was recorded. stderr is `ekr: ekr.kernel.<Name>: <reason>`.
-  A refused seed is `ekr.kernel.InvalidSeed: <code>`, followed by `: <detail>` for most codes.
+  A refused seed is `ekr.kernel.InvalidSeed: <code>`, followed by `: <detail>` for most codes. A
+  write to a store this process may not write is `ekr: store-read-only: <reason>`.
 - **A fault, exit 1.** stderr is `ekr: <message>`. A host document the kernel does not accept is
   reported while the provider is opened, as `ekr: opening the provider: invalid seed: <code>`.
 - **A validation issue, exit 0.** `ekr validate` records `"kind": "Rejected"`, and each issue carries
@@ -2240,6 +2266,7 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `ekr.kernel.AlreadySeeded` | seed | 2 | the store already holds a different seed | use a new store or tenant |
 | `seed-authority-profile` | any store verb | 1 | the host's `validation_profile` is no accepted profile exactly — an unknown `ruleset`, or a `ruleset` of one profile with an `application` it is not paired with — or its agent registry does not fit it for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example and keep `ruleset` and `application` a pair: `ekr.p1-deterministic/1` with `ekr.p1-apply/1` (v1) , `ekr.p2-deterministic/1` with `ekr.p2-apply/1` (v2) or `ekr.p3-deterministic/1` with `ekr.p2-apply/1` (v3); set `validator` to `context.validator` |
 | `store-not-found` | propose, validate, commit, snapshot, explain, head, transactions, ontology, resolve | 1 | `--store` names a path that holds no store: nothing, an empty directory, an empty file, a symlink to nothing, a SQLite database without the runtime's tables, or a file-store directory holding only what `ekr seed` writes before its manifest; nothing is created there. Only `ekr seed` creates a store, and a seed that is refused creates none | check `--store` or `EKR_STORE`; run `ekr seed` first |
+| `store-read-only` | seed, propose, validate, commit | 2 | this process may not write the store at `--store` — a file store's directory, `writer.lock`, `events.jsonl` or `blobs`; a SQLite database, its directory or its `-wal` or `-shm` file — so the verb, which writes, is refused before it opens anything and nothing is written. The verbs that only read answer on the same store ([Configuration](#configuration)) | run the verb as a user that may write the store, or on a writable copy of it |
 | `bootstrap-authority-mismatch` | any store verb | 1 | the store was seeded under a host document whose authority differs from this one | use the host document the store was seeded with |
 | `ekr.kernel.ProposalAttribution` | propose | 2 | the document's `proposer`, an assertion's `proposed_by` or an added evidence entry's `extracted_by` is not the host operator | use `context.operator` |
 | `ekr.kernel.StructurallyInvalid` | propose | 2 | the transaction document does not parse, for example a bare `assessment: Accepted` | the field it names; compare with `ekr operations <Kind>` |

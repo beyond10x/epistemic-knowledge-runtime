@@ -961,6 +961,44 @@ impl Lab {
     }
 }
 
+/// Every file under a directory `0444` and every directory `0555`, the directory itself included,
+/// until this drops and makes them `0644` and `0755` again, so the directory can be removed.
+struct ReadOnlyTree(std::path::PathBuf);
+
+impl ReadOnlyTree {
+    fn new(at: &Path) -> Self {
+        set_tree_modes(at, 0o555, 0o444);
+        Self(at.to_path_buf())
+    }
+}
+
+impl Drop for ReadOnlyTree {
+    fn drop(&mut self) {
+        set_tree_modes(&self.0, 0o755, 0o644);
+    }
+}
+
+fn set_tree_modes(at: &Path, directory: u32, file: u32) {
+    use std::os::unix::fs::PermissionsExt as _;
+    fn walk(at: &Path, into: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(at).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                walk(&path, into);
+            }
+            into.push(path);
+        }
+    }
+    std::fs::set_permissions(at, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let mut paths = Vec::new();
+    walk(at, &mut paths);
+    for path in paths {
+        let mode = if path.is_dir() { directory } else { file };
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(mode)).unwrap();
+    }
+    std::fs::set_permissions(at, std::fs::Permissions::from_mode(directory)).unwrap();
+}
+
 const TX_WROTE: &str = "00000000-0000-4000-a000-000000000701";
 const TX_UNKNOWN: &str = "00000000-0000-4000-a000-000000000799";
 
@@ -1096,6 +1134,20 @@ fn trigger(page: &str, name: &str) -> Option<Vec<Ran>> {
                 &["explain", "00000000-0000-4000-a000-000000000599"],
             )]
         }
+        "store-read-only" => {
+            // Seeded, then every file and directory of the lab made read-only for the four verbs
+            // that write, and writable again before the lab is removed.
+            let lab = Lab::seeded(page);
+            let proposed = lab.run("host.json", &["propose", "wrote.yaml"]);
+            assert_eq!(proposed.status.code(), Some(0));
+            let _writable_again = ReadOnlyTree::new(lab.directory.path());
+            vec![
+                ran(&lab, "host.json", &["seed", "seed.yaml"]),
+                ran(&lab, "host.json", &["propose", "wrote.yaml"]),
+                ran(&lab, "host.json", &["validate", TX_WROTE]),
+                ran(&lab, "host.json", &["commit", TX_WROTE]),
+            ]
+        }
         "store-not-found" => {
             // Never seeded: `store` holds nothing, and each verb must leave it that way.
             let lab = Lab::new(page);
@@ -1195,7 +1247,9 @@ fn every_refusal_outside_validation_exits_and_reads_as_the_page_says() {
             );
             let form = match (row.exit, row.name.starts_with("ekr.kernel.")) {
                 (2, true) => format!("ekr: {}", row.name),
-                (2, false) => format!("ekr: ekr.kernel.InvalidSeed: {}", row.name),
+                (2, false) if row.name.starts_with("seed-") => {
+                    format!("ekr: ekr.kernel.InvalidSeed: {}", row.name)
+                }
                 (1, _) if row.name.starts_with("seed-") => {
                     format!("ekr: opening the provider: invalid seed: {}", row.name)
                 }

@@ -119,7 +119,10 @@ const EDGES: [(&str, &[&str]); 6] = [
 ];
 
 /// The story's "External dependencies, declared now per crate" list, revision 19, as
-/// `(crate, [dependencies], [dev-dependencies])`.
+/// `(crate, [dependencies], [dev-dependencies])`, with `ekr-store`'s widened for
+/// `task:read-verbs-open-a-read-only-store`: `rusqlite` reads a SQLite store through a read-only
+/// connection, `rustix` asks whether this process may write a path, and `tempfile`, a dev
+/// dependency until then, holds a read-only File store's private copy.
 const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
     (
         "ekr-core",
@@ -176,13 +179,16 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
             "eventlog-core",
             "eventlog-sqlite",
             "eventlog-file",
+            "rusqlite",
+            "rustix",
             "serde",
             "serde_json",
+            "tempfile",
             "thiserror",
             "time",
             "tokio",
         ],
-        &["serde_yaml_ng", "tempfile"],
+        &["serde_yaml_ng"],
     ),
     (
         "ekr",
@@ -694,8 +700,10 @@ fn every_crate_opts_into_workspace_lints() {
 ///
 /// `(name, [required substrings of the declaration])`, from the story's constraint list and the
 /// unit brief's eventlog pins.
-const QUALIFIED: [(&str, &[&str]); 4] = [
+const QUALIFIED: [(&str, &[&str]); 5] = [
     ("uuid", &["version = \"1\"", "features = [\"v7\"]"]),
+    // The version eventlog-sqlite pins, so one libsqlite3 links; `serialize` reads a whole image.
+    ("rusqlite", &["version = \"=0.40.2\"", "\"serialize\""]),
     (
         "eventlog-core",
         &[

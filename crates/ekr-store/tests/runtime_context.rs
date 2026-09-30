@@ -272,6 +272,26 @@ fn constructors_refuse_before_creating_paths() {
             "runtime-fixture",
             ontology(),
         ));
+        refusal(SqliteStore::sqlite_reading(
+            &sqlite_path,
+            "runtime-fixture",
+            ontology(),
+        ));
+        refusal(FileStore::file_reading(
+            &file_path,
+            "runtime-fixture",
+            ontology(),
+        ));
+        refusal(SqliteStore::sqlite_read_only(
+            &sqlite_path,
+            "runtime-fixture",
+            ontology(),
+        ));
+        refusal(FileStore::file_read_only(
+            &file_path,
+            "runtime-fixture",
+            ontology(),
+        ));
         assert!(!sqlite_path.exists());
         assert!(!file_path.exists());
         assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 0);
@@ -407,8 +427,9 @@ fn all_io_refuses<S: AtomicBlobEventStore>(store: EventlogStore<S>) {
         Some(pending.to_vec())
     );
     // The constructors are refused by `constructors_refuse_before_creating_paths`; `under` only
-    // installs the authority and `set_full_replay` only sets a flag, and neither performs I/O.
-    // Everything else must have been refused above.
+    // installs the authority, `set_full_replay` only sets a flag and `is_read_only` only reads
+    // one, and none performs I/O. Everything else must have been refused above.
+    assert!(!store.is_read_only());
     let mut reached: BTreeSet<String> = exercised
         .0
         .into_inner()
@@ -421,8 +442,13 @@ fn all_io_refuses<S: AtomicBlobEventStore>(store: EventlogStore<S>) {
             "sqlite_existing",
             "file",
             "file_existing",
+            "sqlite_reading",
+            "sqlite_read_only",
+            "file_reading",
+            "file_read_only",
             "under",
             "set_full_replay",
+            "is_read_only",
         ]
         .map(str::to_owned),
     );

@@ -226,7 +226,7 @@ fn declared_entry_points() -> BTreeSet<String> {
 /// `sqlite_existing` and `file_existing` (`story:store-open-semantics`) open the same provider as
 /// `sqlite` and `file` and create nothing where no store is. `set_full_replay` sets a flag.
 /// `checkpoint_covered` (design § 99.5) reads the newest checkpoint pointer.
-const NOT_WRITERS: [&str; 16] = [
+const NOT_WRITERS: [&str; 21] = [
     "set_full_replay",
     "checkpoint_covered",
     "preparation",
@@ -243,6 +243,12 @@ const NOT_WRITERS: [&str; 16] = [
     "file",
     "file_existing",
     "under",
+    // The read-only openers and their query: a store they open refuses every write.
+    "sqlite_reading",
+    "sqlite_read_only",
+    "file_reading",
+    "file_read_only",
+    "is_read_only",
 ];
 
 /// The gap, not the sentence: a commit written with no `ValidatedTransaction` anywhere in the

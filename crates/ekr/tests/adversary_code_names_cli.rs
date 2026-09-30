@@ -179,11 +179,10 @@ fn walk(at: &Path) -> Vec<PathBuf> {
 }
 
 /// The verb writes nothing, so it needs no write permission: on a store directory nobody may
-/// write, it answers as it does on a writable one, on both providers. Pre-existing: `ekr head` and
-/// `ekr ontology` fail the same way when the provider opens (file: "Permission denied"; SQLite:
-/// "attempt to write a readonly database").
+/// write, it answers as it does on a writable one, on both providers
+/// (`task:read-verbs-open-a-read-only-store`; `tests/read_only_store.rs` holds the other read
+/// verbs and the write refusal).
 #[test]
-#[ignore = "defect (pre-existing): opening a store needs write permission, so a read verb fails on a read-only store"]
 fn ekr_code_names_answers_on_a_read_only_store_on_both_providers() {
     for backend in ["file", "sqlite"] {
         let world = World::seeded(backend, |seed| seed);

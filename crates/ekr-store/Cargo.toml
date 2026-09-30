@@ -14,14 +14,16 @@ ekr-ontology.workspace = true
 eventlog-core.workspace = true
 eventlog-file.workspace = true
 eventlog-sqlite.workspace = true
+rusqlite.workspace = true
+rustix.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+tempfile.workspace = true
 thiserror.workspace = true
 time.workspace = true
 tokio.workspace = true
 
 [dev-dependencies]
-tempfile.workspace = true
 serde_yaml_ng.workspace = true
 
 [lints]
