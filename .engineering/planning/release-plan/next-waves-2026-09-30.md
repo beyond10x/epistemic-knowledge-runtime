@@ -6,7 +6,7 @@ status: draft
 title: Waves extract-06 and extract-07 after 0.0.24
 relations:
 - serves: vision:o5
-revision: 3
+revision: 4
 ---
 ## Where this starts
 
@@ -18,12 +18,12 @@ the new `epic:read-and-storage-cost`, two done tasks archived, orphan edges adde
 request filed as `epic:type-packs` with `decision-blocker:property-sensitivity-home`, the constraint
 language filed as `decision-blocker:constraint-language`.
 
-## The next two waves (10 items)
+## The next two waves (13 items)
 
 Selection rule: ready (dependencies implemented, no open blocker), and serving the two consumer needs
 the store shows: a consumer's import through the SDK, and the operator's viewer and org-replay use.
 
-### Wave extract-06 (0.0.25)
+### Wave extract-06 (0.0.25, 8 items)
 
 | item | why now |
 |---|---|
@@ -32,6 +32,9 @@ the store shows: a consumer's import through the SDK, and the operator's viewer 
 | `story:explain-reads-an-index` | `explain` costs 4.6 s and answers 3 MB at a consumer's 1× shape (audit 2026-09-29) |
 | `task:one-event-type-rule` | the timeline, `/roles` and `ekr ocel` disagree on which types are events; the replay's event log depends on it |
 | `task:projection-carries-per-type-property-definitions` | the viewer refuses a revision whose subtype redeclares a property, which schema evolution now produces |
+| `story:commit-cost-flat-with-store-size` | added 2026-09-30: a consumer's 76,830-fact import took 16,540 s; 71.1% of the session is in the SQLite stream read that the evidence count multiplies |
+| `task:resolver-queue-drops-shared-alias-answers` | added 2026-09-30: the SDK resolver answers a stale cached node where the store is ambiguous, so a fact lands on the wrong node |
+| `task:protocol-error-keeps-the-answer` | added 2026-09-30: a consumer's move onto `ProcessSession` waits on the protocol error keeping the answer |
 
 Collisions: the three stories each add or change a verb, so they meet in the verb registry
 (`crates/ekr/src/cli/mod.rs`, `agent.rs`, `tests/agent_cli.rs`, `docs/cli.md`) and the conformance
@@ -40,7 +43,10 @@ rule), `task:projection-carries-per-type-property-definitions` (`ekr.graph-proje
 `story:fact-quality-by-judged-sample` (its command and format): three additions in different
 sections. `docs/cli.md` is also edited by `task:one-event-type-rule` (§ Roles at `:770`, § `ekr ocel`
 at `:448`), away from the verb table (`:141`–`:166`) the stories change. The coordinator merges these
-edits and regenerates the suites once, as in checks-01.
+edits and regenerates the suites once, as in checks-01. The three items added on 2026-09-30 touch
+`crates/ekr-store` (the commit-cost story) and `crates/ekr-sdk/src/{resolve,transport,session}.rs`
+and `read/one_shot.rs` (the two SDK tasks), which no other extract-06 item edits; both SDK tasks add
+to `CHANGELOG.md`.
 
 ### Wave extract-07 (0.0.26)
 
