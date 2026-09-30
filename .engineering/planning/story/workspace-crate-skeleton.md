@@ -44,7 +44,7 @@ scope:
   path: crates/ekr/tests/msrv_contract.rs
 - confidence: cited
   path: crates/ekr/tests/story_contract.rs
-revision: 22
+revision: 23
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-21T07:37:46Z", actor: "agent:claude", revision: 7, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
 - {from: "proposed", to: "active", at: "2026-09-21T07:37:47Z", actor: "agent:claude", revision: 8, decided_on: {"recorded":{"review_outcome":1}}, imported: true}
@@ -95,10 +95,12 @@ and `ekr` present as workspace members.
     witnesses; dev only, so the runtime gains no edge)
   - `ekr-store`: `eventlog-core`, `eventlog-sqlite`, `eventlog-file` (immutable Git revision
     `4ee3dc23f0d02a5726a0e41d097477791f09efe2`), `serde`,
-    `serde_json`, `thiserror`, `time`, `tokio` (the last two widened in wave p1-05, see below); dev
-    `tempfile`
+    `serde_json`, `thiserror`, `time`, `tokio` (the last two widened in wave p1-05, see below),
+    `rusqlite` (`=0.40.2`, feature `serialize`), `rustix` (features `fs`, `process`) and `tempfile`
+    (widened in wave reads-04, see below); dev `serde_yaml_ng`
   - `ekr`: `clap`, `serde`, `serde_json`, `time` (the last two added by `7444af5` for strict CLI
-    host configuration and valid-time selectors, `task:strict-cli-host-input`); dev `assert_cmd`,
+    host configuration and valid-time selectors, `task:strict-cli-host-input`), `signal-hook`
+    (widened in wave reads-04, see below); dev `assert_cmd`,
     `tempfile`
 - `rust-version` is `1.91`, the minimum the pinned eventlog source requires (found by the adversary,
   pass 1; the story said nothing about the floor before).
@@ -158,6 +160,29 @@ This story is `implemented` and stays so. Amending a closed story's constraint t
 move here rather than leaving it wrong: `story_contract.rs` reads these tables as ground truth, so
 a stale table is a red gate for whoever touches the manifest next.
 
+
+## Amended on 2026-09-30, in wave reads-04
+
+`ekr-store`'s dependency line above is wider again, and `crates/ekr/tests/story_contract.rs`'s
+`EXTERNAL` and `QUALIFIED` tables move with it in the same change.
+
+`task:read-verbs-open-a-read-only-store` opens a store this process may read but not write, and
+neither eventlog provider at the pinned revision can: both open for writing. `rusqlite` reads a
+SQLite store through a read-only connection (`immutable=1` where no `-wal` exists, else
+`mode=ro&readonly_shm=1`; neither creates a file beside the database) into an image `SqliteEventStore::from_image` opens in memory; it is
+pinned `=0.40.2`, the version `eventlog-sqlite` pins, so one `libsqlite3-sys` links. `rustix`
+answers whether this process may write a path (`faccessat` with `AT_EACCESS`) without writing it
+and whether the process that named a leftover copy directory is alive (`kill(pid, 0)`).
+`tempfile`, a dev dependency until now, holds the private copy a read-only File store is read
+through and removes it when the store drops. `ekr` gains `signal-hook` (0.3, the version `ekr-sdk`
+already declares), so `ekr view` and `ekr mcp` remove that copy when sent SIGTERM, SIGINT or
+SIGHUP.
+
+None of the four adds a package to `Cargo.lock`: `rusqlite 0.40.2`, `rustix 1.1.5`, `tempfile
+3.27.0` and `signal-hook 0.3.18` were already resolved. The lockfile gains three lines: the
+`rusqlite` and `rustix` edges of `ekr-store` and the `signal-hook` edge of `ekr`.
+
+This story is `implemented` and stays so, as in the p1-05 amendment.
 
 ## Amended again on 2026-09-21, in wave p1-06
 
