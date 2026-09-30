@@ -2,13 +2,16 @@
 format: aep.planning-md/3
 id: task:changes-since-lists-added-evidence
 kind: task
-status: draft
+status: active
 title: ChangesSince lists evidence added after the seed
 relations:
 - serves: vision:o5
 - decomposes: epic:p4-operator-surface
 - depends_on: story:add-evidence-operation
-revision: 1
+revision: 3
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-30T00:47:41Z", actor: "human:timo", revision: 2}
+- {from: "proposed", to: "active", at: "2026-09-30T00:47:42Z", actor: "human:timo", revision: 3}
 ---
 ## Context
 
