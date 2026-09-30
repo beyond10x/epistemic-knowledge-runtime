@@ -5,8 +5,8 @@
 //! applies, validates or persists anything itself. Only `seed` and `migrate` may create a store,
 //! through `Runtime::file` or `Runtime::sqlite`: `seed` only for a seed `Runtime::admit_seed`
 //! admits, `migrate` only at its `--to`; every other store verb opens an existing one and refuses
-//! a path holding none as `store-not-found`. How it opens it is its [`Access`], from
-//! [`Command::access`]: a verb that writes through `Runtime::file_existing` or
+//! a path holding none as `store-not-found`. How it opens it is its `Access`, from
+//! `Command::access`: a verb that writes through `Runtime::file_existing` or
 //! `Runtime::sqlite_existing`, which refuse a store this process may not write — `store-read-only`,
 //! exit 2 — and a verb that only reads through `Runtime::file_reading` or
 //! `Runtime::sqlite_reading`, which open such a store read-only. The agent verbs — `guide`, `operations`, `example`, `schema`, `mint`,
