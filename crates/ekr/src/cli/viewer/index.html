@@ -1832,14 +1832,23 @@ async function main() {
   // ---- filters ----
   function chips(container, counts, hidden, isNode) {
     put(container, [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([t, n]) =>
-      h("div", {class: `chip ${hidden.has(t) ? "off" : ""}`, "data-type": t, title: t},
+      h("div", {class: `chip ${hidden.has(t) ? "off" : ""}`, "data-type": t, title: `${t}\nclick: hide or show · shift+click: only this type, or all again`},
         isNode ? h("span", {class: "sw", style: swatch(t)}) : h("span", {class: "sw edge", style: t === CO ? "background:#5fa39a" : null}),
         h("span", null, isNode ? tname(t) : ename(t)), h("span", {class: "n"}, fmt(n)))));
   }
+  // A click hides or shows one type. A shift+click inverts that: it shows only the clicked type, and
+  // when that type is already the only one shown, it shows every type again.
   const toggleType = (hidden, ev) => {
     const t = ev.target.closest(".chip")?.dataset.type;
     if (t == null) return;
-    hidden.has(t) ? hidden.delete(t) : hidden.add(t);
+    if (ev.shiftKey) {
+      const all = [...ev.currentTarget.querySelectorAll(".chip")].map(chip => chip.dataset.type);
+      const solo = !hidden.has(t) && all.every(other => other === t || hidden.has(other));
+      hidden.clear();
+      if (!solo) for (const other of all) if (other !== t) hidden.add(other);
+    } else {
+      hidden.has(t) ? hidden.delete(t) : hidden.add(t);
+    }
     refreshScope(); refresh(); render(false); pushState();
   };
   $("nodeTypes").addEventListener("click", ev => toggleType(hiddenNodeTypes, ev));
