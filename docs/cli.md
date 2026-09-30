@@ -561,7 +561,7 @@ relation object of facts spread over the same years. The log is every node as an
 | object type | every other node type, one with no node included |
 | object | each node of an object type |
 | attribute | each property a node holds a value of; a type's attributes are the properties it declares or inherits |
-| relationship | each edge, qualified by its type id: on the event when one end is an event and the other an object, on the source when both are objects; an edge between two events is left out, since OCEL 2.0 relates events to objects only |
+| relationship | each edge, qualified by its type id: on the event when one end is an event and the other an object, on the source when both are objects; an edge between two events is left out, since OCEL 2.0 relates events to objects only. Relationships are a set: two edges of one type with the same holder and object give one relationship, and the second is counted as merged (`parallel_edges_merged`) |
 
 Types, attributes and qualifiers are named by id, not by name: OCEL 2.0 identifies a type and an
 attribute by its name, and two of a store's types or properties may share one. `names` maps each
@@ -570,10 +570,18 @@ property id and name a type declares it under, each ordered by id. A time is RFC
 milliseconds. Every attribute value is a string, as the OCEL 2.0 JSON schema requires: a single
 value of a `One` property of a scalar kind is its text (an integer in decimal, a `Timestamp` as a
 time, a `NodeRef` as the node's id), and any other value list is its JSON as the projection writes
-`props`. An object's attribute values carry the time `1970-01-01T00:00:00.000Z`, which OCEL 2.0
-gives an object's initial values; the store holds a node's properties without a time. A node's
-name, aliases and lifecycle state, and an edge's properties, are not part of the log. `ekr session`
-serves the verb too; the other refusals are `ekr quality`'s.
+`props`. An attribute typed `time` holds a time: a `Timestamp` outside the years 0000–9999 is left
+out of the log and counted (`attribute_values_out_of_range`). An object's attribute values carry
+the time `1970-01-01T00:00:00.000Z`, which OCEL 2.0 gives an object's initial values, or the time
+of the log's earliest event when that is earlier, so no event precedes the values of the objects
+it relates to; the store holds a node's properties without a time. A node's name, aliases and
+lifecycle state, and an edge's properties, are not part of the log. `ekr session` serves the verb
+too; the other refusals are `ekr quality`'s.
+
+A known departure from OCEL 2.0: its Definition 2 makes an attribute name one type's, and a
+property a type inherits is an attribute of that type and of every type inheriting it, under one
+property id. The OCEL 2.0 JSON schema and common readers, the `process_mining` crate among them,
+accept such a log.
 
 ### `ekr guide`
 

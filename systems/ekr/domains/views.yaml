@@ -1553,22 +1553,32 @@ types:
   # (`time`); every other declaration is typed `string`. A node's attributes are its property
   # values, one attribute per property it holds a value of: under a scalar declaration, a single
   # value of the declared kind is written as its text — a String's or an Enum's text, `true` or
-  # `false`, the decimal integer, a Decimal's exact text, a Timestamp in the time form below (its
-  # decimal milliseconds outside years 0000–9999), a NodeRef's node id; any other value list is
-  # the compact JSON of the list as ekr.views.ProjectedValue writes it in a projection's props.
-  # Every value is a JSON string, as the OCEL 2.0 JSON schema requires. An object's attribute
-  # values carry the time 1970-01-01T00:00:00.000Z, which OCEL 2.0 (§ 6.4) gives an object's
-  # initial values: the store holds a node's properties without a time. A node's canonical name,
-  # aliases and lifecycle state are not properties and are not attributes. An edge's properties
-  # are not carried: an OCEL 2.0 relationship holds an object and a qualifier only.
+  # `false`, the decimal integer, a Decimal's exact text, a Timestamp in the time form below, a
+  # NodeRef's node id; any other value list is the compact JSON of the list as
+  # ekr.views.ProjectedValue writes it in a projection's props. Under a declaration typed `time`
+  # the attribute holds a time or is not in the log: a value the time form cannot write (a year
+  # outside 0000–9999) is left out and counted, and the declaration keeps its type. Every value is
+  # a JSON string, as the OCEL 2.0 JSON schema requires. An object's attribute values carry the
+  # time OCEL 2.0 (§ 6.4) gives an object's initial values, 1970-01-01T00:00:00.000Z — or the
+  # time of the log's earliest event when that is before it, so that no event precedes the values
+  # of the objects it relates to: the store holds a node's properties without a time. A node's
+  # canonical name, aliases and lifecycle state are not properties and are not attributes. An
+  # edge's properties are not carried: an OCEL 2.0 relationship holds an object and a qualifier
+  # only.
+  #
+  # A known departure from OCEL 2.0 (Definition 2, which makes an attribute name one type's): a
+  # property a type inherits is an attribute of that type and of every type inheriting it, under
+  # the one property id, so two OCEL types may declare one attribute name. OCEL 2.0 readers,
+  # the JSON schema and the process_mining crate among them, accept it; declaring it on one type
+  # only would drop it from the others' nodes.
   #
   # Relationships. Each edge of the revision is one relationship qualified by its type id: when
   # one end is an event and the other an object, an event-to-object relationship on the event
   # naming the object, whichever end is the source; when both ends are objects, an
   # object-to-object relationship on the source naming the target; when both ends are events,
   # none, since OCEL 2.0 relates an event to objects only; when an end is a node of an event type
-  # that is not in the log, none. Relationships are a set, so two edges of one type between the
-  # same ends give one.
+  # that is not in the log, none. Relationships are a set: two edges of one type with the same
+  # holder and object give one relationship, and the second is counted as merged.
   #
   # Names. `names.node_types` and `names.edge_types` hold one entry per type the revision's
   # ontology declares, its id and its name; `names.properties` one entry per distinct pair of a
@@ -2339,6 +2349,8 @@ commands:
             edges_between_events: {generated: true}
             undated_events: {generated: true}
             edges_of_undated_events: {generated: true}
+            parallel_edges_merged: {generated: true}
+            attribute_values_out_of_range: {generated: true}
             ocel_hash: {generated: true}
         summary: One ekr.ocel/1 document of the requested revision, byte-identical to every other answer to the same request with `at` resolved.
       - name: not-found
@@ -2667,8 +2679,10 @@ events:
   # `object_object_relationships` those its objects hold; `edges_between_events` the revision's
   # edges both of whose ends are events in the log; `undated_events` the nodes of an event type
   # left out of the log for want of a writable time, and `edges_of_undated_events` the edges with
-  # such a node at an end, neither of which the log carries; `ocel_hash` the hex SHA-256 of the
-  # document's exact bytes.
+  # such a node at an end, neither of which the log carries; `parallel_edges_merged` the edges
+  # carried by a relationship an earlier edge of the same type between the same holder and object
+  # already gave; `attribute_values_out_of_range` the values of a property typed `time` left out
+  # for want of a writable time; `ocel_hash` the hex SHA-256 of the document's exact bytes.
   - name: ekr.views.OcelExported
     fields:
       - name: revision
@@ -2690,6 +2704,10 @@ events:
       - name: undated_events
         type: Integer
       - name: edges_of_undated_events
+        type: Integer
+      - name: parallel_edges_merged
+        type: Integer
+      - name: attribute_values_out_of_range
         type: Integer
       - name: ocel_hash
         type: ekr.kernel.ContentHash

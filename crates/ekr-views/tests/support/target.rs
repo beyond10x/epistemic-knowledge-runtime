@@ -400,6 +400,11 @@ fn ocel_exported(summary: &OcelExported) -> Result<ObservedEvent, TargetError> {
         ("edges_between_events", summary.edges_between_events),
         ("undated_events", summary.undated_events),
         ("edges_of_undated_events", summary.edges_of_undated_events),
+        ("parallel_edges_merged", summary.parallel_edges_merged),
+        (
+            "attribute_values_out_of_range",
+            summary.attribute_values_out_of_range,
+        ),
     ])?;
     fields.push(("ocel_hash", Node::Text(summary.ocel_hash.clone())));
     observed("ekr.views.OcelExported", fields)

@@ -57,6 +57,11 @@ pub struct OcelExported {
     pub undated_events: u64,
     /// Edges with such a node at an end, which the log does not carry.
     pub edges_of_undated_events: u64,
+    /// Edges not carried as a relationship of their own: one of the same type between the same
+    /// ends, holder and object, is already one.
+    pub parallel_edges_merged: u64,
+    /// Values of a property typed `time` the time form cannot write, left out of the log.
+    pub attribute_values_out_of_range: u64,
     /// The lowercase hex SHA-256 of the document's exact bytes.
     pub ocel_hash: String,
 }
@@ -128,7 +133,7 @@ struct OcelEventAttribute {
 struct OcelObjectAttribute {
     name: String,
     value: String,
-    time: &'static str,
+    time: String,
 }
 
 /// `ekr.views.OcelRelationship`.
@@ -308,6 +313,7 @@ pub fn ocel(index: &Index, events: &[String]) -> Result<Answer<OcelExported>, Oc
     // Each edge, once per (holder, object, qualifier).
     let mut related: BTreeMap<NodeId, BTreeSet<(String, String)>> = BTreeMap::new();
     let (mut edges_between_events, mut edges_of_undated_events) = (0_u64, 0_u64);
+    let mut parallel_edges_merged = 0_u64;
     for edge in graph.edges.values() {
         let (source, target) = (edge.source.id(), edge.target.id());
         let role = |end: NodeId| {
@@ -331,10 +337,13 @@ pub fn ocel(index: &Index, events: &[String]) -> Result<Answer<OcelExported>, Oc
             (Role::Object, Role::Event(_)) => (target, source),
             (Role::Event(_) | Role::Object, Role::Object) => (source, target),
         };
-        related
+        let fresh = related
             .entry(holder)
             .or_default()
             .insert((object.to_string(), edge.type_id.to_string()));
+        if !fresh {
+            parallel_edges_merged += 1;
+        }
     }
     let relationships = |node: &NodeId| -> Vec<OcelRelationship> {
         related
@@ -353,6 +362,19 @@ pub fn ocel(index: &Index, events: &[String]) -> Result<Answer<OcelExported>, Oc
     let mut ocel_events = Vec::new();
     let mut objects = Vec::new();
     let (mut event_object, mut object_object, mut undated_events) = (0_u64, 0_u64, 0_u64);
+    let mut attribute_values_out_of_range = 0_u64;
+    // An object's attribute values start at 1970-01-01, OCEL 2.0's initial time, or at the log's
+    // earliest event when that is before it, so that every event sees its objects' values.
+    let initial = roles
+        .values()
+        .filter_map(|role| match role {
+            Role::Event(time) => Some(*time),
+            Role::Undated | Role::Object => None,
+        })
+        .min()
+        .filter(|earliest| *earliest < 0)
+        .and_then(rfc3339)
+        .unwrap_or_else(|| INITIAL.to_owned());
     for node in graph.nodes.values() {
         let role = roles[&node.id];
         if role == Role::Undated {
@@ -362,10 +384,11 @@ pub fn ocel(index: &Index, events: &[String]) -> Result<Answer<OcelExported>, Oc
         let described = &declarations[&node.type_id];
         let mut attributes = Vec::with_capacity(node.properties.len());
         for (property, values) in &node.properties {
-            attributes.push((
-                property.to_string(),
-                value_text(described.get(property).copied(), values)?,
-            ));
+            let Some(value) = value_text(described.get(property).copied(), values)? else {
+                attribute_values_out_of_range += 1;
+                continue;
+            };
+            attributes.push((property.to_string(), value));
         }
         let held = relationships(&node.id);
         if let Role::Event(time) = role {
@@ -393,7 +416,7 @@ pub fn ocel(index: &Index, events: &[String]) -> Result<Answer<OcelExported>, Oc
                     .map(|(name, value)| OcelObjectAttribute {
                         name,
                         value,
-                        time: INITIAL,
+                        time: initial.clone(),
                     })
                     .collect(),
                 relationships: held,
@@ -462,6 +485,8 @@ pub fn ocel(index: &Index, events: &[String]) -> Result<Answer<OcelExported>, Oc
         edges_between_events,
         undated_events,
         edges_of_undated_events,
+        parallel_edges_merged,
+        attribute_values_out_of_range,
         ocel_hash: hash(&bytes),
     };
     Ok(Answer { bytes, summary })
@@ -485,24 +510,30 @@ fn attribute_type(definition: &PropertyDefinition) -> (&'static str, bool) {
 
 /// A node's values of one property as an attribute value: a single value of a scalar
 /// declaration's kind as its text, anything else as the compact JSON of the list as a projection
-/// writes it in `props`.
+/// writes it in `props` — except under a declaration typed `time`, whose attribute holds a time
+/// or is left out (`None`).
 fn value_text(
     declaration: Option<&PropertyDefinition>,
     values: &[CanonicalValue],
-) -> Result<String, ProjectError> {
-    if let (Some(declaration), [value]) = (declaration, values) {
-        if attribute_type(declaration).1 {
-            if let Some(text) = scalar_text(&declaration.value_type, value) {
-                return Ok(text);
-            }
+) -> Result<Option<String>, ProjectError> {
+    if let Some(declaration) = declaration {
+        let (typed, scalar) = attribute_type(declaration);
+        let text = match values {
+            [value] if scalar => scalar_text(&declaration.value_type, value),
+            _ => None,
+        };
+        if text.is_some() || typed == "time" {
+            return Ok(text);
         }
     }
     let projected: Vec<ProjectedValue> = values.iter().map(ProjectedValue::from).collect();
     serde_json::to_string(&projected)
+        .map(Some)
         .map_err(|error| ProjectError::Inconsistent(format!("encoding a value list: {error}")))
 }
 
-/// A value's text under the scalar value type `declared`, when it is of that kind.
+/// A value's text under the scalar value type `declared`, when it is of that kind and, for a
+/// Timestamp, when the time form writes it.
 fn scalar_text(declared: &ValueType, value: &CanonicalValue) -> Option<String> {
     Some(match (declared, value) {
         (ValueType::String, CanonicalValue::String(text))
@@ -511,9 +542,7 @@ fn scalar_text(declared: &ValueType, value: &CanonicalValue) -> Option<String> {
         (ValueType::Boolean, CanonicalValue::Boolean(truth)) => truth.to_string(),
         (ValueType::Integer, CanonicalValue::Integer(number))
         | (ValueType::Duration, CanonicalValue::Duration(number)) => number.to_string(),
-        (ValueType::Timestamp, CanonicalValue::Timestamp(at)) => {
-            rfc3339(at.millis()).unwrap_or_else(|| at.millis().to_string())
-        }
+        (ValueType::Timestamp, CanonicalValue::Timestamp(at)) => rfc3339(at.millis())?,
         (ValueType::NodeRef { .. }, CanonicalValue::NodeRef(node)) => node.id().to_string(),
         _ => return None,
     })

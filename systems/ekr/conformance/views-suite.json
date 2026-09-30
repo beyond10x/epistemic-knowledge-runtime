@@ -126,7 +126,7 @@
         "scenario": "ekr.views/authored/an-expansion-refuses-each-input-outside-its-bound"
       },
       "an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest.yaml": {
-        "digest": "sha256:5f04cf388deb12347cea99929755c051ede6f66d7bda300a2b7f563f458f8da5",
+        "digest": "sha256:3933948b2851580d10439ac748bd2d4ac1d19bdaa08cfb5a07a7f6e9d12d2ff1",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest"
       },
@@ -1166,8 +1166,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "cc95baaffb8e1bf39f2c7d14d42b899054320da595c84395303e169450a2a226",
-    "spec_digest": "5daa1682eb4caf6467fdeb2969eca3fb7ab0993dcf153670f23ff7131d3780ab",
+    "contract_digest": "18b16d5d4e569eede91b46164d9688ee28b6290b40fb93bb973da9d917876a73",
+    "spec_digest": "d37dc6cea2cbe619d6894cd7af764ee333d40cc6cbef1ad37dc32763680acf11",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -5385,6 +5385,10 @@
         {
           "event": "ekr.views.OcelExported",
           "shape": {
+            "attribute_values_out_of_range": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "edges_between_events": {
               "holds": "primitive",
               "kind": "integer"
@@ -5420,6 +5424,10 @@
             "ocel_hash": {
               "holds": "primitive",
               "kind": "string"
+            },
+            "parallel_edges_merged": {
+              "holds": "primitive",
+              "kind": "integer"
             },
             "revision": {
               "holds": "primitive",
@@ -20022,6 +20030,7 @@
         {
           "event": "ekr.views.OcelExported",
           "payload": {
+            "attribute_values_out_of_range": 0.0,
             "edges_between_events": 1.0,
             "edges_of_undated_events": 0.0,
             "event_object_relationships": 4.0,
@@ -20030,10 +20039,15 @@
             "object_object_relationships": 2.0,
             "object_types": 4.0,
             "objects": 5.0,
+            "parallel_edges_merged": 1.0,
             "revision": 0.0,
             "undated_events": 0.0
           },
           "shape": {
+            "attribute_values_out_of_range": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "edges_between_events": {
               "holds": "primitive",
               "kind": "integer"
@@ -20069,6 +20083,10 @@
             "ocel_hash": {
               "holds": "primitive",
               "kind": "string"
+            },
+            "parallel_edges_merged": {
+              "holds": "primitive",
+              "kind": "integer"
             },
             "revision": {
               "holds": "primitive",
@@ -20110,6 +20128,7 @@
         {
           "event": "ekr.views.OcelExported",
           "payload": {
+            "attribute_values_out_of_range": 0.0,
             "edges_between_events": 1.0,
             "edges_of_undated_events": 0.0,
             "event_object_relationships": 4.0,
@@ -20118,10 +20137,15 @@
             "object_object_relationships": 2.0,
             "object_types": 4.0,
             "objects": 5.0,
+            "parallel_edges_merged": 1.0,
             "revision": 1.0,
             "undated_events": 0.0
           },
           "shape": {
+            "attribute_values_out_of_range": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "edges_between_events": {
               "holds": "primitive",
               "kind": "integer"
@@ -20157,6 +20181,10 @@
             "ocel_hash": {
               "holds": "primitive",
               "kind": "string"
+            },
+            "parallel_edges_merged": {
+              "holds": "primitive",
+              "kind": "integer"
             },
             "revision": {
               "holds": "primitive",
@@ -20198,6 +20226,7 @@
         {
           "event": "ekr.views.OcelExported",
           "payload": {
+            "attribute_values_out_of_range": 0.0,
             "edges_between_events": 1.0,
             "edges_of_undated_events": 0.0,
             "event_object_relationships": 4.0,
@@ -20206,10 +20235,15 @@
             "object_object_relationships": 2.0,
             "object_types": 4.0,
             "objects": 5.0,
+            "parallel_edges_merged": 1.0,
             "revision": 2.0,
             "undated_events": 0.0
           },
           "shape": {
+            "attribute_values_out_of_range": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "edges_between_events": {
               "holds": "primitive",
               "kind": "integer"
@@ -20245,6 +20279,10 @@
             "ocel_hash": {
               "holds": "primitive",
               "kind": "string"
+            },
+            "parallel_edges_merged": {
+              "holds": "primitive",
+              "kind": "integer"
             },
             "revision": {
               "holds": "primitive",
@@ -20288,6 +20326,7 @@
         {
           "event": "ekr.views.OcelExported",
           "payload": {
+            "attribute_values_out_of_range": 0.0,
             "edges_between_events": 0.0,
             "edges_of_undated_events": 1.0,
             "event_object_relationships": 1.0,
@@ -20296,10 +20335,15 @@
             "object_object_relationships": 5.0,
             "object_types": 4.0,
             "objects": 6.0,
+            "parallel_edges_merged": 1.0,
             "revision": 2.0,
             "undated_events": 1.0
           },
           "shape": {
+            "attribute_values_out_of_range": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "edges_between_events": {
               "holds": "primitive",
               "kind": "integer"
@@ -20335,6 +20379,10 @@
             "ocel_hash": {
               "holds": "primitive",
               "kind": "string"
+            },
+            "parallel_edges_merged": {
+              "holds": "primitive",
+              "kind": "integer"
             },
             "revision": {
               "holds": "primitive",

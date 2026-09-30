@@ -288,6 +288,8 @@ fn rule_summary(revision: u64, hash: &[u8]) -> OcelExported {
         edges_between_events: 1,
         undated_events: 0,
         edges_of_undated_events: 0,
+        parallel_edges_merged: 1,
+        attribute_values_out_of_range: 0,
         ocel_hash: hex(hash),
     }
 }
@@ -387,6 +389,8 @@ fn named_event_types_replace_the_rules_and_leave_undated_events_out() {
                 edges_between_events: 0,
                 undated_events: 1,
                 edges_of_undated_events: 1,
+                parallel_edges_merged: 1,
+                attribute_values_out_of_range: 0,
                 ocel_hash: hex(&bytes),
             },
             "{name}"
@@ -631,6 +635,8 @@ fn two_reads_of_one_request_are_byte_identical_on_both_providers_before_and_afte
                 edges_between_events: 0,
                 undated_events: 0,
                 edges_of_undated_events: 0,
+                parallel_edges_merged: 1,
+                attribute_values_out_of_range: 0,
                 ocel_hash: hex(&bytes),
             },
             "{name}"

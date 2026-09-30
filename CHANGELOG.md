@@ -14,7 +14,8 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   Each node of an event type is an event at its timeline time, and one with no time is left out;
   every other node type is an object type; edges are relationships qualified by their type id, and
   properties are attributes. Types, attributes and qualifiers are named by id, and the document's
-  `names` gives each id its name. Two reads of one request print the same bytes. Specified as
+  `names` gives each id its name; an attribute typed `time` holds a time, and a `Timestamp` outside
+  the years 0000–9999 is left out. Two reads of one request print the same bytes. Specified as
   `ekr.views.ExportOcel` in `systems/ekr/domains/views.yaml`, with `ekr_views::export_ocel` in the
   library.
 

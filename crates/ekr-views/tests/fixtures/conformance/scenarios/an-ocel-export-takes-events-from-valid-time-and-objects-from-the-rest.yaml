@@ -13,7 +13,7 @@
 #   - edges: e1 and e2 about p1 to c1 (one relationship), e3 about p2 to c2, e4 touches c1 to
 #     p3 (on the event p3), e8 about p3 to s1 — 4 event-to-object relationships; e5 and e6 holds
 #     c1 to n1 and c1 to n2 — 2 object-to-object; e7 follows p1 to p2, between two events, is
-#     not carried.
+#     not carried; e2, parallel to e1, is counted as merged.
 #   - revision 1 adds an earlier dated fact to p3 and revision 2 retracts it: the counts hold at
 #     every revision, and only p3's time moves (held byte for byte in tests/ocel.rs).
 #   - named, note is the one event type: n1 is an event, n2 has no dated fact and is left out,
@@ -47,6 +47,8 @@ timeline:
           edges_between_events: 1
           undated_events: 0
           edges_of_undated_events: 0
+          parallel_edges_merged: 1
+          attribute_values_out_of_range: 0
 
   - at: 2027-01-15T14:01:00Z
     command: ekr.views.ExportOcel
@@ -69,6 +71,8 @@ timeline:
           edges_between_events: 1
           undated_events: 0
           edges_of_undated_events: 0
+          parallel_edges_merged: 1
+          attribute_values_out_of_range: 0
 
   - at: 2027-01-15T14:02:00Z
     command: ekr.views.ExportOcel
@@ -91,6 +95,8 @@ timeline:
           edges_between_events: 1
           undated_events: 0
           edges_of_undated_events: 0
+          parallel_edges_merged: 1
+          attribute_values_out_of_range: 0
 
   - at: 2027-01-15T14:03:00Z
     command: ekr.views.ExportOcel
@@ -113,6 +119,8 @@ timeline:
           edges_between_events: 0
           undated_events: 1
           edges_of_undated_events: 1
+          parallel_edges_merged: 1
+          attribute_values_out_of_range: 0
 
   - at: 2027-01-15T14:04:00Z
     command: ekr.views.ExportOcel
