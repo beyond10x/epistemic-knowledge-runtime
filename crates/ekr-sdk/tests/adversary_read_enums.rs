@@ -79,7 +79,6 @@ fn the_unit_cases_do_not_see_a_retry_that_keeps_every_success() {
 /// `Deserialize` — gets the reader that fails on a kind a newer `ekr` adds, while
 /// `docs/sdk.md` promises `Other`.
 #[test]
-#[ignore = "defect: ViewValue::deserialize / OntologyValueType::deserialize resolve to the pub inherent remote-derived reader, which refuses an unknown kind"]
 fn the_path_a_consumer_writes_reads_an_unknown_kind_as_other() {
     assert_eq!(
         <ViewValue as serde::Deserialize>::deserialize(json!({"kind": "Geo", "value": 1})).unwrap(),
@@ -333,7 +332,6 @@ fn transaction_state_other_passed_to_transactions_is_a_usage_refusal() {
 /// the ontology's cardinality is such a set, and a cardinality a newer `ekr` adds fails the
 /// whole `ontology` read.
 #[test]
-#[ignore = "defect: Ontology's Cardinality (document::Cardinality) has no Other; docs/sdk.md says every closed set of kinds ends in Other"]
 fn a_cardinality_a_newer_ekr_adds_does_not_fail_the_ontology_read() {
     let (_directory, mut session) = seeded();
     let mut document = answered(&mut session, &["ontology"]);
@@ -356,7 +354,6 @@ fn a_cardinality_a_newer_ekr_adds_does_not_fail_the_ontology_read() {
 /// The same promise for a snapshot assertion's `subject`: a subject kind a newer `ekr` adds
 /// fails the whole `snapshot` read.
 #[test]
-#[ignore = "defect: Snapshot's Subject/Predicate (document::Subject, document::Predicate) have no Other; docs/sdk.md says every closed set of kinds ends in Other"]
 fn a_subject_kind_a_newer_ekr_adds_does_not_fail_the_snapshot_read() {
     let (_directory, mut session) = seeded();
     let mut document = answered(&mut session, &["snapshot"]);

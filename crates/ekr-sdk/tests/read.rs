@@ -31,15 +31,16 @@ use ekr_sdk::read::{
     Bucket, ChangeKind, Changes, ChangesMeta, DetailMeta, DetailNode, ExpandPages, ExpandQuery,
     ExplainedEvidence, Explanation, ExplanationLink, GraphChange, Head, ListedTransaction,
     MatchField, MatchTier, MatchesMeta, NamedType, NodeDetail, NodeMatch, NodeMatches, NodeSummary,
-    OneShotReader, Ontology, OntologyEdgeType, OntologyNodeType, OntologyProperty,
-    OntologyValueType, Overview, OverviewMeta, OverviewRevision, OverviewRoles, OverviewSchema,
-    OverviewTimeline, ReadError, Reader, RecordedTime, ReferencingAssertion, Root, SchemaMember,
-    SchemaVersionChange, Since, Slice, SliceEdge, SliceMeta, SliceNode, Snapshot,
+    OneShotReader, Ontology, OntologyCardinality, OntologyEdgeType, OntologyNodeType,
+    OntologyProperty, OntologyValueType, Overview, OverviewMeta, OverviewRevision, OverviewRoles,
+    OverviewSchema, OverviewTimeline, ReadError, Reader, RecordedTime, ReferencingAssertion, Root,
+    SchemaMember, SchemaVersionChange, Since, Slice, SliceEdge, SliceMeta, SliceNode, Snapshot,
     SnapshotAssertion, SnapshotEdge, SnapshotEvidence, SnapshotGraph, SnapshotGraphDocument,
-    SnapshotNode, SnapshotRoot, Timeline, TimelineBucket, TimelineCell, TimelineEvent,
-    TimelineMeta, TimelineQuery, TimelineRow, TimelineRowType, TimelineStep, TransactionState,
-    Transactions, TypeCount, TypeTiming, ValidTime, ViewAssertion, ViewAssessment, ViewEdge,
-    ViewEdgeType, ViewLifecycle, ViewNodeType, ViewOntology, ViewProperty, ViewValue,
+    SnapshotNode, SnapshotPredicate, SnapshotRoot, SnapshotSubject, Timeline, TimelineBucket,
+    TimelineCell, TimelineEvent, TimelineMeta, TimelineQuery, TimelineRow, TimelineRowType,
+    TimelineStep, TransactionState, Transactions, TypeCount, TypeTiming, ValidTime, ViewAssertion,
+    ViewAssessment, ViewEdge, ViewEdgeType, ViewLifecycle, ViewNodeType, ViewOntology,
+    ViewProperty, ViewValue,
 };
 use ekr_sdk::session::{Backend, ProcessSession, SessionOptions, StoreConfig};
 use ekr_sdk::transport::{RecordingTransport, Request, Transport};
@@ -798,7 +799,32 @@ fn every_closed_read_enum_reads_a_kind_a_newer_ekr_adds_as_other() {
         &ExplanationLink::Other,
         "/kind",
     );
+    other(
+        "an ontology cardinality",
+        json!("AtLeastOne"),
+        &OntologyCardinality::Other,
+        "",
+    );
+    other(
+        "a snapshot subject",
+        json!({"Assertion": SEEDED_ASSERTION}),
+        &SnapshotSubject::Other,
+        "",
+    );
+    other(
+        "a snapshot predicate",
+        json!({"Qualifier": ORGANIZATION}),
+        &SnapshotPredicate::Other,
+        "",
+    );
     assert_eq!(TransactionState::Other.as_str(), "Other");
+    // A known externally tagged kind whose id is wrong is still refused.
+    assert!(serde_json::from_value::<SnapshotSubject>(json!({"Node": 5})).is_err());
+    assert!(serde_json::from_value::<SnapshotPredicate>(json!("Property")).is_err());
+    assert_eq!(
+        serde_json::from_value::<SnapshotSubject>(json!({"Node": ALICE})).unwrap(),
+        SnapshotSubject::Node(ALICE.parse().unwrap())
+    );
 
     // A new kind nested in a known one is the known one holding `Other`; a known kind whose
     // content is wrong is still refused, not read as `Other`.

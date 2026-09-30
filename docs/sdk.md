@@ -672,8 +672,11 @@ either: every closed set of kinds in these values ends in `Other`, and a kind a 
 reads as `Other` while the rest of the document reads as usual. For a `changes` page, that change
 has `change: ChangeKind::Other` with its `revision`, `recorded_at`, `id` and the other fields this
 SDK models intact, and every other change of the page is unaffected. The same holds for
-`MatchTier`, `MatchField`, `TransactionState` and `CodeNameKind`, and for `ViewValue`,
-`OntologyValueType` and `ExplanationLink`, whose `Other` drops the unknown kind's own payload. An
+`MatchTier`, `MatchField`, `TransactionState`, `OntologyCardinality` and `CodeNameKind`, and for
+`ViewValue`, `OntologyValueType`, `ExplanationLink`, `SnapshotSubject` and `SnapshotPredicate`,
+whose `Other` drops the unknown kind's own payload. `ontology`, `snapshot` and `explain` read
+into these read-side types; the document builders keep the strict `Cardinality`, `Subject` and
+`Predicate`, which have no `Other`. An
 `Other` writes back as `Other`, not as the kind `ekr` printed, and `TransactionState::Other` is
 no state `transactions` can filter by. `ChangeKind::EvidenceAdded`, evidence an `AddEvidence`
 brought after the seed, is modelled, with its `locator` and `content_hash`. A value holding no

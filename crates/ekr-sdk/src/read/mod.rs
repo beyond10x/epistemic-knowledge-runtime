@@ -46,9 +46,10 @@ pub use checks::{
 };
 pub use kernel::{
     ExplainedEvidence, Explanation, ExplanationLink, Head, ListedTransaction, NamedType, Ontology,
-    OntologyEdgeType, OntologyNodeType, OntologyProperty, OntologyValueType, RecordedTime, Root,
-    Snapshot, SnapshotAssertion, SnapshotEdge, SnapshotEvidence, SnapshotGraph,
-    SnapshotGraphDocument, SnapshotNode, SnapshotRoot, TransactionState, Transactions, ValidTime,
+    OntologyCardinality, OntologyEdgeType, OntologyNodeType, OntologyProperty, OntologyValueType,
+    RecordedTime, Root, Snapshot, SnapshotAssertion, SnapshotEdge, SnapshotEvidence, SnapshotGraph,
+    SnapshotGraphDocument, SnapshotNode, SnapshotPredicate, SnapshotRoot, SnapshotSubject,
+    TransactionState, Transactions, ValidTime,
 };
 pub use views::{
     ChangeKind, Changes, ChangesMeta, DetailMeta, DetailNode, GraphChange, MatchField, MatchTier,
@@ -60,14 +61,15 @@ pub use views::{
     ViewLifecycle, ViewNodeType, ViewOntology, ViewProperty, ViewValue,
 };
 
-/// Reads an adjacently tagged enum whose unit `Other` is its catch-all. `derived` is the enum's
-/// derived reader (`#[serde(remote = "Self")]`), which reads a kind it does not know as `Other`
-/// only when that kind carries no content. So a document it refuses is read once more with its
-/// `content` key removed, and answers only if that reads as `Other`; a known kind whose content
-/// is wrong keeps its first error.
+/// Reads an enum whose unit `Other` is its catch-all. `derived` is the reader serde derives for
+/// the enum's private mirror (`#[serde(remote = …)]`), which reads a kind it does not know as
+/// `Other` only when that kind carries no content. So a document it refuses is read once more
+/// with its content removed — the `content` key of an adjacently tagged enum, or, when `content`
+/// is `None`, the value of an externally tagged one, `{"Kind": …}` read as `"Kind"` — and answers
+/// only if that reads as `Other`; a known kind whose content is wrong keeps its first error.
 fn tolerant<'de, D, T>(
     deserializer: D,
-    content: &str,
+    content: Option<&str>,
     derived: fn(serde_json::Value) -> Result<T, serde_json::Error>,
     is_other: fn(&T) -> bool,
 ) -> Result<T, D::Error>
@@ -80,8 +82,17 @@ where
     let document = serde_json::Value::deserialize(deserializer)?;
     let mut bare = document.clone();
     derived(document).or_else(|error| {
-        if let Some(fields) = bare.as_object_mut() {
-            fields.remove(content);
+        if let serde_json::Value::Object(fields) = &mut bare {
+            match content {
+                Some(key) => {
+                    fields.remove(key);
+                }
+                None if fields.len() == 1 => {
+                    let kind = fields.keys().next().cloned().unwrap_or_default();
+                    bare = serde_json::Value::String(kind);
+                }
+                None => {}
+            }
         }
         match derived(bare) {
             Ok(read) if is_other(&read) => Ok(read),

@@ -17,8 +17,7 @@ use serde::{Deserialize, Serialize};
 /// A property value as the views write it: `{"kind": …, "value": …}`. Ids and decimals are text,
 /// times and durations milliseconds. A kind a newer `ekr` adds reads as [`ViewValue::Other`],
 /// its value dropped, and writes back as `{"kind": "Other"}`.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(remote = "Self", tag = "kind", content = "value")]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ViewValue {
     /// Text.
     String(String),
@@ -41,21 +40,57 @@ pub enum ViewValue {
     /// Named values.
     Record(BTreeMap<String, ViewValue>),
     /// A kind this SDK does not know, added by a newer `ekr`.
+    Other,
+}
+
+/// [`ViewValue`]'s wire shape, for serde to derive its reader and writer from. Private, so the
+/// only public reader is the tolerant `Deserialize` impl.
+#[allow(dead_code)]
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "ViewValue", tag = "kind", content = "value")]
+enum ViewValueWire {
+    String(String),
+    Boolean(bool),
+    Integer(i64),
+    Decimal(String),
+    Timestamp(i64),
+    Duration(i64),
+    NodeRef(String),
+    Enum(String),
+    List(Vec<ViewValue>),
+    Record(BTreeMap<String, ViewValue>),
     #[serde(other)]
     Other,
 }
 
 impl Serialize for ViewValue {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        Self::serialize(self, serializer)
+        ViewValueWire::serialize(self, serializer)
+    }
+}
+
+impl ViewValue {
+    /// Reads a value as the `Deserialize` impl does, so `ViewValue::deserialize(…)` without the
+    /// trait in scope is the same tolerant reader: a kind a newer `ekr` adds is `Other`.
+    ///
+    /// # Errors
+    ///
+    /// A document that is no value: a known kind whose value is wrong, or no `kind`.
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Self, D::Error> {
+        <Self as Deserialize<'de>>::deserialize(deserializer)
     }
 }
 
 impl<'de> Deserialize<'de> for ViewValue {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        super::tolerant(deserializer, "value", Self::deserialize, |read| {
-            *read == Self::Other
-        })
+        super::tolerant(
+            deserializer,
+            Some("value"),
+            ViewValueWire::deserialize,
+            |read| *read == Self::Other,
+        )
     }
 }
 

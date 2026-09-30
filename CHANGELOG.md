@@ -18,7 +18,9 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   closed set of kinds in `ekr_sdk::read` — `ChangeKind`, `MatchTier`, `MatchField`,
   `TransactionState`, `ViewValue`, `OntologyValueType` and `ExplanationLink`, as `CodeNameKind`
   already did — ends in `Other`: an unknown kind reads as `Other` and the rest of the document
-  reads as before, where it failed the whole read. `ChangeKind::EvidenceAdded` is modelled, with
+  reads as before, where it failed the whole read. `Ontology`, `Snapshot` and `Explanation` now
+  hold the read side's own `OntologyCardinality`, `SnapshotSubject` and `SnapshotPredicate`, each
+  with `Other`, instead of the document builders' `Cardinality`, `Subject` and `Predicate`. `ChangeKind::EvidenceAdded` is modelled, with
   `GraphChange::locator` and `GraphChange::content_hash`.
 
 ## [0.0.22] — 2026-09-30
