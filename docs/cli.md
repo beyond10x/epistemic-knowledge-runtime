@@ -62,12 +62,28 @@ parents, the SQLite provider creates the database file but not its directory. `g
 `example`, `mint`, `hash` and `schema` open no store, need none of the settings and ignore the variables.
 
 A store this process may read but not write — on a read-only mount, or owned by another user —
-still answers every verb that only reads it. Such a verb opens the store read-only: it reads a file
-store through a private copy in the temporary directory, taken under a shared lock that excludes
-every writer, and a SQLite database through a read-only connection into memory, so it writes
-nothing at the store's path and keeps no replay checkpoint there. It prints the same bytes it prints
-on a writable store. A verb that writes is refused `store-read-only` (exit 2,
+still answers every verb that only reads it. Such a verb opens the store read-only, writes nothing
+at the store's path — no lock file, no journal file, no replay checkpoint — and prints the same bytes it
+prints on a writable store. A verb that writes is refused `store-read-only` (exit 2,
 [Common refusals](#common-refusals)) before it opens anything.
+
+- **A file store** is read through a private copy of the whole store directory, taken under a
+  shared lock on its `writer.lock` that excludes every writer. The copy is a directory
+  `ekr-read-only-<pid>-…` in the temporary directory (`TMPDIR`, else `/tmp`), which needs free space
+  for one more copy of the store for each process reading it. It is removed when the verb ends;
+  `ekr view` and `ekr mcp` also remove it when sent SIGTERM, SIGINT or SIGHUP, and then exit with
+  128 plus the signal's number. A copy left by a process that was killed outright is removed by the
+  next read-only open in the same temporary directory.
+- **A SQLite database** is read into memory through a read-only connection, and no `-wal` or `-shm`
+  file is created beside it. With no `-wal` there, it is read `immutable=1`: SQLite takes no lock,
+  so the read does not exclude a writer; the database's size and modification time are compared
+  before and after, and a read that saw them change is taken again. With a `-wal` there, it is
+  read through SQLite's own locks, and a `-wal` whose `-shm` is gone is not read.
+- **A long-lived reader** — `ekr session`, `ekr view`, `ekr mcp` — checks the store's files before
+  each request that reads it (a file store's `events.jsonl`, `manifest.json` and `blobs`; a SQLite
+  database and its `-wal`), and when they have changed since it read them, it reads the store
+  again, as it does for a store replaced at its path. A commit another process made is what the
+  next request reads.
 
 ```console
 export EKR_HOST=host.json EKR_STORE=./store EKR_BACKEND=file
@@ -489,8 +505,8 @@ The printed `description` names every place the schema and the reader differ:
 
 Serves a read-only viewer of an existing store on 127.0.0.1 — never another address — until the
 process is interrupted: `ekr view --port 8080`, or `--port 0` (the default) for a free port. A store
-this process may not write it opens read-only, as every verb that reads does
-([Configuration](#configuration)). It prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`,
+this process may not write it opens read-only, as every verb that reads does, and reads again once
+its files change ([Configuration](#configuration)); SIGINT or SIGTERM removes its private copy. It prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`,
 then answers:
 
 | request | answer |
@@ -736,7 +752,7 @@ answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"
 | `session-option-refused` | 2 | the request sets `--host`, `--store`, `--backend` or `--full-replay` | the session's store is fixed when it starts; start another session for another store |
 
 A session opens its store as a verb that reads does, so on a store this process may not write it
-starts, holds the store read-only and serves every read; a `propose`, `validate`, `commit` or
+starts, holds the store read-only, reads it again once its files change, and serves every read; a `propose`, `validate`, `commit` or
 `seed` request is answered `"exit": 2` with `ekr: store-read-only: <reason>`, as the one-shot verb
 is refused ([Common refusals](#common-refusals)), and the session serves the next line.
 
@@ -806,8 +822,8 @@ their variables) and opens the existing store when it starts, then reads JSON-RP
 messages from standard input, one per line, and writes each response as one line on standard
 output, flushed, until its input ends; then it exits 0. It writes nothing to the store and nothing
 to stderr. If the configuration or the store does not open, it answers nothing and exits as a
-store verb does (`store-not-found`, exit 1). A store this process may not write it opens read-only
-and serves as on a writable one ([Configuration](#configuration)). To register it with an MCP client, give the client
+store verb does (`store-not-found`, exit 1). A store this process may not write it opens read-only,
+reads again once its files change, and serves as on a writable one ([Configuration](#configuration)). To register it with an MCP client, give the client
 the command `ekr mcp` with `EKR_HOST`, `EKR_STORE` and `EKR_BACKEND` in its environment.
 
 A line that is empty or holds only whitespace is not a message: it is read and not answered.

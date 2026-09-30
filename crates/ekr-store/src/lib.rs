@@ -55,6 +55,7 @@ pub mod objects;
 pub mod snapshot;
 mod verified;
 
+pub use eventlog::remove_read_only_copies;
 pub use eventlog::{
     EventlogStore, FileStore, InventoriedObject, Inventory, PublishedEvent, SqliteStore,
     StoreInventory,

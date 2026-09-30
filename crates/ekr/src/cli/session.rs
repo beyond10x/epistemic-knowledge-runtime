@@ -393,8 +393,12 @@ fn follow(session: &mut Session, watch: &mut Watch, diverged: bool) -> Result<()
     let now = check(&session.store.store);
     if !diverged && now == watch.opened {
         if let Some(runtime) = &session.runtime {
-            settle(runtime, &mut watch.proposed);
-            return Ok(());
+            // A store held read-only is a copy: once the files at the path change, it is taken
+            // again, as a store replaced there is.
+            if !runtime.source_changed() {
+                settle(runtime, &mut watch.proposed);
+                return Ok(());
+            }
         }
     }
     if let Some(runtime) = &session.runtime {
@@ -584,7 +588,12 @@ impl Held {
     /// [`Replaced`] when that store does not open; the next call tries again.
     pub(super) fn current(&mut self) -> Result<Checked<'_>, Replaced> {
         let now = check(&self.store.store);
-        let same = now == self.opened && self.runtime.is_some();
+        // A store held read-only is a copy: once the files at the path change, it is opened again.
+        let same = now == self.opened
+            && self
+                .runtime
+                .as_ref()
+                .is_some_and(|runtime| !runtime.source_changed());
         if !same {
             self.runtime = None;
             self.runtime = Some(reopen(&self.store)?);

@@ -256,7 +256,6 @@ fn a_session_on_a_writable_store_reads_another_process_commit() {
 /// store it does (the control above). The owner is simulated by restoring write permission
 /// between the session's two reads; the session's own identity check sees the same inode.
 #[test]
-#[ignore = "defect: a session on a read-only store never reads a commit another process made after it opened"]
 fn a_session_on_a_read_only_store_reads_another_process_commit() {
     let mut stale = Vec::new();
     for backend in BACKENDS {
@@ -287,7 +286,6 @@ fn a_session_on_a_read_only_store_reads_another_process_commit() {
 /// The same for `ekr mcp`, whose page says "Every tool reads the store as it stands when the call
 /// is read, so a transaction another process committed is what the next call reads".
 #[test]
-#[ignore = "defect: ekr mcp on a read-only store never reads a commit another process made after it opened"]
 fn mcp_on_a_read_only_store_reads_another_process_commit() {
     let initialize = json!({"jsonrpc": "2.0", "id": 1, "method": "initialize",
         "params": {"protocolVersion": "2025-11-25", "capabilities": {},
@@ -331,7 +329,6 @@ fn mcp_on_a_read_only_store_reads_another_process_commit() {
 /// is) opens read-only for a read verb, which must write nothing at the store's path
 /// (docs/cli.md, Configuration: "so it writes nothing at the store's path").
 #[test]
-#[ignore = "defect: a read verb on a read-only SQLite database in a writable directory creates its -wal and -shm files there"]
 fn a_read_verb_on_a_read_only_database_in_a_writable_directory_creates_nothing_beside_it() {
     let world = World::seeded("sqlite");
     let before = world.names();
@@ -355,7 +352,6 @@ fn a_read_verb_on_a_read_only_database_in_a_writable_directory_creates_nothing_b
 /// (0444 here; another user's ownership in the multi-user case), so the writer is refused
 /// `store-read-only` on its own store.
 #[test]
-#[ignore = "defect: after a read on a read-only SQLite database in a writable directory, the owner can no longer write the store"]
 fn the_owner_writes_again_after_a_read_on_its_read_only_database() {
     let world = World::seeded("sqlite");
     chmod(&world.store(), 0o444);
@@ -376,7 +372,6 @@ fn the_owner_writes_again_after_a_read_on_its_read_only_database() {
 /// `ekr view` serves until it is interrupted, so interruption is its only way to end. On a
 /// read-only file store it reads a private copy in `TMPDIR`; that copy must not outlive it.
 #[test]
-#[ignore = "defect: ekr view on a read-only file store leaves its private copy of the store in TMPDIR when terminated"]
 fn ekr_view_on_a_read_only_file_store_removes_its_copy_when_terminated() {
     let world = World::seeded("file");
     let tmpdir = world.tmpdir();

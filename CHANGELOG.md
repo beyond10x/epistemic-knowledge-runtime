@@ -12,7 +12,11 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   unavailable: … Permission denied` on a store mounted read-only or owned by another user, on both
   providers. Such a store now opens read-only: a file store is read through a private copy taken
   under a shared lock, a SQLite database through a read-only connection into memory, and nothing
-  is written at the store's path. The answers are the bytes a writable store gives.
+  is written at the store's path, not even a `-wal` or `-shm` beside a SQLite database. The
+  answers are the bytes a writable store gives. A session, `ekr view` and `ekr mcp` read the store
+  again once its files change, so a commit another process makes is what the next request reads;
+  `ekr view` and `ekr mcp` remove the private copy when sent SIGTERM, SIGINT or SIGHUP, and a copy
+  a killed process left is removed by the next read-only open.
 - **A verb that writes such a store is refused by name.** `ekr seed`, `propose`, `validate` and
   `commit`, and those requests in a session, are the refusal `store-read-only` (exit 2) before
   anything is opened, instead of a fault. Which verbs write is the verb table's `store` column.

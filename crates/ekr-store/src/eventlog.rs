@@ -43,6 +43,7 @@ pub use preparation::{
     PublicationCommandKey, PublicationCommandKind, PublicationPreparationV1,
     StagedPublicationObject,
 };
+pub use read_only::remove_read_only_copies;
 #[cfg(test)]
 #[path = "eventlog_reads.rs"]
 mod reads;
@@ -281,12 +282,15 @@ impl EventlogStore<SqliteEventStore> {
         let runtime = new_runtime()?;
         let tenant = TenantId::new(tenant)?;
         holds_something(path)?;
+        let signature = read_only::Signature::sqlite(path);
         let image = read_only::sqlite_image(path, "ekr_events")?
             .ok_or_else(|| StoreError::NoStore(path.display().to_string()))?;
         let store = runtime.block_on(SqliteEventStore::from_image("ekr", image))?;
         let mut opened = Self::assemble(runtime, store, tenant, ontology.into());
         opened.read_only = Some(read_only::ReadOnly {
             path: path.to_owned(),
+            signature,
+            sqlite: true,
             _copy: None,
         });
         Ok(opened)
@@ -457,11 +461,14 @@ impl EventlogStore<FileEventStore> {
         let tenant = TenantId::new(tenant)?;
         holds_something(path)?;
         holds_a_file_store(path)?;
+        let signature = read_only::Signature::file(path);
         let copy = read_only::copy_file_store(path)?;
         let store = runtime.block_on(FileEventStore::open_existing(copy.path()))?;
         let mut opened = Self::assemble(runtime, store, tenant, ontology.into());
         opened.read_only = Some(read_only::ReadOnly {
             path: path.to_owned(),
+            signature,
+            sqlite: false,
             _copy: Some(copy),
         });
         Ok(opened)
@@ -520,6 +527,15 @@ impl<S: EventStore> EventlogStore<S> {
     #[must_use]
     pub fn is_read_only(&self) -> bool {
         self.read_only.is_some()
+    }
+    /// Whether this store was opened read-only and the files at its path have changed since it
+    /// read them — another process committed, say. A long-lived reader then opens the store
+    /// again; a store opened for writing reads the provider itself and is never stale.
+    #[must_use]
+    pub fn source_changed(&self) -> bool {
+        self.read_only
+            .as_ref()
+            .is_some_and(read_only::ReadOnly::changed)
     }
     fn checkpoint_stream(&self) -> Result<StreamId, StoreError> {
         Ok(StreamId::new(

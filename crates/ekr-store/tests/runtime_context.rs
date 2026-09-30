@@ -427,9 +427,11 @@ fn all_io_refuses<S: AtomicBlobEventStore>(store: EventlogStore<S>) {
         Some(pending.to_vec())
     );
     // The constructors are refused by `constructors_refuse_before_creating_paths`; `under` only
-    // installs the authority, `set_full_replay` only sets a flag and `is_read_only` only reads
-    // one, and none performs I/O. Everything else must have been refused above.
+    // installs the authority, `set_full_replay` only sets a flag, `is_read_only` only reads
+    // one and `source_changed` only reads file metadata, and none reaches the provider.
+    // Everything else must have been refused above.
     assert!(!store.is_read_only());
+    assert!(!store.source_changed());
     let mut reached: BTreeSet<String> = exercised
         .0
         .into_inner()
@@ -449,6 +451,7 @@ fn all_io_refuses<S: AtomicBlobEventStore>(store: EventlogStore<S>) {
             "under",
             "set_full_replay",
             "is_read_only",
+            "source_changed",
         ]
         .map(str::to_owned),
     );

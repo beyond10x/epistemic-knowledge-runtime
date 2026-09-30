@@ -122,7 +122,8 @@ const EDGES: [(&str, &[&str]); 6] = [
 /// `(crate, [dependencies], [dev-dependencies])`, with `ekr-store`'s widened for
 /// `task:read-verbs-open-a-read-only-store`: `rusqlite` reads a SQLite store through a read-only
 /// connection, `rustix` asks whether this process may write a path, and `tempfile`, a dev
-/// dependency until then, holds a read-only File store's private copy.
+/// dependency until then, holds a read-only File store's private copy; `ekr`'s
+/// `signal-hook` lets `ekr view` and `ekr mcp` remove that copy when they are terminated.
 const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
     (
         "ekr-core",
@@ -203,6 +204,7 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
             "serde",
             "serde_json",
             "serde_yaml_ng",
+            "signal-hook",
             "time",
         ],
         &["assert_cmd", "jsonschema", "tempfile"],

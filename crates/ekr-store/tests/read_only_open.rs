@@ -109,6 +109,16 @@ impl World {
             .collect()
     }
 
+    /// The names in the store's directory, sorted.
+    fn names(&self) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(&self.directory)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    }
+
     fn read_only(&self) -> ReadOnly {
         set_modes(&self.directory, 0o555, 0o444);
         ReadOnly(self.directory.clone())
@@ -142,6 +152,13 @@ impl Store {
         match self {
             Self::File(store) => store.is_read_only(),
             Self::Sqlite(store) => store.is_read_only(),
+        }
+    }
+
+    fn source_changed(&self) -> bool {
+        match self {
+            Self::File(store) => store.source_changed(),
+            Self::Sqlite(store) => store.source_changed(),
         }
     }
 
@@ -248,12 +265,18 @@ fn a_sqlite_store_with_a_live_wal_is_read_with_its_newest_commit() {
         std::fs::metadata(&wal).is_ok_and(|found| found.len() > 0),
         "the writer's commit is in the WAL"
     );
+    let names = world.names();
     let guard = world.read_only();
     let store = world.reading().unwrap();
     assert!(store.is_read_only());
     assert_eq!(store.get(HELD).as_deref(), Some(HELD));
     drop(store);
     drop(guard);
+    assert_eq!(
+        world.names(),
+        names,
+        "the read created nothing beside the database"
+    );
     // A read-only open of a store this process may write reads the same way.
     let direct = SqliteStore::sqlite_read_only(&world.path(), "ekr", ontology()).unwrap();
     assert!(direct.is_read_only());
@@ -313,4 +336,72 @@ fn a_read_only_path_holding_no_store_is_no_store() {
     let guard = world.read_only();
     assert!(matches!(world.reading(), Err(StoreError::NoStore(_))));
     drop(guard);
+}
+
+/// A long-lived reader asks `source_changed` before each read: false while the files at the path
+/// are as they were read — a change of permissions alone included — and true once another handle
+/// has written the store, on both providers. The copy itself still holds the store as it was
+/// read; the reader opens it again.
+#[test]
+fn a_read_only_store_says_when_the_store_at_its_path_changed() {
+    for provider in PROVIDERS {
+        let world = World::new(provider);
+        world.create().put(HELD).unwrap();
+        let guard = world.read_only();
+        let store = world.reading().unwrap();
+        assert!(store.is_read_only(), "{provider:?}");
+        assert!(!store.source_changed(), "{provider:?}: nothing changed");
+        drop(guard);
+        assert!(
+            !store.source_changed(),
+            "{provider:?}: permissions alone are no change"
+        );
+        world.existing().unwrap().put(LATER).unwrap();
+        assert!(store.source_changed(), "{provider:?}: another handle wrote");
+        assert_eq!(store.get(LATER), None, "{provider:?}: the copy is as read");
+        let writable = world.reading().unwrap();
+        assert!(!writable.is_read_only() && !writable.source_changed());
+        assert_eq!(writable.get(LATER).as_deref(), Some(LATER), "{provider:?}");
+    }
+}
+
+/// A WAL database whose `-shm` is gone — a writer that crashed after its shared memory file was
+/// removed — in a directory this process could write: a read-only open creates no `-shm` there,
+/// and the open is refused rather than read.
+#[test]
+fn a_read_only_open_creates_no_shm_beside_a_wal_that_has_none() {
+    let world = World::new(Provider::Sqlite);
+    let writer = world.create();
+    writer.put(HELD).unwrap();
+    let copy = world.directory.join("copy");
+    std::fs::create_dir(&copy).unwrap();
+    for name in ["state.db", "state.db-wal"] {
+        std::fs::copy(world.directory.join(name), copy.join(name)).unwrap();
+    }
+    drop(writer);
+    let database = copy.join("state.db");
+    std::fs::set_permissions(&database, std::fs::Permissions::from_mode(0o444)).unwrap();
+    let names = |at: &Path| -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(at)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        names
+    };
+    let before = names(&copy);
+    assert_eq!(before, ["state.db", "state.db-wal"]);
+    let opened = SqliteStore::sqlite_reading(&database, "ekr", ontology());
+    assert!(
+        matches!(opened, Err(StoreError::Backend(_))),
+        "a WAL without its shared memory file is not read: {:?}",
+        opened.as_ref().map(|_| ())
+    );
+    drop(opened);
+    assert_eq!(
+        names(&copy),
+        before,
+        "the read created a file beside the database"
+    );
+    std::fs::set_permissions(&database, std::fs::Permissions::from_mode(0o644)).unwrap();
 }
