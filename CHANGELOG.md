@@ -4,6 +4,11 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.23] — 2026-09-30
+
+The viewer collapses its sidebars and solos a type; the schema lineage shows every schema change;
+the changes list added evidence; read verbs answer on a store the caller may not write.
+
 ### Added
 
 - **The viewer's sidebars collapse to their edges** (`docs/cli.md`, `ekr view`). The Compact
