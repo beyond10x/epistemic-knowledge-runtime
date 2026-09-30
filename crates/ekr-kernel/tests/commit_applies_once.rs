@@ -199,12 +199,15 @@ fn commit(runtime: &Runtime, n: u64) -> (Root, Work) {
         matches!(verdict, ValidationCommandResult::Validated(_)),
         "{verdict:?}"
     );
-    let (applied, hashed) = (graphs_applied(), ekr_store::knowledge_roots_hashed());
+    let (applied, hashed) = (
+        ekr_kernel::graphs_applied(),
+        ekr_store::knowledge_roots_hashed(),
+    );
     let result = runtime
         .commit(tx, context().operator, || Timestamp::from_millis(at + 2))
         .unwrap();
     let work = Work {
-        applied: graphs_applied() - applied,
+        applied: ekr_kernel::graphs_applied() - applied,
         hashed: ekr_store::knowledge_roots_hashed() - hashed,
     };
     let CommitCommandResult::Committed(receipt) = result else {

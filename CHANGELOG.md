@@ -4,6 +4,11 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.22] — 2026-09-30
+
+The SDK types the store checks and carries evidence with the assertions that cite it; a commit
+applies the head graph once and a validation builds one candidate view.
+
 ### Added
 
 - **The SDK types the store checks** (`docs/sdk.md`, Typed reads). `ekr_sdk::read::Reader` and

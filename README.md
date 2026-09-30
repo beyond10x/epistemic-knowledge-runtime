@@ -17,7 +17,7 @@ What they proved necessary and how their data enters this runtime is written dow
 
 ## Status
 
-0.0.21 is the latest release: the kernel, the typed graph and ontology, the store and the `ekr`
+0.0.22 is the latest release: the kernel, the typed graph and ontology, the store and the `ekr`
 binary, with the user documentation and schema evolution, and the executable specifications of the
 graph projection, observation and integration domains. Product crates: `ekr-core`,
 `ekr-kernel`, `ekr-ontology`, `ekr-graph`, `ekr-store`, `ekr-views`, `ekr-observe`,
@@ -25,7 +25,7 @@ graph projection, observation and integration domains. Product crates: `ekr-core
 
 Repository utility: `xtask`.
 
-| works in 0.0.21 | not in 0.0.21 |
+| works in 0.0.22 | not in 0.0.22 |
 |---|---|
 | a schema of node types, edge types, typed properties, lifecycles and named operations, declared in the seed | `MergeEntity`, refused as `unsupported-operation` |
 | in a store seeded under validation profile v2, the schema grows after seeding: a committed transaction adds a node or edge type, or adds or redeclares a property, and each change is a new schema version; see [Evolve the schema](docs/cli.md#evolve-the-schema) | moving a store seeded under profile v1, the example host's, to v2: it keeps the seed's schema |
@@ -37,7 +37,7 @@ Repository utility: `xtask`.
 | `ekr session`: one long-lived process serves the store verbs (`resolve`, `propose`, `validate`, `commit`, `snapshot`, `head` and others) as JSON lines over one opened store, each answer the one-shot verb's document, and the `ekr.views` reads (`overview`, `search`, `describe`, `expand`, `timeline`, `changes`) as `ekr view` serves them; it starts before a store exists, and `--create` seeds one; see [`ekr session`](docs/cli.md#ekr-session) | `explain` and `snapshot` without rebuilding what they answer: about 3 s and 0.7 s at 4,127 nodes and 57 commits |
 | `ekr mcp`: a read-only MCP server over stdio for agents, with the tools `overview`, `search`, `describe_node`, `expand`, `timeline`, `changes_since`, `explain`, `resolve` and `head`, each answering the `ekr.views` or one-shot document; `ekr mcp`, `ekr view` and `ekr session` follow a store replaced at their path; see [`ekr mcp`](docs/cli.md#ekr-mcp) | any write tool |
 | store checks as reads, each a one-shot verb and an `ekr session` verb: `ekr quality` (evidence coverage, constrained properties, names nodes of one type share), `ekr rejections` (the validation issues of rejected transactions, by the revision they were validated against) and `ekr code-names` (store names quoted in a consumer's source files); see [`docs/cli.md`](docs/cli.md) | findings for committed transactions: a transaction commits only when no validator raised an issue; reading a store the caller may not write |
-| `ekr-sdk`: a Rust client that drives a store through one child `ekr session`, with typed replies, builders for transaction and seed documents, an ontology compared by name, resolve-or-create through a cache, batches that bisect a rejection, and typed reads; see [`docs/sdk.md`](docs/sdk.md) | an async API: the SDK blocks, and a Tokio program calls it inside `spawn_blocking` |
+| `ekr-sdk`: a Rust client that drives a store through one child `ekr session`, with typed replies, builders for transaction and seed documents, an ontology compared by name, resolve-or-create through a cache, batches that bisect a rejection and carry each evidence item with the first assertion citing it, and typed reads including the store checks; see [`docs/sdk.md`](docs/sdk.md) | an async API: the SDK blocks, and a Tokio program calls it inside `spawn_blocking` |
 
 A command continues from the store's replay checkpoint rather than replaying the whole
 history (`--full-replay` replays it). Each process verifies a retained blob and decodes the seed
@@ -77,7 +77,7 @@ ekr explain 00000000-0000-4000-8000-000000000501            # the assertion, its
 
 | read | for |
 |---|---|
-| [`docs/overview.md`](docs/overview.md) | new to EKR: the pipeline from seed to explained assertion in diagrams, the transaction lifecycle, and what 0.0.21 has versus what is planned |
+| [`docs/overview.md`](docs/overview.md) | new to EKR: the pipeline from seed to explained assertion in diagrams, the transaction lifecycle, and what 0.0.22 has versus what is planned |
 | [`docs/guide.md`](docs/guide.md) | a task-oriented walk through a real store: record, change and explain claims, handle `Stale` and `Rejected`, exit codes, reading output, scripting |
 | [`docs/schema-evolution.md`](docs/schema-evolution.md) | growing the schema under validation profile v2, schema versions, `ekr ontology --at`, and every refusal on the way |
 | [`docs/cli.md`](docs/cli.md) | the CLI reference: configuration, every verb, the seed and transaction formats, how to design a schema, a worked example from schema to committed assertion, and the common refusals |
