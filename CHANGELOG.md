@@ -14,6 +14,16 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   `ekr resolve` against the flushed store answers `Ambiguous`, so a consumer could assert a fact
   about the wrong node. Keys of other types, and keys sharing no alias with the queued node, stay
   cached.
+- **An `ekr-sdk` protocol error says what the process printed** (`docs/sdk.md`, "Failure, the
+  latch and cancellation"). When `ekr session` or a one-shot `ekr` answered with something that is
+  not JSON, `TransportError::Protocol` named the verb, the parse error and the stderr tail, but
+  not the answer, so the message read "(expected ident at line 1 column 2); stderr tail: (empty)"
+  and nothing more. It now carries `answer`: the start of what the process printed, raw and
+  without its final line end, at most 400 of the bytes printed (`ANSWER_BYTES`), cut back to a
+  character boundary and ended with ` [cut]` (`ANSWER_CUT`) when it was longer. The message shows
+  it escaped as a string literal, and so does the `Latched` error a session failed this way
+  returns for every later call. Code that builds a `Protocol` value, rather than matching one with
+  `..`, names the new field.
 
 ## [0.0.24] — 2026-09-30
 

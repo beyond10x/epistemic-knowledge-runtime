@@ -109,12 +109,24 @@ pub enum TransportError {
         cause: String,
     },
     /// The process answered with something that is not a reply.
-    #[error("`{verb}`: the ekr process answered with something that is not a reply ({detail}); stderr tail: {}", shown(stderr_tail))]
+    ///
+    /// The message shows [`answer`](TransportError::Protocol::answer) escaped as a string
+    /// literal, as `{:?}` writes it: in quotes, with a quote, a backslash or a control character
+    /// escaped. The field itself holds the answer raw.
+    #[error("`{verb}`: the ekr process answered with something that is not a reply ({detail}): {answer:?}; stderr tail: {}", shown(stderr_tail))]
     Protocol {
         /// The verb of the request in flight.
         verb: String,
         /// What was wrong with the answer.
         detail: String,
+        /// The start of what the process printed, raw, without its one final line end (`\n` or
+        /// `\r\n`): at most [`ANSWER_BYTES`] of the bytes printed, cut back to a character
+        /// boundary and ended with [`ANSWER_CUT`] when it was longer. Bytes that are not UTF-8
+        /// read as U+FFFD, three bytes each, so such an answer can be longer than
+        /// [`ANSWER_BYTES`] as a string. The error message shows it escaped as a string literal.
+        /// It is what the process printed, and can include text the process echoed from the
+        /// request.
+        answer: String,
         /// The last bytes the process wrote to stderr.
         stderr_tail: String,
     },
@@ -163,6 +175,57 @@ fn closed_how(killed: bool) -> &'static str {
     } else {
         "exited unsuccessfully when closed"
     }
+}
+
+/// The most printed bytes of an answer [`TransportError::Protocol`] keeps, [`ANSWER_CUT`]
+/// included.
+pub const ANSWER_BYTES: usize = 400;
+
+/// What ends a [`TransportError::Protocol`] answer that was cut to [`ANSWER_BYTES`].
+pub const ANSWER_CUT: &str = " [cut]";
+
+/// The start of `printed`, all of a process's output, as [`TransportError::Protocol`] keeps it:
+/// its one final line end, `\n` or `\r\n`, is dropped.
+pub(crate) fn answer_start(printed: &[u8]) -> String {
+    let printed = match printed.strip_suffix(b"\n") {
+        Some(line) => line.strip_suffix(b"\r").unwrap_or(line),
+        None => printed,
+    };
+    answer_cut(printed)
+}
+
+/// The start of `line`, a session line whose `\n` was already dropped, as
+/// [`TransportError::Protocol`] keeps it: a `\r` that ended its line end is dropped too.
+pub(crate) fn answer_of_line(line: &[u8]) -> String {
+    answer_cut(line.strip_suffix(b"\r").unwrap_or(line))
+}
+
+/// `printed`, at most [`ANSWER_BYTES`] of it, decoded. The bound is counted in the bytes printed,
+/// not in the decoded text, where a byte that is not UTF-8 reads as a three-byte U+FFFD. A cut
+/// steps back over a character the bound would split only where that character is valid UTF-8.
+fn answer_cut(printed: &[u8]) -> String {
+    if printed.len() <= ANSWER_BYTES {
+        return String::from_utf8_lossy(printed).into_owned();
+    }
+    let room = ANSWER_BYTES - ANSWER_CUT.len();
+    let mut end = room;
+    let mut at = 0;
+    for chunk in printed.utf8_chunks() {
+        let valid = chunk.valid();
+        if at + valid.len() >= room {
+            let mut inside = room - at;
+            while !valid.is_char_boundary(inside) {
+                inside -= 1;
+            }
+            end = at + inside;
+            break;
+        }
+        at += valid.len() + chunk.invalid().len();
+        if at >= room {
+            break;
+        }
+    }
+    format!("{}{ANSWER_CUT}", String::from_utf8_lossy(&printed[..end]))
 }
 
 /// A stderr tail as an error message shows it.
