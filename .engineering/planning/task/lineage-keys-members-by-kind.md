@@ -2,11 +2,14 @@
 format: aep.planning-md/3
 id: task:lineage-keys-members-by-kind
 kind: task
-status: draft
+status: active
 title: The lineage keys schema members by kind and id
 relations:
 - serves: vision:o5
-revision: 1
+revision: 3
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-30T08:12:45Z", actor: "human:timo", revision: 2}
+- {from: "proposed", to: "active", at: "2026-09-30T08:12:45Z", actor: "human:timo", revision: 3}
 ---
 ## Context
 

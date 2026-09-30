@@ -2,11 +2,14 @@
 format: aep.planning-md/3
 id: task:store-exports-ocel-event-log
 kind: task
-status: draft
+status: active
 title: A store exports as an OCEL 2.0 event log
 relations:
 - serves: vision:o5
-revision: 1
+revision: 3
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-30T08:12:45Z", actor: "human:timo", revision: 2}
+- {from: "proposed", to: "active", at: "2026-09-30T08:12:45Z", actor: "human:timo", revision: 3}
 ---
 ## Context
 
