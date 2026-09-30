@@ -4,6 +4,67 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.24] — 2026-09-30
+
+A store exports as an OCEL 2.0 event log; the viewer's compact mode works from the keyboard and in
+narrow windows; a validate command builds one candidate view.
+
+### Added
+
+- **`ekr ocel` exports a store as an OCEL 2.0 event log** (`docs/cli.md`, `ekr ocel`): the
+  `ekr.ocel/1` document of the head or of `--revision N`, a one-shot verb and an `ekr session`
+  verb, whose `ocel` member is an object-centric event log in the OCEL 2.0 JSON format. The event
+  types are the viewer's, by the valid-time rule its overview and timeline use, or the node types
+  `--events <type name>...` names; an unknown name is refused as `ekr.views.EventTypeNotFound`.
+  Each node of an event type is an event at its timeline time, and one with no time is left out;
+  every other node type is an object type; edges are relationships qualified by their type id, and
+  properties are attributes. Types, attributes and qualifiers are named by id, and the document's
+  `names` gives each id its name; an attribute typed `time` holds a time, and a `Timestamp` outside
+  the years 0000–9999 is left out. Two reads of one request print the same bytes. Specified as
+  `ekr.views.ExportOcel` in `systems/ekr/domains/views.yaml`, with `ekr_views::export_ocel` in the
+  library.
+
+### Changed
+
+- **A narrow window opens the viewer compact** (`docs/cli.md`, `ekr view`). Below 970 px — the
+  two sidebars, 290 and 360 px, and 320 px of graph — the page opens with both sidebars collapsed,
+  where the graph had no width and the right sidebar ran off-screen. An address with `compact`
+  holds as before; `compact=0` shows both sidebars and is written while they are shown in a
+  narrow window, so a reload keeps the reader's choice. Only opening the page applies the narrow
+  rule: back and forward to an address without `compact` show both sidebars. Wider windows open
+  as before.
+- **A detail chosen behind the collapsed right sidebar marks its strip** (`ekr view`). The
+  sidebar stays collapsed; its strip shows a dot, and its title and accessible name name the node
+  (or edge, or path) now in the panel. A click on the strip restores the sidebar showing it and
+  clears the mark. The same detail drawn again (back to the node shown, the entities toggle) is
+  not new and marks nothing.
+- **Type chips work from the keyboard** (`ekr view`). Each chip is a focusable button with
+  `aria-pressed` saying whether its type is shown: Enter or Space hides or shows the type, and
+  Shift+Enter or Shift+Space shows only that type, or every type again, as click and shift+click
+  do; a held key toggles once, and the focus stays on the chip when the chips are drawn again.
+  The Compact button carries `aria-pressed`, and the collapse
+  tabs and strips are named in words ("Collapse the details", "Show the controls") rather than by
+  their arrow.
+- **A validate command against a revision the session holds builds one candidate view.** The
+  replay that admits a validation or a rejection, and each retry of it after an unrelated append,
+  reads the verdict the kernel reached when it decided the command, keyed by the document, the
+  basis revision's graph and root, the profile and the validator, instead of running the
+  validation pipeline again. The index of canonical state's assertions about edges is kept with
+  each revision's graph, so a session builds it once per revision it holds rather than once per
+  validation. `validate --against` a revision whose graph the session has released still rebuilds
+  that graph by replaying the history to it, which revalidates every retained validation on the
+  way: a candidate view per retained validation up to that revision (nine in all for one
+  command against revision 7 of an eight-commit session). Verdicts, refusals, their messages and
+  their order, and roots are unchanged.
+
+### Fixed
+
+- **The schema lineage lists a version that reuses another kind's id** (`ekr view`, the
+  overview's `schema.versions`). A version that declared a property under an id the parent used
+  for a type, or a type under a property's id, listed nothing it added, and the viewer called the
+  version empty. A lineage member is now its kind and id together, ordered by id, then kind; a
+  store without such ids reads the same bytes as before.
+
 ## [0.0.23] — 2026-09-30
 
 The viewer collapses its sidebars and solos a type; the schema lineage shows every schema change;

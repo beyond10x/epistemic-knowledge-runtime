@@ -2,11 +2,14 @@
 format: aep.planning-md/3
 id: task:validate-builds-one-view-per-command
 kind: task
-status: draft
+status: active
 title: A validate command builds one candidate view and each revision one edge index
 relations:
 - serves: vision:o5
-revision: 1
+revision: 3
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-30T08:12:46Z", actor: "human:timo", revision: 2}
+- {from: "proposed", to: "active", at: "2026-09-30T08:12:46Z", actor: "human:timo", revision: 3}
 ---
 ## Context
 

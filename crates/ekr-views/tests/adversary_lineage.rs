@@ -251,13 +251,15 @@ fn overview(runtime: &Runtime) -> (Vec<u8>, ekr_views::GraphOverviewed) {
 /// Every version's lineage lists, written independently of `index.rs` from the two ontology
 /// documents, as `views.yaml` specifies them.
 fn expected(parent: &OntologyDocument, version: &OntologyDocument) -> Value {
-    fn ids(document: &OntologyDocument) -> BTreeMap<String, String> {
+    /// Members by id, then kind in `ekr.views.SchemaMemberKind`'s order: a member is its kind and
+    /// its id together, so one UUID that is a type's and a property's is two members.
+    fn ids(document: &OntologyDocument) -> BTreeMap<(String, u8), String> {
         let mut out = BTreeMap::new();
         for t in &document.node_types {
-            out.insert(t.id.to_string(), t.name.clone());
+            out.insert((t.id.to_string(), 0), t.name.clone());
         }
         for t in &document.edge_types {
-            out.insert(t.id.to_string(), t.name.clone());
+            out.insert((t.id.to_string(), 1), t.name.clone());
         }
         for p in document
             .node_types
@@ -270,7 +272,7 @@ fn expected(parent: &OntologyDocument, version: &OntologyDocument) -> Value {
                     .flat_map(|t| t.properties.values()),
             )
         {
-            out.entry(p.id.to_string()).or_insert(p.name.clone());
+            out.entry((p.id.to_string(), 2)).or_insert(p.name.clone());
         }
         out
     }
@@ -292,8 +294,16 @@ fn expected(parent: &OntologyDocument, version: &OntologyDocument) -> Value {
         out
     }
     let (was, is) = (ids(parent), ids(version));
-    let added: Vec<&String> = is.keys().filter(|k| !was.contains_key(*k)).collect();
-    let removed: Vec<&String> = was.keys().filter(|k| !is.contains_key(*k)).collect();
+    let added: Vec<&String> = is
+        .keys()
+        .filter(|k| !was.contains_key(*k))
+        .map(|(id, _)| id)
+        .collect();
+    let removed: Vec<&String> = was
+        .keys()
+        .filter(|k| !is.contains_key(*k))
+        .map(|(id, _)| id)
+        .collect();
 
     let mut widened = Vec::new();
     let mut edges: Vec<&EdgeType> = version.edge_types.iter().collect();
@@ -494,14 +504,12 @@ fn one_version_with_every_schema_operation_lists_each_change_once_on_both_provid
 /// shared-id fixtures show one UUID across two id kinds is a state the views are held to.
 ///
 /// Version 1 declares, on `Alpha`, a new property whose id is `Beta`'s UUID; version 2 defines a
-/// node type whose id is the property `one`'s UUID. Each changes the ontology, and `members()`
-/// keys `added`/`removed` by the id's text alone, so each finds the id already in its parent's
-/// map and lists nothing; `modified` compares property ids only, and neither version's new
-/// declaration is of a property the parent declares. The version lists nothing in all four,
-/// which `views.yaml` says happens exactly when its ontology is its parent's, and the page then
-/// calls it "changes nothing against its parent".
+/// node type whose id is the property `one`'s UUID. Each changes the ontology. Keyed by the id's
+/// text alone, `added`/`removed` found the id already in the parent's map and listed nothing, and
+/// `modified` compares property ids only, so both versions listed nothing in all four — which
+/// `views.yaml` says happens exactly when a version's ontology is its parent's. A member is its
+/// kind and id together (`ekr.views.SchemaMember`), so each version adds one.
 #[test]
-#[ignore = "defect: a version whose new property or type reuses another kind's UUID lists nothing in added, removed, widened or modified"]
 fn a_version_adding_an_id_another_kind_already_uses_is_not_listed_as_empty() {
     let work = tempfile::tempdir().expect("work directory");
     let runtime = fixtures::open(work.path(), Provider::File);
@@ -537,4 +545,16 @@ fn a_version_adding_an_id_another_kind_already_uses_is_not_listed_as_empty() {
     let (bytes, _) = overview(&runtime);
     let wrong = compare_every_version(&runtime, &bytes);
     assert!(wrong.is_empty(), "{wrong:#?}");
+    let document: Value = serde_json::from_slice(&bytes).expect("JSON");
+    let versions = document["schema"]["versions"].as_array().expect("versions");
+    assert_eq!(
+        versions[1]["added"],
+        json!([{"id": uuid(BETA), "kind": "Property", "name": "shares-beta"}])
+    );
+    assert_eq!(
+        versions[2]["added"],
+        json!([{"id": uuid(P1), "kind": "NodeType", "name": "SharesOne"}])
+    );
+    assert_eq!(versions[1]["removed"], json!([]));
+    assert_eq!(versions[2]["removed"], json!([]));
 }

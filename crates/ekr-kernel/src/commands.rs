@@ -286,6 +286,9 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         against: RevisionNumber,
         now: impl FnOnce() -> Timestamp,
     ) -> Result<ValidationCommandResult, CommitError> {
+        // A verdict the decision below leaves for the admitting replay is not held past this
+        // command.
+        let _release = replay::ReleaseDecidedValidation;
         let history = self.store.history()?;
         let state = self
             .authority
@@ -320,7 +323,9 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 .get(&against)
                 .ok_or(CommitError::RevisionNotFound { against })?;
             let basis = replay::basis(prior, state.seed.seed_hash, &self.authority.anchor);
-            let verdict = replay::validate(
+            // The verdict stays with the kernel, keyed by the inputs it is a function of, for the
+            // replay that admits this publication to take instead of validating again.
+            let verdict = replay::decide_validation(
                 &*state.document(&tx.proposal)?,
                 &holding.revisions,
                 &state.held,

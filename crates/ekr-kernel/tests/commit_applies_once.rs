@@ -277,3 +277,64 @@ fn roots_are_the_ones_the_kernel_reached_before_the_change_and_replay_reaches_th
         }
     }
 }
+
+/// Sets every directory under and including `at` to `directory` and every file to `file`.
+fn set_modes(at: &Path, directory: u32, file: u32) {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(at, std::fs::Permissions::from_mode(0o755)).unwrap();
+    for entry in std::fs::read_dir(at).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            set_modes(&path, directory, file);
+        } else {
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(file)).unwrap();
+        }
+    }
+    std::fs::set_permissions(at, std::fs::Permissions::from_mode(directory)).unwrap();
+}
+/// Gives a store's files back to this process when dropped.
+struct Restore<'a>(&'a Path);
+impl Drop for Restore<'_> {
+    fn drop(&mut self) {
+        set_modes(self.0, 0o755, 0o644);
+    }
+}
+
+/// The store stops answering between a commit's read of the state and its decision. The kernel
+/// applies the transaction to the head graph when it decides, and leaves that graph for the
+/// replay that admits the publication; the store refuses before that replay runs, so nothing
+/// takes the graph. The command releases it when it ends.
+#[test]
+fn a_graph_a_commit_decided_and_did_not_take_is_released_when_the_command_ends() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path();
+    let runtime = open(path, true);
+    runtime.seed(seed(), || Timestamp::from_millis(10)).unwrap();
+    let (tx, bytes) = document(1);
+    runtime
+        .propose(&bytes, context().operator, || Timestamp::from_millis(100))
+        .unwrap();
+    let verdict = runtime
+        .validate(tx, RevisionNumber::SEED, || Timestamp::from_millis(101))
+        .unwrap();
+    assert!(
+        matches!(verdict, ValidationCommandResult::Validated(_)),
+        "{verdict:?}"
+    );
+    let _restore = Restore(path);
+    let applied = ekr_kernel::graphs_applied();
+    let refused = runtime.commit(tx, context().operator, || {
+        set_modes(path, 0o000, 0o000);
+        Timestamp::from_millis(102)
+    });
+    assert!(refused.is_err(), "{refused:?}");
+    assert_eq!(
+        ekr_kernel::graphs_applied() - applied,
+        1,
+        "the refused commit decided its publication: {refused:?}"
+    );
+    assert!(
+        !ekr_kernel::decided_graph_held(),
+        "the graph the refused commit decided outlived its command: {refused:?}"
+    );
+}

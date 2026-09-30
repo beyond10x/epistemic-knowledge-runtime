@@ -44,6 +44,7 @@
     "crates/ekr-views/tests/fixtures/conformance/scenarios/an-add-evidence-is-listed-once-as-evidence-added.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/an-assertion-about-an-edge-is-carried-by-that-edge.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/an-expansion-refuses-each-input-outside-its-bound.yaml",
+    "crates/ekr-views/tests/fixtures/conformance/scenarios/an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/an-overview-lists-at-most-its-limit-of-top-nodes.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/an-unknown-seed-is-refused-by-name.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/changes-refuse-a-malformed-since-and-each-bound.yaml",

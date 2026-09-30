@@ -22,6 +22,7 @@ thiserror.workspace = true
 [dev-dependencies]
 ess-conformance.workspace = true
 ess-primitives.workspace = true
+process_mining = { version = "0.6.2", default-features = false }
 tempfile.workspace = true
 
 [features]

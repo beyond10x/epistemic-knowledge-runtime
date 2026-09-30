@@ -2163,6 +2163,11 @@ struct Driven {
 
 impl Driven {
     fn launch(browser: &Path, url: &str) -> Self {
+        Self::launch_sized(browser, url, (1600, 1000))
+    }
+
+    /// [`Driven::launch`] in a window of `size` (width, height) pixels, from the first load.
+    fn launch_sized(browser: &Path, url: &str, size: (u32, u32)) -> Self {
         let one = one_browser();
         let profile = tempfile::tempdir().unwrap();
         let mut child = Command::new(browser)
@@ -2173,7 +2178,7 @@ impl Driven {
                 "--no-sandbox",
                 "--no-first-run",
                 "--disable-extensions",
-                "--window-size=1600,1000",
+                &format!("--window-size={},{}", size.0, size.1),
                 "--remote-debugging-port=0",
                 &format!("--user-data-dir={}", profile.path().display()),
                 "about:blank",
@@ -2387,6 +2392,34 @@ impl Driven {
                 serde_json::json!({"type": kind, "key": key, "text": key, "unmodifiedText": key}),
             );
         }
+    }
+
+    /// One press of Enter or Space with `modifiers` (8 is Shift), sent to whatever holds the focus.
+    fn press(&mut self, key: &str, modifiers: u8) {
+        self.hold(key, modifiers, 0);
+    }
+
+    /// [`Driven::press`] with the key held down for `repeats` auto-repeated key downs before it is
+    /// let go, as a reader who holds it.
+    fn hold(&mut self, key: &str, modifiers: u8, repeats: usize) {
+        let (code, keycode, text) = match key {
+            "Enter" => ("Enter", 13, "\r"),
+            " " => ("Space", 32, " "),
+            other => panic!("press: {other:?} is neither Enter nor Space"),
+        };
+        for at in 0..=repeats {
+            self.call(
+                "Input.dispatchKeyEvent",
+                serde_json::json!({"type": "keyDown", "key": key, "code": code, "text": text,
+                    "unmodifiedText": text, "windowsVirtualKeyCode": keycode, "modifiers": modifiers,
+                    "autoRepeat": at > 0}),
+            );
+        }
+        self.call(
+            "Input.dispatchKeyEvent",
+            serde_json::json!({"type": "keyUp", "key": key, "code": code,
+                "windowsVirtualKeyCode": keycode, "modifiers": modifiers}),
+        );
     }
 }
 
@@ -2931,4 +2964,394 @@ fn compact_mode_collapses_both_sidebars_and_restores_them_in_3d() {
 #[test]
 fn compact_mode_wakes_the_resting_3d_loop_for_the_resize_and_it_rests_again() {
     compact_mode_in("3d", false);
+}
+
+// ---- compact mode's follow-ups: a hidden selection, the keyboard, a narrow window ------------------
+
+/// The right strip's mark: the width of its dot as shown, its title and its accessible name.
+const MARK: &str = "(s => ({dot: (d => d && getComputedStyle(d).display !== 'none' ? d.getBoundingClientRect().width : 0)(s.querySelector('.mark')),
+  title: s.title, label: s.getAttribute('aria-label')}))(document.getElementById('rightStrip'))";
+
+/// `task:viewer-compact-follow-ups`, acceptance 1: with the details sidebar collapsed, a node the
+/// reader chooses (here by its search hit, in the left sidebar) marks the right strip with a dot and
+/// a title and accessible name naming the node, and leaves the sidebar collapsed; a click on the
+/// strip restores the sidebar showing that node and clears the mark. Collapsing the sidebar again
+/// over what the reader has seen marks nothing.
+#[test]
+fn a_node_chosen_behind_the_collapsed_details_marks_their_strip_and_the_strip_shows_it() {
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/view-page/sounding"));
+    let projection = seeded.projection();
+    let node = busiest(&projection);
+    let (id, name) = (
+        node["id"].as_str().unwrap().to_owned(),
+        node["name"].as_str().unwrap().to_owned(),
+    );
+    let double = seeded.double(Duration::ZERO);
+    let mut driven = Driven::launch(&browser, &format!("{}#view=2d&compact=right", double.url));
+    assert!(
+        driven.wait_for(&format!("{SETTLED} && !!window.__viewer.renderer"), 90),
+        "the page settled"
+    );
+    measured_when(
+        &mut driven,
+        "m.left > 0 && m.right === 0 && m.rightStrip > 0",
+        "the details sidebar is collapsed",
+    );
+    let before = driven.eval(MARK);
+    assert_eq!(before["dot"], 0, "no mark before a choice: {before}");
+
+    let quoted = serde_json::to_string(&name).unwrap();
+    driven.eval(&format!(
+        "(s => {{ s.value = {quoted}; s.dispatchEvent(new Event('input', {{bubbles: true}})); }})(document.getElementById('search'))"
+    ));
+    let hit = format!("#hits .hit[data-node='{id}']");
+    assert!(
+        driven.wait_for(&format!("!!document.querySelector(\"{hit}\")"), 30),
+        "the search lists the node"
+    );
+    driven.eval(&format!("document.querySelector(\"{hit}\").click()"));
+    assert!(
+        driven.wait_for(
+            &format!("document.querySelector('#panel h1')?.textContent === {quoted}"),
+            30
+        ),
+        "the collapsed panel holds the node"
+    );
+    let quoted_name = quoted.clone();
+    assert!(
+        driven.wait_for(
+            &format!(
+                "(k => k.dot > 0 && k.title.includes({quoted_name}) && (k.label || '').includes({quoted_name}))({MARK})"
+            ),
+            20
+        ),
+        "the strip is marked with the node: {}",
+        driven.eval(MARK)
+    );
+    let m = driven.eval(MEASURE);
+    assert!(
+        width(&m, "right") == 0.0 && width(&m, "rightStrip") > 0.0,
+        "the sidebar is not forced open: {m}"
+    );
+    let hash = m["hash"].as_str().unwrap();
+    assert!(
+        hash.contains(&format!("node={id}")) && hash.contains("compact=right"),
+        "{m}"
+    );
+
+    driven.eval("document.getElementById('rightStrip').click()");
+    let restored = measured_when(
+        &mut driven,
+        "m.right > 0 && m.rightStrip === 0 && Math.abs(m.canvas - m.stage) < 1",
+        "the strip restored the details sidebar",
+    );
+    assert_eq!(restored["panel"], name, "it shows the node: {restored}");
+    driven.eval("document.getElementById('foldRight').click()");
+    measured_when(
+        &mut driven,
+        "m.right === 0 && m.rightStrip > 0",
+        "the tab collapsed the details sidebar again",
+    );
+    let after = driven.eval(MARK);
+    assert_eq!(
+        after["dot"], 0,
+        "no mark over a node the reader has seen: {after}"
+    );
+    assert_eq!(after["title"], before["title"], "{before} → {after}");
+    assert!(
+        driven.errors.is_empty(),
+        "the page reported errors: {:?}",
+        driven.errors
+    );
+}
+
+/// Every type chip's role, tab index and `aria-pressed`, and whether it is drawn as hidden.
+const CHIPS: &str = "[...document.querySelectorAll('#nodeTypes .chip, #edgeTypes .chip')].map(c =>
+  ({type: c.dataset.type, role: c.getAttribute('role'), tab: c.tabIndex, pressed: c.getAttribute('aria-pressed'), off: c.classList.contains('off')}))";
+
+/// `task:viewer-compact-follow-ups`, acceptance 2: a type chip is a button the reader focuses and
+/// presses from the keyboard. Enter or Space hides or shows its type; Shift+Enter or Shift+Space
+/// shows only that type, and pressed again every type. `aria-pressed` says whether the type is
+/// shown, the address follows and the focus stays on the chip. The fold tabs and the strips are
+/// named in words, not by their arrow, and the Compact button says whether it is pressed.
+#[test]
+fn a_type_chip_hides_and_solos_its_type_from_the_keyboard_and_the_toggles_are_named() {
+    const SHIFT: u8 = 8;
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/view-page/sounding"));
+    let double = seeded.double(Duration::ZERO);
+    let mut driven = Driven::launch(&browser, &format!("{}#view=2d", double.url));
+    assert!(
+        driven.wait_for(
+            &format!("{SETTLED} && !!window.__viewer.renderer && !!document.querySelector('#nodeTypes .chip')"),
+            90
+        ),
+        "the page settled"
+    );
+    let chips = driven.eval(CHIPS);
+    let chips = chips.as_array().unwrap();
+    assert!(!chips.is_empty());
+    for chip in chips {
+        assert!(
+            chip["role"] == "button" && chip["tab"] == 0 && chip["pressed"] == "true",
+            "a shown chip is a focusable button, pressed: {chip}"
+        );
+    }
+    let names = driven.eval(
+        "['foldLeft', 'foldRight', 'leftStrip', 'rightStrip'].map(id => document.getElementById(id).getAttribute('aria-label'))",
+    );
+    for name in names.as_array().unwrap() {
+        let name = name.as_str().unwrap_or_default();
+        assert!(
+            name.chars().filter(|c| c.is_alphabetic()).count() >= 4 && !name.contains(['‹', '›']),
+            "a tab or strip named in words: {names}"
+        );
+    }
+    // every button on the page: a glyph for text is no name, so one carries a label; a title names only
+    // a button with no text at all
+    let unnamed = driven.eval(
+        "[...document.querySelectorAll('button')].filter(b => !/\\p{L}/u.test(b.getAttribute('aria-label') ?? (b.textContent.trim() ? b.textContent : b.title)))
+           .map(b => b.id || b.textContent)",
+    );
+    assert_eq!(unnamed, serde_json::json!([]), "buttons named by a glyph");
+    assert_eq!(
+        driven.eval("document.getElementById('compact').getAttribute('aria-pressed')"),
+        "false"
+    );
+
+    let types: Vec<String> = driven
+        .eval("[...document.querySelectorAll('#nodeTypes .chip')].map(c => c.dataset.type)")
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t.as_str().unwrap().to_owned())
+        .collect();
+    assert!(types.len() >= 2, "{types:?}");
+    let (a, b) = (&types[0], &types[1]);
+    let focus = |driven: &mut Driven, t: &str| {
+        let held = driven.eval(&format!(
+            "document.querySelector(\"#nodeTypes .chip[data-type='{t}']\").focus(); document.activeElement.dataset.type ?? null"
+        ));
+        assert_eq!(held, t, "the chip takes the focus");
+    };
+    let state = |t: &str, off: bool, pressed: &str| {
+        format!(
+            "(c => c && c.classList.contains('off') === {off} && c.getAttribute('aria-pressed') === '{pressed}')\
+             (document.querySelector(\"#nodeTypes .chip[data-type='{t}']\")) && document.activeElement?.dataset.type === '{t}'"
+        )
+    };
+    let hash = "decodeURIComponent(location.hash)";
+
+    focus(&mut driven, a);
+    driven.press("Enter", 0);
+    assert!(
+        driven.wait_for(
+            &format!("{} && {hash}.includes('types=')", state(a, true, "false")),
+            20
+        ),
+        "Enter hid {a}: {}",
+        driven.eval(CHIPS)
+    );
+    driven.press(" ", 0);
+    assert!(
+        driven.wait_for(
+            &format!(
+                "{} && !{hash}.includes('types=') && !document.querySelector('#nodeTypes .chip.off')",
+                state(a, false, "true")
+            ),
+            20
+        ),
+        "Space showed {a} again: {}",
+        driven.eval(CHIPS)
+    );
+
+    focus(&mut driven, b);
+    driven.press("Enter", SHIFT);
+    let alone = format!(
+        "document.querySelectorAll('#nodeTypes .chip.off').length === {} && document.querySelectorAll('#nodeTypes .chip[aria-pressed=false]').length === {}",
+        types.len() - 1,
+        types.len() - 1
+    );
+    assert!(
+        driven.wait_for(
+            &format!(
+                "{} && {alone} && {hash}.includes('types={b}')",
+                state(b, false, "true")
+            ),
+            20
+        ),
+        "Shift+Enter showed only {b}: {}",
+        driven.eval(CHIPS)
+    );
+    driven.press(" ", SHIFT);
+    assert!(
+        driven.wait_for(
+            &format!(
+                "{} && !{hash}.includes('types=') && !document.querySelector('#nodeTypes .chip.off')",
+                state(b, false, "true")
+            ),
+            20
+        ),
+        "Shift+Space showed every type again: {}",
+        driven.eval(CHIPS)
+    );
+
+    driven.eval("document.activeElement.blur()");
+    driven.key("c");
+    assert!(
+        driven.wait_for(
+            "document.getElementById('compact').getAttribute('aria-pressed') === 'true'",
+            20
+        ),
+        "the Compact button is pressed while both sidebars are collapsed"
+    );
+    driven.key("c");
+    assert!(
+        driven.wait_for(
+            "document.getElementById('compact').getAttribute('aria-pressed') === 'false'",
+            20
+        ),
+        "and not once they are shown"
+    );
+    assert!(
+        driven.errors.is_empty(),
+        "the page reported errors: {:?}",
+        driven.errors
+    );
+}
+
+/// `task:viewer-compact-follow-ups`, adversary pass 1 (F4): a key held on a type chip toggles once,
+/// not once per auto-repeat. Enter held through three repeats (four key downs) hides the type, where
+/// a toggle per key down would leave it shown; Shift+Space held likewise shows the type alone; the
+/// address takes one entry per press.
+#[test]
+fn a_key_held_on_a_type_chip_toggles_its_type_once() {
+    const SHIFT: u8 = 8;
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/view-page/sounding"));
+    let double = seeded.double(Duration::ZERO);
+    let mut driven = Driven::launch(&browser, &format!("{}#view=2d", double.url));
+    assert!(
+        driven.wait_for(
+            &format!("{SETTLED} && !!window.__viewer.renderer && !!document.querySelector('#nodeTypes .chip')"),
+            90
+        ),
+        "the page settled"
+    );
+    let types =
+        driven.eval("[...document.querySelectorAll('#nodeTypes .chip')].map(c => c.dataset.type)");
+    let types: Vec<&str> = types
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|t| t.as_str().unwrap())
+        .collect();
+    assert!(types.len() >= 2, "{types:?}");
+    let a = types[0];
+    let entries = driven.eval("history.length").as_u64().unwrap();
+    driven.eval(&format!(
+        "document.querySelector(\"#nodeTypes .chip[data-type='{a}']\").focus()"
+    ));
+    driven.hold("Enter", 0, 3);
+    std::thread::sleep(Duration::from_millis(500));
+    let offs = "[...document.querySelectorAll('#nodeTypes .chip.off')].map(c => c.dataset.type)";
+    assert_eq!(
+        driven.eval(offs),
+        serde_json::json!([a]),
+        "a held Enter hid {a} once"
+    );
+    assert_eq!(
+        driven.eval("history.length").as_u64().unwrap(),
+        entries + 1,
+        "one history entry for one press"
+    );
+
+    driven.press("Enter", 0);
+    assert!(
+        driven.wait_for(
+            "document.querySelectorAll('#nodeTypes .chip.off').length === 0",
+            20
+        ),
+        "Enter showed {a} again"
+    );
+    driven.hold(" ", SHIFT, 3);
+    std::thread::sleep(Duration::from_millis(500));
+    assert_eq!(
+        driven.eval(&format!(
+            "document.querySelectorAll('#nodeTypes .chip.off').length === {} && !document.querySelector(\"#nodeTypes .chip[data-type='{a}']\").classList.contains('off') && document.activeElement?.dataset.type === '{a}'",
+            types.len() - 1
+        )),
+        true,
+        "a held Shift+Space showed {a} alone, once: {}",
+        driven.eval(offs)
+    );
+    assert!(
+        driven.errors.is_empty(),
+        "the page reported errors: {:?}",
+        driven.errors
+    );
+}
+
+/// `task:viewer-compact-follow-ups`, acceptance 3:a window narrower than the two sidebars and a
+/// usable graph (290 + 360 + 320 = 970 px) opens compact, so a 600 px window draws a graph of all
+/// but the two strips; the address carries `compact=1`. Shown again, the sidebars write `compact=0`,
+/// which a reload keeps: the address says otherwise.
+#[test]
+fn a_narrow_window_opens_compact_and_the_graph_keeps_its_width() {
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/view-page/sounding"));
+    let double = seeded.double(Duration::ZERO);
+    let mut driven = Driven::launch_sized(&browser, &format!("{}#view=2d", double.url), (600, 900));
+    assert!(
+        driven.wait_for(&format!("{SETTLED} && !!window.__viewer.renderer"), 90),
+        "the page settled"
+    );
+    let m = measured_when(
+        &mut driven,
+        "m.left === 0 && m.right === 0 && m.leftStrip > 0 && m.rightStrip > 0 && m.canvas > 0 \
+         && Math.abs(m.canvas - m.stage) < 1 && m.hash.includes('compact=1')",
+        "a 600 px window opened compact",
+    );
+    eprintln!("600 px: {m}");
+    assert!(
+        (width(&m, "canvas") + width(&m, "leftStrip") + width(&m, "rightStrip") - 600.0).abs()
+            < 1.0,
+        "the graph takes all but the strips: {m}"
+    );
+
+    driven.key("c");
+    measured_when(
+        &mut driven,
+        "m.left > 0 && m.right > 0 && m.hash.includes('compact=0')",
+        "shown again, the sidebars write compact=0",
+    );
+    driven.eval("window.__before = true");
+    driven.call("Page.reload", serde_json::json!({}));
+    assert!(
+        driven.wait_for(&format!("!window.__before && {SETTLED}"), 90),
+        "the page reloaded"
+    );
+    measured_when(
+        &mut driven,
+        "m.left > 0 && m.right > 0 && m.hash.includes('compact=0')",
+        "compact=0 in the address shows both in a narrow window",
+    );
+    assert!(
+        driven.errors.is_empty(),
+        "the page reported errors: {:?}",
+        driven.errors
+    );
 }

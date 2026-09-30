@@ -17,7 +17,8 @@
 //! `code-names` reads the source files it is given, then opens the store as those verbs do and
 //! reads it only (`code_names.rs`).
 //! `quality` opens the store as those verbs do and reads one revision through
-//! `ekr_views::report_quality` (`quality.rs`).
+//! `ekr_views::report_quality` (`quality.rs`); `ocel` likewise, through `ekr_views::export_ocel`
+//! (`ocel.rs`).
 //! `session` opens the store once and runs each request line through the same dispatch as the
 //! one-shot verbs (`session.rs`), against the runtime it holds; on a path holding no store it
 //! starts without one, and with `--create` its `seed` creates the store it then holds. It also
@@ -37,6 +38,7 @@ mod head;
 mod input;
 mod mcp;
 mod migrate;
+mod ocel;
 mod ontology;
 mod propose;
 mod quality;
@@ -312,6 +314,26 @@ pub enum Command {
         #[arg(long)]
         revision: Option<u64>,
     },
+    /// Print one revision as an OCEL 2.0 object-centric event log: the `ekr.ocel/1` document
+    /// (`ekr.views.ExportOcel`), whose `ocel` member is the OCEL 2.0 JSON log.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST); it reads only. The
+    /// event types are the viewer's, by its valid-time rule (the timeline's), unless --events
+    /// names them; every other node type is an object type. Each node of an event type is an
+    /// event at its timeline time; one with no time is left out. Edges are relationships
+    /// qualified by their type id and properties are attributes; types and attributes are named
+    /// by id, and the document's `names` gives each id its name. Two reads of one request print
+    /// the same bytes.
+    #[command(after_help = SEE)]
+    Ocel {
+        /// The committed revision to export; the newest (`ekr head`) when absent.
+        #[arg(long)]
+        revision: Option<u64>,
+        /// The node types, by name, that are the event types instead of the viewer's rule's. A
+        /// name no node type holds is refused as `ekr.views.EventTypeNotFound` (exit 2).
+        #[arg(long, value_name = "TYPE_NAME", num_args = 1..)]
+        events: Vec<String>,
+    },
     /// Serve a read-only viewer of the store on 127.0.0.1 until interrupted: the page, the
     /// `ekr.graph-projection/1` at the head or at a revision, its bounded reads, and retained
     /// evidence bytes.
@@ -418,6 +440,7 @@ impl Command {
             | Self::Ontology { .. }
             | Self::CodeNames { .. }
             | Self::Quality { .. }
+            | Self::Ocel { .. }
             | Self::View { .. }
             | Self::Session { .. }
             | Self::Mcp
@@ -713,6 +736,10 @@ fn dispatch(
         Command::Quality { revision } => {
             let runtime = source.resolve("quality")?.open()?;
             quality::run(&runtime, revision).map(Printed::Document)
+        }
+        Command::Ocel { revision, events } => {
+            let runtime = source.resolve("ocel")?.open()?;
+            ocel::run(&runtime, revision, &events).map(Printed::Document)
         }
         Command::View { port } => {
             let store = source.configured("view")?;

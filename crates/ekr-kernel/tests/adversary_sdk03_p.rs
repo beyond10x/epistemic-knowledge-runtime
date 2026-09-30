@@ -565,13 +565,12 @@ fn a_validation_against_an_older_revision_commits_stale_and_the_next_commits_app
     }
 }
 
-/// The validate command validates the proposal when it decides the publication and again in the
-/// replay that admits it, so it builds a candidate view twice, where the task's context names the
-/// session `validate` command's cost; a commit from a handle restored from a checkpoint, whose
-/// state holds no sealed validation, does the same.
+/// The validate command validates the proposal when it decides the publication, and the replay
+/// that admits it takes that verdict instead of validating again, so it builds one candidate view
+/// (`task:validate-builds-one-view-per-command`; this case was ignored as a finding until then).
+/// A commit from a handle restored from a checkpoint, whose state holds no sealed validation, still
+/// validates in its decision and again in its admitting replay; this case does not reach it.
 #[test]
-#[ignore = "finding (pre-existing, outside the unit's literal acceptance): a validate command \
-            runs the pipeline twice, once to decide and once in the admitting replay"]
 fn a_validate_command_builds_its_candidate_view_once() {
     let (_, authority) = &profiles()[0];
     for file in [true, false] {

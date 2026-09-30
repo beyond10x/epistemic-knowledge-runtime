@@ -155,6 +155,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr ontology` | reads | `--at <revision>` | node types, edge types and properties with names and ids, and the schema version in force: `schema_version`, `schema_version_number`, `schema_version_parent` |
 | `ekr code-names` | reads | one or more source files; `--at <revision>` | the `ekr.code-names/1` document: every literal in the files that equals one of the store's names, with file, line and what it names; exits 0 however many it finds |
 | `ekr quality` | reads | `--revision <revision>` | the `ekr.store-quality/1` document: evidenced assertions, constrained properties, names shared within a type |
+| `ekr ocel` | reads | `--revision <revision>`, `--events <type name>...` | the `ekr.ocel/1` document: the revision as an OCEL 2.0 event log in its `ocel` member, and `names` for its ids |
 | `ekr guide` | none | none | the workflow, as text |
 | `ekr operations` | none | an operation kind, optionally | the kinds, or one kind's fields and example |
 | `ekr example` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `schema-change`, `ekr-seed/2`, `ekr.cli-host/1` or `typed-reference` (aliases `transaction` for `/2`, `seed`, `host`) | a complete example document |
@@ -444,6 +445,144 @@ JSON, keys in alphabetical order; `ekr session` answers it as `"stdout"`. A stor
 refused as `ekr.views.NotSeeded` and a revision it does not hold as `ekr.views.RevisionNotFound`,
 exit 2, as the `ekr.views` reads refuse them.
 
+### `ekr ocel`
+
+Prints the store at the head, or at `--revision N` as of that committed revision, as an
+object-centric event log in the [OCEL 2.0](https://www.ocel-standard.org/) JSON format: the
+`ekr.ocel/1` document (`ekr.views.ExportOcel`). Its `meta` names the revision, its `names` gives
+every type and property id the ontology's name for it, and its `ocel` member is the log. The `ocel`
+member is what an OCEL 2.0 reader reads; write it to a file of its own, for example with
+`jq .ocel`. Two reads of one request print the same bytes, before and after any later commit.
+
+```console
+ekr ocel --revision 0
+ekr ocel --events Person
+```
+
+The event types are the viewer's: a node type the overview marks as an event type
+(`roles.types[].event` of `ekr.graph-overview/1`), by the valid-time rule the timeline uses. A node
+is judged when it holds a timestamp-like property value (a `Timestamp`, or an `Integer` of epoch
+milliseconds from 1,000,000,000,000 up to 10,000,000,000,000), or when it has at least two dated
+facts: `valid_time.from` of assertions of any lifecycle whose subject it is, or whose relation
+object it is. It is instant when it is timestamped or its dated facts lie within one hour. A type is
+an event type when it has a judged node and at least 60% of its judged nodes are instant.
+`--events <type name>...` names the event types instead: exactly the node types with those names,
+a name two types share naming both; a name no node type holds is refused as
+`ekr.views.EventTypeNotFound` (exit 2), naming it.
+
+The example seed (`ekr example ekr-seed/2`) has no event type under the rule. Bob's two dated facts
+lie six years apart and Alice has one, so Person has no instant node; Organization's Acme is the
+relation object of facts spread over the same years. The log is every node as an object:
+
+```json
+{
+  "meta": {
+    "format": "ekr.ocel/1",
+    "revision": 0
+  },
+  "names": {
+    "edge_types": [
+      {
+        "id": "00000000-0000-4000-8000-000000000203",
+        "name": "CEO_OF"
+      }
+    ],
+    "node_types": [
+      {
+        "id": "00000000-0000-4000-8000-000000000201",
+        "name": "Person"
+      },
+      {
+        "id": "00000000-0000-4000-8000-000000000202",
+        "name": "Organization"
+      }
+    ],
+    "properties": [
+      {
+        "id": "00000000-0000-4000-8000-000000000801",
+        "name": "legal_name"
+      }
+    ]
+  },
+  "ocel": {
+    "eventTypes": [],
+    "events": [],
+    "objectTypes": [
+      {
+        "attributes": [],
+        "name": "00000000-0000-4000-8000-000000000201"
+      },
+      {
+        "attributes": [
+          {
+            "name": "00000000-0000-4000-8000-000000000801",
+            "type": "string"
+          }
+        ],
+        "name": "00000000-0000-4000-8000-000000000202"
+      }
+    ],
+    "objects": [
+      {
+        "attributes": [],
+        "id": "00000000-0000-4000-8000-000000000301",
+        "relationships": [
+          {
+            "objectId": "00000000-0000-4000-8000-000000000303",
+            "qualifier": "00000000-0000-4000-8000-000000000203"
+          }
+        ],
+        "type": "00000000-0000-4000-8000-000000000201"
+      },
+      {
+        "attributes": [],
+        "id": "00000000-0000-4000-8000-000000000302",
+        "relationships": [],
+        "type": "00000000-0000-4000-8000-000000000201"
+      },
+      {
+        "attributes": [],
+        "id": "00000000-0000-4000-8000-000000000303",
+        "relationships": [],
+        "type": "00000000-0000-4000-8000-000000000202"
+      }
+    ]
+  }
+}
+```
+
+`ekr ocel --events Person` makes Alice and Bob events at their earliest dated fact,
+`2020-01-01T00:00:00.000Z`, and the CEO_OF edge an event-to-object relationship on Alice.
+
+| OCEL 2.0 | what the store gives it |
+|---|---|
+| event type | a node type the rule above marks, or one `--events` names |
+| event | each node of an event type, at its time as the timeline places it: its least timestamp-like property value, else its earliest dated fact. A node of an event type with no time is left out, and so is every edge to it |
+| object type | every other node type, one with no node included |
+| object | each node of an object type |
+| attribute | each property a node holds a value of; a type's attributes are the properties it declares or inherits |
+| relationship | each edge, qualified by its type id: on the event when one end is an event and the other an object, on the source when both are objects; an edge between two events is left out, since OCEL 2.0 relates events to objects only. Relationships are a set: two edges of one type with the same holder and object give one relationship, and the second is counted as merged (`parallel_edges_merged`) |
+
+Types, attributes and qualifiers are named by id, not by name: OCEL 2.0 identifies a type and an
+attribute by its name, and two of a store's types or properties may share one. `names` maps each
+id back: `node_types` and `edge_types` one entry per declared type, `properties` one entry per
+property id and name a type declares it under, each ordered by id. A time is RFC 3339 in UTC with
+milliseconds. Every attribute value is a string, as the OCEL 2.0 JSON schema requires: a single
+value of a `One` property of a scalar kind is its text (an integer in decimal, a `Timestamp` as a
+time, a `NodeRef` as the node's id), and any other value list is its JSON as the projection writes
+`props`. An attribute typed `time` holds a time: a `Timestamp` outside the years 0000–9999 is left
+out of the log and counted (`attribute_values_out_of_range`). An object's attribute values carry
+the time `1970-01-01T00:00:00.000Z`, which OCEL 2.0 gives an object's initial values, or the time
+of the log's earliest event when that is earlier, so no event precedes the values of the objects
+it relates to; the store holds a node's properties without a time. A node's name, aliases and
+lifecycle state, and an edge's properties, are not part of the log. `ekr session` serves the verb
+too; the other refusals are `ekr quality`'s.
+
+A known departure from OCEL 2.0: its Definition 2 makes an attribute name one type's, and a
+property a type inherits is an attribute of that type and of every type inheriting it, under one
+property id. The OCEL 2.0 JSON schema and common readers, the `process_mining` crate among them,
+accept such a log.
+
 ### `ekr guide`
 
 Prints the workflow for an agent: roles, propose → validate → commit, exit codes, where ids come from,
@@ -511,7 +650,7 @@ then answers:
 
 | request | answer |
 |---|---|
-| `GET /` | the viewer page, built into the binary: the graph in 2D and 3D, a timeline with a heatmap and swimlanes, property history, the schema history, a command palette (Ctrl+K), navigation between committed revisions, a compact mode (the Compact button or the key C) that collapses both sidebars to a strip at their edges, with a tab at each edge of the graph collapsing one sidebar and each strip restoring its own, and the state in the URL after `#` (`compact=1`, `compact=left` or `compact=right` while collapsed) |
+| `GET /` | the viewer page, built into the binary: the graph in 2D and 3D, a timeline with a heatmap and swimlanes, property history, the schema history, a command palette (Ctrl+K), navigation between committed revisions, a compact mode (the Compact button or the key C) that collapses both sidebars to a strip at their edges, with a tab at each edge of the graph collapsing one sidebar and each strip restoring its own, and the state in the URL after `#` (`compact=1`, `compact=left` or `compact=right` while collapsed). A window narrower than 970 px (the two sidebars, 290 + 360 px, and 320 px of graph) opens with both sidebars collapsed unless the address carries `compact`; there the page writes `compact=0` while both are shown, and a reload keeps it; back and forward to an address without `compact` show both. A new detail shown while the right sidebar is collapsed leaves it collapsed and marks its strip with a dot and a title naming what it shows (the detail the reader last saw, drawn again, marks nothing); the strip restores the sidebar showing it. Type chips take the keyboard: Enter or Space hides or shows a type, Shift+Enter or Shift+Space shows only that type (again: every type), and each chip's `aria-pressed` says whether its type is shown; the Compact button carries `aria-pressed`, and the tabs and strips are named in words |
 | `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision as it stands at the request, `application/json`. No `ekr.views` document carries the head, so a render of a revision is the same bytes before and after any later commit; the page reads the head here. It takes no query (any is 400 `invalid-query`) |
 | `GET /projection` | the `ekr.graph-projection/1` document at the head, `application/json`, byte for byte what the projection renders |
 | `GET /projection?revision=N` | the same as of revision `N`; a revision the store does not hold is 404 with `{"refusal": "ekr.views.RevisionNotFound", …}` |
@@ -742,7 +881,7 @@ writes through one process instead of one each:
 ```
 
 A session serves `propose`, `validate`, `commit`, `snapshot`, `explain`, `resolve`, `head`,
-`transactions`, `rejections`, `ontology`, `quality`, `mint`, `hash` and `schema`, the `ekr.views` reads
+`transactions`, `rejections`, `ontology`, `quality`, `ocel`, `mint`, `hash` and `schema`, the `ekr.views` reads
 ([below](#session-views)), and `seed` when it was started with `--create`. It refuses these, each
 answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"stderr"`:
 
