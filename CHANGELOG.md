@@ -4,6 +4,16 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- **The viewer's sidebars collapse to their edges** (`docs/cli.md`, `ekr view`). The Compact
+  button, or the key C, collapses both sidebars to a 20-pixel strip at their edge, and the graph
+  takes the freed width in 2D and 3D with its camera and chosen node kept; pressed again, it shows
+  both. A tab at each edge of the graph collapses that sidebar alone, and a click on a strip
+  restores its own sidebar. The state is part of the address (`compact=1`, `compact=left` or
+  `compact=right`), so a reload, a shared link and the browser's back button keep it; the page
+  opens with both sidebars shown.
+
 ## [0.0.22] — 2026-09-30
 
 The SDK types the store checks and carries evidence with the assertions that cite it; a commit

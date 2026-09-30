@@ -18,10 +18,28 @@
   * { box-sizing: border-box; }
   body { margin: 0; height: 100vh; overflow: hidden; background: var(--surface-0); color: var(--text-primary);
          font: 13px/1.45 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-         display: grid; grid-template-columns: 290px 1fr 360px; }
+         display: grid; --left-w: 290px; --right-w: 360px; --strip: 20px; grid-template-columns: var(--left-w) 1fr var(--right-w); }
   aside { overflow: auto; background: var(--surface-1); padding: 16px 14px; }
   aside.left { border-right: 1px solid var(--line); }
   aside.right { border-left: 1px solid var(--line); }
+  /* ---- compact: a sidebar collapses to a strip at its edge, which restores it ---- */
+  aside.left, #leftStrip { grid-column: 1; grid-row: 1; }
+  #stage { grid-column: 2; grid-row: 1; }
+  aside.right, #rightStrip { grid-column: 3; grid-row: 1; }
+  body.left-min { --left-w: var(--strip); } body.right-min { --right-w: var(--strip); }
+  body.left-min aside.left, body.right-min aside.right, body.left-min #foldLeft, body.right-min #foldRight { display: none; }
+  .strip { display: none; flex-direction: column; align-items: center; gap: 10px; height: 100%; margin: 0; padding: 12px 0; border: 0;
+           background: var(--surface-1); color: var(--text-muted); cursor: pointer; font: inherit; font-size: 11px; font-weight: 600;
+           text-transform: uppercase; letter-spacing: .7px; }
+  .strip:hover { background: var(--surface-2); color: var(--text-primary); }
+  .strip span { writing-mode: vertical-rl; }
+  #leftStrip { border-right: 1px solid var(--line); } #rightStrip { border-left: 1px solid var(--line); }
+  body.left-min #leftStrip, body.right-min #rightStrip { display: flex; }
+  .fold { position: absolute; top: 50%; transform: translateY(-50%); z-index: 4; width: 14px; height: 44px; padding: 0;
+          background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--line); cursor: pointer; font: inherit; font-size: 12px; }
+  .fold:hover { color: var(--text-primary); border-color: var(--text-muted); }
+  #foldLeft { left: 0; border-left: 0; border-radius: 0 7px 7px 0; }
+  #foldRight { right: 0; border-right: 0; border-radius: 7px 0 0 7px; }
   .brand { display: flex; align-items: center; gap: 8px; font-weight: 650; font-size: 15px; letter-spacing: .2px; }
   .brand .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px var(--accent); }
   .run { color: var(--text-muted); font-size: 11.5px; margin: 2px 0 12px; word-break: break-all; }
@@ -287,18 +305,22 @@
   <label class="toggle"><input type="checkbox" id="showIsolated" checked> nodes without edges</label>
   <label class="toggle"><input type="checkbox" id="showEdgeLabels"> edge labels at every zoom</label>
   <label class="toggle" title="Hide the observation type (derived from shape); join the entities one observation links with a derived co-mentioned edge"><input type="checkbox" id="entitiesOnly"> entities only</label>
-  <div class="sub keys">Ctrl+K command palette · Esc clears · F fits · 2/3 view · [ ] revision · ←→ neighbours, Enter opens · double-click: neighbourhood · shift-click two nodes: path</div>
+  <div class="sub keys">Ctrl+K command palette · Esc clears · F fits · C compact · 2/3 view · [ ] revision · ←→ neighbours, Enter opens · double-click: neighbourhood · shift-click two nodes: path</div>
   <h2>Schema</h2>
   <select id="hlVersion" title="Highlight the elements whose type the chosen schema version added"></select>
   <div class="sub" id="schemaSub"></div>
 </aside>
+<button class="strip" id="leftStrip" title="Show the left sidebar">›<span>Controls</span></button>
 <div id="stage">
   <div id="graph"></div>
   <div id="graph3d"></div>
   <div id="modes">
     <div id="views" class="seg"><button data-view="graph" class="on">Graph</button><button data-view="timeline">Timeline</button><button data-view="schema">Schema</button></div>
     <div id="dims" class="seg"><button data-dim="2d" class="on">2D</button><button data-dim="3d">3D</button></div>
+    <div class="seg"><button id="compact" title="Collapse both sidebars to their edges, or show both again (C)">Compact</button></div>
   </div>
+  <button class="fold" id="foldLeft" title="Collapse the left sidebar to its edge">‹</button>
+  <button class="fold" id="foldRight" title="Collapse the right sidebar to its edge">›</button>
   <div id="tools"><button id="fit">Fit</button><button id="relayout">Re-layout</button></div>
   <div id="hl"></div>
   <div id="crumbs"></div>
@@ -317,6 +339,7 @@
     <div class="empty">The graph starts with the revision's best-connected nodes. Click a node for its details: its
       neighbourhood streams in around it. Scroll to zoom: labels appear as you zoom in. Click the background to clear.</div></div>
 </aside>
+<button class="strip" id="rightStrip" title="Show the right sidebar">‹<span>Details</span></button>
 <svg id="svgns" width="0" height="0" style="position:absolute" aria-hidden="true"></svg>
 <script>
 "use strict";
@@ -646,8 +669,28 @@ function revFromHash(hash) {
   return r != null && /^[0-9]+$/.test(r) ? Number(r) : null;
 }
 
+// The sidebars: each collapses to a strip at its edge. The address's `compact` is 1 when both are
+// collapsed, else the side that is; absent, both are shown.
+const folded = side => document.body.classList.contains(`${side}-min`);
+function foldsFrom(hash) {
+  const c = new URLSearchParams(hash.replace(/^#/, "")).get("compact");
+  return [c === "1" || c === "left", c === "1" || c === "right"];
+}
+const foldParam = () => folded("left") && folded("right") ? "1" : folded("left") ? "left" : folded("right") ? "right" : null;
+// Every view lays itself out again on the window's resize (the 2D canvas, the 3D canvas and its loop, the
+// schema chart, the timeline), so a changed stage width is announced as one. True when anything changed.
+function setFolds(left, right) {
+  if (left === folded("left") && right === folded("right")) return false;
+  document.body.classList.toggle("left-min", left);
+  document.body.classList.toggle("right-min", right);
+  $("compact").classList.toggle("on", left && right);
+  window.dispatchEvent(new Event("resize"));
+  return true;
+}
+
 async function main() {
   if (!window.graphology || !window.graphologyLibrary || !window.Sigma) throw new Error("the graph libraries did not load");
+  setFolds(...foldsFrom(location.hash));
   $("statusText").textContent = "loading";
   // an address may name a revision this store does not hold (another store's, a hand-edited one): the
   // store refuses it, and the page opens at the head and says so
@@ -2212,6 +2255,7 @@ async function main() {
   };
   const actions = () => [
     ["Fit", "F", fitAll],
+    [folded("left") && folded("right") ? "Show both sidebars" : "Compact: collapse both sidebars", "C", toggleCompact],
     ["2D view", "2", () => setDim("2d")], ["3D view", "3", () => setDim("3d")],
     ...["graph", "timeline", "schema"].filter(v => v !== currentView()).map(v => [`${v[0].toUpperCase()}${v.slice(1)} view`, "", () => { setView(v); pushState(); }]),
     ...(focused ? [[`Timeline of ${short(nodeName(focused))}`, "", () => tlOpen(focused)], [`Expand ${short(nodeName(focused))}, 2 hops`, "", () => expandFrom([focused], 2)]] : []),
@@ -2274,6 +2318,15 @@ async function main() {
   $("palList").addEventListener("click", ev => { const i = ev.target.closest(".pi")?.dataset.i; if (i != null) palRun(+i); });
   $("palette").addEventListener("click", ev => { if (ev.target.id === "palette") palClose(); });
 
+  // ---- compact: the strips, the collapse tabs and the toggle ----
+  function fold(left, right) { if (setFolds(left, right)) pushState(); }
+  function toggleCompact() { const both = folded("left") && folded("right"); fold(!both, !both); }
+  $("compact").addEventListener("click", toggleCompact);
+  $("leftStrip").addEventListener("click", () => fold(false, folded("right")));
+  $("rightStrip").addEventListener("click", () => fold(folded("left"), false));
+  $("foldLeft").addEventListener("click", () => fold(true, folded("right")));
+  $("foldRight").addEventListener("click", () => fold(folded("left"), true));
+
   // ---- 8. keyboard ----
   function setCursor(c) {
     cursor = c;
@@ -2302,6 +2355,7 @@ async function main() {
     switch (ev.key) {
       case "Escape": clearAll(); break;
       case "f": case "F": fitAll(); break;
+      case "c": case "C": toggleCompact(); break;
       case "2": setDim("2d"); break;
       case "3": setDim("3d"); break;
       case "[": if (doc.meta.revision > 0) goRevision(doc.meta.revision - 1); break;
@@ -2324,7 +2378,7 @@ async function main() {
     }
   });
 
-  // ---- 7. URL state: #revision=…&view=2d|3d&node=…&evidence=…&q=…&types=…&t=…&focus=…&hops=…&entities=1&path=a~b&schema=1 ----
+  // ---- 7. URL state: #revision=…&view=2d|3d&compact=1|left|right&node=…&evidence=…&q=…&types=…&t=…&focus=…&hops=…&entities=1&path=a~b&schema=1 ----
   let applying = false, moved = false, applyTurn = 0;
   // `types=` lists the node types shown out of every type the revision's ontology names, drawn or not: a
   // type an expansion draws after the address was read is hidden or shown as the address says
@@ -2337,6 +2391,8 @@ async function main() {
     const p = new URLSearchParams();
     if (doc.meta.revision !== doc.meta.head) p.set("revision", String(doc.meta.revision));
     p.set("view", dim);
+    const compact = foldParam();
+    if (compact) p.set("compact", compact);
     const v = currentView();
     if (v === "schema") p.set("schema", "1");
     if (v === "timeline") { p.set("mode", "timeline"); tlToParams(p); }
@@ -2363,6 +2419,7 @@ async function main() {
     applying = true;
     try {
       stopPlay();
+      setFolds(...foldsFrom(hash));
       const want = Math.min(revFromHash(hash) ?? doc.meta.head, doc.meta.head);
       if (want !== doc.meta.revision) {
         const next = await Data.overview(want === doc.meta.head ? null : want);

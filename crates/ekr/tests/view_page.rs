@@ -2065,6 +2065,9 @@ struct Driven {
     socket: TcpStream,
     reader: BufReader<TcpStream>,
     next: u64,
+    /// Every exception the page threw, every `console.error` it wrote and every error the browser logged
+    /// for it (a failed load, a refused script), as the protocol reported them.
+    errors: Vec<Value>,
     _profile: tempfile::TempDir,
     _one: std::sync::MutexGuard<'static, ()>,
 }
@@ -2162,9 +2165,12 @@ impl Driven {
             socket,
             reader,
             next: 0,
+            errors: Vec::new(),
             _profile: profile,
             _one: one,
         };
+        driven.call("Runtime.enable", serde_json::json!({}));
+        driven.call("Log.enable", serde_json::json!({}));
         driven.call("Page.navigate", serde_json::json!({ "url": url }));
         driven
     }
@@ -2233,6 +2239,14 @@ impl Driven {
             if reply["id"] == id {
                 return reply;
             }
+            if reply["method"] == "Runtime.exceptionThrown"
+                || (reply["method"] == "Runtime.consoleAPICalled"
+                    && reply["params"]["type"] == "error")
+                || (reply["method"] == "Log.entryAdded"
+                    && reply["params"]["entry"]["level"] == "error")
+            {
+                self.errors.push(reply["params"].clone());
+            }
         }
     }
 
@@ -2274,6 +2288,16 @@ impl Driven {
             serde_json::json!({"type": kind, "x": x, "y": y, "button": button,
                 "buttons": u8::from(pressed), "clickCount": u8::from(kind != "mouseMoved")}),
         );
+    }
+
+    /// One press of a printable key, as a reader types it outside any field.
+    fn key(&mut self, key: &str) {
+        for kind in ["keyDown", "keyUp"] {
+            self.call(
+                "Input.dispatchKeyEvent",
+                serde_json::json!({"type": kind, "key": key, "text": key, "unmodifiedText": key}),
+            );
+        }
     }
 }
 
@@ -2522,4 +2546,300 @@ fn a_node_dragged_in_3d_pulls_its_neighbours_along_as_before() {
         pulled > 1.0,
         "the dragged node moved {dragged:.1} and its neighbour {pulled:.1}"
     );
+}
+
+// ---- compact mode: both sidebars collapse to a strip at their edge --------------------------------
+
+/// `task:viewer-compact-mode`: the page has a compact toggle, a strip per sidebar that restores it
+/// and a control that collapses each sidebar on its own; its help names the key that toggles both,
+/// and the compact state is written into the address and read back from it.
+#[test]
+fn the_page_has_a_compact_toggle_a_strip_and_a_collapse_control_per_sidebar() {
+    let page = page();
+    for id in [
+        "compact",
+        "leftStrip",
+        "rightStrip",
+        "foldLeft",
+        "foldRight",
+    ] {
+        assert!(page.contains(&format!("id=\"{id}\"")), "an element {id}");
+    }
+    assert!(page.contains("C compact"), "the help names the key");
+    assert!(
+        page.contains("p.set(\"compact\""),
+        "the address carries the compact state"
+    );
+    assert!(
+        page.contains(".get(\"compact\")"),
+        "the compact state is read from the address"
+    );
+}
+
+/// The widths the reader sees, the address, the panel's heading and the camera: the 3D camera's
+/// position, or the 2D camera's centre and zoom.
+const MEASURE: &str = "(() => { const shown = e => e && getComputedStyle(e).display !== 'none' ? e.getBoundingClientRect().width : 0;
+  const c = __viewer.fg ? __viewer.fg.renderer().domElement : document.querySelector('#graph canvas');
+  const cam = __viewer.fg ? (p => [p.x, p.y, p.z])(__viewer.fg.camera().position) : (s => [s.x, s.y, s.ratio])(__viewer.camera.getState());
+  return {canvas: c.getBoundingClientRect().width, stage: document.getElementById('stage').getBoundingClientRect().width,
+    left: shown(document.querySelector('aside.left')), right: shown(document.getElementById('panel')),
+    leftStrip: shown(document.getElementById('leftStrip')), rightStrip: shown(document.getElementById('rightStrip')),
+    hash: location.hash, panel: document.querySelector('#panel h1')?.textContent ?? null, camera: cam}; })()";
+
+/// Waits for `MEASURE` to hold `condition` (an expression over `m`), and returns it.
+fn measured_when(driven: &mut Driven, condition: &str, what: &str) -> Value {
+    let expression = format!("(m => {condition})({MEASURE})");
+    assert!(
+        driven.wait_for(&expression, 30),
+        "{what}: {}",
+        driven.eval(MEASURE)
+    );
+    driven.eval(MEASURE)
+}
+
+fn width(m: &Value, key: &str) -> f64 {
+    m[key].as_f64().unwrap()
+}
+
+fn same_camera(a: &Value, b: &Value) -> bool {
+    let (a, b) = (
+        a["camera"].as_array().unwrap(),
+        b["camera"].as_array().unwrap(),
+    );
+    a.iter()
+        .zip(b)
+        .all(|(p, q)| (p.as_f64().unwrap() - q.as_f64().unwrap()).abs() < 1e-6)
+}
+
+/// The 3D view's draw calls, counted from here on in `window.__calls`.
+const COUNT_DRAWS: &str =
+    "(() => { const gl = __viewer.fg.renderer().getContext(); window.__calls = 0;
+  for (const f of ['drawArrays', 'drawElements', 'drawArraysInstanced', 'drawElementsInstanced']) {
+    const own = gl[f].bind(gl); gl[f] = (...a) => { window.__calls++; return own(...a); }; } })()";
+
+fn draws_within(driven: &mut Driven, millis: u32) -> u64 {
+    driven
+        .eval(&format!(
+            "new Promise(done => {{ const at = window.__calls; setTimeout(() => done(window.__calls - at), {millis}); }})"
+        ))
+        .as_u64()
+        .unwrap()
+}
+
+/// `task:viewer-compact-mode`, acceptance, in the view `dim` names, with a node `chosen` or none:
+/// the page opens with both sidebars shown; the key `c` collapses both to their strips, and the
+/// canvas grows by what they gave up, keeping the camera and the chosen node; each strip restores
+/// its own sidebar; one sidebar collapses on its own; the address carries the state through a
+/// reload and back through history; and the page reports no error. In 3D with nothing chosen the
+/// loop draws for each resize and rests again.
+fn compact_mode_in(dim: &str, chosen: bool) {
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/view-page/sounding"));
+    let projection = seeded.projection();
+    let id = busiest(&projection)["id"].as_str().unwrap().to_owned();
+    let double = seeded.double(Duration::ZERO);
+    let address = if chosen {
+        format!("{}#node={id}&view={dim}", double.url)
+    } else {
+        format!("{}#view={dim}", double.url)
+    };
+    let mut driven = Driven::launch(&browser, &address);
+    // with a node chosen, particles run along its edges and the 3D loop never rests
+    let rests = dim == "3d" && !chosen;
+    let drawn = if dim == "3d" {
+        "!!window.__viewer.fg"
+    } else {
+        "!!window.__viewer.renderer && !window.__viewer.camera.isAnimated()"
+    };
+    assert!(
+        driven.wait_for(
+            &format!("{SETTLED} && {drawn} && !!document.querySelector('#panel h1')"),
+            90
+        ),
+        "the {dim} view settled on the node"
+    );
+    // the camera's flight to the chosen node has ended
+    std::thread::sleep(Duration::from_millis(1500));
+    let open = driven.eval(MEASURE);
+    assert!(
+        width(&open, "left") > 0.0
+            && width(&open, "right") > 0.0
+            && width(&open, "leftStrip") == 0.0
+            && width(&open, "rightStrip") == 0.0,
+        "not compact by default: {open}"
+    );
+    assert!(
+        !open["hash"].as_str().unwrap().contains("compact"),
+        "{open}"
+    );
+    assert!(
+        (width(&open, "canvas") - width(&open, "stage")).abs() < 1.0,
+        "{open}"
+    );
+    if rests {
+        driven.eval(COUNT_DRAWS);
+        assert_eq!(draws_within(&mut driven, 1000), 0, "the 3D loop rests");
+    }
+
+    // the key collapses both
+    driven.key("c");
+    if rests {
+        let woke = draws_within(&mut driven, 400);
+        assert!(woke > 0, "the 3D loop drew the resize: {woke} calls");
+        eprintln!("3d: {woke} draw calls in the 400 ms after the key");
+        std::thread::sleep(Duration::from_millis(1000));
+        assert_eq!(
+            draws_within(&mut driven, 1000),
+            0,
+            "the 3D loop rests after the resize"
+        );
+    }
+    let compact = measured_when(
+        &mut driven,
+        &format!(
+            "m.left === 0 && m.right === 0 && m.leftStrip > 0 && m.rightStrip > 0 \
+             && Math.abs(m.canvas - m.stage) < 1 && m.canvas > {}",
+            width(&open, "canvas")
+        ),
+        "both sidebars collapsed to their strips and the canvas took their width",
+    );
+    let freed = width(&open, "left") + width(&open, "right")
+        - width(&compact, "leftStrip")
+        - width(&compact, "rightStrip");
+    assert!(
+        (width(&compact, "canvas") - width(&open, "canvas") - freed).abs() < 1.0,
+        "the canvas grew by {freed}: {open} → {compact}"
+    );
+    eprintln!(
+        "{dim}: canvas {} → {} (sidebars {} + {}, strips {} + {})",
+        width(&open, "canvas"),
+        width(&compact, "canvas"),
+        width(&open, "left"),
+        width(&open, "right"),
+        width(&compact, "leftStrip"),
+        width(&compact, "rightStrip")
+    );
+    let hash = compact["hash"].as_str().unwrap();
+    assert!(
+        hash.contains("compact=1") && (!chosen || hash.contains(&format!("node={id}"))),
+        "{compact}"
+    );
+    assert_eq!(
+        compact["panel"], open["panel"],
+        "the chosen node stays open"
+    );
+    assert!(
+        same_camera(&open, &compact),
+        "the camera: {open} → {compact}"
+    );
+
+    // each strip restores its own sidebar
+    let at = if rests {
+        driven.eval("window.__calls").as_u64().unwrap()
+    } else {
+        0
+    };
+    driven.eval("document.getElementById('leftStrip').click()");
+    let left = measured_when(
+        &mut driven,
+        "m.left > 0 && m.leftStrip === 0 && m.right === 0 && m.rightStrip > 0 && Math.abs(m.canvas - m.stage) < 1",
+        "the left strip restored the left sidebar alone",
+    );
+    assert!(
+        left["hash"].as_str().unwrap().contains("compact=right"),
+        "{left}"
+    );
+    driven.eval("document.getElementById('rightStrip').click()");
+    let restored = measured_when(
+        &mut driven,
+        "m.left > 0 && m.right > 0 && m.leftStrip === 0 && m.rightStrip === 0 && Math.abs(m.canvas - m.stage) < 1",
+        "the right strip restored the right sidebar",
+    );
+    assert!(
+        (width(&restored, "canvas") - width(&open, "canvas")).abs() < 1.0,
+        "the canvas returned to its width: {open} → {restored}"
+    );
+    assert!(
+        !restored["hash"].as_str().unwrap().contains("compact"),
+        "{restored}"
+    );
+    assert!(
+        same_camera(&open, &restored),
+        "the camera: {open} → {restored}"
+    );
+    if rests {
+        let woke = driven.eval("window.__calls").as_u64().unwrap() - at;
+        assert!(woke > 0, "the 3D loop drew the restores: {woke} calls");
+        eprintln!("3d: {woke} draw calls for the two restores");
+        std::thread::sleep(Duration::from_millis(1000));
+        assert_eq!(
+            draws_within(&mut driven, 1000),
+            0,
+            "the 3D loop rests after the restores"
+        );
+    }
+
+    // one sidebar collapses on its own, and a reload keeps it collapsed
+    driven.eval("document.getElementById('foldRight').click()");
+    let right = measured_when(
+        &mut driven,
+        "m.left > 0 && m.right === 0 && m.rightStrip > 0 && Math.abs(m.canvas - m.stage) < 1",
+        "the right sidebar collapsed on its own",
+    );
+    assert!(
+        right["hash"].as_str().unwrap().contains("compact=right"),
+        "{right}"
+    );
+    driven.eval("window.__before = true");
+    driven.call("Page.reload", serde_json::json!({}));
+    assert!(
+        driven.wait_for(&format!("!window.__before && {SETTLED} && {drawn}"), 90),
+        "the page reloaded"
+    );
+    let reloaded = measured_when(
+        &mut driven,
+        "m.left > 0 && m.right === 0 && m.rightStrip > 0 && Math.abs(m.canvas - m.stage) < 1",
+        "the reload restored the collapsed right sidebar from the address",
+    );
+    assert!(
+        (width(&reloaded, "canvas") - width(&right, "canvas")).abs() < 1.0,
+        "{right} → {reloaded}"
+    );
+
+    // the toggle collapses both, and going back restores the address before it
+    driven.eval("document.getElementById('compact').click()");
+    measured_when(
+        &mut driven,
+        "m.left === 0 && m.right === 0 && m.hash.includes('compact=1')",
+        "the toggle collapsed both",
+    );
+    driven.eval("history.back()");
+    measured_when(
+        &mut driven,
+        "m.left > 0 && m.right === 0 && m.hash.includes('compact=right') && Math.abs(m.canvas - m.stage) < 1",
+        "going back restored the address before the toggle",
+    );
+    assert!(
+        driven.errors.is_empty(),
+        "the page reported errors: {:?}",
+        driven.errors
+    );
+}
+
+#[test]
+fn compact_mode_collapses_both_sidebars_and_restores_them_in_2d() {
+    compact_mode_in("2d", true);
+}
+
+#[test]
+fn compact_mode_collapses_both_sidebars_and_restores_them_in_3d() {
+    compact_mode_in("3d", true);
+}
+
+#[test]
+fn compact_mode_wakes_the_resting_3d_loop_for_the_resize_and_it_rests_again() {
+    compact_mode_in("3d", false);
 }
