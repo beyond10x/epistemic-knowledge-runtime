@@ -2,6 +2,7 @@
 
 use std::cell::OnceCell;
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::{Arc, OnceLock};
 
 use ekr_core::{AssertionId, EdgeId, NodeId, PropertyId, TypeId};
 use ekr_graph::{CanonicalGraph, GraphSnapshot, Subject};
@@ -25,16 +26,39 @@ pub(super) struct Candidate<'g> {
     /// The value count of each property of each node the operation set creates or updates.
     pub(super) property_counts: BTreeMap<NodeId, BTreeMap<PropertyId, usize>>,
     /// Canonical state's assertions about edges, by edge; see [`Candidate::asserted_edges`].
-    asserted_edges: OnceCell<BTreeMap<EdgeId, Vec<AssertionId>>>,
+    asserted_edges: Index<'g>,
+}
+
+/// Canonical state's assertions about edges, by edge, each list in the order canonical state holds
+/// the assertions.
+pub(crate) type AssertedEdges = BTreeMap<EdgeId, Vec<AssertionId>>;
+
+/// Where the [`AssertedEdges`] of one graph is kept with that graph, so that every validation
+/// against it reads one index: built by the first that reads it.
+pub(crate) type AssertedEdgesCell = Arc<OnceLock<AssertedEdges>>;
+
+/// Where a candidate view finds the [`AssertedEdges`] of the graph it applies to.
+enum Index<'g> {
+    /// Its own, built for this view alone.
+    Own(OnceCell<AssertedEdges>),
+    /// The one kept with the graph.
+    Kept(&'g OnceLock<AssertedEdges>),
 }
 
 thread_local! {
     static BUILT: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    static INDEXED: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
 /// How many candidate views the calling thread has built; see [`super::candidates_built`].
 pub(super) fn built() -> u64 {
     BUILT.with(std::cell::Cell::get)
+}
+
+/// How many per-edge assertion indexes the calling thread has built; see
+/// [`super::edge_indexes_built`].
+pub(super) fn indexed() -> u64 {
+    INDEXED.with(std::cell::Cell::get)
 }
 
 impl<'g> Candidate<'g> {
@@ -65,7 +89,7 @@ impl<'g> Candidate<'g> {
             // Only a created node's counts are ever read, and creating a node replaces whatever
             // canonical state held under its id, so canonical state's counts are not copied.
             property_counts: BTreeMap::new(),
-            asserted_edges: OnceCell::new(),
+            asserted_edges: Index::Own(OnceCell::new()),
         };
         for operation in &proposal.operations {
             match operation {
@@ -111,6 +135,19 @@ impl<'g> Candidate<'g> {
         result
     }
 
+    /// [`Candidate::of`], reading the [`AssertedEdges`] kept with the snapshot's graph, `kept`,
+    /// rather than building its own. `kept` must be the one kept with that graph.
+    pub(super) fn kept(
+        snapshot: &GraphSnapshot<'g>,
+        proposal: &GraphTransaction,
+        kept: &'g OnceLock<AssertedEdges>,
+    ) -> Self {
+        Self {
+            asserted_edges: Index::Kept(kept),
+            ..Self::of(snapshot, proposal)
+        }
+    }
+
     /// Whether `edge` is there to delete: canonical state holds it or the operation set creates
     /// it, since a deletion target may be created and cancelled in the same atomic transaction.
     pub(super) fn available(&self, edge: &EdgeId) -> bool {
@@ -119,17 +156,23 @@ impl<'g> Candidate<'g> {
 
     /// Every assertion canonical state holds about an edge, by that edge, each list in the order
     /// canonical state holds the assertions: built from one pass over the assertions, on first
-    /// use, and read by every validator of the validation this view is shared by.
-    pub(super) fn asserted_edges(&self) -> &BTreeMap<EdgeId, Vec<AssertionId>> {
-        self.asserted_edges.get_or_init(|| {
-            let mut index: BTreeMap<EdgeId, Vec<AssertionId>> = BTreeMap::new();
+    /// use, and read by every validator of the validation this view is shared by — and, where the
+    /// index is kept with the graph ([`Candidate::kept`]), by every later validation against it.
+    pub(super) fn asserted_edges(&self) -> &AssertedEdges {
+        let build = || {
+            INDEXED.with(|count| count.set(count.get() + 1));
+            let mut index = AssertedEdges::new();
             for (id, assertion) in &self.basis.assertions {
                 if let Subject::Edge(edge) = assertion.subject {
                     index.entry(edge.id()).or_default().push(*id);
                 }
             }
             index
-        })
+        };
+        match &self.asserted_edges {
+            Index::Own(index) => index.get_or_init(build),
+            Index::Kept(index) => index.get_or_init(build),
+        }
     }
 
     /// How many edges of each type leave each source once the operation set applies: one pass

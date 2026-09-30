@@ -633,6 +633,7 @@ fn restored(
                 graph_root,
                 ontology: Arc::clone(&schema_at(number)?.1),
                 graph: if number == head { graph.take() } else { None },
+                asserted_edges: crate::validate::AssertedEdgesCell::default(),
             },
         );
     }

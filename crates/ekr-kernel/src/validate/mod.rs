@@ -48,6 +48,7 @@ use ekr_graph::GraphSnapshot;
 use crate::issue::{ValidationIssue, ValidatorName};
 use crate::transaction::{GraphTransaction, ValidatedTransaction};
 use candidate::Candidate;
+pub(crate) use candidate::{AssertedEdges, AssertedEdgesCell};
 
 pub use authorization::Authorization;
 pub use cardinality::Cardinality;
@@ -199,6 +200,34 @@ impl Pipeline {
         snapshot: &GraphSnapshot<'_>,
         proposal: &GraphTransaction,
     ) -> Result<ValidatedTransaction, Vec<ValidationIssue>> {
+        self.sealed(snapshot, proposal, Candidate::of(snapshot, proposal))
+    }
+
+    /// [`Pipeline::validate`], reading the index of assertions about edges kept with the
+    /// snapshot's graph, `kept`, and building it there if it is not yet: the same verdict, with
+    /// one index per graph however many validations read it. `kept` must be the one kept with
+    /// that graph.
+    pub(crate) fn validate_kept<'g>(
+        &self,
+        snapshot: &GraphSnapshot<'g>,
+        proposal: &GraphTransaction,
+        kept: &'g std::sync::OnceLock<AssertedEdges>,
+    ) -> Result<ValidatedTransaction, Vec<ValidationIssue>> {
+        self.sealed(
+            snapshot,
+            proposal,
+            Candidate::kept(snapshot, proposal, kept),
+        )
+    }
+
+    /// Runs every validator against `snapshot`, reading `candidate`, the one candidate view of
+    /// this validation, and seals the proposal if all of them pass.
+    fn sealed<'g>(
+        &self,
+        snapshot: &GraphSnapshot<'g>,
+        proposal: &GraphTransaction,
+        candidate: Candidate<'g>,
+    ) -> Result<ValidatedTransaction, Vec<ValidationIssue>> {
         // The form that has a content address, built **before** and independently of the
         // validators rather than gated behind them. Gating it was what made its failure arm dead:
         // the type validator refuses exactly the values this conversion refuses, so a gated
@@ -214,8 +243,8 @@ impl Pipeline {
         // is a refusal.
         let canonical = GraphTransaction::try_from(proposal.clone());
 
-        // One candidate view for every validator: building it copies every node and edge.
-        let candidate = Candidate::of(snapshot, proposal);
+        // One candidate view for every validator, built by the caller: building it copies every
+        // node and edge.
         let mut issues = Vec::new();
         for validator in &self.validators {
             if let Err(raised) = validator.check(snapshot, proposal, &candidate) {
@@ -242,6 +271,17 @@ impl Pipeline {
 #[must_use]
 pub fn candidates_built() -> u64 {
     candidate::built()
+}
+
+/// How many indexes of canonical state's assertions about edges, by edge — a pass over every
+/// assertion of a graph — the calling thread has built.
+///
+/// Test instrumentation, as [`candidates_built`] is: it lets a test show that a session builds the
+/// index of each revision's graph once.
+#[doc(hidden)]
+#[must_use]
+pub fn edge_indexes_built() -> u64 {
+    candidate::indexed()
 }
 
 /// `Ok` when nothing was raised, and the issues otherwise: the shape every validator ends with.

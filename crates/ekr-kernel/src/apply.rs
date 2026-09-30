@@ -71,6 +71,22 @@ pub fn graphs_applied() -> u64 {
     GRAPHS_APPLIED.with(std::cell::Cell::get)
 }
 
+/// Whether the calling thread holds a graph a commit decision applied and no application has
+/// taken yet.
+///
+/// Test instrumentation, as [`graphs_applied`] is: it lets a test show that a graph a commit
+/// decided and did not take is released when the command ends.
+#[doc(hidden)]
+#[must_use]
+pub fn decided_graph_held() -> bool {
+    APPLIED.with(|applied| {
+        applied
+            .borrow()
+            .as_ref()
+            .is_some_and(|applied| applied.graph.is_some())
+    })
+}
+
 /// Releases the graph a decision left for the application that admits it, when that application
 /// did not take it: dropped at the end of a commit command, so a graph is held only while its
 /// publication is in flight. The remembered root stays.
