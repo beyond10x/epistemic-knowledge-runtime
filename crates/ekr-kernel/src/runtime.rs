@@ -191,6 +191,74 @@ impl Runtime {
             )?)),
         })
     }
+    /// Opens an already provisioned File store for a caller that only reads it, under the explicit
+    /// trusted host anchor: as [`Runtime::file_existing`] where this process may write the store,
+    /// and otherwise read-only ([`Runtime::is_read_only`]), writing nothing at its path.
+    /// # Errors
+    /// Invalid authority, runtime-context refusal, a missing store or provider failure.
+    pub fn file_reading(
+        path: &Path,
+        tenant: &str,
+        context: BootstrapContext,
+        anchor: AuthorityStateV1,
+    ) -> Result<Self, StoreError> {
+        Ok(Self {
+            backend: Backend::File(Box::new(Commit::over_with_authority(
+                context,
+                anchor,
+                |authority| {
+                    FileStore::file_reading(path, tenant, None).map(|store| store.under(authority))
+                },
+            )?)),
+        })
+    }
+    /// Opens an already provisioned SQLite store for a caller that only reads it, under the
+    /// explicit trusted host anchor: as [`Runtime::sqlite_existing`] where this process may write
+    /// the store, and otherwise read-only ([`Runtime::is_read_only`]), writing nothing at its path.
+    /// # Errors
+    /// Invalid authority, runtime-context refusal, a missing store or provider failure.
+    pub fn sqlite_reading(
+        path: &Path,
+        tenant: &str,
+        context: BootstrapContext,
+        anchor: AuthorityStateV1,
+    ) -> Result<Self, StoreError> {
+        Ok(Self {
+            backend: Backend::Sqlite(Box::new(Commit::over_with_authority(
+                context,
+                anchor,
+                |authority| {
+                    SqliteStore::sqlite_reading(path, tenant, None)
+                        .map(|store| store.under(authority))
+                },
+            )?)),
+        })
+    }
+    /// Whether this runtime's store was opened read-only: every write through it is refused as
+    /// [`StoreError::ReadOnly`] and nothing is written at the store's path.
+    #[must_use]
+    pub fn is_read_only(&self) -> bool {
+        match &self.backend {
+            Backend::File(kernel) => kernel.store.is_read_only(),
+            Backend::Sqlite(kernel) => kernel.store.is_read_only(),
+        }
+    }
+    /// Whether this runtime's store was opened read-only and the files at its path have changed
+    /// since it read them: a long-lived reader then opens the store again, as for a store
+    /// replaced at its path. Never true of a store opened for writing.
+    #[must_use]
+    pub fn source_changed(&self) -> bool {
+        match &self.backend {
+            Backend::File(kernel) => kernel.store.source_changed(),
+            Backend::Sqlite(kernel) => kernel.store.source_changed(),
+        }
+    }
+    /// Removes the private copy every read-only File store of this process reads, for a process
+    /// about to end without dropping its runtimes: a signal handler's last act. A runtime that
+    /// reads after this fails.
+    pub fn remove_read_only_copies() {
+        ekr_store::remove_read_only_copies();
+    }
     /// Replays every read of this runtime from the seed, re-deriving every retained decision,
     /// instead of continuing from the store's replay checkpoint (design § 96). Checkpoints are
     /// still written. Takes effect only before the first read.

@@ -24,7 +24,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use ekr_core::{AssertionId, EdgeId, EvidenceId, NodeId, RevisionNumber, TypeId};
+use ekr_core::{AssertionId, ContentHash, EdgeId, EvidenceId, NodeId, RevisionNumber, TypeId};
 use ekr_graph::{CanonicalGraph, Subject};
 use ekr_kernel::{GraphOperation, Runtime, TransactionDocument};
 use serde::Serialize;
@@ -211,6 +211,8 @@ pub struct ChangesListed {
     pub assertions_superseded: u64,
     /// This page's AssertionRetracted changes.
     pub assertions_retracted: u64,
+    /// This page's EvidenceAdded changes.
+    pub evidence_added: u64,
     /// The revision of the page's first change; `None` for an empty page.
     pub first_revision: Option<u64>,
     /// The revision of the page's last change; `None` for an empty page.
@@ -227,6 +229,7 @@ enum ChangeKind {
     AssertionAdded,
     AssertionSuperseded,
     AssertionRetracted,
+    EvidenceAdded,
 }
 
 impl ChangeKind {
@@ -261,6 +264,10 @@ struct GraphChange {
     by: Option<AssertionId>,
     #[serde(skip_serializing_if = "Option::is_none")]
     valid_time: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    locator: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content_hash: Option<ContentHash>,
     evidence: Vec<String>,
 }
 
@@ -279,6 +286,8 @@ impl GraphChange {
             subject: None,
             by: None,
             valid_time: None,
+            locator: None,
+            content_hash: None,
             evidence: Vec::new(),
         }
     }
@@ -344,7 +353,8 @@ fn listed(ids: impl IntoIterator<Item = String>) -> Vec<String> {
         .collect()
 }
 
-/// The changes the seed made: everything its canonical state holds. A node's or an edge's
+/// The changes the seed made: everything its canonical state holds, but its evidence, which came
+/// with the seed and not through an `AddEvidence`, so is no EvidenceAdded. A node's or an edge's
 /// evidence is that of the seed's assertions about it.
 fn seed_changes(graph: &CanonicalGraph, entry: &LoadedRevisionEntry, into: &mut Vec<GraphChange>) {
     let mut cited: BTreeMap<(&'static str, String), BTreeSet<String>> = BTreeMap::new();
@@ -382,7 +392,8 @@ fn seed_changes(graph: &CanonicalGraph, entry: &LoadedRevisionEntry, into: &mut 
 
 /// The changes one committed transaction made, read off its operations. An assertion it
 /// superseded or retracted is read from `graph`, the state at the read revision, which holds
-/// every assertion ever added.
+/// every assertion ever added. An `AddEvidence` is an EvidenceAdded carrying the entry's source
+/// identity (its locator) and the address of the payload it brought.
 fn transaction_changes(
     graph: &CanonicalGraph,
     entry: &LoadedRevisionEntry,
@@ -458,6 +469,14 @@ fn transaction_changes(
                 .about(held(&claim.subject));
                 change.valid_time = claim.valid_time.from.map(|from| from.millis());
                 change.evidence = listed(claim.evidence.iter().map(|e| e.id().to_string()));
+                change
+            }
+            GraphOperation::AddEvidence(addition) => {
+                let added = &addition.evidence;
+                let mut change =
+                    GraphChange::new(entry, ChangeKind::EvidenceAdded, added.id.to_string());
+                change.locator = Some(added.source.locator());
+                change.content_hash = Some(added.content_hash);
                 change
             }
             _ => continue,
@@ -617,6 +636,7 @@ impl Index {
             assertions_added: count(ChangeKind::AssertionAdded),
             assertions_superseded: count(ChangeKind::AssertionSuperseded),
             assertions_retracted: count(ChangeKind::AssertionRetracted),
+            evidence_added: count(ChangeKind::EvidenceAdded),
             first_revision: page.first().map(|change| change.revision),
             last_revision: page.last().map(|change| change.revision),
             changes_hash: hash(&bytes),

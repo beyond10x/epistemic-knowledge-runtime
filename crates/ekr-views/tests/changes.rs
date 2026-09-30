@@ -7,7 +7,10 @@
 //! * a page limit and a cursor page through the change set with nothing lost or repeated;
 //! * two reads of one (since, at) pair are byte-identical, before and after an unrelated commit,
 //!   and a read naming no `at` is byte for byte the read naming the head it read;
-//! * the refusals come in the declared order.
+//! * the refusals come in the declared order;
+//! * on the `quality` fixture, an `AddEvidence` in the range is listed once as an EvidenceAdded
+//!   (`task:changes-since-lists-added-evidence`), and a range without one answers the bytes it
+//!   answered before that change kind existed.
 
 mod support;
 
@@ -23,8 +26,8 @@ use sha2::{Digest, Sha256};
 use support::fixtures::{
     self, statement_id, Fixture, Provider, ALPHA_NODE, BETA_NODE, CHANGED_EDGE, CHANGED_EDGE_CLAIM,
     CHANGED_NODE, CHANGED_NODE_CLAIM, CHANGED_NODE_VALID_MS, CLOCK_START_MS, LATER_CLAIM,
-    LINKS_TYPE, REPLACED_AT_MS, REPLACING_CLAIM, SEEDED_LINK, SEEDED_LINK_CLAIM, SEEDED_NODE_CLAIM,
-    SEEDED_VALID_MS, SUBJECT_TYPE,
+    LINKS_TYPE, Q_EVIDENCE, REPLACED_AT_MS, REPLACING_CLAIM, SEEDED_LINK, SEEDED_LINK_CLAIM,
+    SEEDED_NODE_CLAIM, SEEDED_VALID_MS, SUBJECT_TYPE,
 };
 
 const PROVIDERS: [Provider; 2] = [Provider::File, Provider::Sqlite];
@@ -195,6 +198,7 @@ fn a_revision_since_lists_exactly_the_changes_of_the_revisions_after_it() {
                 assertions_added: 3,
                 assertions_superseded: 1,
                 assertions_retracted: 1,
+                evidence_added: 0,
                 first_revision: Some(1),
                 last_revision: Some(3),
                 changes_hash: hex::encode(Sha256::digest(&text)),
@@ -511,4 +515,183 @@ fn a_host_takes_since_as_exactly_one_of_three_inputs() {
         .map(SinceKind::name),
         ["Revision", "ValidTime", "TransactionTime"]
     );
+}
+
+// ---- evidence added after the seed (task:changes-since-lists-added-evidence) -------------------
+
+fn quality(provider: Provider) -> (tempfile::TempDir, Runtime) {
+    let work = tempfile::tempdir().expect("work directory");
+    let runtime = fixtures::open(work.path(), provider);
+    Fixture::Quality.build(&runtime);
+    (work, runtime)
+}
+
+/// The EvidenceAdded change of the `quality` store's `AddEvidence` of evidence `n` at `revision`:
+/// its id, its source identity (a human statement by `operator`) and its payload's hash.
+fn evidence_added(revision: i64, n: u64) -> Value {
+    let payload = format!("item statement {n:x}").into_bytes();
+    json!({"revision": revision, "recorded_at": committed(revision), "change": "EvidenceAdded",
+           "id": uuid(n), "locator": "operator",
+           "content_hash": ekr_core::ContentHash::of_bytes(&payload).to_string(),
+           "evidence": []})
+}
+
+/// The `quality` store adds X0 at revision 1 and X1 at revision 3, each with one `AddEvidence`.
+/// A range holding one lists it once, as its revision's last change, on both providers; a
+/// revision since, a transaction-time since and a page-by-page read agree, and a valid-time
+/// since chooses no evidence, which has no valid time.
+#[test]
+fn an_add_evidence_in_the_range_is_listed_once_with_its_revision_source_and_payload_hash() {
+    let (x0, x1) = (Q_EVIDENCE + 0x10, Q_EVIDENCE + 0x11);
+    for provider in PROVIDERS {
+        let (_work, runtime) = quality(provider);
+        let (_, value, _) = read(
+            &runtime,
+            Some(3),
+            &request(SinceKind::Revision, 0, None, None),
+        );
+        let listed = changes(&value);
+        let added: Vec<Value> = listed
+            .iter()
+            .filter(|change| change["change"] == "EvidenceAdded")
+            .cloned()
+            .collect();
+        assert_eq!(
+            added,
+            vec![evidence_added(1, x0), evidence_added(3, x1)],
+            "{provider:?}: {value}"
+        );
+        assert_eq!(value["meta"]["total"], 8, "{provider:?}: {value}");
+        for (revision, n) in [(1, x0), (3, x1)] {
+            let last = listed
+                .iter()
+                .rev()
+                .find(|change| change["revision"] == revision)
+                .expect("a change of the revision");
+            assert_eq!(*last, evidence_added(revision, n), "{provider:?}");
+        }
+
+        let mut paged = Vec::new();
+        let mut after = 0;
+        loop {
+            let (_, page, _) = read(
+                &runtime,
+                Some(3),
+                &request(SinceKind::Revision, 0, Some(1), Some(after)),
+            );
+            paged.extend(changes(&page));
+            match page["next"].as_i64() {
+                Some(next) => after = next,
+                None => break,
+            }
+        }
+        assert_eq!(paged, listed, "{provider:?}: page by page");
+
+        let (_, recorded, _) = read(
+            &runtime,
+            Some(3),
+            &request(SinceKind::TransactionTime, committed(0), None, None),
+        );
+        assert_eq!(
+            changes(&recorded),
+            listed,
+            "{provider:?}: since the seed's time"
+        );
+        let (_, later, _) = read(
+            &runtime,
+            Some(3),
+            &request(SinceKind::Revision, 1, None, None),
+        );
+        assert_eq!(
+            changes(&later)
+                .into_iter()
+                .filter(|change| change["change"] == "EvidenceAdded")
+                .collect::<Vec<_>>(),
+            vec![evidence_added(3, x1)],
+            "{provider:?}"
+        );
+        let (_, valid, _) = read(
+            &runtime,
+            Some(3),
+            &request(SinceKind::ValidTime, i64::MIN, None, None),
+        );
+        assert!(
+            changes(&valid)
+                .iter()
+                .all(|change| change["change"] != "EvidenceAdded"),
+            "{provider:?}: {valid}"
+        );
+    }
+}
+
+/// A range without an `AddEvidence` answers the bytes it answered before EvidenceAdded existed:
+/// each hash below was read off the base `197d93d9`, on both providers. The seed's evidence is
+/// no change, so a range holding the seed is one of them, and a valid-time since chooses no
+/// evidence, so it answers as before even over revisions that add some.
+#[test]
+fn a_range_without_an_add_evidence_answers_the_bytes_it_answered_before() {
+    let pinned: [(Fixture, u64, SinceKind, i64, &str); 7] = [
+        (
+            Fixture::Changes,
+            3,
+            SinceKind::Revision,
+            0,
+            "c41dc12fa36c9033d9ae18572a763d8821f9b2d6f6a3402ac9c81d5adc6c4a38",
+        ),
+        (
+            Fixture::Changes,
+            3,
+            SinceKind::TransactionTime,
+            i64::MIN,
+            "cce7e30bb6997ddbda987ae1b03ee81fc2cbc9fdc59eb03f78128e9a82dd30e9",
+        ),
+        (
+            Fixture::Changes,
+            3,
+            SinceKind::ValidTime,
+            i64::MIN,
+            "1a74499b39bf27de50a3745fbcfa01eba5f95a9e0a6244dc7695d18ecaddf92d",
+        ),
+        (
+            Fixture::Quality,
+            0,
+            SinceKind::TransactionTime,
+            i64::MIN,
+            "280400782b5ab177e75c6e3aae677bdffedbc3f153c7290d93ea675e0ef2a3b1",
+        ),
+        (
+            Fixture::Quality,
+            2,
+            SinceKind::Revision,
+            1,
+            "ea7c85d2c77e88d2370eeefa9eefaff014b6a427b98d7c3caa168789e9a8d039",
+        ),
+        (
+            Fixture::Quality,
+            3,
+            SinceKind::Revision,
+            3,
+            "ae4b2ce00fcf9bafc3acf82e5b229366cc47184acbbd4bcfb7b45847e4a309b4",
+        ),
+        (
+            Fixture::Quality,
+            3,
+            SinceKind::ValidTime,
+            i64::MIN,
+            "f8804ee5bb407a368a54d75af21867a49dd3a567fc78e8cb670ecefca7810515",
+        ),
+    ];
+    for provider in PROVIDERS {
+        let mut read_now = Vec::new();
+        for (fixture, at, kind, since, _) in pinned {
+            let work = tempfile::tempdir().expect("work directory");
+            let runtime = fixtures::open(work.path(), provider);
+            fixture.build(&runtime);
+            let (bytes, _, summary) = read(&runtime, Some(at), &request(kind, since, None, None));
+            assert_eq!(summary.changes_hash, hex::encode(Sha256::digest(&bytes)));
+            read_now.push(summary.changes_hash);
+        }
+        let expected: Vec<&str> = pinned.iter().map(|(.., hash)| *hash).collect();
+        assert_eq!(read_now, expected, "{provider:?}");
+    }
 }

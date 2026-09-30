@@ -2,15 +2,16 @@
 format: aep.planning-md/3
 id: task:candidate-built-once-per-validation
 kind: task
-status: active
+status: implemented
 title: Validation builds its candidate view once, and the bench targets compile
 relations:
 - serves: vision:o5
 - decomposes: epic:ingestion-throughput
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-29T23:07:49Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-09-29T23:07:50Z", actor: "human:timo", revision: 3}
+- {from: "active", to: "implemented", at: "2026-09-30T00:47:45Z", actor: "human:timo", revision: 4, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}}
 ---
 ## Context
 

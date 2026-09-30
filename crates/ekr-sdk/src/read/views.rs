@@ -9,15 +9,15 @@
 
 use std::collections::BTreeMap;
 
-use ekr_core::{AssertionId, EdgeId, NodeId, TransactionId, TypeId};
+use ekr_core::{AssertionId, ContentHash, EdgeId, NodeId, TransactionId, TypeId};
 use serde::{Deserialize, Serialize};
 
 // ---- shared records ------------------------------------------------------------------------------
 
 /// A property value as the views write it: `{"kind": …, "value": …}`. Ids and decimals are text,
-/// times and durations milliseconds.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "value")]
+/// times and durations milliseconds. A kind a newer `ekr` adds reads as [`ViewValue::Other`],
+/// its value dropped, and writes back as `{"kind": "Other"}`.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ViewValue {
     /// Text.
     String(String),
@@ -39,6 +39,59 @@ pub enum ViewValue {
     List(Vec<ViewValue>),
     /// Named values.
     Record(BTreeMap<String, ViewValue>),
+    /// A kind this SDK does not know, added by a newer `ekr`.
+    Other,
+}
+
+/// [`ViewValue`]'s wire shape, for serde to derive its reader and writer from. Private, so the
+/// only public reader is the tolerant `Deserialize` impl.
+#[allow(dead_code)]
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "ViewValue", tag = "kind", content = "value")]
+enum ViewValueWire {
+    String(String),
+    Boolean(bool),
+    Integer(i64),
+    Decimal(String),
+    Timestamp(i64),
+    Duration(i64),
+    NodeRef(String),
+    Enum(String),
+    List(Vec<ViewValue>),
+    Record(BTreeMap<String, ViewValue>),
+    #[serde(other)]
+    Other,
+}
+
+impl Serialize for ViewValue {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        ViewValueWire::serialize(self, serializer)
+    }
+}
+
+impl ViewValue {
+    /// Reads a value as the `Deserialize` impl does, so `ViewValue::deserialize(…)` without the
+    /// trait in scope is the same tolerant reader: a kind a newer `ekr` adds is `Other`.
+    ///
+    /// # Errors
+    ///
+    /// A document that is no value: a known kind whose value is wrong, or no `kind`.
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Self, D::Error> {
+        <Self as Deserialize<'de>>::deserialize(deserializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for ViewValue {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        super::tolerant(
+            deserializer,
+            Some("value"),
+            ViewValueWire::deserialize,
+            |read| *read == Self::Other,
+        )
+    }
 }
 
 /// `ekr.graph.AssessmentProjection`: an assertion's assessment, with exactly the payload its kind
@@ -274,6 +327,38 @@ pub struct SchemaVersionChange {
     pub added: Vec<SchemaMember>,
     /// What it removed.
     pub removed: Vec<SchemaMember>,
+    /// The edge-type ends it widened against its parent; the document omits it when empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub widened: Vec<WidenedEnd>,
+    /// The property declarations it modified against its parent; the document omits it when
+    /// empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub modified: Vec<ModifiedProperty>,
+}
+
+/// An edge-type end a schema version widened.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WidenedEnd {
+    /// The edge type.
+    pub edge_type: TypeId,
+    /// `Source` or `Target`.
+    pub side: String,
+    /// The node types the end gained.
+    pub node_types: Vec<TypeId>,
+}
+
+/// A property declaration a schema version modified.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ModifiedProperty {
+    /// The node type or edge type that declares it.
+    pub owner: TypeId,
+    /// The property's id.
+    pub property: String,
+    /// Its name in the version.
+    pub name: String,
+    /// What differs: `Declared`, `Undeclared`, `Name`, `ValueType`, `Cardinality`, `Required`,
+    /// `Constraints`, or a kind a newer `ekr` adds.
+    pub changed: Vec<String>,
 }
 
 /// A type or property a schema version added or removed.
@@ -425,22 +510,30 @@ pub struct NodeMatch {
     pub alias: Option<String>,
 }
 
-/// How a match compared: `Exact` orders first.
+/// How a match compared: `Exact` orders first. A tier a newer `ekr` adds reads as
+/// [`MatchTier::Other`] and writes back as `Other`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum MatchTier {
     /// The text byte for byte.
     Exact,
     /// The text case-folded.
     Folded,
+    /// A tier this SDK does not know, added by a newer `ekr`.
+    #[serde(other)]
+    Other,
 }
 
-/// What matched.
+/// What matched. A field a newer `ekr` adds reads as [`MatchField::Other`] and writes back as
+/// `Other`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum MatchField {
     /// The canonical name.
     Name,
     /// An alias.
     Alias,
+    /// A field this SDK does not know, added by a newer `ekr`.
+    #[serde(other)]
+    Other,
 }
 
 // ---- ekr.node-detail/1 -------------------------------------------------------------------------
@@ -753,7 +846,7 @@ pub struct GraphChange {
     pub recorded_at: i64,
     /// What changed.
     pub change: ChangeKind,
-    /// The node's, edge's or assertion's id.
+    /// The node's, edge's, assertion's or evidence entry's id.
     pub id: String,
     /// The node's or edge's type.
     #[serde(rename = "type", default, skip_serializing_if = "Option::is_none")]
@@ -779,11 +872,20 @@ pub struct GraphChange {
     /// The assertion's valid time, in milliseconds.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub valid_time: Option<i64>,
-    /// The evidence it cites, by id.
+    /// The added evidence entry's source identity: its locator, the statement's identity for the
+    /// human statement an `AddEvidence` brings.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locator: Option<String>,
+    /// The address of the added evidence entry's payload bytes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub content_hash: Option<ContentHash>,
+    /// The evidence it cites, by id; empty for an added evidence entry.
     pub evidence: Vec<String>,
 }
 
-/// What a change did, in the format's order within a revision.
+/// What a change did, in the format's order within a revision. A kind a newer `ekr` adds reads
+/// as [`ChangeKind::Other`], so it does not fail the read and every other change of the page
+/// stays; it writes back as `Other`, not as the kind `ekr` printed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ChangeKind {
     /// A node was created.
@@ -796,4 +898,9 @@ pub enum ChangeKind {
     AssertionSuperseded,
     /// An assertion was retracted.
     AssertionRetracted,
+    /// An evidence entry was added after the seed, by an `AddEvidence`.
+    EvidenceAdded,
+    /// A kind this SDK does not know, added by a newer `ekr`.
+    #[serde(other)]
+    Other,
 }

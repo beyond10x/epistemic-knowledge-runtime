@@ -180,6 +180,8 @@ fn graph_overviewed(summary: &GraphOverviewed) -> Result<ObservedEvent, TargetEr
         ("revisions", summary.revisions),
         ("added", summary.added),
         ("removed", summary.removed),
+        ("widened", summary.widened),
+        ("modified", summary.modified),
         ("unrecorded_nodes", summary.unrecorded_nodes),
         ("unrecorded_edges", summary.unrecorded_edges),
         ("revision_zero_nodes", summary.revision_zero_nodes),
@@ -280,6 +282,7 @@ fn changes_listed(summary: &ChangesListed) -> Result<ObservedEvent, TargetError>
         ("assertions_added", summary.assertions_added),
         ("assertions_superseded", summary.assertions_superseded),
         ("assertions_retracted", summary.assertions_retracted),
+        ("evidence_added", summary.evidence_added),
     ])?;
     if let Some(first) = summary.first_revision {
         fields.push(("first_revision", integer(first)?));

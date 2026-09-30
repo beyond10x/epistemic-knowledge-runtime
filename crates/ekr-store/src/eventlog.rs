@@ -34,6 +34,8 @@ const WRITER: &str = "ekr.store";
 mod inventory;
 #[path = "preparation.rs"]
 mod preparation;
+#[path = "read_only.rs"]
+mod read_only;
 pub use inventory::{InventoriedObject, Inventory, StoreInventory};
 pub use preparation::{
     NativeBlobWrite, NativeClaim, NativeCommandMeta, NativeExpected, NativeExpectedKind,
@@ -41,6 +43,7 @@ pub use preparation::{
     PublicationCommandKey, PublicationCommandKind, PublicationPreparationV1,
     StagedPublicationObject,
 };
+pub use read_only::remove_read_only_copies;
 #[cfg(test)]
 #[path = "eventlog_reads.rs"]
 mod reads;
@@ -123,6 +126,9 @@ pub struct EventlogStore<S: EventStore> {
     /// pointer append, where its next write continues from. Taken by that write, and kept again
     /// only when the write appends: a write that appends nothing from it reads the stream afresh.
     pointer: std::sync::Mutex<Option<(Option<CheckpointWritten>, u64)>>,
+    /// Set when the store was opened read-only: every write is refused and no checkpoint is
+    /// written. Last, so that a File store's private copy is removed after the provider over it.
+    read_only: Option<read_only::ReadOnly>,
 }
 /// One verified object as a handle keeps it: its metadata, and its bytes shared with the process's
 /// registry of verified bytes.
@@ -216,9 +222,12 @@ impl EventlogStore<SqliteEventStore> {
         Ok(Self::assemble(runtime, store, tenant, ontology.into()))
     }
     /// Opens an already provisioned SQLite store, creating no database and no tables: a path
-    /// holding none is refused and left as it was.
+    /// holding none is refused and left as it was. A store this process may not write — the
+    /// database, its directory or its `-wal` or `-shm` file — is refused as
+    /// [`StoreError::ReadOnly`] before anything is opened.
     /// # Errors
-    /// Runtime-context refusal, invalid tenant, [`StoreError::NoStore`] or provider failure.
+    /// Runtime-context refusal, invalid tenant, [`StoreError::NoStore`], [`StoreError::ReadOnly`]
+    /// or provider failure.
     pub fn sqlite_existing(
         path: &Path,
         tenant: &str,
@@ -227,6 +236,9 @@ impl EventlogStore<SqliteEventStore> {
         let runtime = new_runtime()?;
         let tenant = TenantId::new(tenant)?;
         holds_something(path)?;
+        if let Some(denied) = read_only::sqlite_write_denied(path) {
+            return Err(read_only::denied(path, &denied));
+        }
         let shown = path.display().to_string();
         let path = path.to_string_lossy();
         let store = waiting_out_the_lock(|| {
@@ -239,6 +251,49 @@ impl EventlogStore<SqliteEventStore> {
             error => error.into(),
         })?;
         Ok(Self::assemble(runtime, store, tenant, ontology.into()))
+    }
+    /// Opens an already provisioned SQLite store for a caller that only reads it: as
+    /// [`EventlogStore::sqlite_existing`] where this process may write the store, and otherwise
+    /// as [`EventlogStore::sqlite_read_only`].
+    /// # Errors
+    /// What the open it chose reports.
+    pub fn sqlite_reading(
+        path: &Path,
+        tenant: &str,
+        ontology: impl Into<Option<Ontology>>,
+    ) -> Result<Self, StoreError> {
+        if read_only::sqlite_write_denied(path).is_some() {
+            Self::sqlite_read_only(path, tenant, ontology)
+        } else {
+            Self::sqlite_existing(path, tenant, ontology)
+        }
+    }
+    /// Opens an already provisioned SQLite store read-only, writing nothing at its path: its
+    /// database is read through a read-only connection into an image held in memory
+    /// (`read_only.rs` says how), every write through the store is refused as
+    /// [`StoreError::ReadOnly`] and no replay checkpoint is written.
+    /// # Errors
+    /// Runtime-context refusal, invalid tenant, [`StoreError::NoStore`] or provider failure.
+    pub fn sqlite_read_only(
+        path: &Path,
+        tenant: &str,
+        ontology: impl Into<Option<Ontology>>,
+    ) -> Result<Self, StoreError> {
+        let runtime = new_runtime()?;
+        let tenant = TenantId::new(tenant)?;
+        holds_something(path)?;
+        let signature = read_only::Signature::sqlite(path);
+        let image = read_only::sqlite_image(path, "ekr_events")?
+            .ok_or_else(|| StoreError::NoStore(path.display().to_string()))?;
+        let store = runtime.block_on(SqliteEventStore::from_image("ekr", image))?;
+        let mut opened = Self::assemble(runtime, store, tenant, ontology.into());
+        opened.read_only = Some(read_only::ReadOnly {
+            path: path.to_owned(),
+            signature,
+            sqlite: true,
+            _copy: None,
+        });
+        Ok(opened)
     }
 }
 /// [`StoreError::NoStore`] for a path that holds no store of either provider: nothing at the path
@@ -353,9 +408,12 @@ impl EventlogStore<FileEventStore> {
         Ok(Self::assemble(runtime, store, tenant, ontology.into()))
     }
     /// Opens an already provisioned File store, creating no directory, lock or manifest: a path
-    /// holding none is refused and left as it was.
+    /// holding none is refused and left as it was. A store this process may not write — its
+    /// directory, `writer.lock`, `events.jsonl` or `blobs` directory — is refused as
+    /// [`StoreError::ReadOnly`] before anything is opened.
     /// # Errors
-    /// Runtime-context refusal, invalid tenant, [`StoreError::NoStore`] or provider failure.
+    /// Runtime-context refusal, invalid tenant, [`StoreError::NoStore`], [`StoreError::ReadOnly`]
+    /// or provider failure.
     pub fn file_existing(
         path: &Path,
         tenant: &str,
@@ -365,8 +423,55 @@ impl EventlogStore<FileEventStore> {
         let tenant = TenantId::new(tenant)?;
         holds_something(path)?;
         holds_a_file_store(path)?;
+        if let Some(denied) = read_only::file_write_denied(path) {
+            return Err(read_only::denied(path, &denied));
+        }
         let store = runtime.block_on(FileEventStore::open_existing(path))?;
         Ok(Self::assemble(runtime, store, tenant, ontology.into()))
+    }
+    /// Opens an already provisioned File store for a caller that only reads it: as
+    /// [`EventlogStore::file_existing`] where this process may write the store, and otherwise as
+    /// [`EventlogStore::file_read_only`].
+    /// # Errors
+    /// What the open it chose reports.
+    pub fn file_reading(
+        path: &Path,
+        tenant: &str,
+        ontology: impl Into<Option<Ontology>>,
+    ) -> Result<Self, StoreError> {
+        if read_only::file_write_denied(path).is_some() {
+            Self::file_read_only(path, tenant, ontology)
+        } else {
+            Self::file_existing(path, tenant, ontology)
+        }
+    }
+    /// Opens an already provisioned File store read-only, writing nothing at its path: the store
+    /// is copied into a private temporary directory under a shared lock and the provider opened
+    /// over the copy (`read_only.rs` says how), every write through the store is refused as
+    /// [`StoreError::ReadOnly`] and no replay checkpoint is written. The copy is removed when the
+    /// store drops.
+    /// # Errors
+    /// Runtime-context refusal, invalid tenant, [`StoreError::NoStore`] or provider failure.
+    pub fn file_read_only(
+        path: &Path,
+        tenant: &str,
+        ontology: impl Into<Option<Ontology>>,
+    ) -> Result<Self, StoreError> {
+        let runtime = new_runtime()?;
+        let tenant = TenantId::new(tenant)?;
+        holds_something(path)?;
+        holds_a_file_store(path)?;
+        let signature = read_only::Signature::file(path);
+        let copy = read_only::copy_file_store(path)?;
+        let store = runtime.block_on(FileEventStore::open_existing(copy.path()))?;
+        let mut opened = Self::assemble(runtime, store, tenant, ontology.into());
+        opened.read_only = Some(read_only::ReadOnly {
+            path: path.to_owned(),
+            signature,
+            sqlite: false,
+            _copy: Some(copy),
+        });
+        Ok(opened)
     }
 }
 fn ensure_sync_context() -> Result<(), StoreError> {
@@ -409,12 +514,28 @@ impl<S: EventStore> EventlogStore<S> {
             checkpoint_offered: std::sync::atomic::AtomicBool::new(false),
             authorized: std::sync::Mutex::default(),
             pointer: std::sync::Mutex::default(),
+            read_only: None,
         }
     }
     /// Replays every history read in full from the seed: the retained replay checkpoint is not
     /// offered to the authority. Checkpoints are still written.
     pub fn set_full_replay(&mut self, full: bool) {
         self.checkpoints = !full;
+    }
+    /// Whether this store was opened read-only ([`EventlogStore::file_read_only`],
+    /// [`EventlogStore::sqlite_read_only`]): every write through it is refused.
+    #[must_use]
+    pub fn is_read_only(&self) -> bool {
+        self.read_only.is_some()
+    }
+    /// Whether this store was opened read-only and the files at its path have changed since it
+    /// read them — another process committed, say. A long-lived reader then opens the store
+    /// again; a store opened for writing reads the provider itself and is never stale.
+    #[must_use]
+    pub fn source_changed(&self) -> bool {
+        self.read_only
+            .as_ref()
+            .is_some_and(read_only::ReadOnly::changed)
     }
     fn checkpoint_stream(&self) -> Result<StreamId, StoreError> {
         Ok(StreamId::new(
@@ -1214,6 +1335,11 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         &self,
         request: &BlobAppendGroup,
     ) -> Result<eventlog_core::AppendGroupResult, StoreError> {
+        // Every publication, object, preparation and checkpoint write reaches the provider here:
+        // on a store opened read-only it is refused before anything is written, to the copy too.
+        if let Some(read_only) = &self.read_only {
+            return Err(read_only.refusal());
+        }
         // Retry an uncertain outcome with exactly the same group and bindings, never a new identity
         // or an object cleanup. Native receipt lookup precedes blob revalidation on such a retry.
         self.forget_verified(request.blobs.iter().map(|blob| blob.digest.clone()));
@@ -1430,6 +1556,11 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         checkpoint: Option<&[u8]>,
     ) -> Result<bool, StoreError> {
         ensure_sync_context()?;
+        // A checkpoint is a cache of verified work: a store opened read-only keeps none, and a
+        // read on it is answered exactly as without one.
+        if self.read_only.is_some() {
+            return Ok(false);
+        }
         // This handle's own last append names the newest pointer and the stream's length, unless
         // another handle has written since. Only an append at that length proves the record still
         // holds: the conditional append succeeds. Any other outcome from the record — a lost

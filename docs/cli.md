@@ -61,6 +61,30 @@ The store need not exist before `ekr seed`: the file provider creates the direct
 parents, the SQLite provider creates the database file but not its directory. `guide`, `operations`,
 `example`, `mint`, `hash` and `schema` open no store, need none of the settings and ignore the variables.
 
+A store this process may read but not write — on a read-only mount, or owned by another user —
+still answers every verb that only reads it. Such a verb opens the store read-only, writes nothing
+at the store's path — no lock file, no journal file, no replay checkpoint — and prints the same bytes it
+prints on a writable store. A verb that writes is refused `store-read-only` (exit 2,
+[Common refusals](#common-refusals)) before it opens anything.
+
+- **A file store** is read through a private copy of the whole store directory, taken under a
+  shared lock on its `writer.lock` that excludes every writer. The copy is a directory
+  `ekr-read-only-<pid>-…` in the temporary directory (`TMPDIR`, else `/tmp`), which needs free space
+  for one more copy of the store for each process reading it. It is removed when the verb ends;
+  `ekr view` and `ekr mcp` also remove it when sent SIGTERM, SIGINT or SIGHUP, and then exit with
+  128 plus the signal's number. A copy left by a process that was killed outright is removed by the
+  next read-only open in the same temporary directory.
+- **A SQLite database** is read into memory through a read-only connection, and no `-wal` or `-shm`
+  file is created beside it. With no `-wal` there, it is read `immutable=1`: SQLite takes no lock,
+  so the read does not exclude a writer; the database's size and modification time are compared
+  before and after, and a read that saw them change is taken again. With a `-wal` there, it is
+  read through SQLite's own locks, and a `-wal` whose `-shm` is gone is not read.
+- **A long-lived reader** — `ekr session`, `ekr view`, `ekr mcp` — checks the store's files before
+  each request that reads it (a file store's `events.jsonl`, `manifest.json` and `blobs`; a SQLite
+  database and its `-wal`), and when they have changed since it read them, it reads the store
+  again, as it does for a store replaced at its path. A commit another process made is what the
+  next request reads.
+
 ```console
 export EKR_HOST=host.json EKR_STORE=./store EKR_BACKEND=file
 ```
@@ -107,7 +131,7 @@ exactly that.
 |---|---|---|
 | 0 | a declared outcome | one JSON document on stdout. A validation that rejects (`"kind": "Rejected"`) and a commit that finds the head moved (`"kind": "Stale"`) are outcomes too: read `kind` |
 | 1 | a fault: provider, verification, unreadable input, host configuration, a store that is not seeded, no store at `--store` (`store-not-found`) | a message on stderr |
-| 2 | a named refusal or a usage error. Nothing was recorded | `ekr: ekr.kernel.<Name>: <reason>` on stderr, or clap's usage message |
+| 2 | a named refusal or a usage error. Nothing was recorded | `ekr: ekr.kernel.<Name>: <reason>` on stderr, `ekr: store-read-only: <reason>` for a verb that writes a store this process may not write, or clap's usage message |
 
 `guide`, `operations` and `example` print text; `session` prints one JSON line per request; every
 other verb prints one JSON document. In JSON output a tagged value is an object with one key —
@@ -143,6 +167,12 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr migrate` | reads, and writes a new store | `--to <path>`: where the migrated store is written, holding no store yet | the `ekr.store-migration/1` report: `destination_seed_hash` and which record replaced which |
 
 Every verb has `--help`.
+
+The `store` column is the binary's own: on a store this process may not write, a verb that `writes`
+is refused `store-read-only` (exit 2) and one that `reads` answers as on a writable store
+([Configuration](#configuration)). `crates/ekr/tests/read_only_store.rs` runs every verb of both
+kinds but `view`, which serves until interrupted, on a read-only store of each provider against
+this table, and `session` and `migrate` on one too.
 
 ### `ekr seed`
 
@@ -474,12 +504,14 @@ The printed `description` names every place the schema and the reader differ:
 ### `ekr view`
 
 Serves a read-only viewer of an existing store on 127.0.0.1 — never another address — until the
-process is interrupted: `ekr view --port 8080`, or `--port 0` (the default) for a free port. It
-prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`, then answers:
+process is interrupted: `ekr view --port 8080`, or `--port 0` (the default) for a free port. A store
+this process may not write it opens read-only, as every verb that reads does, and reads again once
+its files change ([Configuration](#configuration)); SIGINT or SIGTERM removes its private copy. It prints one JSON line, `{"url": "http://127.0.0.1:<port>/"}`,
+then answers:
 
 | request | answer |
 |---|---|
-| `GET /` | the viewer page, built into the binary: the graph in 2D and 3D, a timeline with a heatmap and swimlanes, property history, the schema history, a command palette (Ctrl+K), navigation between committed revisions, and the state in the URL after `#` |
+| `GET /` | the viewer page, built into the binary: the graph in 2D and 3D, a timeline with a heatmap and swimlanes, property history, the schema history, a command palette (Ctrl+K), navigation between committed revisions, a compact mode (the Compact button or the key C) that collapses both sidebars to a strip at their edges, with a tab at each edge of the graph collapsing one sidebar and each strip restoring its own, and the state in the URL after `#` (`compact=1`, `compact=left` or `compact=right` while collapsed) |
 | `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision as it stands at the request, `application/json`. No `ekr.views` document carries the head, so a render of a revision is the same bytes before and after any later commit; the page reads the head here. It takes no query (any is 400 `invalid-query`) |
 | `GET /projection` | the `ekr.graph-projection/1` document at the head, `application/json`, byte for byte what the projection renders |
 | `GET /projection?revision=N` | the same as of revision `N`; a revision the store does not hold is 404 with `{"refusal": "ekr.views.RevisionNotFound", …}` |
@@ -535,14 +567,17 @@ hold is 404 `ekr.views.NodeNotFound`, and a revision the store does not hold —
 store never seeded), each a whole JSON refusal decided before any byte of an answer is sent.
 
 <a id="changes-since"></a>`/changes` answers what the committed revisions up to `at` changed:
-every node and edge created, and every assertion added, superseded or retracted. Each change
+every node and edge created, every assertion added, superseded or retracted, and every evidence
+entry added by an `!AddEvidence` ([Evidence after the seed](#evidence-after-the-seed)). Each change
 carries the revision that made it and that revision's `recorded_at`, its `change`
-(`NodeCreated`, `EdgeCreated`, `AssertionAdded`, `AssertionSuperseded` or `AssertionRetracted`),
-the `id` of the node, edge or assertion, the node's `type` and `name`, the edge's `type`, `source`
-and `target`, the assertion's `subject_kind` and `subject` (and `by` for a supersession), its
-`valid_time`, and `evidence`: the evidence ids the assertion cites, or for a node or an edge those
-the same revision's assertions about it cite. The changes are ordered by revision, then change
-kind in that order, then id:
+(`NodeCreated`, `EdgeCreated`, `AssertionAdded`, `AssertionSuperseded`, `AssertionRetracted` or
+`EvidenceAdded`), the `id` of the node, edge, assertion or evidence entry, the node's `type` and
+`name`, the edge's `type`, `source` and `target`, the assertion's `subject_kind` and `subject` (and
+`by` for a supersession), its `valid_time`, the evidence entry's `locator` (its source identity:
+the `identity` of its `!HumanStatement`) and `content_hash` (the address of its payload), and
+`evidence`: the evidence ids the assertion cites, or for a node or an edge those the same
+revision's assertions about it cite, and empty for an evidence entry. The seed's own evidence is
+not a change. The changes are ordered by revision, then change kind in that order, then id:
 
 - `since_revision=N` chooses the changes of the revisions after `N`; one at or after `at` chooses
   none;
@@ -550,7 +585,7 @@ kind in that order, then id:
   included when it was;
 - `since_valid=T` chooses the assertion changes whose valid time is after `T` — an added or
   retracted assertion's `valid_from`, a supersession's `effective_from` — from every revision up
-  to `at`. A node or an edge has no valid time, and is never chosen by one.
+  to `at`. A node, an edge or an evidence entry has no valid time, and is never chosen by one.
 
 `meta` echoes the since, `revision` (the revision read), `limit`, `after` and `total`; `next`,
 present while changes remain, is the next page's `after`, and `remaining` counts what is left.
@@ -719,6 +754,11 @@ answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"
 | `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `migrate`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, write a second store, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
 | `session-option-refused` | 2 | the request sets `--host`, `--store`, `--backend` or `--full-replay` | the session's store is fixed when it starts; start another session for another store |
 
+A session opens its store as a verb that reads does, so on a store this process may not write it
+starts, holds the store read-only, reads it again once its files change, and serves every read; a `propose`, `validate`, `commit` or
+`seed` request is answered `"exit": 2` with `ekr: store-read-only: <reason>`, as the one-shot verb
+is refused ([Common refusals](#common-refusals)), and the session serves the next line.
+
 Any other `argv` the verbs' definitions do not accept — an unknown flag
 (`["--sto", "x", "head"]`, `["head", "-V"]`), a missing argument, a value of the wrong kind
 (`["snapshot", "--at", "zero"]`) — is answered as the one-shot verb answers the same argv:
@@ -785,7 +825,8 @@ their variables) and opens the existing store when it starts, then reads JSON-RP
 messages from standard input, one per line, and writes each response as one line on standard
 output, flushed, until its input ends; then it exits 0. It writes nothing to the store and nothing
 to stderr. If the configuration or the store does not open, it answers nothing and exits as a
-store verb does (`store-not-found`, exit 1). To register it with an MCP client, give the client
+store verb does (`store-not-found`, exit 1). A store this process may not write it opens read-only,
+reads again once its files change, and serves as on a writable one ([Configuration](#configuration)). To register it with an MCP client, give the client
 the command `ekr mcp` with `EKR_HOST`, `EKR_STORE` and `EKR_BACKEND` in its environment.
 
 A line that is empty or holds only whitespace is not a message: it is read and not answered.
@@ -880,6 +921,9 @@ same shape in a new store.
 ```console
 ekr migrate --to library-v3                       # the --store, --backend and --host of every verb
 ```
+
+It only reads `--store`, so a store this process may not write migrates too, opened read-only
+([Configuration](#configuration)); `--to` must be writable.
 
 `--to` is a directory for `file` and a database file for `sqlite`, of the same backend as
 `--store`, and must hold no store. The migration reads the whole store and replays it from its
@@ -1311,7 +1355,9 @@ transaction:
 An `!AddAssertion` in the same transaction, or in any later one, may cite the new id; list it in
 `transaction.evidence` only in a transaction whose assertions cite it. Committing applies the entry
 and stores the payload as an object of its own, in the Provenance class the seed's payloads use;
-`ekr explain` prints it for every assertion that cites it. Validation refuses, as named issues:
+`ekr explain` prints it for every assertion that cites it, and [`/changes`](#changes-since) lists
+the entry once, as an `EvidenceAdded` of the revision that committed it, whether or not an
+assertion cites it. Validation refuses, as named issues:
 
 | issue | validator | when |
 |---|---|---|
@@ -2203,7 +2249,8 @@ is refused. Either way most of the work is in the seed. What holds up:
 There are three forms, and the `exit` column says which one each refusal takes:
 
 - **A named refusal, exit 2.** Nothing was recorded. stderr is `ekr: ekr.kernel.<Name>: <reason>`.
-  A refused seed is `ekr.kernel.InvalidSeed: <code>`, followed by `: <detail>` for most codes.
+  A refused seed is `ekr.kernel.InvalidSeed: <code>`, followed by `: <detail>` for most codes. A
+  write to a store this process may not write is `ekr: store-read-only: <reason>`.
 - **A fault, exit 1.** stderr is `ekr: <message>`. A host document the kernel does not accept is
   reported while the provider is opened, as `ekr: opening the provider: invalid seed: <code>`.
 - **A validation issue, exit 0.** `ekr validate` records `"kind": "Rejected"`, and each issue carries
@@ -2240,6 +2287,7 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `ekr.kernel.AlreadySeeded` | seed | 2 | the store already holds a different seed | use a new store or tenant |
 | `seed-authority-profile` | any store verb | 1 | the host's `validation_profile` is no accepted profile exactly — an unknown `ruleset`, or a `ruleset` of one profile with an `application` it is not paired with — or its agent registry does not fit it for these agents; reported as `opening the provider: invalid seed: seed-authority-profile` | copy the profile from the example and keep `ruleset` and `application` a pair: `ekr.p1-deterministic/1` with `ekr.p1-apply/1` (v1) , `ekr.p2-deterministic/1` with `ekr.p2-apply/1` (v2) or `ekr.p3-deterministic/1` with `ekr.p2-apply/1` (v3); set `validator` to `context.validator` |
 | `store-not-found` | propose, validate, commit, snapshot, explain, head, transactions, ontology, resolve | 1 | `--store` names a path that holds no store: nothing, an empty directory, an empty file, a symlink to nothing, a SQLite database without the runtime's tables, or a file-store directory holding only what `ekr seed` writes before its manifest; nothing is created there. Only `ekr seed` creates a store, and a seed that is refused creates none | check `--store` or `EKR_STORE`; run `ekr seed` first |
+| `store-read-only` | seed, propose, validate, commit | 2 | this process may not write the store at `--store` — a file store's directory, `writer.lock`, `events.jsonl` or `blobs`; a SQLite database, its directory or its `-wal` or `-shm` file — so the verb, which writes, is refused before it opens anything and nothing is written. The verbs that only read answer on the same store ([Configuration](#configuration)) | run the verb as a user that may write the store, or on a writable copy of it |
 | `bootstrap-authority-mismatch` | any store verb | 1 | the store was seeded under a host document whose authority differs from this one | use the host document the store was seeded with |
 | `ekr.kernel.ProposalAttribution` | propose | 2 | the document's `proposer`, an assertion's `proposed_by` or an added evidence entry's `extracted_by` is not the host operator | use `context.operator` |
 | `ekr.kernel.StructurallyInvalid` | propose | 2 | the transaction document does not parse, for example a bare `assessment: Accepted` | the field it names; compare with `ekr operations <Kind>` |

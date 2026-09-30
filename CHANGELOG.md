@@ -4,6 +4,71 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.23] — 2026-09-30
+
+The viewer collapses its sidebars and solos a type; the schema lineage shows every schema change;
+the changes list added evidence; read verbs answer on a store the caller may not write.
+
+### Added
+
+- **The viewer's sidebars collapse to their edges** (`docs/cli.md`, `ekr view`). The Compact
+  button, or the key C, collapses both sidebars to a 20-pixel strip at their edge, and the graph
+  takes the freed width in 2D and 3D with its camera and chosen node kept; pressed again, it shows
+  both. A tab at each edge of the graph collapses that sidebar alone, and a click on a strip
+  restores its own sidebar. The state is part of the address (`compact=1`, `compact=left` or
+  `compact=right`), so a reload, a shared link and the browser's back button keep it; the page
+  opens with both sidebars shown.
+- **A shift+click on a type chip shows only that type** (`ekr view`). A click still hides or
+  shows one type; a shift+click on the type that is already the only one shown shows every type
+  again. The chip's title names both gestures.
+- **The changes list evidence added after the seed** (`docs/cli.md`, `ekr view`, "changes
+  since"). `ekr.graph-changes/1` gains the change kind `EvidenceAdded`: every evidence entry an
+  `!AddEvidence` brought, once, as a change of the revision that committed it, with its id, its
+  `locator` (the statement's source identity) and the `content_hash` of its payload, ordered
+  after the revision's assertion changes. `GET /changes`, the MCP tool `changes_since` and the
+  session verb `changes` answer it; `ekr.views.ChangesListed` counts it as `evidence_added`. The
+  seed's own evidence is no change, a valid-time since never chooses one, and a range holding no
+  `AddEvidence` answers the same bytes as before.
+- **The SDK's reads tolerate a kind a newer `ekr` adds** (`docs/sdk.md`, Typed reads). Every
+  closed set of kinds in `ekr_sdk::read` — `ChangeKind`, `MatchTier`, `MatchField`,
+  `TransactionState`, `ViewValue`, `OntologyValueType` and `ExplanationLink`, as `CodeNameKind`
+  already did — ends in `Other`: an unknown kind reads as `Other` and the rest of the document
+  reads as before, where it failed the whole read. `Ontology`, `Snapshot` and `Explanation` now
+  hold the read side's own `OntologyCardinality`, `SnapshotSubject` and `SnapshotPredicate`, each
+  with `Other`, instead of the document builders' `Cardinality`, `Subject` and `Predicate`. `ChangeKind::EvidenceAdded` is modelled, with
+  `GraphChange::locator` and `GraphChange::content_hash`.
+
+### Changed
+
+- **The schema lineage lists widened edge ends and modified properties.** In
+  `ekr.graph-overview/1`, each version of `schema.versions` also carries `widened` (each edge-type
+  end that gained node types against its parent: `edge_type`, `side`, `node_types`) and `modified`
+  (each property declaration that differs from its owner's in the parent: `owner`, `property`,
+  `name`, and what `changed` — `Name`, `ValueType`, `Cardinality`, `Required`, `Constraints`, or
+  `Declared` for a property an owner newly declares). Both are omitted when empty, so a store
+  without a `WidenEdgeType` or `ModifyProperty` of an existing property answers the same bytes as
+  before. `added` and `removed` are unchanged. The `ekr view` schema history shows both, and calls
+  a version empty only when its ontology is its parent's; a version made only by `WidenEdgeType`
+  no longer reads "adds no types or properties". `ekr_sdk::read::SchemaVersionChange` gains
+  `widened` (`WidenedEnd`) and `modified` (`ModifiedProperty`).
+
+### Fixed
+
+- **The read verbs answer on a store this process may not write** (`docs/cli.md`,
+  Configuration). `ekr head`, `ontology`, `snapshot`, `code-names` and every other verb that only
+  reads — and `ekr session`, `view`, `mcp` and `migrate`'s source — exited 1 with `the store is
+  unavailable: … Permission denied` on a store mounted read-only or owned by another user, on both
+  providers. Such a store now opens read-only: a file store is read through a private copy taken
+  under a shared lock, a SQLite database through a read-only connection into memory, and nothing
+  is written at the store's path, not even a `-wal` or `-shm` beside a SQLite database. The
+  answers are the bytes a writable store gives. A session, `ekr view` and `ekr mcp` read the store
+  again once its files change, so a commit another process makes is what the next request reads;
+  `ekr view` and `ekr mcp` remove the private copy when sent SIGTERM, SIGINT or SIGHUP, and a copy
+  a killed process left is removed by the next read-only open.
+- **A verb that writes such a store is refused by name.** `ekr seed`, `propose`, `validate` and
+  `commit`, and those requests in a session, are the refusal `store-read-only` (exit 2) before
+  anything is opened, instead of a fault. Which verbs write is the verb table's `store` column.
+
 ## [0.0.22] — 2026-09-30
 
 The SDK types the store checks and carries evidence with the assertions that cite it; a commit

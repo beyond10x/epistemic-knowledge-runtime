@@ -13,18 +13,19 @@
 //! so a later commit leaves every held index current.
 
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::sync::{Arc, OnceLock};
 
-use ekr_core::{AssertionId, EdgeId, NodeId, RevisionNumber, TypeId};
+use ekr_core::{AssertionId, EdgeId, NodeId, PropertyId, RevisionNumber, TypeId};
 use ekr_graph::{CanonicalValue, Object, Predicate, Subject};
 use ekr_kernel::Runtime;
-use ekr_ontology::Ontology;
+use ekr_ontology::{EdgeType, Ontology, OntologyDocument, PropertyDefinition};
 
 use crate::document;
 use crate::query::{
-    OverviewParts, OverviewRevision, OverviewRoles, OverviewSchema, OverviewSchemaVersion,
-    OverviewTimeline, SchemaMember, TimelineBucket, TypeCount, TypeTiming,
+    ModifiedProperty, OverviewParts, OverviewRevision, OverviewRoles, OverviewSchema,
+    OverviewSchemaVersion, OverviewTimeline, SchemaMember, TimelineBucket, TypeCount, TypeTiming,
+    WidenedEnd,
 };
 use crate::{LoadedRevision, ProjectError};
 
@@ -361,8 +362,8 @@ impl Index {
             }
             let version = schema.version();
             let declared = members(schema);
-            let inherited = match version.parent {
-                None => BTreeMap::new(),
+            let (inherited, parent) = match version.parent {
+                None => (BTreeMap::new(), None),
                 Some(parent) => {
                     let (_, parent) = loaded.schemas.get(&parent).ok_or_else(|| {
                         format!(
@@ -371,9 +372,11 @@ impl Index {
                             version.id
                         )
                     })?;
-                    members(parent)
+                    (members(parent), Some(parent))
                 }
             };
+            let (widened, modified) =
+                parent.map_or_else(Default::default, |parent| changes(parent, schema));
             let difference =
                 |from: &BTreeMap<String, (&'static str, String)>,
                  without: &BTreeMap<String, (&'static str, String)>| {
@@ -393,6 +396,8 @@ impl Index {
                 revision: first.get(),
                 added: difference(&declared, &inherited),
                 removed: difference(&inherited, &declared),
+                widened,
+                modified,
             });
         }
         versions.sort_by_key(|version| version.number);
@@ -766,6 +771,110 @@ fn members(ontology: &Ontology) -> BTreeMap<String, (&'static str, String)> {
             .or_insert(("Property", property.name.clone()));
     }
     members
+}
+
+/// What `version` changed against `parent` besides the ids it added or removed (`views.yaml`,
+/// `ekr.views.OverviewSchemaVersion`): the ends of each edge type both declare that hold node types
+/// the parent's did not, by edge type id, source before target; and every property declaration,
+/// of a property both declare, that differs from the same type's declaration of it in the parent,
+/// by owner id, then property id.
+fn changes(parent: &Ontology, version: &Ontology) -> (Vec<WidenedEnd>, Vec<ModifiedProperty>) {
+    let (before, after) = (parent.to_document(), version.to_document());
+
+    let earlier: HashMap<TypeId, &EdgeType> = before
+        .edge_types
+        .iter()
+        .map(|declared| (declared.id, declared))
+        .collect();
+    let mut edge_types: Vec<&EdgeType> = after.edge_types.iter().collect();
+    edge_types.sort_by_key(|declared| declared.id);
+    let mut widened = Vec::new();
+    for declared in edge_types {
+        let Some(was) = earlier.get(&declared.id) else {
+            continue;
+        };
+        for (side, now, had) in [
+            ("Source", &declared.source_types, &was.source_types),
+            ("Target", &declared.target_types, &was.target_types),
+        ] {
+            let node_types: Vec<TypeId> = now.difference(had).copied().collect();
+            if !node_types.is_empty() {
+                widened.push(WidenedEnd {
+                    edge_type: declared.id,
+                    side,
+                    node_types,
+                });
+            }
+        }
+    }
+
+    fn by_owner(
+        document: &OntologyDocument,
+    ) -> BTreeMap<TypeId, &BTreeMap<PropertyId, PropertyDefinition>> {
+        document
+            .node_types
+            .iter()
+            .map(|declared| (declared.id, &declared.properties))
+            .chain(
+                document
+                    .edge_types
+                    .iter()
+                    .map(|declared| (declared.id, &declared.properties)),
+            )
+            .collect()
+    }
+    let (was, is) = (by_owner(&before), by_owner(&after));
+    let ids = |owners: &BTreeMap<TypeId, &BTreeMap<PropertyId, PropertyDefinition>>| {
+        owners
+            .values()
+            .flat_map(|properties| properties.keys().copied())
+            .collect::<BTreeSet<PropertyId>>()
+    };
+    let both: BTreeSet<PropertyId> = ids(&was).intersection(&ids(&is)).copied().collect();
+    let none = BTreeMap::new();
+    let owners: BTreeSet<TypeId> = was.keys().chain(is.keys()).copied().collect();
+    let mut modified = Vec::new();
+    for owner in owners {
+        let (was, is) = (
+            was.get(&owner).copied().unwrap_or(&none),
+            is.get(&owner).copied().unwrap_or(&none),
+        );
+        let properties: BTreeSet<&PropertyId> = was
+            .keys()
+            .chain(is.keys())
+            .filter(|property| both.contains(*property))
+            .collect();
+        for property in properties {
+            let (old, new) = (was.get(property), is.get(property));
+            let changed: Vec<&'static str> = match (old, new) {
+                (None, Some(_)) => vec!["Declared"],
+                (Some(_), None) => vec!["Undeclared"],
+                (Some(old), Some(new)) => [
+                    ("Name", old.name != new.name),
+                    ("ValueType", old.value_type != new.value_type),
+                    ("Cardinality", old.cardinality != new.cardinality),
+                    ("Required", old.required != new.required),
+                    ("Constraints", old.constraints != new.constraints),
+                ]
+                .into_iter()
+                .filter_map(|(aspect, differs)| differs.then_some(aspect))
+                .collect(),
+                (None, None) => Vec::new(),
+            };
+            let Some(declaration) = new.or(old) else {
+                continue;
+            };
+            if !changed.is_empty() {
+                modified.push(ModifiedProperty {
+                    owner,
+                    property: *property,
+                    name: declaration.name.clone(),
+                    changed,
+                });
+            }
+        }
+    }
+    (widened, modified)
 }
 
 /// An unsigned integer of any size, little-endian in 32-bit limbs: enough to compare the

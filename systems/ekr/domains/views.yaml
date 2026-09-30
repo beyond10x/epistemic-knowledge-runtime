@@ -51,7 +51,10 @@ summary: >-
   ordered as rule (1) orders it; and ids ascend in the lowercase hyphenated text of the UUID. Rule
   (1), order, is per format, and in each no array appears that is not named:
   ekr.graph-overview/1 — ontology as rule (1); schema.versions and schema.revisions by number
-  ascending; each version's added and removed by id; node_types, edge_types and roles.types by
+  ascending; each version's added and removed by id; each version's widened by edge type id, a
+  Source end before a Target end, and each widened end's node_types by id; each version's
+  modified by owner id, then property id, and each one's changed in the order
+  ekr.views.PropertyAspect declares its variants; node_types, edge_types and roles.types by
   type id; timeline.buckets by start ascending, then type id; top by degree descending, then id.
   ekr.graph-slice/1 — nodes and edges in record-sequence order (ekr.views.GraphSliceV1: distance
   ascending, degree descending, id ascending, each node followed by the edges it closes by id),
@@ -485,6 +488,19 @@ types:
   # parent declares and it does not, named as the parent names it (empty for the seed's version).
   # A property is compared by its id alone, so a property that moves from one type to another is
   # in neither list. Only versions whose `revision` is at most the overviewed revision are listed.
+  # `widened` and `modified` say what else the version changed against its parent (nothing for
+  # the seed's version, which has none): `widened` every end of an edge type both declare that
+  # holds a node type in this version and not in the parent (ekr.views.WidenedEnd, what
+  # WidenEdgeType does); `modified` every property declaration of a node or edge type that
+  # differs from that type's declaration of it in the parent, for a property whose id is in
+  # neither `added` nor `removed` (ekr.views.ModifiedProperty, what ModifyProperty does to a
+  # property that exists). No schema change alters any other part of a type's declaration
+  # (DefineNodeType and DefineEdgeType declare new ids only), so a committed version lists nothing
+  # in all four exactly when its ontology is its parent's. `added` and `removed` keep
+  # their meaning. Presence: `widened` and `modified` are present only when they would list at
+  # least one entry, and never emitted empty — an exception to presence rule (4) for these two
+  # fields alone — so a version that widens and modifies nothing answers exactly the bytes it
+  # answered before the two fields existed.
   - name: ekr.views.OverviewSchemaVersion
     kind: struct
     fields:
@@ -500,6 +516,55 @@ types:
         type: List<ekr.views.SchemaMember>
       - name: removed
         type: List<ekr.views.SchemaMember>
+      - name: widened
+        type: Optional<List<ekr.views.WidenedEnd>>
+      - name: modified
+        type: Optional<List<ekr.views.ModifiedProperty>>
+
+  # Which end of an edge type: its source_types or its target_types.
+  - name: ekr.views.EdgeSide
+    kind: enum
+    variants: [Source, Target]
+
+  # One end of an edge type that a schema version widened: `node_types` are the node types the
+  # end holds in the version and not in its parent, at least one. An end the version leaves as
+  # the parent had it is not listed. No schema change narrows an end (docs/schema-evolution.md,
+  # edge-endpoint-removed), so a type an end loses is not a field.
+  - name: ekr.views.WidenedEnd
+    kind: struct
+    fields:
+      - name: edge_type
+        type: ekr.ontology.TypeId
+      - name: side
+        type: ekr.views.EdgeSide
+      - name: node_types
+        type: List<ekr.ontology.TypeId>
+
+  # What differs between a type's declaration of a property in a schema version and its
+  # declaration of it in the parent. Declared: the type declares it and in the parent did not,
+  # while the parent declares the property's id on another type. Undeclared: the reverse; no
+  # schema change removes a declaration, so a committed lineage has none. Name, ValueType,
+  # Cardinality, Required and Constraints: the type declares it in both, and that part of the
+  # declaration (ekr.ontology.PropertyDefinition's name, value_type, cardinality, required,
+  # constraints) differs.
+  - name: ekr.views.PropertyAspect
+    kind: enum
+    variants: [Declared, Undeclared, Name, ValueType, Cardinality, Required, Constraints]
+
+  # One property declaration a schema version changed: `owner` is the node type or edge type
+  # that declares it, `property` its id, `name` the name this version gives it (the parent's for
+  # Undeclared), and `changed` every aspect that differs, at least one.
+  - name: ekr.views.ModifiedProperty
+    kind: struct
+    fields:
+      - name: owner
+        type: ekr.ontology.TypeId
+      - name: property
+        type: ekr.ontology.PropertyId
+      - name: name
+        type: String
+      - name: changed
+        type: List<ekr.views.PropertyAspect>
 
   # One committed revision up to and including the overviewed one, with what the overviewed
   # revision's canonical state says existed by then. Growth is read from recorded time, never by
@@ -1101,9 +1166,12 @@ types:
   # The changes of one revision are read off the transaction it committed, and the seed's
   # (revision 0) off its canonical state: every node it created (NodeCreated), every edge it
   # created (EdgeCreated), every assertion it added (AssertionAdded), superseded
-  # (AssertionSuperseded) or retracted (AssertionRetracted). An edge a later revision deletes
-  # stays the change its creating revision made. A property update, a named operation, an edge
-  # deletion and a schema change are not changes of this format.
+  # (AssertionSuperseded) or retracted (AssertionRetracted), and every evidence entry an
+  # ekr.kernel AddEvidence operation of its transaction added (EvidenceAdded). The seed's evidence
+  # came with the seed and not through an AddEvidence, so it is no change of this format, and a
+  # range holding no AddEvidence answers exactly as it did before EvidenceAdded was declared. An
+  # edge a later revision deletes stays the change its creating revision made. A property update,
+  # a named operation, an edge deletion and a schema change are not changes of this format.
   #
   # `since` is one revision, valid time or transaction time, and it chooses the changes:
   #   - a revision N (since_revision): every change of the revisions after N, up to and including
@@ -1114,9 +1182,9 @@ types:
   #     recorded_to are it;
   #   - a valid time T (since_valid): every assertion change, of every revision from the seed up
   #     to and including `at`, whose valid time is after T (valid_time > T, below). A node or an
-  #     edge has no valid time of its own (ekr.views.ProjectedEdge), so NodeCreated and
-  #     EdgeCreated are never chosen by a valid time, and an assertion with no valid_from is not
-  #     either.
+  #     edge has no valid time of its own (ekr.views.ProjectedEdge), and neither has an evidence
+  #     entry, so NodeCreated, EdgeCreated and EvidenceAdded are never chosen by a valid time, and
+  #     an assertion with no valid_from is not either.
   # ---------------------------------------------------------------------------------------------
 
   - name: ekr.views.GraphChangesFormatV1
@@ -1131,7 +1199,7 @@ types:
 
   - name: ekr.views.ChangeKind
     kind: enum
-    variants: [NodeCreated, EdgeCreated, AssertionAdded, AssertionSuperseded, AssertionRetracted]
+    variants: [NodeCreated, EdgeCreated, AssertionAdded, AssertionSuperseded, AssertionRetracted, EvidenceAdded]
 
   # The position in the change sequence: the number of changes the earlier pages delivered. A
   # page's `next` is its own `after` plus the changes it delivered. Like ekr.views.SliceCursor it
@@ -1141,19 +1209,24 @@ types:
     of: Integer
 
   # One change. `revision` is the revision that made it and `recorded_at` that revision's
-  # committed_at; `id` is the node's, the edge's or the assertion's. Exactly the payload its kind
-  # carries is present:
+  # committed_at; `id` is the node's, the edge's, the assertion's or the evidence entry's. Exactly
+  # the payload its kind carries is present:
   #   - NodeCreated: `type` and `name`, the node's type and canonical_name as created;
   #   - EdgeCreated: `type`, `source` and `target`;
   #   - AssertionAdded, AssertionSuperseded and AssertionRetracted: `subject_kind` and `subject`,
-  #     the assertion's subject; AssertionSuperseded also `by`, the replacing assertion.
+  #     the assertion's subject; AssertionSuperseded also `by`, the replacing assertion;
+  #   - EvidenceAdded: `locator`, the entry's source identity as ekr.graph.Evidence's locator
+  #     (an AddEvidence admits only a HumanStatement, so it is the statement's identity, empty
+  #     when the statement records none), and `content_hash`, the address of the payload bytes
+  #     the AddEvidence brought and its commit retained.
   # `valid_time` is the valid time an assertion change is chosen by under since_valid: the
   # assertion's valid_from for AssertionAdded and AssertionRetracted, and the supersession's
   # effective_from for AssertionSuperseded; omitted for an assertion with no valid_from and for a
   # node or an edge.
   # `evidence` is, for an assertion change, the ids of the evidence the assertion cites; for a
   # NodeCreated or EdgeCreated, the ids of the evidence cited by the assertions the same revision
-  # added whose subject is that node or edge — empty when it added none.
+  # added whose subject is that node or edge — empty when it added none; for an EvidenceAdded,
+  # empty.
   - name: ekr.views.GraphChange
     kind: struct
     fields:
@@ -1181,6 +1254,10 @@ types:
         type: Optional<ekr.graph.AssertionId>
       - name: valid_time
         type: Optional<ekr.views.EpochMillis>
+      - name: locator
+        type: Optional<String>
+      - name: content_hash
+        type: Optional<ekr.kernel.ContentHash>
       - name: evidence
         type: List<ekr.graph.EvidenceId>
 
@@ -1588,6 +1665,8 @@ commands:
             revisions: {generated: true}
             added: {generated: true}
             removed: {generated: true}
+            widened: {generated: true}
+            modified: {generated: true}
             unrecorded_nodes: {generated: true}
             unrecorded_edges: {generated: true}
             revision_zero_nodes: {generated: true}
@@ -1894,6 +1973,7 @@ commands:
             assertions_added: {generated: true}
             assertions_superseded: {generated: true}
             assertions_retracted: {generated: true}
+            evidence_added: {generated: true}
             first_revision: {generated: true}
             last_revision: {generated: true}
             changes_hash: {generated: true}
@@ -2054,7 +2134,8 @@ events:
   # What one overview returned, every field a function of the document. `nodes`, `edges`,
   # `assertions` and `evidence` are its meta counts; `node_types` and `edge_types` the lengths of
   # its two type-count lists; `schema_versions` and `revisions` of schema.versions and
-  # schema.revisions; `added` and `removed` the members summed over every listed version;
+  # schema.revisions; `added` and `removed` the members summed over every listed version,
+  # `widened` and `modified` the entries of its widened and modified lists summed likewise;
   # `unrecorded_nodes` and `unrecorded_edges` schema's; the three `revision_zero_` counts are
   # revision 0's entry in schema.revisions; `event_types` counts roles.types with event true, and
   # `observation_type` is roles.observation_type; `bucket_ms` is timeline.bucket_ms,
@@ -2084,6 +2165,10 @@ events:
       - name: added
         type: Integer
       - name: removed
+        type: Integer
+      - name: widened
+        type: Integer
+      - name: modified
         type: Integer
       - name: unrecorded_nodes
         type: Integer
@@ -2216,7 +2301,7 @@ events:
         type: ekr.kernel.ContentHash
 
   # What one page of changes returned. `revision`, `after` and `total` are meta's; `changes` the
-  # length of changes and `remaining` the document's; the five kind counts count this page's
+  # length of changes and `remaining` the document's; the six kind counts count this page's
   # changes of each ekr.views.ChangeKind; `first_revision` and `last_revision` are the revisions
   # of the page's first and last change, omitted when the page is empty; `changes_hash` the hex
   # SHA-256 of the document's exact bytes.
@@ -2241,6 +2326,8 @@ events:
       - name: assertions_superseded
         type: Integer
       - name: assertions_retracted
+        type: Integer
+      - name: evidence_added
         type: Integer
       - name: first_revision
         type: Optional<ekr.kernel.RevisionNumber>

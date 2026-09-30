@@ -18,8 +18,6 @@ use ekr_core::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::document::{Cardinality, Predicate, Subject};
-
 /// A revision's root: its number and the hashes of its state.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Root {
@@ -133,9 +131,9 @@ pub struct SnapshotAssertion {
     /// Its graph root.
     pub root_id: GraphRootId,
     /// What it is about.
-    pub subject: Subject,
+    pub subject: SnapshotSubject,
     /// What it says of it.
-    pub predicate: Predicate,
+    pub predicate: SnapshotPredicate,
     /// Its object: `{"Value": …}`, `{"Node": <id>}` or `{"Type": <id>}`.
     pub object: Value,
     /// The evidence it cites.
@@ -222,12 +220,14 @@ pub struct OntologyEdgeType {
     /// The node types it may end at.
     pub target_types: Vec<NamedType>,
     /// How many it may have per source.
-    pub cardinality: Cardinality,
+    pub cardinality: OntologyCardinality,
     /// Its properties.
     pub properties: Vec<OntologyProperty>,
 }
 
-/// A retained transaction's state, as `ekr transactions` prints and `--state` takes it.
+/// A retained transaction's state, as `ekr transactions` prints and `--state` takes it. A state a
+/// newer `ekr` adds reads as [`TransactionState::Other`] and writes back as `Other`; `ekr` names
+/// no state `Other`, so passing it to `--state` is refused.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TransactionState {
     /// Proposed, not yet validated.
@@ -240,6 +240,9 @@ pub enum TransactionState {
     Rejected,
     /// The head moved after validation.
     Stale,
+    /// A state this SDK does not know, added by a newer `ekr`.
+    #[serde(other)]
+    Other,
 }
 
 impl TransactionState {
@@ -252,6 +255,7 @@ impl TransactionState {
             Self::Committed => "Committed",
             Self::Rejected => "Rejected",
             Self::Stale => "Stale",
+            Self::Other => "Other",
         }
     }
 }
@@ -287,7 +291,8 @@ pub struct Explanation {
     pub links: Vec<ExplanationLink>,
 }
 
-/// One link of an explanation, by its `kind`.
+/// One link of an explanation, by its `kind`. A kind a newer `ekr` adds reads as
+/// [`ExplanationLink::Other`], its fields dropped, and writes back as `{"kind": "Other"}`.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum ExplanationLink {
@@ -305,6 +310,9 @@ pub enum ExplanationLink {
     Lifecycle(Map<String, Value>),
     /// Evidence cited, with its retained bytes.
     Evidence(ExplainedEvidence),
+    /// A kind this SDK does not know, added by a newer `ekr`.
+    #[serde(other)]
+    Other,
 }
 
 /// An evidence link: the entry, its retained bytes and, when they are UTF-8, their text.
@@ -363,16 +371,17 @@ pub struct OntologyProperty {
     /// Its value type.
     pub value_type: OntologyValueType,
     /// How many values a node or edge may hold.
-    pub cardinality: Cardinality,
+    pub cardinality: OntologyCardinality,
     /// Whether a value is required.
     pub required: bool,
     /// Its constraints.
     pub constraints: Vec<String>,
 }
 
-/// A declared value type, `{value_kind, parameters}`, as `ekr ontology` prints it.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "value_kind", content = "parameters")]
+/// A declared value type, `{value_kind, parameters}`, as `ekr ontology` prints it. A kind a
+/// newer `ekr` adds reads as [`OntologyValueType::Other`], its parameters dropped, and writes
+/// back as `{"value_kind": "Other"}`.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum OntologyValueType {
     /// Text.
     String,
@@ -402,4 +411,170 @@ pub enum OntologyValueType {
     List(Box<OntologyValueType>),
     /// Exactly these fields.
     Record(BTreeMap<String, OntologyValueType>),
+    /// A kind this SDK does not know, added by a newer `ekr`.
+    Other,
+}
+
+/// [`OntologyValueType`]'s wire shape, for serde to derive its reader and writer from. Private,
+/// so the only public reader is the tolerant `Deserialize` impl.
+#[allow(dead_code)]
+#[derive(Serialize, Deserialize)]
+#[serde(
+    remote = "OntologyValueType",
+    tag = "value_kind",
+    content = "parameters"
+)]
+enum OntologyValueTypeWire {
+    String,
+    Boolean,
+    Integer,
+    Float,
+    Decimal,
+    Timestamp,
+    Duration,
+    NodeRef {
+        allowed_types: Vec<TypeId>,
+    },
+    Enum {
+        variants: Vec<String>,
+    },
+    List(Box<OntologyValueType>),
+    Record(BTreeMap<String, OntologyValueType>),
+    #[serde(other)]
+    Other,
+}
+
+impl Serialize for OntologyValueType {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        OntologyValueTypeWire::serialize(self, serializer)
+    }
+}
+
+impl OntologyValueType {
+    /// Reads a value type as the `Deserialize` impl does, so `OntologyValueType::deserialize(…)`
+    /// without the trait in scope is the same tolerant reader: a kind a newer `ekr` adds is
+    /// `Other`.
+    ///
+    /// # Errors
+    ///
+    /// A document that is no value type: a known kind whose parameters are wrong, or no
+    /// `value_kind`.
+    pub fn deserialize<'de, D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Self, D::Error> {
+        <Self as Deserialize<'de>>::deserialize(deserializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for OntologyValueType {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        super::tolerant(
+            deserializer,
+            Some("parameters"),
+            OntologyValueTypeWire::deserialize,
+            |read| *read == Self::Other,
+        )
+    }
+}
+
+/// How many values a property may carry, or how many edges of a type may leave one node, as
+/// `ekr ontology` prints it. The read side's own: a cardinality a newer `ekr` adds reads as
+/// [`OntologyCardinality::Other`] and writes back as `Other`. A document a consumer writes takes
+/// [`crate::document::Cardinality`], which has no `Other`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum OntologyCardinality {
+    /// At most one.
+    One,
+    /// Any number.
+    Many,
+    /// A cardinality this SDK does not know, added by a newer `ekr`.
+    #[serde(other)]
+    Other,
+}
+
+/// What a snapshot assertion is about, `{"Node": <id>}`, `{"Edge": <id>}` or `{"Type": <id>}`.
+/// The read side's own: a subject kind a newer `ekr` adds reads as [`SnapshotSubject::Other`],
+/// its id dropped, and writes back as `"Other"`. A document a consumer writes takes
+/// [`crate::document::Subject`], which has no `Other`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SnapshotSubject {
+    /// A node.
+    Node(NodeId),
+    /// An edge.
+    Edge(EdgeId),
+    /// A type.
+    Type(TypeId),
+    /// A kind this SDK does not know, added by a newer `ekr`.
+    Other,
+}
+
+/// [`SnapshotSubject`]'s wire shape. Private, so the only public reader is the tolerant one.
+#[allow(dead_code)]
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "SnapshotSubject")]
+enum SnapshotSubjectWire {
+    Node(NodeId),
+    Edge(EdgeId),
+    Type(TypeId),
+    #[serde(other)]
+    Other,
+}
+
+impl Serialize for SnapshotSubject {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        SnapshotSubjectWire::serialize(self, serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for SnapshotSubject {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        super::tolerant(
+            deserializer,
+            None,
+            SnapshotSubjectWire::deserialize,
+            |read| *read == Self::Other,
+        )
+    }
+}
+
+/// What a snapshot assertion says of its subject, `{"Property": <id>}` or `{"Relation": <id>}`.
+/// The read side's own: a predicate kind a newer `ekr` adds reads as
+/// [`SnapshotPredicate::Other`], its id dropped, and writes back as `"Other"`. A document a
+/// consumer writes takes [`crate::document::Predicate`], which has no `Other`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SnapshotPredicate {
+    /// The subject has this property's value.
+    Property(PropertyId),
+    /// The subject and object nodes are related by an edge of this type.
+    Relation(TypeId),
+    /// A kind this SDK does not know, added by a newer `ekr`.
+    Other,
+}
+
+/// [`SnapshotPredicate`]'s wire shape. Private, so the only public reader is the tolerant one.
+#[allow(dead_code)]
+#[derive(Serialize, Deserialize)]
+#[serde(remote = "SnapshotPredicate")]
+enum SnapshotPredicateWire {
+    Property(PropertyId),
+    Relation(TypeId),
+    #[serde(other)]
+    Other,
+}
+
+impl Serialize for SnapshotPredicate {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        SnapshotPredicateWire::serialize(self, serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for SnapshotPredicate {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        super::tolerant(
+            deserializer,
+            None,
+            SnapshotPredicateWire::deserialize,
+            |read| *read == Self::Other,
+        )
+    }
 }

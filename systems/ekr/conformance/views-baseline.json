@@ -7,8 +7,8 @@
     "file",
     "sqlite"
   ],
-  "total": 59,
-  "answered_floor": 59,
+  "total": 61,
+  "answered_floor": 61,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -49,6 +49,7 @@
     "ekr.views.SearchNodes/outcome/searched",
     "ekr.views/authored/a-cursor-pages-a-neighbourhood-to-its-end",
     "ekr.views/authored/a-cursor-pages-the-changes-to-their-end",
+    "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties",
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed",
     "ekr.views/authored/a-quality-report-counts-evidence-constraints-and-shared-names",
     "ekr.views/authored/a-retracted-assertion-is-projected-with-its-lifecycle",
@@ -62,6 +63,7 @@
     "ekr.views/authored/a-timeline-row-is-a-subject-with-its-events-within-hops",
     "ekr.views/authored/a-transaction-time-since-lists-the-revisions-committed-after-it",
     "ekr.views/authored/a-valid-time-since-lists-the-assertion-changes-valid-after-it",
+    "ekr.views/authored/an-add-evidence-is-listed-once-as-evidence-added",
     "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge",
     "ekr.views/authored/an-expansion-refuses-each-input-outside-its-bound",
     "ekr.views/authored/an-overview-lists-at-most-its-limit-of-top-nodes",
@@ -80,6 +82,10 @@
     "ekr.views/authored/a-cursor-pages-the-changes-to-their-end": {
       "file": "a-cursor-pages-the-changes-to-their-end.yaml",
       "digest": "sha256:2721cf55e98e140224e0f99a9bac18b49d3b8b2513dc9c30651e2bdc5f7bb1da"
+    },
+    "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties": {
+      "file": "a-lineage-lists-widened-ends-and-modified-properties.yaml",
+      "digest": "sha256:32b3fe5d95bd60801aac8513548100747a12adebe1498bd69e73bdcf81594f54"
     },
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed": {
       "file": "a-node-is-not-found-at-a-revision-before-it-existed.yaml",
@@ -132,6 +138,10 @@
     "ekr.views/authored/a-valid-time-since-lists-the-assertion-changes-valid-after-it": {
       "file": "a-valid-time-since-lists-the-assertion-changes-valid-after-it.yaml",
       "digest": "sha256:5aa1a17e55d40afc8dfc267e1b96834f1608763730946eacb8e9523cce4eb8ce"
+    },
+    "ekr.views/authored/an-add-evidence-is-listed-once-as-evidence-added": {
+      "file": "an-add-evidence-is-listed-once-as-evidence-added.yaml",
+      "digest": "sha256:140bc5f0e0bfba007d8e67d14eb941760e90aa158a11355f27e6dd7fe29dd669"
     },
     "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge": {
       "file": "an-assertion-about-an-edge-is-carried-by-that-edge.yaml",
@@ -411,6 +421,11 @@
       "expect_event": 4,
       "expect_outcome": 4
     },
+    "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties": {
+      "execute_command": 4,
+      "expect_event": 4,
+      "expect_outcome": 4
+    },
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed": {
       "execute_command": 8,
       "expect_error": 2,
@@ -483,6 +498,11 @@
       "execute_command": 2,
       "expect_event": 2,
       "expect_outcome": 2
+    },
+    "ekr.views/authored/an-add-evidence-is-listed-once-as-evidence-added": {
+      "execute_command": 4,
+      "expect_event": 4,
+      "expect_outcome": 4
     },
     "ekr.views/authored/an-assertion-about-an-edge-is-carried-by-that-edge": {
       "execute_command": 1,

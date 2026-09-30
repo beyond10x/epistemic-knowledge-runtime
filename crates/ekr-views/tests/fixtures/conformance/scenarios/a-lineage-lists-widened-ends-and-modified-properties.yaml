@@ -1,0 +1,93 @@
+# task:lineage-shows-widened-ends-and-modified-properties.
+#
+# The store `schema-changes` is the seed (revision 0, schema version 0: the node type Subject
+# with the property label, and one node) and four schema changes, one version each. Revision 1,
+# version 1: the node type Observation, the edge type observes from Observation to Subject, and
+# the property note on Subject — five ids added over versions 0 and 1. Revision 2, version 2:
+# WidenEdgeType on observes, its source gaining Subject and its target Observation, so two ends
+# widened and no id added. Revision 3, version 3: ModifyProperty on Subject's label, renamed
+# title and made Many, so one property modified. Revision 4, version 4: ModifyProperty
+# declaring note on Observation as Subject declares it, so a second property modified.
+#
+# Each overview counts, over the versions it lists, the widened ends and the modified
+# properties: none at revision 1, the two ends from revision 2 on, the first property from
+# revision 3 and the second at 4. A renderer that reads only added and removed reports 0
+# widened and 0 modified at every revision, and says of versions 2 to 4 that they changed
+# nothing.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-lineage-lists-widened-ends-and-modified-properties
+summary: A version made by WidenEdgeType lists its widened ends and one made by ModifyProperty its modified property, each from its own revision on, while added counts only new ids.
+
+timeline:
+  - at: 2027-01-15T10:00:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: schema-changes
+      at: 1
+      limit: null
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          revision: 1
+          schema_versions: 2
+          added: 5
+          removed: 0
+          widened: 0
+          modified: 0
+
+  - at: 2027-01-15T10:01:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: schema-changes
+      at: 2
+      limit: null
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          revision: 2
+          schema_versions: 3
+          added: 5
+          removed: 0
+          widened: 2
+          modified: 0
+
+  - at: 2027-01-15T10:02:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: schema-changes
+      at: 3
+      limit: null
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          revision: 3
+          schema_versions: 4
+          added: 5
+          removed: 0
+          widened: 2
+          modified: 1
+
+  - at: 2027-01-15T10:03:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: schema-changes
+      at: null
+      limit: null
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          revision: 4
+          schema_versions: 5
+          added: 5
+          removed: 0
+          widened: 2
+          modified: 2

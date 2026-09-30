@@ -12,6 +12,8 @@
 //!   serving; a malformed message, an unknown method, bad arguments and an unknown tool are
 //!   JSON-RPC errors;
 //! * a commit made by another process is what the next tool call reads;
+//! * evidence an `AddEvidence` added is one `EvidenceAdded` change to `changes_since`,
+//!   `GET /changes` and the session's `changes` verb alike;
 //! * 100 `search` and 100 `describe_node` calls over one server are timed and printed.
 
 use std::collections::BTreeSet;
@@ -1358,6 +1360,77 @@ fn changes_since_answers_and_refuses_exactly_as_get_changes_does() {
         }
         server.close();
         drop(view);
+    }
+}
+
+/// `task:changes-since-lists-added-evidence`: a transaction whose one operation is the
+/// `ekr operations AddEvidence` example commits revision 1. `changes_since`, `GET /changes` and
+/// the session's `changes` verb each answer it once, as an `EvidenceAdded` of revision 1 carrying
+/// the evidence id, its source identity and its payload hash, on both providers.
+#[test]
+fn an_add_evidence_is_listed_once_by_changes_since_get_changes_and_the_session_verb() {
+    const ADDED: &str = "00000000-0000-4000-8000-000000000403";
+    const PAYLOAD_HASH: &str = "d665088b6d8d615784418d2e9e79245f5aad71d0565a60fd45ed4649cb8c425c";
+    let listed = text(&["operations", "AddEvidence"]);
+    let added: String = listed
+        .lines()
+        .skip_while(|line| !line.starts_with("- !AddEvidence"))
+        .map(|line| format!("  {line}\n"))
+        .collect();
+    assert!(
+        added.contains(ADDED) && added.contains(PAYLOAD_HASH),
+        "{listed}"
+    );
+    let document = format!(
+        "format: ekr.transaction-document/2\ntransaction:\n  id: {TRANSACTION}\n  proposer: \
+         {OPERATOR}\n  operations:\n{added}  evidence: []\n"
+    );
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        world.file("evidence.yaml", &document);
+        world.commit("evidence.yaml");
+
+        let mut server = world.server();
+        let answered = server.document("changes_since", json!({"since_revision": 0}));
+        server.close();
+        let view = View::start(world.command(&["view", "--port", "0"]));
+        let (status, served) = view.get("/changes?since_revision=0");
+        drop(view);
+        assert_eq!(status, 200, "{backend}");
+        assert_eq!(
+            answered,
+            utf8(served),
+            "{backend}: changes_since is GET /changes"
+        );
+
+        let mut session = world
+            .command(&["session"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        writeln!(
+            session.stdin.take().unwrap(),
+            "{}",
+            json!({"argv": ["changes", "--since-revision", "0"]})
+        )
+        .unwrap();
+        let output = session.wait_with_output().unwrap();
+        let answer: Value =
+            serde_json::from_str(String::from_utf8(output.stdout).unwrap().trim()).unwrap();
+        let listed: Value = serde_json::from_str(&answered).unwrap();
+        assert_eq!(answer["exit"], 0, "{backend}: {answer}");
+        assert_eq!(answer["stdout"], listed, "{backend}: the session verb");
+
+        let changes = listed["changes"].as_array().unwrap();
+        assert_eq!(changes.len(), 1, "{backend}: {listed}");
+        let change = &changes[0];
+        assert_eq!(change["revision"], 1, "{backend}: {change}");
+        assert_eq!(change["change"], "EvidenceAdded", "{backend}: {change}");
+        assert_eq!(change["id"], ADDED, "{backend}: {change}");
+        assert_eq!(change["locator"], "Runtime operator", "{backend}: {change}");
+        assert_eq!(change["content_hash"], PAYLOAD_HASH, "{backend}: {change}");
+        assert_eq!(change["evidence"], json!([]), "{backend}: {change}");
     }
 }
 
