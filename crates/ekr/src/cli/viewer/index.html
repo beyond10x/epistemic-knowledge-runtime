@@ -34,6 +34,10 @@
   .strip:hover { background: var(--surface-2); color: var(--text-primary); }
   .strip span { writing-mode: vertical-rl; }
   #leftStrip { border-right: 1px solid var(--line); } #rightStrip { border-left: 1px solid var(--line); }
+  /* a detail shown while the right sidebar is collapsed marks its strip until the sidebar is restored */
+  .strip .mark { display: none; width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--accent);
+                 box-shadow: 0 0 8px var(--accent); }
+  .strip.marked .mark { display: block; } .strip.marked { color: var(--text-primary); }
   body.left-min #leftStrip, body.right-min #rightStrip { display: flex; }
   .fold { position: absolute; top: 50%; transform: translateY(-50%); z-index: 4; width: 14px; height: 44px; padding: 0;
           background: var(--surface-2); color: var(--text-muted); border: 1px solid var(--line); cursor: pointer; font: inherit; font-size: 12px; }
@@ -63,6 +67,7 @@
   .chip { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 7px; cursor: pointer;
           user-select: none; color: var(--text-primary); }
   .chip:hover { background: var(--surface-2); }
+  .chip:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .chip.off { opacity: .38; }
   .chip .sw { width: 11px; height: 11px; flex: none; border-radius: 50%; box-shadow: 0 0 0 1px var(--line); }
   .chip .sw.edge { height: 3px; width: 16px; border: 0; box-shadow: none; background: var(--text-muted); border-radius: 2px; }
@@ -292,7 +297,7 @@
   <div id="stream"></div>
   <div id="error"></div>
   <h2>Revision</h2>
-  <div class="revnav"><button id="revPrev" title="The revision before ([)">‹</button><select id="revSel" title="Show the graph as of a committed revision"></select><button id="revNext" title="The revision after (])">›</button></div>
+  <div class="revnav"><button id="revPrev" title="The revision before ([)" aria-label="The revision before">‹</button><select id="revSel" title="Show the graph as of a committed revision"></select><button id="revNext" title="The revision after (])" aria-label="The revision after">›</button></div>
   <h2>Find</h2>
   <input type="search" id="search" placeholder="Search nodes…" autocomplete="off">
   <div id="hits"></div>
@@ -310,17 +315,17 @@
   <select id="hlVersion" title="Highlight the elements whose type the chosen schema version added"></select>
   <div class="sub" id="schemaSub"></div>
 </aside>
-<button class="strip" id="leftStrip" title="Show the left sidebar">›<span>Controls</span></button>
+<button class="strip" id="leftStrip" title="Show the left sidebar" aria-label="Show the controls">›<span>Controls</span></button>
 <div id="stage">
   <div id="graph"></div>
   <div id="graph3d"></div>
   <div id="modes">
     <div id="views" class="seg"><button data-view="graph" class="on">Graph</button><button data-view="timeline">Timeline</button><button data-view="schema">Schema</button></div>
     <div id="dims" class="seg"><button data-dim="2d" class="on">2D</button><button data-dim="3d">3D</button></div>
-    <div class="seg"><button id="compact" title="Collapse both sidebars to their edges, or show both again (C)">Compact</button></div>
+    <div class="seg"><button id="compact" title="Collapse both sidebars to their edges, or show both again (C)" aria-pressed="false">Compact</button></div>
   </div>
-  <button class="fold" id="foldLeft" title="Collapse the left sidebar to its edge">‹</button>
-  <button class="fold" id="foldRight" title="Collapse the right sidebar to its edge">›</button>
+  <button class="fold" id="foldLeft" title="Collapse the left sidebar to its edge" aria-label="Collapse the controls">‹</button>
+  <button class="fold" id="foldRight" title="Collapse the right sidebar to its edge" aria-label="Collapse the details">›</button>
   <div id="tools"><button id="fit">Fit</button><button id="relayout">Re-layout</button></div>
   <div id="hl"></div>
   <div id="crumbs"></div>
@@ -339,7 +344,7 @@
     <div class="empty">The graph starts with the revision's best-connected nodes. Click a node for its details: its
       neighbourhood streams in around it. Scroll to zoom: labels appear as you zoom in. Click the background to clear.</div></div>
 </aside>
-<button class="strip" id="rightStrip" title="Show the right sidebar">‹<span>Details</span></button>
+<button class="strip" id="rightStrip" title="Show the right sidebar" aria-label="Show the details">‹<span>Details</span><i class="mark"></i></button>
 <svg id="svgns" width="0" height="0" style="position:absolute" aria-hidden="true"></svg>
 <script>
 "use strict";
@@ -673,13 +678,20 @@ function revFromHash(hash) {
 }
 
 // The sidebars: each collapses to a strip at its edge. The address's `compact` is 1 when both are
-// collapsed, else the side that is; absent, both are shown.
+// collapsed, else the side that is, or 0 when both are shown in a narrow window; absent, both are shown,
+// except when the page opens in a window narrower than NARROW, which opens with both collapsed. Back and
+// forward (`later`) read an absent `compact` as both shown: history does not change the layout because
+// the window has narrowed since the entry was written.
+// NARROW: the two sidebars (290 + 360 px) and a graph of at least 320 px.
+const NARROW = 970;
+const narrow = () => window.innerWidth < NARROW;
 const folded = side => document.body.classList.contains(`${side}-min`);
-function foldsFrom(hash) {
+function foldsFrom(hash, later = false) {
   const c = new URLSearchParams(hash.replace(/^#/, "")).get("compact");
+  if (c == null && !later && narrow()) return [true, true];
   return [c === "1" || c === "left", c === "1" || c === "right"];
 }
-const foldParam = () => folded("left") && folded("right") ? "1" : folded("left") ? "left" : folded("right") ? "right" : null;
+const foldParam = () => folded("left") && folded("right") ? "1" : folded("left") ? "left" : folded("right") ? "right" : narrow() ? "0" : null;
 // Every view lays itself out again on the window's resize (the 2D canvas, the 3D canvas and its loop, the
 // schema chart, the timeline), so a changed stage width is announced as one. True when anything changed.
 function setFolds(left, right) {
@@ -687,9 +699,32 @@ function setFolds(left, right) {
   document.body.classList.toggle("left-min", left);
   document.body.classList.toggle("right-min", right);
   $("compact").classList.toggle("on", left && right);
+  $("compact").setAttribute("aria-pressed", String(left && right));
+  if (!right) { panelSeen = panelSubject(); markStrip(null); }
   window.dispatchEvent(new Event("resize"));
   return true;
 }
+// What the panel shows, named on the right strip while the sidebar is collapsed; null clears the mark.
+function markStrip(what) {
+  const strip = $("rightStrip");
+  strip.classList.toggle("marked", what != null);
+  strip.title = what == null ? "Show the right sidebar" : `Show the right sidebar: ${what}`;
+  strip.setAttribute("aria-label", what == null ? "Show the details" : `Show the details: ${what}`);
+}
+// The panel's subject: what its first id line starts with (a node's id, while its detail is read and once
+// it is; `edge …` or `assertion …` for an edge), else its heading (a path), so a detail drawn again for the
+// same subject — back to the node shown, a revision or the entities toggle reading it again — is not new.
+const panelSubject = () => {
+  const panel = $("panel");
+  return panel.querySelector(".idline")?.textContent.split(" · ")[0] || `\n${panel.querySelector("h1")?.textContent ?? ""}`;
+};
+// what the reader last saw in the panel: the subject while it was shown, or when it was restored
+let panelSeen = panelSubject();
+new MutationObserver(() => {
+  const subject = panelSubject();
+  if (!folded("right")) { panelSeen = subject; return; }
+  markStrip(subject === panelSeen ? null : $("panel").querySelector("h1")?.textContent ?? "new detail");
+}).observe($("panel"), {childList: true});
 
 async function main() {
   if (!window.graphology || !window.graphologyLibrary || !window.Sigma) throw new Error("the graph libraries did not load");
@@ -1876,11 +1911,16 @@ async function main() {
   $("graph3d").addEventListener("mouseleave", hideTip);
 
   // ---- filters ----
+  // The chips are drawn again on every render (a stream batch, a toggle, a revision): a chip that held the
+  // focus hands it to the new chip of the same type, so a keyboard reader keeps their place.
   function chips(container, counts, hidden, isNode) {
+    const had = container.contains(document.activeElement) ? document.activeElement.dataset.type : undefined;
     put(container, [...counts.entries()].sort((a, b) => b[1] - a[1]).map(([t, n]) =>
-      h("div", {class: `chip ${hidden.has(t) ? "off" : ""}`, "data-type": t, title: `${t}\nclick: hide or show · shift+click: only this type, or all again`},
+      h("div", {class: `chip ${hidden.has(t) ? "off" : ""}`, "data-type": t, role: "button", tabindex: 0, "aria-pressed": String(!hidden.has(t)),
+        title: `${t}\nclick, Enter or Space: hide or show · with shift: only this type, or all again`},
         isNode ? h("span", {class: "sw", style: swatch(t)}) : h("span", {class: "sw edge", style: t === CO ? "background:#5fa39a" : null}),
         h("span", null, isNode ? tname(t) : ename(t)), h("span", {class: "n"}, fmt(n)))));
+    if (had !== undefined) [...container.querySelectorAll(".chip")].find(chip => chip.dataset.type === had)?.focus();
   }
   // A click hides or shows one type. A shift+click inverts that: it shows only the clicked type, and
   // when that type is already the only one shown, it shows every type again.
@@ -1899,6 +1939,14 @@ async function main() {
   };
   $("nodeTypes").addEventListener("click", ev => toggleType(hiddenNodeTypes, ev));
   $("edgeTypes").addEventListener("click", ev => toggleType(hiddenEdgeTypes, ev));
+  // Enter or Space on a focused chip is its click, Shift with either its shift+click; a held key toggles
+  // once, not once per repeat (`chips` keeps the focus on the chip it draws again)
+  for (const [id, hidden] of [["nodeTypes", hiddenNodeTypes], ["edgeTypes", hiddenEdgeTypes]]) $(id).addEventListener("keydown", ev => {
+    if ((ev.key !== "Enter" && ev.key !== " ") || ev.ctrlKey || ev.metaKey || ev.altKey) return;
+    if (ev.target.closest(".chip")?.dataset.type == null) return;
+    ev.preventDefault(); ev.stopPropagation();
+    if (!ev.repeat) toggleType(hidden, ev);
+  });
   for (const id of ["showSuperseded", "showIsolated", "showEdgeLabels"]) $(id).addEventListener("change", () => { refreshScope(); refresh(); });
 
   // The search asks the server (/search): names and aliases of the whole revision, not only what is drawn.
@@ -2381,7 +2429,7 @@ async function main() {
     }
   });
 
-  // ---- 7. URL state: #revision=…&view=2d|3d&compact=1|left|right&node=…&evidence=…&q=…&types=…&t=…&focus=…&hops=…&entities=1&path=a~b&schema=1 ----
+  // ---- 7. URL state: #revision=…&view=2d|3d&compact=1|left|right|0&node=…&evidence=…&q=…&types=…&t=…&focus=…&hops=…&entities=1&path=a~b&schema=1 ----
   let applying = false, moved = false, applyTurn = 0;
   // `types=` lists the node types shown out of every type the revision's ontology names, drawn or not: a
   // type an expansion draws after the address was read is hidden or shown as the address says
@@ -2416,13 +2464,14 @@ async function main() {
     const s = stateString();
     if (s !== location.hash) history.pushState(null, "", s);
   }
-  async function applyState(hash) {
+  // `first`: the address the page opened at, read once at load; every other call is back or forward
+  async function applyState(hash, first = false) {
     const p = new URLSearchParams(hash.replace(/^#/, ""));
     const turn = ++applyTurn;
     applying = true;
     try {
       stopPlay();
-      setFolds(...foldsFrom(hash));
+      setFolds(...foldsFrom(hash, !first));
       const want = Math.min(revFromHash(hash) ?? doc.meta.head, doc.meta.head);
       if (want !== doc.meta.revision) {
         const next = await Data.overview(want === doc.meta.head ? null : want);
@@ -3562,7 +3611,7 @@ async function main() {
     get dim() { return dim; }, setDim, get doc() { return doc; }, goRevision,
     get layoutRunning() { return !!layoutTimer || (!!fg && hud.textContent !== ""); }};
   // a reload restores the navigation state; the first entry is replaced, not pushed
-  if (location.hash.length > 1) await applyState(location.hash);
+  if (location.hash.length > 1) await applyState(location.hash, true);
   history.replaceState(null, "", stateString());
 }
 

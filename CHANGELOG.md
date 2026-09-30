@@ -4,6 +4,28 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Changed
+
+- **A narrow window opens the viewer compact** (`docs/cli.md`, `ekr view`). Below 970 px — the
+  two sidebars, 290 and 360 px, and 320 px of graph — the page opens with both sidebars collapsed,
+  where the graph had no width and the right sidebar ran off-screen. An address with `compact`
+  holds as before; `compact=0` shows both sidebars and is written while they are shown in a
+  narrow window, so a reload keeps the reader's choice. Only opening the page applies the narrow
+  rule: back and forward to an address without `compact` show both sidebars. Wider windows open
+  as before.
+- **A detail chosen behind the collapsed right sidebar marks its strip** (`ekr view`). The
+  sidebar stays collapsed; its strip shows a dot, and its title and accessible name name the node
+  (or edge, or path) now in the panel. A click on the strip restores the sidebar showing it and
+  clears the mark. The same detail drawn again (back to the node shown, the entities toggle) is
+  not new and marks nothing.
+- **Type chips work from the keyboard** (`ekr view`). Each chip is a focusable button with
+  `aria-pressed` saying whether its type is shown: Enter or Space hides or shows the type, and
+  Shift+Enter or Shift+Space shows only that type, or every type again, as click and shift+click
+  do; a held key toggles once, and the focus stays on the chip when the chips are drawn again.
+  The Compact button carries `aria-pressed`, and the collapse
+  tabs and strips are named in words ("Collapse the details", "Show the controls") rather than by
+  their arrow.
+
 ## [0.0.23] — 2026-09-30
 
 The viewer collapses its sidebars and solos a type; the schema lineage shows every schema change;
