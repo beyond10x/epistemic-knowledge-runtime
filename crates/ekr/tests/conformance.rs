@@ -677,6 +677,7 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
                 "ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it",
                 "ekr.kernel/authored/an-edge-type-widened-to-a-new-target-type-takes-edges-to-it",
                 "ekr.kernel/authored/a-node-created-without-an-alias-gains-one-and-commits",
+                "ekr.kernel/authored/evidence-added-and-attached-to-a-held-assertion-commits",
             ],
         ),
         (
@@ -692,11 +693,18 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
                 "ekr.kernel/authored/an-alias-a-node-of-the-type-holds-is-rejected-by-name",
                 "ekr.kernel/authored/one-alias-added-twice-in-a-transaction-is-rejected-by-name",
                 "ekr.kernel/authored/an-alias-for-a-node-no-revision-holds-is-rejected-by-name",
+                "ekr.kernel/authored/an-attachment-to-an-assertion-no-revision-holds-is-rejected-by-name",
+                "ekr.kernel/authored/an-attachment-of-evidence-no-revision-holds-is-rejected-by-name",
+                "ekr.kernel/authored/an-attachment-to-a-retracted-assertion-is-rejected-by-name",
+                "ekr.kernel/authored/evidence-an-assertion-already-cites-is-rejected-by-name",
             ],
         ),
         (
             Defect::AddedEvidenceWithoutPayload,
-            vec!["ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it"],
+            vec![
+                "ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it",
+                "ekr.kernel/authored/evidence-added-and-attached-to-a-held-assertion-commits",
+            ],
         ),
         (
             Defect::ForgedSnapshot,

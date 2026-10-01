@@ -223,7 +223,9 @@ head. Committing a transaction that is not `Validated` is refused as
 ### `ekr snapshot`
 
 Prints the graph at the head, or at `--at N`: `root` (with `revision`), and `graph.graph` with
-`nodes`, `edges`, `assertions` and `evidence`, each a map keyed by id. A plain snapshot returns every
+`nodes`, `edges`, `assertions` and `evidence`, each a map keyed by id, and `attachments` when
+any assertion has evidence attached: assertion id → a list of `{evidence, revision}` in evidence id
+order, absent when there is none. A plain snapshot returns every
 assertion, including retracted and superseded ones, with `matching_assertions: null`. With
 `--valid-at` (milliseconds since the Unix epoch, or `YYYY-MM-DD` for midnight UTC),
 `matching_assertions` lists the ids of the assertions believed at that instant: accepted, not
@@ -245,11 +247,12 @@ receipt, an evidence payload — are named by their hash, not printed:
 | `Validation` | that transaction's validation receipt | with `Proposal` |
 | `Commit` | that transaction's commit: `transaction_id`, `revision_id`, `event_id`, `committer`, `committed_at`, `result` (the root it produced, `result.revision` its number), `result_hash`, `record_hash` (the receipt's hash), `proposal_record_hash` and `validation_record_hash` | with `Proposal` |
 | `Lifecycle` | a later committed retraction or supersession of it: `assertion_id`, `lifecycle`, and `commit`, that change's commit in the shape of a `Commit` link | once per such change |
-| `Evidence` | an evidence entry cited; its bytes are the ones at its `content_hash` | last, once per evidence id cited by an assertion in the chain or listed in the `evidence` of a transaction that added or changed one |
+| `Attachment` | evidence attached to it after it was added (`!AttachEvidence`): `assertion_id`, `evidence_id`, `revision` (the revision that attached it), and `commit`, the attaching commit in the shape of a `Commit` link | after its `Lifecycle` links, once per attachment the revision read holds, in evidence id order; an explanation at a revision before the attachment does not list it |
+| `Evidence` | an evidence entry cited; its bytes are the ones at its `content_hash` | last, once per evidence id cited by an assertion in the chain, attached to one, or listed in the `evidence` of a transaction that added or changed one |
 
 With `--documents`, each link also carries the whole record it names, read from the same revision:
 a `Proposal` link the proposal record as `record` (its `document_bytes` one base64 string), a
-`Commit` link and a `Lifecycle` link's `commit` the commit receipt as `receipt`, and an `Evidence`
+`Commit` link and a `Lifecycle` or `Attachment` link's `commit` the commit receipt as `receipt`, and an `Evidence`
 link `payload` (the retained bytes, base64) and `text` (the same bytes as a string, when they are
 UTF-8). Without it the answer's size does not follow the size of the transactions on the chain.
 
@@ -1564,7 +1567,7 @@ on such a line is held to the `/1` cap.
 
 ### Operation kinds
 
-There are fifteen kinds. Ten are applied under every validation profile. Four are **schema
+There are sixteen kinds. Eleven are applied under every validation profile. Four are **schema
 changes**, applied only under profile v2 and only in a transaction of their own that names its
 `schema_version` ([Evolve the schema](#evolve-the-schema)); under profile v1 validation rejects them
 with the issue code `unsupported-operation`, so the schema is fixed at seeding. One, `MergeEntity`,
@@ -1582,6 +1585,7 @@ parses but is **refused** under either profile, with the same code.
 | `SupersedeAssertion` | applied | replaces an accepted, active assertion from an instant on: `assertion`, `by` (the replacement, which may be added in the same transaction), `effective_from`. [Rules below](#supersession) |
 | `AddEvidence` | applied | adds one evidence entry and the bytes it rests on: `evidence` (an entry as in the seed) and `payload` (its bytes). [Rules below](#evidence-after-the-seed) |
 | `AddAlias` | applied | appends one alias to a node that exists, so that [`ekr resolve`](#ekr-resolve) finds it by that alias from the next revision on: `node` (a node id from `ekr snapshot`, or one a `CreateNode` of the same transaction creates) and `alias` (a non-empty string). Refused: an alias that node or another node of its type already holds (`alias-already-exists`), one alias given twice for a type in one transaction (`duplicate-alias`), the empty alias (`empty-alias`), a node that does not exist (`unresolved-node`). No operation removes an alias |
+| `AttachEvidence` | applied | attaches evidence to an assertion the store holds, accepted and active, leaving the assertion unchanged: `assertion` (an assertion id from `ekr snapshot`) and `evidence` (an evidence id the store retains, or one an `AddEvidence` of the same transaction adds), listed in `transaction.evidence`. [Rules below](#evidence-attached-to-a-held-assertion) |
 | `DefineNodeType` | schema change | declares a node type: `id`, `name`, `parents`, `properties`, `abstract_type`, `lifecycle`, `operations`, as in the seed |
 | `DefineEdgeType` | schema change | declares an edge type: `id`, `name`, `source_types`, `target_types`, `cardinality`, `properties`, `inverse`, `symmetric`, `transitive`, as in the seed |
 | `ModifyProperty` | schema change | adds a property to a type or redeclares one it declares: `owner` (the node or edge type) and `property` (a [property definition](#property-definitions)) |
@@ -1664,7 +1668,8 @@ transaction:
 ```
 
 An `!AddAssertion` in the same transaction, or in any later one, may cite the new id; list it in
-`transaction.evidence` only in a transaction whose assertions cite it. Committing applies the entry
+`transaction.evidence` only in a transaction whose assertions cite it or whose `!AttachEvidence`
+attaches it ([below](#evidence-attached-to-a-held-assertion)). Committing applies the entry
 and stores the payload as an object of its own, in the Provenance class the seed's payloads use;
 `ekr explain --documents` prints it for every assertion that cites it, and
 [`/changes`](#changes-since) lists the entry once, as an `EvidenceAdded` of the revision that
@@ -1680,6 +1685,52 @@ committed it, whether or not an assertion cites it. Validation refuses, as named
 
 An entry whose `extracted_by` is not the host operator is refused by `ekr propose` as
 `ekr.kernel.ProposalAttribution`, exit 2, and nothing is recorded.
+
+### Evidence attached to a held assertion
+
+`!AttachEvidence` attaches evidence to an assertion the store already holds, for example the
+exact message a claim rests on where it first cited a whole file. The assertion is not changed —
+its subject, predicate, object, valid time, lifecycle and the evidence it was added with stay as
+they are — and no supersession is needed. The attachment is a record of its own: which assertion,
+which evidence, which revision. [`ekr explain`](#ekr-explain) lists it as an `Attachment` link,
+and the evidence among its `Evidence` links, from the revision that attached it on;
+[`ekr snapshot`](#ekr-snapshot) lists it under `attachments`; [`ekr quality`](#ekr-quality)
+counts it as it counts cited evidence. A supersession does not carry it to the replacement: it
+stays with the assertion it was attached to.
+
+```yaml ekr.transaction-document/2
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-a000-000000000799        # a fresh transaction id: ekr mint transaction
+  proposer: 00000000-0000-4000-a000-000000000011  # the host operator
+  operations:
+  - !AddEvidence
+    evidence:
+      id: 00000000-0000-4000-a000-000000000410    # a fresh evidence id: ekr mint evidence
+      source: !HumanStatement
+        identity: Runtime operator
+      content_hash: d665088b6d8d615784418d2e9e79245f5aad71d0565a60fd45ed4649cb8c425c
+      extracted_by: 00000000-0000-4000-a000-000000000011
+      observed_at: 1773273600000
+      confidence: 10000
+    payload: [66, 111, 98, 32, 105, 115, 32, 67, 69, 79, 32, 111, 102, 32, 65, 99, 109, 101, 46]
+  - !AttachEvidence
+    assertion: 00000000-0000-4000-a000-000000000521  # an assertion id from ekr snapshot
+    evidence: 00000000-0000-4000-a000-000000000410
+  evidence:
+  - 00000000-0000-4000-a000-000000000410          # attached evidence is listed, as cited evidence is
+```
+
+Evidence the store already retains is attached without an `!AddEvidence`. Validation refuses, as
+named issues:
+
+| issue | validator | when |
+|---|---|---|
+| `unresolved-assertion` | Reference | the store holds no such assertion; an assertion the same transaction adds is not held — cite the evidence on it instead |
+| `unresolved-evidence` | Reference | the evidence is neither retained nor added by an `!AddEvidence` of the transaction |
+| `assertion-not-active` | Structural | the assertion is not accepted and active, or the same transaction retracts or supersedes it |
+| `evidence-already-attached` | Structural | the assertion already cites the evidence or has it attached, or the transaction attaches it twice |
+| `evidence-set-mismatch` | Structural | `transaction.evidence` leaves the attached id out |
 
 ### Relations: assertion, edge or both
 
@@ -2728,15 +2779,17 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 | `edge-cardinality` | validation issue | 0 | a second edge of a `cardinality: One` edge type from the same source | delete the old edge first, or use `Many` |
 | `edge-endpoint-type` | validation issue | 0 | an edge's or relation assertion's source or target is not of an allowed type | check the edge type's `source_types` and `target_types` |
 | `unresolved-node` | validation issue | 0 | a node id that does not exist | take ids from `ekr snapshot`, or create the node earlier in the same transaction |
-| `unresolved-evidence` | validation issue | 0 | an assertion cites evidence that is not retained and that no `!AddEvidence` of its transaction adds | cite retained evidence, or add it with `!AddEvidence` |
+| `unresolved-evidence` | validation issue | 0 | an assertion cites, or an `AttachEvidence` attaches, evidence that is not retained and that no `!AddEvidence` of its transaction adds | cite or attach retained evidence, or add it with `!AddEvidence` |
+| `assertion-not-active` | validation issue | 0 | an `AttachEvidence` names an assertion that is not accepted and active, or one the same transaction retracts or supersedes | attach only to current assertions; check `lifecycle` in `ekr snapshot` |
+| `evidence-already-attached` | validation issue | 0 | an `AttachEvidence` attaches evidence the assertion already cites or already has attached, or attaches it twice in one transaction | attach each piece of evidence to an assertion once |
 | `unresolved-edge` | validation issue | 0 | an edge id (`!DeleteEdge`, an `!Edge` subject) that does not exist | take ids from `ekr snapshot` |
-| `unresolved-assertion` | validation issue | 0 | a retraction or supersession names an assertion (or a `by`) that does not exist | take ids from `ekr snapshot`, or add the replacement in the same transaction |
+| `unresolved-assertion` | validation issue | 0 | a retraction or supersession names an assertion (or a `by`) that does not exist, or an `AttachEvidence` names one the store does not hold (one the same transaction adds included) | take ids from `ekr snapshot`, or add the replacement in the same transaction; cite evidence on an assertion you add rather than attaching it |
 | `unresolved-graph-root` | validation issue | 0 | an entity's `root_id` is not the graph root | use the root id from `ekr snapshot` (`root_id` of any node) |
 | `assertion-lifecycle-state` | validation issue | 0 | a retraction or supersession of an assertion that is not accepted and active, for example one already retracted or superseded | act only on current assertions; check `lifecycle` in `ekr snapshot` |
 | `conflicting-assertion-lifecycle` | validation issue | 0 | one transaction retracts or supersedes the same assertion twice | one lifecycle change per assertion per transaction |
 | `invalid-supersession` | validation issue | 0 | a [supersession rule](#supersession) fails, most often a replacement `valid_time.from` that is not exactly `effective_from` | set the replacement's `from` to `effective_from` |
 | `supersession-cycle` | validation issue | 0 | supersessions would lead back to the assertion they started from | supersede toward a new assertion |
-| `evidence-set-mismatch` | validation issue | 0 | `transaction.evidence` is not exactly the evidence the assertions cite | list exactly those ids |
+| `evidence-set-mismatch` | validation issue | 0 | `transaction.evidence` is not exactly the evidence the assertions cite and the `AttachEvidence` operations attach | list exactly those ids |
 | `assertion-without-evidence` | validation issue | 0 | an assertion cites no evidence | cite at least one evidence id |
 | `assertion-states-its-own-verdict` | validation issue | 0 | an assertion written with a complete assessment other than `Proposed`, such as `!Accepted {validators: [...]}` (a bare `Accepted` is refused earlier, as `ekr.kernel.StructurallyInvalid`) | write `assessment: Proposed` |
 | `evidence-payload-mismatch` | validation issue | 0 | an `!AddEvidence` payload whose bytes do not hash to the entry's `content_hash`; the message names both hashes | re-run `ekr hash` on the exact bytes, and paste its `content_hash` and `payload_yaml` |

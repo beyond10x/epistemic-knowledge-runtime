@@ -6,6 +6,22 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Added
 
+- **Evidence attaches to an assertion the store already holds** (`docs/cli.md`, Evidence
+  attached to a held assertion; design § 102). `!AttachEvidence {assertion, evidence}`,
+  operation 15, attaches retained evidence, or evidence an `!AddEvidence` of the same
+  transaction adds, to an accepted and active assertion, under every validation profile. The
+  assertion is not changed: the attachment is its own record (which assertion, which evidence,
+  which revision), kept by the canonical graph beside its assertions and listed by `ekr snapshot`
+  under `attachments`. `ekr explain` lists it as an `Attachment` link with the attaching commit,
+  and the evidence among its `Evidence` links, from that revision on; a supersession leaves it
+  with the superseded assertion. `ekr quality` counts attached evidence in `with_evidence` and
+  `with_item_evidence`. Refused by name: `unresolved-assertion`, `unresolved-evidence`, and the
+  new `assertion-not-active` and `evidence-already-attached`; the attached id is listed in
+  `transaction.evidence`. A graph with no attachment keeps its knowledge root and graph document
+  bytes, so no store's recorded roots move. The SDK gains `Operation::AttachEvidence`
+  (`EvidenceAttachment`), reads the link and the snapshot field typed, and its builder and batcher
+  count attached evidence in the manifest.
+
 - **The extraction document, `ekr.extraction-document/1`** (`docs/cli.md`, Extraction
   documents): the format an extracting agent writes what it read from its sources in. It names
   the types it needs (node and edge types, with properties) instead of identifying them, lists the

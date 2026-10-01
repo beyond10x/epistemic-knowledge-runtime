@@ -45,7 +45,11 @@ types:
   # transaction naming its schema_version, and refused under v1 as unsupported-operation. AddAlias
   # is index 14 (story:node-gains-an-alias): data, not a schema change, applied under every
   # validation profile; it appends one alias to a node that exists
-  # (ekr.kernel.AliasAdditionProjection).
+  # (ekr.kernel.AliasAdditionProjection). AttachEvidence is index 15
+  # (story:evidence-attaches-to-a-held-assertion, design § 102): data, applied under every
+  # validation profile; it attaches evidence canonical state retains, or an AddEvidence of the
+  # same transaction adds, to an accepted and active assertion canonical state holds, as an
+  # ekr.graph.EvidenceAttachment (ekr.kernel.EvidenceAttachmentProjection).
   - name: ekr.kernel.OperationKind
     kind: enum
     variants:
@@ -64,6 +68,7 @@ types:
       - AddEvidence
       - WidenEdgeType
       - AddAlias
+      - AttachEvidence
 
   # Design § 20 items 1–7. Items 8–10 (contradiction, temporal consistency, policy) arrive with the
   # subsystems that need them and are added here together with the outcome that runs them.
@@ -662,6 +667,26 @@ types:
       - name: alias
         type: String
 
+  # `AttachEvidence` in the canonical operation: the assertion, then the evidence, in this order.
+  # Commit records an ekr.graph.EvidenceAttachment of the evidence to the assertion at the revision
+  # it produces; the assertion itself, its evidence included, is unchanged. The attached evidence
+  # is part of what the transaction rests on, so its id is in the transaction's evidence set
+  # (evidence-set-mismatch, Structural, otherwise). Validation looks the assertion up by id and
+  # refuses, as named issues of a Rejected transaction: an assertion canonical state does not hold
+  # (unresolved-assertion, Reference), an assertion the same transaction adds among them; evidence
+  # canonical state does not retain and no AddEvidence of the transaction adds
+  # (unresolved-evidence, Reference); an assertion that is not accepted and active, or that the
+  # same transaction retracts or supersedes (assertion-not-active, Structural); and evidence the
+  # assertion already cites, already has attached, or that the transaction attaches to it twice
+  # (evidence-already-attached, Structural).
+  - name: ekr.kernel.EvidenceAttachmentProjection
+    kind: struct
+    fields:
+      - name: assertion
+        type: ekr.graph.AssertionId
+      - name: evidence
+        type: ekr.graph.EvidenceId
+
   - name: ekr.kernel.InvocationProjection
     kind: struct
     fields:
@@ -711,6 +736,7 @@ types:
       AddEvidence: ekr.kernel.EvidenceAdditionProjection
       WidenEdgeType: ekr.kernel.EdgeWideningProjection
       AddAlias: ekr.kernel.AliasAdditionProjection
+      AttachEvidence: ekr.kernel.EvidenceAttachmentProjection
 
   - name: ekr.kernel.CanonicalTransactionProjection
     kind: struct
@@ -969,6 +995,26 @@ types:
       - name: commit
         type: ekr.kernel.ExplainedCommit
 
+  # One ekr.graph.EvidenceAttachment of an explained assertion, with the commit that attached it
+  # by reference (story:evidence-attaches-to-a-held-assertion). Listed after the assertion's
+  # lifecycle changes, in evidence-id order, only for attachments the captured revision holds:
+  # an explanation at a revision before the attachment does not list it. The attached evidence is
+  # one of the chain's Evidence links; the attaching commit's other evidence is not. The commit's
+  # document is read and must attach exactly this evidence to this assertion
+  # (attachment-disagrees otherwise). Added to ekr.explanation/2 without a version bump: a reader
+  # that does not know the kind skips the link.
+  - name: ekr.kernel.ExplainedAttachment
+    kind: struct
+    fields:
+      - name: assertion_id
+        type: ekr.graph.AssertionId
+      - name: evidence_id
+        type: ekr.graph.EvidenceId
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: commit
+        type: ekr.kernel.ExplainedCommit
+
   - name: ekr.kernel.ExplanationLink
     kind: union
     tag: kind
@@ -980,6 +1026,7 @@ types:
       Commit: ekr.kernel.ExplainedCommit
       Lifecycle: ekr.kernel.ExplainedLifecycle
       Evidence: ekr.graph.EvidenceRecord
+      Attachment: ekr.kernel.ExplainedAttachment
 
   - name: ekr.kernel.ExplanationResult
     kind: struct

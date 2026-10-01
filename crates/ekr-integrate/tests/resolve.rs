@@ -83,6 +83,7 @@ fn node(n: u64, type_id: TypeId, name: &str, aliases: &[&str]) -> Node {
 
 fn graph(nodes: impl IntoIterator<Item = Node>) -> CanonicalGraph {
     CanonicalGraph {
+        attachments: Default::default(),
         root: GraphRoot {
             id: root_id(1),
             space: Space::Canonical,
@@ -357,6 +358,7 @@ fn build(
     order: &[usize],
     alias_orders: &[Vec<usize>],
 ) -> CanonicalGraph {
+    attachments: Default::default(),
     let t = types();
     graph(order.iter().map(|&index| {
         let (is_person, aliases) = &shape[index];

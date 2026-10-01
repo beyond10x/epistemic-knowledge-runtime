@@ -46,7 +46,7 @@ fn a_canonical_edge_into_a_transient_root(
             .into_iter()
             .collect(),
         assertions: BTreeMap::new(),
-        evidence: BTreeMap::new(),
+        evidence: BTreeMap::new(), attachments: BTreeMap::new(),
     }
 }
 

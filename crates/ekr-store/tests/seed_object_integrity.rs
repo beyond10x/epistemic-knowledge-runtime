@@ -313,6 +313,7 @@ fn decode(bytes: &[u8], ontology: &Ontology) -> Result<CanonicalGraph, StoreErro
         )));
     }
     Ok(CanonicalGraph {
+        attachments: Default::default(),
         root: graph.root,
         revision: graph.revision,
         ontology: ontology.clone(),
@@ -382,6 +383,7 @@ fn seed_graph(ontology: &Ontology) -> CanonicalGraph {
     };
 
     CanonicalGraph {
+        attachments: Default::default(),
         root: GraphRoot {
             id: root_id,
             space: Space::Canonical,

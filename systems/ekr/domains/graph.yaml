@@ -33,6 +33,13 @@ types:
     kind: newtype
     of: Uuid
 
+  # The identity ESS gives an ekr.graph.EvidenceAttachment. The runtime mints none: an attachment
+  # is keyed by its assertion and its evidence, which is one attachment at most
+  # (story:evidence-attaches-to-a-held-assertion), as a Support is keyed by its two ends.
+  - name: ekr.graph.AttachmentId
+    kind: newtype
+    of: Uuid
+
   - name: ekr.graph.EvidenceId
     kind: newtype
     of: Uuid
@@ -365,6 +372,22 @@ types:
         type: Map<String, ekr.graph.AssertionRecord>
       - name: evidence
         type: Map<String, ekr.graph.EvidenceRecord>
+      # Keyed by the assertion's id; each list in evidence-id order. Omitted, never empty, when no
+      # assertion has evidence attached, so a graph without attachments is the document it was
+      # before the field existed (story:evidence-attaches-to-a-held-assertion).
+      - name: attachments
+        type: Optional<Map<String, List<ekr.graph.AttachedEvidenceRecord>>>
+
+  # One piece of evidence attached to an assertion after the assertion was added: the evidence,
+  # and the revision whose commit attached it. Filed under the assertion's id in
+  # GraphDocumentBodyProjection.attachments.
+  - name: ekr.graph.AttachedEvidenceRecord
+    kind: struct
+    fields:
+      - name: evidence
+        type: ekr.graph.EvidenceId
+      - name: revision
+        type: ekr.kernel.RevisionNumber
 
   # Required literal: "ekr.graph-document/2". Runtime version dispatch enforces it.
   - name: ekr.graph.GraphDocumentFormatV2
@@ -531,6 +554,11 @@ entities:
         target: ekr.graph.Support
         cardinality: many
         via: assertion_id
+      - name: attachments
+        kind: owns
+        target: ekr.graph.EvidenceAttachment
+        cardinality: many
+        via: assertion_id
     lifecycle:
       initial: Recorded
       states: [Recorded]
@@ -556,6 +584,39 @@ entities:
       initial: Linked
       states: [Linked]
       terminal: [Linked]
+
+  # Evidence attached to an assertion canonical state already holds, by a later commit
+  # (story:evidence-attaches-to-a-held-assertion, design § 102). It is its own record and not an
+  # edit of the assertion: the assertion's subject, predicate, object, valid time, lifecycle and
+  # the evidence it was added with (its Support) stay as they were, so its address in the
+  # knowledge root does not move. What creates one: an ekr.kernel AttachEvidence operation of a
+  # committed transaction (ekr.kernel.EvidenceAttachmentProjection); `revision` is the revision
+  # that commit produced. Nothing removes one, and a supersession does not carry it to the
+  # replacement: it stays with the assertion it was attached to. The canonical graph keeps
+  # attachments as a collection of its own beside assertions and evidence; the knowledge root
+  # encodes that collection only when it holds one, so a graph without attachments has the root it
+  # had before they existed.
+  - name: ekr.graph.EvidenceAttachment
+    identity:
+      name: attachment_id
+      type: ekr.graph.AttachmentId
+    fields:
+      - name: assertion_id
+        type: ekr.graph.AssertionId
+      - name: evidence_id
+        type: ekr.graph.EvidenceId
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+    relations:
+      - name: evidence
+        kind: references
+        target: ekr.graph.Evidence
+        cardinality: one
+        via: evidence_id
+    lifecycle:
+      initial: Attached
+      states: [Attached]
+      terminal: [Attached]
 
   # Design § 16. Confidence in basis points, so it is an integer a suite can compare.
   # What creates one: the seed, whose envelope retains each entry's payload, or an ekr.kernel

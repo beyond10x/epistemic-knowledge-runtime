@@ -253,7 +253,7 @@ fn every_example_document_validates_against_its_printed_schema() {
 fn every_operation_example_validates_against_the_transaction_document_schema() {
     let validator = validator(TRANSACTION);
     let kinds = listed_kinds();
-    assert_eq!(kinds.len(), 15, "{kinds:?}");
+    assert_eq!(kinds.len(), 16, "{kinds:?}");
     for kind in kinds {
         let document = document_around(&example_operation(&kind));
         read(TRANSACTION, &document)

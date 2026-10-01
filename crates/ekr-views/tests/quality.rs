@@ -231,3 +231,41 @@ fn an_unseeded_store_and_a_revision_beyond_the_head_are_refused_by_name() {
         ));
     }
 }
+
+/// `story:evidence-attaches-to-a-held-assertion`: evidence attached to an assertion after it was
+/// added counts as cited evidence does, in `with_item_evidence` and in `with_evidence`.
+///
+/// a3 cites only the seed's E1; at revision 4 the item statement X2 is attached to it. Read
+/// through the store, a3 is item-evidenced from revision 4 on and not before. Through the pure
+/// half, with E1's bytes taken out of what the store retains, a3 is evidenced only by the attached
+/// X2: not counted in `with_evidence` at revision 3, counted at revision 4.
+#[test]
+fn attached_evidence_counts_in_both_evidence_figures() {
+    for provider in PROVIDERS {
+        let (_work, runtime) = built(provider);
+        fixtures::commit_attachment_quality(&runtime);
+        let (_, head, summary) = read(&runtime, None);
+        assert_eq!(summary.revision, 4, "{provider:?}");
+        assert_eq!(head["assertions"]["active"], 4, "{provider:?}");
+        assert_eq!(head["assertions"]["with_item_evidence"], 4, "{provider:?}");
+        let (_, before, _) = read(&runtime, Some(3));
+        assert_eq!(before["assertions"]["with_item_evidence"], 3, "{provider:?}");
+    }
+
+    let (_work, runtime) = built(Provider::Sqlite);
+    fixtures::commit_attachment_quality(&runtime);
+    let seed: std::collections::BTreeSet<ekr_core::EvidenceId> =
+        [fixtures::Q_EVIDENCE, fixtures::Q_EVIDENCE + 1]
+            .into_iter()
+            .map(fixtures::id)
+            .collect();
+    let e1: ekr_core::EvidenceId = fixtures::id(fixtures::Q_EVIDENCE + 1);
+    for (at, evidenced) in [(3, 3), (4, 4)] {
+        let mut loaded = ekr_views::load(&runtime, Some(RevisionNumber::new(at))).expect("loads");
+        let withheld = loaded.graph.evidence[&e1].content_hash;
+        assert!(loaded.retained.remove(&withheld), "revision {at}");
+        let answer = ekr_views::quality(&loaded, &seed).expect("the pure half answers");
+        assert_eq!(answer.summary.active_assertions, 4, "revision {at}");
+        assert_eq!(answer.summary.with_evidence, evidenced, "revision {at}");
+    }
+}

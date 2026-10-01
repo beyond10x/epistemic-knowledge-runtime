@@ -108,6 +108,7 @@ fn graph_of(assertions: Vec<Assertion>) -> CanonicalGraph {
     let schema = SchemaVersionId::mint();
     let root_id = GraphRootId::mint();
     CanonicalGraph {
+        attachments: Default::default(),
         root: GraphRoot {
             id: root_id,
             space: Space::Canonical,

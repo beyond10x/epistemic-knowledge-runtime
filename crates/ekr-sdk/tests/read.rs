@@ -25,17 +25,17 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
-use ekr_core::{AssertionId, EdgeId, NodeId, RevisionNumber, Timestamp, TypeId};
+use ekr_core::{AssertionId, EdgeId, EvidenceId, NodeId, RevisionNumber, Timestamp, TypeId};
 use ekr_sdk::binary::EkrBinary;
 use ekr_sdk::read::{
     Bucket, ChangeKind, Changes, ChangesMeta, DetailMeta, DetailNode, ExpandPages, ExpandQuery,
-    ExplainedEvidence, Explanation, ExplanationLink, GraphChange, Head, ListedTransaction,
+    ExplainedAttachment, ExplainedEvidence, Explanation, ExplanationLink, GraphChange, Head, ListedTransaction,
     MatchField, MatchTier, MatchesMeta, ModifiedProperty, NamedType, NodeDetail, NodeMatch,
     NodeMatches, NodeSummary, OneShotReader, Ontology, OntologyCardinality, OntologyEdgeType,
     OntologyNodeType, OntologyProperty, OntologyValueType, Overview, OverviewMeta,
     OverviewRevision, OverviewRoles, OverviewSchema, OverviewTimeline, ReadError, Reader,
     RecordedTime, ReferencingAssertion, Root, SchemaMember, SchemaVersionChange, Since, Slice,
-    SliceEdge, SliceMeta, SliceNode, Snapshot, SnapshotAssertion, SnapshotEdge, SnapshotEvidence,
+    SliceEdge, SliceMeta, SliceNode, Snapshot, SnapshotAssertion, SnapshotAttachment, SnapshotEdge, SnapshotEvidence,
     SnapshotGraph, SnapshotGraphDocument, SnapshotNode, SnapshotPredicate, SnapshotRoot,
     SnapshotSubject, Timeline, TimelineBucket, TimelineCell, TimelineEvent, TimelineMeta,
     TimelineQuery, TimelineRow, TimelineRowType, TimelineStep, TransactionState, Transactions,
@@ -57,6 +57,10 @@ const ROOT: &str = "00000000-0000-4000-8000-000000000002";
 const OPERATOR: &str = "00000000-0000-4000-8000-000000000101";
 const ALICE: &str = "00000000-0000-4000-8000-000000000301";
 const SEEDED_ASSERTION: &str = "00000000-0000-4000-8000-000000000510";
+/// The example seed's second evidence entry, which `SEEDED_ASSERTION` does not cite.
+const OTHER_EVIDENCE: &str = "00000000-0000-4000-8000-000000000402";
+/// The transaction that attaches `OTHER_EVIDENCE` to `SEEDED_ASSERTION`.
+const ATTACHING: &str = "00000000-0000-4000-8000-000000000903";
 const GLOBEX: (&str, &str) = (
     "00000000-0000-4000-8000-000000000902",
     "00000000-0000-4000-8000-000000000901",
@@ -1174,4 +1178,81 @@ fn the_five_kernel_reads_are_one_typed_value_through_a_session_and_one_shot() {
             "{refused:?}"
         );
     }
+}
+
+/// `story:evidence-attaches-to-a-held-assertion`: after an `!AttachEvidence` commits, `explain`
+/// reads its `Attachment` link as a typed link and `snapshot` its `attachments`, through a session
+/// and one shot, each exactly the document `ekr` printed; with the documents, the link's commit
+/// carries its receipt.
+#[test]
+fn an_attachment_reads_as_a_typed_link_and_a_snapshot_field() {
+    let world = World::new();
+    world.file(
+        "attach.yaml",
+        &format!(
+            "format: ekr.transaction-document/2\ntransaction:\n  id: {ATTACHING}\n  proposer: \
+             {OPERATOR}\n  operations:\n  - !AttachEvidence\n    assertion: {SEEDED_ASSERTION}\n    \
+             evidence: {OTHER_EVIDENCE}\n  evidence:\n  - {OTHER_EVIDENCE}\n"
+        ),
+    );
+    let mut session = world.seeded();
+    ok(&mut session, &["propose", "attach.yaml"]);
+    assert_eq!(ok(&mut session, &["validate", ATTACHING])["kind"], "Validated");
+    assert_eq!(ok(&mut session, &["commit", ATTACHING])["kind"], "Committed");
+    let assertion: AssertionId = SEEDED_ASSERTION.parse().unwrap();
+    let evidence: EvidenceId = OTHER_EVIDENCE.parse().unwrap();
+    let mut reader = Reader::new(&mut session);
+
+    let explanation: Explanation = reader.explain(assertion).unwrap();
+    assert_eq!(
+        exactly::<Explanation>(&world.one_shot(&["explain", SEEDED_ASSERTION])),
+        Ok(explanation.clone())
+    );
+    let attachments = |explanation: &Explanation| -> Vec<ExplainedAttachment> {
+        explanation
+            .links
+            .iter()
+            .filter_map(|link| match link {
+                ExplanationLink::Attachment(attached) => Some(attached.clone()),
+                _ => None,
+            })
+            .collect()
+    };
+    let referenced = attachments(&explanation);
+    assert_eq!(referenced.len(), 1, "{explanation:?}");
+    assert_eq!(
+        (
+            referenced[0].assertion_id,
+            referenced[0].evidence_id,
+            referenced[0].revision
+        ),
+        (assertion, evidence, 1)
+    );
+    assert_eq!(referenced[0].commit["transaction_id"], ATTACHING);
+    assert!(!referenced[0].commit.contains_key("receipt"));
+    assert!(explanation.links.iter().any(
+        |link| matches!(link, ExplanationLink::Evidence(entry) if entry.evidence.id == evidence)
+    ));
+
+    let documents: Explanation = reader.explain_documents(assertion).unwrap();
+    assert_eq!(
+        exactly::<Explanation>(&world.one_shot(&["explain", SEEDED_ASSERTION, "--documents"])),
+        Ok(documents.clone())
+    );
+    assert!(attachments(&documents)[0].commit.contains_key("receipt"));
+
+    let snapshot: Snapshot = reader.snapshot(None, None).unwrap();
+    assert_eq!(
+        snapshot.graph.graph.attachments[&assertion],
+        [SnapshotAttachment {
+            evidence,
+            revision: 1
+        }]
+    );
+    assert_eq!(
+        exactly::<Snapshot>(&world.one_shot(&["snapshot"])),
+        Ok(snapshot)
+    );
+    let before: Snapshot = reader.snapshot(Some(0), None).unwrap();
+    assert!(before.graph.graph.attachments.is_empty());
 }

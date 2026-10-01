@@ -120,6 +120,7 @@ impl World {
 
         Self {
             graph: CanonicalGraph {
+                attachments: Default::default(),
                 root: GraphRoot {
                     id: root_id,
                     space: Space::Canonical,
