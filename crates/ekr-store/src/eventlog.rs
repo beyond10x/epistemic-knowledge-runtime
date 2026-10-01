@@ -1288,7 +1288,9 @@ impl<S: EventStore> EventlogStore<S> {
         if missing.is_empty() {
             return Ok(());
         }
-        for (hash, object) in missing.iter().zip(self.required(&missing)?) {
+        let objects = self.required(&missing)?;
+        crate::verified::count_objects_loaded(objects.len());
+        for (hash, object) in missing.iter().zip(objects) {
             history.objects.insert(*hash, object);
         }
         Ok(())
@@ -1301,6 +1303,32 @@ impl<S: EventStore> EventlogStore<S> {
         self.load_history_requiring(limit, selected, |history| {
             self.authority()?.required_objects(history)
         })
+    }
+    /// The head history for a caller that only has the authority replay it, holding the objects
+    /// [`CommitAuthority::replay_objects`] names, and `replayed`'s answer over it. Where loading
+    /// or replaying that history is refused, the complete history is loaded and replayed instead,
+    /// and its answer returned: the one the complete history gives.
+    ///
+    /// Every payload an earlier commit added is required of a complete history, so loading it
+    /// costs every command the evidence count; a replay continuing from a state the authority
+    /// reached reads only the payloads of the occurrences after it.
+    fn replayed<T>(
+        &self,
+        replayed: impl Fn(&RetainedHistory) -> Result<T, StoreError>,
+    ) -> Result<(RetainedHistory, T), StoreError> {
+        let partial = self
+            .load_history_requiring(MAX_READ_LIMIT, None, |history| {
+                self.authority()?.replay_objects(history)
+            })
+            .and_then(|history| replayed(&history).map(|answer| (history, answer)));
+        match partial {
+            Ok(answer) => Ok(answer),
+            Err(_) => {
+                let history = self.load_history(MAX_READ_LIMIT, None)?;
+                let answer = replayed(&history)?;
+                Ok((history, answer))
+            }
+        }
     }
     fn load_history_requiring(
         &self,
@@ -1341,6 +1369,25 @@ impl<S: EventStore> EventlogStore<S> {
         self.load_objects(history, required)?;
         let wanted = authority.objects_if_held(history)?;
         self.load_present(history, wanted)
+    }
+    /// Has the authority verify `history`, holding the objects
+    /// [`CommitAuthority::replay_objects`] names; where that is refused, it loads everything
+    /// [`Self::load_authority_objects`] loads and verifies again, returning that answer: the one
+    /// the complete history gives. As in [`Self::replayed`].
+    pub(super) fn verify_replayed(&self, history: &mut RetainedHistory) -> Result<(), StoreError> {
+        let partial = self.authority().and_then(|authority| {
+            let required = authority.replay_objects(history)?;
+            self.load_objects(history, required)?;
+            let wanted = authority.objects_if_held(history)?;
+            self.load_present(history, wanted)?;
+            authority.verify(history, self.ontology.as_ref(), None)
+        });
+        if partial.is_ok() {
+            return Ok(());
+        }
+        self.load_authority_objects(history)?;
+        self.authority()?
+            .verify(history, self.ontology.as_ref(), None)
     }
     /// Loads each object of `hashes` the history does not hold yet and the store holds an object
     /// for, as [`Self::load_objects`] loads it; one with no object stream is left out.
@@ -1547,6 +1594,17 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         }
         Ok(history)
     }
+    fn replay_history(&self) -> Result<RetainedHistory, StoreError> {
+        ensure_sync_context()?;
+        self.replayed(|history| {
+            if history.occurrences.is_empty() {
+                return Ok(());
+            }
+            self.authority()?
+                .verify(history, self.ontology.as_ref(), None)
+        })
+        .map(|(history, ())| history)
+    }
     fn publish(&self, publication: &Publication) -> Result<Appended, StoreError> {
         ensure_sync_context()?;
         for attempt in 0..16 {
@@ -1675,12 +1733,14 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         }
         // No pointer names every occurrence — after a proposal or a validation none does (design
         // § 99) — so the head is replayed, and only its root is asked for.
-        let history = self.load_history(MAX_READ_LIMIT, None)?;
-        if history.occurrences.is_empty() {
-            return Ok(None);
-        }
-        self.authority()?
-            .replay_root(&history, self.ontology.as_ref(), None)
+        self.replayed(|history| {
+            if history.occurrences.is_empty() {
+                return Ok(None);
+            }
+            self.authority()?
+                .replay_root(history, self.ontology.as_ref(), None)
+        })
+        .map(|(_, root)| root)
     }
     fn replay(&self, revision: RevisionNumber) -> Result<CanonicalGraph, StoreError> {
         ensure_sync_context()?;

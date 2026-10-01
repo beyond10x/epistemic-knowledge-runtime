@@ -794,7 +794,7 @@ impl KernelAuthority {
     /// which each revision is the basis of a validation or rejection: until replay reaches it,
     /// that revision's graph is kept. A record that does not read names nothing here; replay
     /// refuses it by its own name.
-    fn bases(history: &RetainedHistory, start: usize) -> BTreeMap<RevisionNumber, u64> {
+    pub(crate) fn bases(history: &RetainedHistory, start: usize) -> BTreeMap<RevisionNumber, u64> {
         let mut bases = BTreeMap::new();
         for occurrence in history.occurrences.iter().skip(start) {
             let basis = match occurrence.event.payload {

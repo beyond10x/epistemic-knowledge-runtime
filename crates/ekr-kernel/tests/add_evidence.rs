@@ -476,3 +476,88 @@ fn evidence_extracted_by_another_agent_than_the_proposer_is_misattributed() {
         assert!(runtime.transactions().unwrap().is_empty());
     }
 }
+
+/// `task:validate-cost-flat-with-store-size`: the retained objects one evidence-carrying
+/// transaction's head read, proposal, validation and commit place into the histories they replay
+/// do not grow with the evidence the store already holds, on both providers.
+///
+/// Every payload an earlier commit added is retained and was checked when the handle first
+/// replayed past it; a command replays only the occurrences after the state the handle already
+/// reached, which reads only the payloads those occurrences add. Placing every earlier payload
+/// into each command's history again made each verb cost the evidence count. Two stores with the
+/// same transactions, one holding eight times the evidence of the other, load the same objects
+/// for the same next transaction. A verified read still holds every payload
+/// ([`a_verified_read_still_holds_every_added_payload`]).
+#[test]
+fn a_command_loads_the_same_objects_however_much_evidence_the_store_holds() {
+    /// The objects the seventh transaction loads, after six that add `per` payloads each.
+    fn seventh(file: bool, per: usize) -> u64 {
+        let directory = tempfile::tempdir().unwrap();
+        let seed = seeded();
+        let runtime = open(directory.path(), file);
+        runtime.seed(seed.document.clone(), at(10)).unwrap();
+        let mut loaded = 0;
+        for n in 0..7_i64 {
+            let added = if n == 6 { 1 } else { per };
+            let operations = (0..added)
+                .flat_map(|k| {
+                    let payload = format!("message {n}.{k}").into_bytes();
+                    let evidence = human_evidence(EvidenceId::mint(), &payload);
+                    let claim = assertion(&seed, evidence.id, &format!("claim {n}.{k}"));
+                    [
+                        add_evidence(evidence, &payload),
+                        GraphOperation::AddAssertion(Box::new(claim)),
+                    ]
+                })
+                .collect();
+            let _ = ekr_store::objects_loaded();
+            committed(&runtime, &transaction(operations), 20 + 10 * n);
+            loaded = ekr_store::objects_loaded();
+        }
+        loaded
+    }
+    for file in [false, true] {
+        let (fewer, more) = (seventh(file, 1), seventh(file, 8));
+        assert_eq!(
+            more, fewer,
+            "file {file}: objects the seventh transaction placed into histories over 7 and over \
+             49 payloads"
+        );
+    }
+}
+
+/// [`a_command_loads_the_same_objects_however_much_evidence_the_store_holds`] leaves a verified
+/// read as it was: it holds the payload of every evidence entry the lineage added.
+#[test]
+fn a_verified_read_still_holds_every_added_payload() {
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let seed = seeded();
+        let runtime = open(directory.path(), file);
+        runtime.seed(seed.document.clone(), at(10)).unwrap();
+        let mut payloads = Vec::new();
+        for n in 0..4_i64 {
+            let payload = format!("message {n}").into_bytes();
+            let evidence = human_evidence(EvidenceId::mint(), &payload);
+            let claim = assertion(&seed, evidence.id, &format!("claim {n}"));
+            committed(
+                &runtime,
+                &transaction(vec![
+                    add_evidence(evidence.clone(), &payload),
+                    GraphOperation::AddAssertion(Box::new(claim)),
+                ]),
+                20 + 10 * n,
+            );
+            payloads.push((evidence.content_hash, payload));
+        }
+        let read = runtime.read(None).unwrap();
+        for (hash, payload) in &payloads {
+            assert_eq!(read.content(hash), Some(payload.as_slice()), "file {file}");
+            assert_eq!(
+                runtime.content(hash).unwrap().as_deref(),
+                Some(payload.as_slice()),
+                "file {file}"
+            );
+        }
+    }
+}

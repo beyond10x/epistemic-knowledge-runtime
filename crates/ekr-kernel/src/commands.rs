@@ -200,10 +200,28 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         self.propose(document.bytes(), actor, now)
     }
     pub(crate) fn read_state(&self) -> Result<std::sync::Arc<ReplayState>, CommitError> {
-        let history = self.store.history()?;
-        self.authority
-            .reconstruct(&history, None, None)?
-            .ok_or(CommitError::NotSeeded)
+        Ok(self.replayed_state()?.1)
+    }
+    /// The verified head history a command replays, which holds only the payloads that replay
+    /// reads ([`RevisionLog::replay_history`]), and the state reached over it. Where that state
+    /// is refused, the complete history is read and replayed instead, and its answer returned:
+    /// the one the complete history gives.
+    fn replayed_state(
+        &self,
+    ) -> Result<(ekr_store::RetainedHistory, std::sync::Arc<ReplayState>), CommitError> {
+        let partial = self.store.replay_history().and_then(|history| {
+            let state = self.authority.reconstruct(&history, None, None)?;
+            Ok((history, state))
+        });
+        let (history, state) = match partial {
+            Ok(replayed) => replayed,
+            Err(_) => {
+                let history = self.store.history()?;
+                let state = self.authority.reconstruct(&history, None, None)?;
+                (history, state)
+            }
+        };
+        Ok((history, state.ok_or(CommitError::NotSeeded)?))
     }
     /// Captures all actual retained transaction records, including terminal decisions: the
     /// records the verified state holds, shared rather than copied.
@@ -289,11 +307,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         // A verdict the decision below leaves for the admitting replay is not held past this
         // command.
         let _release = replay::ReleaseDecidedValidation;
-        let history = self.store.history()?;
-        let state = self
-            .authority
-            .reconstruct(&history, None, None)?
-            .ok_or(CommitError::NotSeeded)?;
+        let (history, state) = self.replayed_state()?;
         let tx = target(&state, id)?;
         require_state(tx, TransactionState::Proposed)?;
         let key = PublicationCommandKey {
@@ -314,10 +328,22 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             pending
         } else {
             // Validating against an earlier revision needs that revision's graph, which a state
-            // keeps only for its head and the retained checkpoint's; any other is reconstructed.
+            // keeps only for its head and the retained checkpoint's; any other is reconstructed, by a
+            // replay from the seed, which reads every payload of the complete history.
+            let complete;
+            let history = if state
+                .revisions
+                .get(&against)
+                .is_some_and(|revision| revision.graph.is_none())
+            {
+                complete = self.store.history()?;
+                &complete
+            } else {
+                &history
+            };
             let holding =
                 self.authority
-                    .holding(&history, std::sync::Arc::clone(&state), against)?;
+                    .holding(history, std::sync::Arc::clone(&state), against)?;
             let prior = holding
                 .revisions
                 .get(&against)
