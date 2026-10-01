@@ -126,7 +126,7 @@ fn migrate_writes_a_store_at_the_new_path_with_the_same_history_on_both_provider
         let after = document(&run(&host, &destination, backend, &["snapshot"]));
         for field in ["nodes", "edges", "assertions", "evidence"] {
             assert_eq!(
-                after["graph"][field], before["graph"][field],
+                after["graph"]["graph"][field], before["graph"]["graph"][field],
                 "{backend} {field}"
             );
         }

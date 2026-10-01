@@ -4911,9 +4911,12 @@ again with its original event identity, revision identity, actors and times, thr
 destination's kernel authority (`RevisionLog::publish`): a proposal record byte for byte; a
 validation receipt, rejection, commit receipt or stale record derived again against the
 destination's replay of what precedes it, by the functions replay checks it with, since each names
-the seed envelope or an earlier root or record. Every other object the source holds is carried with
-its class, retention raises and `stored_at`; a legacy inline object becomes schema-2 metadata and a
-blob. The destination is replayed in full and compared with the source — every revision's identity,
+the seed envelope or an earlier root or record. A commit is published with the payload of each
+`AddEvidence` it holds, as the source's commit was, because replay of the commit reads it: at the
+source's `stored_at`, and where the source held it below Provenance before the commit, stored first
+at that class so the commit raises it to Provenance as in the source. These payloads are not carried
+objects. Every other object the source holds is carried with its class, retention raises and
+`stored_at`; a legacy inline object becomes schema-2 metadata and a blob. The destination is replayed in full and compared with the source — every revision's identity,
 time and knowledge, evidence, ontology and authority roots, the head graph, the evidence, the seed's
 payloads and every transaction's state — and a disagreement refuses
 `migrate-verification-disagrees`. The report, `ekr.store-migration/1`, maps each occurrence's source

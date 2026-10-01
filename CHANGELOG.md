@@ -10,9 +10,11 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   holding a committed `!AddEvidence` with `ekr: a stored document could not be read:
   required-object-missing`, exit 1, on both providers, because it published each commit without
   the evidence payloads the commit had brought, and replaying that commit reads them. Each commit
-  is now published with those payloads, in the class and with the `stored_at` the source holds
-  them in. Every added evidence entry and its bytes are in the migrated store, and `ekr explain`
-  of an assertion citing one answers as it did in the source.
+  is now published with those payloads, with the `stored_at` the source holds them at; a payload
+  the source held below Provenance before its commit is stored at that class first and raised by
+  the commit, as in the source. These payloads are no longer listed in the report's
+  `carried_objects`. Every added evidence entry and its bytes are in the migrated store, and
+  `ekr explain` of an assertion citing one answers as it did in the source.
 
 ## [0.0.25] — 2026-10-01
 

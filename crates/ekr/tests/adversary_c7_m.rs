@@ -5,7 +5,7 @@
 //! `after["graph"][field]` with `before["graph"][field]` for `nodes`, `edges`, `assertions` and
 //! `evidence` (`migrate_cli.rs:127-131`). `ekr snapshot` prints those fields under
 //! `["graph"]["graph"]`, so each comparison is `null == null` and would pass for a destination that
-//! held none of the source's graph.
+//! held none of the source's graph. The comparison now reads `["graph"]["graph"]`.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -84,7 +84,6 @@ const FIELDS: [&str; 4] = ["nodes", "edges", "assertions", "evidence"];
 /// (a seed only, and the same seed with a committed transaction): it must tell them apart, or it
 /// cannot catch a migration that drops graph content.
 #[test]
-#[ignore = "adversary c7-m: pre-existing; migrate_cli.rs:127-131 reads snapshot[\"graph\"][field], which is null for every field, so its comparison cannot fail"]
 fn the_migrate_cli_snapshot_comparison_tells_a_seed_only_store_from_a_committed_one() {
     for backend in ["file", "sqlite"] {
         let directory = tempfile::tempdir().unwrap();
@@ -96,15 +95,25 @@ fn the_migrate_cli_snapshot_comparison_tells_a_seed_only_store_from_a_committed_
             seeded["graph"]["graph"]["assertions"], committed["graph"]["graph"]["assertions"],
             "{backend}: the two stores' graphs differ"
         );
+        // Each field the comparison reads holds content on both sides, and the comparison as a
+        // whole (every field equal) fails between the two stores.
         let blind: Vec<&str> = FIELDS
             .into_iter()
-            .filter(|field| seeded["graph"][field] == committed["graph"][field])
+            .filter(|field| {
+                seeded["graph"]["graph"][field].is_null()
+                    || committed["graph"]["graph"][field].is_null()
+            })
             .collect();
         assert!(
             blind.is_empty(),
-            "{backend}: the comparison at migrate_cli.rs:127-131 passes for {blind:?} between a \
-             seed-only store and a committed one; each side reads {}",
-            seeded["graph"]["nodes"]
+            "{backend}: the comparison at migrate_cli.rs:127-131 reads null for {blind:?}"
+        );
+        assert!(
+            FIELDS
+                .into_iter()
+                .any(|field| seeded["graph"]["graph"][field] != committed["graph"]["graph"][field]),
+            "{backend}: the comparison at migrate_cli.rs:127-131 passes between a seed-only store \
+             and a committed one"
         );
     }
 }

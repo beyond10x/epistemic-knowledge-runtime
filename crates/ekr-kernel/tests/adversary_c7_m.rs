@@ -380,7 +380,6 @@ fn stage(path: &Path, file: bool, class: StorageClass, bytes: &[u8], stored_at: 
 /// reads it at (`replay.rs:1134`, `StorageClass::Provenance`), so the next occurrence's
 /// reconstruction of the destination refuses.
 #[test]
-#[ignore = "adversary c7-m: a payload first stored below Provenance is re-published at that class with its commit; the destination's replay of the commit refuses required-object-integrity"]
 fn a_payload_stored_below_provenance_before_its_commit_migrates() {
     for file in [false, true] {
         let directory = tempfile::tempdir().unwrap();
@@ -446,7 +445,7 @@ fn a_payload_stored_below_provenance_before_its_commit_migrates() {
 /// can never commit and its refusal names a migration nobody ran. Not introduced by this unit: the
 /// markers are fixed bytes at fixed addresses, and a payload is any bytes.
 #[test]
-#[ignore = "adversary c7-m: pre-existing; a validated transaction whose evidence payload equals the migration-started marker is refused at commit as migrate-incomplete"]
+#[ignore = "task:migration-marker-cannot-be-evidence: a payload equal to the migration marker's bytes is refused at commit"]
 fn evidence_whose_payload_is_the_migration_marker_commits() {
     for file in [false, true] {
         let directory = tempfile::tempdir().unwrap();
