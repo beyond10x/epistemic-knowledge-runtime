@@ -161,8 +161,9 @@ fn encode(tx: &GraphTransaction) -> Vec<u8> {
     .into_bytes()
 }
 
-/// What the three durable handlers returned for one committed transaction.
+/// What the three durable handlers returned for one committed transaction, and the transaction.
 struct Landed {
+    transaction: GraphTransaction,
     proposal: ProposalRecordV1,
     validation: ValidationReceiptV1,
     receipt: CommitReceiptV1,
@@ -184,6 +185,7 @@ fn land(kernel: &Runtime, tx: &GraphTransaction, time: i64) -> Landed {
         panic!("a fresh commit became stale")
     };
     Landed {
+        transaction: tx.clone(),
         proposal,
         validation,
         receipt: *receipt,
@@ -192,16 +194,50 @@ fn land(kernel: &Runtime, tx: &GraphTransaction, time: i64) -> Landed {
 fn record_hash(bytes: &[u8]) -> ContentHash {
     ContentHash::of_bytes(bytes)
 }
-/// The origin links of one ordinary commit, exactly as the handlers returned them.
-fn origin(landed: &Landed) -> Vec<ExplanationLink> {
+/// The commit the handlers returned, by reference: `ekr.explanation/2` names the receipt, the
+/// proposal and the validation by their payload addresses.
+fn commit(landed: &Landed) -> ExplainedCommit {
+    let receipt = &landed.receipt;
+    ExplainedCommit {
+        transaction_id: landed.proposal.transaction_id,
+        revision_id: receipt.revision_id,
+        event_id: receipt.event_id,
+        committer: receipt.committer,
+        committed_at: receipt.committed_at,
+        result: receipt.result,
+        result_hash: receipt.result_hash,
+        record_hash: record_hash(&receipt.to_bytes().unwrap()),
+        proposal_record_hash: record_hash(&landed.proposal.to_bytes().unwrap()),
+        validation_record_hash: record_hash(&landed.validation.to_bytes().unwrap()),
+    }
+}
+/// The origin links of one ordinary commit of assertion `id`, exactly as the handlers returned
+/// them: the proposal by reference with the transaction's operations about `id`.
+fn origin(landed: &Landed, id: AssertionId) -> Vec<ExplanationLink> {
+    let proposal = &landed.proposal;
     vec![
-        ExplanationLink::Proposal(landed.proposal.clone()),
-        ExplanationLink::Validation(ExplainedValidation {
+        ExplanationLink::Proposal(ExplainedProposal {
+            transaction_id: proposal.transaction_id,
+            record_hash: record_hash(&proposal.to_bytes().unwrap()),
+            event_id: proposal.event_id,
+            submitter: proposal.submitter,
+            submitted_at: proposal.submitted_at,
+            document_hash: proposal.document_hash,
+            operation_count: proposal.operation_count,
+            operations: landed
+                .transaction
+                .operations
+                .iter()
+                .filter(|op| matches!(op, GraphOperation::AddAssertion(added) if added.id == id))
+                .cloned()
+                .collect(),
+        }),
+        ExplanationLink::Validation(Box::new(ExplainedValidation {
             receipt: landed.validation.clone(),
             validation_profile: anchor().validation_profile,
             record_hash: record_hash(&landed.validation.to_bytes().unwrap()),
-        }),
-        ExplanationLink::Commit(landed.receipt.clone()),
+        })),
+        ExplanationLink::Commit(commit(landed)),
     ]
 }
 fn seed_link(result: &SeedResultV1) -> ExplanationLink {
@@ -216,8 +252,7 @@ fn lifecycle(id: AssertionId, landed: &Landed, lifecycle: AssertionLifecycle) ->
     ExplanationLink::Lifecycle(ExplainedLifecycle {
         assertion_id: id,
         lifecycle,
-        receipt: landed.receipt.clone(),
-        record_hash: record_hash(&landed.receipt.to_bytes().unwrap()),
+        commit: commit(landed),
     })
 }
 /// The evidence links a chain must end in, ordered by id, each with verified retained bytes.
@@ -294,9 +329,10 @@ fn a_committed_assertion_explains_through_its_proposal_validation_and_commit() {
 
         let read = open(directory.path(), file).read(None).unwrap();
         let explained = read.explain(added.id).unwrap();
+        assert_eq!(explained.format, "ekr.explanation/2");
         assert_eq!(explained.at, RevisionNumber::new(1));
         let mut expected = vec![claim(&read, added.id)];
-        expected.extend(origin(&landed));
+        expected.extend(origin(&landed, added.id));
         expected.extend(evidence(&read, &[seed.second]));
         assert_eq!(explained.links, expected, "file={file}");
         assert_eq!(
@@ -345,7 +381,7 @@ fn a_retraction_keeps_the_original_acceptance_and_adds_the_lifecycle_change() {
         };
         assert_eq!(read.graph.assertions[&added.id].lifecycle, retracted);
         let mut expected = vec![claim(&read, added.id)];
-        expected.extend(origin(&first));
+        expected.extend(origin(&first, added.id));
         expected.push(lifecycle(added.id, &second, retracted));
         expected.extend(evidence(&read, &[seed.second]));
         assert_eq!(explained.links, expected, "file={file}");
@@ -355,7 +391,7 @@ fn a_retraction_keeps_the_original_acceptance_and_adds_the_lifecycle_change() {
         let before = earlier.explain(added.id).unwrap();
         assert_eq!(before.at, RevisionNumber::new(1));
         let mut expected = vec![claim(&earlier, added.id)];
-        expected.extend(origin(&first));
+        expected.extend(origin(&first, added.id));
         expected.extend(evidence(&earlier, &[seed.second]));
         assert_eq!(before.links, expected, "file={file}");
         assert_eq!(
@@ -400,7 +436,7 @@ fn a_supersession_follows_the_replacement_and_its_distinct_evidence() {
             lifecycle(seed.assertion, &landed, superseded),
             claim(&read, replacement.id),
         ];
-        expected.extend(origin(&landed));
+        expected.extend(origin(&landed, replacement.id));
         expected.extend(evidence(&read, &[seed.first, seed.second]));
         assert_eq!(explained.links, expected, "file={file}");
     }
@@ -466,7 +502,7 @@ fn a_replacement_accepted_before_the_supersession_is_explained_from_its_own_acce
             lifecycle(case.seed.assertion, &case.superseded, superseded),
             claim(&read, case.replacement),
         ];
-        expected.extend(origin(&case.accepted));
+        expected.extend(origin(&case.accepted, case.replacement));
         expected.extend(evidence(&read, &[case.seed.first, case.seed.second]));
         assert_eq!(explained.links, expected, "file={file}");
     }
@@ -727,7 +763,7 @@ fn a_captured_read_explained_after_another_commit_does_not_show_the_later_change
         let held = captured.explain(added.id).unwrap();
         assert_eq!(held.at, RevisionNumber::new(1));
         let mut expected = vec![claim(&captured, added.id)];
-        expected.extend(origin(&first));
+        expected.extend(origin(&first, added.id));
         expected.extend(evidence(&captured, &[seed.second]));
         assert_eq!(held.links, expected, "file={file}");
         assert!(!held
@@ -740,7 +776,7 @@ fn a_captured_read_explained_after_another_commit_does_not_show_the_later_change
         let fresh = kernel.read(None).unwrap().explain(added.id).unwrap();
         assert!(fresh.links.iter().any(|link| matches!(
             link,
-            ExplanationLink::Lifecycle(change) if change.receipt == second.receipt
+            ExplanationLink::Lifecycle(change) if change.commit == commit(&second)
         )));
     }
 }

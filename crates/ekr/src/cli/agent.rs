@@ -59,7 +59,7 @@ WORKFLOW
      ekr rejections [--from N] [--to M]            rejected transactions and their issues, by the
                                                    revision each was validated against
      ekr snapshot [--at N] [--valid-at YYYY-MM-DD]  read the result back
-     ekr explain <assertion_id>                    why an assertion is what it is
+     ekr explain <assertion_id> [--documents]      why an assertion is what it is
      ekr quality [--revision N]                    the store's quality beyond its size:
                                                    evidenced assertions, constrained
                                                    properties, names shared within a type
@@ -179,7 +179,8 @@ ADDING EVIDENCE
   cites its id. The payload must hash to the entry's content_hash (evidence-payload-mismatch),
   the id must be new (identity-already-exists), the source must be !HumanStatement
   (evidence-unsupported-source) and extracted_by the host operator (propose refuses otherwise,
-  as ekr.kernel.ProposalAttribution). The commit stores the payload; explain prints it.
+  as ekr.kernel.ProposalAttribution). The commit stores the payload; explain --documents
+  prints it.
 
 ADDING EVIDENCE TO A SEED
   Evidence the seed's own assertions cite enters with the seed, before `ekr seed`. To add a new
@@ -210,12 +211,15 @@ EXIT CODES
 
 OUTPUT
   guide, operations and example print text; every other verb prints one JSON document.
-  A proposal record's document_bytes (in the results of propose, commit and explain) prints as
-  one standard padded base64 string (RFC 4648), not as a number array.
-  To read the seed's evidence payloads, explain an assertion that cites them: `ekr explain` adds
-  two fields to each Evidence link, `payload`, the evidence's retained bytes as one base64 string, and `text`, the
-  same bytes as a string when they are valid UTF-8 (absent otherwise). No other verb prints a
-  payload.
+  A proposal record's document_bytes (in the results of propose, commit and explain --documents)
+  prints as one standard padded base64 string (RFC 4648), not as a number array.
+  `ekr explain` prints ekr.explanation/2: each proposal, commit receipt and evidence payload is
+  named by its hash, and a proposal carries only its operations about the assertion. To read
+  the whole records, and the seed's evidence payloads, explain an assertion that cites them
+  with --documents: `ekr explain --documents` adds two fields to each Evidence link, `payload`,
+  the evidence's retained bytes as one base64 string, and `text`, the same bytes as a string
+  when they are valid UTF-8 (absent otherwise), a `record` to each Proposal link and a `receipt`
+  to each commit. No other verb prints a payload.
 ";
 
 /// One `ekr.kernel.OperationKind`: a `GraphOperation` variant, by its YAML tag.

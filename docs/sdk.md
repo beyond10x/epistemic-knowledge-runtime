@@ -612,7 +612,8 @@ let changed = reader.changes(Since::Revision(0), None, None, None)?; // Changes
 | `snapshot(at, valid_at)` | `snapshot` | `Snapshot`: `root` and the graph, every map keyed by id |
 | `ontology(at)` | `ontology` | `Ontology`: node and edge types by name and id, the schema version |
 | `transactions(state)` | `transactions` | `Transactions`: each id, state, proposer, time and operation count |
-| `explain(assertion)` | `explain` | `Explanation`: `links`, one `ExplanationLink` per kind |
+| `explain(assertion)` | `explain` | `Explanation`, `ekr.explanation/2`: `links`, one `ExplanationLink` per kind, each record by hash |
+| `explain_documents(assertion)` | `explain --documents` | the same `Explanation` with the whole records: each evidence link's `payload` and `text` |
 | `quality(revision)` | `quality` | `StoreQuality`, `ekr.store-quality/1`: evidenced assertions, constrained properties, `shared_names` |
 | `rejections(from, to)` | `rejections` | `Rejections`, `ekr.rejections/1`: each `RejectedTransaction` with its `issues` |
 | `code_names(files, at)` | `code-names` | `CodeNames`, `ekr.code-names/1`: each `CodeNameFinding` with `file`, `line`, `column`, `runtime_word` and `names` |

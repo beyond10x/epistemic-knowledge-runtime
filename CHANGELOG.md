@@ -4,6 +4,26 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Changed
+
+- **`ekr explain` answers by reference, in `ekr.explanation/2`** (`docs/cli.md`, `ekr explain`).
+  The document gains `format`; a `Proposal` link names its proposal record by `record_hash` and
+  carries only the document's operations about the assertion; a `Commit` link, and a `Lifecycle`
+  link's new `commit`, name the receipt and the proposal and validation records by hash instead of
+  embedding the receipt; an `Evidence` link no longer carries `payload` and `text`. The chain —
+  which links, in which order, naming which records — is unchanged. `ekr explain --documents`
+  (MCP `explain` with `documents: true`, SDK `Reader::explain_documents`) adds the whole records:
+  the proposal record as `record`, each commit receipt as `receipt`, and each evidence link's
+  `payload` and `text`. The kernel looks the chain up from what the verified graph records of
+  each assertion (the instant of the commit that added it, the revision of the one that retracted
+  or superseded it) and parses only those commits' documents, where it parsed every committed
+  document per call. At a consumer's 1× shape (4,127 nodes, 67k assertions, 57 commits; SQLite)
+  an answer is 23–64 KB through the session and one-shot (3.2–7.9 MB before) and 57–118 KB
+  through MCP (6.3–15.8 MB before); a session answers in 0.4–0.75 s CPU (28–90 s wall under load
+  before). A one-shot `ekr explain` still costs about 4 s there, opening the store. Specified as
+  `ekr.kernel.ExplanationResult` in `systems/ekr/domains/kernel.yaml`. SDK: `Explanation.format`,
+  and `ExplainedEvidence.payload` is now an `Option`.
+
 ## [0.0.24] — 2026-09-30
 
 A store exports as an OCEL 2.0 event log; the viewer's compact mode works from the keyboard and in

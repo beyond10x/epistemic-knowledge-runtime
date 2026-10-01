@@ -310,7 +310,7 @@ fn issue_codes(validation: &Value) -> BTreeSet<String> {
 
 /// The page's read-back commands, as the worked example prints them.
 const VALID_AT: &str = "ekr snapshot --valid-at 2020-01-01";
-const EXPLAIN: &str = "ekr explain 00000000-0000-4000-a000-000000000501";
+const EXPLAIN: &str = "ekr explain 00000000-0000-4000-a000-000000000501 --documents";
 const WROTE_ASSERTION: &str = "00000000-0000-4000-a000-000000000501";
 const BOOK: &str = "00000000-0000-4000-a000-000000000302";
 

@@ -892,6 +892,62 @@ types:
       - name: record_hash
         type: ekr.kernel.ContentHash
 
+  # story:explain-reads-an-index. ekr.explanation/2 references the retained records of a chain by
+  # their payload addresses instead of embedding them: an ordinary origin's proposal record
+  # (ExplainedProposal.record_hash) with only the document's operations about the explained
+  # assertion, and each commit receipt (ExplainedCommit.record_hash) with the proposal and
+  # validation records it commits. The chain itself — which links, in which order, naming which
+  # records — is the unversioned answer's, link for link. `ekr explain --documents` adds the
+  # whole records; that is the CLI's rendering, not this result.
+  - name: ekr.kernel.ExplanationFormatV2
+    kind: enum
+    variants: [ekr.explanation/2]
+
+  - name: ekr.kernel.ExplainedProposal
+    kind: struct
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: record_hash
+        type: ekr.kernel.ContentHash
+      - name: event_id
+        type: ekr.kernel.EventId
+      - name: submitter
+        type: ekr.kernel.AgentId
+      - name: submitted_at
+        type: Timestamp
+      - name: document_hash
+        type: ekr.kernel.ContentHash
+      - name: operation_count
+        type: Integer
+      # In document order: the AddAssertion of the explained assertion.
+      - name: operations
+        type: List<ekr.kernel.CanonicalOperationProjection>
+
+  - name: ekr.kernel.ExplainedCommit
+    kind: struct
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: revision_id
+        type: ekr.kernel.RevisionId
+      - name: event_id
+        type: ekr.kernel.EventId
+      - name: committer
+        type: ekr.kernel.AgentId
+      - name: committed_at
+        type: Timestamp
+      - name: result
+        type: ekr.graph.RevisionRoot
+      - name: result_hash
+        type: ekr.kernel.ContentHash
+      - name: record_hash
+        type: ekr.kernel.ContentHash
+      - name: proposal_record_hash
+        type: ekr.kernel.ContentHash
+      - name: validation_record_hash
+        type: ekr.kernel.ContentHash
+
   - name: ekr.kernel.ExplainedLifecycle
     kind: struct
     fields:
@@ -899,10 +955,8 @@ types:
         type: ekr.graph.AssertionId
       - name: lifecycle
         type: ekr.graph.AssertionLifecycleProjection
-      - name: receipt
-        type: ekr.kernel.CommitReceiptV1
-      - name: record_hash
-        type: ekr.kernel.ContentHash
+      - name: commit
+        type: ekr.kernel.ExplainedCommit
 
   - name: ekr.kernel.ExplanationLink
     kind: union
@@ -910,15 +964,17 @@ types:
     variants:
       Assertion: ekr.graph.AssertionRecord
       Seed: ekr.kernel.ExplainedSeed
-      Proposal: ekr.kernel.ProposalRecordV1
+      Proposal: ekr.kernel.ExplainedProposal
       Validation: ekr.kernel.ExplainedValidation
-      Commit: ekr.kernel.CommitReceiptV1
+      Commit: ekr.kernel.ExplainedCommit
       Lifecycle: ekr.kernel.ExplainedLifecycle
       Evidence: ekr.graph.EvidenceRecord
 
   - name: ekr.kernel.ExplanationResult
     kind: struct
     fields:
+      - name: format
+        type: ekr.kernel.ExplanationFormatV2
       - name: assertion_id
         type: ekr.graph.AssertionId
       - name: at

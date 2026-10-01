@@ -594,7 +594,7 @@ fn explain_follows_the_supersession_to_bob_and_refuses_an_unknown_assertion() {
         assert_eq!(links[1]["transaction_id"], T_ALICE);
         assert_eq!(links[3]["event_id"], first["event_id"]);
         assert_eq!(links[4]["assertion_id"], ALICE);
-        assert_eq!(links[4]["receipt"]["event_id"], second["event_id"]);
+        assert_eq!(links[4]["commit"]["event_id"], second["event_id"]);
         assert_eq!(links[5]["id"], BOB);
         assert_eq!(links[6]["transaction_id"], T_BOB);
         assert_eq!(links[8]["event_id"], second["event_id"]);

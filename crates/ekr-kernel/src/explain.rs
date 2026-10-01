@@ -13,14 +13,17 @@
 //! capture, and every evidence payload with its content address. A missing or disagreeing record
 //! refuses the whole result with [`ProjectionError::Unverified`]; no partial chain is returned as
 //! though it established provenance.
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     BootstrapContext, CommitReceiptV1, GraphOperation, GraphTransaction, ProposalRecordV1,
     SeedResultV1, TransactionDocument, TransactionRecord, ValidationProfileV1, ValidationReceiptV1,
     VerifiedRead,
 };
-use ekr_core::{AssertionId, ContentHash, EvidenceId, RevisionId, RevisionNumber, Timestamp};
+use ekr_core::{
+    AgentId, AssertionId, ContentHash, EventId, EvidenceId, RevisionId, RevisionNumber, Timestamp,
+    TransactionId,
+};
 use ekr_graph::{
     Assertion, AssertionLifecycle, CanonicalRef, Evidence, EvidenceSource, GraphSnapshot, Root,
 };
@@ -70,6 +73,56 @@ pub struct ExplainedValidation {
     pub record_hash: ContentHash,
 }
 
+/// `ekr.kernel.ExplainedProposal`: an ordinary origin's retained proposal, by reference.
+///
+/// The record itself is named by its payload address; of the document it retains, only the
+/// operations about the explained assertion are carried.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct ExplainedProposal {
+    /// The proposed transaction.
+    pub transaction_id: TransactionId,
+    /// Payload address of the retained proposal record.
+    pub record_hash: ContentHash,
+    /// The proposal's occurrence.
+    pub event_id: EventId,
+    /// The host-attributed submitter.
+    pub submitter: AgentId,
+    /// When it was submitted.
+    pub submitted_at: Timestamp,
+    /// Hash of the exact document bytes the record retains.
+    pub document_hash: ContentHash,
+    /// How many operations that document holds.
+    pub operation_count: u64,
+    /// The document's operations about the explained assertion, in document order: the
+    /// `AddAssertion` that added it.
+    pub operations: Vec<GraphOperation>,
+}
+
+/// `ekr.kernel.ExplainedCommit`: a retained commit receipt, by reference.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct ExplainedCommit {
+    /// The committed transaction.
+    pub transaction_id: TransactionId,
+    /// Domain identity of the revision it committed.
+    pub revision_id: RevisionId,
+    /// The commit's occurrence.
+    pub event_id: EventId,
+    /// Who committed it.
+    pub committer: AgentId,
+    /// When it was committed.
+    pub committed_at: Timestamp,
+    /// The root of the revision it produced.
+    pub result: Root,
+    /// Hash of that root.
+    pub result_hash: ContentHash,
+    /// Payload address of the retained commit receipt.
+    pub record_hash: ContentHash,
+    /// Payload address of the proposal record the receipt commits.
+    pub proposal_record_hash: ContentHash,
+    /// Payload address of the validation receipt the receipt commits.
+    pub validation_record_hash: ContentHash,
+}
+
 /// `ekr.kernel.ExplainedLifecycle`: one committed retraction or supersession of an assertion.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ExplainedLifecycle {
@@ -77,10 +130,8 @@ pub struct ExplainedLifecycle {
     pub assertion_id: AssertionId,
     /// The lifecycle that commit gave it.
     pub lifecycle: AssertionLifecycle,
-    /// The complete retained commit receipt of the change.
-    pub receipt: CommitReceiptV1,
-    /// Payload address of that receipt record.
-    pub record_hash: ContentHash,
+    /// The commit of the change, by reference.
+    pub commit: ExplainedCommit,
 }
 
 /// `ekr.kernel.ExplanationLink`, tagged by `kind`.
@@ -91,12 +142,12 @@ pub enum ExplanationLink {
     Assertion(Assertion),
     /// Its seed origin.
     Seed(ExplainedSeed),
-    /// Its ordinary origin's exact retained proposal.
-    Proposal(ProposalRecordV1),
-    /// Its ordinary origin's accepted validation.
-    Validation(ExplainedValidation),
-    /// Its ordinary origin's commit receipt.
-    Commit(CommitReceiptV1),
+    /// Its ordinary origin's retained proposal, by reference.
+    Proposal(ExplainedProposal),
+    /// Its ordinary origin's accepted validation, boxed: it carries the whole validation receipt.
+    Validation(Box<ExplainedValidation>),
+    /// Its ordinary origin's commit, by reference.
+    Commit(ExplainedCommit),
     /// A later committed lifecycle change, through the captured revision.
     Lifecycle(ExplainedLifecycle),
     /// Supporting evidence whose retained payload was verified at its content address.
@@ -106,12 +157,19 @@ pub enum ExplanationLink {
 /// `ekr.kernel.ExplanationResult`.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ExplanationResult {
+    /// [`ExplanationResult::FORMAT`].
+    pub format: String,
     /// The requested assertion.
     pub assertion_id: AssertionId,
     /// The captured revision every link was read at.
     pub at: RevisionNumber,
     /// The chain; its length is the `links` count an `Explained` event reports.
     pub links: Vec<ExplanationLink>,
+}
+impl ExplanationResult {
+    /// The answer format: `/2` references proposals, receipts and evidence by hash. The
+    /// unversioned answer before it embedded each whole record.
+    pub const FORMAT: &'static str = "ekr.explanation/2";
 }
 
 /// Why a read projection refused.
@@ -142,12 +200,73 @@ fn require(condition: bool, code: &str) -> Result<(), ProjectionError> {
     }
 }
 
-/// One committed transaction visible at the captured boundary.
+/// One committed transaction visible at the captured boundary, as the index reads it from its
+/// retained commit receipt ([`indexed`]): no document is parsed until [`Committed::transaction`].
 struct Committed<'a> {
     revision: RevisionNumber,
+    committed_at: Timestamp,
     record: &'a TransactionRecord,
     receipt: &'a CommitReceiptV1,
-    transaction: GraphTransaction,
+    /// The proposal document the receipt commits, as retained.
+    document: &'a [u8],
+}
+
+/// The index's one reading of a commit receipt: the revision it produced, when, and the proposal
+/// document it committed. `None` for a transaction the record holds no commit of.
+///
+/// Which receipt field holds the committed document is read here and nowhere else in the index,
+/// so a receipt that names its proposal by hash changes this function alone.
+fn indexed(record: &TransactionRecord) -> Option<Committed<'_>> {
+    let receipt = record.committed.as_ref()?;
+    Some(Committed {
+        revision: receipt.result.revision,
+        committed_at: receipt.committed_at,
+        record,
+        receipt,
+        document: &receipt.proposal.document_bytes,
+    })
+}
+
+impl Committed<'_> {
+    /// The committed transaction, parsed from its retained document.
+    fn transaction(&self) -> Result<GraphTransaction, ProjectionError> {
+        match TransactionDocument::parse(self.document) {
+            Ok(document) => Ok(document.transaction().clone()),
+            Err(_) => unverified("proposal-document"),
+        }
+    }
+    /// The receipt by reference; `record_hash` is its verified payload address.
+    fn explained(&self, record_hash: ContentHash) -> ExplainedCommit {
+        let receipt = self.receipt;
+        ExplainedCommit {
+            transaction_id: self.record.proposal.transaction_id,
+            revision_id: receipt.revision_id,
+            event_id: receipt.event_id,
+            committer: receipt.committer,
+            committed_at: receipt.committed_at,
+            result: receipt.result,
+            result_hash: receipt.result_hash,
+            record_hash,
+            proposal_record_hash: self.record.proposal_record_hash,
+            validation_record_hash: receipt.validation_record_hash,
+        }
+    }
+}
+
+/// The operations of `transaction` about assertion `id`: its addition, retraction or
+/// supersession, in document order.
+fn about(transaction: &GraphTransaction, id: AssertionId) -> Vec<GraphOperation> {
+    transaction
+        .operations
+        .iter()
+        .filter(|op| match op {
+            GraphOperation::AddAssertion(added) => added.id == id,
+            GraphOperation::RetractAssertion(r) => r.assertion == id,
+            GraphOperation::SupersedeAssertion(s) => s.assertion == id,
+            _ => false,
+        })
+        .cloned()
+        .collect()
 }
 
 impl VerifiedRead {
@@ -187,6 +306,18 @@ impl VerifiedRead {
     /// lifecycle transactions, each payload verified at its content address. HumanStatement
     /// evidence terminates; any other source refuses rather than fabricating a further step.
     ///
+    /// The chain is looked up, not found by reading every committed document. Replay records in
+    /// each assertion of the verified graph the instant of the commit that added it (its
+    /// `transaction_time.recorded_from`) and the revision of the commit that retracted or
+    /// superseded it (its lifecycle's `at_revision`); the committed transactions of this boundary
+    /// are indexed by revision and instant from their receipts alone. Only the documents of the
+    /// commits so named are parsed, and each is held to what the graph says it did: an origin no
+    /// such document adds is `origin-missing`, and a lifecycle no such document reproduces is
+    /// `lifecycle-disagrees`, never a shorter chain.
+    ///
+    /// Proposals and commits are answered by reference ([`ExplainedProposal`],
+    /// [`ExplainedCommit`]); a proposal carries only its operations about the explained assertion.
+    ///
     /// # Errors
     /// [`ProjectionError::AssertionNotFound`] for an unknown id; [`ProjectionError::Unverified`]
     /// when the capture is not bound to its retained root and seed (see `bound`), or when any
@@ -196,7 +327,22 @@ impl VerifiedRead {
         if !self.graph.assertions.contains_key(&requested) {
             return Err(ProjectionError::AssertionNotFound { requested });
         }
-        let committed = self.committed()?;
+        let index: BTreeMap<RevisionNumber, Committed<'_>> = self
+            .transactions
+            .values()
+            .filter_map(indexed)
+            .filter(|c| c.revision <= self.root.revision)
+            .map(|c| (c.revision, c))
+            .collect();
+        let mut parsed: BTreeMap<RevisionNumber, GraphTransaction> = BTreeMap::new();
+        let mut transaction = |c: &Committed<'_>| -> Result<GraphTransaction, ProjectionError> {
+            if let Some(held) = parsed.get(&c.revision) {
+                return Ok(held.clone());
+            }
+            let transaction = c.transaction()?;
+            parsed.insert(c.revision, transaction.clone());
+            Ok(transaction)
+        };
         let mut links = Vec::new();
         let mut support: BTreeSet<EvidenceId> = BTreeSet::new();
         let mut visited = BTreeSet::new();
@@ -211,31 +357,51 @@ impl VerifiedRead {
             links.push(ExplanationLink::Assertion(assertion.clone()));
             support.extend(assertion.evidence.iter().map(|cited| cited.id()));
 
-            let origins: Vec<&Committed<'_>> = committed
-                .iter()
-                .filter(|c| {
-                    c.transaction.operations.iter().any(
-                        |op| matches!(op, GraphOperation::AddAssertion(added) if added.id == id),
-                    )
-                })
-                .collect();
+            let recorded = assertion.transaction_time.recorded_from;
+            let mut origins = Vec::new();
+            for candidate in index.values().filter(|c| c.committed_at == recorded) {
+                let committed = transaction(candidate)?;
+                if committed
+                    .operations
+                    .iter()
+                    .any(|op| matches!(op, GraphOperation::AddAssertion(added) if added.id == id))
+                {
+                    origins.push((candidate, committed));
+                }
+            }
             let seeded = self.seed_input.graph.assertions.contains_key(&id);
             match (seeded, origins.as_slice()) {
                 (true, []) => links.push(ExplanationLink::Seed(self.explained_seed()?)),
-                (false, [origin]) => {
-                    let (validation, _) = self.verify(origin)?;
-                    links.push(ExplanationLink::Proposal(origin.receipt.proposal.clone()));
-                    links.push(ExplanationLink::Validation(validation));
-                    links.push(ExplanationLink::Commit(origin.receipt.clone()));
-                    support.extend(origin.transaction.evidence.iter().copied());
+                (false, [(origin, committed)]) => {
+                    let (validation, record_hash) = self.verify(origin)?;
+                    let proposal = &origin.record.proposal;
+                    links.push(ExplanationLink::Proposal(ExplainedProposal {
+                        transaction_id: proposal.transaction_id,
+                        record_hash: origin.record.proposal_record_hash,
+                        event_id: proposal.event_id,
+                        submitter: proposal.submitter,
+                        submitted_at: proposal.submitted_at,
+                        document_hash: proposal.document_hash,
+                        operation_count: proposal.operation_count,
+                        operations: about(committed, id),
+                    }));
+                    links.push(ExplanationLink::Validation(Box::new(validation)));
+                    links.push(ExplanationLink::Commit(origin.explained(record_hash)));
+                    support.extend(committed.evidence.iter().copied());
                 }
                 (false, []) => return unverified("origin-missing"),
                 _ => return unverified("origin-ambiguous"),
             }
 
             let mut current = AssertionLifecycle::Active;
-            for change in &committed {
-                for op in &change.transaction.operations {
+            let changed = match &assertion.lifecycle {
+                AssertionLifecycle::Active => None,
+                AssertionLifecycle::Retracted { at_revision, .. }
+                | AssertionLifecycle::Superseded { at_revision, .. } => index.get(at_revision),
+            };
+            if let Some(change) = changed {
+                let committed = transaction(change)?;
+                for op in &committed.operations {
                     let lifecycle = match op {
                         GraphOperation::RetractAssertion(r) if r.assertion == id => {
                             AssertionLifecycle::Retracted {
@@ -257,10 +423,9 @@ impl VerifiedRead {
                     links.push(ExplanationLink::Lifecycle(ExplainedLifecycle {
                         assertion_id: id,
                         lifecycle: lifecycle.clone(),
-                        receipt: change.receipt.clone(),
-                        record_hash,
+                        commit: change.explained(record_hash),
                     }));
-                    support.extend(change.transaction.evidence.iter().copied());
+                    support.extend(committed.evidence.iter().copied());
                     current = lifecycle;
                 }
             }
@@ -284,6 +449,7 @@ impl VerifiedRead {
             links.push(ExplanationLink::Evidence(evidence.clone()));
         }
         Ok(ExplanationResult {
+            format: ExplanationResult::FORMAT.to_owned(),
             assertion_id: requested,
             at: self.root.revision,
             links,
@@ -365,31 +531,6 @@ impl VerifiedRead {
             .and_then(|bytes| SeedResultV1::from_bytes(bytes).ok());
         require(held.as_ref() == Some(&self.seed), "seed-record-disagrees")?;
         Ok(coordinate)
-    }
-
-    /// Committed transactions through this boundary, in revision order, with parsed documents.
-    fn committed(&self) -> Result<Vec<Committed<'_>>, ProjectionError> {
-        let mut committed = Vec::new();
-        for record in self.transactions.values() {
-            let Some(receipt) = record.committed.as_ref() else {
-                continue;
-            };
-            let revision = receipt.result.revision;
-            if revision > self.root.revision {
-                continue;
-            }
-            let Ok(document) = TransactionDocument::parse(&receipt.proposal.document_bytes) else {
-                return unverified("proposal-document");
-            };
-            committed.push(Committed {
-                revision,
-                record,
-                receipt,
-                transaction: document.transaction().clone(),
-            });
-        }
-        committed.sort_by_key(|c| c.revision);
-        Ok(committed)
     }
 
     /// Checks a commit's proposal, validation and receipt against their retained bytes.

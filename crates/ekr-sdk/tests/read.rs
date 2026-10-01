@@ -1131,16 +1131,35 @@ fn the_five_kernel_reads_are_one_typed_value_through_a_session_and_one_shot() {
         exactly::<Explanation>(&world.one_shot(&["explain", SEEDED_ASSERTION])),
         Ok(explanation.clone())
     );
-    let evidence: Vec<&ExplainedEvidence> = explanation
-        .links
-        .iter()
-        .filter_map(|link| match link {
-            ExplanationLink::Evidence(evidence) => Some(evidence),
-            _ => None,
-        })
-        .collect();
-    assert_eq!(evidence.len(), 1);
-    assert_eq!(evidence[0].text.as_deref(), Some("Alice is CEO of Acme."));
+    assert_eq!(explanation.format, "ekr.explanation/2");
+    let documents: Explanation = reader.explain_documents(assertion).unwrap();
+    assert_eq!(documents, one_shot.explain_documents(assertion).unwrap());
+    assert_eq!(
+        exactly::<Explanation>(&world.one_shot(&["explain", SEEDED_ASSERTION, "--documents"])),
+        Ok(documents.clone())
+    );
+    let evidence = |explanation: &Explanation| -> Vec<ExplainedEvidence> {
+        explanation
+            .links
+            .iter()
+            .filter_map(|link| match link {
+                ExplanationLink::Evidence(evidence) => Some(evidence.clone()),
+                _ => None,
+            })
+            .collect()
+    };
+    // By reference, the evidence link is the entry alone; with the documents, its bytes too.
+    let referenced = evidence(&explanation);
+    assert_eq!(referenced.len(), 1);
+    assert_eq!(
+        (&referenced[0].payload, &referenced[0].text),
+        (&None, &None)
+    );
+    let whole = evidence(&documents);
+    assert_eq!(whole.len(), 1);
+    assert_eq!(whole[0].evidence, referenced[0].evidence);
+    assert!(whole[0].payload.is_some());
+    assert_eq!(whole[0].text.as_deref(), Some("Alice is CEO of Acme."));
     assert!(matches!(
         explanation.links.first(),
         Some(ExplanationLink::Assertion(first)) if first.id == assertion

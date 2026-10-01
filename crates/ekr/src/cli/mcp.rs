@@ -549,15 +549,19 @@ impl Server {
         text(index.changes(runtime, &request)?.bytes)
     }
 
-    /// What `ekr explain <assertion>` prints, byte for byte.
+    /// What `ekr explain <assertion>` prints, byte for byte, or with `documents`, what
+    /// `ekr explain <assertion> --documents` prints.
     fn explain(&mut self, arguments: Value) -> Result<String, Unanswered> {
-        let ExplainArguments { assertion } = decode(arguments)?;
+        let ExplainArguments {
+            assertion,
+            documents,
+        } = decode(arguments)?;
         let id = assertion.parse::<AssertionId>().map_err(|_| {
             Unanswered::params(format!(
                 "the assertion {assertion:?} is not an assertion id"
             ))
         })?;
-        Ok(super::render(&super::explain::run(self.read()?.0, id)?)?.text()?)
+        Ok(super::render(&super::explain::run(self.read()?.0, id, documents)?)?.text()?)
     }
 
     /// What `ekr resolve <reference> [--at N]` prints, byte for byte. The arguments are the
@@ -738,6 +742,8 @@ struct HeadArguments {}
 #[serde(deny_unknown_fields)]
 struct ExplainArguments {
     assertion: String,
+    #[serde(default)]
+    documents: bool,
 }
 
 /// A typed reference's fields and `at`. A missing field is named by the verb's own reference
@@ -931,10 +937,13 @@ fn tools() -> Vec<Value> {
             "explain",
             "Explain assertion",
             "What `ekr explain` prints: the assertion at the newest revision, where it came \
-             from, what later changed it, and its evidence with the retained text.",
+             from, what later changed it, and its evidence, each record by hash; with \
+             `documents`, also the whole records and the evidence text.",
             object(
                 json!({
                     "assertion": {"type": "string", "description": "The assertion's id, as describe_node answers it."},
+                    "documents": {"type": "boolean",
+                        "description": "Also answer the whole proposal records, commit receipts and evidence payloads (base64, and text when UTF-8), as `ekr explain --documents`; false when absent."},
                 }),
                 &["assertion"],
             ),

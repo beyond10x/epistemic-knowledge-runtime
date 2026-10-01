@@ -60,9 +60,9 @@ fn document_bytes_as_base64(value: &mut Value) {
     }
 }
 
-/// The explanation as the CLI prints it (`ekr guide`, OUTPUT): each Evidence link gains
-/// `payload`, its retained bytes read through `Runtime::content` as base64, and `text` when
-/// those bytes are UTF-8. Every other field of every link is compared unchanged.
+/// The explanation's Evidence links as `ekr explain --documents` prints them (`ekr guide`,
+/// OUTPUT): each gains `payload`, its retained bytes read through `Runtime::content` as base64,
+/// and `text` when those bytes are UTF-8.
 fn evidence_as_printed(runtime: &Runtime, value: &mut Value) {
     for link in value["links"].as_array_mut().expect("links") {
         if link["kind"] != "Evidence" {
@@ -363,8 +363,20 @@ fn explain_renders_exactly_the_kernel_carrier() {
             .unwrap();
         let mut kernel = serde_json::to_value(kernel).unwrap();
         document_bytes_as_base64(&mut kernel);
-        evidence_as_printed(&world.runtime(), &mut kernel);
         assert_eq!(rendered, kernel, "{backend}");
+        // With --documents, each Evidence link also carries its retained payload.
+        let whole = world.ok(&["explain", ALICE, "--documents"]);
+        evidence_as_printed(&world.runtime(), &mut kernel);
+        let evidence = |explained: &Value| -> Vec<Value> {
+            explained["links"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|link| link["kind"] == "Evidence")
+                .cloned()
+                .collect()
+        };
+        assert_eq!(evidence(&whole), evidence(&kernel), "{backend}");
     }
 }
 
