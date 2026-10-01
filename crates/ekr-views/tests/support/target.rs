@@ -1,9 +1,12 @@
-//! The ESS conformance target over `ekr_views`' ten reads, on one native provider:
+//! The ESS conformance target over `ekr_views`' twelve commands, on one native provider:
 //! `ekr_views::project` for `ProjectGraph`, `ekr_views::report_quality` for `ReportStoreQuality`,
 //! `ekr_views::export_ocel` for `ExportOcel`, `ekr_views::find_code_names` for `FindCodeNames`, whose
 //! `sources` input is the list of `{path, text}` it answers for, and an [`ekr_views::Index`] of the
 //! requested revision for `ProjectOverview`, `ExpandNeighbourhood`, `DescribeNode`, `SearchNodes`,
-//! `ProjectTimeline` and `ChangesSince`.
+//! `ProjectTimeline` and `ChangesSince`; and the fact-quality pair, `ekr_views::draw_sample` for
+//! `DrawFactSample` and `ekr_views::report_fact_quality` for `ReportFactQuality`, which reads no
+//! store and so names none: its `judgements` and `sample` are read as the `ekr.fact-judgements/1`
+//! document a host reads them from.
 //!
 //! * **Isolation.** Every scenario gets a fresh directory below the caller's work directory, and
 //!   every store a scenario names is a fresh provider root inside it.
@@ -19,8 +22,10 @@
 //!   does a node type named [`fixtures::UNDECLARED_TYPE_NAME`]. An expansion that names no seed is
 //!   given that node as its one seed, and an export that names no event type that name as its
 //!   one, which is what makes a seed or a name unknown; the generated `ExpandNeighbourhood` and
-//!   `ExportOcel` scenarios send `seeds: []` and `events: []`. The reads then answer whatever they
-//!   answer.
+//!   `ExportOcel` scenarios send `seeds: []` and `events: []`. `judged-twice` judges the first
+//!   judgement's assertion a second time, or, where the request judges none (the generated
+//!   scenario sends `judgements: []`), judges one fixture assertion twice. The reads then answer
+//!   whatever they answer.
 //! * **Observations.** A command reports the event built from the summary the read returned, and
 //!   every event the provider log gained while it ran, by its logged name — so a read that wrote
 //!   anything is caught by the suite's `expect_no_event` steps.
@@ -35,9 +40,11 @@ use ekr_core::{NodeId, RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{
     BucketWidth, ChangesError, ChangesListed, ChangesRequest, CodeNamesFound, ExpandRequest,
-    GraphOverviewed, GraphProjected, Index, LimitExceeded, NeighbourhoodExpanded, NodeDescribed,
+    FactJudgements, FactQualityError, FactQualityReported, FactSampleDrawn, GraphOverviewed,
+    GraphProjected, Index, Judgement, LimitExceeded, NeighbourhoodExpanded, NodeDescribed,
     NodesSearched, OcelError, OcelExported, OverviewRequest, ProjectError, QueryError,
-    SearchRequest, SinceKind, SourceText, StoreQualityReported, SubjectsTimelined, TimelineRequest,
+    SampleRequest, SearchRequest, SinceKind, SourceText, StoreQualityReported, SubjectsTimelined,
+    TimelineRequest, Verdict,
 };
 use ess_conformance::target::{
     ConformanceTarget, DeclaredErrorValue, EventObservationRequest, ExternalOutcomeControl,
@@ -60,7 +67,9 @@ const CHANGES_SINCE: &str = "ekr.views.ChangesSince";
 const FIND_CODE_NAMES: &str = "ekr.views.FindCodeNames";
 const REPORT_STORE_QUALITY: &str = "ekr.views.ReportStoreQuality";
 const EXPORT_OCEL: &str = "ekr.views.ExportOcel";
-const COMMANDS: [&str; 10] = [
+const DRAW_FACT_SAMPLE: &str = "ekr.views.DrawFactSample";
+const REPORT_FACT_QUALITY: &str = "ekr.views.ReportFactQuality";
+const COMMANDS: [&str; 12] = [
     PROJECT_GRAPH,
     PROJECT_OVERVIEW,
     EXPAND_NEIGHBOURHOOD,
@@ -71,6 +80,8 @@ const COMMANDS: [&str; 10] = [
     FIND_CODE_NAMES,
     REPORT_STORE_QUALITY,
     EXPORT_OCEL,
+    DRAW_FACT_SAMPLE,
+    REPORT_FACT_QUALITY,
 ];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -79,6 +90,7 @@ enum Control {
     Unseeded,
     NodeAbsent,
     EventTypeAbsent,
+    JudgedTwice,
 }
 
 struct Scenario {
@@ -115,6 +127,7 @@ enum Read {
     CodeNames(Vec<SourceText>),
     Quality,
     Ocel(Vec<String>),
+    Sample(Result<SampleRequest, LimitExceeded>),
 }
 
 fn unavailable(operation: &str, detail: impl std::fmt::Display) -> TargetError {
@@ -410,6 +423,116 @@ fn ocel_exported(summary: &OcelExported) -> Result<ObservedEvent, TargetError> {
     observed("ekr.views.OcelExported", fields)
 }
 
+fn fact_sample_drawn(summary: &FactSampleDrawn) -> Result<ObservedEvent, TargetError> {
+    let mut fields = counts(&[
+        ("revision", summary.revision),
+        ("size", summary.size),
+        ("population", summary.population),
+        ("drawn", summary.drawn),
+        ("evidence", summary.evidence),
+    ])?;
+    fields.push(("seed", signed(summary.seed)));
+    if let Some(first) = summary.first_assertion {
+        fields.push(("first_assertion", Node::Text(first.to_string())));
+    }
+    fields.push(("sample_hash", Node::Text(summary.sample_hash.clone())));
+    observed("ekr.views.FactSampleDrawn", fields)
+}
+
+fn fact_quality_reported(summary: &FactQualityReported) -> Result<ObservedEvent, TargetError> {
+    let mut fields = counts(&[
+        ("confidence", summary.confidence),
+        ("judged", summary.judged),
+        ("passed", summary.passed),
+        ("failed", summary.failed),
+    ])?;
+    for (field, value) in [
+        ("rate_bp", summary.rate_bp),
+        ("lower_bp", summary.lower_bp),
+        ("upper_bp", summary.upper_bp),
+    ] {
+        if let Some(value) = value {
+            fields.push((field, integer(value)?));
+        }
+    }
+    fields.push((
+        "fact_quality_hash",
+        Node::Text(summary.fact_quality_hash.clone()),
+    ));
+    observed("ekr.views.FactQualityReported", fields)
+}
+
+/// `DrawFactSample`'s input, bounded: its seed, size and optional type id.
+fn sample_request(
+    request: &SemanticCommandRequest,
+) -> Result<Result<SampleRequest, LimitExceeded>, TargetError> {
+    let type_id = optional_text(request, "type")?
+        .map(|text| {
+            text.parse::<TypeId>()
+                .map_err(|e| unavailable("reading `type`", format!("{text}: {e}")))
+        })
+        .transpose()?;
+    Ok(SampleRequest::new(
+        required_integer(request, "seed")?,
+        required_integer(request, "size")?,
+        type_id,
+    ))
+}
+
+/// `ReportFactQuality`'s `judgements` and `sample`, read through the `ekr.fact-judgements/1`
+/// document they are the fields of, so the target reads them as a host does.
+fn judged_sample(request: &SemanticCommandRequest) -> Result<FactJudgements, TargetError> {
+    let json = |node: &Node| -> Result<serde_json::Value, TargetError> {
+        serde_json::to_value(node).map_err(|e| unavailable("reading the judged sample", e))
+    };
+    let judgements = match request.input.get("judgements") {
+        Some(node @ Node::Seq(_)) => json(node)?,
+        _ => return Err(unavailable("reading `judgements`", "not a list")),
+    };
+    let mut document = serde_json::json!({
+        "format": ekr_views::JUDGEMENTS_FORMAT,
+        "judgements": judgements,
+    });
+    match request.input.get("sample") {
+        None | Some(Node::Null) => {}
+        Some(node) => {
+            // A generated scenario writes its integers as JSON numbers with a fraction.
+            let mut sample = json(node)?;
+            if let Some(fields) = sample.as_object_mut() {
+                for key in ["revision", "seed", "size"] {
+                    if let Some(number) = fields.get(key).and_then(serde_json::Value::as_f64) {
+                        fields.insert(key.to_owned(), serde_json::json!(number as i64));
+                    }
+                }
+            }
+            document["sample"] = sample;
+        }
+    }
+    FactJudgements::from_json(document.to_string().as_bytes())
+        .map_err(|e| unavailable("reading the judged sample", e))
+}
+
+/// Answers `ReportFactQuality`, which reads no store.
+fn report(
+    command: &str,
+    judged: &FactJudgements,
+    confidence: Option<i64>,
+) -> Result<SemanticCommandResult, TargetError> {
+    match ekr_views::report_fact_quality(judged, confidence) {
+        Ok(answer) => Ok(
+            SemanticCommandResult::took(outcome_ref(command, "reported")?)
+                .emitting(fact_quality_reported(&answer.summary)?),
+        ),
+        Err(FactQualityError::LimitExceeded(refusal)) => limit_exceeded(command, &refusal),
+        Err(FactQualityError::JudgedTwice { assertion }) => Ok(SemanticCommandResult::took(
+            outcome_ref(command, "judged-twice")?,
+        )
+        .with_error(
+            error("ekr.views.JudgedTwice")?.with("assertion", Node::Text(assertion.to_string())),
+        )),
+    }
+}
+
 /// `ChangesSince`'s input, bounded: its since kind by name, its since, and its page.
 fn changes_request(
     request: &SemanticCommandRequest,
@@ -597,6 +720,7 @@ fn read(request: &SemanticCommandRequest, command: &str) -> Result<Read, TargetE
         FIND_CODE_NAMES => Read::CodeNames(sources(request)?),
         REPORT_STORE_QUALITY => Read::Quality,
         EXPORT_OCEL => Read::Ocel(event_names(request)?),
+        DRAW_FACT_SAMPLE => Read::Sample(sample_request(request)?),
         _ => Read::Graph,
     })
 }
@@ -676,6 +800,17 @@ fn answer(
             Err(error) => Ok((refused(command, QueryError::Project(error))?, None)),
         };
     }
+    if let Read::Sample(request) = read {
+        // The size first: a broken one is refused before the store is read.
+        let request = match request {
+            Ok(request) => request,
+            Err(refusal) => return Ok((limit_exceeded(command, &refusal)?, None)),
+        };
+        return match ekr_views::draw_sample(runtime, at, &request) {
+            Ok(answer) => Ok((took("drawn", fact_sample_drawn(&answer.summary)?)?, None)),
+            Err(error) => Ok((refused(command, QueryError::Project(error))?, None)),
+        };
+    }
     if let Read::Ocel(events) = read {
         return match ekr_views::export_ocel(runtime, at, &events) {
             Ok(answer) => Ok((took("exported", ocel_exported(&answer.summary)?)?, None)),
@@ -713,9 +848,12 @@ fn answer(
     let result = (|| -> Result<Result<SemanticCommandResult, TargetError>, QueryError> {
         // The bound first: a broken one is refused before the store is read.
         match read {
-            Read::Graph | Read::Changes(_) | Read::CodeNames(_) | Read::Quality | Read::Ocel(_) => {
-                unreachable!("answered above")
-            }
+            Read::Graph
+            | Read::Changes(_)
+            | Read::CodeNames(_)
+            | Read::Quality
+            | Read::Ocel(_)
+            | Read::Sample(_) => unreachable!("answered above"),
             Read::Overview(request) => {
                 let request = request?;
                 let index = Index::load(runtime, at)?;
@@ -810,6 +948,28 @@ impl ConformanceTarget for ViewsTarget {
                 "the views target answers the ekr.views commands only",
             ));
         };
+        if command == REPORT_FACT_QUALITY {
+            let mut judged = judged_sample(&request)?;
+            let confidence = optional_integer(&request, "confidence")?;
+            let mut guard = self.scenario.borrow_mut();
+            let scenario = guard
+                .as_mut()
+                .ok_or_else(|| unavailable("executing a command", "no scenario is open"))?;
+            if scenario.control.take() == Some(Control::JudgedTwice) {
+                // The judged-twice branch's state: one assertion judged a second time.
+                let again = judged.judgements.first().cloned().unwrap_or(Judgement {
+                    assertion: fixtures::id(fixtures::Q_ASSERTIONS + 1),
+                    verdict: Verdict::Pass,
+                });
+                if judged.judgements.is_empty() {
+                    judged.judgements.push(again.clone());
+                }
+                judged.judgements.push(again);
+            }
+            let result = report(command, &judged, confidence)?;
+            scenario.events.extend(result.direct_events.iter().cloned());
+            return Ok(result);
+        }
         let store = match request.input.get("store") {
             Some(Node::Text(store)) => store.clone(),
             _ => return Err(unavailable("reading `store`", "not a store location")),
@@ -862,7 +1022,8 @@ impl ConformanceTarget for ViewsTarget {
                 Some(Control::NodeAbsent | Control::EventTypeAbsent) => {
                     Fixture::SchemaEvolution.build(&runtime);
                 }
-                None => fixture.build(&runtime),
+                // Judged-twice is ReportFactQuality's, which names no store: no store's state.
+                None | Some(Control::JudgedTwice) => fixture.build(&runtime),
             }
             scenario.stores.insert(store.clone(), runtime);
         }
@@ -926,6 +1087,7 @@ impl ConformanceTarget for ViewsTarget {
             (command, "not-seeded") if COMMANDS.contains(&command) => Control::Unseeded,
             (EXPAND_NEIGHBOURHOOD | DESCRIBE_NODE, "node-not-found") => Control::NodeAbsent,
             (EXPORT_OCEL, "event-type-not-found") => Control::EventTypeAbsent,
+            (REPORT_FACT_QUALITY, "judged-twice") => Control::JudgedTwice,
             _ => {
                 return Err(TargetError::unsupported(
                     format!("establishing `{}`", request.force),

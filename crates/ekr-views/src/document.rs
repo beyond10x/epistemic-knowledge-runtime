@@ -264,7 +264,7 @@ fn projected_property(property: &PropertyDefinition) -> ProjectedProperty {
     }
 }
 
-const fn evidence_kind(kind: EvidenceKind) -> &'static str {
+pub(crate) const fn evidence_kind(kind: EvidenceKind) -> &'static str {
     match kind {
         EvidenceKind::Url => "Url",
         EvidenceKind::Document => "Document",

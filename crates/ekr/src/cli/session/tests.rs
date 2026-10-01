@@ -9,8 +9,22 @@ use ekr_core::{RevisionNumber, Timestamp};
 use ekr_views::IndexCache;
 
 use super::fixture::{replace, replace_inside, seeded, seeded_with_a_commit, BACKENDS};
-use super::{identity, reader_work, respond, Checked, Held, ReaderWork, Watch};
+use super::{identity, reader_work, Checked, Held, ReaderWork, Stdout, Watch};
 use crate::cli::{Backend, Session, Store};
+
+/// [`super::respond`], its answer as a JSON value: a raw document parsed, as a reader of the
+/// session's answer line parses it.
+fn respond(
+    line: &[u8],
+    session: &mut Session,
+    watch: &mut Watch,
+    now: &dyn Fn() -> Timestamp,
+) -> Result<serde_json::Value, crate::exit::Failure> {
+    super::respond(line, session, watch, now).map(|stdout| match stdout {
+        Stdout::Document(document) => document,
+        Stdout::Raw(document) => serde_json::from_str(document.get()).expect("a JSON document"),
+    })
+}
 
 /// A session over `store`, holding it, and what it watches.
 fn session(store: Store) -> (Session, Watch) {

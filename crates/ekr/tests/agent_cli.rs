@@ -828,6 +828,27 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
                 store,
             ],
         ),
+        (
+            "sample",
+            &[
+                "ekr.fact-sample/1",
+                "evidence",
+                "ekr fact-quality",
+                "ekr ontology",
+                "ekr head",
+                store,
+            ],
+        ),
+        (
+            "fact-quality",
+            &[
+                "ekr.fact-judgements/1",
+                "ekr.fact-quality/1",
+                "Wilson",
+                "ekr sample",
+                "stdin",
+            ],
+        ),
     ];
     let listed: BTreeSet<&str> = verbs.iter().map(String::as_str).collect();
     let rows: BTreeSet<&str> = own.iter().map(|(verb, _)| *verb).collect();

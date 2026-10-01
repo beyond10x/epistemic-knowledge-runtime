@@ -45,6 +45,12 @@
 //!
 //! [`export_ocel`] (`ekr.ocel/1`) exports one revision as an OCEL 2.0 object-centric event log,
 //! its event types the overview's or the ones a request names; [`ocel`] is its pure half.
+//!
+//! [`draw_sample`] (`ekr.fact-sample/1`) draws a reproducible sample of one revision's facts, each
+//! with the bytes of its evidence, for a judge; [`sample`] is its pure half.
+//! [`report_fact_quality`] (`ekr.fact-quality/1`) reports the pass rate of the judged sample,
+//! [`FactJudgements`], with its Wilson score interval; it reads no store. The runtime judges
+//! nothing.
 
 mod changes;
 mod code_names;
@@ -53,6 +59,7 @@ mod index;
 mod ocel;
 mod quality;
 mod query;
+mod sample;
 mod timeline;
 
 pub use changes::{
@@ -70,6 +77,12 @@ pub use query::{
     NodeSummary, NodesSearched, OverviewRequest, QueryError, SearchRequest, SliceEdge, SliceMeta,
     SliceNode, SlicePage, SliceRecord, DETAIL_FORMAT, MATCHES_FORMAT, OVERVIEW_FORMAT,
     SLICE_FORMAT,
+};
+pub use sample::{
+    draw_key, draw_sample, report_fact_quality, sample, wilson_interval, wilson_z, FactJudgements,
+    FactQualityError, FactQualityReported, FactSampleDrawn, Judgement, JudgementsMalformed,
+    SampleOrigin, SampleRequest, Verdict, DEFAULT_CONFIDENCE, FACT_QUALITY_FORMAT,
+    JUDGEMENTS_FORMAT, SAMPLE_FORMAT,
 };
 pub use timeline::{BucketWidth, SubjectsTimelined, TimelineRequest, TIMELINE_FORMAT};
 

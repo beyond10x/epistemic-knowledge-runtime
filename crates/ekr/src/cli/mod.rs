@@ -19,6 +19,9 @@
 //! `quality` opens the store as those verbs do and reads one revision through
 //! `ekr_views::report_quality` (`quality.rs`); `ocel` likewise, through `ekr_views::export_ocel`
 //! (`ocel.rs`).
+//! `sample` opens the store as those verbs do and draws from one revision through
+//! `ekr_views::draw_sample`; `fact-quality` reads the judged sample it is given and opens no
+//! provider (`sample.rs`).
 //! `session` opens the store once and runs each request line through the same dispatch as the
 //! one-shot verbs (`session.rs`), against the runtime it holds; on a path holding no store it
 //! starts without one, and with `--create` its `seed` creates the store it then holds. It also
@@ -44,6 +47,7 @@ mod propose;
 mod quality;
 pub(crate) mod rejections;
 mod resolve;
+mod sample;
 mod schema;
 mod seed;
 mod session;
@@ -334,6 +338,52 @@ pub enum Command {
         #[arg(long, value_name = "TYPE_NAME", num_args = 1..)]
         events: Vec<String>,
     },
+    /// Print a reproducible sample of the store's facts at one revision, each with the bytes of the
+    /// evidence it cites, for a judge: the `ekr.fact-sample/1` document
+    /// (`ekr.views.DrawFactSample`).
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST); it reads only. The facts
+    /// are the revision's Active assertions, of --type's subjects only when it is given; the
+    /// sample is the --size of them whose SHA-256 of `ekr.fact-sample/1:<seed>:<assertion id>` is
+    /// lowest, so one seed, size and revision draw one sample on every provider, and a larger
+    /// size extends a smaller one. Judge each item against its evidence, then report the pass
+    /// rate with `ekr fact-quality`. The runtime judges nothing.
+    #[command(after_help = SEE)]
+    Sample {
+        /// Any integer: the same seed draws the same sample.
+        #[arg(long, allow_negative_numbers = true)]
+        seed: i64,
+        /// How many facts to draw, 1 to 1000; all of them when the revision holds fewer. Outside
+        /// that range the verb is refused as `ekr.views.LimitExceeded` (exit 2).
+        #[arg(long, allow_negative_numbers = true)]
+        size: i64,
+        /// Draw only facts about nodes or edges of this type, or about this type itself: a type id
+        /// from `ekr ontology`, compared exactly (a subtype is another type).
+        #[arg(long = "type", value_name = "TYPE_ID")]
+        type_id: Option<ekr_core::TypeId>,
+        /// The committed revision to draw from; the newest (`ekr head`) when absent.
+        #[arg(long)]
+        revision: Option<u64>,
+    },
+    /// Print the pass rate of a judged sample with its Wilson score interval: the
+    /// `ekr.fact-quality/1` document (`ekr.views.ReportFactQuality`).
+    ///
+    /// Reads the judged sample, an `ekr.fact-judgements/1` JSON document:
+    /// `{"format": "ekr.fact-judgements/1", "sample": {"revision", "seed", "size", "type"},
+    /// "judgements": [{"assertion": <id>, "verdict": "Pass" | "Fail"}, ...]}`, `sample` optional
+    /// and echoed. Opens no store. `rate` is passed / judged and `lower` and `upper` the Wilson
+    /// score interval at --confidence; the three are left out when nothing was judged. An
+    /// assertion judged twice is refused as `ekr.views.JudgedTwice` (exit 2).
+    #[command(after_help = SEE)]
+    FactQuality {
+        /// The judged sample: an `ekr.fact-judgements/1` file, or `-` for stdin, written after
+        /// judging the items `ekr sample` printed.
+        judgements: PathBuf,
+        /// The confidence in basis points, 1 to 9999 (9500 is 95 %); outside that range the verb
+        /// is refused as `ekr.views.LimitExceeded` (exit 2).
+        #[arg(long, allow_negative_numbers = true, default_value_t = ekr_views::DEFAULT_CONFIDENCE)]
+        confidence: i64,
+    },
     /// Serve a read-only viewer of the store on 127.0.0.1 until interrupted: the page, the
     /// `ekr.graph-projection/1` at the head or at a revision, its bounded reads, and retained
     /// evidence bytes.
@@ -441,6 +491,8 @@ impl Command {
             | Self::CodeNames { .. }
             | Self::Quality { .. }
             | Self::Ocel { .. }
+            | Self::Sample { .. }
+            | Self::FactQuality { .. }
             | Self::View { .. }
             | Self::Session { .. }
             | Self::Mcp
@@ -533,6 +585,10 @@ enum Printed {
     Document(serde_json::Value),
     /// Text, printed as it is: `guide`, `operations`, `example`, and `view`'s end.
     Text(String),
+    /// One JSON document whose exact bytes the library wrote, printed as they are with a newline,
+    /// never parsed: `fact-quality`, whose numbers are binary64 values a parse could round to a
+    /// neighbour. A session embeds it in its answer as it is.
+    Raw(Box<serde_json::value::RawValue>),
 }
 
 impl Printed {
@@ -541,6 +597,11 @@ impl Printed {
         match self {
             Self::Document(document) => {
                 let mut text = serde_json::to_string_pretty(&document).map_err(Failure::fault)?;
+                text.push('\n');
+                Ok(text)
+            }
+            Self::Raw(document) => {
+                let mut text = document.get().to_owned();
                 text.push('\n');
                 Ok(text)
             }
@@ -740,6 +801,23 @@ fn dispatch(
         Command::Ocel { revision, events } => {
             let runtime = source.resolve("ocel")?.open()?;
             ocel::run(&runtime, revision, &events).map(Printed::Document)
+        }
+        Command::Sample {
+            seed,
+            size,
+            type_id,
+            revision,
+        } => {
+            let request = sample::request(seed, size, type_id)?;
+            let runtime = source.resolve("sample")?.open()?;
+            sample::run(&runtime, revision, &request).map(Printed::Document)
+        }
+        Command::FactQuality {
+            judgements,
+            confidence,
+        } => {
+            let judged = sample::read(&judgements, stdin)?;
+            sample::report(&judged, Some(confidence)).map(Printed::Raw)
         }
         Command::View { port } => {
             let store = source.configured("view")?;

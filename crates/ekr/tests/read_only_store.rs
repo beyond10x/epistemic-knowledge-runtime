@@ -334,6 +334,7 @@ fn every_verb_the_page_says_writes_is_refused_and_every_one_that_reads_answers_a
                 "explain" => &["explain", ALICE],
                 "resolve" => &["resolve", "-"],
                 "code-names" => &["code-names", &source],
+                "sample" => &["sample", "--seed", "1", "--size", "3"],
                 "view" => return None,
                 verb => &[verb],
             };
