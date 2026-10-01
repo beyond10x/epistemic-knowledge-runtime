@@ -4,12 +4,13 @@
 //! * The numbers the CLI prints are the binary64 values the library computed. `views.yaml` says
 //!   "Every host therefore answers the same binary64 values. A Decimal in ekr.fact-quality/1 is a
 //!   JSON number: the shortest decimal text that reads back as the same binary64 value", and
-//!   `docs/cli.md` says "every host prints the same numbers". Both lanes print
-//!   `serde_json::from_slice::<Value>` of the library's bytes (`crates/ekr/src/cli/sample.rs`).
-//!   Under `cargo test -p ekr` this case is green whatever the CLI does: the `jsonschema`
-//!   dev-dependency turns on `serde_json/float_roundtrip` for the binary under test, which a
-//!   `cargo build` or `cargo install` of `ekr` does not have. The same parse without that feature
-//!   is held red in `crates/ekr-views/tests/adversary_x6_q.rs`.
+//!   `docs/cli.md` says "every host prints the same numbers". Both lanes print the library's
+//!   exact bytes, never parsed (`crates/ekr/src/cli/sample.rs`, `Printed::Raw`), and this case
+//!   holds them byte for byte: the one-shot stdout is the bytes and a newline, the session answer
+//!   embeds them as they are. A comparison of parsed numbers alone could not fail under
+//!   `cargo test -p ekr`, whose `jsonschema` dev-dependency turns on `serde_json/float_roundtrip`
+//!   for the binary under test; the byte comparison fails for any parse-and-reprint, whatever the
+//!   features. The parse itself is held in `crates/ekr-views/tests/adversary_x6_q.rs`.
 //! * An empty judged sample, and an empty input.
 
 use std::io::Write;
@@ -110,6 +111,11 @@ fn fact_quality_prints_the_binary64_values_the_library_computed_one_shot_and_in_
             String::from_utf8_lossy(&one_shot.stderr)
         );
         let printed = String::from_utf8(one_shot.stdout).unwrap();
+        if printed != format!("{library}\n") {
+            differ.push(format!(
+                "one-shot at {confidence}: printed {printed:?}, not the library's bytes {library:?}"
+            ));
+        }
         for key in ["z", "lower", "upper", "rate"] {
             let (computed, shown) = (number(&library, key), number(&printed, key));
             if computed.to_bits() != shown.to_bits() {
@@ -162,6 +168,13 @@ fn fact_quality_prints_the_binary64_values_the_library_computed_one_shot_and_in_
         assert_eq!(answer["exit"], 0, "{line}");
         let library = report_fact_quality(&judged, Some(*confidence)).unwrap();
         let library = std::str::from_utf8(&library.bytes).unwrap().to_owned();
+        let embedded = format!(r#"{{"exit":0,"stdout":{library},"stderr":""}}"#);
+        if *line != embedded {
+            differ.push(format!(
+                "session at {confidence}: answered {line:?}, not the library's bytes embedded \
+                 {embedded:?}"
+            ));
+        }
         for key in ["z", "lower", "upper", "rate"] {
             let (computed, shown) = (number(&library, key), number(line, key));
             if computed.to_bits() != shown.to_bits() {

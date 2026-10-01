@@ -585,6 +585,10 @@ enum Printed {
     Document(serde_json::Value),
     /// Text, printed as it is: `guide`, `operations`, `example`, and `view`'s end.
     Text(String),
+    /// One JSON document whose exact bytes the library wrote, printed as they are with a newline,
+    /// never parsed: `fact-quality`, whose numbers are binary64 values a parse could round to a
+    /// neighbour. A session embeds it in its answer as it is.
+    Raw(Box<serde_json::value::RawValue>),
 }
 
 impl Printed {
@@ -593,6 +597,11 @@ impl Printed {
         match self {
             Self::Document(document) => {
                 let mut text = serde_json::to_string_pretty(&document).map_err(Failure::fault)?;
+                text.push('\n');
+                Ok(text)
+            }
+            Self::Raw(document) => {
+                let mut text = document.get().to_owned();
                 text.push('\n');
                 Ok(text)
             }
@@ -808,7 +817,7 @@ fn dispatch(
             confidence,
         } => {
             let judged = sample::read(&judgements, stdin)?;
-            sample::report(&judged, Some(confidence)).map(Printed::Document)
+            sample::report(&judged, Some(confidence)).map(Printed::Raw)
         }
         Command::View { port } => {
             let store = source.configured("view")?;

@@ -204,7 +204,6 @@ fn raw_number<'a>(text: &'a str, key: &str) -> &'a str {
 }
 
 #[test]
-#[ignore = "adversary x6-q: ekr prints serde_json::Value of the report, and without serde_json/float_roundtrip that parse moves about 1 in 12 z, lower and upper values to a neighbouring binary64"]
 fn every_binary64_the_report_holds_survives_the_parse_each_cli_and_session_answer_makes() {
     // `ekr fact-quality` and the session lane both print `serde_json::from_slice::<Value>` of the
     // library's bytes (crates/ekr/src/cli/sample.rs `report`), so a number that parse rounds to
@@ -240,7 +239,6 @@ fn every_binary64_the_report_holds_survives_the_parse_each_cli_and_session_answe
 }
 
 #[test]
-#[ignore = "adversary x6-q: docs/cli.md example z 1.9599639845400538 and upper 0.9385080552796037 print as 1.9599639845400536 and 0.9385080552796036 from a build without serde_json/float_roundtrip"]
 fn the_documented_example_prints_what_the_library_computes_after_the_clis_parse() {
     // docs/cli.md, `ekr fact-quality`: 2 of 3 at 9500 prints z 1.9599639845400538, lower
     // 0.20765960080204776 and upper 0.9385080552796037. The library computes those; the parse

@@ -14,6 +14,7 @@ use std::path::Path;
 use ekr_core::{RevisionNumber, TypeId};
 use ekr_kernel::Runtime;
 use ekr_views::{FactJudgements, FactQualityError, LimitExceeded, SampleRequest};
+use serde_json::value::RawValue;
 use serde_json::Value;
 
 use super::view::project_refusal;
@@ -73,9 +74,14 @@ pub(super) fn read(document: &Path, stdin: &mut dyn Read) -> Result<FactJudgemen
     FactJudgements::from_json(&bytes).map_err(|error| fault(&error))
 }
 
-/// The report of `judged` at `confidence` basis points. A confidence outside 1 to 9999 is
-/// `ekr.views.LimitExceeded` and an assertion judged twice `ekr.views.JudgedTwice` (exit 2).
-pub(super) fn report(judged: &FactJudgements, confidence: Option<i64>) -> Result<Value, Failure> {
+/// The report of `judged` at `confidence` basis points, as the exact bytes the library wrote: never
+/// parsed into a [`Value`], whose number parse may round a binary64 to its neighbour. A confidence
+/// outside 1 to 9999 is `ekr.views.LimitExceeded` and an assertion judged twice
+/// `ekr.views.JudgedTwice` (exit 2).
+pub(super) fn report(
+    judged: &FactJudgements,
+    confidence: Option<i64>,
+) -> Result<Box<RawValue>, Failure> {
     let answer =
         ekr_views::report_fact_quality(judged, confidence).map_err(|error| match error {
             FactQualityError::LimitExceeded(error) => limit_exceeded(&error),
@@ -83,5 +89,6 @@ pub(super) fn report(judged: &FactJudgements, confidence: Option<i64>) -> Result
                 Failure::refused("ekr.views.JudgedTwice", error)
             }
         })?;
-    serde_json::from_slice(&answer.bytes).map_err(Failure::fault)
+    let text = String::from_utf8(answer.bytes).map_err(Failure::fault)?;
+    RawValue::from_string(text).map_err(Failure::fault)
 }

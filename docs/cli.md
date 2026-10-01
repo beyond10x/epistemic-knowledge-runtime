@@ -698,25 +698,13 @@ ekr fact-quality judged.json
 ```
 
 ```json
-{
-  "failed": 1,
-  "judged": 3,
-  "lower": 0.20765960080204776,
-  "meta": {
-    "confidence": 9500,
-    "format": "ekr.fact-quality/1",
-    "sample": {
-      "revision": 0,
-      "seed": 42,
-      "size": 3
-    },
-    "z": 1.9599639845400538
-  },
-  "passed": 2,
-  "rate": 0.6666666666666666,
-  "upper": 0.9385080552796037
-}
+{"meta":{"format":"ekr.fact-quality/1","confidence":9500,"z":1.9599639845400538,"sample":{"revision":0,"seed":42,"size":3}},"judged":3,"passed":2,"failed":1,"rate":0.6666666666666666,"lower":0.20765960080204776,"upper":0.9385080552796037}
 ```
+
+Unlike the other verbs, which print their document indented with keys in alphabetical order,
+`ekr fact-quality` prints the exact bytes the library wrote: one line, keys in the format's own
+order. Its numbers are never parsed and printed again, which could move one to a neighbouring
+binary64 value. `ekr session` embeds those bytes in its answer as they are.
 
 `verdict` is `Pass` when the evidence supports the fact and `Fail` otherwise. `rate` is
 `passed / judged`. `lower` and `upper` are the Wilson score interval at `--confidence`, basis

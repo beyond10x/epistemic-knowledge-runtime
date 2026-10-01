@@ -16,7 +16,9 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   `ekr.fact-judgements/1` document, opens no store, and prints the `ekr.fact-quality/1` document:
   passed, failed, the pass rate and its Wilson score interval at `--confidence` basis points
   (9500 by default), computed with only exactly rounded IEEE 754 operations so every host prints
-  the same numbers. A size outside 1–1000 or a confidence outside 1–9999 is refused as
+  the same numbers. It prints the library's bytes as they are, on one line, and `ekr session`
+  embeds them unparsed; the workspace's `serde_json` reads every JSON number with
+  `float_roundtrip`, so no parse rounds one to a neighbouring binary64. A size outside 1–1000 or a confidence outside 1–9999 is refused as
   `ekr.views.LimitExceeded`, an assertion judged twice as `ekr.views.JudgedTwice`. The runtime
   judges nothing. Both verbs are `ekr session` verbs. Specified as `ekr.views.DrawFactSample` and
   `ekr.views.ReportFactQuality` in `systems/ekr/domains/views.yaml`, with `ekr_views::draw_sample`
