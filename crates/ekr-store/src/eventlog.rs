@@ -106,8 +106,10 @@ pub struct EventlogStore<S: EventStore> {
     /// this runtime deletes a retained object, so a verified read is not repeated. The one thing
     /// that can move is the retention class, and only upwards, by an event on the object's
     /// stream: a held class below the strongest is read again only once the log shows one
-    /// (`log_seen`). An object this handle writes is forgotten, and read again when it is next
-    /// required. The bytes are held once, shared with the process's registry of verified bytes
+    /// (`log_seen`). A redaction erases an event in place and moves no log position, so a handle
+    /// that holds an object below the strongest does not see its stream event redacted until it
+    /// next reads that stream (`task:held-bytes-notice-deleted-blobs`). An object this handle
+    /// writes is forgotten, and read again when it is next required. The bytes are held once, shared with the process's registry of verified bytes
     /// (`crate::verified`) for as long as they are held.
     verified: std::sync::Mutex<BTreeMap<ContentHash, HeldObject>>,
     /// The tenant log position through which this handle has looked for events on the streams of

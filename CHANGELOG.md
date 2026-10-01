@@ -15,10 +15,14 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   object's own stream, so a handle now looks through the tenant log from the position it last
   looked through — one provider read when nothing was appended — and reads again only the held
   objects whose streams have an event there. A class raised by another handle is still seen on
-  the next load; refusals are unchanged. `ekr_store::stream_reads` counts object-stream and log
-  reads (`crates/ekr-store/tests/eventlog_object_memo.rs`), and
-  `crates/ekr-sdk/tests/commit_scaling.rs` is an ignored release harness that times each
-  transaction of a small and a large delta over one base store.
+  the next load. Refusals are unchanged except one: a SQLite handle that already holds an evidence
+  payload whose stream event is then redacted in place (eventlog `redact`, which nothing in the
+  runtime calls yet) serves the payload until it next reads that stream, where it refused before
+  (`task:held-bytes-notice-deleted-blobs`); a fresh handle, and a file-provider handle, refuse
+  as before. `ekr_store::stream_reads` counts object-stream and log reads
+  (`crates/ekr-store/tests/eventlog_object_memo.rs`), and `crates/ekr-sdk/tests/commit_scaling.rs`
+  is an ignored release harness that times each transaction of a 10,000- and an 80,000-fact delta
+  over one base store.
 
 ## [0.0.24] — 2026-09-30
 

@@ -9,11 +9,12 @@
 //! of the large delta costs at most [`BOUND`] times one at the end of the small delta, and that
 //! the last transactions of the large delta cost at most [`BOUND`] times its first.
 //!
-//! Ignored: it measures time, which a loaded machine distorts, and it takes minutes. Run it in
-//! release, where it builds a release `ekr`:
+//! Ignored: it measures time, which a loaded machine distorts, and at the acceptance's sizes it
+//! takes about an hour ([`Sizes`]). Run it in release, where it builds a release `ekr`:
 //!
 //! ```text
 //! cargo test --release -p ekr-sdk --test commit_scaling -- --ignored --nocapture
+//! EKR_SCALING_QUICK=1 cargo test --release -p ekr-sdk --test commit_scaling -- --ignored --nocapture
 //! ```
 //!
 //! Synthetic data only: invented organisations and messages.
@@ -49,14 +50,63 @@ const OPERATIONS: usize = 1_998;
 /// Facts in one transaction. Each fact is one organisation, one assertion of its legal name and
 /// the evidence it cites: three operations.
 const FACTS_PER_TRANSACTION: usize = OPERATIONS / 3;
-/// Facts in the base store and in the two deltas, in whole transactions, so that every
-/// transaction timed carries the same operations.
-const BASE: usize = 9 * FACTS_PER_TRANSACTION;
-const SMALL: usize = 4 * FACTS_PER_TRANSACTION;
-const LARGE: usize = 24 * FACTS_PER_TRANSACTION;
 /// Transactions averaged at each end of a delta. The first transaction of a session is left out
-/// of both: it verifies the whole history the session opened on, once.
+/// of both: it verifies the whole history the session opened on, once. So is a last transaction
+/// that carries fewer facts than the others.
 const WINDOW: usize = 3;
+
+/// Facts in the base store and in the two deltas.
+///
+/// The acceptance's sizes by default: a 10,000- and an 80,000-fact delta over a 20,000-fact base
+/// store, about an hour on both providers. `EKR_SCALING_QUICK=1` selects whole-transaction sizes
+/// that run in minutes (9, 4 and 24 transactions); `EKR_SCALING_BASE`, `EKR_SCALING_SMALL` and
+/// `EKR_SCALING_LARGE` set any of the three in facts, over either.
+#[derive(Clone, Copy, Debug)]
+struct Sizes {
+    base: usize,
+    small: usize,
+    large: usize,
+}
+
+impl Sizes {
+    fn from_environment() -> Self {
+        let quick = std::env::var("EKR_SCALING_QUICK").is_ok_and(|value| value == "1");
+        let defaults = if quick {
+            Self {
+                base: 9 * FACTS_PER_TRANSACTION,
+                small: 4 * FACTS_PER_TRANSACTION,
+                large: 24 * FACTS_PER_TRANSACTION,
+            }
+        } else {
+            Self {
+                base: 20_000,
+                small: 10_000,
+                large: 80_000,
+            }
+        };
+        let read = |name: &str, default: usize| {
+            std::env::var(name).map_or(default, |value| {
+                value
+                    .parse()
+                    .unwrap_or_else(|_| panic!("{name}={value} is not a number of facts"))
+            })
+        };
+        let sizes = Self {
+            base: read("EKR_SCALING_BASE", defaults.base),
+            small: read("EKR_SCALING_SMALL", defaults.small),
+            large: read("EKR_SCALING_LARGE", defaults.large),
+        };
+        for (name, facts) in [("small", sizes.small), ("large", sizes.large)] {
+            assert!(
+                facts / FACTS_PER_TRANSACTION > WINDOW,
+                "the {name} delta of {facts} facts has too few full transactions to time: more \
+                 than {WINDOW} of {FACTS_PER_TRANSACTION} facts each are needed"
+            );
+        }
+        sizes
+    }
+}
+
 /// How much more a transaction may cost at the larger store.
 const BOUND: f64 = 1.5;
 
@@ -282,7 +332,7 @@ fn line(label: &str, cost: Cost) -> String {
 
 /// Builds the base store, then applies the small and the large delta to copies of it, and returns
 /// what went wrong against the bounds.
-fn measure(backend: Backend) -> Vec<String> {
+fn measure(backend: Backend, sizes: Sizes) -> Vec<String> {
     let directory = tempfile::tempdir().unwrap();
     let base = directory.path().join("base");
     std::fs::create_dir_all(&base).unwrap();
@@ -304,23 +354,24 @@ fn measure(backend: Backend) -> Vec<String> {
         session.close().unwrap();
     }
     let started = Instant::now();
-    let base_costs = apply(&base, backend, 0, BASE);
+    let base_costs = apply(&base, backend, 0, sizes.base);
     println!(
-        "{backend:?}: base store of {BASE} facts in {} transactions, {:.1} s",
+        "{backend:?}: base store of {} facts in {} transactions, {:.1} s",
+        sizes.base,
         base_costs.len(),
         started.elapsed().as_secs_f64()
     );
 
     let mut deltas = Vec::new();
-    for (label, count) in [("small", SMALL), ("large", LARGE)] {
+    for (label, count) in [("small", sizes.small), ("large", sizes.large)] {
         let copy = directory.path().join(label);
         copy_tree(&base, &copy);
         let started = Instant::now();
-        let costs = apply(&copy, backend, BASE, count);
+        let costs = apply(&copy, backend, sizes.base, count);
         assert_eq!(
             costs.len(),
-            count / FACTS_PER_TRANSACTION,
-            "{backend:?}: the {label} delta is not one proposal per full transaction"
+            count.div_ceil(FACTS_PER_TRANSACTION),
+            "{backend:?}: the {label} delta is not one proposal per transaction"
         );
         println!(
             "{backend:?}: {label} delta of {count} facts in {} transactions, {:.1} s",
@@ -333,7 +384,13 @@ fn measure(backend: Backend) -> Vec<String> {
         deltas.push(costs);
     }
 
-    let (small, large) = (&deltas[0][1..], &deltas[1][1..]);
+    // Every transaction timed carries the same operations: the first of each session and a short
+    // last one are left out.
+    let timed = |costs: &[Cost], facts: usize| costs[1..facts / FACTS_PER_TRANSACTION].to_vec();
+    let (small, large) = (
+        timed(&deltas[0], sizes.small),
+        timed(&deltas[1], sizes.large),
+    );
     let small_end = mean(&small[small.len() - WINDOW..]);
     let large_start = mean(&large[..WINDOW]);
     let large_end = mean(&large[large.len() - WINDOW..]);
@@ -381,9 +438,11 @@ fn measure(backend: Backend) -> Vec<String> {
 #[test]
 #[ignore = "measures time; run in release with --ignored --nocapture"]
 fn a_transaction_costs_the_same_in_a_large_delta_as_in_a_small_one() {
+    let sizes = Sizes::from_environment();
+    println!("{sizes:?} facts");
     let mut wrong = Vec::new();
     for backend in [Backend::Sqlite, Backend::File] {
-        wrong.extend(measure(backend));
+        wrong.extend(measure(backend, sizes));
     }
     assert!(wrong.is_empty(), "\n{}", wrong.join("\n"));
 }

@@ -179,8 +179,7 @@ fn held_handle_after_redaction<S: RevisionLog + ObjectStore + Initialize>(
 /// evidence stream again on this load and refused it, `stream-envelope-disagrees`, as the fresh
 /// handle does.
 #[test]
-#[ignore = "adversary x6-c: red on 88e6ad95; a held SQLite handle serves an evidence payload \
-            whose stream event was redacted in place, where base refused it"]
+#[ignore = "task:held-bytes-notice-deleted-blobs: an in-place redaction of a held non-canonical object's stream event moves no feed position"]
 fn a_held_evidence_payload_whose_event_is_redacted_is_refused_as_a_fresh_handle_refuses_it_on_sqlite(
 ) {
     let directory = TempDir::new().unwrap();
