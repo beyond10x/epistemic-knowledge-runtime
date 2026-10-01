@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:sdk-store-checks
 kind: story
-status: draft
+status: active
 title: Store health, the code-names check and fact quality are SDK calls
 relations:
 - depends_on: story:sdk-session-transport
@@ -16,7 +16,10 @@ scope:
   path: crates/ekr-sdk/src/checks.rs
 - confidence: inferred
   path: crates/ekr-sdk/tests/checks.rs
-revision: 3
+revision: 5
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-01T11:10:06Z", actor: "human:timo", revision: 4, decided_on: {"recorded":{"review_outcome":1}}}
+- {from: "proposed", to: "active", at: "2026-10-01T11:10:06Z", actor: "human:timo", revision: 5, decided_on: {"recorded":{"review_outcome":1}}}
 ---
 ## Context
 

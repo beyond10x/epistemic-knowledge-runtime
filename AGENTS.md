@@ -185,3 +185,6 @@ gives each its own directory and says so in its page.
 - A capability from `docs/predecessors.md` § 2 dropped without an ADR.
 - Customer or personal data copied into fixtures, tests or documentation. Fixtures use the
   runtime's own vocabulary.
+- `git stash` in any worktree of this repository. Every worktree shares one stash list, so a `pop`
+  in one tree takes another unit's stash (observed in wave extract-07, 2026-10-01). Keep work aside
+  with a commit on the unit's branch or a copy under `~/.cache/<unit>-scratch/`.

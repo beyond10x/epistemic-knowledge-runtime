@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-30T18:58:01Z",
+  "actor": "human:timo",
+  "artifact": "task:protocol-error-keeps-the-answer",
+  "kind": "task",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "impl/protocol-error-answer e3ecc094",
+    "review": "review-result:adversary-extract-06-p-pass-1",
+    "outcome": "fixed"
+  }
+}

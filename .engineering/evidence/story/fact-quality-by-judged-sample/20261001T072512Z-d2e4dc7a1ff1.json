@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-01T07:25:12Z",
+  "actor": "human:timo",
+  "artifact": "story:fact-quality-by-judged-sample",
+  "kind": "story",
+  "revision": 10,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "impl/fact-quality-sample c8a61772",
+    "review": "review-result:adversary-extract-06-q-pass-1",
+    "outcome": "fixed"
+  }
+}

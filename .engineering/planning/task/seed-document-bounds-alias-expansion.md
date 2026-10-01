@@ -2,12 +2,15 @@
 format: aep.planning-md/3
 id: task:seed-document-bounds-alias-expansion
 kind: task
-status: draft
+status: active
 title: ekr seed bounds the size and alias expansion of its document
 relations:
 - serves: vision:o5
 - decomposes: epic:p1-kernel-ontology-core
-revision: 4
+revision: 7
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 6, decided_on: {"recorded":{"review_outcome":1}}}
+- {from: "proposed", to: "active", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 7, decided_on: {"recorded":{"review_outcome":1}}}
 ---
 ## Context
 
@@ -24,6 +27,13 @@ implementor reports, and the coordinator has not re-read:
 
 Who reaches it: whoever runs `ekr seed` on a document they did not write. A seed runs once per
 store.
+
+Wave extract-06 unit D (2026-10-01, `review-result:adversary-extract-06-d-pass-1`) added an opt-in
+depth bound to the vendored YAML loader, `Documents::from_str_within_depth`
+(`vendor/serde_yaml_ng`), which stops the parser at the first container past the limit, before the
+full load; the extraction reader uses it at depth 32 (`DOCUMENT_V2_LIMITS`). The kernel's
+transaction-document reader checks depth only after loading, so the quadratic load still runs
+before its refusal. Both readers of this task use the same bounded loader.
 
 ## Acceptance
 
