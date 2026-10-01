@@ -56,7 +56,7 @@
 //! | `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision read at the request, `application/json`; no document names it, and the page reads it here. Any query is 400 `invalid-query`, an unseeded store 404 `ekr.views.NotSeeded` |
 //! | `GET /projection` | the `ekr.graph-projection/1` bytes `ekr-views` renders at the head, `application/json` |
 //! | `GET /projection?revision=N` | the same at revision `N`; an absent revision is 404 `ekr.views.RevisionNotFound` |
-//! | `GET /roles[?revision=N]` | the `ekr.view-roles/1` node-type roles of that revision (the head when absent), derived by [`super::view_roles`] from the same loaded revision the projection renders, `application/json`; refused as `/projection` refuses |
+//! | `GET /roles[?revision=N]` | the `ekr.view-roles/1` node-type roles of that revision (the head when absent), derived by [`ekr_views::Index::view_roles_document`] from the same loaded revision the projection renders, `application/json`; refused as `/projection` refuses |
 //! | `GET /evidence/<evidence id>` | that evidence's retained bytes, `text/plain; charset=utf-8` when they are UTF-8, else `application/octet-stream`; 404 for an unknown id or bytes not retained |
 //! | `GET /overview[?revision=N&limit=L]` | [`ekr_views::Index::overview`]'s `ekr.graph-overview/1` bytes, `application/json` |
 //! | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | [`ekr_views::Index::page`]'s records, streamed by [`write_stream`] as `application/x-ndjson`: chunked to an HTTP/1.1 request; to an HTTP/1.0 request, which may not be sent `Transfer-Encoding` (RFC 9112 § 6.1), unframed and ended by the close. `seeds=` is the empty set, answered with an empty page |
@@ -1265,7 +1265,7 @@ fn load_answers(
     let index = indexes.index(runtime, Some(at))?;
     let loaded = index.loaded();
     let projection = ekr_views::render(loaded)?.bytes;
-    let roles = super::view_roles::document(&loaded.graph);
+    let roles = index.view_roles_document();
     Ok(Answers { projection, roles })
 }
 

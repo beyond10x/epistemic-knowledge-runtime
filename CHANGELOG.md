@@ -4,6 +4,18 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Changed
+
+- **One rule decides which node types are events** (`docs/cli.md`, Roles and `ekr ocel`).
+  `GET /roles` of `ekr view` now marks `event` exactly the types the overview, the timeline and
+  `ekr ocel` treat as events: the valid-time rule of `ekr.views.TypeTiming`, where a type is an
+  event type when at least 60% of its judged nodes are instant. Before, `/roles` used its own
+  structural rule — a type with a valid-time assertion that points at another type — so one store
+  could get different event types from the two. An event type is now `event` whatever its arcs,
+  checked before `observation`; `observation` and `subject` still read the edge types' source and
+  target types. `/roles` is now derived in `ekr-views` (`ekr_views::Index::view_roles_document`,
+  with `Index::event_types` the one rule), specified in `systems/ekr/domains/views.yaml`.
+
 ## [0.0.24] — 2026-09-30
 
 A store exports as an OCEL 2.0 event log; the viewer's compact mode works from the keyboard and in

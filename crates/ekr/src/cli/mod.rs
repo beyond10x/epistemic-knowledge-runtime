@@ -51,7 +51,6 @@ mod snapshot;
 mod transactions;
 mod validate;
 mod view;
-mod view_roles;
 
 use std::borrow::Cow;
 use std::ffi::OsString;

@@ -45,6 +45,10 @@
 //!
 //! [`export_ocel`] (`ekr.ocel/1`) exports one revision as an OCEL 2.0 object-centric event log,
 //! its event types the overview's or the ones a request names; [`ocel`] is its pure half.
+//!
+//! [`Index::event_types`] is EKR's one rule for which node types are events: the timeline,
+//! [`ocel`] and [`Index::view_roles_document`] (`ekr.view-roles/1`, the host's `GET /roles`) all
+//! read it.
 
 mod changes;
 mod code_names;
@@ -53,6 +57,7 @@ mod index;
 mod ocel;
 mod quality;
 mod query;
+mod roles;
 mod timeline;
 
 pub use changes::{
@@ -71,6 +76,7 @@ pub use query::{
     SliceNode, SlicePage, SliceRecord, DETAIL_FORMAT, MATCHES_FORMAT, OVERVIEW_FORMAT,
     SLICE_FORMAT,
 };
+pub use roles::{Role, ROLES_FORMAT};
 pub use timeline::{BucketWidth, SubjectsTimelined, TimelineRequest, TIMELINE_FORMAT};
 
 use std::collections::{BTreeMap, BTreeSet};

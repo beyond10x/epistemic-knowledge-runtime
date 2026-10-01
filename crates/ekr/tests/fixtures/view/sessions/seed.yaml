@@ -363,7 +363,7 @@ graph:
         assessment: Proposed
         lifecycle: Active
         valid_time:
-          from: null
+          from: 1775041800000
           to: null
         transaction_time:
           recorded_from: 0
@@ -381,6 +381,25 @@ graph:
         lifecycle: Active
         valid_time:
           from: null
+          to: null
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+      00000000-0000-4000-8000-000000002507:
+        id: 00000000-0000-4000-8000-000000002507
+        root_id: 00000000-0000-4000-8000-000000002002
+        subject: !Node 00000000-0000-4000-8000-000000002403
+        predicate: !Property 00000000-0000-4000-8000-000000002301
+        object: !Value
+          value_kind: String
+          value: east hall
+        evidence:
+        - 00000000-0000-4000-8000-000000002601
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: 1775031000000
           to: null
         transaction_time:
           recorded_from: 0

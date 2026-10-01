@@ -459,13 +459,14 @@ ekr ocel --revision 0
 ekr ocel --events Person
 ```
 
-The event types are the viewer's: a node type the overview marks as an event type
-(`roles.types[].event` of `ekr.graph-overview/1`), by the valid-time rule the timeline uses. A node
-is judged when it holds a timestamp-like property value (a `Timestamp`, or an `Integer` of epoch
-milliseconds from 1,000,000,000,000 up to 10,000,000,000,000), or when it has at least two dated
-facts: `valid_time.from` of assertions of any lifecycle whose subject it is, or whose relation
-object it is. It is instant when it is timestamped or its dated facts lie within one hour. A type is
-an event type when it has a judged node and at least 60% of its judged nodes are instant.
+The event types are EKR's one event-type rule, the same types the overview marks as events
+(`roles.types[].event` of `ekr.graph-overview/1`), the timeline walks to and `GET /roles` marks
+`event` (§ Roles). The rule: a node is judged when it holds a timestamp-like property value (a
+`Timestamp`, or an `Integer` of epoch milliseconds from 1,000,000,000,000 up to
+10,000,000,000,000), or when it has at least two dated facts: `valid_time.from` of assertions of
+any lifecycle whose subject it is, or whose relation object it is. It is instant when it is
+timestamped or its dated facts lie within one hour. A type is an event type when it has a judged
+node and at least 60% of its judged nodes are instant.
 `--events <type name>...` names the event types instead: exactly the node types with those names,
 a name two types share naming both; a name no node type holds is refused as
 `ekr.views.EventTypeNotFound` (exit 2), naming it.
@@ -659,7 +660,7 @@ then answers:
 | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | the `ekr.graph-slice/1` page of the nodes within `D` hops of the seeds (`D` 0 to 2, at most `L` nodes, 1 to 2,000, and `E` edges, 1 to 5,000, 5,000 when absent, from cursor `A`), streamed as NDJSON (below) |
 | `GET /node/<node id>[?revision=N]` | the `ekr.node-detail/1` document of that node, `application/json` |
 | `GET /search?q=<text>[&limit=L][&revision=N]` | the `ekr.node-matches/1` document of the nodes whose name or an alias contains the text (at most `L`, 1 to 100, 20 when absent), `application/json` |
-| `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | the `ekr.graph-timeline/1` document: one row per node of the row type `type` (the first the document ranks when absent) with the events related to it within `H` hops (1 to 3) counted per time bucket, at most `L` rows (1 to 500), the most active first; `B` is the finest bucket, `day` or `week`; with `subject` the row of that node alone and its events; `application/json` |
+| `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | the `ekr.graph-timeline/1` document: one row per node of the row type `type` (the first the document ranks when absent) with the events related to it within `H` hops (1 to 3) — nodes of an event type, by the one rule in § `ekr ocel` — counted per time bucket, at most `L` rows (1 to 500), the most active first; `B` is the finest bucket, `day` or `week`; with `subject` the row of that node alone and its events; `application/json` |
 | `GET /changes?since_revision=N\|since_valid=T\|since_recorded=T[&at=R][&limit=L][&after=A]` | the `ekr.graph-changes/1` page of what changed ([below](#changes-since)) after revision `N`, after valid time `T` or after transaction time `T` (milliseconds since the epoch), up to revision `R` (the head when absent): at most `L` changes (1 to 2,000, 500 when absent) from cursor `A`, `application/json` |
 
 Any other method is 405 and any other path 404. A request that announces a body (a
@@ -783,9 +784,10 @@ exactly as `/projection` is: 404 `ekr.views.RevisionNotFound` for a revision the
 hold, 400 `invalid-query` for any query but exactly `revision=N` with `N` in ASCII decimal
 digits (an empty pair, a second pair, a sign or a space is refused).
 
-The rule reads the store's shape and nothing else — never a type, edge-type, property or entity
-name, and never an id compared to a constant — so a store whose every name is changed gets the same
-roles, id for id. To apply it by hand to the revision's ontology and assertions:
+The rule reads the store's shape and its event types and nothing else — never a type, edge-type,
+property or entity name, and never an id compared to a constant — so a store whose every name is
+changed gets the same roles, id for id. To apply it by hand to the revision's ontology and
+assertions:
 
 1. **Arcs.** First widen each edge type's `source_types` and `target_types` to every node type that
    conforms to one of them: the listed types and all their descendants through `parents`,
@@ -795,25 +797,24 @@ roles, id for id. To apply it by hand to the revision's ontology and assertions:
    other.
 2. **Degree.** A type's *targets* are the other types it has an arc to; its *sources* are the other
    types with an arc to it.
-3. **Timed.** A type is *timed* when some assertion the revision holds — property or relation,
-   whatever its assessment or lifecycle — has a node of that type as its subject and a valid time
-   with `from` or `to` set. The node's own type counts, not its ancestors. Assertions about an edge
-   or a type do not count.
-4. **Advancing.** A type is *advancing* when it is timed and has at least one target.
+3. **Event types.** The event types are EKR's one event-type rule, given in § `ekr ocel`: the
+   types the overview marks `roles.types[].event` and the timeline and `ekr ocel` treat as events,
+   at the same revision.
 
 Each node type then takes the first role whose condition holds:
 
 | role | condition |
 |---|---|
-| `observation` | no sources, and at least one target is advancing |
-| `event` | advancing |
+| `event` | an event type |
+| `observation` | no sources, and at least one target is an event type |
 | `subject` | at least one source |
 | none | anything else: no entry |
 
-An observation points at events and nothing points at it; an event is timed and points on; a
-subject is pointed at and is not an event. A timed type with no targets is therefore a subject, a
-type with no arc to or from another type after widening has no role, and a revision that adds a
-timed assertion can move a type from `subject` to `event`.
+So the `event` entries are exactly the event types the overview, the timeline and `ekr ocel` use;
+an observation points at events and nothing points at it; a subject is pointed at and is not an
+event. An event type is an event whatever its arcs, a type that is no event type and has no arc to
+or from another type after widening has no role, and a revision that adds a dated fact can move a
+type from `subject` to `event`.
 
 ### `ekr session`
 

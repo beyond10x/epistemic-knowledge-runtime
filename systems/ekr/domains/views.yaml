@@ -651,6 +651,11 @@ types:
   #   not depend on the open edge/relation join, so both are read.
   #   A type is an event type when judged > 0 and 5 × instant >= 3 × judged
   #   (instant / judged >= 0.6).
+  #   This is EKR's one definition of an event type (task:one-event-type-rule). Every reader that
+  #   asks which node types are events takes exactly the types whose `event` is true here, and no
+  #   other rule: the timeline (ekr.graph-timeline/1), ekr.ocel/1 when its request names no event
+  #   type, and the host's `GET /roles` (ekr.view-roles/1), whose `event` entries are exactly
+  #   these types, at the same revision.
   #   The observation type is, among the event types whose neighbour_types / nodes is at least the
   #   mean of neighbour_types / nodes over all event types, the one with the most nodes; ties go to
   #   the lowest type id. The ratios are compared exactly as rationals, never in floating point,
@@ -658,8 +663,9 @@ types:
   #   ties by the order in which a type first appeared among its nodes.
   # The reference viewer derived three further roles — subject types, the edge type joining an
   # observation to what it is about, and a history property. UNMAPPED: this format does not carry
-  # them; whether the overview or the page derives them is open for the owner. The structural
-  # rule the host served as /roles is not carried either.
+  # them; whether the overview or the page derives them is open for the owner. The rest of the
+  # rule the host serves as /roles — its `observation` and `subject` roles, read off the edge
+  # types' source and target types — is not carried either; only its `event` role is, above.
   - name: ekr.views.TypeTiming
     kind: struct
     fields:
