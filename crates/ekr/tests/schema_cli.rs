@@ -1141,3 +1141,67 @@ fn the_extraction_reader_bounds_a_document_as_the_transaction_reader_does() {
         );
     }
 }
+
+/// `ekr_kernel::schema::yaml_document` is what `ekr schema ekr.extraction-document/1` is built
+/// from: called on `ekr_integrate::ExtractionDocument` it titles the schema, follows the root
+/// description with the same YAML tag text the printed schema ends with, describes exactly the
+/// fields it is given, and names the same fields and definitions the printed schema does. The
+/// one difference is the one the CLI adds because the derive cannot say it: a fact's `evidence`
+/// is required.
+#[test]
+fn the_kernels_yaml_document_schema_is_what_the_extraction_schema_is_built_from() {
+    let generated = serde_json::to_value(ekr_kernel::schema::yaml_document::<
+        ekr_integrate::ExtractionDocument,
+    >("a title", "A root.", &[("facts", "What it read.")]))
+    .unwrap();
+    let printed = schema("ekr.extraction-document/1");
+    assert_eq!(generated["title"], "a title");
+    let tags = generated["description"]
+        .as_str()
+        .unwrap()
+        .strip_prefix("A root. ")
+        .unwrap_or_else(|| panic!("the root description comes first: {generated}"));
+    assert!(tags.starts_with("The document is YAML"), "{tags}");
+    assert!(
+        printed["description"].as_str().unwrap().ends_with(tags),
+        "the printed schema ends with the same tag text: {}",
+        printed["description"]
+    );
+    assert_eq!(
+        generated["properties"]["facts"]["description"],
+        "What it read."
+    );
+    for unlisted in ["format", "ontology", "entities", "evidence"] {
+        assert!(
+            generated["properties"][unlisted]
+                .get("description")
+                .is_none(),
+            "{unlisted}: {}",
+            generated["properties"][unlisted]
+        );
+    }
+    assert_eq!(keys(&generated["properties"]), keys(&printed["properties"]));
+    assert_eq!(generated["required"], printed["required"]);
+    assert_eq!(keys(&generated["$defs"]), keys(&printed["$defs"]));
+    assert!(
+        generated["$defs"]["ContentHash"]["description"]
+            .as_str()
+            .is_some_and(|description| description.contains("ekr hash")),
+        "{}",
+        generated["$defs"]["ContentHash"]
+    );
+    for fact in ["PropertyFact", "RelationFact"] {
+        let required = |schema: &Value| {
+            schema["$defs"][fact]["required"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("evidence"))
+        };
+        assert!(
+            !required(&generated),
+            "{fact}: {}",
+            generated["$defs"][fact]
+        );
+        assert!(required(&printed), "{fact}: {}", printed["$defs"][fact]);
+    }
+}
