@@ -218,10 +218,10 @@ fn commits(explained: &ExplanationResult) -> Vec<TransactionId> {
 
 /// An origin commit receipt whose `committed_at` was altered in the capture no longer agrees with
 /// the retained receipt at its revision coordinate. Base found the origin by its document and
-/// refused it in `verify` as `commit-record-disagrees`; the unit looks the origin up by that
-/// altered instant, finds nothing, and names it `origin-missing` instead.
+/// refused it in `verify` as `commit-record-disagrees`. Unit X first looked the origin up by that
+/// altered instant and named it `origin-missing`; it now matches the origin by revision, through
+/// the verified coordinate's instant, and `verify` refuses the receipt as base did.
 #[test]
-#[ignore = "adversary x6-x: altered origin committed_at is origin-missing, base said commit-record-disagrees"]
 fn an_origin_receipt_with_an_altered_instant_is_refused_as_base_refused_it() {
     let mut wrong = Vec::new();
     for file in [false, true] {
@@ -251,10 +251,10 @@ fn an_origin_receipt_with_an_altered_instant_is_refused_as_base_refused_it() {
 }
 
 /// A second retained record of the very same commit, under another transaction key. Base saw two
-/// commits adding the assertion and refused `origin-ambiguous`; the unit's revision-keyed index
-/// keeps one of them and answers.
+/// commits adding the assertion and refused `origin-ambiguous`. Unit X's revision-keyed index first
+/// kept one of them and answered; two records claiming one revision are now `origin-ambiguous`,
+/// before any document is read.
 #[test]
-#[ignore = "adversary x6-x: a duplicated origin record is answered, base refused origin-ambiguous"]
 fn a_duplicated_origin_record_is_refused_as_ambiguous() {
     let mut wrong = Vec::new();
     for file in [false, true] {
@@ -280,11 +280,13 @@ fn a_duplicated_origin_record_is_refused_as_ambiguous() {
 }
 
 /// A forged record, at another revision and instant, whose committed document also adds the
-/// assertion. Base refused `origin-ambiguous`; the unit never reads it, because its receipt's
-/// instant is not the assertion's `recorded_from`.
+/// assertion. Base refused `origin-ambiguous`. The coordinator decided (adversary x6-x, finding 4)
+/// that explain keeps the narrower reading documented in `systems/ekr/domains/kernel.yaml`,
+/// `ekr.kernel.ExplanationResult`, "What explain trusts", and in `VerifiedRead::explain`'s
+/// "What explain trusts": the record is on no chain, is not read, and the answer is the chain of
+/// verified links, exactly as before the forgery.
 #[test]
-#[ignore = "adversary x6-x: a forged second origin at another instant is answered, base refused origin-ambiguous"]
-fn a_forged_second_origin_at_another_instant_is_refused_as_ambiguous() {
+fn a_forged_second_origin_at_another_instant_is_not_read() {
     let mut wrong = Vec::new();
     for file in [false, true] {
         let directory = tempfile::tempdir().unwrap();
@@ -296,29 +298,33 @@ fn a_forged_second_origin_at_another_instant_is_refused_as_ambiguous() {
         land(&kernel, &tx, 20);
 
         let mut read = kernel.read(None).unwrap();
-        assert!(read.explain(x.id).is_ok(), "control file={file}");
+        let control = read.explain(x.id).unwrap();
         let transactions = Arc::make_mut(&mut read.transactions);
         let mut forged = transactions[&tx.id].clone();
         let receipt = forged.committed.as_mut().unwrap();
         receipt.committed_at = Timestamp::from_millis(99);
         receipt.result.revision = RevisionNumber::SEED;
         transactions.insert(TransactionId::mint(), forged);
-        let got = code(read.explain(x.id));
-        if got != "origin-ambiguous" {
-            wrong.push(format!("file={file}: {got}"));
+        match read.explain(x.id) {
+            Ok(answered) if answered == control => {}
+            other => wrong.push(format!("file={file}: {other:?}")),
         }
     }
-    assert!(wrong.is_empty(), "base refused origin-ambiguous: {wrong:?}");
+    assert!(
+        wrong.is_empty(),
+        "the forged record changed the verified chain: {wrong:?}"
+    );
 }
 
 /// A forged record whose committed document retracts an assertion the verified graph holds
 /// active. Base read every committed document's lifecycle operations, met this one and refused it
-/// in `verify` (`proposal-record-disagrees`: no retained proposal record holds that document);
-/// the unit reads a lifecycle only at the graph's own `at_revision`, so an active assertion
-/// answers without looking.
+/// in `verify` (`proposal-record-disagrees`). The coordinator decided (adversary x6-x, finding 5)
+/// that explain keeps the narrower reading documented in `systems/ekr/domains/kernel.yaml`,
+/// `ekr.kernel.ExplanationResult`, "What explain trusts", and in `VerifiedRead::explain`'s
+/// "What explain trusts": a lifecycle is read only at the graph's own `at_revision`, so the
+/// active assertion is answered from its verified links, exactly as before the forgery.
 #[test]
-#[ignore = "adversary x6-x: a forged retraction of an active assertion is answered, base refused it"]
-fn a_forged_retraction_of_an_active_assertion_is_refused() {
+fn a_forged_retraction_of_an_active_assertion_is_not_read() {
     let mut wrong = Vec::new();
     for file in [false, true] {
         let directory = tempfile::tempdir().unwrap();
@@ -330,7 +336,7 @@ fn a_forged_retraction_of_an_active_assertion_is_refused() {
         land(&kernel, &tx, 20);
 
         let mut read = kernel.read(None).unwrap();
-        assert!(read.explain(x.id).is_ok(), "control file={file}");
+        let control = read.explain(x.id).unwrap();
         let retraction = transaction(
             &seed,
             vec![GraphOperation::RetractAssertion(Retraction {
@@ -347,14 +353,14 @@ fn a_forged_retraction_of_an_active_assertion_is_refused() {
         receipt.committed_at = Timestamp::from_millis(99);
         receipt.result.revision = RevisionNumber::SEED;
         transactions.insert(retraction.id, forged);
-        let got = code(read.explain(x.id));
-        if got != "proposal-record-disagrees" {
-            wrong.push(format!("file={file}: {got}"));
+        match read.explain(x.id) {
+            Ok(answered) if answered == control => {}
+            other => wrong.push(format!("file={file}: {other:?}")),
         }
     }
     assert!(
         wrong.is_empty(),
-        "base refused proposal-record-disagrees: {wrong:?}"
+        "the forged record changed the verified chain: {wrong:?}"
     );
 }
 

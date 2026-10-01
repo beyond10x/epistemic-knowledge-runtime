@@ -313,7 +313,20 @@ impl VerifiedRead {
     /// are indexed by revision and instant from their receipts alone. Only the documents of the
     /// commits so named are parsed, and each is held to what the graph says it did: an origin no
     /// such document adds is `origin-missing`, and a lifecycle no such document reproduces is
-    /// `lifecycle-disagrees`, never a shorter chain.
+    /// `lifecycle-disagrees`, never a shorter chain. Two records claiming one revision are
+    /// `origin-ambiguous`, before any document is read.
+    ///
+    /// # What explain trusts
+    ///
+    /// Explain trusts the verified graph and reads only the documents on the assertion's own
+    /// chain (`ekr.kernel.ExplanationResult` in `systems/ekr/domains/kernel.yaml`, "What explain
+    /// trusts"). A record of this capture that is on no chain — another commit whose document
+    /// also adds the assertion, at another instant, or retracts an assertion the graph holds
+    /// active — is not read, so it neither changes the answer nor refuses it: the answer is the
+    /// chain of verified links the graph names. Such a record cannot come from a store: every
+    /// retained record is replayed and verified when the store is opened, and a store altered on
+    /// disk is refused there. Re-reading every committed document to look for one is the cost
+    /// this lookup removes.
     ///
     /// Proposals and commits are answered by reference ([`ExplainedProposal`],
     /// [`ExplainedCommit`]); a proposal carries only its operations about the explained assertion.
@@ -327,13 +340,14 @@ impl VerifiedRead {
         if !self.graph.assertions.contains_key(&requested) {
             return Err(ProjectionError::AssertionNotFound { requested });
         }
-        let index: BTreeMap<RevisionNumber, Committed<'_>> = self
-            .transactions
-            .values()
-            .filter_map(indexed)
-            .filter(|c| c.revision <= self.root.revision)
-            .map(|c| (c.revision, c))
-            .collect();
+        // One committed transaction per revision: two records claiming one revision leave the
+        // origin of whatever that revision added ambiguous, decided before any document is read.
+        let mut index: BTreeMap<RevisionNumber, Committed<'_>> = BTreeMap::new();
+        for c in self.transactions.values().filter_map(indexed) {
+            if c.revision <= self.root.revision && index.insert(c.revision, c).is_some() {
+                return unverified("origin-ambiguous");
+            }
+        }
         let mut parsed: BTreeMap<RevisionNumber, GraphTransaction> = BTreeMap::new();
         let mut transaction = |c: &Committed<'_>| -> Result<GraphTransaction, ProjectionError> {
             if let Some(held) = parsed.get(&c.revision) {
@@ -357,9 +371,27 @@ impl VerifiedRead {
             links.push(ExplanationLink::Assertion(assertion.clone()));
             support.extend(assertion.evidence.iter().map(|cited| cited.id()));
 
+            // The origin is matched by revision: each revision whose verified coordinate, or whose
+            // record's receipt, was committed at the instant the graph records the assertion was
+            // added. A receipt that disagrees with its coordinate is still read, and `verify`
+            // refuses it as `commit-record-disagrees`.
             let recorded = assertion.transaction_time.recorded_from;
+            let at_instant: BTreeSet<RevisionNumber> = self
+                .revisions
+                .iter()
+                .filter(|(number, coordinate)| {
+                    **number != RevisionNumber::SEED && coordinate.committed_at == recorded
+                })
+                .map(|(number, _)| *number)
+                .chain(
+                    index
+                        .values()
+                        .filter(|c| c.committed_at == recorded)
+                        .map(|c| c.revision),
+                )
+                .collect();
             let mut origins = Vec::new();
-            for candidate in index.values().filter(|c| c.committed_at == recorded) {
+            for candidate in at_instant.iter().filter_map(|number| index.get(number)) {
                 let committed = transaction(candidate)?;
                 if committed
                     .operations

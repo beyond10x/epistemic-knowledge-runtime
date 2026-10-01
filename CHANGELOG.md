@@ -19,10 +19,18 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   or superseded it) and parses only those commits' documents, where it parsed every committed
   document per call. At a consumer's 1× shape (4,127 nodes, 67k assertions, 57 commits; SQLite)
   an answer is 23–64 KB through the session and one-shot (3.2–7.9 MB before) and 57–118 KB
-  through MCP (6.3–15.8 MB before); a session answers in 0.4–0.75 s CPU (28–90 s wall under load
-  before). A one-shot `ekr explain` still costs about 4 s there, opening the store. Specified as
-  `ekr.kernel.ExplanationResult` in `systems/ekr/domains/kernel.yaml`. SDK: `Explanation.format`,
-  and `ExplainedEvidence.payload` is now an `Option`.
+  through MCP (6.3–15.8 MB before). **The 0.5 s per-call bound is not met.** A call costs about
+  0.52–0.56 s CPU through the session and 0.44–0.65 s through MCP (28–90 s wall under load
+  before), and about 4 s one-shot. Most of the session and MCP cost is capturing the head for
+  the read, and most of the one-shot cost is opening the store, where every retained blob's
+  SHA-256 is checked again; neither is explain's own work, and the open is a task of its own.
+  Explain's own work, with the store open, is reported by the 1× bench in
+  `crates/ekr/tests/explain_by_reference.rs`. Explain trusts the verified graph and reads only the
+  documents on the assertion's own chain; a record of a capture on no chain is not read
+  (`kernel.yaml`, "What explain trusts"). Two records claiming one revision are refused as
+  `origin-ambiguous`. Specified as `ekr.kernel.ExplanationResult` in
+  `systems/ekr/domains/kernel.yaml`. SDK: `Explanation.format`, and `ExplainedEvidence.payload` is
+  now an `Option`.
 
 ## [0.0.24] — 2026-09-30
 

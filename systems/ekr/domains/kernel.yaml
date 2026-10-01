@@ -899,6 +899,17 @@ types:
   # validation records it commits. The chain itself — which links, in which order, naming which
   # records — is the unversioned answer's, link for link. `ekr explain --documents` adds the
   # whole records; that is the CLI's rendering, not this result.
+  #
+  # What explain trusts. Explain trusts the verified graph and reads only the documents on the
+  # assertion's own chain: the commit at the instant the graph records the assertion was added
+  # (transaction_time.recorded_from), matched by revision, and the commit at its lifecycle's
+  # at_revision. Each document read is held to what the graph says it did (origin-missing,
+  # lifecycle-disagrees), and two records claiming one revision are origin-ambiguous before any
+  # document is read. A record on no chain — another commit whose document also adds the
+  # assertion, or one that retracts an assertion the graph holds active — is not read and neither
+  # changes nor refuses the answer, which is the chain of verified links the graph names. Every
+  # retained record is replayed and verified when a store is opened, and a store altered on disk
+  # is refused there; re-reading every committed document per call is the cost this removes.
   - name: ekr.kernel.ExplanationFormatV2
     kind: enum
     variants: [ekr.explanation/2]
