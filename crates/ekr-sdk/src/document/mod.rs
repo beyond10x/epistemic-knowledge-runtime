@@ -1,13 +1,15 @@
 //! Builders for every document a consumer writes, and the ontology by name
 //! (`story:sdk-typed-documents`).
 //!
-//! Four formats, each a serde model of what its reader decodes:
+//! Five formats, each a serde model of what its reader decodes:
 //!
 //! * [`TransactionDocument`] — `ekr.transaction-document/2`, one [`Operation`] per kind
 //!   `ekr operations` lists, built with [`TransactionBuilder`];
 //! * [`SeedDocument`] — `ekr-seed/2`, built with [`SeedBuilder`], usually from an
 //!   [`OntologySpec`];
 //! * [`TypedReference`] — the document `ekr resolve` reads;
+//! * [`ExtractionDocument`] — `ekr.extraction-document/1`, the SDK's mirror of the document an
+//!   extractor writes and `ekr apply-extraction` and [`crate::extraction::apply`] apply;
 //! * the ontology by name: [`OntologySpec`] declares types, properties and edge ends by name,
 //!   [`Ontology`] maps those names to the ids a store holds (read from `ekr ontology`), and
 //!   [`Ontology::ensure`] writes the schema operations a store is missing.
@@ -24,6 +26,7 @@
 //! `crates/ekr-sdk/tests/document_drift.rs` holds every builder to the kernel's readers, to
 //! `ekr schema` and to a real store.
 
+mod extraction;
 mod graph;
 mod limits;
 mod ontology;
@@ -38,6 +41,10 @@ pub use ekr_core::{
     SchemaVersionId, Timestamp, TransactionId, TypeId,
 };
 
+pub use extraction::{
+    ExtractedFact, ExtractedReference, ExtractionDocument, ExtractionFormat, ExtractionReadError,
+    PropertyFact, RelationFact, EXTRACTION_FORMAT,
+};
 pub use graph::{
     Assertion, AssertionLifecycle, Assessment, Confidence, EdgeDraft, Evidence, EvidenceSource,
     NodeDraft, Object, Predicate, Subject, TemporalRange, TransactionTime,

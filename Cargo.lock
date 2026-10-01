@@ -522,6 +522,7 @@ dependencies = [
  "ekr-integrate",
  "ekr-kernel",
  "ekr-ontology",
+ "ekr-sdk",
  "ekr-views",
  "ess-conformance",
  "ess-primitives",

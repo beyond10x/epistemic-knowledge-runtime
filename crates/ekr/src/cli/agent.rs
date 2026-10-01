@@ -43,6 +43,8 @@ WORKFLOW
                                                    the schema version (id, number, parent)
      ekr snapshot                                  nodes, edges, assertions, evidence at the head
   4. ekr resolve reference.yaml                    is the node there already? before a CreateNode
+     ekr apply-extraction doc.yaml                 apply an ekr.extraction-document/1: resolve,
+                                                   create, assert, with its evidence
      ekr mint node | edge | assertion | transaction | ...
                                                    fresh ids for everything you create
   5. ekr operations                                the operation kinds, one line each
@@ -190,8 +192,11 @@ EXTRACTION DOCUMENTS
   extraction-name-duplicate, extraction-type-conflict, extraction-property-undeclared,
   extraction-value-mismatch, extraction-relation-ends, reference-without-identity,
   fact-without-evidence (every fact cites at least one evidence item), fact-evidence-unlisted,
-  duplicate-identity and evidence-payload-mismatch; docs/cli.md lists every code. No verb applies
-  it yet: record what it says with propose, validate and commit.
+  duplicate-identity and evidence-payload-mismatch; docs/cli.md lists every code.
+  ekr apply-extraction doc.yaml applies it: the missing ontology as one schema change, each named
+  thing resolved (created where the store holds none; ambiguous ones listed, nothing chosen), each
+  fact as an assertion with the evidence it cites. It prints committed, rejected and ambiguous;
+  every write is a propose, validate and commit as the host operator, in this process.
 
 ADDING EVIDENCE
   After the seed, a transaction adds evidence with AddEvidence: the entry and its payload bytes

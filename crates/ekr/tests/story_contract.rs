@@ -123,7 +123,9 @@ const EDGES: [(&str, &[&str]); 6] = [
 /// `task:read-verbs-open-a-read-only-store`: `rusqlite` reads a SQLite store through a read-only
 /// connection, `rustix` asks whether this process may write a path, and `tempfile`, a dev
 /// dependency until then, holds a read-only File store's private copy; `ekr`'s
-/// `signal-hook` lets `ekr view` and `ekr mcp` remove that copy when they are terminated.
+/// `signal-hook` lets `ekr view` and `ekr mcp` remove that copy when they are terminated. `ekr`'s
+/// `ekr-sdk` is the extraction apply routine `ekr apply-extraction` runs in process
+/// (`story:extraction-verb-shares-the-sdk-path`).
 const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
     (
         "ekr-core",
@@ -196,6 +198,7 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
         &[
             "clap",
             "ekr-integrate",
+            "ekr-sdk",
             "ekr-views",
             "ess-conformance",
             "ess-primitives",
