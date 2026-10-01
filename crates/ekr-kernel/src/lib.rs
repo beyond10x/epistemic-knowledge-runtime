@@ -118,6 +118,7 @@ pub mod schema;
 pub mod seed;
 pub mod transaction;
 pub mod validate;
+mod yaml;
 
 #[doc(hidden)]
 pub use apply::{decided_graph_held, graphs_applied};
@@ -145,7 +146,7 @@ pub use records::{
 };
 pub use replay::{TransactionRecord, TransactionState};
 pub use runtime::Runtime;
-pub use seed::{BootstrapContext, SeedDocument, SeedError};
+pub use seed::{BootstrapContext, SeedDocument, SeedError, SeedLimits, SEED_LIMITS};
 pub use transaction::{
     AliasAddition, EdgeDraft, EdgeWidening, EntityMerge, EvidenceAddition, GraphOperation,
     GraphTransaction, NodeDraft, PropertyModification, PropertyMutation, Retraction, Supersession,

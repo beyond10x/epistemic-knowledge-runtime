@@ -197,6 +197,22 @@ ekr hash corpus/a.md                              # -> content_hash for the evid
 ekr seed seed.yaml --evidence corpus/a.md --evidence corpus/b.md
 ```
 
+The document is held to four limits before it is decoded, each refused as
+`ekr.kernel.InvalidSeed`, exit 2, before any store is created. `ekr seed` reads no more of the
+document than the byte cap and one byte, from a file or from stdin.
+
+| refusal | limit |
+|---|---|
+| `seed-too-large` | at most 16777216 bytes (16 MiB), comments and whitespace included |
+| `seed-too-deep` | nesting at most 64 deep, the root mapping being 1, an alias counted at the depth it is repeated at |
+| `seed-alias-expansion` | at most 33554432 values, keys and containers and 16777216 bytes of text, each alias counted as everything it repeats |
+
+The expansion limits are what a document of the byte cap could hold written out, so an alias can
+save writing but cannot make a seed decode to more than that. Text is counted in decoded bytes, so
+escapes that decode to more bytes than they take to write (`\L` and `\P` decode two bytes to three)
+count at their decoded size and can reach the text limit without any alias. Pass large evidence
+payloads as `--evidence` files, which do not count toward these limits.
+
 ### `ekr propose`
 
 Records a transaction document, unvalidated, as the host operator, and prints its proposal record.
@@ -2677,6 +2693,9 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 
 | refusal | where | exit | what it means | what to fix |
 |---|---|---|---|---|
+| `seed-too-large` | seed | 2 | the document is over 16777216 bytes ([`ekr seed`](#ekr-seed)); it was read no further than that and one byte | pass evidence payloads as `--evidence` files |
+| `seed-too-deep` | seed | 2 | the document nests deeper than 64 containers, an alias counted where it is repeated | nest less deeply; an alias nests the node it repeats where it stands |
+| `seed-alias-expansion` | seed | 2 | YAML aliases make the document decode to more than 33554432 values and keys or 16777216 bytes of text | write fewer repetitions, or pass repeated payloads as `--evidence` files |
 | `seed-decode` | seed | 2 | the YAML does not have the expected shape: an unknown or missing field, a wrong type, a duplicate key, an empty property value list | the field and line it names |
 | `seed-ontology` | seed | 2 | the ontology does not cohere | the rule it names ([the ontology section](#the-ontology-section)) |
 | `seed-ontology-lineage` | seed | 2 | the ontology's `version` is not a first version: `number` is not `0` or `parent` is not `null` | `number: 0`, `parent: null` |
