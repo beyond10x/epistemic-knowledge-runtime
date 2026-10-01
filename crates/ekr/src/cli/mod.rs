@@ -221,8 +221,8 @@ pub enum Command {
     /// configuration.
     #[command(after_help = SEE)]
     Schema {
-        /// The format: `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2`
-        /// or `ekr.cli-host/1`.
+        /// The format: `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2`,
+        /// `ekr.cli-host/1`, `typed-reference` or `ekr.extraction-document/1`.
         format: ExampleFormat,
     },
     /// Print a fresh id of one kind as JSON.

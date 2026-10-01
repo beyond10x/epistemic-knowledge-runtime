@@ -173,6 +173,16 @@ RESOLVE BEFORE YOU CREATE: ekr resolve
   A node that exists but lacks the alias a reference names gains it with AddAlias
   (`ekr operations AddAlias`); ekr resolve finds it by that alias from the next revision on.
 
+EXTRACTION DOCUMENTS
+  An agent that extracts knowledge from sources writes it as one ekr.extraction-document/1
+  (`ekr example ekr.extraction-document/1`, `ekr schema ekr.extraction-document/1`): the types it
+  needs by name, the named things it found (a node type's name and aliases), its facts (!Property
+  or !Relation) and the evidence items they cite (each the entry and payload an AddEvidence
+  carries). The reader refuses, by code: extraction-type-undeclared (a type neither the document
+  nor the store declares), extraction-property-undeclared, fact-without-evidence (every fact cites
+  at least one evidence item) and fact-evidence-unlisted (a cited id no item carries). No verb
+  applies it yet: record what it says with propose, validate and commit.
+
 ADDING EVIDENCE
   After the seed, a transaction adds evidence with AddEvidence: the entry and its payload bytes
   together (`ekr operations AddEvidence`). An AddAssertion in the same or a later transaction
@@ -674,6 +684,9 @@ pub enum ExampleFormat {
     /// A typed reference for `ekr resolve`.
     #[value(name = "typed-reference")]
     TypedReference,
+    /// What an extracting agent read, for a store to take in.
+    #[value(name = "ekr.extraction-document/1", alias = "extraction")]
+    Extraction,
 }
 
 /// The examples `ekr example` prints: one complete document of each format, and a schema change.
@@ -699,6 +712,9 @@ pub enum ExampleDocument {
     /// `CreateNode` example creates.
     #[value(name = "typed-reference")]
     TypedReference,
+    /// What an extracting agent read, for a store seeded from the example seed.
+    #[value(name = "ekr.extraction-document/1", alias = "extraction")]
+    Extraction,
 }
 
 /// `ekr example <name>`: a complete document of that format, or the schema change. The `/1`
@@ -718,6 +734,7 @@ pub(super) fn example(example: ExampleDocument) -> String {
         ExampleDocument::Seed => include_str!("examples/seed.yaml").to_owned(),
         ExampleDocument::Host => include_str!("examples/host.json").to_owned(),
         ExampleDocument::TypedReference => include_str!("examples/typed-reference.yaml").to_owned(),
+        ExampleDocument::Extraction => include_str!("examples/extraction.yaml").to_owned(),
     }
 }
 

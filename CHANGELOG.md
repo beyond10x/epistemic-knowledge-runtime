@@ -4,6 +4,22 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- **The extraction document, `ekr.extraction-document/1`** (`docs/cli.md`, Extraction
+  documents): the format an extracting agent writes what it read from its sources in. It names
+  the types it needs (node and edge types, with properties) instead of identifying them, lists the
+  named things it found (a node type's name and aliases), its facts (`!Property` or `!Relation`)
+  and the evidence items they cite, each the entry and payload an `!AddEvidence` carries.
+  `ekr example ekr.extraction-document/1` (alias `extraction`) prints one for the example seed and
+  `ekr schema ekr.extraction-document/1` its JSON Schema. `ekr_integrate::read_extraction` reads
+  it against a store's ontology and refuses, by code, a type neither the document nor the store
+  declares (`extraction-type-undeclared`), an undeclared property
+  (`extraction-property-undeclared`), a fact citing no evidence (`fact-without-evidence`) and a
+  fact citing an id the document does not carry (`fact-evidence-unlisted`). Specified, with the
+  report applying a document will print, in `systems/ekr/domains/integrate.yaml`. No verb applies
+  a document yet.
+
 ## [0.0.24] — 2026-09-30
 
 A store exports as an OCEL 2.0 event log; the viewer's compact mode works from the keyboard and in

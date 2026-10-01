@@ -158,10 +158,10 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr ocel` | reads | `--revision <revision>`, `--events <type name>...` | the `ekr.ocel/1` document: the revision as an OCEL 2.0 event log in its `ocel` member, and `names` for its ids |
 | `ekr guide` | none | none | the workflow, as text |
 | `ekr operations` | none | an operation kind, optionally | the kinds, or one kind's fields and example |
-| `ekr example` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `schema-change`, `ekr-seed/2`, `ekr.cli-host/1` or `typed-reference` (aliases `transaction` for `/2`, `seed`, `host`) | a complete example document |
+| `ekr example` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `schema-change`, `ekr-seed/2`, `ekr.cli-host/1`, `typed-reference` or `ekr.extraction-document/1` (aliases `transaction` for `/2`, `seed`, `host`, `extraction`) | a complete example document |
 | `ekr mint` | none | an id kind | `{"id", "kind"}`: a fresh id |
 | `ekr hash` | none | a payload file, or `-` | the payload's `content_hash` and its `payload_yaml` |
-| `ekr schema` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2`, `ekr.cli-host/1` or `typed-reference` (aliases `transaction` for `/2`, `seed`, `host`) | the format's JSON Schema (draft 2020-12) |
+| `ekr schema` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2`, `ekr.cli-host/1`, `typed-reference` or `ekr.extraction-document/1` (aliases `transaction` for `/2`, `seed`, `host`, `extraction`) | the format's JSON Schema (draft 2020-12) |
 | `ekr view` | reads | `--port <port>` (`0`, the default, picks a free one) | `{"url": "http://127.0.0.1:<port>/"}` as one line, then serves a read-only viewer until interrupted |
 | `ekr session` | reads and writes | one JSON request per line on stdin, `{"argv": [...]}`, until it ends; `--create` also serves `seed` | one JSON answer per request, `{"exit", "stdout", "stderr"}`: what the verb exits with and prints |
 | `ekr mcp` | reads | JSON-RPC 2.0 messages, one per line on stdin, until it ends | one JSON-RPC response per request: read-only MCP tools over the store (below) |
@@ -601,6 +601,8 @@ example seed under the example host, and the example transaction commits. `ekr e
 schema-change` prints a schema change against the same seed, which commits in a store seeded under
 [validation profile v2](#evolve-the-schema). `ekr example typed-reference` prints a reference that,
 against the example seed, resolves to `ProposeNew`: the node `ekr operations CreateNode` creates.
+`ekr example ekr.extraction-document/1` prints an [extraction document](#extraction-documents-ekrextraction-document1)
+the reader accepts against the example seed's ontology.
 
 ### `ekr mint`
 
@@ -1514,6 +1516,86 @@ An entry whose `extracted_by` is not the host operator is refused by `ekr propos
 A relation can be recorded two ways, and often both are wanted. The assertion is the claim, with
 evidence and valid time. `!CreateEdge` is the structural record: no evidence, no valid time, held to
 the edge type's endpoint types and cardinality, and visible to a reader of the graph's edges.
+
+## Extraction documents (`ekr.extraction-document/1`)
+
+An agent that extracts knowledge from sources — messages, pages, tickets — writes what it read as
+one extraction document: the types it needs, the named things it found, the facts it read about
+them and the evidence each fact rests on. The consumer runs its extractor, its agent and its
+sandbox; the engine starts none of them. `ekr example ekr.extraction-document/1` prints a complete
+document for a store seeded from the example seed, and `ekr schema ekr.extraction-document/1` its
+JSON Schema. No verb applies a document yet; until one does, record what it says with `ekr
+propose`, `ekr validate` and `ekr commit`.
+
+Types, properties and relations are named, never identified: the document is written before the
+ids of the types it adds exist, and a name maps to the id the store holds for it.
+
+```yaml ekr.extraction-document/1
+format: ekr.extraction-document/1
+ontology:
+  node_types:
+  - name: Project
+    parents: []
+    abstract_type: false
+    properties:
+    - name: status
+      value:
+        value_kind: Enum
+        parameters: [active, closed]
+      cardinality: One
+      required: false
+  edge_types:
+  - name: LEADS
+    source_types: [Person]
+    target_types: [Project]
+    cardinality: Many
+    properties: []
+entities:
+- node_type: Person
+  aliases: [Carol]
+- node_type: Project
+  aliases: [Apollo]
+facts:
+- !Property
+  subject: {node_type: Organization, aliases: [Globex]}
+  property: legal_name
+  value: {value_kind: String, value: Globex Corporation}
+  evidence: [00000000-0000-4000-8000-000000000403]
+- !Relation
+  subject: {node_type: Person, aliases: [Carol]}
+  relation: CEO_OF
+  object: {node_type: Organization, aliases: [Globex]}
+  evidence: [00000000-0000-4000-8000-000000000403]
+evidence:
+- evidence:
+    id: 00000000-0000-4000-8000-000000000403        # a fresh evidence id: ekr mint evidence
+    source: !HumanStatement
+      identity: Quarterly report
+    content_hash: 7afeb9c852d895a2cdf8d7717a49354badd8b8dc79049925137b1f95f4651af5
+    extracted_by: 00000000-0000-4000-8000-000000000101  # the host operator
+    observed_at: 1773273600000
+    confidence: 10000
+  payload: [67, 97, 114, 111, 108, 44, 32, 67, 69, 79, 32, 111, 102, 32, 71, 108, 111, 98, 101, 120, 32, 67, 111, 114, 112, 111, 114, 97, 116, 105, 111, 110, 44, 32, 108, 101, 97, 100, 115, 32, 112, 114, 111, 106, 101, 99, 116, 32, 65, 112, 111, 108, 108, 111, 46]
+```
+
+| key | holds |
+|---|---|
+| `format` | exactly `ekr.extraction-document/1` |
+| `ontology` | optional. `node_types` (each `name`, `parents` by name, `abstract_type`, `properties`) and `edge_types` (each `name`, `source_types` and `target_types` by node type name, `cardinality`, `properties`). A property is `name`, `value`, `cardinality` and `required`; `value` is a [value type](#value-types) whose `NodeRef` names node types in `parameters` rather than listing their ids. A type the store lacks is added; one it holds by that name is kept |
+| `entities` | optional. Named things, each `node_type` (a node type's name) and `aliases` (the names it is known by, compared byte for byte). Each resolves as a [typed reference](#ekr-resolve) of that type before anything is created |
+| `facts` | `!Property` (`subject`, a named thing; `property`, declared on the subject's type or an ancestor; `value`, a value as a transaction writes one) or `!Relation` (`subject`, `relation`, an edge type's name, and `object`). Each lists in `evidence` the ids of the evidence items it rests on: at least one |
+| `evidence` | the evidence items, each the `evidence` entry and `payload` bytes an [`!AddEvidence`](#evidence-after-the-seed) carries, under the same rules: a fresh id, `source: !HumanStatement`, `extracted_by` the host operator and a payload that hashes to `content_hash` |
+
+The reader refuses a document over 8388608 bytes, a YAML alias (`*name`), a fact written other than
+as a `!Property` or `!Relation` tag, an unknown or missing key and a second document. Against the
+ontology of the store it is read for it refuses, naming the first in document order:
+
+| code | when |
+|---|---|
+| `extraction-type-undeclared` | a node type or edge type neither the document's `ontology` nor the store declares, named by a parent, an edge type's end, a `NodeRef`, a named thing, a fact's subject or object, or a relation |
+| `extraction-property-undeclared` | a `!Property` fact's property, named `Type.property`, that the subject's type and its ancestors do not declare in the document or the store |
+| `fact-without-evidence` | a fact, named `facts[<index>]`, whose `evidence` is empty or absent |
+| `fact-evidence-unlisted` | a fact citing an id no item of the document's `evidence` carries |
 
 ## Worked example: a library catalogue
 

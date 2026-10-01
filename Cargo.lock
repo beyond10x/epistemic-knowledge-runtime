@@ -572,6 +572,7 @@ dependencies = [
  "ekr-graph",
  "ekr-ontology",
  "proptest",
+ "schemars 1.2.2",
  "serde",
  "serde_json",
  "serde_yaml_ng",

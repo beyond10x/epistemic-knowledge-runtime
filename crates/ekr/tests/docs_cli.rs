@@ -3,8 +3,9 @@
 //! The page is written for a reader who has only the documentation and a built `ekr`. Every
 //! statement that can drift from the binary is read back here:
 //!
-//! * every fenced block whose body is an `ekr-seed/2`, `ekr.transaction-document/2` or
-//!   `ekr.cli-host/1` document is tagged with that format and parses with the real reader;
+//! * every fenced block whose body is an `ekr-seed/2`, `ekr.transaction-document/2`,
+//!   `ekr.cli-host/1` or `ekr.extraction-document/1` document is tagged with that format and
+//!   parses with the real reader;
 //! * the worked example's blocks (those carrying `file=`) seed a fresh store and reach the outcome
 //!   each block declares (`outcome=`) on both providers, and the page's read-back commands print
 //!   what the page says they print, and its typed references resolve as each declares
@@ -38,6 +39,8 @@ const TRANSACTION: &str = "ekr.transaction-document/2";
 const HOST: &str = "ekr.cli-host/1";
 /// The document `ekr resolve` reads; it carries no `format` key.
 const TYPED_REFERENCE: &str = "typed-reference";
+/// The document an extracting agent hands the engine.
+const EXTRACTION: &str = "ekr.extraction-document/1";
 const BACKENDS: [&str; 2] = ["file", "sqlite"];
 
 /// The repository root, from the per-process `CARGO_MANIFEST_DIR` (`AGENTS.md` § The gate).
@@ -114,6 +117,7 @@ fn declared_format(body: &str) -> Option<&'static str> {
     body.lines().find_map(|line| match line.trim_end() {
         "format: ekr-seed/2" => Some(SEED),
         "format: ekr.transaction-document/2" => Some(TRANSACTION),
+        "format: ekr.extraction-document/1" => Some(EXTRACTION),
         "  \"format\": \"ekr.cli-host/1\"," | "  \"format\": \"ekr.cli-host/1\"" => Some(HOST),
         _ => None,
     })
@@ -201,6 +205,13 @@ fn stdout(args: &[&str]) -> String {
     String::from_utf8(output.stdout).unwrap()
 }
 
+/// The ontology of the store `ekr example ekr-seed/2` seeds, which the page's extraction document
+/// is written for.
+fn example_store() -> ekr_ontology::Ontology {
+    let seed = SeedDocument::from_yaml(&stdout(&["example", SEED])).unwrap();
+    ekr_ontology::Ontology::load(seed.ontology).unwrap()
+}
+
 // 1 --------------------------------------------------------------------------------------------
 
 #[test]
@@ -209,7 +220,7 @@ fn every_document_block_is_tagged_and_parses_with_its_real_reader() {
     let mut parsed: BTreeMap<&str, usize> = BTreeMap::new();
     for block in blocks(&page) {
         let declared = declared_format(&block.body);
-        let tags: Vec<&str> = [SEED, TRANSACTION, HOST]
+        let tags: Vec<&str> = [SEED, TRANSACTION, HOST, EXTRACTION]
             .into_iter()
             .filter(|format| block.tagged(format))
             .collect();
@@ -228,6 +239,9 @@ fn every_document_block_is_tagged_and_parses_with_its_real_reader() {
             TRANSACTION => TransactionDocument::parse(block.body.as_bytes())
                 .map(drop)
                 .map_err(|e| e.to_string()),
+            EXTRACTION => ekr_integrate::read_extraction(&block.body, &example_store())
+                .map(drop)
+                .map_err(|e| e.to_string()),
             _ => CliHostConfigurationV1::from_json(block.body.as_bytes())
                 .map(drop)
                 .map_err(|e| e.to_string()),
@@ -240,7 +254,7 @@ fn every_document_block_is_tagged_and_parses_with_its_real_reader() {
         }
         *parsed.entry(format).or_default() += 1;
     }
-    for (format, least) in [(SEED, 1), (TRANSACTION, 3), (HOST, 1)] {
+    for (format, least) in [(SEED, 1), (TRANSACTION, 3), (HOST, 1), (EXTRACTION, 1)] {
         assert!(
             parsed.get(format).copied().unwrap_or(0) >= least,
             "docs/cli.md carries fewer than {least} {format} blocks: {parsed:?}"
