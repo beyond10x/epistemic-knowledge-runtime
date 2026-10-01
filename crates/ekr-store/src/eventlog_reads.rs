@@ -24,14 +24,16 @@ use eventlog_core::{
 };
 use serde_json::Value;
 use std::sync::{
-    atomic::{AtomicUsize, Ordering},
+    atomic::{AtomicBool, AtomicUsize, Ordering},
     Arc,
 };
 
-/// The file provider, with every call into it counted.
+/// The file provider, with every call into it counted, and its log feed refused while
+/// `refuse_feed` is set.
 struct Counting {
     inner: FileEventStore,
     calls: Arc<AtomicUsize>,
+    refuse_feed: Arc<AtomicBool>,
 }
 impl Counting {
     fn tick(&self) -> &FileEventStore {
@@ -85,6 +87,10 @@ impl EventStore for Counting {
         after_position: u64,
         limit: usize,
     ) -> BoxFuture<'a, Result<FeedPage, EventLogError>> {
+        if self.refuse_feed.load(Ordering::SeqCst) {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            return Box::pin(async { Err(EventLogError::Backend("feed refused".into())) });
+        }
         self.tick().read_feed(tenant, after_position, limit)
     }
     fn redact<'a>(
@@ -383,6 +389,7 @@ fn counted(path: &Path) -> (EventlogStore<Counting>, Arc<AtomicUsize>) {
         Counting {
             inner,
             calls: Arc::clone(&calls),
+            refuse_feed: Arc::new(AtomicBool::new(false)),
         },
         TenantId::new("ekr").unwrap(),
         None,
@@ -523,4 +530,63 @@ fn a_merge_expectation_is_refused_by_the_preparation_capture() {
             version: Some(3),
         }
     );
+}
+
+/// `story:commit-cost-flat-with-store-size`: a handle that cannot read the log feed cannot tell
+/// which held streams moved, so it reads every held object below the strongest again, as it did
+/// before it looked at the log, and the load is not refused for it.
+#[test]
+fn a_feed_the_handle_cannot_read_has_every_held_object_read_again() {
+    let directory = tempfile::tempdir().unwrap();
+    written(directory.path(), 1);
+    let evidence = FileStore::file(directory.path(), "ekr", None)
+        .unwrap()
+        .put(
+            StorageClass::Provenance,
+            b"read count evidence",
+            Timestamp::EPOCH,
+        )
+        .unwrap()
+        .content_hash;
+    let (store, _) = counted(directory.path());
+    let required = BTreeSet::from([evidence]);
+    let load = || {
+        store
+            .load_history_requiring(MAX_READ_LIMIT, None, |_| Ok(required.clone()))
+            .unwrap()
+    };
+    let first = load();
+    assert_eq!(
+        first.objects[&evidence].metadata.storage_class,
+        StorageClass::Provenance
+    );
+    // The evidence was stored after the newest occurrence, where the handle starts looking
+    // through the log, so the second load finds its stored event and reads its stream once.
+    load();
+    let _ = crate::verified::stream_reads();
+    load();
+    let readable = crate::verified::stream_reads();
+    assert_eq!(
+        (readable.object, readable.feed),
+        (0, 1),
+        "with the feed readable and the log not moved, a load reads the log once and no object \
+         stream"
+    );
+
+    store.store.refuse_feed.store(true, Ordering::SeqCst);
+    let refused = load();
+    let reads = crate::verified::stream_reads();
+    assert_eq!(
+        reads.object, 1,
+        "a load whose log feed is refused read {} object streams, not the held evidence's one",
+        reads.object
+    );
+    assert_eq!(refused, first, "the load differs from the first");
+    let again = load();
+    assert_eq!(
+        crate::verified::stream_reads().object,
+        1,
+        "the next load with the feed still refused did not read the held evidence again"
+    );
+    assert_eq!(again, first);
 }

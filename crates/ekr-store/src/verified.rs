@@ -135,10 +135,12 @@ pub(crate) fn count(add: impl FnOnce(&mut ReadWork)) {
     });
 }
 
-/// Provider reads of the two streams a write verb reads before it writes, made on one thread.
+/// Provider reads of the two streams a write verb reads before it writes, and of retained-object
+/// streams, made on one thread.
 ///
 /// Test instrumentation, as [`ReadWork`] is: every provider read call counts once, whether it
-/// confirms a held occurrence, reads on past it, or both.
+/// confirms a held occurrence, reads on past it, or both. An object stream counts once for each
+/// read of it, including each stream a batched read asks for.
 #[doc(hidden)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct StreamReads {
@@ -146,12 +148,18 @@ pub struct StreamReads {
     pub revision: u64,
     /// Reads of the replay-checkpoint pointer stream.
     pub checkpoint: u64,
+    /// Reads of retained-object streams, one per stream read.
+    pub object: u64,
+    /// Reads of the tenant log, looking for events on the streams of held objects.
+    pub feed: u64,
 }
 
 thread_local! {
     static STREAM_READS: Cell<StreamReads> = const { Cell::new(StreamReads {
         revision: 0,
         checkpoint: 0,
+        object: 0,
+        feed: 0,
     }) };
 }
 
