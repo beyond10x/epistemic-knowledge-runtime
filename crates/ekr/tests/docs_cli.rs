@@ -1042,6 +1042,40 @@ fn trigger(page: &str, name: &str) -> Option<Vec<Ran>> {
             "    abstract_type: true\n",
             "    abstract_type: true\n    colour: red\n",
         ),
+        "seed-too-large" => {
+            let cap = ekr_kernel::SEED_LIMITS.input_bytes;
+            let lab = Lab::new(page);
+            let mut padded = lab.read("seed.yaml");
+            padded.push('#');
+            padded.push_str(&" ".repeat(cap.saturating_sub(padded.len())));
+            padded.push('\n');
+            std::fs::write(lab.directory.path().join("edited.yaml"), padded).unwrap();
+            vec![ran(&lab, "host.json", &["seed", "edited.yaml"])]
+        }
+        "seed-too-deep" => {
+            let open = ekr_kernel::SEED_LIMITS.depth;
+            seed_edit(
+                "    abstract_type: true\n",
+                &format!(
+                    "    abstract_type: true\n    deep: {}{}\n",
+                    "[".repeat(open),
+                    "]".repeat(open)
+                ),
+            )
+        }
+        "seed-alias-expansion" => {
+            let mut laughs = String::from("    laughs: {l0: &l0 [ha, ha]");
+            for level in 1..=40 {
+                let previous = level - 1;
+                laughs.push_str(&format!(
+                    ", l{level}: &l{level} [*l{previous}, *l{previous}]"
+                ));
+            }
+            seed_edit(
+                "    abstract_type: true\n",
+                &format!("    abstract_type: true\n{laughs}}}\n"),
+            )
+        }
         "seed-ontology" => seed_edit("        to: out_of_print", "        to: pulped"),
         "seed-ontology-lineage" => seed_edit("    number: 0\n", "    number: 1\n"),
         "seed-space" => seed_edit("      space: Canonical\n", "      space: Transient\n"),

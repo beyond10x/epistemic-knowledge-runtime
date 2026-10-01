@@ -15,6 +15,19 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   the commit, as in the source. These payloads are no longer listed in the report's
   `carried_objects`. Every added evidence entry and its bytes are in the migrated store, and
   `ekr explain` of an assertion citing one answers as it did in the source.
+- **`ekr seed` bounds its document's size, nesting and alias expansion.** It read a seed document
+  of any size, and YAML aliases could make one decode to far more than it held: forty doubling
+  aliases are 2^40 values. A seed document is now held to `ekr_kernel::SEED_LIMITS` before it is
+  decoded, each refused as `ekr.kernel.InvalidSeed`, exit 2, before any store is created:
+  `seed-too-large` past 16777216 bytes, of which `ekr seed` reads no more than the cap and one
+  byte; `seed-too-deep` past 64 nested containers; `seed-alias-expansion` past 33554432 values,
+  keys and containers or 16777216 bytes of text, each alias counted as everything it repeats
+  (`docs/cli.md`, `ekr seed`). Every earlier seed refusal keeps its code. The YAML loader stops
+  at the first container past the depth, so a deep nesting is refused at once.
+- **A transaction document nested past its depth is refused before it is loaded.** The loader's
+  scan is quadratic in flow nesting, and `ekr propose` checked depth only after loading the whole
+  document. The loader now stops at the first container past the format's depth of 32; the
+  refusal is unchanged, `transaction document limit: container_depth`.
 
 ## [0.0.25] — 2026-10-01
 

@@ -510,3 +510,42 @@ impl Budget {
         )
     }
 }
+
+#[cfg(test)]
+mod bounded_load {
+    use super::{DocumentError, DocumentLimit, TransactionDocument, DOCUMENT_V2_LIMITS};
+    use crate::yaml::loaded;
+
+    /// A transaction document nested past the depth is refused before the full load: the bounded
+    /// loader stops at the first container past the limit and the parser never sees the rest, so
+    /// the events buffered are counted by the limit, not by the input. Before the bound the whole
+    /// tape loaded — every container's start and end — and the depth refusal came after it.
+    #[test]
+    fn a_transaction_document_nested_past_the_depth_is_refused_at_the_first_container_past_it() {
+        let tail = 20_000;
+        let open = DOCUMENT_V2_LIMITS.depth + tail;
+        let text = format!(
+            "format: ekr.transaction-document/2\ntransaction: {}{}\n",
+            "[".repeat(open),
+            "]".repeat(open)
+        );
+        loaded::take();
+        let refused = TransactionDocument::parse(text.as_bytes()).unwrap_err();
+        let events = loaded::take();
+        assert!(
+            matches!(refused, DocumentError::Limit(DocumentLimit::Depth, _)),
+            "{refused}"
+        );
+        assert!(
+            events > DOCUMENT_V2_LIMITS.depth,
+            "the loader ran: {events} events"
+        );
+        // The root map, two keys and a value, then containers up to and including the first one
+        // past the limit.
+        assert!(
+            events <= DOCUMENT_V2_LIMITS.depth + 4,
+            "the loader read {events} events of a document with {} containers",
+            open + 1
+        );
+    }
+}

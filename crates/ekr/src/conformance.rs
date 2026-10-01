@@ -355,9 +355,7 @@ impl KernelTarget {
     /// first, then the handler.
     /// A document read failure is a fault, exactly as `ekr seed` reports one, never `InvalidSeed`.
     fn seed_from(&self, runtime: &Runtime, bytes: Vec<u8>) -> Result<SeedResultV1, SeedError> {
-        let text = String::from_utf8(bytes)
-            .map_err(|_| SeedError::Invalid("seed-decode: the document is not UTF-8".to_owned()))?;
-        let document = SeedDocument::from_yaml(&text)?;
+        let document = SeedDocument::from_bytes(&bytes)?;
         Runtime::admit_seed(&document, self.host().context)?;
         runtime.seed(document, || self.tick())
     }
