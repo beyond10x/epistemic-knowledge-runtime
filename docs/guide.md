@@ -565,11 +565,13 @@ without `--valid-at`, returns every assertion, superseded and retracted ones too
 
 ## 7. Ask why: `explain`
 
-`ekr explain` returns the chain behind one assertion. For the relation from step 5:
+`ekr explain` returns the chain behind one assertion, naming each retained record by its hash;
+`--documents` adds the records themselves and the evidence text. For the relation from step 5:
 
 ```shell-session
-$ ekr explain 00000000-0000-4000-c000-000000000501
+$ ekr explain 00000000-0000-4000-c000-000000000501 --documents
 {
+  "format": "ekr.explanation/2",
   "assertion_id": "00000000-0000-4000-c000-000000000501",
   "at": 1,
   "links": [
@@ -768,7 +770,7 @@ Each row below was run with this guide's files. The two seed rows used a fresh s
 | `head` | `revision`, `root.*_root` | |
 | `snapshot` | `root.revision`, `matching_assertions` (with `--valid-at`), `graph.graph.{nodes,edges,assertions,evidence}`, each keyed by id | `revision_id` |
 | `ontology` | `node_types[]`, `edge_types[]` with `id` and `name`; `schema_version`, `schema_version_number`, `schema_version_parent` | |
-| `explain` | `links[].kind`; `Assertion` links' `assessment`, `lifecycle` and `valid_time`; `Evidence` links' `text` | `Proposal.document_bytes`, receipts |
+| `explain` | `links[].kind`; `Assertion` links' `assessment`, `lifecycle` and `valid_time`; with `--documents`, `Evidence` links' `text` | the `*_hash` fields; with `--documents`, `Proposal.record` and each `receipt` |
 | `transactions` | `transaction_id`, `state` | `submitted_at` |
 
 In JSON output, a tagged value is an object with one key: YAML's `!Node <id>` prints as

@@ -501,7 +501,8 @@ fn assertions(transport: &mut dyn Transport) -> BTreeMap<String, Json> {
         .collect()
 }
 
-/// Standard base64 with padding, as `ekr explain` prints an evidence link's `payload`.
+/// Standard base64 with padding, as `ekr explain --documents` prints an evidence link's
+/// `payload`.
 fn base64(bytes: &[u8]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::new();
@@ -522,7 +523,7 @@ fn base64(bytes: &[u8]) -> String {
     out
 }
 
-/// The `payload` `ekr explain` prints for `assertion`'s evidence link `evidence`.
+/// The `payload` `ekr explain --documents` prints for `assertion`'s evidence link `evidence`.
 fn explained_payload(
     transport: &mut dyn Transport,
     assertion: AssertionId,
@@ -530,7 +531,11 @@ fn explained_payload(
 ) -> Option<String> {
     let explained = ok(
         transport,
-        Request::new(["explain".to_owned(), assertion.to_string()]),
+        Request::new([
+            "explain".to_owned(),
+            assertion.to_string(),
+            "--documents".to_owned(),
+        ]),
     );
     explained["links"]
         .as_array()

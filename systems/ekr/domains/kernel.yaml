@@ -892,6 +892,73 @@ types:
       - name: record_hash
         type: ekr.kernel.ContentHash
 
+  # story:explain-reads-an-index. ekr.explanation/2 references the retained records of a chain by
+  # their payload addresses instead of embedding them: an ordinary origin's proposal record
+  # (ExplainedProposal.record_hash) with only the document's operations about the explained
+  # assertion, and each commit receipt (ExplainedCommit.record_hash) with the proposal and
+  # validation records it commits. The chain itself — which links, in which order, naming which
+  # records — is the unversioned answer's, link for link. `ekr explain --documents` adds the
+  # whole records; that is the CLI's rendering, not this result.
+  #
+  # What explain trusts. Explain trusts the verified graph and reads only the documents on the
+  # assertion's own chain: the commit at the instant the graph records the assertion was added
+  # (transaction_time.recorded_from), matched by revision, and the commit at its lifecycle's
+  # at_revision. Each document read is held to what the graph says it did (origin-missing,
+  # lifecycle-disagrees), and two records claiming one revision are origin-ambiguous before any
+  # document is read. A record on no chain — another commit whose document also adds the
+  # assertion, or one that retracts an assertion the graph holds active — is not read and neither
+  # changes nor refuses the answer, which is the chain of verified links the graph names. Every
+  # retained record is replayed and verified when a store is opened, and a store altered on disk
+  # is refused there; re-reading every committed document per call is the cost this removes.
+  - name: ekr.kernel.ExplanationFormatV2
+    kind: enum
+    variants: [ekr.explanation/2]
+
+  - name: ekr.kernel.ExplainedProposal
+    kind: struct
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: record_hash
+        type: ekr.kernel.ContentHash
+      - name: event_id
+        type: ekr.kernel.EventId
+      - name: submitter
+        type: ekr.kernel.AgentId
+      - name: submitted_at
+        type: Timestamp
+      - name: document_hash
+        type: ekr.kernel.ContentHash
+      - name: operation_count
+        type: Integer
+      # In document order: the AddAssertion of the explained assertion.
+      - name: operations
+        type: List<ekr.kernel.CanonicalOperationProjection>
+
+  - name: ekr.kernel.ExplainedCommit
+    kind: struct
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: revision_id
+        type: ekr.kernel.RevisionId
+      - name: event_id
+        type: ekr.kernel.EventId
+      - name: committer
+        type: ekr.kernel.AgentId
+      - name: committed_at
+        type: Timestamp
+      - name: result
+        type: ekr.graph.RevisionRoot
+      - name: result_hash
+        type: ekr.kernel.ContentHash
+      - name: record_hash
+        type: ekr.kernel.ContentHash
+      - name: proposal_record_hash
+        type: ekr.kernel.ContentHash
+      - name: validation_record_hash
+        type: ekr.kernel.ContentHash
+
   - name: ekr.kernel.ExplainedLifecycle
     kind: struct
     fields:
@@ -899,10 +966,8 @@ types:
         type: ekr.graph.AssertionId
       - name: lifecycle
         type: ekr.graph.AssertionLifecycleProjection
-      - name: receipt
-        type: ekr.kernel.CommitReceiptV1
-      - name: record_hash
-        type: ekr.kernel.ContentHash
+      - name: commit
+        type: ekr.kernel.ExplainedCommit
 
   - name: ekr.kernel.ExplanationLink
     kind: union
@@ -910,15 +975,17 @@ types:
     variants:
       Assertion: ekr.graph.AssertionRecord
       Seed: ekr.kernel.ExplainedSeed
-      Proposal: ekr.kernel.ProposalRecordV1
+      Proposal: ekr.kernel.ExplainedProposal
       Validation: ekr.kernel.ExplainedValidation
-      Commit: ekr.kernel.CommitReceiptV1
+      Commit: ekr.kernel.ExplainedCommit
       Lifecycle: ekr.kernel.ExplainedLifecycle
       Evidence: ekr.graph.EvidenceRecord
 
   - name: ekr.kernel.ExplanationResult
     kind: struct
     fields:
+      - name: format
+        type: ekr.kernel.ExplanationFormatV2
       - name: assertion_id
         type: ekr.graph.AssertionId
       - name: at

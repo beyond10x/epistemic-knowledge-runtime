@@ -44,6 +44,34 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   `ekr.views.ReportFactQuality` in `systems/ekr/domains/views.yaml`, with `ekr_views::draw_sample`
   and `ekr_views::report_fact_quality` in the library.
 
+### Changed
+
+- **`ekr explain` answers by reference, in `ekr.explanation/2`** (`docs/cli.md`, `ekr explain`).
+  The document gains `format`; a `Proposal` link names its proposal record by `record_hash` and
+  carries only the document's operations about the assertion; a `Commit` link, and a `Lifecycle`
+  link's new `commit`, name the receipt and the proposal and validation records by hash instead of
+  embedding the receipt; an `Evidence` link no longer carries `payload` and `text`. The chain —
+  which links, in which order, naming which records — is unchanged. `ekr explain --documents`
+  (MCP `explain` with `documents: true`, SDK `Reader::explain_documents`) adds the whole records:
+  the proposal record as `record`, each commit receipt as `receipt`, and each evidence link's
+  `payload` and `text`. The kernel looks the chain up from what the verified graph records of
+  each assertion (the instant of the commit that added it, the revision of the one that retracted
+  or superseded it) and parses only those commits' documents, where it parsed every committed
+  document per call. At a consumer's 1× shape (4,127 nodes, 67k assertions, 57 commits; SQLite)
+  an answer is 23–64 KB through the session and one-shot (3.2–7.9 MB before) and 57–118 KB
+  through MCP (6.3–15.8 MB before). **The 0.5 s per-call bound is not met.** A call costs about
+  0.52–0.56 s CPU through the session and 0.44–0.65 s through MCP (28–90 s wall under load
+  before), and about 4 s one-shot. Most of the session and MCP cost is capturing the head for
+  the read, and most of the one-shot cost is opening the store, where every retained blob's
+  SHA-256 is checked again; neither is explain's own work, and the open is a task of its own.
+  Explain's own work, with the store open, is reported by the 1× bench in
+  `crates/ekr/tests/explain_by_reference.rs`. Explain trusts the verified graph and reads only the
+  documents on the assertion's own chain; a record of a capture on no chain is not read
+  (`kernel.yaml`, "What explain trusts"). Two records claiming one revision are refused as
+  `origin-ambiguous`. Specified as `ekr.kernel.ExplanationResult` in
+  `systems/ekr/domains/kernel.yaml`. SDK: `Explanation.format`, and `ExplainedEvidence.payload` is
+  now an `Option`.
+
 ### Fixed
 
 - **Queuing a node drops cached answers that share its aliases** (`ekr-sdk`, `Resolver`). When

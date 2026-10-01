@@ -164,6 +164,7 @@ fn encode(tx: &GraphTransaction) -> Vec<u8> {
     .into_bytes()
 }
 struct Landed {
+    transaction: GraphTransaction,
     proposal: ProposalRecordV1,
     validation: ValidationReceiptV1,
     receipt: CommitReceiptV1,
@@ -184,20 +185,55 @@ fn land(kernel: &Runtime, tx: &GraphTransaction, time: i64) -> Landed {
         panic!("a fresh commit became stale")
     };
     Landed {
+        transaction: tx.clone(),
         proposal,
         validation,
         receipt: *receipt,
     }
 }
-fn origin(landed: &Landed) -> Vec<ExplanationLink> {
+/// A commit by reference, as `ekr.explanation/2` names it.
+fn commit(landed: &Landed) -> ExplainedCommit {
+    let receipt = &landed.receipt;
+    ExplainedCommit {
+        transaction_id: landed.proposal.transaction_id,
+        revision_id: receipt.revision_id,
+        event_id: receipt.event_id,
+        committer: receipt.committer,
+        committed_at: receipt.committed_at,
+        result: receipt.result,
+        result_hash: receipt.result_hash,
+        record_hash: ContentHash::of_bytes(&receipt.to_bytes().unwrap()),
+        proposal_record_hash: ContentHash::of_bytes(&landed.proposal.to_bytes().unwrap()),
+        validation_record_hash: ContentHash::of_bytes(&landed.validation.to_bytes().unwrap()),
+    }
+}
+/// The origin links of assertion `id` in `landed`: its proposal by reference, with the
+/// transaction's operations about `id`, its validation and its commit.
+fn origin(landed: &Landed, id: AssertionId) -> Vec<ExplanationLink> {
+    let proposal = &landed.proposal;
     vec![
-        ExplanationLink::Proposal(landed.proposal.clone()),
-        ExplanationLink::Validation(ExplainedValidation {
+        ExplanationLink::Proposal(ExplainedProposal {
+            transaction_id: proposal.transaction_id,
+            record_hash: ContentHash::of_bytes(&proposal.to_bytes().unwrap()),
+            event_id: proposal.event_id,
+            submitter: proposal.submitter,
+            submitted_at: proposal.submitted_at,
+            document_hash: proposal.document_hash,
+            operation_count: proposal.operation_count,
+            operations: landed
+                .transaction
+                .operations
+                .iter()
+                .filter(|op| matches!(op, GraphOperation::AddAssertion(added) if added.id == id))
+                .cloned()
+                .collect(),
+        }),
+        ExplanationLink::Validation(Box::new(ExplainedValidation {
             receipt: landed.validation.clone(),
             validation_profile: anchor().validation_profile,
             record_hash: ContentHash::of_bytes(&landed.validation.to_bytes().unwrap()),
-        }),
-        ExplanationLink::Commit(landed.receipt.clone()),
+        })),
+        ExplanationLink::Commit(commit(landed)),
     ]
 }
 fn seed_link(result: &SeedResultV1) -> ExplanationLink {
@@ -212,8 +248,7 @@ fn lifecycle(id: AssertionId, landed: &Landed, lifecycle: AssertionLifecycle) ->
     ExplanationLink::Lifecycle(ExplainedLifecycle {
         assertion_id: id,
         lifecycle,
-        receipt: landed.receipt.clone(),
-        record_hash: ContentHash::of_bytes(&landed.receipt.to_bytes().unwrap()),
+        commit: commit(landed),
     })
 }
 fn evidence(read: &VerifiedRead, ids: &[EvidenceId]) -> Vec<ExplanationLink> {
@@ -426,7 +461,7 @@ fn a_supersession_chain_is_followed_at_the_head_and_stops_at_the_earlier_revisio
             ),
             claim(&head, b.id),
         ];
-        expected.extend(origin(&one));
+        expected.extend(origin(&one, b.id));
         expected.push(lifecycle(
             b.id,
             &two,
@@ -437,7 +472,7 @@ fn a_supersession_chain_is_followed_at_the_head_and_stops_at_the_earlier_revisio
             },
         ));
         expected.push(claim(&head, c.id));
-        expected.extend(origin(&two));
+        expected.extend(origin(&two, c.id));
         expected.extend(evidence(&head, &[seed.first, seed.second]));
         assert_eq!(explained.links, expected, "file={file} head");
 
@@ -459,7 +494,7 @@ fn a_supersession_chain_is_followed_at_the_head_and_stops_at_the_earlier_revisio
             ),
             claim(&earlier, b.id),
         ];
-        expected.extend(origin(&one));
+        expected.extend(origin(&one, b.id));
         expected.extend(evidence(&earlier, &[seed.first, seed.second]));
         assert_eq!(before.links, expected, "file={file} revision 1");
         assert_eq!(
@@ -550,7 +585,11 @@ fn the_carriers_serialise_with_the_names_and_kind_tags_kernel_yaml_declares() {
         );
 
         let explained = serde_json::to_value(read.explain(seed.assertion).unwrap()).unwrap();
-        assert_eq!(keys(&explained), set(&["assertion_id", "at", "links"]));
+        assert_eq!(
+            keys(&explained),
+            set(&["format", "assertion_id", "at", "links"])
+        );
+        assert_eq!(explained["format"], "ekr.explanation/2");
         let links = explained["links"].as_array().unwrap();
         let tags: Vec<&str> = links.iter().map(|l| l["kind"].as_str().unwrap()).collect();
         assert_eq!(
@@ -583,14 +622,39 @@ fn the_carriers_serialise_with_the_names_and_kind_tags_kernel_yaml_declares() {
             shape("Validation"),
             set(&["kind", "receipt", "validation_profile", "record_hash"])
         );
+        let commit = set(&[
+            "transaction_id",
+            "revision_id",
+            "event_id",
+            "committer",
+            "committed_at",
+            "result",
+            "result_hash",
+            "record_hash",
+            "proposal_record_hash",
+            "validation_record_hash",
+        ]);
         assert_eq!(
             shape("Lifecycle"),
+            set(&["kind", "assertion_id", "lifecycle", "commit"])
+        );
+        let lifecycle = links.iter().find(|l| l["kind"] == "Lifecycle").unwrap();
+        assert_eq!(keys(&lifecycle["commit"]), commit);
+        let mut tagged = commit.clone();
+        tagged.insert("kind".into());
+        assert_eq!(shape("Commit"), tagged);
+        assert_eq!(
+            shape("Proposal"),
             set(&[
                 "kind",
-                "assertion_id",
-                "lifecycle",
-                "receipt",
-                "record_hash"
+                "transaction_id",
+                "record_hash",
+                "event_id",
+                "submitter",
+                "submitted_at",
+                "document_hash",
+                "operation_count",
+                "operations"
             ])
         );
         // A newtype variant's own fields sit beside the tag; none of them may be called `kind`.

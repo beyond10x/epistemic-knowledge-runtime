@@ -147,7 +147,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr validate` | writes | a transaction id; `--against <revision>` | the validation outcome: `kind` is `Validated` or `Rejected` (with `issues`) |
 | `ekr commit` | writes | a transaction id | the commit outcome: `kind` is `Committed` (with `result.revision`) or `Stale` |
 | `ekr snapshot` | reads | `--at <revision>`, `--valid-at <ms or YYYY-MM-DD>` | the whole graph at one revision |
-| `ekr explain` | reads | an assertion id | the assertion, where it came from, what later changed it, and its evidence |
+| `ekr explain` | reads | an assertion id; `--documents` | the `ekr.explanation/2` document: the assertion, where it came from, what later changed it, and its evidence, each record by hash; with `--documents`, the whole records too |
 | `ekr resolve` | reads | a `typed-reference` file, or `-`; `--at <revision>` | the resolution: `kind` is `Resolved` (with `node_id`), `ProposeNew` (with `type_id` and `aliases`) or `Ambiguous` (with `candidates`) |
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
@@ -232,17 +232,26 @@ not.
 
 ### `ekr explain`
 
-Explains one assertion at the head. `links` is a list of objects, each with a `kind`:
+Explains one assertion at the head, as the `ekr.explanation/2` document: `format`
+(`ekr.explanation/2`), `assertion_id`, `at` (the head revision it was read at) and `links`, a list
+of objects, each with a `kind`. The retained records a link stands for — a proposal, a commit
+receipt, an evidence payload — are named by their hash, not printed:
 
 | `kind` | what it is | when it appears |
 |---|---|---|
 | `Assertion` | an assertion as it stands at the head | first, for the requested assertion; again for each assertion that superseded it, followed by that one's own origin and lifecycle links |
 | `Seed` | the seed the assertion came from | for an assertion written in the seed, in place of `Proposal`, `Validation` and `Commit` |
-| `Proposal` | the retained proposal of the transaction that added it | for an assertion added by a transaction |
-| `Validation` | that transaction's validation | with `Proposal` |
-| `Commit` | that transaction's commit receipt | with `Proposal` |
-| `Lifecycle` | a later committed retraction or supersession of it | once per such change |
-| `Evidence` | an evidence entry cited, with `payload` (the retained bytes, base64) and `text` (the same bytes as a string, when they are UTF-8) | last, once per evidence id cited by an assertion in the chain or listed in the `evidence` of a transaction that added or changed one |
+| `Proposal` | the proposal of the transaction that added it: `transaction_id`, `record_hash` (the proposal record's hash), `event_id`, `submitter`, `submitted_at`, `document_hash`, `operation_count`, and `operations`, only the document's operations about this assertion (its `AddAssertion`) | for an assertion added by a transaction |
+| `Validation` | that transaction's validation receipt | with `Proposal` |
+| `Commit` | that transaction's commit: `transaction_id`, `revision_id`, `event_id`, `committer`, `committed_at`, `result` (the root it produced, `result.revision` its number), `result_hash`, `record_hash` (the receipt's hash), `proposal_record_hash` and `validation_record_hash` | with `Proposal` |
+| `Lifecycle` | a later committed retraction or supersession of it: `assertion_id`, `lifecycle`, and `commit`, that change's commit in the shape of a `Commit` link | once per such change |
+| `Evidence` | an evidence entry cited; its bytes are the ones at its `content_hash` | last, once per evidence id cited by an assertion in the chain or listed in the `evidence` of a transaction that added or changed one |
+
+With `--documents`, each link also carries the whole record it names, read from the same revision:
+a `Proposal` link the proposal record as `record` (its `document_bytes` one base64 string), a
+`Commit` link and a `Lifecycle` link's `commit` the commit receipt as `receipt`, and an `Evidence`
+link `payload` (the retained bytes, base64) and `text` (the same bytes as a string, when they are
+UTF-8). Without it the answer's size does not follow the size of the transactions on the chain.
 
 Read links by their `kind` and, for `Assertion` and `Lifecycle`, by the assertion id they carry:
 `id` on an `Assertion` link, `assertion_id` on a `Lifecycle` link. Do not read them by position, because the number and order of links depend on the assertion's
@@ -1141,7 +1150,7 @@ it, and answer its document byte for byte what the `ekr view` endpoint in the la
 | `expand` | **`seeds`** (a list of node ids; empty answers an empty page), **`depth`** (0 to 2), **`limit`** (1 to 2,000 nodes), `edges` (1 to 5,000, 5,000 when absent), `after` (a cursor, 0 or more), `revision` | the whole `ekr.graph-slice/1` page as one document, `next` naming the next page's `after` | `GET /expand`, as one document rather than NDJSON |
 | `timeline` | `type` (a node type id), **`hops`** (1 to 3), **`limit`** (1 to 500), `bucket` (`day` or `week`), `subject` (a node id), `revision` | the `ekr.graph-timeline/1` document | `GET /timeline` |
 | `changes_since` | exactly one of `since_revision` (a revision), `since_valid` (a valid time) and `since_recorded` (a transaction time), both times in milliseconds since the epoch; `at` (the last revision read, the head when absent), `limit` (1 to 2,000, 500 when absent), `after` (a cursor, 0 or more) | the `ekr.graph-changes/1` page ([what it lists](#changes-since)), `next` naming the next page's `after`; pass the first page's `meta.revision` as `at` for the rest | `GET /changes` |
-| `explain` | **`assertion`** (an assertion id) | what `ekr explain <assertion>` prints, byte for byte | `ekr explain` |
+| `explain` | **`assertion`** (an assertion id), `documents` (`true` or `false`, `false` when absent) | what `ekr explain <assertion>` prints, byte for byte, or with `documents: true` what `ekr explain <assertion> --documents` prints | `ekr explain [--documents]` |
 | `resolve` | **`type_id`** (a string), **`aliases`** (a list of strings) — the [`typed-reference`](#ekr-resolve) document's fields, taken as the JSON strings hold them, every character included — and `at` (a revision) | what `ekr resolve` prints for that reference, byte for byte | `ekr resolve [--at N]` |
 | `head` | none: any argument is -32602 | `{"format":"ekr.view-head/1","head":N}`, the newest committed revision as it stands at the call, byte for byte what `GET /head` serves; `ekr.views.NotSeeded` for a store never seeded | `GET /head` |
 
@@ -1257,7 +1266,7 @@ ekr validate <transaction_id>                   # -> kind Validated or Rejected
 ekr commit <transaction_id>                     # -> kind Committed, result.revision
 ekr head                                        # the new revision
 ekr snapshot --valid-at 2026-01-01              # what is believed at that date
-ekr explain <assertion_id>                      # why
+ekr explain <assertion_id>                      # why; --documents for the whole records
 ```
 
 Where values come from:
@@ -1633,9 +1642,9 @@ transaction:
 An `!AddAssertion` in the same transaction, or in any later one, may cite the new id; list it in
 `transaction.evidence` only in a transaction whose assertions cite it. Committing applies the entry
 and stores the payload as an object of its own, in the Provenance class the seed's payloads use;
-`ekr explain` prints it for every assertion that cites it, and [`/changes`](#changes-since) lists
-the entry once, as an `EvidenceAdded` of the revision that committed it, whether or not an
-assertion cites it. Validation refuses, as named issues:
+`ekr explain --documents` prints it for every assertion that cites it, and
+[`/changes`](#changes-since) lists the entry once, as an `EvidenceAdded` of the revision that
+committed it, whether or not an assertion cites it. Validation refuses, as named issues:
 
 | issue | validator | when |
 |---|---|---|
@@ -2157,14 +2166,14 @@ ekr commit 00000000-0000-4000-a000-000000000701           # "kind": "Committed",
 
 ```console
 ekr snapshot --valid-at 2020-01-01
-ekr explain 00000000-0000-4000-a000-000000000501
+ekr explain 00000000-0000-4000-a000-000000000501 --documents
 ```
 
 The snapshot's `matching_assertions` contains `00000000-0000-4000-a000-000000000501`: the claim is
 believed on 2020-01-01, because its valid time starts on 2019-04-01. For this assertion, which a
 transaction added and nothing has retracted or superseded, `ekr explain` prints five links:
-`Assertion` (now `Accepted` by the validator), `Proposal`, `Validation`, `Commit` and `Evidence`,
-and the evidence link's `text` is the statement in `wrote.txt`.
+`Assertion` (now `Accepted` by the validator), `Proposal`, `Validation`, `Commit` and `Evidence`.
+With `--documents` the evidence link's `text` is the statement in `wrote.txt`.
 
 ### 6. Publish the book and add a translation
 

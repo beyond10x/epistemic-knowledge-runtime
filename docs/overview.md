@@ -170,8 +170,9 @@ stateDiagram-v2
 
 `ekr explain <assertion>` returns the chain behind one assertion, as a list of links, each with a
 `kind`. An assertion added by a transaction has `Assertion`, `Proposal`, `Validation`, `Commit` and,
-last, one `Evidence` link per cited evidence id. The `Evidence` link carries the retained bytes as
-`payload` (base64) and as `text`. An assertion that was later superseded adds a `Lifecycle` link and
+last, one `Evidence` link per cited evidence id. Each names the retained record behind it by hash;
+with `--documents` the `Evidence` link also carries the retained bytes as `payload` (base64) and as
+`text`. An assertion that was later superseded adds a `Lifecycle` link and
 then the replacement's own chain. [The guide](guide.md#ask-why-explain) shows both.
 
 ## The intended end state

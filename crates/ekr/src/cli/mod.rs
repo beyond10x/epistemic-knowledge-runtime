@@ -177,13 +177,19 @@ pub enum Command {
         #[arg(long, allow_negative_numbers = true, value_parser = crate::host::parse_valid_at)]
         valid_at: Option<Timestamp>,
     },
-    /// Explain an assertion (`ekr.kernel.Explain`) at the newest verified revision.
+    /// Explain an assertion (`ekr.kernel.Explain`) at the newest verified revision: the
+    /// `ekr.explanation/2` document, which names proposals, commit receipts and evidence by hash.
     ///
     /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST).
     #[command(after_help = SEE)]
     Explain {
         /// The assertion's id, as `ekr snapshot` prints it.
         assertion_id: ekr_core::AssertionId,
+        /// Also print the whole records the links reference: each proposal record as `record`,
+        /// each commit receipt as `receipt`, and each evidence payload as `payload` (base64)
+        /// and, when it is UTF-8, `text`.
+        #[arg(long)]
+        documents: bool,
     },
     /// Resolve a typed reference (`ekr.integrate`) against the canonical graph: the one node it
     /// names, a new node to propose, or every candidate. Run it before a `CreateNode`.
@@ -762,9 +768,12 @@ fn dispatch(
             let runtime = source.resolve("snapshot")?.open()?;
             render(&snapshot::run(&runtime, at, valid_at)?)
         }
-        Command::Explain { assertion_id } => {
+        Command::Explain {
+            assertion_id,
+            documents,
+        } => {
             let runtime = source.resolve("explain")?.open()?;
-            render(&explain::run(&runtime, assertion_id)?)
+            render(&explain::run(&runtime, assertion_id, documents)?)
         }
         Command::Resolve { reference, at } => {
             let store = source.resolve("resolve")?;
