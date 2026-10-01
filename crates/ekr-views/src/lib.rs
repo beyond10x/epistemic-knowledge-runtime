@@ -170,6 +170,11 @@ pub enum ProjectError {
     /// The kernel's verified read refused the store's history.
     #[error("the verified read refused: {0}")]
     Read(String),
+    /// The store refused the history the runtime observed as diverged from the store at its path
+    /// (`PersistenceError::Diverged`): a long-running reader opens the store again on it. It reads
+    /// as [`ProjectError::Read`] does.
+    #[error("the verified read refused: {0}")]
+    Diverged(String),
     /// The revision holds state `ekr.graph-projection/1` cannot represent without losing part of
     /// it, such as an assertion whose subject the revision does not hold, which a revision the
     /// kernel admitted never has. One property id that two types declare with a different name or
@@ -181,13 +186,21 @@ pub enum ProjectError {
 
 impl From<PersistenceError> for ProjectError {
     fn from(error: PersistenceError) -> Self {
-        Self::Read(error.to_string())
+        match error {
+            error @ PersistenceError::Diverged(_) => Self::Diverged(error.to_string()),
+            error => Self::Read(error.to_string()),
+        }
     }
 }
 
 impl From<CommitError> for ProjectError {
     fn from(error: CommitError) -> Self {
-        Self::Read(error.to_string())
+        match error {
+            error @ CommitError::Store(PersistenceError::Diverged(_)) => {
+                Self::Diverged(error.to_string())
+            }
+            error => Self::Read(error.to_string()),
+        }
     }
 }
 

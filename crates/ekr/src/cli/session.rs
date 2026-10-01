@@ -300,7 +300,7 @@ fn respond(
     let printed = match super::dispatch(cli.command, Source::Session(session), now, &mut stdin) {
         // The held runtime's history diverged from the store at the path: a store replaced
         // under the same device and inode. Reopened once, the request is run again there.
-        Err(_) if reads_store && session.runtime.as_ref().is_some_and(diverged) => {
+        Err(failure) if reads_store && session.runtime.is_some() && failure.diverged() => {
             follow(session, watch, true)?;
             let mut stdin = request.stdin.as_deref().unwrap_or_default().as_bytes();
             super::dispatch(
@@ -379,7 +379,7 @@ fn read_views(
         None => Err(Failure::fault("the session holds no store")),
     };
     match answer(session, &mut watch.indexes) {
-        Err(_) if session.runtime.as_ref().is_some_and(diverged) => {
+        Err(failure) if failure.diverged() => {
             follow(session, watch, true)?;
             answer(session, &mut watch.indexes)
         }
@@ -548,7 +548,7 @@ fn reopen(store: &Store) -> Result<Runtime, Replaced> {
     store.open().map_err(|failure| {
         let why = match failure {
             Failure::Refused { name, message } => format!("{name}: {message}"),
-            Failure::Fault { message } | Failure::Usage { message } => message,
+            Failure::Fault { message, .. } | Failure::Usage { message } => message,
         };
         Replaced {
             message: format!(
@@ -635,8 +635,9 @@ impl Held {
 
 /// Whether `runtime`'s store refuses the history it observed as diverged from the store at its
 /// path: `ekr_store`'s typed [`ekr_kernel::PersistenceError::Diverged`], which the store maps from
-/// its provider. Asked by one head read after a read through `runtime` failed, so no reader tells
-/// a diverged history by a message's text.
+/// its provider. `ekr mcp` and `ekr view` ask it, by one head read, after a read through
+/// `runtime` answered a fault; a session reads its failure's own [`Failure::diverged`]. No reader
+/// tells a diverged history by a message's text.
 pub(super) fn diverged(runtime: &Runtime) -> bool {
     matches!(
         runtime.head(),

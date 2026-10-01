@@ -52,7 +52,7 @@ pub(super) fn run(
     let answer = ekr_views::draw_sample(runtime, revision.map(RevisionNumber::new), request)
         .map_err(|error| match project_refusal(&error) {
             Some(name) => Failure::refused(name, error),
-            None => Failure::fault(error),
+            None => Failure::unread(error),
         })?;
     serde_json::from_slice(&answer.bytes).map_err(Failure::fault)
 }

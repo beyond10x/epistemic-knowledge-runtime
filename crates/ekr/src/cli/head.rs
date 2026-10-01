@@ -17,7 +17,7 @@ pub(super) struct Head {
 pub(super) fn root(runtime: &Runtime) -> Result<Root, Failure> {
     runtime
         .head()
-        .map_err(Failure::fault)?
+        .map_err(Failure::store)?
         .ok_or_else(|| Failure::from(CommitError::NotSeeded))
 }
 

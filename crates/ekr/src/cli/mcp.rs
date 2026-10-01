@@ -303,7 +303,7 @@ impl From<Failure> for Unanswered {
         match failure {
             Failure::Refused { name, message } => Self::Refused { name, message },
             Failure::Usage { message } => Self::params(message),
-            Failure::Fault { message } => Self::internal(message),
+            Failure::Fault { message, .. } => Self::internal(message),
         }
     }
 }
@@ -407,7 +407,10 @@ impl Server {
             match self.tool(&name, arguments.clone()) {
                 // The held history diverged from the store at the path: one replaced under the
                 // same device and inode. Reopened once, the call is answered from that store.
-                Err(_) if self.store.diverged() => {
+                Err(Unanswered::Error {
+                    code: INTERNAL_ERROR,
+                    ..
+                }) if self.store.diverged() => {
                     self.store.forget();
                     self.tool(&name, arguments)
                 }

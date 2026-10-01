@@ -198,7 +198,6 @@ impl Lines {
 /// so the session goes to `follow(.., true)`, which refuses with `store-replaced-proposals-open`
 /// and the document failure is never printed.
 #[test]
-#[ignore = "adversary x7-g: a non-store failure in a diverged session with an open proposal prints store-replaced-proposals-open instead of its own failure"]
 fn adversary_x7_g_a_failure_that_reads_no_store_prints_its_own_text_in_a_diverged_session() {
     let world = World::seeded();
     let mut session = Lines::spawn(world.command(&["session"]));

@@ -9,9 +9,11 @@
 
 use std::path::{Path, PathBuf};
 
-/// The needle of the unit's guard, built as it builds it.
-fn unit_needle() -> String {
-    ["diverged from this handle", "'s observed history"].concat()
+/// The rule of the unit's guard after correction 1
+/// (`no_cli_source_holds_a_string_literal_naming_divergence`), built as it builds it: a string
+/// literal that names divergence, in any case.
+fn unit_rule(literal: &str) -> bool {
+    literal.to_ascii_lowercase().contains("diverge")
 }
 
 fn sources(directory: &Path, found: &mut Vec<PathBuf>) {
@@ -64,15 +66,16 @@ const REGRESSION: &str = "pub(super) fn diverged(message: &str) -> bool {\n    \
                           message.contains(\"diverged\")\n}\n";
 
 /// The unit's guard must fail on a CLI that matches the provider's divergence message by a part
-/// of it. It does not: its one needle is the sentence's tail, so `contains("diverged")` passes.
+/// of it. Its first needle was the sentence's tail, so `contains("diverged")` passed; its rule is
+/// now the literal rule below.
 #[test]
-#[ignore = "adversary x7-g: the unit's source guard passes a CLI that matches the provider's divergence message by contains(\"diverged\")"]
 fn adversary_x7_g_the_unit_guard_catches_a_partial_provider_message_match() {
     assert!(
-        REGRESSION.contains(&unit_needle()),
-        "the unit's guard needle {:?} does not find this match of the provider's divergence \
-         message in a CLI source:\n{REGRESSION}",
-        unit_needle()
+        literals(REGRESSION)
+            .iter()
+            .any(|literal| unit_rule(literal)),
+        "the unit's guard does not find this match of the provider's divergence message in a \
+         CLI source:\n{REGRESSION}"
     );
 }
 
@@ -81,7 +84,11 @@ fn adversary_x7_g_the_unit_guard_catches_a_partial_provider_message_match() {
 #[test]
 fn adversary_x7_g_no_cli_source_holds_a_divergence_literal() {
     let root = std::env::var_os("ADVERSARY_X7_G_SRC").map_or_else(
-        || Path::new(env!("CARGO_MANIFEST_DIR")).join("src"),
+        || {
+            let manifest =
+                std::env::var_os("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR");
+            Path::new(&manifest).join("src")
+        },
         PathBuf::from,
     );
     let mut all = Vec::new();

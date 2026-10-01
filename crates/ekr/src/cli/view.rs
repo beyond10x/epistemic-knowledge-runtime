@@ -887,7 +887,7 @@ pub(super) fn project_refusal(error: &ProjectError) -> Option<&'static str> {
     match error {
         ProjectError::RevisionNotFound { .. } => Some("ekr.views.RevisionNotFound"),
         ProjectError::NotSeeded { .. } => Some("ekr.views.NotSeeded"),
-        ProjectError::Read(_) | ProjectError::Inconsistent(_) => None,
+        ProjectError::Read(_) | ProjectError::Diverged(_) | ProjectError::Inconsistent(_) => None,
     }
 }
 

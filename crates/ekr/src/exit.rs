@@ -7,6 +7,7 @@
 use std::fmt;
 
 use ekr_kernel::{CommitError, DocumentError, PersistenceError, ProjectionError, SeedError};
+use ekr_views::ProjectError;
 
 /// Why a command produced no result.
 #[derive(Debug)]
@@ -22,6 +23,9 @@ pub enum Failure {
     Fault {
         /// What failed.
         message: String,
+        /// Whether the store refused the history the reader holds as diverged from the store at
+        /// its path (`PersistenceError::Diverged`); a long-running reader opens it again on this.
+        diverged: bool,
     },
     /// Command-line arguments clap refused; clap's own usage exit status, 2.
     Usage {
@@ -45,7 +49,36 @@ impl Failure {
     pub fn fault(message: impl fmt::Display) -> Self {
         Self::Fault {
             message: message.to_string(),
+            diverged: false,
         }
+    }
+
+    /// The fault a store's refusal is: [`Self::diverged`] for `PersistenceError::Diverged`.
+    #[must_use]
+    pub fn store(error: PersistenceError) -> Self {
+        let diverged = matches!(error, PersistenceError::Diverged(_));
+        Self::Fault {
+            message: error.to_string(),
+            diverged,
+        }
+    }
+
+    /// The fault an `ekr.views` read that could not read the store is: [`Self::diverged`] for
+    /// `ProjectError::Diverged`.
+    #[must_use]
+    pub fn unread(error: ProjectError) -> Self {
+        let diverged = matches!(error, ProjectError::Diverged(_));
+        Self::Fault {
+            message: error.to_string(),
+            diverged,
+        }
+    }
+
+    /// Whether this is the fault of a store that refused the history the reader holds as
+    /// diverged from the store at its path.
+    #[must_use]
+    pub fn diverged(&self) -> bool {
+        matches!(self, Self::Fault { diverged: true, .. })
     }
 
     /// The process exit status this failure carries.
@@ -71,7 +104,7 @@ impl fmt::Display for Failure {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Refused { name, message } => write!(formatter, "ekr: {name}: {message}"),
-            Self::Fault { message } => write!(formatter, "ekr: {message}"),
+            Self::Fault { message, .. } => write!(formatter, "ekr: {message}"),
             Self::Usage { message } => formatter.write_str(message),
         }
     }
@@ -90,7 +123,7 @@ impl From<SeedError> for Failure {
                 Self::refused("ekr.kernel.AlreadySeeded", PersistenceError::AlreadySeeded)
             }
             SeedError::Store(PersistenceError::ReadOnly(why)) => crate::cli::read_only(&why),
-            SeedError::Store(other) => Self::fault(other),
+            SeedError::Store(other) => Self::store(other),
         }
     }
 }
@@ -118,7 +151,9 @@ impl From<CommitError> for Failure {
             }
             // A write that reached a store opened read-only: the refusal a writing open names.
             CommitError::Store(PersistenceError::ReadOnly(why)) => crate::cli::read_only(&why),
-            error @ (CommitError::NotSeeded | CommitError::Store(_)) => Self::fault(error),
+            // `Store` is transparent: the store's own refusal, with its text.
+            CommitError::Store(error) => Self::store(error),
+            error @ CommitError::NotSeeded => Self::fault(error),
         }
     }
 }

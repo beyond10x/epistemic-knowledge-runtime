@@ -90,9 +90,12 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 - **A diverged history is a typed store error** (`ekr-store`, `StoreError::Diverged`). The File
   provider's refusal of a history that is no longer the one a handle observed — a store replaced
   under the same device and inode — was `StoreError::Backend`; it is now `StoreError::Diverged`,
-  with the same text. `ekr session`, `ekr mcp` and `ekr view` reopen the store on that variant
-  instead of on the provider's message, so a reworded provider message no longer turns the reopen
-  off. What each prints is unchanged.
+  with the same text, and `ekr-views` carries it as `ProjectError::Diverged`. `ekr session`,
+  `ekr mcp` and `ekr view` reopen the store on that variant instead of on the provider's message,
+  so a reworded provider message no longer turns the reopen off. A session reopens only for a
+  fault that came from the store: a request that fails for its own reason, such as a document
+  that cannot be read, prints its own failure while the store at the path is diverged. What each
+  prints is otherwise unchanged.
 
 ### Fixed
 
