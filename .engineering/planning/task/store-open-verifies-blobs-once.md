@@ -7,6 +7,7 @@ title: Opening a store does not re-hash every retained blob
 relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
+- informed_by: story:reads-served-from-a-persisted-read-model
 revision: 2
 ---
 ## What is wrong

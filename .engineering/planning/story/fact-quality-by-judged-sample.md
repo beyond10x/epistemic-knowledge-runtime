@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:fact-quality-by-judged-sample
 kind: story
-status: active
+status: implemented
 title: Fact quality is reported from a judged, reproducible sample with a Wilson interval
 relations:
 - serves: vision:o6
@@ -42,10 +42,11 @@ scope:
   path: systems/ekr/conformance/views-suite.json
 - confidence: inferred
   path: systems/ekr/domains/views.yaml
-revision: 10
+revision: 11
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-30T12:26:22Z", actor: "human:timo", revision: 9}
 - {from: "proposed", to: "active", at: "2026-09-30T18:15:40Z", actor: "human:timo", revision: 10}
+- {from: "active", to: "implemented", at: "2026-10-01T18:09:55Z", actor: "human:timo", revision: 11, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}}
 ---
 ## Context
 

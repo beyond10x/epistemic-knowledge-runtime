@@ -2,12 +2,14 @@
 format: aep.planning-md/3
 id: task:read-only-open-passes-under-load
 kind: task
-status: draft
+status: proposed
 title: A read-only SQLite open beside a writer passes under load
 relations:
 - decomposes: epic:p6-maintenance-observability
 - serves: vision:o5
-revision: 1
+revision: 2
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-01T18:42:14Z", actor: "human:timo", revision: 2}
 ---
 ## What is wrong
 

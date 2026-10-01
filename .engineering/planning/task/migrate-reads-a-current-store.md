@@ -2,12 +2,14 @@
 format: aep.planning-md/3
 id: task:migrate-reads-a-current-store
 kind: task
-status: draft
+status: proposed
 title: ekr migrate reads a store that took evidence after its seed
 relations:
 - decomposes: epic:p6-maintenance-observability
 - serves: vision:o2
-revision: 3
+revision: 5
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-01T18:42:14Z", actor: "human:timo", revision: 5}
 ---
 ## What is wrong
 
@@ -28,9 +30,15 @@ not cause it; it dates from the `AddEvidence` operation or earlier.
 Who reaches it: every consumer store that took evidence after its seed, including the consumer's
 live store, so none of them can be migrated.
 
-Hypothesis, not verified: migrate's inventory (`crates/ekr-store/src/inventory.rs`) requires only
-the objects the seed and the graph name, and misses the Provenance payload objects an
-`!AddEvidence` commit publishes (`crates/ekr-kernel/src/commit.rs:562`).
+Mechanism read from the code at 0.0.25 (`e92f7341`), not yet run: `Migration::migrate_into`
+(`crates/ekr-kernel/src/migrate.rs:139`) publishes each occurrence with its record object only
+(`:256–260`). It carries every other object, the Provenance payloads an `!AddEvidence` commit stored
+among them, after the loop (`:278`, "Every other object"). Inside the loop each later occurrence is
+re-derived in the destination: `destination.authority.reconstruct(&held, …)` (`:243–246`) and then
+`migrated_decision` (`:256`). That needs the payload of an evidence entry the history added, and it
+is not there yet. A seed-only store, and a store whose assertions cite only seed evidence, never
+reach that state (seed payloads are published with the seed occurrence, `:418–424`), which fits
+the passing cases.
 
 ## Build
 

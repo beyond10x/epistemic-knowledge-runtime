@@ -2,15 +2,16 @@
 format: aep.planning-md/3
 id: task:resolver-queue-drops-shared-alias-answers
 kind: task
-status: active
+status: implemented
 title: Queuing a node drops cached answers that share its aliases
 relations:
 - decomposes: epic:consumer-sdk
 - serves: vision:o5
-revision: 4
+revision: 5
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-30T18:15:38Z", actor: "human:timo", revision: 3}
 - {from: "proposed", to: "active", at: "2026-09-30T18:15:39Z", actor: "human:timo", revision: 4}
+- {from: "active", to: "implemented", at: "2026-10-01T18:09:54Z", actor: "human:timo", revision: 5, decided_on: {"recorded":{"test_result":1}}}
 ---
 ## What is wrong
 

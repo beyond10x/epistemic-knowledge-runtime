@@ -6,7 +6,7 @@ status: active
 title: ekr seed bounds the size and alias expansion of its document
 relations:
 - serves: vision:o5
-- decomposes: epic:p1-kernel-ontology-core
+- decomposes: epic:p6-maintenance-observability
 revision: 7
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 6, decided_on: {"recorded":{"review_outcome":1}}}

@@ -2,15 +2,16 @@
 format: aep.planning-md/3
 id: task:projection-carries-per-type-property-definitions
 kind: task
-status: active
+status: implemented
 title: The graph projection carries each type's own property definitions
 relations:
 - serves: vision:o5
 - decomposes: epic:p4-operator-surface
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-30T18:15:39Z", actor: "human:timo", revision: 2, decided_on: {"recorded":{"review_outcome":1}}}
 - {from: "proposed", to: "active", at: "2026-09-30T18:15:41Z", actor: "human:timo", revision: 3, decided_on: {"recorded":{"review_outcome":1}}}
+- {from: "active", to: "implemented", at: "2026-10-01T18:09:55Z", actor: "human:timo", revision: 4, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}}
 ---
 ## Context
 

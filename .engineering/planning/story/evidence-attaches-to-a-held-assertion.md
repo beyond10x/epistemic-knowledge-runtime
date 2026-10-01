@@ -7,6 +7,7 @@ title: Evidence attaches to an assertion the store already holds
 relations:
 - decomposes: epic:consumer-sdk
 - serves: vision:o2
+- depends_on: task:migrate-reads-a-current-store
 scope:
 - confidence: inferred
   path: CHANGELOG.md

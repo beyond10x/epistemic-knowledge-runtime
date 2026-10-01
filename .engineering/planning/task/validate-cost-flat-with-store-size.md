@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 3
+revision: 7
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -29,11 +29,22 @@ the graph when a transaction holds a retract or supersede (found while scoping
 
 ## Build
 
-A profile of `validate` and `commit` in the large SQLite delta on an idle machine, written here,
-then the change it points to.
+A frame-pointer profile of `validate` and `commit` in the large SQLite delta (all threads of the
+`ekr` child, inclusive), written here with the load average it ran at, then the change it points to.
 
 ## Acceptance
 
-- `commit_scaling.rs` at its default sizes passes its 1.5× bounds on SQLite and file, on an idle
-  machine, and closes `story:commit-cost-flat-with-store-size`'s acceptance.
+Revised by the coordinator on 2026-10-01 (`review-result:next-waves-1001-acceptance-r1`): this
+acceptance first pointed at `story:commit-cost-flat-with-store-size`'s whole-transaction bound. That
+story closed on it in 0.0.25 while validate alone still grew 3.2×, so the validate half of its
+original title is bounded here on its own. The statistic matches the story's: medians of 15
+transactions, load printed, no idle machine required.
+
+- In the large SQLite delta of `crates/ekr-sdk/tests/commit_scaling.rs` at its default sizes, the
+  median validate time of the last 15 transactions is at most 1.2× that of the first 15 (measured
+  for 0.0.25: 277 → 891 ms averaged, 3.2×), and the same for commit; the load average is printed
+  beside the numbers.
+- Before the change, the profile result written into this task names one counted quantity per
+  transaction (for example claims copied, or objects read); a counting test in the default gate
+  asserts that quantity is equal in two stores whose assertion counts differ at least fourfold
 - Refusals byte-identical (the kernel differentials and conformance suites pass).
