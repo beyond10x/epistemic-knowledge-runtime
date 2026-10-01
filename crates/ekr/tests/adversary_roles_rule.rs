@@ -260,37 +260,55 @@ fn assertion_mut<'a>(seed: &'a mut Yaml, last: &str) -> &'a mut Yaml {
         .unwrap()
 }
 
-/// Rule step 4 and the observation row: "at least one target is advancing". Type 1101 gets a
-/// second target, 1104, which is not advancing (untimed). By hand: 1101 has no sources and one
-/// advancing target (1102), so it stays `observation`; nothing else moves. Kills the mutant that
-/// reads the row as "every target is advancing" — no unit fixture has an observation candidate
-/// with a non-advancing target (`readings` 1101 has one target, `sessions` 2105 two advancing).
+/// The observation is the overview's observation type, not read off the edge types. Type 1101
+/// gets an edge type to 1103, which is no event type; no edge is added, so the overview does not
+/// move. By hand nothing moves: 1101 stays `observation`. Kills a mutant that still places an
+/// observation by its targets, which would need every target, or one, to be an event type.
 #[test]
-fn an_observation_needs_one_advancing_target_not_every_one() {
+fn an_edge_type_from_the_observation_type_moves_no_role() {
     let mut seed = readings();
-    edge_types(&mut seed).push(edge_type("1206", &["1101"], &["1104"]));
+    edge_types(&mut seed).push(edge_type("1206", &["1101"], &["1103"]));
     let world = World::seeded(&seed);
     assert_eq!(world.serve().roles("/roles"), readings_roles());
 }
 
-/// Rule step 3: timed means "a valid time with `from` or `to` set". The only timed assertion
-/// about a 1102 node gets `from: null` and keeps its `to`. By hand nothing moves. Kills the
-/// mutant that reads only `from` — no unit fixture carries a valid time bounded by `to` alone.
+/// The event types are `task:one-event-type-rule`'s one rule, whose dated facts are the
+/// assertions' present `valid_time.from` alone. The 1102 node's dated facts are 1502 (as a
+/// relation's object), 1503 and 1506; here 1506 is removed and 1503 gets `from: null` and a `to`
+/// ten minutes after 1502. By hand that node has one dated fact, so 1102 is no event type: 1101
+/// is the only event type and so the observation, and 1102 becomes a subject (pointed at by
+/// 1101). Kills a mutant that dates a fact by its `to`: it would see two facts ten minutes apart
+/// and keep 1102 an event type.
 #[test]
-fn a_valid_time_bounded_by_to_alone_makes_its_type_timed() {
+fn a_valid_time_bounded_by_to_alone_dates_no_fact() {
     let mut seed = readings();
-    assertion_mut(&mut seed, "1503")["valid_time"]["from"] = Yaml::Null;
+    let held = seed["graph"]["graph"]["assertions"]
+        .as_mapping_mut()
+        .unwrap();
+    assert!(held.remove(Yaml::String(id("1506"))).is_some());
+    let valid_time = &mut assertion_mut(&mut seed, "1503")["valid_time"];
+    valid_time["from"] = Yaml::Null;
+    valid_time["to"] = Yaml::Number(1_767_226_800_000_i64.into());
     let world = World::seeded(&seed);
-    assert_eq!(world.serve().roles("/roles"), readings_roles());
+    assert_eq!(
+        world.serve().roles("/roles"),
+        expect(&[
+            ("1101", "observation"),
+            ("1102", "subject"),
+            ("1103", "subject"),
+            ("1104", "subject")
+        ])
+    );
 }
 
-/// Rule step 3: "whatever its assessment or lifecycle". The unit's own revision-1 transaction adds
-/// the only timed assertion about a 1103 node, which commit accepts; revision 2 retracts it. By
-/// hand 1103 is still timed at revision 2, so it stays `event` as `roles-revision-1.json` has it.
+/// The one rule's dated facts are of any lifecycle. The unit's own revision-1 transaction adds a
+/// second dated fact about the 1103 node, half an hour after its first, which commit accepts, so
+/// 1103 is an event type; revision 2 retracts it. By hand the retracted fact still dates the node
+/// at revision 2, so 1103 stays `event` as `roles-revision-1.json` has it.
 /// Every unit fixture assertion is active, so a mutant that skips retracted assertions is not
 /// caught by the unit's suite.
 #[test]
-fn a_retracted_timed_assertion_still_makes_its_type_timed() {
+fn a_retracted_dated_fact_still_dates_its_node() {
     let world = World::seeded(&readings());
     let serial = manifest_dir()
         .join("tests/fixtures/view/readings/propose-timed-serial.yaml")
@@ -340,32 +358,28 @@ fn a_retracted_timed_assertion_still_makes_its_type_timed() {
     );
 }
 
-/// A cycle: an edge type 1102 → 1101 closes one. By hand: 1101 now has a source, so it is not an
-/// observation; it is timed and has a target, so `event`. 1102 `event`, 1103 and 1104
-/// `subject`, 1105 still none (self-loop only). (An edge type with an empty `source_types` is
-/// refused at seed, `ekr.kernel.InvalidSeed`, so that edge input is not reachable by seeding.)
+/// A cycle: an edge type 1102 → 1101 closes one. By hand: 1101 now has a source, but it is still
+/// the overview's observation type (an edge type without an edge moves no neighbour count), so
+/// `observation`; 1102 `event`, 1103 and 1104 `subject`, 1105 still none (self-loop only). Kills
+/// a mutant that still requires an observation to have no sources. (An edge type with an empty
+/// `source_types` is refused at seed, `ekr.kernel.InvalidSeed`, so that edge input is not
+/// reachable by seeding.)
 #[test]
 fn a_cycle_follows_the_rule_by_hand() {
     let mut seed = readings();
     edge_types(&mut seed).push(edge_type("1207", &["1102"], &["1101"]));
     let world = World::seeded(&seed);
-    assert_eq!(
-        world.serve().roles("/roles"),
-        expect(&[
-            ("1101", "event"),
-            ("1102", "event"),
-            ("1103", "subject"),
-            ("1104", "subject"),
-        ])
-    );
+    assert_eq!(world.serve().roles("/roles"), readings_roles());
 }
 
 /// Test 3 renames names and keeps every id, so it cannot see a dependence on the ids' order.
 /// Here the five type ids are relabelled so that they sort in the opposite order (1101 ↔ 1105,
-/// 1102 ↔ 1104). By hand the roles follow the relabelling: 1105 observation, 1104 event, 1103
-/// and 1102 subject, 1101 none.
+/// 1102 ↔ 1104). By hand the event types follow the relabelling — 1105 and 1104 — and 1103 and
+/// 1102 stay subjects, 1101 none. Which event type is the observation does depend on the ids: the
+/// two have one node and two neighbour types each, so the overview's tie rule ("ties go to the
+/// lowest type id") picks 1104, and 1105 is an `event`.
 #[test]
-fn relabelling_the_type_ids_moves_the_roles_with_them() {
+fn relabelling_the_type_ids_moves_the_event_types_with_them() {
     let mut text = readings_text();
     for (from, to) in [
         ("1101", "x1"),
@@ -385,8 +399,8 @@ fn relabelling_the_type_ids_moves_the_roles_with_them() {
         expect(&[
             ("1102", "subject"),
             ("1103", "subject"),
-            ("1104", "event"),
-            ("1105", "observation"),
+            ("1104", "observation"),
+            ("1105", "event"),
         ])
     );
 }
@@ -394,14 +408,16 @@ fn relabelling_the_type_ids_moves_the_roles_with_them() {
 /// The story's context: "the same viewer reads a store with any ontology". An ontology that
 /// declares its edge types on abstract parents — which the kernel accepts, since an endpoint is
 /// checked with `conforms_to` (`crates/ekr-kernel/src/validate/types.rs:508`) — carries every
-/// node, edge and timed assertion on concrete children. By the doc's rule ("`parents` are not
+/// node, edge and dated assertion on concrete children. By the doc's rule ("`parents` are not
 /// consulted") the concrete types get no arc and no role, and only the abstract parents, which
 /// hold no node, are placed. So a reading → incident → asset store of this shape shows no event.
 ///
 /// Types: 9101 abstract reading, 9102 concrete reading (parent 9101), 9103 abstract incident,
-/// 9104 concrete incident (parent 9103, timed), 9105 asset. Edge types 9201: 9101 → 9103 and
-/// 9202: 9103 → 9105. Asserted here: the concrete incident, timed and pointing on through its
-/// parent's edge type, is an `event`, and the concrete reading pointing at it an `observation`.
+/// 9104 concrete incident (parent 9103, an event type: its node has two dated facts ten minutes
+/// apart), 9105 asset. Edge types 9201: 9101 → 9103 and 9202: 9103 → 9105. By hand: 9104 is the
+/// only event type, so the overview's observation type and `observation`; 9103 (pointed at by
+/// 9101) and 9105 (pointed at by 9103 and, through widening, 9104) are subjects; 9101 and 9102 have
+/// no sources and no role.
 #[test]
 fn a_store_whose_edge_types_name_abstract_parents_places_its_concrete_timed_types() {
     let mut seed = readings();
@@ -472,31 +488,33 @@ fn a_store_whose_edge_types_name_abstract_parents_places_its_concrete_timed_type
         ("9701", edge("9701", "9201", "9402", "9404")),
         ("9702", edge("9702", "9202", "9404", "9405")),
     ]);
-    graph["assertions"] = mapping(vec![(
-        "9501",
+    // Two dated facts ten minutes apart, so 9104 is an event type by the one rule.
+    let timed = |last: &str, from: i64| {
         yaml(&format!(
             "id: {}\nroot_id: {root}\nsubject: !Node {}\npredicate: !Property {}\nobject: !Value\n  \
              value_kind: String\n  value: open\nevidence:\n- {}\nproposed_by: {}\n\
-             assessment: Proposed\nlifecycle: Active\nvalid_time:\n  from: 1767225600000\n  \
+             assessment: Proposed\nlifecycle: Active\nvalid_time:\n  from: {from}\n  \
              to: null\ntransaction_time:\n  recorded_from: 0\n  recorded_to: null\n",
-            id("9501"),
+            id(last),
             id("9404"),
             id("9301"),
             id("1601"),
             id("0101")
-        )),
-    )]);
+        ))
+    };
+    graph["assertions"] = mapping(vec![
+        ("9501", timed("9501", 1_767_225_600_000)),
+        ("9502", timed("9502", 1_767_226_200_000)),
+    ]);
     let world = World::seeded(&seed);
     let roles = world.serve().roles("/roles");
     assert_eq!(
-        roles.get("9104").map(String::as_str),
-        Some("event"),
-        "the concrete, timed incident type that points on: {roles:?}"
-    );
-    assert_eq!(
-        roles.get("9102").map(String::as_str),
-        Some("observation"),
-        "the concrete reading type that points at it: {roles:?}"
+        roles,
+        expect(&[
+            ("9103", "subject"),
+            ("9104", "observation"),
+            ("9105", "subject"),
+        ])
     );
 }
 

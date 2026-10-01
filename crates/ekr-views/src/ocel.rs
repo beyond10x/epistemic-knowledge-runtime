@@ -235,16 +235,9 @@ pub fn ocel(index: &Index, events: &[String]) -> Result<Answer<OcelExported>, Oc
             .or_insert(node.type_id);
     }
 
-    // The event types: those named, or the overview's.
+    // The event types: those named, or the one rule's.
     let event_types: BTreeSet<TypeId> = if events.is_empty() {
-        index
-            .overview
-            .roles
-            .types
-            .iter()
-            .filter(|timing| timing.event)
-            .map(|timing| timing.type_id)
-            .collect()
+        index.event_types()
     } else {
         let mut named = BTreeSet::new();
         for name in events {

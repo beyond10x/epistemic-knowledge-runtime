@@ -51,6 +51,10 @@
 //! [`report_fact_quality`] (`ekr.fact-quality/1`) reports the pass rate of the judged sample,
 //! [`FactJudgements`], with its Wilson score interval; it reads no store. The runtime judges
 //! nothing.
+//!
+//! [`Index::event_types`] is EKR's one rule for which node types are events: the timeline,
+//! [`ocel`] and [`Index::view_roles_document`] (`ekr.view-roles/1`, the host's `GET /roles`) all
+//! read it.
 
 mod changes;
 mod code_names;
@@ -59,6 +63,7 @@ mod index;
 mod ocel;
 mod quality;
 mod query;
+mod roles;
 mod sample;
 mod timeline;
 
@@ -78,6 +83,7 @@ pub use query::{
     SliceNode, SlicePage, SliceRecord, DETAIL_FORMAT, MATCHES_FORMAT, OVERVIEW_FORMAT,
     SLICE_FORMAT,
 };
+pub use roles::{Role, ROLES_FORMAT};
 pub use sample::{
     draw_key, draw_sample, report_fact_quality, sample, wilson_interval, wilson_z, FactJudgements,
     FactQualityError, FactQualityReported, FactSampleDrawn, Judgement, JudgementsMalformed,
