@@ -1,15 +1,15 @@
 //! Adversary, story:graph-projection-renderer, pass 2.
 //!
-//! Attacks the pass-1 correction (the render refuses a property id two types declare with
-//! different definitions) and the lifecycle path pass 1 did not reach.
+//! Attacked the pass-1 correction (the render refused a property id two types declare with
+//! different definitions) and the lifecycle path pass 1 did not reach. Since
+//! task:projection-carries-per-type-property-definitions the render gives each definition its own
+//! entry instead of refusing; the first two cases hold where it draws the line.
 //!
-//! * The refusal compares whole `PropertyDefinition`s, but `ekr.graph-projection/1` carries only
-//!   `id`, `name` and `value_kind` of one (views.yaml `ekr.views.ProjectedProperty`). Two
-//!   declarations that agree on all three project exactly, whatever their `required`,
-//!   `cardinality` or `constraints`, so refusing them makes a store unprojectable that the format
-//!   represents without loss.
-//! * A name-only difference *is* lost, and must stay refused: this guards the mutant that would
-//!   narrow the comparison to the value kind.
+//! * `ekr.graph-projection/1` carries only `id`, `name` and `value_kind` of a definition
+//!   (views.yaml `ekr.views.ProjectedProperty`). Two declarations that agree on all three project
+//!   as one entry with no `owners`, whatever their `required`, `cardinality` or `constraints`.
+//! * A name-only difference *is* lost by one entry, so each type's own name gets its own: this
+//!   guards the mutant that would narrow the comparison to the value kind.
 //! * A superseded assertion projects its lifecycle and its closed valid time, and the revision
 //!   before the supersession still projects it active and open.
 
@@ -30,7 +30,6 @@ use ekr_kernel::{
     ValidationCommandResult,
 };
 use ekr_ontology::{NodeType, PropertyDefinition, Value, ValueType};
-use ekr_views::ProjectError;
 use serde::Serialize;
 use serde_json::Value as Json;
 
@@ -110,21 +109,41 @@ fn a_redeclaration_that_differs_only_in_what_the_format_does_not_carry_is_projec
     assert_eq!(entries.len(), 1, "{entries:?}");
     assert_eq!(entries[0]["name"], "measure");
     assert_eq!(entries[0]["value_kind"], "String");
+    assert!(entries[0].get("owners").is_none(), "{entries:?}");
 }
 
 /// A redeclaration that renames the property keeps the value kind and changes a field the
-/// format does carry: listing either name misleads a reader of the other type, so it is refused.
+/// format does carry: listing either name alone misleads a reader of the other type, so each
+/// type's own name is projected, in an entry naming it in `owners`. This guards the mutant that
+/// would compare definitions by value kind alone.
+/// (Until task:projection-carries-per-type-property-definitions, the render refused it.)
 #[test]
-fn a_redeclaration_that_differs_only_in_name_is_refused() {
+fn a_redeclaration_that_differs_only_in_name_projects_each_types_own_name() {
     let measure: PropertyId = id(MEASURE);
     let base = PropertyDefinition::new(measure, "measure", ValueType::String);
     let refined = PropertyDefinition::new(measure, "refined measure", ValueType::String);
     let (_work, runtime) = seeded(hierarchy(base, refined));
-    match ekr_views::project(&runtime, None) {
-        Err(ProjectError::Inconsistent(message)) => {
-            assert!(message.contains(&uuid(MEASURE)), "{message}");
-        }
-        other => panic!("two names for one property id cannot both be projected: {other:?}"),
+    let rendered = ekr_views::project(&runtime, None)
+        .unwrap_or_else(|error| panic!("each type's name is projected, not refused: {error}"));
+    let document: Json = serde_json::from_slice(&rendered.bytes).expect("JSON");
+    let entries: Vec<&Json> = document["ontology"]["properties"]
+        .as_array()
+        .expect("ontology.properties")
+        .iter()
+        .filter(|property| property["id"] == Json::String(uuid(MEASURE)))
+        .collect();
+    assert_eq!(entries.len(), 2, "{entries:?}");
+    for (entry, (name, owner)) in entries
+        .iter()
+        .zip([("measure", BASE), ("refined measure", REFINED)])
+    {
+        assert_eq!(entry["name"], name, "{entries:?}");
+        assert_eq!(entry["value_kind"], "String", "{entries:?}");
+        assert_eq!(
+            entry["owners"],
+            serde_json::json!([uuid(owner)]),
+            "{entries:?}"
+        );
     }
 }
 

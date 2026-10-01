@@ -771,8 +771,9 @@ impl Index {
     ///
     /// # Errors
     ///
-    /// [`ProjectError::Inconsistent`] for an ontology or schema lineage the format cannot carry —
-    /// the refusals `ekr.graph-projection/1` makes of the same revision.
+    /// [`ProjectError::Inconsistent`] for a schema lineage the format cannot carry — the refusal
+    /// `ekr.graph-projection/1` makes of the same revision. Every ontology the kernel admits is
+    /// carried, including one in which two types define one property id differently.
     pub fn overview(
         &self,
         request: &OverviewRequest,

@@ -310,8 +310,7 @@ impl Index {
                     }
                     by_type
                 });
-        let ontology =
-            document::project_ontology(&graph.ontology, &by_type).map_err(|e| e.to_string());
+        let ontology = Ok(document::project_ontology(&graph.ontology, &by_type));
 
         let declared = graph.ontology.to_document();
         let mut node_types: Vec<TypeId> = declared.node_types.iter().map(|t| t.id).collect();

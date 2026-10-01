@@ -662,6 +662,13 @@ then answers:
 | `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | the `ekr.graph-timeline/1` document: one row per node of the row type `type` (the first the document ranks when absent) with the events related to it within `H` hops (1 to 3) counted per time bucket, at most `L` rows (1 to 500), the most active first; `B` is the finest bucket, `day` or `week`; with `subject` the row of that node alone and its events; `application/json` |
 | `GET /changes?since_revision=N\|since_valid=T\|since_recorded=T[&at=R][&limit=L][&after=A]` | the `ekr.graph-changes/1` page of what changed ([below](#changes-since)) after revision `N`, after valid time `T` or after transaction time `T` (milliseconds since the epoch), up to revision `R` (the head when absent): at most `L` changes (1 to 2,000, 500 when absent) from cursor `A`, `application/json` |
 
+**A property two types define differently.** A type may redeclare a property it inherits with
+another name or value kind; a `ModifyProperty` on a child type does. The projection and the
+overview then list one `ontology.properties` entry per definition of that id, each naming in
+`owners` the types whose declaration it is, the entries of one id ordered by their first owner. A
+property every type declaring it defines alike has one entry and no `owners`, as before. The page
+names a property, and shows its value kind, as the type in view declares it.
+
 Any other method is 405 and any other path 404. A request that announces a body (a
 `Content-Length` above zero or any `Transfer-Encoding`) is 413; the body is never read. A request
 head that does not parse, or is not complete within 16 KiB or 5 seconds of the connection being

@@ -109,7 +109,8 @@ pub struct GraphProjected {
     pub node_types: u64,
     /// Entries of `ontology.edge_types`.
     pub edge_types: u64,
-    /// Entries of `ontology.properties`.
+    /// Entries of `ontology.properties`: one per definition of each property id, so more than the
+    /// ids when two types define one differently.
     pub properties: u64,
     /// Assertion entries under `edges[]`.
     pub edge_assertions: u64,
@@ -151,12 +152,10 @@ pub enum ProjectError {
     #[error("the verified read refused: {0}")]
     Read(String),
     /// The revision holds state `ekr.graph-projection/1` cannot represent without losing part of
-    /// it. Two causes. One is an assertion whose subject the revision does not hold, which a
-    /// revision the kernel admitted never has. The other is one property id that two types
-    /// declare with a different name or a different value kind: the ontology admits it, and the
-    /// format's single `ontology.properties` entry per id carries one name and one value kind
-    /// (task:projection-carries-per-type-property-definitions). Declarations that differ only in
-    /// what that entry does not carry, such as `required`, render.
+    /// it, such as an assertion whose subject the revision does not hold, which a revision the
+    /// kernel admitted never has. One property id that two types declare with a different name or
+    /// value kind is not such state: `ontology.properties` gives each definition its own entry,
+    /// naming its `owners` (task:projection-carries-per-type-property-definitions).
     #[error("the projected revision is inconsistent: {0}")]
     Inconsistent(String),
 }

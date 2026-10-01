@@ -1,0 +1,64 @@
+# task:projection-carries-per-type-property-definitions.
+#
+# The store `property-redeclared` is the seed (revision 0, schema version 0: the node type
+# Subject with the property label, a String, and one node) and one schema change (revision 1,
+# schema version 1): DefineNodeType Refined, a child of Subject, and ModifyProperty on Refined
+# redeclaring label as the Integer rank. At revision 1 two types declare one property id with two
+# definitions, and ontology.properties lists one entry per definition, each naming the type it is
+# the declaration of: two node types and two property entries. Revision 0 still projects one of
+# each. The overview, which carries the same ontology, answers revision 1 too. A renderer that
+# carries one definition per property id refuses revision 1, or keeps one definition and reports
+# one property entry.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-property-a-subtype-redeclares-is-projected-for-each-type
+summary: After a subtype redeclares an inherited property with another name and value kind, the projection lists one property entry per definition and the overview answers, while revision 0 still lists one.
+
+timeline:
+  - at: 2027-01-15T11:00:00Z
+    command: ekr.views.ProjectGraph
+    actor: ekr.views.Reader
+    input:
+      store: property-redeclared
+      at: null
+    outcome: projected
+    events:
+      - event: ekr.views.GraphProjected
+        payload:
+          revision: 1
+          schema_versions: 2
+          node_types: 2
+          edge_types: 0
+          properties: 2
+
+  - at: 2027-01-15T11:01:00Z
+    command: ekr.views.ProjectGraph
+    actor: ekr.views.Reader
+    input:
+      store: property-redeclared
+      at: 0
+    outcome: projected
+    events:
+      - event: ekr.views.GraphProjected
+        payload:
+          revision: 0
+          schema_versions: 1
+          node_types: 1
+          edge_types: 0
+          properties: 1
+
+  - at: 2027-01-15T11:02:00Z
+    command: ekr.views.ProjectOverview
+    actor: ekr.views.Reader
+    input:
+      store: property-redeclared
+      at: null
+      limit: null
+    outcome: overviewed
+    events:
+      - event: ekr.views.GraphOverviewed
+        payload:
+          revision: 1
+          schema_versions: 2
+          node_types: 2
+          edge_types: 0

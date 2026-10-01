@@ -4,6 +4,18 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Fixed
+
+- **A subtype that redeclares a property renders, and each type shows its own definition**
+  (`ekr view`, `ekr.graph-projection/1` and the overview's `ontology`). A revision in which two
+  types declare one property id with another name or value kind — a child type redeclaring an
+  inherited property, which a `ModifyProperty` can produce — was refused as inconsistent by the
+  projection, the overview and so the viewer. `ontology.properties` now lists one entry per
+  distinct definition of an id; where an id has more than one, each entry carries `owners`, the
+  types whose declaration it is, and the entries of one id ascend by their first owner. The
+  viewer names a property, and its value kind, as the type shown declares it. A revision whose
+  types define each property alike renders the same bytes as before, with no `owners`.
+
 ## [0.0.24] — 2026-09-30
 
 A store exports as an OCEL 2.0 event log; the viewer's compact mode works from the keyboard and in

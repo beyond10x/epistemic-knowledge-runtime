@@ -14,7 +14,7 @@ use ekr_graph::{
     Assertion, AssertionLifecycle, Assessment, CanonicalDependency, CanonicalValue, Edge,
     EvidenceKind, Object, Predicate, Subject,
 };
-use ekr_ontology::{Ontology, PropertyDefinition};
+use ekr_ontology::Ontology;
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
@@ -136,11 +136,15 @@ pub(crate) struct ProjectedAssertion {
     evidence: Vec<String>,
 }
 
-#[derive(Serialize, PartialEq, Eq)]
+/// One definition of a property id: `owners` is present only when the id has more than one,
+/// and then names the types whose declaration this one is.
+#[derive(Serialize)]
 struct ProjectedProperty {
     id: String,
     name: String,
     value_kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    owners: Option<Vec<String>>,
 }
 
 #[derive(Serialize)]
@@ -253,15 +257,6 @@ struct ProjectedRevision {
 struct ProjectedSchema {
     versions: Vec<ProjectedSchemaVersion>,
     revisions: Vec<ProjectedRevision>,
-}
-
-/// The `ontology.properties` entry for one declaration: all of it the format carries.
-fn projected_property(property: &PropertyDefinition) -> ProjectedProperty {
-    ProjectedProperty {
-        id: property.id.to_string(),
-        name: property.name.clone(),
-        value_kind: property.value_type.kind().to_string(),
-    }
 }
 
 const fn evidence_kind(kind: EvidenceKind) -> &'static str {
@@ -438,7 +433,7 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
         node_types,
         edge_types,
         properties,
-    } = project_ontology(&graph.ontology, &by_type)?;
+    } = project_ontology(&graph.ontology, &by_type);
 
     let mut nodes: Vec<ProjectedNode> = graph
         .nodes
@@ -594,16 +589,13 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
     Ok(Rendered { bytes, summary })
 }
 
-/// `ontology` as `ekr.graph-projection/1` projects it, with the type assertions `by_type`.
-///
-/// # Errors
-///
-/// [`ProjectError::Inconsistent`] for a property id two types declare with a different name or
-/// value kind.
+/// `ontology` as `ekr.graph-projection/1` projects it, with the type assertions `by_type`: every
+/// ontology the kernel admits, including one in which two types define one property id
+/// differently.
 pub(crate) fn project_ontology(
     ontology: &Ontology,
     by_type: &BTreeMap<TypeId, Vec<&Assertion>>,
-) -> Result<ProjectedOntology, ProjectError> {
+) -> ProjectedOntology {
     let ontology = ontology.to_document();
     let mut node_types: Vec<ProjectedNodeType> = ontology
         .node_types
@@ -629,15 +621,16 @@ pub(crate) fn project_ontology(
         })
         .collect();
     edge_types.sort_by(|a, b| a.id.cmp(&b.id));
-    // `ontology.properties` holds one entry per property id, carrying its name and value kind and
-    // nothing else of the definition. Each declaring type's entry is built exactly as it is
-    // projected, and the entries are compared: two types whose declarations of one id agree on
-    // name and value kind project it once, whatever else of their definitions differs, because
-    // the format carries nothing else. Entries that differ in either cannot both be projected, and
-    // keeping one would tell a reader of the other type the wrong name or kind; the render refuses
-    // instead, until the format carries each type's own definition
-    // (task:projection-carries-per-type-property-definitions).
-    let mut definitions: BTreeMap<String, (ProjectedProperty, TypeId)> = BTreeMap::new();
+    // `ontology.properties` holds one entry per definition of a property id, a definition being
+    // its name and value kind — all of one the format carries, so declarations that differ only
+    // in anything else are one definition. An id every declaring type defines alike has one entry
+    // and no `owners`, exactly as before per-type definitions existed. An id two types define
+    // differently, as a child type redeclaring an inherited property may, has one entry per
+    // definition, each naming in `owners` the types whose declaration it is
+    // (task:projection-carries-per-type-property-definitions). Each declaring type is in exactly
+    // one entry's owners, so the entries of one id ascend by their first owner without a tie.
+    let mut definitions: BTreeMap<String, BTreeMap<(String, String), BTreeSet<String>>> =
+        BTreeMap::new();
     for (owner, property) in ontology
         .node_types
         .iter()
@@ -654,26 +647,38 @@ pub(crate) fn project_ontology(
                 .map(move |property| (declared.id, property))
         }))
     {
-        let entry = projected_property(property);
-        let (held, first) = definitions
-            .entry(entry.id.clone())
-            .or_insert_with(|| (projected_property(property), owner));
-        if *held != entry {
-            return Err(ProjectError::Inconsistent(format!(
-                "property {} is declared by type {first} as {:?} of kind {} and by type {owner} \
-                 as {:?} of kind {}, and ekr.graph-projection/1 carries one name and value kind \
-                 per property id (task:projection-carries-per-type-property-definitions)",
-                entry.id, held.name, held.value_kind, entry.name, entry.value_kind
-            )));
-        }
+        definitions
+            .entry(property.id.to_string())
+            .or_default()
+            .entry((
+                property.name.clone(),
+                property.value_type.kind().to_string(),
+            ))
+            .or_default()
+            .insert(owner.to_string());
     }
-    let properties: Vec<ProjectedProperty> = definitions
-        .into_values()
-        .map(|(property, _)| property)
-        .collect();
-    Ok(ProjectedOntology {
+    let mut properties: Vec<ProjectedProperty> = Vec::new();
+    for (id, defined) in definitions {
+        let several = defined.len() > 1;
+        let mut entries: Vec<(String, ProjectedProperty)> = defined
+            .into_iter()
+            .map(|((name, value_kind), owners)| {
+                let first = owners.first().cloned().unwrap_or_default();
+                let property = ProjectedProperty {
+                    id: id.clone(),
+                    name,
+                    value_kind,
+                    owners: several.then(|| owners.into_iter().collect()),
+                };
+                (first, property)
+            })
+            .collect();
+        entries.sort_by(|(a, _), (b, _)| a.cmp(b));
+        properties.extend(entries.into_iter().map(|(_, property)| property));
+    }
+    ProjectedOntology {
         node_types,
         edge_types,
         properties,
-    })
+    }
 }

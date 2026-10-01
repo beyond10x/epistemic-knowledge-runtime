@@ -125,6 +125,10 @@ const SOURCE: u64 = 0x10b;
 const WIDENED_VERSION: u64 = 0x10c;
 const MODIFIED_VERSION: u64 = 0x10d;
 const DECLARED_VERSION: u64 = 0x10e;
+// `property-redeclared`: a-property-a-subtype-redeclares-is-projected-for-each-type.yaml.
+/// `Refined`, a child of `Subject` redeclaring its `label` as the Integer `rank`.
+pub const REFINED_TYPE: u64 = 0xf1_0001;
+const REDECLARED_VERSION: u64 = 0xf1_0002;
 const ALPHA: u64 = 0x110;
 const BETA: u64 = 0x111;
 const GAMMA: u64 = 0x112;
@@ -343,6 +347,10 @@ pub enum Fixture {
     /// `Many` (revision 3); `note` declared on `Observation` too (revision 4). See
     /// [`build_schema_changes`].
     SchemaChanges,
+    /// The seed of [`Fixture::SeedOnly`], then one schema change (revision 1): the node type
+    /// `Refined` ([`REFINED_TYPE`]), a child of `Subject`, and `ModifyProperty` on it redeclaring
+    /// `label` as the Integer `rank`, so two types declare one property id with two definitions.
+    PropertyRedeclared,
 }
 
 impl Fixture {
@@ -363,6 +371,7 @@ impl Fixture {
             "quality" => Self::Quality,
             "ocel" => Self::Ocel,
             "schema-changes" => Self::SchemaChanges,
+            "property-redeclared" => Self::PropertyRedeclared,
             _ => return None,
         })
     }
@@ -456,6 +465,25 @@ impl Fixture {
             Self::Quality => build_quality(&mut writer),
             Self::Ocel => build_ocel(&mut writer),
             Self::SchemaChanges => build_schema_changes(&mut writer),
+            Self::PropertyRedeclared => {
+                writer.seed(seed(0, false, false, 1));
+                let mut refined = NodeType::new(id::<TypeId>(REFINED_TYPE), "Refined");
+                refined.parents.insert(id(SUBJECT));
+                writer.commit(
+                    vec![
+                        GraphOperation::DefineNodeType(Box::new(refined)),
+                        GraphOperation::ModifyProperty(PropertyModification {
+                            owner: Some(id(REFINED_TYPE)),
+                            property: PropertyDefinition::new(
+                                id(LABEL),
+                                "rank",
+                                ValueType::Integer,
+                            ),
+                        }),
+                    ],
+                    Some(id(REDECLARED_VERSION)),
+                );
+            }
             Self::Evolved => {
                 let mut document = seed(3, true, false, 2);
                 let described = Node::<Value>::new(

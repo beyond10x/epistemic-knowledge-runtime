@@ -287,7 +287,8 @@ pub struct ViewEdgeType {
     pub assertions: Vec<ViewAssertion>,
 }
 
-/// A property declaration.
+/// A property definition: one per id, or one per definition of an id that types define
+/// differently.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ViewProperty {
     /// Its id.
@@ -296,6 +297,11 @@ pub struct ViewProperty {
     pub name: String,
     /// Its value kind.
     pub value_kind: String,
+    /// The types whose declaration this is, present only when the id has more than one
+    /// definition; a type's own definition of an id is the entry naming it here, else the id's
+    /// only entry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owners: Option<Vec<String>>,
 }
 
 /// The schema's history up to the revision.

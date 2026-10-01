@@ -1255,6 +1255,85 @@ fn the_schema_history_lists_widened_ends_and_modified_properties_and_calls_only_
     }
     assert!(version_card(&dom, 2).contains("changes nothing"));
 }
+/// The `ekr.graph-overview/1` entries of `ontology.properties` for property `id`, in order.
+fn property_entries(document: &Value, id: &str) -> Vec<Value> {
+    document["ontology"]["properties"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|entry| entry["id"] == id)
+        .cloned()
+        .collect()
+}
+
+/// `task:projection-carries-per-type-property-definitions`: a revision in which a subtype
+/// redeclares a property its parent declares is served, and each type shows its own definition.
+/// `tests/fixtures/view-redeclared/gauges` seeds `Gauge`, declaring `measure` as a String, and
+/// `Dial`, a child of `Gauge` declaring nothing; its one commit is a `ModifyProperty` on `Dial`
+/// redeclaring that property as the Integer `reading`, so schema evolution produces the
+/// redeclaration. `ekr view` serves the projection and the overview of both revisions, the head's
+/// listing one definition per type, and the page names the property on each type as that type
+/// declares it.
+#[test]
+fn a_subtype_redeclaring_a_property_is_served_and_each_type_shows_its_own_definition() {
+    const GAUGE: &str = "00000000-0000-4000-8000-00000000c201";
+    const DIAL: &str = "00000000-0000-4000-8000-00000000c202";
+    const MEASURE: &str = "00000000-0000-4000-8000-00000000c801";
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/view-redeclared/gauges"));
+    let server = seeded.serve();
+    let (status, body) = server.get("/projection");
+    assert_eq!(status, 200, "{}", String::from_utf8_lossy(&body));
+    assert_eq!(body, seeded.projection_bytes());
+    let (status, body) = server.get("/overview");
+    assert_eq!(status, 200, "{}", String::from_utf8_lossy(&body));
+    let overview: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(overview["meta"]["revision"], 1);
+    assert_eq!(
+        property_entries(&overview, MEASURE),
+        vec![
+            serde_json::json!({"id": MEASURE, "name": "measure", "value_kind": "String", "owners": [GAUGE]}),
+            serde_json::json!({"id": MEASURE, "name": "reading", "value_kind": "Integer", "owners": [DIAL]}),
+        ],
+        "the head's overview gives each type its own definition"
+    );
+    let (status, body) = server.get("/overview?revision=0");
+    assert_eq!(status, 200, "{}", String::from_utf8_lossy(&body));
+    let before: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        property_entries(&before, MEASURE),
+        vec![serde_json::json!({"id": MEASURE, "name": "measure", "value_kind": "String"})],
+        "revision 0, before the redeclaration, projects one definition and no owners"
+    );
+    drop(server);
+
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let double = seeded.double(Duration::ZERO);
+    let dom = rendered(&browser, &format!("{}#schema=1", double.url));
+    let seeded_version = version_card(&dom, 0);
+    for (owner, shown) in [
+        ("Gauge", "measure <span class=\"p\">String</span>"),
+        ("Dial", "reading <span class=\"p\">Integer</span>"),
+    ] {
+        let chip = format!("<span class=\"p\">{owner}.</span>{shown}");
+        assert!(
+            seeded_version.contains(&chip),
+            "{owner} shows its own definition of the property, {chip}: {seeded_version}"
+        );
+    }
+    let dial = seeded_version
+        .split(&format!("title=\"{DIAL}\""))
+        .nth(1)
+        .and_then(|rest| rest.split("typechip").next())
+        .unwrap_or_default();
+    assert!(
+        dial.contains("reading") && !dial.contains("measure"),
+        "Dial's type chip names the property as Dial declares it: {dial}"
+    );
+    reads_no_projection(&double.requests(), "view-redeclared/gauges");
+}
 
 /// `task:timeline-rows-are-subjects`: the timeline's rows are subjects — one per node of the first
 /// row type `/timeline` lists that has an event, each under its own name — read from `/timeline`

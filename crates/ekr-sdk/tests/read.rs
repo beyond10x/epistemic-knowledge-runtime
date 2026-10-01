@@ -438,7 +438,7 @@ fn changes_hold(changes: &Changes) {
 
 // ---- every conformance fixture document --------------------------------------------------------
 
-const FIXTURES: [&str; 13] = [
+const FIXTURES: [&str; 14] = [
     "seed-only",
     "seeded-evidence",
     "edge-assertion",
@@ -452,6 +452,7 @@ const FIXTURES: [&str; 13] = [
     "changes",
     "quality",
     "schema-changes",
+    "property-redeclared",
 ];
 
 /// Every document each conformance fixture store renders, at every revision: the overview at
