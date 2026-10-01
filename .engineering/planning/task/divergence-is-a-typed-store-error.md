@@ -2,12 +2,15 @@
 format: aep.planning-md/3
 id: task:divergence-is-a-typed-store-error
 kind: task
-status: draft
+status: active
 title: Store divergence reaches the CLI as a typed error, not a message
 relations:
 - serves: vision:o5
 - decomposes: epic:p1-kernel-ontology-core
-revision: 2
+revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-01T11:10:06Z", actor: "human:timo", revision: 3, decided_on: {"recorded":{"review_outcome":2}}}
+- {from: "proposed", to: "active", at: "2026-10-01T11:10:06Z", actor: "human:timo", revision: 4, decided_on: {"recorded":{"review_outcome":2}}}
 ---
 ## Context
 

@@ -46,7 +46,7 @@ scope:
   path: systems/ekr/conformance/suite.json
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 7
+revision: 8
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-30T12:26:23Z", actor: "human:timo", revision: 5}
 - {from: "proposed", to: "active", at: "2026-09-30T18:15:40Z", actor: "human:timo", revision: 7, decided_on: {"recorded":{"review_outcome":1}}}
@@ -69,9 +69,14 @@ assertion.
 
 ## Acceptance
 
-- At the 1× shape, `explain` of an assertion answers in under 0.5 s and under 200 KB through the
-  session and the one-shot verb, and under 400 KB through MCP (the audit measured MCP at twice the
-  session size, 6.0 against 3.0 MB).
+- At the 1× shape, `explain` of an assertion answers in under 200 KB through the session and the
+  one-shot verb, and under 400 KB through MCP (the audit measured MCP at twice the session size,
+  6.0 against 3.0 MB); explain's own work on an open store, measured apart from opening it, takes
+  under 0.5 s.
+- Revised by the coordinator on 2026-10-01 (`review-result:adversary-extract-06-x-pass-1`): the
+  per-call bound of 0.5 s was measured at 0.44–0.65 s through the session and MCP and about 4 s
+  one-shot, nearly all of it opening the store (blob-integrity SHA-256). That cost is not
+  explain's and moved to `task:store-open-verifies-blobs-once`.
 - The § 62 chain (evidence, proposal, validation, commit, supersession) is the same for every
   assertion of the conformance fixtures as before, by id.
 - MCP `explain` and the session verb answer the new format; the SDK's `Explanation` reads it.

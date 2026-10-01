@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-01T07:06:22Z",
+  "actor": "human:timo",
+  "artifact": "story:extraction-document-applies-to-a-store",
+  "kind": "story",
+  "revision": 10,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "impl/extraction-document 848698b7",
+    "review": "review-result:adversary-extract-06-d-pass-1",
+    "outcome": "fixed"
+  }
+}

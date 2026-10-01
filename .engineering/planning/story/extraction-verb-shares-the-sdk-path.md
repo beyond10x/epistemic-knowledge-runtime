@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:extraction-verb-shares-the-sdk-path
 kind: story
-status: proposed
+status: active
 title: The engine's extraction verb runs on the SDK in-process
 relations:
 - depends_on: story:sdk-resolve-and-batch
@@ -43,9 +43,10 @@ scope:
   path: systems/ekr/conformance/suite.json
 - confidence: inferred
   path: systems/ekr/domains/integrate.yaml
-revision: 8
+revision: 10
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-30T12:26:22Z", actor: "human:timo", revision: 8}
+- {from: "proposed", to: "active", at: "2026-10-01T11:10:05Z", actor: "human:timo", revision: 10, decided_on: {"recorded":{"review_outcome":1}}}
 ---
 ## Context
 
@@ -62,6 +63,13 @@ The verb applies an extraction document the consumer already produced. It starts
 model: a consumer runs its extractor in its own sandbox and hands the engine the document
 (consumer input, 2026-09-29). Applying that document through the SDK over a child session stays
 supported beside the verb.
+
+The SDK's mirror of the extraction document must read the shape unit D published in wave
+extract-06 (`848698b7`): a value type is written as `ValueType` writes it, an Enum as
+`parameters: {variants: [..]}` and a NodeRef as `parameters: {allowed_types: [..]}`. The SDK's
+`ValueSpec` is still the tuple form (`NodeRef(Vec<String>)`), so its serde form changes or an adapter
+reads the document's form; a round-trip test holds the SDK mirror to `ekr example
+ekr.extraction-document/1`.
 
 ## Surface (inferred)
 
