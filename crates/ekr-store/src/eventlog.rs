@@ -104,10 +104,20 @@ pub struct EventlogStore<S: EventStore> {
     ///
     /// A digest binds one byte sequence in a tenant until the blob is deleted, and nothing in
     /// this runtime deletes a retained object, so a verified read is not repeated. The one thing
-    /// that can move is the retention class, and only upwards; an object this handle writes is
-    /// forgotten, and read again when it is next required. The bytes are held once, shared with
-    /// the process's registry of verified bytes (`crate::verified`) for as long as they are held.
+    /// that can move is the retention class, and only upwards, by an event on the object's
+    /// stream: a held class below the strongest is read again only once the log shows one
+    /// (`log_seen`). An object this handle writes is forgotten, and read again when it is next
+    /// required. The bytes are held once, shared with the process's registry of verified bytes
+    /// (`crate::verified`) for as long as they are held.
     verified: std::sync::Mutex<BTreeMap<ContentHash, HeldObject>>,
+    /// The tenant log position through which this handle has looked for events on the streams of
+    /// the objects it holds; `None` while it holds none.
+    ///
+    /// A raise appends an event to the object's own stream, so an event the log published after
+    /// this position is the only way a held class can have moved. Every held object was verified
+    /// when the log had reached at least this position, so looking through the log from it finds
+    /// every event appended to a held stream since that object was verified.
+    log_seen: std::sync::Mutex<Option<u64>>,
     /// The revision stream's prefix this handle has read and checked. The stream is append-only,
     /// so a later read fetches only the occurrences after it.
     revisions: std::sync::Mutex<HeldRevisions>,
@@ -135,6 +145,9 @@ pub struct EventlogStore<S: EventStore> {
 struct HeldObject {
     metadata: StoredObject,
     bytes: Arc<Vec<u8>>,
+    /// Whether its stream may have an event this handle has not read: set when the log shows one
+    /// after the object was verified, or when that cannot be told.
+    moved: bool,
 }
 impl HeldObject {
     /// The object as a history holds it: these very bytes, shared, never a copy of them.
@@ -156,11 +169,14 @@ struct HeldRevisions {
     occurrences: Vec<RecordedOccurrence>,
     native_ids: BTreeSet<String>,
     event_ids: BTreeSet<ekr_core::EventId>,
+    /// The highest tenant log position of an occurrence read: the log had reached it then.
+    position: u64,
 }
 impl HeldRevisions {
     /// Checks the next recorded event of the stream and holds it as an occurrence.
     fn accept(&mut self, recorded: RecordedEvent) -> Result<(), StoreError> {
         crate::verified::count(|work| work.occurrences_read += 1);
+        let position = recorded.global_seq;
         let event: RevisionEvent = serde_json::from_value(recorded.data)
             .map_err(|e| StoreError::Document(e.to_string()))?;
         if event.format != RevisionEvent::FORMAT
@@ -177,6 +193,7 @@ impl HeldRevisions {
             provider_event_id: recorded.event_id,
             event,
         });
+        self.position = self.position.max(position);
         Ok(())
     }
 }
@@ -509,6 +526,7 @@ impl<S: EventStore> EventlogStore<S> {
             ontology,
             authority: None,
             verified: std::sync::Mutex::default(),
+            log_seen: std::sync::Mutex::default(),
             revisions: std::sync::Mutex::default(),
             checkpoints: true,
             checkpoint_offered: std::sync::atomic::AtomicBool::new(false),
@@ -714,6 +732,9 @@ impl<S: EventStore> EventlogStore<S> {
                 CHECKPOINT_STREAM_TYPE => {
                     crate::verified::count_stream_read(|reads| reads.checkpoint += 1);
                 }
+                OBJECT_STREAM_TYPE => {
+                    crate::verified::count_stream_read(|reads| reads.object += 1);
+                }
                 _ => {}
             }
             let slice =
@@ -900,17 +921,21 @@ impl<S: EventStore> EventlogStore<S> {
     /// because a provider without its own `read_many` fails the whole batch on its first error.
     ///
     /// An object this handle already verified is not fetched again, unless its held class is below
-    /// the strongest: another handle may have raised it since, so its stream is read and checked
-    /// again in its place in the batch, and its held bytes stand in for its blob. A class is never
-    /// refused from a stale memo.
+    /// the strongest and its stream has moved since this handle verified it: a raise appends an
+    /// event to that stream, so the handle first looks through the log for such events
+    /// ([`Self::look_through_log`]), and a moved object's stream is read and checked again in its
+    /// place in the batch, with its held bytes standing in for its blob. A class is never refused
+    /// from a stale memo.
     fn required(&self, hashes: &[ContentHash]) -> Result<Vec<RetainedObject>, StoreError> {
         let mut known = self.verified_objects(hashes)?;
-        let raisable: Vec<ContentHash> = known
+        let below: Vec<ContentHash> = known
             .iter()
             .filter(|(_, object)| object.metadata.storage_class != StorageClass::Canonical)
             .map(|(hash, _)| *hash)
             .collect();
-        let raisable: BTreeMap<ContentHash, RetainedObject> = raisable
+        let as_of = self.look_through_log(!below.is_empty())?;
+        let raisable: BTreeMap<ContentHash, RetainedObject> = self
+            .moved(&below)?
             .into_iter()
             .filter_map(|hash| known.remove(&hash).map(|object| (hash, object)))
             .collect();
@@ -929,8 +954,8 @@ impl<S: EventStore> EventlogStore<S> {
             .into_iter()
             .map(|(hash, object, _)| (hash, object))
             .collect();
-        let read = self.remember_verified(read)?;
-        self.refresh_verified(&refreshed)?;
+        let read = self.remember_verified(read, as_of)?;
+        self.refresh_verified(&refreshed, as_of)?;
         let mut read = read
             .into_iter()
             .chain(refreshed)
@@ -1032,13 +1057,116 @@ impl<S: EventStore> EventlogStore<S> {
             .filter_map(|hash| held.get(hash).map(|object| (*hash, object.retained())))
             .collect())
     }
+    /// Those of `hashes` this handle holds whose streams may have moved since it verified them.
+    fn moved(&self, hashes: &[ContentHash]) -> Result<Vec<ContentHash>, StoreError> {
+        let held = self
+            .verified
+            .lock()
+            .map_err(|_| StoreError::Document("verified-object-memo-poisoned".into()))?;
+        Ok(hashes
+            .iter()
+            .filter(|hash| held.get(hash).is_some_and(|object| object.moved))
+            .copied()
+            .collect())
+    }
+    /// The log position at or after which the objects this handle verifies next are verified.
+    ///
+    /// When `look`, it first looks through the tenant log from the position this handle has
+    /// looked through to the log's end, marks every held object whose stream has an event there
+    /// as moved, and moves the position to that end: one provider read when the log has not
+    /// moved, and one per page of what it has. A log that cannot be read that way, or reads back
+    /// out of order, marks every held object moved, so each is read again as it was before this
+    /// handle looked at the log. A handle that holds no object yet starts from the newest
+    /// revision occurrence it has read, which the log had reached before anything it verifies
+    /// next was read.
+    fn look_through_log(&self, look: bool) -> Result<u64, StoreError> {
+        let start = self
+            .revisions
+            .lock()
+            .map_err(|_| StoreError::Document("held-revisions-poisoned".into()))?
+            .position;
+        let mut seen = self
+            .log_seen
+            .lock()
+            .map_err(|_| StoreError::Document("verified-object-memo-poisoned".into()))?;
+        let Some(after) = *seen else {
+            *seen = Some(start);
+            return Ok(start);
+        };
+        if !look {
+            return Ok(after);
+        }
+        let found = self.object_streams_after(after);
+        let mut held = self
+            .verified
+            .lock()
+            .map_err(|_| StoreError::Document("verified-object-memo-poisoned".into()))?;
+        match found {
+            Some((end, streams)) => {
+                for hash in streams {
+                    if let Some(object) = held.get_mut(&hash) {
+                        object.moved = true;
+                    }
+                }
+                *seen = Some(end);
+                Ok(end)
+            }
+            None => {
+                for object in held.values_mut() {
+                    object.moved = true;
+                }
+                Ok(after)
+            }
+        }
+    }
+    /// The last position of the tenant log after `after`, or `after` when there is none, and every
+    /// object stream with an event after `after`. `None` when the provider fails or its feed does
+    /// not ascend.
+    fn object_streams_after(&self, after: u64) -> Option<(u64, BTreeSet<ContentHash>)> {
+        let mut streams = BTreeSet::new();
+        let mut end = after;
+        loop {
+            crate::verified::count_stream_read(|reads| reads.feed += 1);
+            let page = self
+                .runtime()
+                .block_on(self.store.read_feed(&self.tenant, end, MAX_READ_LIMIT))
+                .ok()?;
+            for event in &page.events {
+                if event.tenant != self.tenant || event.global_seq <= end {
+                    return None;
+                }
+                end = event.global_seq;
+                if event.stream_type == OBJECT_STREAM_TYPE {
+                    if let Ok(hash) = event.stream_id.parse::<ContentHash>() {
+                        streams.insert(hash);
+                    }
+                }
+            }
+            if !page.has_more {
+                return Some((end, streams));
+            }
+            if page.events.is_empty() {
+                return None;
+            }
+        }
+    }
     /// Keeps objects [`retained_object`] checked, and registers their bytes as verified for the
     /// process while this handle keeps them. Returns them holding the kept bytes, so that the read
     /// that loaded them shares them with every later read, as later reads share them.
+    ///
+    /// `as_of` is what [`Self::look_through_log`] returned before they were read. When this handle
+    /// has looked further through the log since, an event it passed over may be on one of their
+    /// streams, so they are kept as moved.
     fn remember_verified(
         &self,
         read: Vec<(ContentHash, CheckedObject)>,
+        as_of: u64,
     ) -> Result<Vec<(ContentHash, CheckedObject)>, StoreError> {
+        let seen = self
+            .log_seen
+            .lock()
+            .map_err(|_| StoreError::Document("verified-object-memo-poisoned".into()))?;
+        let moved = *seen != Some(as_of);
         let mut held = self
             .verified
             .lock()
@@ -1052,14 +1180,25 @@ impl<S: EventStore> EventlogStore<S> {
                     HeldObject {
                         metadata: object.metadata.clone(),
                         bytes: Arc::clone(&object.bytes),
+                        moved,
                     },
                 );
                 (hash, CheckedObject(object))
             })
             .collect())
     }
-    /// Records the retention class a stream re-read found for objects this handle holds.
-    fn refresh_verified(&self, read: &[(ContentHash, CheckedObject)]) -> Result<(), StoreError> {
+    /// Records the retention class a stream re-read found for objects this handle holds, read
+    /// after [`Self::look_through_log`] returned `as_of`, as [`Self::remember_verified`] does.
+    fn refresh_verified(
+        &self,
+        read: &[(ContentHash, CheckedObject)],
+        as_of: u64,
+    ) -> Result<(), StoreError> {
+        let seen = self
+            .log_seen
+            .lock()
+            .map_err(|_| StoreError::Document("verified-object-memo-poisoned".into()))?;
+        let moved = *seen != Some(as_of);
         let mut held = self
             .verified
             .lock()
@@ -1067,6 +1206,7 @@ impl<S: EventStore> EventlogStore<S> {
         for (hash, CheckedObject(object)) in read {
             if let Some(kept) = held.get_mut(hash) {
                 kept.metadata = object.metadata.clone();
+                kept.moved = moved;
             }
         }
         Ok(())
@@ -1074,8 +1214,12 @@ impl<S: EventStore> EventlogStore<S> {
     /// Drops everything this handle holds: the revision prefix and every verified object.
     fn forget_everything(&self, revisions: &mut HeldRevisions) {
         *revisions = HeldRevisions::default();
+        let seen = self.log_seen.lock();
         if let Ok(mut held) = self.verified.lock() {
             held.clear();
+        }
+        if let Ok(mut seen) = seen {
+            *seen = None;
         }
     }
     /// Forgets the verified objects a write of this handle may have moved: their retention.
@@ -1090,6 +1234,13 @@ impl<S: EventStore> EventlogStore<S> {
     }
     /// One provider batch, answered read for read.
     fn batch(&self, reads: &[Read]) -> Result<Vec<ReadResult>, StoreError> {
+        let objects = reads
+            .iter()
+            .filter(|read| {
+                matches!(read, Read::Stream { stream, .. } if stream.stream_type() == OBJECT_STREAM_TYPE)
+            })
+            .count() as u64;
+        crate::verified::count_stream_read(|counted| counted.object += objects);
         let results = self.runtime().block_on(self.store.read_many(reads))?;
         if results.len() == reads.len() {
             Ok(results)
@@ -1764,10 +1915,11 @@ impl<S: AtomicBlobEventStore> ObjectStore for EventlogStore<S> {
         if let Some(held) = self.verified_objects(&[*hash])?.remove(hash) {
             return Ok(Some(held.bytes.to_vec()));
         }
+        let as_of = self.look_through_log(false)?;
         let Some((checked, _)) = self.object_versioned(*hash)? else {
             return Ok(None);
         };
-        let read = self.remember_verified(vec![(*hash, checked)])?;
+        let read = self.remember_verified(vec![(*hash, checked)], as_of)?;
         Ok(read
             .into_iter()
             .next()

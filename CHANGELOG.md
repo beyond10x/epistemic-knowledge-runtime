@@ -4,6 +4,22 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Fixed
+
+- **A held evidence payload is not read again while its stream has not moved**
+  (`story:commit-cost-flat-with-store-size`). A store handle served a verified object from its
+  memo only when its class was `Canonical`; every other class had its stream read again on every
+  history load, because another handle may raise it. Evidence payloads are `Provenance`, so each
+  `propose`, `validate` and `commit` read one object stream per evidence payload in the store,
+  and a transaction cost more the more evidence the store held. A raise appends an event to the
+  object's own stream, so a handle now looks through the tenant log from the position it last
+  looked through — one provider read when nothing was appended — and reads again only the held
+  objects whose streams have an event there. A class raised by another handle is still seen on
+  the next load; refusals are unchanged. `ekr_store::stream_reads` counts object-stream and log
+  reads (`crates/ekr-store/tests/eventlog_object_memo.rs`), and
+  `crates/ekr-sdk/tests/commit_scaling.rs` is an ignored release harness that times each
+  transaction of a small and a large delta over one base store.
+
 ## [0.0.24] — 2026-09-30
 
 A store exports as an OCEL 2.0 event log; the viewer's compact mode works from the keyboard and in
