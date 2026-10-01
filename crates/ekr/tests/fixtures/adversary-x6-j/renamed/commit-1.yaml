@@ -1,0 +1,17 @@
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-8000-00000000c601
+  proposer: 00000000-0000-4000-8000-000000000101
+  operations:
+  - !ModifyProperty
+    owner: 00000000-0000-4000-8000-00000000c201
+    property:
+      id: 00000000-0000-4000-8000-00000000c801
+      name: level
+      value_type:
+        value_kind: String
+      cardinality: One
+      required: false
+      constraints: []
+  evidence: []
+  schema_version: 00000000-0000-4000-8000-00000000c003

@@ -3434,3 +3434,62 @@ fn a_narrow_window_opens_compact_and_the_graph_keeps_its_width() {
         driven.errors
     );
 }
+
+/// Adversary, wave extract-06 unit J, F2. `tests/fixtures/adversary-x6-j/chain` seeds `Gauge`
+/// (`measure`, String), `Dial` (a child of `Gauge` redeclaring that property as the Integer
+/// `reading`) and `Knob` (a child of `Dial` declaring nothing, so the kernel resolves Dial's
+/// definition for it), and one `Knob` node holding the Integer 7 under that id. The node panel
+/// names the property through `pname(k, n.type)`; `Knob` is in no entry's `owners`, so it falls
+/// back to the id's first entry, Gauge's `measure`, and the Integer 7 is labelled with the
+/// String definition of another type.
+#[test]
+#[ignore = "adversary x6-j F2: a node of an inheriting subtype shows another type's definition of a redeclared property"]
+fn a_node_of_a_subtype_inheriting_a_redeclared_property_shows_its_resolved_definition() {
+    const KNOB_ONE: &str = "00000000-0000-4000-8000-00000000c303";
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/adversary-x6-j/chain"));
+    let double = seeded.double(Duration::ZERO);
+    let dom = rendered(&browser, &format!("{}#node={KNOB_ONE}", double.url));
+    assert!(dom.contains("Knob One"), "the node panel is shown: {dom}");
+    let properties = dom
+        .split("Properties")
+        .nth(1)
+        .and_then(|rest| rest.split("</dl>").next())
+        .unwrap_or_default();
+    assert!(
+        properties.contains("<dt>reading</dt>") && !properties.contains("<dt>measure</dt>"),
+        "Knob inherits Dial's definition, the Integer `reading`: {properties}"
+    );
+}
+
+/// Adversary, wave extract-06 unit J, F3. `tests/fixtures/adversary-x6-j/renamed` seeds `Gauge`
+/// (`measure`, String) and `Dial` (redeclaring it as the Integer `reading`), so version 0 already
+/// holds two definitions of the id; its one commit renames Gauge's to `level` (version 1). The
+/// schema history's page says "every type and property is named as the version that added or
+/// removed it names it", and the overview's lineage names version 0's property `measure`. The
+/// version-0 card's property chip now reads Gauge's definition at the shown revision instead,
+/// so version 0 is shown adding a property called `level`, a name it never had.
+#[test]
+#[ignore = "adversary x6-j F3: the schema history names a version's property by the shown revision's definition, not the version's"]
+fn the_schema_history_names_a_redeclared_property_as_the_version_that_added_it() {
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/adversary-x6-j/renamed"));
+    let double = seeded.double(Duration::ZERO);
+    let dom = rendered(&browser, &format!("{}#schema=1", double.url));
+    let seeded_version = version_card(&dom, 0);
+    assert!(
+        !seeded_version.is_empty(),
+        "version 0's card is shown: {dom}"
+    );
+    let chip = "<span class=\"p\">Gauge.</span>measure <span class=\"p\">String</span>";
+    assert!(
+        seeded_version.contains(chip),
+        "version 0 added Gauge's property as `measure`, {chip}: {seeded_version}"
+    );
+}
