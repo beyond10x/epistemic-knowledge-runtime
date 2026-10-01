@@ -72,6 +72,39 @@ fn a_session_follows_a_file_store_replaced_inside_its_directory() {
     assert_eq!(reader_work().reopens, 1);
 }
 
+/// No CLI source matches the provider's message to tell a diverged history: the store reports
+/// one as a typed error, and the long-running readers match that.
+#[test]
+fn no_cli_source_matches_a_provider_message_for_divergence() {
+    fn sources(directory: &std::path::Path, found: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(directory).expect("a source directory") {
+            let path = entry.expect("an entry").path();
+            if path.is_dir() {
+                sources(&path, found);
+            } else if path.extension().is_some_and(|extension| extension == "rs") {
+                found.push(path);
+            }
+        }
+    }
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR");
+    let mut found = Vec::new();
+    sources(&std::path::Path::new(&manifest).join("src"), &mut found);
+    assert!(found.len() > 10, "the CLI's sources are found: {found:?}");
+    let message = ["diverged from this handle", "'s observed history"].concat();
+    let matching: Vec<_> = found
+        .iter()
+        .filter(|path| {
+            std::fs::read_to_string(path)
+                .expect("a UTF-8 source")
+                .contains(&message)
+        })
+        .collect();
+    assert!(
+        matching.is_empty(),
+        "these match the provider's divergence message: {matching:?}"
+    );
+}
+
 /// The proposals a session tracks are settled from its transactions only while there are some:
 /// one read per store verb from its `propose` until its `commit`, none before or after.
 #[test]

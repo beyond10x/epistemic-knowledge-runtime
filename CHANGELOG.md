@@ -87,6 +87,12 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   an event type or stop it being one. `/roles` is now derived in `ekr-views`
   (`ekr_views::Index::view_roles_document`, with `Index::event_types` the one rule), specified in
   `systems/ekr/domains/views.yaml`.
+- **A diverged history is a typed store error** (`ekr-store`, `StoreError::Diverged`). The File
+  provider's refusal of a history that is no longer the one a handle observed — a store replaced
+  under the same device and inode — was `StoreError::Backend`; it is now `StoreError::Diverged`,
+  with the same text. `ekr session`, `ekr mcp` and `ekr view` reopen the store on that variant
+  instead of on the provider's message, so a reworded provider message no longer turns the reopen
+  off. What each prints is unchanged.
 
 ### Fixed
 

@@ -121,6 +121,13 @@ pub enum StoreError {
     #[error("the store is unavailable: {0}")]
     Backend(String),
 
+    /// The provider refused this handle's history: the history at the path is no longer the one
+    /// the handle observed — a store replaced under the same device and inode. Nothing is
+    /// answered from what the handle observed; a store opened at the path again reads what is
+    /// there. It carries the provider's own report, and reads as [`StoreError::Backend`] does.
+    #[error("the store is unavailable: {0}")]
+    Diverged(String),
+
     /// An existing-only open found no store at the path: nothing there, an empty directory, an
     /// empty file, a symlink to nothing, a SQLite database without the owner tables, or a File
     /// directory holding only what the provider writes before its manifest. Nothing was created.
@@ -212,11 +219,13 @@ impl From<eventlog_core::EventLogError> for StoreError {
     /// guard refused — is about the log's contract, and a consumer of a knowledge runtime cannot
     /// act differently on any of them. The one distinction this crate *does* act on is made where
     /// it matters, inside [`ObjectStore::put`], and is not re-exported as a shape callers would
-    /// have to match on.
+    /// have to match on. A long-running reader does act on a diverged history, so the provider's
+    /// refusal of one is [`StoreError::Diverged`], told once, in `eventlog`.
     fn from(error: eventlog_core::EventLogError) -> Self {
         match error {
             eventlog_core::EventLogError::UnknownCommit => Self::UnknownCommit,
             eventlog_core::EventLogError::Conflict { .. } => Self::Conflict,
+            diverged if eventlog::diverged(&diverged) => Self::Diverged(diverged.to_string()),
             other => Self::Backend(other.to_string()),
         }
     }
