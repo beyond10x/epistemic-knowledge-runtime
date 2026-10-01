@@ -4,6 +4,12 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.25] — 2026-10-01
+
+A long import costs less as the store grows; the SDK resolver no longer answers a stale node; the
+extraction document, fact quality from a judged sample, explain by reference, one event-type rule
+and per-type property definitions in the projection.
+
 ### Added
 
 - **The extraction document, `ekr.extraction-document/1`** (`docs/cli.md`, Extraction
