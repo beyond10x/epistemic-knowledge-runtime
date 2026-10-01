@@ -18,9 +18,16 @@ retained. Registry cache markers and upstream CI configuration are omitted.
 - `src/lib.rs` exports that module.
 - `src/de.rs` makes the existing `visit_scalar` and `parse_tag` helpers visible
   within the crate so the facade shares their behavior.
+- `src/loader.rs` gains an opt-in container depth bound (`Loader::with_max_depth`),
+  used only by `Documents::from_str_within_depth`: at the first sequence or
+  mapping nested past the bound the loader records the existing
+  `RecursionLimitExceeded` error on the document and stops the parser. The
+  parser's scan is quadratic in flow nesting depth, so a bound before loading is
+  what keeps a deep nesting under an input cap cheap. Without the bound the loader
+  is unchanged.
 - `tests/test_observation.rs` exercises the facade alongside direct decoding,
   including tags and directives, scalar categories, collection tags, alias
-  positions, multiple documents and loader errors.
+  positions, multiple documents, loader errors and the depth bound.
 
 Normal Serde and `Value` decoding remain unchanged. In particular, scalar
 classification through `deserialize_any` can differ from decoding a requested

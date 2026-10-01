@@ -1,0 +1,95 @@
+# An ekr.extraction-document/1 document: what an extracting agent read from one source, for a
+# store seeded from `ekr example ekr-seed/2`. Types, properties and relations are named, never
+# identified; Person, Organization, legal_name and CEO_OF are the store's, and Project, status and
+# LEADS are declared here. A named thing is its type's name and the aliases it is known by. Every
+# fact cites at least one evidence item of this document by its id; an item is the entry and bytes
+# an AddEvidence carries. The reader ignores comments.
+format: ekr.extraction-document/1
+ontology:
+  node_types:
+  - name: Project
+    parents: []
+    abstract_type: false
+    properties:
+    - name: status
+      value:
+        value_kind: Enum
+        parameters:
+          variants:
+          - active
+          - closed
+      cardinality: One
+      required: false
+  edge_types:
+  - name: LEADS
+    source_types:
+    - Person
+    target_types:
+    - Project
+    cardinality: Many
+    properties: []
+entities:
+- node_type: Person
+  aliases:
+  - Carol
+- node_type: Project
+  aliases:
+  - Apollo
+facts:
+- !Property
+  subject:
+    node_type: Organization
+    aliases:
+    - Globex
+  property: legal_name
+  value:
+    value_kind: String
+    value: Globex Corporation
+  evidence:
+  - 00000000-0000-4000-8000-000000000403
+- !Relation
+  subject:
+    node_type: Person
+    aliases:
+    - Carol
+  relation: CEO_OF
+  object:
+    node_type: Organization
+    aliases:
+    - Globex
+  evidence:
+  - 00000000-0000-4000-8000-000000000403
+- !Relation
+  subject:
+    node_type: Person
+    aliases:
+    - Carol
+  relation: LEADS
+  object:
+    node_type: Project
+    aliases:
+    - Apollo
+  evidence:
+  - 00000000-0000-4000-8000-000000000403
+- !Property
+  subject:
+    node_type: Project
+    aliases:
+    - Apollo
+  property: status
+  value:
+    value_kind: Enum
+    value: active
+  evidence:
+  - 00000000-0000-4000-8000-000000000403
+evidence:
+# "Carol, CEO of Globex Corporation, leads project Apollo."
+- evidence:
+    id: 00000000-0000-4000-8000-000000000403
+    source: !HumanStatement
+      identity: Quarterly report
+    content_hash: 7afeb9c852d895a2cdf8d7717a49354badd8b8dc79049925137b1f95f4651af5
+    extracted_by: 00000000-0000-4000-8000-000000000101
+    observed_at: 1773273600000
+    confidence: 10000
+  payload: [67, 97, 114, 111, 108, 44, 32, 67, 69, 79, 32, 111, 102, 32, 71, 108, 111, 98, 101, 120, 32, 67, 111, 114, 112, 111, 114, 97, 116, 105, 111, 110, 44, 32, 108, 101, 97, 100, 115, 32, 112, 114, 111, 106, 101, 99, 116, 32, 65, 112, 111, 108, 108, 111, 46]

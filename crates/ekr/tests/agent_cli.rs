@@ -16,11 +16,12 @@ use ekr_kernel::{GraphOperation, SeedDocument, TransactionDocument};
 use serde_json::Value;
 
 const BACKENDS: [&str; 2] = ["file", "sqlite"];
-const FORMATS: [&str; 4] = [
+const FORMATS: [&str; 5] = [
     "ekr.transaction-document/2",
     "ekr-seed/2",
     "ekr.cli-host/1",
     "typed-reference",
+    "ekr.extraction-document/1",
 ];
 /// 2026-03-12T00:00:00Z.
 const MARCH_12: i64 = 1_773_273_600_000;
@@ -270,6 +271,11 @@ fn guide_prints_the_workflow_roles_exit_codes_and_where_ids_come_from() {
         "ekr resolve",
         "ekr example typed-reference",
         "ProposeNew",
+        // story:extraction-document-applies-to-a-store: the document an extracting agent writes.
+        "ekr example ekr.extraction-document/1",
+        "ekr schema ekr.extraction-document/1",
+        "fact-without-evidence",
+        "extraction-type-undeclared",
     ] {
         assert!(guide.contains(needle), "guide lacks {needle:?}:\n{guide}");
     }
@@ -348,6 +354,14 @@ fn every_example_document_is_accepted_by_its_real_reader() {
     assert_eq!(names::<ekr::cli::ExampleDocument>(), examples);
     let unknown = run(&["example", "ekr-seed/9"]);
     assert_eq!(unknown.status.code(), Some(2));
+    // The extraction document is read against the store the example seed seeds, under its alias
+    // too.
+    let seed = SeedDocument::from_yaml(&text(&["example", "ekr-seed/2"])).unwrap();
+    let store = ekr_ontology::Ontology::load(seed.ontology).unwrap();
+    let extraction = text(&["example", "ekr.extraction-document/1"]);
+    assert_eq!(text(&["example", "extraction"]), extraction);
+    ekr_integrate::read_extraction(&extraction, &store)
+        .unwrap_or_else(|e| panic!("the extraction example is refused: {e}"));
 }
 
 #[test]

@@ -27,12 +27,16 @@ const SEED: &str = "ekr-seed/2";
 const HOST: &str = "ekr.cli-host/1";
 /// The document `ekr resolve` reads: it has no alias, so its entry names it twice.
 const TYPED_REFERENCE: &str = "typed-reference";
+/// The document an extracting agent hands the engine
+/// (`story:extraction-document-applies-to-a-store`).
+const EXTRACTION: &str = "ekr.extraction-document/1";
 /// `(format, the alias `ekr example` also accepts)`.
-const FORMATS: [(&str, &str); 4] = [
+const FORMATS: [(&str, &str); 5] = [
     (TRANSACTION, "transaction"),
     (SEED, "seed"),
     (HOST, "host"),
     (TYPED_REFERENCE, TYPED_REFERENCE),
+    (EXTRACTION, "extraction"),
 ];
 const DRAFT_2020_12: &str = "https://json-schema.org/draft/2020-12/schema";
 
@@ -101,8 +105,18 @@ fn read(format: &str, document: &str) -> Result<(), String> {
         TYPED_REFERENCE => serde_yaml_ng::from_str::<ekr_integrate::TypedReference>(document)
             .map(drop)
             .map_err(|e| e.to_string()),
+        EXTRACTION => ekr_integrate::read_extraction(document, &example_store())
+            .map(drop)
+            .map_err(|e| e.to_string()),
         other => panic!("no reader for {other}"),
     }
+}
+
+/// The ontology of the store `ekr example ekr-seed/2` seeds: what an extraction document is read
+/// against.
+fn example_store() -> ekr_ontology::Ontology {
+    let seed = SeedDocument::from_yaml(&text(&["example", SEED])).unwrap();
+    ekr_ontology::Ontology::load(seed.ontology).unwrap()
 }
 
 /// The schema's refusals of `document`, one line each; empty when it validates.
@@ -471,6 +485,63 @@ fn refused_documents(format: &str) -> Vec<(&'static str, String)> {
                 edit(&example, "aliases:\n- Globex\n", "aliases: Globex\n"),
             ),
         ],
+        EXTRACTION => {
+            let cited = "  evidence:\n  - 00000000-0000-4000-8000-000000000403\n";
+            vec![
+                (
+                    "another format",
+                    edit(
+                        &example,
+                        "format: ekr.extraction-document/1",
+                        "format: ekr.extraction-document/2",
+                    ),
+                ),
+                (
+                    "missing facts",
+                    edit(&example, "facts:\n- !Property\n", "fact_list:\n- !Property\n"),
+                ),
+                (
+                    "an unknown field on a named thing",
+                    edit(
+                        &example,
+                        "- node_type: Person\n",
+                        "- node_type: Person\n  canonical_name: Carol\n",
+                    ),
+                ),
+                (
+                    "a fact citing no evidence",
+                    edit(&example, cited, "  evidence: []\n"),
+                ),
+                (
+                    "a fact with no evidence list",
+                    edit(&example, cited, ""),
+                ),
+                (
+                    "a fact of an unknown kind",
+                    edit(&example, "- !Property\n", "- !Opinion\n"),
+                ),
+                (
+                    "a cited evidence id that is not an id",
+                    edit(
+                        &example,
+                        cited,
+                        "  evidence:\n  - the quarterly report\n",
+                    ),
+                ),
+                (
+                    "a payload byte over 255",
+                    edit(&example, "payload: [67, ", "payload: [256, "),
+                ),
+                (
+                    "aliases is one text, not a list",
+                    edit(
+                        &example,
+                        "  aliases:\n  - Apollo\n",
+                        "  aliases: Apollo\n",
+                    ),
+                ),
+            ]
+        }
         other => panic!("no refusals for {other}"),
     }
 }
@@ -597,6 +668,59 @@ fn accepted_documents(format: &str) -> Vec<(&'static str, String)> {
                     .to_owned(),
             ),
         ],
+        EXTRACTION => {
+            let ontology = example
+                .split("entities:\n")
+                .next()
+                .unwrap()
+                .split("ontology:\n")
+                .nth(1)
+                .unwrap();
+            let without_ontology = edit(&example, &format!("ontology:\n{ontology}"), "");
+            vec![
+                (
+                    "no ontology section, naming only the store's types",
+                    edit(
+                        &edit(
+                            &edit(&without_ontology, "- node_type: Project\n  aliases:\n  - Apollo\n", ""),
+                            "  relation: LEADS\n  object:\n    node_type: Project\n    aliases:\n    - Apollo\n",
+                            "  relation: CEO_OF\n  object:\n    node_type: Organization\n    aliases:\n    - Initech\n",
+                        ),
+                        "- !Property\n  subject:\n    node_type: Project\n    aliases:\n    - Apollo\n  property: status\n  value:\n    value_kind: Enum\n    value: active\n  evidence:\n  - 00000000-0000-4000-8000-000000000403\n",
+                        "",
+                    ),
+                ),
+                (
+                    "no entities section, and a fact citing one item twice",
+                    edit(
+                        &edit(
+                            &example,
+                            "- node_type: Person\n  aliases:\n  - Carol\n- node_type: Project\n  aliases:\n  - Apollo\n",
+                            "",
+                        ),
+                        "entities:\n",
+                        "",
+                    )
+                    .replacen(
+                        "  evidence:\n  - 00000000-0000-4000-8000-000000000403\n",
+                        "  evidence:\n  - 00000000-0000-4000-8000-000000000403\n  - \
+                         00000000-0000-4000-8000-000000000403\n",
+                        1,
+                    ),
+                ),
+                (
+                    "a value type written with `parameters: null`",
+                    edit(
+                        &example,
+                        "  - name: LEADS\n",
+                        "  - name: CODENAME_OF\n    source_types: [Project]\n    target_types: \
+                         [Project]\n    cardinality: One\n    properties:\n    - name: note\n      \
+                         value:\n        value_kind: String\n        parameters: null\n      \
+                         cardinality: One\n      required: false\n  - name: LEADS\n",
+                    ),
+                ),
+            ]
+        }
         other => panic!("no acceptances for {other}"),
     }
 }
@@ -994,4 +1118,26 @@ fn every_document_block_in_the_cli_docs_validates_against_its_printed_schema() {
         checked > 0,
         "docs/cli.md carries no document block of the three formats"
     );
+}
+
+// 7 --------------------------------------------------------------------------------------------
+
+/// The extraction reader's limits are the transaction reader's: one input cap and one depth, so
+/// a document within one reader's bounds is within the other's.
+#[test]
+fn the_extraction_reader_bounds_a_document_as_the_transaction_reader_does() {
+    let limits = ekr_kernel::DOCUMENT_V2_LIMITS;
+    assert_eq!(ekr_integrate::EXTRACTION_DEPTH, limits.depth);
+    assert_eq!(ekr_integrate::EXTRACTION_INPUT_BYTES, limits.input_bytes);
+    let description = schema(EXTRACTION)["description"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    for code in ekr_integrate::ExtractionRefusalCode::ALL {
+        assert!(
+            description.contains(&format!("`{}`", code.code())),
+            "the schema's description does not name {}",
+            code.code()
+        );
+    }
 }

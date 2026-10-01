@@ -1,6 +1,6 @@
 [package]
 name = "ekr-integrate"
-description = "Integration: typed references resolved against one canonical snapshot"
+description = "Integration: typed references resolved against one canonical snapshot, and the extraction document"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -11,13 +11,17 @@ rust-version.workspace = true
 ekr-core.workspace = true
 ekr-graph.workspace = true
 ekr-ontology.workspace = true
+schemars = { version = "1.2", optional = true }
 serde.workspace = true
+serde_yaml_ng.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true
 serde_json.workspace = true
-serde_yaml_ng.workspace = true
 tempfile.workspace = true
+
+[features]
+schema = ["dep:schemars", "ekr-core/schema", "ekr-graph/schema", "ekr-ontology/schema"]
 
 [lints]
 workspace = true

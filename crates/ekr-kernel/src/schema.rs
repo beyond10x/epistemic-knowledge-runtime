@@ -352,6 +352,25 @@ pub fn seed_document() -> Schema {
     )
 }
 
+/// The JSON Schema of another YAML document built from the kernel's value space, `T`, read by a
+/// plain YAML decode as a seed is: generated and brought to what that decode accepts as the seed
+/// document's schema is, titled `title`, its root described by `root` followed by what every YAML
+/// format's schema says about tags, and each top-level field in `fields` described.
+/// `ekr schema ekr.extraction-document/1` is one.
+#[must_use]
+pub fn yaml_document<T: schemars::JsonSchema>(
+    title: &str,
+    root: &str,
+    fields: &[(&str, &str)],
+) -> Schema {
+    describe(
+        generator(None).into_root_schema_for::<T>(),
+        title,
+        &format!("{root} {YAML_TAGS}"),
+        fields,
+    )
+}
+
 /// `SeedDocument.graph`: the `ekr.graph-document/2` envelope `ekr_store::GraphDocument` decodes by
 /// hand, around the fields of its remote derive, over the proposal value space.
 pub(crate) fn graph_document(generator: &mut SchemaGenerator) -> Schema {
