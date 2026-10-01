@@ -98,6 +98,14 @@
       "file": "a-cursor-pages-the-changes-to-their-end.yaml",
       "digest": "sha256:2721cf55e98e140224e0f99a9bac18b49d3b8b2513dc9c30651e2bdc5f7bb1da"
     },
+    "ekr.views/authored/a-fact-quality-report-is-the-wilson-interval-of-the-judged-sample": {
+      "file": "a-fact-quality-report-is-the-wilson-interval-of-the-judged-sample.yaml",
+      "digest": "sha256:19b2604310838934b9046d94b95493345c0417747c018f4bc0eecf36194d4de7"
+    },
+    "ekr.views/authored/a-fact-sample-is-the-same-draw-for-the-same-seed-size-and-revision": {
+      "file": "a-fact-sample-is-the-same-draw-for-the-same-seed-size-and-revision.yaml",
+      "digest": "sha256:6a7ce015de2f7c3201988b812b2f2f96f3fb2b97bfdbb6d0faf51797cd91d2b2"
+    },
     "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties": {
       "file": "a-lineage-lists-widened-ends-and-modified-properties.yaml",
       "digest": "sha256:32b3fe5d95bd60801aac8513548100747a12adebe1498bd69e73bdcf81594f54"
@@ -105,6 +113,10 @@
     "ekr.views/authored/a-node-is-not-found-at-a-revision-before-it-existed": {
       "file": "a-node-is-not-found-at-a-revision-before-it-existed.yaml",
       "digest": "sha256:d65a72a1823d4e0b8c73c142e250a5698151b333a51ca6165069eef0c5974227"
+    },
+    "ekr.views/authored/a-property-a-subtype-redeclares-is-projected-for-each-type": {
+      "file": "a-property-a-subtype-redeclares-is-projected-for-each-type.yaml",
+      "digest": "sha256:3aa0e798160e5b6d878899c35d0d1fb3955798df252145b889a3dd137a4f7411"
     },
     "ekr.views/authored/a-quality-report-counts-evidence-constraints-and-shared-names": {
       "file": "a-quality-report-counts-evidence-constraints-and-shared-names.yaml",
@@ -203,258 +215,303 @@
     "ekr.views.ChangesSince/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 19,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ChangesSince/outcome/listed": {
       "execute_command": 2,
       "expect_event": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 23,
       "expect_outcome": 2
     },
     "ekr.views.ChangesSince/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 19,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ChangesSince/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 19,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ChangesSince/outcome/since-malformed": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 19,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.DescribeNode/outcome/described": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 17,
+      "expect_no_event": 23,
       "expect_outcome": 1
     },
     "ekr.views.DescribeNode/outcome/node-not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.DescribeNode/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.DescribeNode/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 24,
+      "expect_outcome": 1
+    },
+    "ekr.views.DrawFactSample/outcome/drawn": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_no_event": 23,
+      "expect_outcome": 1
+    },
+    "ekr.views.DrawFactSample/outcome/limit-exceeded": {
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 24,
+      "expect_outcome": 1
+    },
+    "ekr.views.DrawFactSample/outcome/not-found": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 24,
+      "expect_outcome": 1
+    },
+    "ekr.views.DrawFactSample/outcome/not-seeded": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ExpandNeighbourhood/outcome/expanded": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 17,
+      "expect_no_event": 23,
       "expect_outcome": 1
     },
     "ekr.views.ExpandNeighbourhood/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ExpandNeighbourhood/outcome/node-not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ExpandNeighbourhood/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ExpandNeighbourhood/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ExportOcel/outcome/event-type-not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 22,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ExportOcel/outcome/exported": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 21,
+      "expect_no_event": 23,
       "expect_outcome": 1
     },
     "ekr.views.ExportOcel/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 22,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ExportOcel/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 22,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.FindCodeNames/outcome/found": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 19,
+      "expect_no_event": 23,
       "expect_outcome": 1
     },
     "ekr.views.FindCodeNames/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 20,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.FindCodeNames/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 20,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ProjectGraph/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ProjectGraph/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ProjectGraph/outcome/projected": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 17,
+      "expect_no_event": 23,
       "expect_outcome": 1
     },
     "ekr.views.ProjectOverview/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ProjectOverview/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ProjectOverview/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ProjectOverview/outcome/overviewed": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 17,
+      "expect_no_event": 23,
       "expect_outcome": 1
     },
     "ekr.views.ProjectTimeline/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ProjectTimeline/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ProjectTimeline/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ProjectTimeline/outcome/timelined": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 17,
+      "expect_no_event": 23,
+      "expect_outcome": 1
+    },
+    "ekr.views.ReportFactQuality/outcome/judged-twice": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 24,
+      "expect_outcome": 1
+    },
+    "ekr.views.ReportFactQuality/outcome/limit-exceeded": {
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 24,
+      "expect_outcome": 1
+    },
+    "ekr.views.ReportFactQuality/outcome/reported": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_no_event": 23,
       "expect_outcome": 1
     },
     "ekr.views.ReportStoreQuality/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 20,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ReportStoreQuality/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 20,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ReportStoreQuality/outcome/reported": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 19,
+      "expect_no_event": 23,
       "expect_outcome": 1
     },
     "ekr.views.SearchNodes/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.SearchNodes/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.SearchNodes/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 18,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.SearchNodes/outcome/searched": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 17,
+      "expect_no_event": 23,
       "expect_outcome": 1
     },
     "ekr.views/authored/a-cursor-pages-a-neighbourhood-to-its-end": {
@@ -467,6 +524,16 @@
       "expect_event": 4,
       "expect_outcome": 4
     },
+    "ekr.views/authored/a-fact-quality-report-is-the-wilson-interval-of-the-judged-sample": {
+      "execute_command": 5,
+      "expect_event": 5,
+      "expect_outcome": 5
+    },
+    "ekr.views/authored/a-fact-sample-is-the-same-draw-for-the-same-seed-size-and-revision": {
+      "execute_command": 7,
+      "expect_event": 7,
+      "expect_outcome": 7
+    },
     "ekr.views/authored/a-lineage-lists-widened-ends-and-modified-properties": {
       "execute_command": 4,
       "expect_event": 4,
@@ -478,6 +545,11 @@
       "expect_event": 6,
       "expect_no_event": 2,
       "expect_outcome": 8
+    },
+    "ekr.views/authored/a-property-a-subtype-redeclares-is-projected-for-each-type": {
+      "execute_command": 3,
+      "expect_event": 3,
+      "expect_outcome": 3
     },
     "ekr.views/authored/a-quality-report-counts-evidence-constraints-and-shared-names": {
       "execute_command": 3,
