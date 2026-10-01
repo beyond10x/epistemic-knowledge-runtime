@@ -14,6 +14,10 @@
 //! hash, and open no provider.
 //! `migrate` opens the configured store as those verbs do, reads it only, and hands it and the
 //! store it creates at `--to` to `Runtime::migrate_into`.
+//! `apply-extraction` opens the store as a verb that writes does and runs the SDK's apply
+//! routine, `ekr_sdk::extraction::apply`, over a transport that sends each of its requests through
+//! the session's dispatch in this process (`extraction.rs`, `session.rs` `InProcess`): every write
+//! it makes is a `propose`, `validate` and `commit` request, each one verb as above.
 //! `code-names` reads the source files it is given, then opens the store as those verbs do and
 //! reads it only (`code_names.rs`).
 //! `quality` opens the store as those verbs do and reads one revision through
@@ -36,6 +40,7 @@ mod agent;
 mod code_names;
 mod commit;
 mod explain;
+mod extraction;
 mod hash;
 mod head;
 mod input;
@@ -203,6 +208,21 @@ pub enum Command {
         /// The committed revision to resolve against; the newest (`ekr head`) when absent.
         #[arg(long)]
         at: Option<u64>,
+    },
+    /// Apply an extraction document (`ekr.integrate.ApplyExtraction`): its missing ontology as one
+    /// schema change, each named thing resolved and created where the store holds none, each fact
+    /// as an assertion with the evidence it cites. Prints the `ekr.integrate.ExtractionReport`.
+    ///
+    /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST). The engine's reader
+    /// checks the document against the head first: a document it refuses is refused by the
+    /// reader's code (exit 2) and nothing is written. Every write is an `ekr propose`,
+    /// `ekr validate` and `ekr commit` as the host operator, run in this process; it starts no
+    /// agent and no process. A rejected part of the document is listed under `rejected`.
+    #[command(after_help = SEE)]
+    ApplyExtraction {
+        /// An `ekr.extraction-document/1` YAML document, or `-` for stdin
+        /// (`ekr example ekr.extraction-document/1`).
+        document: PathBuf,
     },
     /// Print the workflow: roles, propose → validate → commit, exit codes, where ids come from.
     #[command(after_help = SEE)]
@@ -479,7 +499,8 @@ impl Command {
             Self::Seed { .. }
             | Self::Propose { .. }
             | Self::Validate { .. }
-            | Self::Commit { .. } => Access::Write,
+            | Self::Commit { .. }
+            | Self::ApplyExtraction { .. } => Access::Write,
             Self::Snapshot { .. }
             | Self::Explain { .. }
             | Self::Resolve { .. }
@@ -779,6 +800,10 @@ fn dispatch(
             let reference = resolve::read(&reference, stdin)?;
             let runtime = store.open()?;
             render(&resolve::run(&runtime, &reference, at)?)
+        }
+        Command::ApplyExtraction { document } => {
+            let store = source.configured("apply-extraction")?;
+            render(&extraction::run(&document, stdin, store.into_owned(), now)?)
         }
         Command::Head => {
             let runtime = source.resolve("head")?.open()?;

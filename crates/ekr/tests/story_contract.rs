@@ -123,7 +123,11 @@ const EDGES: [(&str, &[&str]); 6] = [
 /// `task:read-verbs-open-a-read-only-store`: `rusqlite` reads a SQLite store through a read-only
 /// connection, `rustix` asks whether this process may write a path, and `tempfile`, a dev
 /// dependency until then, holds a read-only File store's private copy; `ekr`'s
-/// `signal-hook` lets `ekr view` and `ekr mcp` remove that copy when they are terminated.
+/// `signal-hook` lets `ekr view` and `ekr mcp` remove that copy when they are terminated. `ekr`'s
+/// `ekr-sdk` is the extraction apply routine `ekr apply-extraction` runs in process
+/// (`story:extraction-verb-shares-the-sdk-path`). `ekr-core`'s `serde_yaml_ng`, a dev
+/// dependency until then, carries the bounded YAML observation the extraction reader and the
+/// SDK's mirror share (`ekr_core::decode::observe_yaml`, wave correct-07).
 const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
     (
         "ekr-core",
@@ -134,9 +138,10 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
             "schemars",
             "serde",
             "serde_json",
+            "serde_yaml_ng",
             "thiserror",
         ],
-        &["proptest", "serde_yaml_ng"],
+        &["proptest"],
     ),
     (
         "ekr-kernel",
@@ -196,6 +201,7 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
         &[
             "clap",
             "ekr-integrate",
+            "ekr-sdk",
             "ekr-views",
             "ess-conformance",
             "ess-primitives",

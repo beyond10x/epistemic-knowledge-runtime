@@ -4,6 +4,29 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- **`ekr apply-extraction` applies an extraction document** (`docs/cli.md`, `ekr apply-extraction`).
+  The engine's reader checks the document against the store's head and refuses it by code, exit 2,
+  writing nothing; otherwise the document's missing ontology commits as one schema change, every
+  named thing is resolved and created where the store holds none, and every fact becomes an
+  assertion with the evidence it cites. Every write is a `propose`, `validate` and `commit` as the
+  host operator, run in this process. It prints the `ekr.integrate.ExtractionReport`: `committed`,
+  `rejected`, `ambiguous`, `held` and `stopped`. Named things of one type that share an alias are
+  one node whatever order the document lists them in; a fact the store already asserts is held,
+  so applying a document twice adds nothing, and a claim an operator retracted or superseded is
+  not asserted again from the evidence it cited (`held`, with its reason); once something has
+  committed it reports where it stopped, with every commit, instead of faulting. The SDK runs the same routine, `ekr_sdk::extraction::apply`, over
+  any transport, and its mirror `ekr_sdk::document::ExtractionDocument` refuses what the reader
+  refuses while decoding, by the reader's codes, through the same bounded loader
+  (`ekr_core::decode::observe_yaml`). The reader also refuses a named thing whose type is abstract
+  or has a subtype once the document's ontology is applied, as `reference-type-has-subtypes`; a
+  subtype redeclaring a property an ancestor declares otherwise, as `extraction-property-conflict`;
+  and an evidence item whose source is not a `!HumanStatement`, as
+  `extraction-evidence-kind-unsupported`.
+  `ekr.integrate.ApplyExtraction` is accepted by the `ekr-integrate` component, which publishes
+  `ekr.integrate.ExtractionApplied`; `ekr::conformance::IntegrateTarget` answers its suite.
+
 ### Fixed
 
 - **`ekr migrate` migrates a store that took evidence after its seed.** It refused any store

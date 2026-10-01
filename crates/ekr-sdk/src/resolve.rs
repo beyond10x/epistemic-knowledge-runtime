@@ -226,6 +226,13 @@ impl Resolver {
         Ok(std::mem::take(&mut self.pending))
     }
 
+    /// What every flush since the last [`Resolver::flush`] returned did, taken: after a request
+    /// failed, the commits it made before failing, which [`Resolver::flush`] would otherwise keep for
+    /// the next call.
+    pub(crate) fn take_pending(&mut self) -> Flushed {
+        std::mem::take(&mut self.pending)
+    }
+
     fn is_queued(&self, node: NodeId) -> bool {
         self.queued.iter().any(|queued| queued.draft.id == node)
     }

@@ -74,3 +74,48 @@ fn set_uniqueness_uses_decoded_values_instead_of_input_spelling() {
     let error = unique_set::<_, Folded>(&mut input).unwrap_err();
     assert!(error.to_string().contains("duplicate decoded set member"));
 }
+
+/// The bounded YAML observation refuses, in order, a text over its byte limit, a container
+/// nested past its depth, an alias and a malformed document; each says what it names.
+#[test]
+fn the_bounded_yaml_observation_refuses_each_bound_by_name() {
+    use ekr_core::decode::{observe_yaml, YamlRefusal};
+
+    assert_eq!(
+        ekr_core::decode::observe_yaml("a: [1, {b: c}]\n", 64, 3),
+        Ok(())
+    );
+    let large: YamlRefusal = observe_yaml("a: b\n", 4, 3).unwrap_err();
+    assert_eq!(large, YamlRefusal::TooLarge { bytes: 5, limit: 4 });
+    assert_eq!(large.to_string(), "5 bytes, at most 4");
+    // Three containers deep is the bound; a fourth is refused before the rest is read.
+    assert_eq!(observe_yaml("a: [[x]]\n", 64, 3), Ok(()));
+    let deep = observe_yaml("a: [[[x]]]\n", 64, 3).unwrap_err();
+    assert_eq!(deep, YamlRefusal::TooDeep { limit: 3 });
+    assert_eq!(deep.to_string(), "nested more than 3 deep");
+    let alias = observe_yaml("a: &n x\nb: *n\n", 64, 3).unwrap_err();
+    assert!(matches!(alias, YamlRefusal::Alias { .. }), "{alias:?}");
+    assert!(alias.to_string().starts_with("event "), "{alias}");
+    let malformed = observe_yaml("a: [x\n", 64, 3).unwrap_err();
+    assert!(
+        matches!(malformed, YamlRefusal::Malformed(_)),
+        "{malformed:?}"
+    );
+    // A second document is observed as well as the first.
+    assert!(matches!(
+        observe_yaml("a: x\n---\nb: &n y\nc: *n\n", 64, 3),
+        Err(YamlRefusal::Alias { .. })
+    ));
+}
+
+/// Aliases decode as strings only: a number, a boolean, a null or a null list is refused.
+#[test]
+fn strings_decode_only_strings() {
+    let read =
+        |json: &str| ekr_core::decode::strings(&mut serde_json::Deserializer::from_str(json));
+    assert_eq!(read("[\"a\", \"b\"]").unwrap(), ["a", "b"]);
+    assert_eq!(read("[]").unwrap(), Vec::<String>::new());
+    for refused in ["[1]", "[true]", "[null]", "null", "\"a\""] {
+        assert!(read(refused).is_err(), "{refused}");
+    }
+}
