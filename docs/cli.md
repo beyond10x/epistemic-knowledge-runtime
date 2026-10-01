@@ -156,6 +156,8 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr code-names` | reads | one or more source files; `--at <revision>` | the `ekr.code-names/1` document: every literal in the files that equals one of the store's names, with file, line and what it names; exits 0 however many it finds |
 | `ekr quality` | reads | `--revision <revision>` | the `ekr.store-quality/1` document: evidenced assertions, constrained properties, names shared within a type |
 | `ekr ocel` | reads | `--revision <revision>`, `--events <type name>...` | the `ekr.ocel/1` document: the revision as an OCEL 2.0 event log in its `ocel` member, and `names` for its ids |
+| `ekr sample` | reads | `--seed <integer>`, `--size <1–1000>`, `--type <type id>`, `--revision <revision>` | the `ekr.fact-sample/1` document: a reproducible sample of the revision's facts, each with its evidence bytes, for a judge |
+| `ekr fact-quality` | none | an `ekr.fact-judgements/1` file, or `-`; `--confidence <basis points>` | the `ekr.fact-quality/1` document: the judged sample's pass rate and its Wilson interval |
 | `ekr guide` | none | none | the workflow, as text |
 | `ekr operations` | none | an operation kind, optionally | the kinds, or one kind's fields and example |
 | `ekr example` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `schema-change`, `ekr-seed/2`, `ekr.cli-host/1` or `typed-reference` (aliases `transaction` for `/2`, `seed`, `host`) | a complete example document |
@@ -583,6 +585,153 @@ property a type inherits is an attribute of that type and of every type inheriti
 property id. The OCEL 2.0 JSON schema and common readers, the `process_mining` crate among them,
 accept such a log.
 
+### `ekr sample`
+
+Prints a reproducible sample of the store's facts at the head, or at `--revision N`, each with the
+bytes of the evidence it cites: the `ekr.fact-sample/1` document (`ekr.views.DrawFactSample`). It
+is the first half of measuring fact quality: you, or an agent you run, judge each fact against its
+evidence, and [`ekr fact-quality`](#ekr-fact-quality) reports the pass rate. The runtime judges
+nothing.
+
+```console
+ekr sample --seed 42 --size 1
+```
+
+```json
+{
+  "items": [
+    {
+      "assertion": {
+        "assessment": {
+          "kind": "Accepted",
+          "validators": [
+            "00000000-0000-4000-8000-000000000102"
+          ]
+        },
+        "evidence": [
+          "00000000-0000-4000-8000-000000000402"
+        ],
+        "id": "00000000-0000-4000-8000-000000000511",
+        "lifecycle": {
+          "kind": "Active"
+        },
+        "object_kind": "Node",
+        "object_ref": "00000000-0000-4000-8000-000000000303",
+        "predicate": "00000000-0000-4000-8000-000000000203",
+        "predicate_kind": "Relation",
+        "recorded_from": 1790796575216,
+        "valid_from": 1773273600000
+      },
+      "evidence": [
+        {
+          "content_hash": "bd1d4dc9ba5012df5e43505418aa7728c15bca052a1ad43b1a2d00d04b75bdd6",
+          "id": "00000000-0000-4000-8000-000000000402",
+          "kind": "HumanStatement",
+          "locator": "Runtime operator",
+          "text": "Bob became CEO of Acme on 2026-03-12."
+        }
+      ],
+      "object_name": "Acme",
+      "predicate_name": "CEO_OF",
+      "subject": "00000000-0000-4000-8000-000000000302",
+      "subject_kind": "Node",
+      "subject_name": "Bob",
+      "subject_type": "00000000-0000-4000-8000-000000000201"
+    }
+  ],
+  "meta": {
+    "drawn": 1,
+    "format": "ekr.fact-sample/1",
+    "population": 3,
+    "revision": 0,
+    "seed": 42,
+    "size": 1
+  }
+}
+```
+
+| input | what it does |
+|---|---|
+| `--seed <integer>` | any integer, negative included; the same seed draws the same sample |
+| `--size <1–1000>` | how many facts to draw; all of them when the revision holds fewer. Outside the range the verb is refused as `ekr.views.LimitExceeded` (exit 2) before the store is read |
+| `--type <type id>` | only facts about nodes or edges of this type, or about the type itself; a type id from `ekr ontology`, compared exactly, so a subtype is another type. A type no fact is about draws nothing (`population` `0`); it is not refused |
+| `--revision <revision>` | the committed revision to draw from; the head when absent |
+
+The facts are the revision's `Active` assertions; a retracted or superseded one is not drawn.
+Each is ranked by the SHA-256 of `ekr.fact-sample/1:<seed>:<assertion id>`, and the sample is the
+`--size` lowest-ranked, listed in that order. So one seed, size, type and revision draw the same
+facts on either provider and in every run, a larger size lists the smaller one's facts first, and
+a later commit leaves the sample of an earlier revision as it was. `meta.population` counts the
+facts the draw chose from and `meta.drawn` those it lists.
+
+Each item carries the assertion as the projection renders it, its subject (`subject_kind`
+`Node`, `Edge` or `Type`, `subject`, `subject_type`), the names a judge reads it by —
+`subject_name` (a node's canonical name or a type's name), `predicate_name` (the property's or the
+relation's name), `object_name` (a node object's canonical name), each left out where there is
+none — and every evidence entry the assertion cites, with its bytes: `text` when they are UTF-8,
+else `base64`. A store never seeded is refused as `ekr.views.NotSeeded` and a revision it does not
+hold as `ekr.views.RevisionNotFound`, exit 2. `ekr session` serves the verb too.
+
+### `ekr fact-quality`
+
+Reads a judged sample and prints its pass rate with its Wilson score interval: the
+`ekr.fact-quality/1` document (`ekr.views.ReportFactQuality`). It opens no store, so it needs no
+`--host` or `--store`. The judged sample is an `ekr.fact-judgements/1` JSON file, or `-` for
+stdin: one judgement per fact you judged from an [`ekr sample`](#ekr-sample), and the sample's
+`meta` fields `revision`, `seed`, `size` and `type` under `sample` if you keep them, which the
+report echoes and does not check.
+
+```json
+{
+  "format": "ekr.fact-judgements/1",
+  "sample": {"revision": 0, "seed": 42, "size": 3},
+  "judgements": [
+    {"assertion": "00000000-0000-4000-8000-000000000510", "verdict": "Pass"},
+    {"assertion": "00000000-0000-4000-8000-000000000511", "verdict": "Pass"},
+    {"assertion": "00000000-0000-4000-8000-000000000512", "verdict": "Fail"}
+  ]
+}
+```
+
+```console
+ekr fact-quality judged.json
+```
+
+```json
+{
+  "failed": 1,
+  "judged": 3,
+  "lower": 0.20765960080204776,
+  "meta": {
+    "confidence": 9500,
+    "format": "ekr.fact-quality/1",
+    "sample": {
+      "revision": 0,
+      "seed": 42,
+      "size": 3
+    },
+    "z": 1.9599639845400538
+  },
+  "passed": 2,
+  "rate": 0.6666666666666666,
+  "upper": 0.9385080552796037
+}
+```
+
+`verdict` is `Pass` when the evidence supports the fact and `Fail` otherwise. `rate` is
+`passed / judged`. `lower` and `upper` are the Wilson score interval at `--confidence`, basis
+points from 1 to 9999 (9500, 95 %, when absent), with `z` the standard normal quantile at
+`(1 + confidence / 10000) / 2`: `(2k + z² ∓ z·√(z² + 4k(n − k)/n)) / (2(n + z²))` for `k` passed of
+`n` judged. `lower` is exactly `0` when nothing passed and `upper` exactly `1` when everything did;
+the three are left out when nothing was judged. Compare `lower` with your bar to say, at that
+confidence, that the pass rate is above it. The arithmetic uses only the operations IEEE 754
+rounds exactly, so every host prints the same numbers.
+
+A confidence outside 1–9999 is refused as `ekr.views.LimitExceeded` and an assertion judged twice
+as `ekr.views.JudgedTwice`, naming it, both exit 2. A file that is not an `ekr.fact-judgements/1`
+— another format, a missing or unknown key, a verdict other than `Pass` or `Fail` — is a fault,
+exit 1. `ekr session` serves the verb too, with the judged sample as the request's `"stdin"`.
+
 ### `ekr guide`
 
 Prints the workflow for an agent: roles, propose → validate → commit, exit codes, where ids come from,
@@ -881,7 +1030,7 @@ writes through one process instead of one each:
 ```
 
 A session serves `propose`, `validate`, `commit`, `snapshot`, `explain`, `resolve`, `head`,
-`transactions`, `rejections`, `ontology`, `quality`, `ocel`, `mint`, `hash` and `schema`, the `ekr.views` reads
+`transactions`, `rejections`, `ontology`, `quality`, `ocel`, `sample`, `fact-quality`, `mint`, `hash` and `schema`, the `ekr.views` reads
 ([below](#session-views)), and `seed` when it was started with `--create`. It refuses these, each
 answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"stderr"`:
 

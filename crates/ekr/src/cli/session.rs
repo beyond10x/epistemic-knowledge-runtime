@@ -704,6 +704,8 @@ fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
         | Command::CodeNames { .. }
         | Command::Quality { .. }
         | Command::Ocel { .. }
+        | Command::Sample { .. }
+        | Command::FactQuality { .. }
         | Command::Schema { .. }
         | Command::Mint { .. }
         | Command::Hash { .. } => Ok(()),

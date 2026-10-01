@@ -4,6 +4,24 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+### Added
+
+- **Fact quality is reported from a judged, reproducible sample** (`docs/cli.md`, `ekr sample`
+  and `ekr fact-quality`). `ekr sample --seed S --size N [--type <type id>] [--revision N]` prints
+  the `ekr.fact-sample/1` document: the revision's Active assertions ranked by the SHA-256 of
+  `ekr.fact-sample/1:<seed>:<assertion id>`, the `N` lowest, each with its subject, the names a
+  judge reads it by and the bytes of every evidence entry it cites. One seed, size, type and
+  revision draw the same facts on either provider and in every run; a larger size extends a
+  smaller one. `ekr fact-quality <file | ->` reads the caller's verdicts, an
+  `ekr.fact-judgements/1` document, opens no store, and prints the `ekr.fact-quality/1` document:
+  passed, failed, the pass rate and its Wilson score interval at `--confidence` basis points
+  (9500 by default), computed with only exactly rounded IEEE 754 operations so every host prints
+  the same numbers. A size outside 1–1000 or a confidence outside 1–9999 is refused as
+  `ekr.views.LimitExceeded`, an assertion judged twice as `ekr.views.JudgedTwice`. The runtime
+  judges nothing. Both verbs are `ekr session` verbs. Specified as `ekr.views.DrawFactSample` and
+  `ekr.views.ReportFactQuality` in `systems/ekr/domains/views.yaml`, with `ekr_views::draw_sample`
+  and `ekr_views::report_fact_quality` in the library.
+
 ## [0.0.24] — 2026-09-30
 
 A store exports as an OCEL 2.0 event log; the viewer's compact mode works from the keyboard and in

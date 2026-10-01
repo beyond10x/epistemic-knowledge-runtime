@@ -74,6 +74,12 @@ WORKFLOW
      ekr code-names <file>... [--at N]             which store names your code quotes as literals:
                                                    file, line and kind; exit 0, the count is
                                                    meta.findings
+     ekr sample --seed S --size N [--type <id>] [--revision N]
+                                                   a reproducible sample of facts, each with its
+                                                   evidence bytes, for you to judge
+     ekr fact-quality judged.json [--confidence BP]
+                                                   the pass rate of your ekr.fact-judgements/1
+                                                   verdicts, with its Wilson interval
 
 DOCUMENT LIMITS (fixed by the format version; write ekr.transaction-document/2)
   An ekr.transaction-document/2 holds 1 to 10000 operations and at most 10000 evidence entries

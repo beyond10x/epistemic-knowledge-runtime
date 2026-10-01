@@ -18,7 +18,8 @@ summary: >-
   constrained and its nodes of one type named apart. ekr.code-names/1 (FindCodeNames) reports
   which of a revision's names a consumer's source files carry as literals. ekr.ocel/1
   (ExportOcel) exports one revision as an OCEL 2.0 object-centric event log. This domain writes
-  nothing; its ten commands read.
+  nothing; its ten commands read. Two more, DrawFactSample and ReportFactQuality, sample facts
+  for a judge and report the judged sample's pass rate (see the fact-quality paragraph below).
 
   Determinism, which every renderer of ekr.graph-projection/1 holds to so that two renders of one
   revision are byte-identical. (1) Order. By id: every array whose members carry an `id`, and
@@ -109,6 +110,27 @@ summary: >-
   provenance validator, `assertion-without-evidence`), and every cited record's bytes are
   retained, so with_evidence equals active in every store the kernel wrote; it is counted, not
   assumed, so a store that broke either rule would show it.
+
+  Fact quality by a judged sample: ekr.fact-sample/1 (DrawFactSample) and ekr.fact-quality/1
+  (ReportFactQuality). This domain writes nothing and judges nothing; DrawFactSample reads one
+  revision, and ReportFactQuality reads no store. The draw. The population is the revision's
+  Active assertions, those whose subject is of the requested type when one is named (a node
+  subject's type, an edge subject's type, a Type subject's own id, compared exactly: a subtype is
+  another type). Each is ranked by its draw key, the lowercase hex SHA-256 of the UTF-8 text
+  `ekr.fact-sample/1:<seed>:<assertion id>`, the seed in decimal with a leading `-` when negative
+  and the id lowercase hyphenated; the sample is the `size` lowest-ranked, all of them when the
+  population is smaller. So one (seed, size, type, revision) draws one sample on every provider,
+  a larger size draws a sample the smaller one's is a prefix of, and a later commit leaves the
+  sample of an earlier revision as it was. Rules (2) key order, (3) encoding, (4) presence and
+  (5) above hold for both formats as written for ekr.graph-projection/1; rule (1), order: items
+  by draw key ascending, then assertion id, which is not id order; each item's evidence by id; a
+  ProjectedAssertion inside an item as rule (1) orders it. ekr.fact-quality/1 holds no array. The
+  report. z is computed from the confidence by Wichura's algorithm AS 241 (PPND16), taking the
+  logarithm it needs as 2·atanh((m − 1)/(m + 1)) + e·ln 2 over the binary64 exponent e and
+  mantissa m, summed from a fixed number of terms with only the operations IEEE 754 rounds
+  exactly; rate, lower and upper follow from z by the formula ekr.views.FactQualityV1 states.
+  Every host therefore answers the same binary64 values. A Decimal in ekr.fact-quality/1 is a
+  JSON number: the shortest decimal text that reads back as the same binary64 value.
 
 naming:
   wire: views
@@ -1723,6 +1745,186 @@ types:
       - name: ocel
         type: ekr.views.Ocel20Log
 
+  # ---------------------------------------------------------------------------------------------
+  # Fact quality by a judged sample (story:fact-quality-by-judged-sample). DrawFactSample draws a
+  # reproducible sample of one revision's facts, each with the bytes of the evidence it cites; an
+  # agent judges each fact against that evidence; ReportFactQuality reports the pass rate of the
+  # judged sample with its Wilson score interval. The runtime judges nothing (AGENTS.md
+  # invariant 7): the verdicts are the caller's input. Determinism rules for both formats are in
+  # the domain summary.
+  # ---------------------------------------------------------------------------------------------
+
+  - name: ekr.views.FactSampleFormatV1
+    kind: enum
+    variants: [ekr.fact-sample/1]
+
+  # `seed`, `size` and `type` are the request's; `revision` is the revision read, `at` or the head
+  # as it stood at the request. `population` counts the revision's facts the draw chose from: its
+  # Active assertions, those whose subject is of `type` when the request names one. `drawn` is the
+  # length of `items`, the lesser of `size` and `population`.
+  - name: ekr.views.FactSampleMeta
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.FactSampleFormatV1
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: seed
+        type: Integer
+      - name: size
+        type: Integer
+      - name: type
+        type: Optional<ekr.ontology.TypeId>
+      - name: population
+        type: Integer
+      - name: drawn
+        type: Integer
+
+  # One evidence record a sampled fact cites, with its bytes: `text` when they are UTF-8, else
+  # `base64`, their standard padded base64 (RFC 4648 § 4). Exactly one of the two is present for
+  # every record the kernel admitted, whose bytes are always retained (see "Evidence without
+  # retained bytes is unreachable" in the domain summary); neither is present only for a record
+  # whose bytes the store does not hold.
+  - name: ekr.views.SampledEvidence
+    kind: struct
+    fields:
+      - name: id
+        type: ekr.graph.EvidenceId
+      - name: kind
+        type: ekr.graph.EvidenceKind
+      - name: locator
+        type: String
+      - name: section
+        type: Optional<String>
+      - name: content_hash
+        type: ekr.kernel.ContentHash
+      - name: text
+        type: Optional<String>
+      - name: base64
+        type: Optional<String>
+
+  # One sampled fact. `subject_type` is the subject node's type, the subject edge's type, or, for
+  # a Type subject, that type. `subject_name` is a node subject's canonical name or a Type
+  # subject's type name, omitted for an Edge. `predicate_name` is the name `subject_type` gives a
+  # Property predicate or, where it does not declare it, the first node type by id that
+  # `subject_type` conforms to and that does; for a Relation, the edge type's name; omitted where
+  # the revision's ontology declares neither. `object_name` is a Node object's
+  # canonical name, omitted for any other object. `evidence` is every record the assertion cites.
+  - name: ekr.views.SampledFact
+    kind: struct
+    fields:
+      - name: subject_kind
+        type: ekr.graph.SubjectKind
+      - name: subject
+        type: Uuid
+      - name: subject_type
+        type: ekr.ontology.TypeId
+      - name: subject_name
+        type: Optional<String>
+      - name: predicate_name
+        type: Optional<String>
+      - name: object_name
+        type: Optional<String>
+      - name: assertion
+        type: ekr.views.ProjectedAssertion
+      - name: evidence
+        type: List<ekr.views.SampledEvidence>
+
+  # ekr.fact-sample/1: the sample, in draw order.
+  - name: ekr.views.FactSampleV1
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.FactSampleMeta
+      - name: items
+        type: List<ekr.views.SampledFact>
+
+  # A judge's verdict on one sampled fact: Pass when its evidence supports it, Fail otherwise.
+  - name: ekr.views.FactVerdict
+    kind: enum
+    variants: [Pass, Fail]
+
+  - name: ekr.views.FactJudgement
+    kind: struct
+    fields:
+      - name: assertion
+        type: ekr.graph.AssertionId
+      - name: verdict
+        type: ekr.views.FactVerdict
+
+  # Which draw a judged sample came from, as its ekr.fact-sample/1 meta gave it. The report echoes
+  # it and checks nothing against it: the report reads no store.
+  - name: ekr.views.SampleOrigin
+    kind: struct
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: seed
+        type: Integer
+      - name: size
+        type: Integer
+      - name: type
+        type: Optional<ekr.ontology.TypeId>
+
+  - name: ekr.views.FactJudgementsFormatV1
+    kind: enum
+    variants: [ekr.fact-judgements/1]
+
+  # ekr.fact-judgements/1: the document a host reads ReportFactQuality's input from, the judged
+  # sample. An agent writes it after judging an ekr.fact-sample/1: one judgement per sampled fact
+  # it judged, and the sample's origin if it keeps it. No other key is admitted.
+  - name: ekr.views.FactJudgementsV1
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.FactJudgementsFormatV1
+      - name: sample
+        type: Optional<ekr.views.SampleOrigin>
+      - name: judgements
+        type: List<ekr.views.FactJudgement>
+
+  - name: ekr.views.FactQualityFormatV1
+    kind: enum
+    variants: [ekr.fact-quality/1]
+
+  # `confidence` is the stated confidence in basis points, 9500 when the request states none; `z`
+  # the standard normal quantile at (1 + confidence / 10000) / 2; `sample` the judged sample's
+  # origin, echoed when the input carried one.
+  - name: ekr.views.FactQualityMeta
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.views.FactQualityFormatV1
+      - name: confidence
+        type: ekr.views.BasisPoints
+      - name: z
+        type: Decimal
+      - name: sample
+        type: Optional<ekr.views.SampleOrigin>
+
+  # ekr.fact-quality/1: the pass rate of a judged sample and its Wilson score interval. `judged`
+  # counts the judgements, `passed` those whose verdict is Pass and `failed` the rest. With n =
+  # judged and k = passed, `rate` is k / n and `lower` and `upper` are the Wilson score interval
+  # (2k + z² ∓ z·√(z² + 4k(n − k)/n)) / (2(n + z²)), held within [0, 1]: `lower` is exactly 0 when
+  # k is 0 and `upper` exactly 1 when k is n. All three are omitted when n is 0.
+  - name: ekr.views.FactQualityV1
+    kind: struct
+    fields:
+      - name: meta
+        type: ekr.views.FactQualityMeta
+      - name: judged
+        type: Integer
+      - name: passed
+        type: Integer
+      - name: failed
+        type: Integer
+      - name: rate
+        type: Optional<Decimal>
+      - name: lower
+        type: Optional<Decimal>
+      - name: upper
+        type: Optional<Decimal>
+
 actors:
   - name: ekr.views.Reader
     may:
@@ -1736,6 +1938,8 @@ actors:
       - ekr.views.ReportStoreQuality
       - ekr.views.FindCodeNames
       - ekr.views.ExportOcel
+      - ekr.views.DrawFactSample
+      - ekr.views.ReportFactQuality
     naming:
       display: Reader
 
@@ -1798,6 +2002,14 @@ errors:
         type: String
       - name: revision
         type: ekr.kernel.RevisionNumber
+
+  # `assertion` is the first assertion, in the order the judgements give them, judged a second
+  # time. A fact judged twice would count twice in a sample whose draws are distinct facts.
+  - name: ekr.views.JudgedTwice
+    summary: A judged sample judges one assertion more than once; nothing was reported.
+    fields:
+      - name: assertion
+        type: ekr.graph.AssertionId
 
 commands:
   # Design § 82. A read of one immutable revision; the default is the newest. Writes no canonical
@@ -2366,6 +2578,108 @@ commands:
         error: ekr.views.EventTypeNotFound
         summary: Nothing was answered; the refusal names the first such name.
 
+  # A reproducible sample of one revision's facts (ekr.views.FactSampleV1), for a judge. `at` is
+  # the revision read, the head when absent; `seed` any integer; `size` how many facts to draw,
+  # 1 to 1000; `type` a type id whose facts alone are drawn. A type the revision's ontology does
+  # not declare is no refusal: no fact's subject is of it, so the population is 0 and nothing is
+  # drawn, which meta.population says. The sample is a function of (seed, size, type, the
+  # revision read) and nothing else. Its not-found and not-seeded outcomes are external for the
+  # reason ProjectGraph's are.
+  - name: ekr.views.DrawFactSample
+    naming:
+      wire: draw-fact-sample
+      display: Draw a fact sample
+    input:
+      - name: store
+        type: ekr.views.StoreLocation
+      - name: at
+        type: Optional<ekr.kernel.RevisionNumber>
+      - name: seed
+        type: Integer
+      - name: size
+        type: Integer
+      - name: type
+        type: Optional<ekr.ontology.TypeId>
+    response:
+      - name: sample
+        type: ekr.views.FactSampleV1
+    outcomes:
+      - name: drawn
+        emits:
+          - ekr.views.FactSampleDrawn
+        payload:
+          ekr.views.FactSampleDrawn:
+            revision: {generated: true}
+            seed: input.seed
+            size: input.size
+            population: {generated: true}
+            drawn: {generated: true}
+            evidence: {generated: true}
+            first_assertion: {generated: true}
+            sample_hash: {generated: true}
+        summary: One ekr.fact-sample/1 document, byte-identical to every other answer to the same request with `at` resolved.
+      - name: limit-exceeded
+        when:
+          any:
+            - size < 1
+            - size > 1000
+        error: ekr.views.LimitExceeded
+        summary: The store was not read; the refusal names size, its value and its bounds.
+      - name: not-found
+        external: the store holds no committed revision with the requested number
+        error: ekr.views.RevisionNotFound
+        summary: Nothing was answered.
+      - name: not-seeded
+        external: the store has never been seeded
+        error: ekr.views.NotSeeded
+        summary: Nothing was answered; no head is reported, because there is none.
+
+  # The pass rate of a judged sample with its Wilson score interval (ekr.views.FactQualityV1).
+  # `judgements` are the caller's verdicts; `sample` the origin it keeps, echoed; `confidence`
+  # the stated confidence in basis points, 1 to 9999, 9500 when absent. Reads no store: the
+  # answer is arithmetic over the input, the same for the same input on every host. Judged-twice
+  # is external because no guard reads whether a list holds one id twice.
+  - name: ekr.views.ReportFactQuality
+    naming:
+      wire: report-fact-quality
+      display: Report fact quality
+    input:
+      - name: judgements
+        type: List<ekr.views.FactJudgement>
+      - name: sample
+        type: Optional<ekr.views.SampleOrigin>
+      - name: confidence
+        type: Optional<Integer>
+    response:
+      - name: quality
+        type: ekr.views.FactQualityV1
+    outcomes:
+      - name: reported
+        emits:
+          - ekr.views.FactQualityReported
+        payload:
+          ekr.views.FactQualityReported:
+            confidence: {generated: true}
+            judged: {generated: true}
+            passed: {generated: true}
+            failed: {generated: true}
+            rate_bp: {generated: true}
+            lower_bp: {generated: true}
+            upper_bp: {generated: true}
+            fact_quality_hash: {generated: true}
+        summary: One ekr.fact-quality/1 document, byte-identical to every other answer to the same input.
+      - name: limit-exceeded
+        when:
+          any:
+            - confidence < 1
+            - confidence > 9999
+        error: ekr.views.LimitExceeded
+        summary: Nothing was reported; the refusal names confidence, its value and its bounds.
+      - name: judged-twice
+        external: the judgements judge one assertion more than once
+        error: ekr.views.JudgedTwice
+        summary: Nothing was reported; the refusal names the first assertion judged again.
+
 events:
   # What one render returned, counted over the document it returned, so a suite can hold a
   # renderer to it without parsing the response. `projection_hash` is the hex SHA-256 of the
@@ -2710,4 +3024,51 @@ events:
       - name: attribute_values_out_of_range
         type: Integer
       - name: ocel_hash
+        type: ekr.kernel.ContentHash
+
+  # What one fact sample returned, every field a function of the document. `revision`, `seed`,
+  # `size`, `population` and `drawn` are meta's; `evidence` counts the evidence entries of every
+  # item, so a record two sampled facts cite counts twice; `first_assertion` is the first item's
+  # assertion id, omitted when nothing was drawn; `sample_hash` the hex SHA-256 of the document's
+  # exact bytes.
+  - name: ekr.views.FactSampleDrawn
+    fields:
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+      - name: seed
+        type: Integer
+      - name: size
+        type: Integer
+      - name: population
+        type: Integer
+      - name: drawn
+        type: Integer
+      - name: evidence
+        type: Integer
+      - name: first_assertion
+        type: Optional<ekr.graph.AssertionId>
+      - name: sample_hash
+        type: ekr.kernel.ContentHash
+
+  # What one fact-quality report returned, every field a function of the document. `confidence`
+  # is meta's; `judged`, `passed` and `failed` the document's; `rate_bp`, `lower_bp` and
+  # `upper_bp` are 10000 times rate, lower and upper rounded down, omitted with them;
+  # `fact_quality_hash` the hex SHA-256 of the document's exact bytes.
+  - name: ekr.views.FactQualityReported
+    fields:
+      - name: confidence
+        type: Integer
+      - name: judged
+        type: Integer
+      - name: passed
+        type: Integer
+      - name: failed
+        type: Integer
+      - name: rate_bp
+        type: Optional<Integer>
+      - name: lower_bp
+        type: Optional<Integer>
+      - name: upper_bp
+        type: Optional<Integer>
+      - name: fact_quality_hash
         type: ekr.kernel.ContentHash
