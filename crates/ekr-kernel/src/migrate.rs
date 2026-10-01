@@ -254,8 +254,31 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
                 };
                 let bytes = history.content(event.record_hash, StorageClass::Canonical)?;
                 let (event, bytes) = destination.migrated_decision(&state, event, bytes)?;
+                let mut objects = BTreeMap::from([(event.record_hash, record(bytes))]);
+                // A commit published the payload of each `AddEvidence` it brought with its
+                // receipt, and replay of the commit reads it: it is published with it here too,
+                // with the class and `stored_at` the source first stored it with.
+                if let RevisionPayload::RevisionCommitted { transaction_id, .. } = event.payload {
+                    let tx = state
+                        .transactions
+                        .get(&transaction_id)
+                        .ok_or(StoreError::ProposalMissing { transaction_id })?;
+                    let document = state.document(&tx.proposal)?;
+                    for hash in crate::commands::added_payloads(document.transaction()).into_keys()
+                    {
+                        let held = inventory
+                            .objects
+                            .get(&hash)
+                            .ok_or_else(|| migration("migrate-payload-missing", hash))?;
+                        objects.entry(hash).or_insert_with(|| PublicationObject {
+                            storage_class: held.stored_as,
+                            stored_at: held.object.metadata.stored_at,
+                            bytes: held.object.bytes.to_vec(),
+                        });
+                    }
+                }
                 Publication {
-                    objects: BTreeMap::from([(event.record_hash, record(bytes))]),
+                    objects,
                     event,
                     expected_version: position as u64,
                 }
