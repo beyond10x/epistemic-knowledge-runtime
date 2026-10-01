@@ -7,6 +7,7 @@ title: Selected-revision history loads read the revision stream one event per ca
 relations:
 - serves: vision:o2
 - derived_from: story:eventlog-0-4-batched-reads
+- decomposes: epic:read-and-storage-cost
 revision: 1
 ---
 ## What is wrong

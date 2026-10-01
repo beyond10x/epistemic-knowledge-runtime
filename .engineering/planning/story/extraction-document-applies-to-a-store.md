@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:extraction-document-applies-to-a-store
 kind: story
-status: active
+status: implemented
 title: An extracting agent's document applies to a store through one verb
 relations:
 - serves: vision:o5
@@ -35,10 +35,11 @@ scope:
   path: docs/cli.md
 - confidence: cited
   path: systems/ekr/domains/integrate.yaml
-revision: 10
+revision: 11
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-30T12:26:22Z", actor: "human:timo", revision: 9}
 - {from: "proposed", to: "active", at: "2026-09-30T18:15:40Z", actor: "human:timo", revision: 10}
+- {from: "active", to: "implemented", at: "2026-10-01T18:09:54Z", actor: "human:timo", revision: 11, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}}
 ---
 ## Context
 

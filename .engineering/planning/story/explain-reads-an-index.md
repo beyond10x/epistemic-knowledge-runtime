@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:explain-reads-an-index
 kind: story
-status: active
+status: implemented
 title: explain looks an assertion up and answers by reference
 relations:
 - serves: vision:o5
@@ -46,10 +46,11 @@ scope:
   path: systems/ekr/conformance/suite.json
 - confidence: cited
   path: systems/ekr/domains/kernel.yaml
-revision: 8
+revision: 9
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-30T12:26:23Z", actor: "human:timo", revision: 5}
 - {from: "proposed", to: "active", at: "2026-09-30T18:15:40Z", actor: "human:timo", revision: 7, decided_on: {"recorded":{"review_outcome":1}}}
+- {from: "active", to: "implemented", at: "2026-10-01T18:09:55Z", actor: "human:timo", revision: 9, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}}
 ---
 ## Context
 

@@ -43,7 +43,7 @@ scope:
   path: systems/ekr/conformance/suite.json
 - confidence: inferred
   path: systems/ekr/domains/integrate.yaml
-revision: 10
+revision: 11
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-30T12:26:22Z", actor: "human:timo", revision: 8}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:05Z", actor: "human:timo", revision: 10, decided_on: {"recorded":{"review_outcome":1}}}
@@ -81,6 +81,17 @@ ekr.extraction-document/1`.
   stores: same names, types, counts and evidence bytes, ids ignored.
 - The verb's write requests are only propose, validate and commit.
 - The verb spawns no child process: a test with an empty `PATH` applies a fixture.
+- Applying one document a second time adds no assertion, node or evidence entry, and its report
+  says so (`review-result:adversary-extract-07-v-pass-1`, `extraction.rs:325`).
+- The nodes a document creates do not depend on the order it lists named things that share aliases
+  (same review, `extraction.rs:209`).
+- A document the engine's reader accepts never ends in a fault after part of it committed: the
+  report names what committed and what was refused, in an outcome the domain declares
+  (same review, `cli/extraction.rs:61`).
+- The SDK mirror refuses every document the engine's reader refuses (aliases, non-string aliases,
+  the 8 MiB cap, the depth bound, two evidence items under one id), each with the reader's code.
+- `ApplyExtraction` is exercised by a conformance scenario and its `ExtractionApplied` event is
+  emitted, or the domain stops declaring them.
 
 ## Scope
 

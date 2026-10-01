@@ -7,6 +7,7 @@ title: The eventlog file provider re-hashes the log after a write and syncs 28 t
 relations:
 - serves: vision:o5
 - derived_from: task:write-verbs-cost-most-of-an-ingest
+- decomposes: epic:read-and-storage-cost
 revision: 1
 ---
 ## What is wrong
