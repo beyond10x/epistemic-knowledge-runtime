@@ -14,6 +14,7 @@
       "ekr.kernel/authored/an-edge-type-widened-to-a-new-target-type-takes-edges-to-it",
       "ekr.kernel/authored/an-edge-type-widening-that-removes-an-end-is-rejected-by-name",
       "ekr.kernel/authored/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name",
+      "ekr.kernel/authored/each-committed-assertion-is-explained-from-its-own-commit",
       "ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it",
       "ekr.kernel/authored/one-alias-added-twice-in-a-transaction-is-rejected-by-name",
       "ekr.kernel/authored/rejections-list-every-planted-issue-by-its-basis-revision",
@@ -86,6 +87,11 @@
         "disposition": "accepted",
         "scenario": "ekr.kernel/authored/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name"
       },
+      "each-committed-assertion-is-explained-from-its-own-commit.yaml": {
+        "digest": "sha256:63a2a0115db4709c65c7e53c4ddad71a1e5b7e63bac9742aaa5c579e6e0e27ee",
+        "disposition": "accepted",
+        "scenario": "ekr.kernel/authored/each-committed-assertion-is-explained-from-its-own-commit"
+      },
       "evidence-added-after-the-seed-commits-with-the-assertion-citing-it.yaml": {
         "digest": "sha256:d415ed1c79939e915fdd161437824c4899fd29b25ec587d6f568b12ce9619f46",
         "disposition": "accepted",
@@ -113,9 +119,9 @@
       }
     },
     "counts": {
-      "authored": 18,
+      "authored": 19,
       "generated": 36,
-      "outside": 39,
+      "outside": 46,
       "refused": 0
     },
     "generated": [
@@ -264,6 +270,54 @@
         "origin": "generated",
         "reason": "other_component",
         "scenario": "ekr.views.DescribeNode/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.DrawFactSample"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.FactSampleDrawn"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.DrawFactSample/outcome/drawn"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.DrawFactSample"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.DrawFactSample/outcome/limit-exceeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.DrawFactSample"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.DrawFactSample/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.DrawFactSample"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.DrawFactSample/outcome/not-seeded"
       },
       {
         "needs": [
@@ -546,6 +600,43 @@
         "needs": [
           {
             "kind": "command",
+            "name": "ekr.views.ReportFactQuality"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ReportFactQuality/outcome/judged-twice"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ReportFactQuality"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ReportFactQuality/outcome/limit-exceeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ReportFactQuality"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.FactQualityReported"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ReportFactQuality/outcome/reported"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
             "name": "ekr.views.ReportStoreQuality"
           }
         ],
@@ -642,8 +733,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "18b16d5d4e569eede91b46164d9688ee28b6290b40fb93bb973da9d917876a73",
-    "spec_digest": "d37dc6cea2cbe619d6894cd7af764ee333d40cc6cbef1ad37dc32763680acf11",
+    "contract_digest": "af74a9c4d8bd980b7dffdeae3865c976bb1a09b12a135840e92c724f71b7c906",
+    "spec_digest": "9d26eba40635f1e0642cf9e2637f8084f19b34f42a03077a860e9c43a9d1d03a",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"
@@ -768,6 +859,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -1058,6 +1157,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -1239,6 +1346,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -2556,6 +2671,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -2704,6 +2827,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -2962,6 +3093,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -3113,6 +3252,14 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -3229,6 +3376,14 @@
         },
         {
           "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
           "step": "expect_no_event"
         },
         {
@@ -3353,6 +3508,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -3790,6 +3953,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -3896,6 +4067,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -4023,6 +4202,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -4129,6 +4316,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -4255,6 +4450,14 @@
         },
         {
           "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
           "step": "expect_no_event"
         },
         {
@@ -5378,6 +5581,14 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -5768,6 +5979,14 @@
         },
         {
           "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
           "step": "expect_no_event"
         },
         {
@@ -6635,6 +6854,14 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -7014,6 +7241,14 @@
         },
         {
           "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
           "step": "expect_no_event"
         },
         {
@@ -7555,6 +7790,14 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -7955,6 +8198,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -8097,6 +8348,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -8475,6 +8734,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -8638,6 +8905,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -8928,6 +9203,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -9107,6 +9390,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -9322,6 +9613,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -9508,6 +9807,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -9766,6 +10073,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -9945,6 +10260,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -10160,6 +10483,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -10311,6 +10642,14 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -10437,6 +10776,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -10547,6 +10894,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -10673,6 +11028,14 @@
         },
         {
           "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
           "step": "expect_no_event"
         },
         {
@@ -10806,6 +11169,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -10990,6 +11361,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -11143,6 +11522,14 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -11269,6 +11656,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -11375,6 +11770,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -11504,6 +11907,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -11621,6 +12032,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -12238,6 +12657,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -12364,6 +12791,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -12557,6 +12992,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -12706,6 +13149,14 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -12836,6 +13287,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -12946,6 +13405,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -13071,6 +13538,14 @@
         },
         {
           "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
           "step": "expect_no_event"
         },
         {
@@ -13211,6 +13686,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -13426,6 +13909,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -13577,6 +14068,14 @@
         },
         {
           "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
           "name": "ekr.views.GraphOverviewed"
         },
         {
@@ -13707,6 +14206,14 @@
           "step": "expect_no_event"
         },
         {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.views.GraphOverviewed",
           "step": "expect_no_event"
         },
@@ -13813,6 +14320,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -13936,6 +14451,14 @@
         },
         {
           "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
           "step": "expect_no_event"
         },
         {
@@ -14076,6 +14599,14 @@
         {
           "kind": "event",
           "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
         },
         {
           "kind": "event",
@@ -14288,6 +14819,14 @@
         },
         {
           "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
           "step": "expect_no_event"
         },
         {
@@ -17685,6 +18224,355 @@
           },
           "step": "expect_view",
           "view": "ekr.kernel.ValidationIssues"
+        }
+      ]
+    },
+    "ekr.kernel/authored/each-committed-assertion-is-explained-from-its-own-commit": {
+      "purpose": "A committed assertion is explained through its own commit's five-link chain, before and after a later commit.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.kernel"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.AssertionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AgentId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.EventId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TransactionDocumentPath"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TransactionId"
+        },
+        {
+          "kind": "entity",
+          "name": "ekr.kernel.GraphTransaction"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Commit"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Explain"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Propose"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Validate"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Commit",
+            "outcome": "committed"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Explain",
+            "outcome": "explained"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Propose",
+            "outcome": "proposed"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Validate",
+            "outcome": "validated"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Committer"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Operator"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Proposer"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Validator"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.kernel.Operator",
+          "command": "ekr.kernel.Explain",
+          "input": {
+            "assertion_id": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-85f861a70a8d"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Explain",
+            "outcome": "explained"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "payload": {
+            "assertion_id": "00000000-0000-4000-8000-85f861a70a8d",
+            "links": 5.0
+          },
+          "shape": {
+            "assertion_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "links": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.kernel.Proposer",
+          "command": "ekr.kernel.Propose",
+          "input": {
+            "transaction_document": {
+              "kind": "literal",
+              "value": "transaction_document"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Propose",
+            "outcome": "proposed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "shape": {
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "operations_hash": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            },
+            "proposer": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "transaction_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "entity": "ekr.kernel.GraphTransaction",
+          "event": "ekr.kernel.TransactionProposed",
+          "field": "transaction_id",
+          "instance": "proposal",
+          "step": "capture_instance"
+        },
+        {
+          "actor": "ekr.kernel.Validator",
+          "command": "ekr.kernel.Validate",
+          "input": {
+            "against": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "transaction_id": {
+              "instance": "proposal",
+              "kind": "instance"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Validate",
+            "outcome": "validated"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "payload": {
+            "against": 1.0
+          },
+          "shape": {
+            "against": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "transaction_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "validation_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.kernel.Committer",
+          "command": "ekr.kernel.Commit",
+          "input": {
+            "transaction_id": {
+              "instance": "proposal",
+              "kind": "instance"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Commit",
+            "outcome": "committed"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "payload": {
+            "number": 2.0
+          },
+          "shape": {
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "knowledge_root": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "transaction_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.kernel.Operator",
+          "command": "ekr.kernel.Explain",
+          "input": {
+            "assertion_id": {
+              "kind": "literal",
+              "value": "00000000-0000-4000-8000-85f861a70a8d"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Explain",
+            "outcome": "explained"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "payload": {
+            "assertion_id": "00000000-0000-4000-8000-85f861a70a8d",
+            "links": 5.0
+          },
+          "shape": {
+            "assertion_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "links": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
         }
       ]
     },
