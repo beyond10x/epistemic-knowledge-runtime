@@ -4,8 +4,8 @@ summary: >-
   Entity resolution and the merge and split lineage around it. Design § 10, § 45, § 46 and
   amendment A10 (docs/predecessors.md § 2): a typed reference resolves against canonical nodes by
   identity, never by string matching, and a merge or a split is an explicit transaction with
-  provenance. This domain has no commands yet; the resolver's verbs and the merge and split
-  transactions are declared once the decision-blockers named below are answered.
+  provenance. Its one command, ApplyExtraction, applies an extraction document; the resolver's
+  verbs and the merge and split transactions are declared once the decision-blockers are answered.
 
 naming:
   wire: integrate
@@ -248,6 +248,7 @@ types:
       - extraction-type-undeclared
       - extraction-value-type-empty
       - reference-without-identity
+      - reference-type-has-subtypes
       - extraction-property-undeclared
       - extraction-value-mismatch
       - extraction-relation-ends
@@ -266,6 +267,11 @@ types:
       - name: name
         type: String
 
+  # Where the extraction document ApplyExtraction reads is: a file, or `-` for standard input.
+  - name: ekr.integrate.ExtractionDocumentPath
+    kind: newtype
+    of: String
+
   # The apply report: what applying one extraction document did.
   - name: ekr.integrate.CommittedExtraction
     kind: struct
@@ -275,27 +281,58 @@ types:
       - name: revision
         type: ekr.kernel.RevisionNumber
 
-  # One operation validation rejected, by its index in the transaction, with the issues it raised.
+  # One validator issue as `ekr validate` printed it: the validator, the stable code, the message.
+  - name: ekr.integrate.ExtractionIssue
+    kind: struct
+    fields:
+      - name: validator
+        type: ekr.kernel.ValidatorName
+      - name: code
+        type: String
+      - name: message
+        type: String
+
+  # One part of the document that was not applied, named by `item`: `ontology`, `entities[<i>]`,
+  # `facts[<i>]`, or `facts[<i>].subject` / `.object` where a named thing first appears. Applying
+  # bisects a rejected transaction down to the one part validation refuses, so `transaction_id`
+  # is the transaction that held that part alone and `issues` what the validators raised against
+  # it. Where no validator answered, both are absent and `refusal` says why: a refusal of Propose
+  # (`<code>: <reason>`), a document limit, or a named thing the fact rests on that was not
+  # created.
   - name: ekr.integrate.RejectedExtraction
     kind: struct
     fields:
+      - name: item
+        type: String
       - name: transaction_id
-        type: ekr.kernel.TransactionId
-      - name: operation
-        type: Integer
+        type: Optional<ekr.kernel.TransactionId>
       - name: issues
-        type: List<ekr.kernel.ValidationIssueRecord>
+        type: List<ekr.integrate.ExtractionIssue>
+      - name: refusal
+        type: Optional<String>
 
   # A named thing the store answers with more than one node: nothing is chosen, and no fact about
-  # it is applied. `outcome` is the resolver's Ambiguous answer.
+  # it is applied. `candidates` are the resolver's Ambiguous answer's, in id order.
+  # `reference` is the group of named things the document lists that share an alias: its node type
+  # and every alias of its members, the group's name first.
   - name: ekr.integrate.AmbiguousExtraction
     kind: struct
     fields:
       - name: reference
         type: ekr.integrate.ExtractedReference
-      - name: outcome
-        type: ekr.integrate.ResolutionOutcome
+      - name: candidates
+        type: List<ekr.graph.NodeId>
 
+  # What applying one document did. Named things of one node type that share an alias, transitively,
+  # are one thing whatever order the document lists them in: resolved once with every alias of its
+  # members, and created, where the store holds none, named by the least in byte order of its
+  # members' first aliases. `held` lists each fact (`facts[<i>]`) not asserted because the store
+  # already holds an active assertion with the same subject, predicate, object, valid time and
+  # evidence, or an earlier fact of the document says the same: a document applied twice adds
+  # nothing the second time. `stopped` says why applying ended before the end of the document once
+  # something had committed, a request getting no answer it could act on; absent when it went to
+  # its end. A document the reader refuses — a named thing whose type is abstract or has a subtype
+  # once the document's ontology is applied among them — is refused before anything is written.
   - name: ekr.integrate.ExtractionReport
     kind: struct
     fields:
@@ -305,6 +342,10 @@ types:
         type: List<ekr.integrate.RejectedExtraction>
       - name: ambiguous
         type: List<ekr.integrate.AmbiguousExtraction>
+      - name: held
+        type: List<String>
+      - name: stopped
+        type: Optional<String>
 
 entities:
   # Design § 46 Merge: two or more nodes found to be one canonical entity. Declared as an identity
@@ -343,3 +384,72 @@ entities:
       initial: Recorded
       states: [Recorded]
       terminal: [Recorded]
+
+actors:
+  # The host operator, through `ekr apply-extraction`: every transaction the command proposes is
+  # proposed as the operator and validated as the host's validator, as `ekr propose` is.
+  - name: ekr.integrate.Applier
+    may:
+      - ekr.integrate.ApplyExtraction
+    naming:
+      display: Extraction applier
+
+errors:
+  # The reader refused the document against the ontology of the store's head, by the first code
+  # in document order (ekr.integrate.ExtractionRefusalCode). `name` is what the refused part names.
+  - name: ekr.integrate.ExtractionRefused
+    summary: The reader refused the extraction document; nothing was proposed and nothing was written.
+    fields:
+      - name: code
+        type: ekr.integrate.ExtractionRefusalCode
+      - name: name
+        type: String
+
+commands:
+  # Design § 24 and § 63, story:extraction-verb-shares-the-sdk-path. `ekr apply-extraction` runs
+  # the SDK's apply routine (ekr_sdk::extraction::apply) in process, over the session's own
+  # dispatch: the document's missing ontology as one schema change, every named thing resolved as
+  # a typed reference and created where the store holds none, every fact about a thing that
+  # resolved as one AddAssertion with the evidence it cites. Its only writes are the kernel's
+  # Propose, Validate and Commit; a rejected part of the document is a row of the report, not a
+  # refusal of the command.
+  - name: ekr.integrate.ApplyExtraction
+    naming:
+      wire: apply-extraction
+      display: Apply an extraction document
+    input:
+      - name: extraction_document
+        type: ekr.integrate.ExtractionDocumentPath
+    response:
+      - name: report
+        type: ekr.integrate.ExtractionReport
+    outcomes:
+      - name: applied
+        emits:
+          - ekr.integrate.ExtractionApplied
+        payload:
+          ekr.integrate.ExtractionApplied:
+            committed: {generated: true}
+            rejected: {generated: true}
+            ambiguous: {generated: true}
+            held: {generated: true}
+        summary: The document was read and every part of it tried; the report lists what committed, what was rejected and which named things were ambiguous.
+      # External because what decides it is the store's ontology at its head, which is not
+      # command input.
+      - name: refused
+        external: the reader refuses the document against the ontology of the store's head
+        error: ekr.integrate.ExtractionRefused
+        summary: Nothing was proposed or written; the refusal names the first refused part in document order.
+
+events:
+  # What one application did, counted over the report it printed.
+  - name: ekr.integrate.ExtractionApplied
+    fields:
+      - name: committed
+        type: Integer
+      - name: rejected
+        type: Integer
+      - name: ambiguous
+        type: Integer
+      - name: held
+        type: Integer

@@ -258,6 +258,16 @@ fn respond(
             format!("a request is {{\"argv\": [...]}}: {error}"),
         )
     })?;
+    answer(&request, session, watch, now)
+}
+
+/// One request, read from its line, answered as [`respond`] answers that line.
+fn answer(
+    request: &Request,
+    session: &mut Session,
+    watch: &mut Watch,
+    now: &dyn Fn() -> Timestamp,
+) -> Result<Stdout, Failure> {
     let cli = match parse(&request.argv) {
         Ok(cli) => cli,
         // Not a one-shot verb: one of the `ekr.views` reads, or no verb at all.
@@ -701,6 +711,7 @@ fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
         Command::Guide => Err(verb_refused("guide")),
         Command::Operations { .. } => Err(verb_refused("operations")),
         Command::Example { .. } => Err(verb_refused("example")),
+        Command::ApplyExtraction { .. } => Err(verb_refused("apply-extraction")),
         Command::Propose { .. }
         | Command::Validate { .. }
         | Command::Commit { .. }
@@ -724,8 +735,8 @@ fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
 
 /// The refusal of a verb a session does not serve: `seed` creates a store, which only a session
 /// started with `--create` does, `view` serves until interrupted, `mcp` until its own input ends,
-/// a session does not nest, `migrate` writes a second store, and `guide`, `operations` and
-/// `example` print text.
+/// a session does not nest, `migrate` writes a second store, `apply-extraction` is a run of the
+/// verbs a session serves, and `guide`, `operations` and `example` print text.
 pub(super) fn verb_refused(verb: &str) -> Failure {
     let instead = if verb == "seed" {
         "run `ekr seed` outside the session, or start the session with `ekr session --create`"
@@ -745,6 +756,74 @@ fn stderr(failure: &Failure) -> String {
     match failure {
         Failure::Usage { message } => message.clone(),
         failure => format!("{failure}\n"),
+    }
+}
+
+/// The transport `ekr apply-extraction` runs the SDK's apply routine over: each request answered
+/// as a session answers its line ([`answer`]), against the runtime the verb opened, in this
+/// process. No child process is started and nothing is serialised to a line; what each request
+/// is refused or answered with is what a child `ekr session` answers it with. Not exported.
+pub(super) struct InProcess<'a> {
+    session: Session,
+    watch: Watch,
+    now: &'a dyn Fn() -> Timestamp,
+}
+
+impl<'a> InProcess<'a> {
+    /// A session over `runtime`, opened from `store`, answering with `now` as its clock.
+    pub(super) fn new(store: Store, runtime: Runtime, now: &'a dyn Fn() -> Timestamp) -> Self {
+        let opened = identity(&store.store);
+        Self {
+            session: Session {
+                store,
+                runtime: Some(runtime),
+                create: false,
+            },
+            watch: Watch {
+                held: true,
+                opened,
+                proposed: BTreeSet::new(),
+                indexes: IndexCache::new(IndexCache::DEFAULT_CAPACITY),
+            },
+            now,
+        }
+    }
+
+    /// Ends the session as a child session ends at the end of its input: the replay checkpoint of
+    /// the head it reached, into the store it opened only.
+    pub(super) fn close(self) {
+        if let Some(runtime) = &self.session.runtime {
+            if identity(&self.session.store.store) == self.watch.opened {
+                runtime.retain_checkpoint_at_rest();
+            }
+        }
+    }
+}
+
+impl ekr_sdk::transport::Transport for InProcess<'_> {
+    fn request(
+        &mut self,
+        request: &ekr_sdk::transport::Request,
+    ) -> Result<ekr_sdk::reply::Reply, ekr_sdk::transport::TransportError> {
+        let request = Request {
+            argv: request.argv.clone(),
+            stdin: request.stdin.clone(),
+        };
+        let reply = |exit, document, stderr| ekr_sdk::reply::Reply {
+            exit,
+            document,
+            stderr,
+        };
+        Ok(
+            match answer(&request, &mut self.session, &mut self.watch, self.now) {
+                Ok(Stdout::Document(Value::Null)) => reply(0, None, String::new()),
+                Ok(Stdout::Document(document)) => reply(0, Some(document), String::new()),
+                Ok(Stdout::Raw(document)) => {
+                    reply(0, serde_json::from_str(document.get()).ok(), String::new())
+                }
+                Err(failure) => reply(i32::from(failure.code()), None, stderr(&failure)),
+            },
+        )
     }
 }
 

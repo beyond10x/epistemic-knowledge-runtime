@@ -289,6 +289,7 @@ fn every_code() -> Vec<ExtractionRefusalCode> {
             | Code::ExtractionTypeUndeclared
             | Code::ExtractionValueTypeEmpty
             | Code::ReferenceWithoutIdentity
+            | Code::ReferenceTypeHasSubtypes
             | Code::ExtractionPropertyUndeclared
             | Code::ExtractionValueMismatch
             | Code::ExtractionRelationEnds

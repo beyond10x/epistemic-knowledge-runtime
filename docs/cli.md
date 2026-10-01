@@ -149,6 +149,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr snapshot` | reads | `--at <revision>`, `--valid-at <ms or YYYY-MM-DD>` | the whole graph at one revision |
 | `ekr explain` | reads | an assertion id; `--documents` | the `ekr.explanation/2` document: the assertion, where it came from, what later changed it, and its evidence, each record by hash; with `--documents`, the whole records too |
 | `ekr resolve` | reads | a `typed-reference` file, or `-`; `--at <revision>` | the resolution: `kind` is `Resolved` (with `node_id`), `ProposeNew` (with `type_id` and `aliases`) or `Ambiguous` (with `candidates`) |
+| `ekr apply-extraction` | writes | an `ekr.extraction-document/1` file, or `-` | the `ekr.integrate.ExtractionReport`: `committed` transactions, `rejected` parts of the document with their issues, `ambiguous` named things, `held` facts the store already asserts, and `stopped` |
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
 | `ekr rejections` | reads | `--from <revision>`, `--to <revision>` | the `ekr.rejections/1` document: each rejected transaction with its validation issues, by the revision it was validated against |
@@ -304,6 +305,57 @@ all (counted everywhere, inside quoted aliases too) or more than 64 block indent
 line (the more-indented lines of a `|` or `>` block scalar are text and do not count); this is
 checked before the YAML is loaded. A revision that does not exist is refused as `ekr.kernel.RevisionNotFound`,
 exit 2, as for `ekr snapshot --at`.
+
+### `ekr apply-extraction`
+
+Applies an [extraction document](#extraction-documents-ekrextraction-document1) to the store, as
+the host operator, and prints what it did. It starts no agent and no process: the consumer runs
+its extractor and hands the engine the document it wrote.
+
+First the engine's reader checks the document against the ontology of the store's head. A document
+it refuses is refused by the reader's code (exit 2, `ekr: <code>: <reason>`, the codes in
+[Extraction documents](#extraction-documents-ekrextraction-document1)) and nothing is written.
+Then, in order:
+
+1. the document's `ontology`, as far as the store lacks it, is committed as one schema change
+   (`DefineNodeType`, `DefineEdgeType`, `ModifyProperty`, `WidenEdgeType`). Under a validation
+   profile that fixes the schema it is rejected, and nothing more is applied;
+2. every named thing — each entity, then each fact's subject and object — is resolved as
+   [`ekr resolve`](#ekr-resolve) resolves a typed reference of its type. Named things of one node
+   type that share an alias, directly or through another, are one thing whatever order the
+   document lists them in, resolved once with every alias of all of them. One the store holds is
+   used; one it does not hold is created, a node of its type carrying those aliases and named by the
+   least, in byte order, of its members' first aliases (a single named thing's first alias); one
+   the store answers with several nodes is ambiguous, nothing is chosen, and no fact about it is
+   applied;
+3. every other fact is one `!AddAssertion`: a `!Property` fact with its value, a `!Relation` fact
+   with the object node. Each evidence item a fact cites is added by `!AddEvidence` with the first
+   assertion citing it, unless the store already holds its id. An item no fact cites is not added.
+   A rejected transaction is split and submitted again, down to the one fact validation refuses.
+   A fact the store already asserts — an active assertion with the same subject, predicate, object,
+   valid time and evidence — or that an earlier fact of the document says too is held, not
+   asserted again. So applying the same document a second time adds no node, evidence entry or
+   assertion, and its report lists every fact under `held`.
+
+Every write goes through `propose`, `validate` and `commit`, the same requests a consumer sends
+running the SDK's `ekr_sdk::extraction::apply` over an `ekr session`: the verb runs that routine,
+over the session's own dispatch in this process. A session does not serve the verb itself
+(`session-verb-refused`).
+
+It prints the `ekr.integrate.ExtractionReport`:
+
+| key | holds |
+|---|---|
+| `committed` | each transaction committed, in order, as `transaction_id` and `revision`: the schema change, the new nodes, the facts |
+| `rejected` | each part of the document not applied: `item` (`ontology`, `entities[<index>]`, `facts[<index>]`, or `facts[<index>].subject` / `.object` where a named thing first appears), and either `transaction_id` with the validators' `issues` (`validator`, `code`, `message`) or `refusal`, why no validator answered — a refusal of `ekr propose`, or a named thing the fact rests on that was not created |
+| `ambiguous` | each named thing the store answers with more than one node: `reference`, its node type and every alias of the named things that share one, the name first, and `candidates`, the nodes in id order |
+| `held` | each fact not asserted because the store already asserts it, or an earlier fact of the document says the same, as `facts[<index>]` |
+| `stopped` | `null` when applying went to the end of the document; otherwise why it stopped once something had committed — a request that got no answer it could act on |
+
+Exit 0 means the document was read and tried, whatever `rejected` holds. Once something has
+committed the verb does not fault: if a request then gets no answer it can act on, it prints the
+report with what committed until then and `stopped` saying why. A fault before anything committed
+is exit 1, with nothing written.
 
 ### `ekr head`
 
@@ -1062,7 +1114,7 @@ answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"
 | `session-request-malformed` | 2 | the line is not a JSON object with `argv`, a list of strings, and at most `stdin`, a string; an empty line included | send `{"argv": [...]}` on one line |
 | `session-request-too-large` | 2 | the line is longer than 25231360 bytes, its newline excluded: three times the 8388608-byte `ekr.transaction-document/2` cap, the most JSON escaping can make of it, and 65536 bytes for `argv` and the framing. The session holds no more of the line than that; it reads the rest up to the newline, drops it and serves the next line | send the document as a file (`["propose", "doc.yaml"]`), or a smaller one |
 | `session-verb-unknown` | 2 | `argv` is empty, or its first word is neither a verb of `ekr` nor one of the `ekr.views` reads below | a verb from the list above |
-| `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `migrate`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, write a second store, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
+| `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `migrate`, `apply-extraction`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, write a second store, run the verbs a session serves, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
 | `session-option-refused` | 2 | the request sets `--host`, `--store`, `--backend` or `--full-replay` | the session's store is fixed when it starts; start another session for another store |
 
 A session opens its store as a verb that reads does, so on a store this process may not write it
@@ -1694,8 +1746,7 @@ one extraction document: the types it needs, the named things it found, the fact
 them and the evidence each fact rests on. The consumer runs its extractor, its agent and its
 sandbox; the engine starts none of them. `ekr example ekr.extraction-document/1` prints a complete
 document for a store seeded from the example seed, and `ekr schema ekr.extraction-document/1` its
-JSON Schema. No verb applies a document yet; until one does, record what it says with `ekr
-propose`, `ekr validate` and `ekr commit`.
+JSON Schema. [`ekr apply-extraction`](#ekr-apply-extraction) applies one to a store.
 
 Types, properties and relations are named, never identified: the document is written before the
 ids of the types it adds exist, and a name maps to the id the store holds for it.
@@ -1774,6 +1825,7 @@ Against the ontology of the store it is read for it refuses, naming the first in
 | `extraction-type-undeclared` | a node type or edge type neither the document's `ontology` nor the store declares, named by a parent, an edge type's end, a `NodeRef`, a named thing, a fact's subject or object, or a relation |
 | `extraction-value-type-empty` | an `Enum` with no variant or a `NodeRef` to no node type |
 | `reference-without-identity` | a named thing, or a fact's subject or object, with no alias but the empty string |
+| `reference-type-has-subtypes` | a named thing, or a fact's subject or object, whose node type is abstract or has a subtype once the document's `ontology` is applied: `ekr resolve` refuses a reference to such a type, so the document is refused before anything is written. Name the concrete type |
 | `extraction-property-undeclared` | a `!Property` fact's property, named `Type.property`, that the subject's type and its ancestors do not declare in the document or the store |
 | `extraction-value-mismatch` | a `!Property` fact's value its property's type does not hold: another kind, an `Enum` variant it does not list, a `Record` without exactly its fields, or any `Float`, which is never committed |
 | `extraction-relation-ends` | a `!Relation` whose subject is not of a source type of its edge type, or whose object is not of a target type, a subtype counting as its parent |
