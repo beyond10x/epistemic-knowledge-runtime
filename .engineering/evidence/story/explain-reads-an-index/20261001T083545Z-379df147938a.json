@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-01T08:35:45Z",
+  "actor": "human:timo",
+  "artifact": "story:explain-reads-an-index",
+  "kind": "story",
+  "revision": 8,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "impl/explain-index 1454092b; release bench explain-only 280-300 ms",
+    "review": "review-result:adversary-extract-06-x-pass-1",
+    "outcome": "fixed"
+  }
+}

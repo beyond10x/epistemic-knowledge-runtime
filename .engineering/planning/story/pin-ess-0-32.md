@@ -6,6 +6,7 @@ status: implemented
 title: Pin ESS 0.32.0 for the specification and the conformance target
 relations:
 - serves: vision:o2
+- decomposes: epic:p1-kernel-ontology-core
 scope:
 - confidence: cited
   path: .github/workflows/correctness.yml

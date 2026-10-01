@@ -2,35 +2,50 @@
 format: aep.planning-md/3
 id: story:fact-quality-by-judged-sample
 kind: story
-status: draft
+status: active
 title: Fact quality is reported from a judged, reproducible sample with a Wilson interval
 relations:
 - serves: vision:o6
 - decomposes: epic:p6-maintenance-observability
 scope:
 - confidence: inferred
-  path: Cargo.toml
+  path: crates/ekr-views/src/lib.rs
 - confidence: inferred
-  path: Taskfile.yml
+  path: crates/ekr-views/src/sample.rs
 - confidence: inferred
-  path: crates/ekr-metrics
+  path: crates/ekr-views/tests/sample.rs
+- confidence: inferred
+  path: crates/ekr-views/tests/support/target.rs
 - confidence: cited
   path: crates/ekr/src/cli/agent.rs
 - confidence: cited
   path: crates/ekr/src/cli/mod.rs
+- confidence: inferred
+  path: crates/ekr/src/cli/sample.rs
 - confidence: cited
   path: crates/ekr/src/cli/session.rs
 - confidence: cited
-  path: crates/ekr/tests/docs_cli.rs
+  path: crates/ekr/tests/agent_cli.rs
+- confidence: inferred
+  path: crates/ekr/tests/sample_cli.rs
 - confidence: cited
   path: docs/cli.md
 - confidence: inferred
-  path: systems/ekr/components.yaml
+  path: systems/ekr/conformance/baseline.json
 - confidence: inferred
-  path: systems/ekr/domains/metrics.yaml
+  path: systems/ekr/conformance/suite.json
 - confidence: inferred
-  path: systems/ekr/system.yaml
-revision: 4
+  path: systems/ekr/conformance/views-baseline.json
+- confidence: inferred
+  path: systems/ekr/conformance/views-provenance.json
+- confidence: inferred
+  path: systems/ekr/conformance/views-suite.json
+- confidence: inferred
+  path: systems/ekr/domains/views.yaml
+revision: 10
+transitions:
+- {from: "draft", to: "proposed", at: "2026-09-30T12:26:22Z", actor: "human:timo", revision: 9}
+- {from: "proposed", to: "active", at: "2026-09-30T18:15:40Z", actor: "human:timo", revision: 10}
 ---
 ## Context
 
@@ -55,16 +70,18 @@ judging.
 
 ## Scope
 
-Derived 2026-09-29 by `story-scoper`. Every line is **cited** (read from the story or the tree) or
-**inferred** (a reading that could be wrong).
+Derived 2026-09-30 by `story-scoper`, replacing the 2026-09-29 scope that assumed a new `ekr-metrics`
+crate: `story:store-quality-report` (0.0.21, `582347de`) placed P6's metric in `ekr-views` and
+`views.yaml`, and this story follows that precedent. Every line is **cited** or **inferred**.
 
-- **Primary surface:** `crates/ekr/src/cli` — cited, the story builds "a read" and "a verb", and every verb is a `Command` variant in `crates/ekr/src/cli/mod.rs`
-- **Files:** `crates/ekr/src/cli/mod.rs` — cited, the `Command` enum (lines 107–296) and its dispatch
-- **Files:** `crates/ekr/src/cli/session.rs` — cited, the match at lines 230–250 lists every `Command` variant with no wildcard
-- **Files:** `docs/cli.md`, `crates/ekr/tests/docs_cli.rs` (verb list, line 1139), `crates/ekr/src/cli/agent.rs` (guide verb table, line 58) — cited
-- **Also likely:** `crates/ekr/src/cli/sample.rs` — inferred, one module per verb
-- **Also likely:** a new `crates/ekr-metrics/` crate and `systems/ekr/domains/metrics.yaml` (`ekr.metrics`), with `system.yaml`, `components.yaml`, a metrics conformance suite, baseline and provenance and a `conform-fresh` line in `Taskfile.yml` — inferred from epic P6 and `docs/roadmap.md:83`; the fallback is `views.yaml` and `views-suite.json`
-- **Also likely:** `crates/ekr-views/src/query.rs`, `crates/ekr-kernel/src/read.rs` — inferred, read for assertions and evidence bytes
-- **Confidence:** medium — the two verbs and the CLI and docs files follow from the story and the tree; crate, domain and suite are inferred
-- **Would collide with:** any unit adding a `Command` variant; any unit creating `ekr-metrics` or `ekr.metrics` (`story:store-quality-report`, probably `story:validation-findings-read`)
-- **Safety fact:** the sample is a pure function of (seed, size, type filter, revision) and the Wilson figure is arithmetic over a caller-supplied judged document; invariants 1 and 7 are not touched — unproven
+- **Primary surface:** `crates/ekr/src/cli` — cited; every verb is a `Command` variant (`crates/ekr/src/cli/mod.rs:122`)
+- **Files:** `crates/ekr/src/cli/mod.rs` (mod list :44, `Command` :122, `Access` :442, dispatch :736), `crates/ekr/src/cli/session.rs` (verb match :690–706), `crates/ekr/src/cli/agent.rs` (:63), `crates/ekr/tests/agent_cli.rs` (:818) — cited
+- **Documents:** `docs/cli.md` (verb table :157, a verb section, session verb list :884) — cited
+- **Also likely:** `crates/ekr/src/cli/sample.rs`, `crates/ekr-views/src/sample.rs`, `crates/ekr-views/src/lib.rs` (:54, :67) — inferred from the precedent
+- **Also likely:** `systems/ekr/domains/views.yaml`, both conformance suites and baselines, `views-provenance.json` — inferred
+- **Also likely (tests):** `crates/ekr-views/tests/support/target.rs`, a scenario under `crates/ekr-views/tests/fixtures/conformance/scenarios/`, `crates/ekr-views/tests/sample.rs`, `crates/ekr/tests/sample_cli.rs` — inferred
+- **Read, not changed:** `Runtime::content` (`crates/ekr-kernel/src/read.rs:60`) — cited
+- **Confidence:** medium — the CLI, guide and docs files are forced by exhaustive matches; the `ekr-views` placement is precedent
+- **Would collide with:** any unit adding a `Command` variant; any unit changing `views.yaml` or regenerating the suites; `ekr-views/src/lib.rs` re-exports; `tests/support/target.rs`
+- **Safety fact:** the sample is a pure function of (seed, size, type filter, revision) over one read, and the Wilson figure is arithmetic over a judged document the caller supplies, so invariant 7 is untouched — inferred
+- **Not established:** a Wilson interval at an arbitrary confidence (no stats crate; `sha2` only); whether rates are basis points like `ekr quality` or floats; whether the judged document is a file argument or stdin; a new refusal name for a malformed judged document

@@ -147,7 +147,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr validate` | writes | a transaction id; `--against <revision>` | the validation outcome: `kind` is `Validated` or `Rejected` (with `issues`) |
 | `ekr commit` | writes | a transaction id | the commit outcome: `kind` is `Committed` (with `result.revision`) or `Stale` |
 | `ekr snapshot` | reads | `--at <revision>`, `--valid-at <ms or YYYY-MM-DD>` | the whole graph at one revision |
-| `ekr explain` | reads | an assertion id | the assertion, where it came from, what later changed it, and its evidence |
+| `ekr explain` | reads | an assertion id; `--documents` | the `ekr.explanation/2` document: the assertion, where it came from, what later changed it, and its evidence, each record by hash; with `--documents`, the whole records too |
 | `ekr resolve` | reads | a `typed-reference` file, or `-`; `--at <revision>` | the resolution: `kind` is `Resolved` (with `node_id`), `ProposeNew` (with `type_id` and `aliases`) or `Ambiguous` (with `candidates`) |
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
@@ -156,12 +156,14 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr code-names` | reads | one or more source files; `--at <revision>` | the `ekr.code-names/1` document: every literal in the files that equals one of the store's names, with file, line and what it names; exits 0 however many it finds |
 | `ekr quality` | reads | `--revision <revision>` | the `ekr.store-quality/1` document: evidenced assertions, constrained properties, names shared within a type |
 | `ekr ocel` | reads | `--revision <revision>`, `--events <type name>...` | the `ekr.ocel/1` document: the revision as an OCEL 2.0 event log in its `ocel` member, and `names` for its ids |
+| `ekr sample` | reads | `--seed <integer>`, `--size <1–1000>`, `--type <type id>`, `--revision <revision>` | the `ekr.fact-sample/1` document: a reproducible sample of the revision's facts, each with its evidence bytes, for a judge |
+| `ekr fact-quality` | none | an `ekr.fact-judgements/1` file, or `-`; `--confidence <basis points>` | the `ekr.fact-quality/1` document: the judged sample's pass rate and its Wilson interval |
 | `ekr guide` | none | none | the workflow, as text |
 | `ekr operations` | none | an operation kind, optionally | the kinds, or one kind's fields and example |
-| `ekr example` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `schema-change`, `ekr-seed/2`, `ekr.cli-host/1` or `typed-reference` (aliases `transaction` for `/2`, `seed`, `host`) | a complete example document |
+| `ekr example` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `schema-change`, `ekr-seed/2`, `ekr.cli-host/1`, `typed-reference` or `ekr.extraction-document/1` (aliases `transaction` for `/2`, `seed`, `host`, `extraction`) | a complete example document |
 | `ekr mint` | none | an id kind | `{"id", "kind"}`: a fresh id |
 | `ekr hash` | none | a payload file, or `-` | the payload's `content_hash` and its `payload_yaml` |
-| `ekr schema` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2`, `ekr.cli-host/1` or `typed-reference` (aliases `transaction` for `/2`, `seed`, `host`) | the format's JSON Schema (draft 2020-12) |
+| `ekr schema` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2`, `ekr.cli-host/1`, `typed-reference` or `ekr.extraction-document/1` (aliases `transaction` for `/2`, `seed`, `host`, `extraction`) | the format's JSON Schema (draft 2020-12) |
 | `ekr view` | reads | `--port <port>` (`0`, the default, picks a free one) | `{"url": "http://127.0.0.1:<port>/"}` as one line, then serves a read-only viewer until interrupted |
 | `ekr session` | reads and writes | one JSON request per line on stdin, `{"argv": [...]}`, until it ends; `--create` also serves `seed` | one JSON answer per request, `{"exit", "stdout", "stderr"}`: what the verb exits with and prints |
 | `ekr mcp` | reads | JSON-RPC 2.0 messages, one per line on stdin, until it ends | one JSON-RPC response per request: read-only MCP tools over the store (below) |
@@ -230,17 +232,26 @@ not.
 
 ### `ekr explain`
 
-Explains one assertion at the head. `links` is a list of objects, each with a `kind`:
+Explains one assertion at the head, as the `ekr.explanation/2` document: `format`
+(`ekr.explanation/2`), `assertion_id`, `at` (the head revision it was read at) and `links`, a list
+of objects, each with a `kind`. The retained records a link stands for — a proposal, a commit
+receipt, an evidence payload — are named by their hash, not printed:
 
 | `kind` | what it is | when it appears |
 |---|---|---|
 | `Assertion` | an assertion as it stands at the head | first, for the requested assertion; again for each assertion that superseded it, followed by that one's own origin and lifecycle links |
 | `Seed` | the seed the assertion came from | for an assertion written in the seed, in place of `Proposal`, `Validation` and `Commit` |
-| `Proposal` | the retained proposal of the transaction that added it | for an assertion added by a transaction |
-| `Validation` | that transaction's validation | with `Proposal` |
-| `Commit` | that transaction's commit receipt | with `Proposal` |
-| `Lifecycle` | a later committed retraction or supersession of it | once per such change |
-| `Evidence` | an evidence entry cited, with `payload` (the retained bytes, base64) and `text` (the same bytes as a string, when they are UTF-8) | last, once per evidence id cited by an assertion in the chain or listed in the `evidence` of a transaction that added or changed one |
+| `Proposal` | the proposal of the transaction that added it: `transaction_id`, `record_hash` (the proposal record's hash), `event_id`, `submitter`, `submitted_at`, `document_hash`, `operation_count`, and `operations`, only the document's operations about this assertion (its `AddAssertion`) | for an assertion added by a transaction |
+| `Validation` | that transaction's validation receipt | with `Proposal` |
+| `Commit` | that transaction's commit: `transaction_id`, `revision_id`, `event_id`, `committer`, `committed_at`, `result` (the root it produced, `result.revision` its number), `result_hash`, `record_hash` (the receipt's hash), `proposal_record_hash` and `validation_record_hash` | with `Proposal` |
+| `Lifecycle` | a later committed retraction or supersession of it: `assertion_id`, `lifecycle`, and `commit`, that change's commit in the shape of a `Commit` link | once per such change |
+| `Evidence` | an evidence entry cited; its bytes are the ones at its `content_hash` | last, once per evidence id cited by an assertion in the chain or listed in the `evidence` of a transaction that added or changed one |
+
+With `--documents`, each link also carries the whole record it names, read from the same revision:
+a `Proposal` link the proposal record as `record` (its `document_bytes` one base64 string), a
+`Commit` link and a `Lifecycle` link's `commit` the commit receipt as `receipt`, and an `Evidence`
+link `payload` (the retained bytes, base64) and `text` (the same bytes as a string, when they are
+UTF-8). Without it the answer's size does not follow the size of the transactions on the chain.
 
 Read links by their `kind` and, for `Assertion` and `Lifecycle`, by the assertion id they carry:
 `id` on an `Assertion` link, `assertion_id` on a `Lifecycle` link. Do not read them by position, because the number and order of links depend on the assertion's
@@ -459,13 +470,14 @@ ekr ocel --revision 0
 ekr ocel --events Person
 ```
 
-The event types are the viewer's: a node type the overview marks as an event type
-(`roles.types[].event` of `ekr.graph-overview/1`), by the valid-time rule the timeline uses. A node
-is judged when it holds a timestamp-like property value (a `Timestamp`, or an `Integer` of epoch
-milliseconds from 1,000,000,000,000 up to 10,000,000,000,000), or when it has at least two dated
-facts: `valid_time.from` of assertions of any lifecycle whose subject it is, or whose relation
-object it is. It is instant when it is timestamped or its dated facts lie within one hour. A type is
-an event type when it has a judged node and at least 60% of its judged nodes are instant.
+The event types are EKR's one event-type rule, the same types the overview marks as events
+(`roles.types[].event` of `ekr.graph-overview/1`), the timeline walks to and `GET /roles` marks
+`event` or `observation` (§ Roles). The rule: a node is judged when it holds a timestamp-like
+property value (a `Timestamp`, or an `Integer` of epoch milliseconds from 1,000,000,000,000 up to
+10,000,000,000,000), or when it has at least two dated facts: `valid_time.from` of assertions of
+any lifecycle whose subject it is, or whose relation object it is. It is instant when it is
+timestamped or its dated facts lie within one hour. A type is an event type when it has a judged
+node and at least 60% of its judged nodes are instant.
 `--events <type name>...` names the event types instead: exactly the node types with those names,
 a name two types share naming both; a name no node type holds is refused as
 `ekr.views.EventTypeNotFound` (exit 2), naming it.
@@ -583,6 +595,141 @@ property a type inherits is an attribute of that type and of every type inheriti
 property id. The OCEL 2.0 JSON schema and common readers, the `process_mining` crate among them,
 accept such a log.
 
+### `ekr sample`
+
+Prints a reproducible sample of the store's facts at the head, or at `--revision N`, each with the
+bytes of the evidence it cites: the `ekr.fact-sample/1` document (`ekr.views.DrawFactSample`). It
+is the first half of measuring fact quality: you, or an agent you run, judge each fact against its
+evidence, and [`ekr fact-quality`](#ekr-fact-quality) reports the pass rate. The runtime judges
+nothing.
+
+```console
+ekr sample --seed 42 --size 1
+```
+
+```json
+{
+  "items": [
+    {
+      "assertion": {
+        "assessment": {
+          "kind": "Accepted",
+          "validators": [
+            "00000000-0000-4000-8000-000000000102"
+          ]
+        },
+        "evidence": [
+          "00000000-0000-4000-8000-000000000402"
+        ],
+        "id": "00000000-0000-4000-8000-000000000511",
+        "lifecycle": {
+          "kind": "Active"
+        },
+        "object_kind": "Node",
+        "object_ref": "00000000-0000-4000-8000-000000000303",
+        "predicate": "00000000-0000-4000-8000-000000000203",
+        "predicate_kind": "Relation",
+        "recorded_from": 1790796575216,
+        "valid_from": 1773273600000
+      },
+      "evidence": [
+        {
+          "content_hash": "bd1d4dc9ba5012df5e43505418aa7728c15bca052a1ad43b1a2d00d04b75bdd6",
+          "id": "00000000-0000-4000-8000-000000000402",
+          "kind": "HumanStatement",
+          "locator": "Runtime operator",
+          "text": "Bob became CEO of Acme on 2026-03-12."
+        }
+      ],
+      "object_name": "Acme",
+      "predicate_name": "CEO_OF",
+      "subject": "00000000-0000-4000-8000-000000000302",
+      "subject_kind": "Node",
+      "subject_name": "Bob",
+      "subject_type": "00000000-0000-4000-8000-000000000201"
+    }
+  ],
+  "meta": {
+    "drawn": 1,
+    "format": "ekr.fact-sample/1",
+    "population": 3,
+    "revision": 0,
+    "seed": 42,
+    "size": 1
+  }
+}
+```
+
+| input | what it does |
+|---|---|
+| `--seed <integer>` | any integer, negative included; the same seed draws the same sample |
+| `--size <1–1000>` | how many facts to draw; all of them when the revision holds fewer. Outside the range the verb is refused as `ekr.views.LimitExceeded` (exit 2) before the store is read |
+| `--type <type id>` | only facts about nodes or edges of this type, or about the type itself; a type id from `ekr ontology`, compared exactly, so a subtype is another type. A type no fact is about draws nothing (`population` `0`); it is not refused |
+| `--revision <revision>` | the committed revision to draw from; the head when absent |
+
+The facts are the revision's `Active` assertions; a retracted or superseded one is not drawn.
+Each is ranked by the SHA-256 of `ekr.fact-sample/1:<seed>:<assertion id>`, and the sample is the
+`--size` lowest-ranked, listed in that order. So one seed, size, type and revision draw the same
+facts on either provider and in every run, a larger size lists the smaller one's facts first, and
+a later commit leaves the sample of an earlier revision as it was. `meta.population` counts the
+facts the draw chose from and `meta.drawn` those it lists.
+
+Each item carries the assertion as the projection renders it, its subject (`subject_kind`
+`Node`, `Edge` or `Type`, `subject`, `subject_type`), the names a judge reads it by —
+`subject_name` (a node's canonical name or a type's name), `predicate_name` (the property's or the
+relation's name), `object_name` (a node object's canonical name), each left out where there is
+none — and every evidence entry the assertion cites, with its bytes: `text` when they are UTF-8,
+else `base64`. A store never seeded is refused as `ekr.views.NotSeeded` and a revision it does not
+hold as `ekr.views.RevisionNotFound`, exit 2. `ekr session` serves the verb too.
+
+### `ekr fact-quality`
+
+Reads a judged sample and prints its pass rate with its Wilson score interval: the
+`ekr.fact-quality/1` document (`ekr.views.ReportFactQuality`). It opens no store, so it needs no
+`--host` or `--store`. The judged sample is an `ekr.fact-judgements/1` JSON file, or `-` for
+stdin: one judgement per fact you judged from an [`ekr sample`](#ekr-sample), and the sample's
+`meta` fields `revision`, `seed`, `size` and `type` under `sample` if you keep them, which the
+report echoes and does not check.
+
+```json
+{
+  "format": "ekr.fact-judgements/1",
+  "sample": {"revision": 0, "seed": 42, "size": 3},
+  "judgements": [
+    {"assertion": "00000000-0000-4000-8000-000000000510", "verdict": "Pass"},
+    {"assertion": "00000000-0000-4000-8000-000000000511", "verdict": "Pass"},
+    {"assertion": "00000000-0000-4000-8000-000000000512", "verdict": "Fail"}
+  ]
+}
+```
+
+```console
+ekr fact-quality judged.json
+```
+
+```json
+{"meta":{"format":"ekr.fact-quality/1","confidence":9500,"z":1.9599639845400538,"sample":{"revision":0,"seed":42,"size":3}},"judged":3,"passed":2,"failed":1,"rate":0.6666666666666666,"lower":0.20765960080204776,"upper":0.9385080552796037}
+```
+
+Unlike the other verbs, which print their document indented with keys in alphabetical order,
+`ekr fact-quality` prints the exact bytes the library wrote: one line, keys in the format's own
+order. Its numbers are never parsed and printed again, which could move one to a neighbouring
+binary64 value. `ekr session` embeds those bytes in its answer as they are.
+
+`verdict` is `Pass` when the evidence supports the fact and `Fail` otherwise. `rate` is
+`passed / judged`. `lower` and `upper` are the Wilson score interval at `--confidence`, basis
+points from 1 to 9999 (9500, 95 %, when absent), with `z` the standard normal quantile at
+`(1 + confidence / 10000) / 2`: `(2k + z² ∓ z·√(z² + 4k(n − k)/n)) / (2(n + z²))` for `k` passed of
+`n` judged. `lower` is exactly `0` when nothing passed and `upper` exactly `1` when everything did;
+the three are left out when nothing was judged. Compare `lower` with your bar to say, at that
+confidence, that the pass rate is above it. The arithmetic uses only the operations IEEE 754
+rounds exactly, so every host prints the same numbers.
+
+A confidence outside 1–9999 is refused as `ekr.views.LimitExceeded` and an assertion judged twice
+as `ekr.views.JudgedTwice`, naming it, both exit 2. A file that is not an `ekr.fact-judgements/1`
+— another format, a missing or unknown key, a verdict other than `Pass` or `Fail` — is a fault,
+exit 1. `ekr session` serves the verb too, with the judged sample as the request's `"stdin"`.
+
 ### `ekr guide`
 
 Prints the workflow for an agent: roles, propose → validate → commit, exit codes, where ids come from,
@@ -601,6 +748,8 @@ example seed under the example host, and the example transaction commits. `ekr e
 schema-change` prints a schema change against the same seed, which commits in a store seeded under
 [validation profile v2](#evolve-the-schema). `ekr example typed-reference` prints a reference that,
 against the example seed, resolves to `ProposeNew`: the node `ekr operations CreateNode` creates.
+`ekr example ekr.extraction-document/1` prints an [extraction document](#extraction-documents-ekrextraction-document1)
+the reader accepts against the example seed's ontology.
 
 ### `ekr mint`
 
@@ -659,8 +808,18 @@ then answers:
 | `GET /expand?seeds=<id>,<id>&depth=D&limit=L[&edges=E][&after=A][&revision=N]` | the `ekr.graph-slice/1` page of the nodes within `D` hops of the seeds (`D` 0 to 2, at most `L` nodes, 1 to 2,000, and `E` edges, 1 to 5,000, 5,000 when absent, from cursor `A`), streamed as NDJSON (below) |
 | `GET /node/<node id>[?revision=N]` | the `ekr.node-detail/1` document of that node, `application/json` |
 | `GET /search?q=<text>[&limit=L][&revision=N]` | the `ekr.node-matches/1` document of the nodes whose name or an alias contains the text (at most `L`, 1 to 100, 20 when absent), `application/json` |
-| `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | the `ekr.graph-timeline/1` document: one row per node of the row type `type` (the first the document ranks when absent) with the events related to it within `H` hops (1 to 3) counted per time bucket, at most `L` rows (1 to 500), the most active first; `B` is the finest bucket, `day` or `week`; with `subject` the row of that node alone and its events; `application/json` |
+| `GET /timeline?[type=<id>&]hops=H&limit=L[&bucket=B][&subject=<id>][&revision=N]` | the `ekr.graph-timeline/1` document: one row per node of the row type `type` (the first the document ranks when absent) with the events related to it within `H` hops (1 to 3) — nodes of an event type, by the one rule in § `ekr ocel` — counted per time bucket, at most `L` rows (1 to 500), the most active first; `B` is the finest bucket, `day` or `week`; with `subject` the row of that node alone and its events; `application/json` |
 | `GET /changes?since_revision=N\|since_valid=T\|since_recorded=T[&at=R][&limit=L][&after=A]` | the `ekr.graph-changes/1` page of what changed ([below](#changes-since)) after revision `N`, after valid time `T` or after transaction time `T` (milliseconds since the epoch), up to revision `R` (the head when absent): at most `L` changes (1 to 2,000, 500 when absent) from cursor `A`, `application/json` |
+
+**A property two types define differently.** A type may redeclare a property it inherits with
+another name or value kind; a `ModifyProperty` on a child type does. The projection and the
+overview then list one `ontology.properties` entry per definition of that id, each naming in
+`owners` every type that has that definition, whether it declares it or inherits it, so a type's
+definition is found by lookup alone; the entries of one id are ordered by their first owner. A
+property every type that has it defines alike has one entry and no `owners`, as before. The page
+names a property, and shows its value kind, as the type of the node, edge or type chip shown has
+it, and shows the property's id where no such type is known; the schema history names a version's
+added property as that version named it.
 
 Any other method is 405 and any other path 404. A request that announces a body (a
 `Content-Length` above zero or any `Transfer-Encoding`) is 413; the body is never read. A request
@@ -783,37 +942,50 @@ exactly as `/projection` is: 404 `ekr.views.RevisionNotFound` for a revision the
 hold, 400 `invalid-query` for any query but exactly `revision=N` with `N` in ASCII decimal
 digits (an empty pair, a second pair, a sign or a space is refused).
 
-The rule reads the store's shape and nothing else — never a type, edge-type, property or entity
-name, and never an id compared to a constant — so a store whose every name is changed gets the same
-roles, id for id. To apply it by hand to the revision's ontology and assertions:
+The rule reads the store's event types, its observation type and its edge types and nothing else
+— never a type, edge-type, property or entity name — so a store whose every name is changed gets
+the same roles, id for id. To apply it by hand to the revision:
 
-1. **Arcs.** First widen each edge type's `source_types` and `target_types` to every node type that
+1. **Event types.** The event types are EKR's one event-type rule, given in § `ekr ocel`: a type
+   is an event type when at least 60% of its judged nodes are instant, that is, carry the
+   timeline's time at one moment — a timestamp-like property value, or dated facts that lie
+   within one hour. They are the types the overview marks `roles.types[].event` and the timeline
+   and `ekr ocel` treat as events, at the same revision. The *observation type* is the
+   overview's `roles.observation_type`, one of the event types, the one the viewer lays out as the
+   observation (ties go to the lowest type id).
+2. **Arcs.** First widen each edge type's `source_types` and `target_types` to every node type that
    conforms to one of them: the listed types and all their descendants through `parents`,
    transitively, which is how the runtime checks an edge's endpoints. Each edge type then gives an
    arc from every widened source type to every widened target type; a `symmetric` edge type gives
    the reverse arcs too. An arc from a type to itself is dropped. Abstract types count like any
    other.
-2. **Degree.** A type's *targets* are the other types it has an arc to; its *sources* are the other
-   types with an arc to it.
-3. **Timed.** A type is *timed* when some assertion the revision holds — property or relation,
-   whatever its assessment or lifecycle — has a node of that type as its subject and a valid time
-   with `from` or `to` set. The node's own type counts, not its ancestors. Assertions about an edge
-   or a type do not count.
-4. **Advancing.** A type is *advancing* when it is timed and has at least one target.
+3. **Sources.** A type's *sources* are the other types with an arc to it.
 
 Each node type then takes the first role whose condition holds:
 
 | role | condition |
 |---|---|
-| `observation` | no sources, and at least one target is advancing |
-| `event` | advancing |
+| `observation` | the observation type |
+| `event` | any other event type |
 | `subject` | at least one source |
 | none | anything else: no entry |
 
-An observation points at events and nothing points at it; an event is timed and points on; a
-subject is pointed at and is not an event. A timed type with no targets is therefore a subject, a
-type with no arc to or from another type after widening has no role, and a revision that adds a
-timed assertion can move a type from `subject` to `event`.
+So the `event` and `observation` entries together are exactly the event types the overview, the
+timeline and `ekr ocel` use, and the `observation` entry is the overview's observation type. An
+event type is an `event` or the `observation` whatever its arcs; a type that is no event type and
+that no other type points at after widening has no role.
+
+Before the one event-type rule, `/roles` judged events by its own structural rule: a type with any
+valid-time assertion that pointed at another type was an `event`, and a type nothing pointed at
+that pointed at one was an `observation`. Now a node type counts as an event type only by the
+timeline's rule above. A store whose nodes carry one dated fact each, or whose dated facts lie
+more than an hour apart, has no event type at all: its types lose their `event` and `observation`
+roles, and keep `subject` where another type points at them.
+
+Roles move both ways across revisions. A revision that adds a dated fact can make a type an event
+type (a node's second dated fact, within an hour of its first) or stop it being one (a dated fact
+more than an hour from the others makes its node judged but not instant), and the observation type
+can move to another event type as the overview's choice among them changes.
 
 ### `ekr session`
 
@@ -881,7 +1053,7 @@ writes through one process instead of one each:
 ```
 
 A session serves `propose`, `validate`, `commit`, `snapshot`, `explain`, `resolve`, `head`,
-`transactions`, `rejections`, `ontology`, `quality`, `ocel`, `mint`, `hash` and `schema`, the `ekr.views` reads
+`transactions`, `rejections`, `ontology`, `quality`, `ocel`, `sample`, `fact-quality`, `mint`, `hash` and `schema`, the `ekr.views` reads
 ([below](#session-views)), and `seed` when it was started with `--create`. It refuses these, each
 answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"stderr"`:
 
@@ -1002,7 +1174,7 @@ it, and answer its document byte for byte what the `ekr view` endpoint in the la
 | `expand` | **`seeds`** (a list of node ids; empty answers an empty page), **`depth`** (0 to 2), **`limit`** (1 to 2,000 nodes), `edges` (1 to 5,000, 5,000 when absent), `after` (a cursor, 0 or more), `revision` | the whole `ekr.graph-slice/1` page as one document, `next` naming the next page's `after` | `GET /expand`, as one document rather than NDJSON |
 | `timeline` | `type` (a node type id), **`hops`** (1 to 3), **`limit`** (1 to 500), `bucket` (`day` or `week`), `subject` (a node id), `revision` | the `ekr.graph-timeline/1` document | `GET /timeline` |
 | `changes_since` | exactly one of `since_revision` (a revision), `since_valid` (a valid time) and `since_recorded` (a transaction time), both times in milliseconds since the epoch; `at` (the last revision read, the head when absent), `limit` (1 to 2,000, 500 when absent), `after` (a cursor, 0 or more) | the `ekr.graph-changes/1` page ([what it lists](#changes-since)), `next` naming the next page's `after`; pass the first page's `meta.revision` as `at` for the rest | `GET /changes` |
-| `explain` | **`assertion`** (an assertion id) | what `ekr explain <assertion>` prints, byte for byte | `ekr explain` |
+| `explain` | **`assertion`** (an assertion id), `documents` (`true` or `false`, `false` when absent) | what `ekr explain <assertion>` prints, byte for byte, or with `documents: true` what `ekr explain <assertion> --documents` prints | `ekr explain [--documents]` |
 | `resolve` | **`type_id`** (a string), **`aliases`** (a list of strings) — the [`typed-reference`](#ekr-resolve) document's fields, taken as the JSON strings hold them, every character included — and `at` (a revision) | what `ekr resolve` prints for that reference, byte for byte | `ekr resolve [--at N]` |
 | `head` | none: any argument is -32602 | `{"format":"ekr.view-head/1","head":N}`, the newest committed revision as it stands at the call, byte for byte what `GET /head` serves; `ekr.views.NotSeeded` for a store never seeded | `GET /head` |
 
@@ -1118,7 +1290,7 @@ ekr validate <transaction_id>                   # -> kind Validated or Rejected
 ekr commit <transaction_id>                     # -> kind Committed, result.revision
 ekr head                                        # the new revision
 ekr snapshot --valid-at 2026-01-01              # what is believed at that date
-ekr explain <assertion_id>                      # why
+ekr explain <assertion_id>                      # why; --documents for the whole records
 ```
 
 Where values come from:
@@ -1494,9 +1666,9 @@ transaction:
 An `!AddAssertion` in the same transaction, or in any later one, may cite the new id; list it in
 `transaction.evidence` only in a transaction whose assertions cite it. Committing applies the entry
 and stores the payload as an object of its own, in the Provenance class the seed's payloads use;
-`ekr explain` prints it for every assertion that cites it, and [`/changes`](#changes-since) lists
-the entry once, as an `EvidenceAdded` of the revision that committed it, whether or not an
-assertion cites it. Validation refuses, as named issues:
+`ekr explain --documents` prints it for every assertion that cites it, and
+[`/changes`](#changes-since) lists the entry once, as an `EvidenceAdded` of the revision that
+committed it, whether or not an assertion cites it. Validation refuses, as named issues:
 
 | issue | validator | when |
 |---|---|---|
@@ -1514,6 +1686,101 @@ An entry whose `extracted_by` is not the host operator is refused by `ekr propos
 A relation can be recorded two ways, and often both are wanted. The assertion is the claim, with
 evidence and valid time. `!CreateEdge` is the structural record: no evidence, no valid time, held to
 the edge type's endpoint types and cardinality, and visible to a reader of the graph's edges.
+
+## Extraction documents (`ekr.extraction-document/1`)
+
+An agent that extracts knowledge from sources — messages, pages, tickets — writes what it read as
+one extraction document: the types it needs, the named things it found, the facts it read about
+them and the evidence each fact rests on. The consumer runs its extractor, its agent and its
+sandbox; the engine starts none of them. `ekr example ekr.extraction-document/1` prints a complete
+document for a store seeded from the example seed, and `ekr schema ekr.extraction-document/1` its
+JSON Schema. No verb applies a document yet; until one does, record what it says with `ekr
+propose`, `ekr validate` and `ekr commit`.
+
+Types, properties and relations are named, never identified: the document is written before the
+ids of the types it adds exist, and a name maps to the id the store holds for it.
+
+```yaml ekr.extraction-document/1
+format: ekr.extraction-document/1
+ontology:
+  node_types:
+  - name: Project
+    parents: []
+    abstract_type: false
+    properties:
+    - name: status
+      value:
+        value_kind: Enum
+        parameters: {variants: [active, closed]}
+      cardinality: One
+      required: false
+  edge_types:
+  - name: LEADS
+    source_types: [Person]
+    target_types: [Project]
+    cardinality: Many
+    properties: []
+entities:
+- node_type: Person
+  aliases: [Carol]
+- node_type: Project
+  aliases: [Apollo]
+facts:
+- !Property
+  subject: {node_type: Organization, aliases: [Globex]}
+  property: legal_name
+  value: {value_kind: String, value: Globex Corporation}
+  evidence: [00000000-0000-4000-8000-000000000403]
+- !Relation
+  subject: {node_type: Person, aliases: [Carol]}
+  relation: CEO_OF
+  object: {node_type: Organization, aliases: [Globex]}
+  evidence: [00000000-0000-4000-8000-000000000403]
+evidence:
+- evidence:
+    id: 00000000-0000-4000-8000-000000000403        # a fresh evidence id: ekr mint evidence
+    source: !HumanStatement
+      identity: Quarterly report
+    content_hash: 7afeb9c852d895a2cdf8d7717a49354badd8b8dc79049925137b1f95f4651af5
+    extracted_by: 00000000-0000-4000-8000-000000000101  # the host operator
+    observed_at: 1773273600000
+    confidence: 10000
+  payload: [67, 97, 114, 111, 108, 44, 32, 67, 69, 79, 32, 111, 102, 32, 71, 108, 111, 98, 101, 120, 32, 67, 111, 114, 112, 111, 114, 97, 116, 105, 111, 110, 44, 32, 108, 101, 97, 100, 115, 32, 112, 114, 111, 106, 101, 99, 116, 32, 65, 112, 111, 108, 108, 111, 46]
+```
+
+| key | holds |
+|---|---|
+| `format` | exactly `ekr.extraction-document/1` |
+| `ontology` | optional. `node_types` (each `name`, `parents` by name, `abstract_type`, `properties`) and `edge_types` (each `name`, `source_types` and `target_types` by node type name, `cardinality`, `properties`). A property is `name`, `value`, `cardinality` and `required`; `value` is a [value type](#value-types), written as one is (`parameters: {variants: [...]}` for an `Enum`), except that a `NodeRef` names its node types in `parameters: {allowed_types: [...]}` rather than listing their ids. An `Enum`'s variants and a `NodeRef`'s types are at least one, each once; a `Record` field is written once. A type the store lacks is added; one it holds by that name is kept |
+| `entities` | optional. Named things, each `node_type` (a node type's name) and `aliases` (the names it is known by, compared byte for byte). Each resolves as a [typed reference](#ekr-resolve) of that type before anything is created |
+| `facts` | `!Property` (`subject`, a named thing; `property`, declared on the subject's type or an ancestor; `value`, a value as a transaction writes one) or `!Relation` (`subject`, `relation`, an edge type's name, and `object`). Each lists in `evidence` the ids of the evidence items it rests on: at least one |
+| `evidence` | the evidence items, each the `evidence` entry and `payload` bytes an [`!AddEvidence`](#evidence-after-the-seed) carries, under the same rules: a fresh id, `source: !HumanStatement`, `extracted_by` the host operator and a payload that hashes to `content_hash` |
+
+The reader refuses, by code, a document it cannot read:
+
+| code | when |
+|---|---|
+| `extraction-document-too-large` | over 8388608 bytes, the transaction document's cap |
+| `extraction-document-too-deep` | containers nested deeper than 32, the transaction document's limit. The YAML loader stops at the first container past it, so a deeper document is refused at once |
+| `extraction-yaml-alias` | a YAML alias (`*name`): write each value out |
+| `extraction-document-malformed` | anything else that is not one document of the format: another `format`, an unknown or missing key, a mapping key written twice, a fact written other than as a `!Property` or `!Relation` tag, an alias that is not a YAML string (`~`, `true`, `1.0` and `0x10` are not; quote them), a second document |
+
+Against the ontology of the store it is read for it refuses, naming the first in document order:
+
+| code | when |
+|---|---|
+| `extraction-name-duplicate` | a node type, an edge type, a property of one type, an `Enum` variant or a `NodeRef` type the document declares twice |
+| `extraction-type-conflict` | a type the store holds, redeclared with other `parents` or another `abstract_type` (a node type) or another `cardinality` (an edge type): no schema operation changes those |
+| `extraction-type-undeclared` | a node type or edge type neither the document's `ontology` nor the store declares, named by a parent, an edge type's end, a `NodeRef`, a named thing, a fact's subject or object, or a relation |
+| `extraction-value-type-empty` | an `Enum` with no variant or a `NodeRef` to no node type |
+| `reference-without-identity` | a named thing, or a fact's subject or object, with no alias but the empty string |
+| `extraction-property-undeclared` | a `!Property` fact's property, named `Type.property`, that the subject's type and its ancestors do not declare in the document or the store |
+| `extraction-value-mismatch` | a `!Property` fact's value its property's type does not hold: another kind, an `Enum` variant it does not list, a `Record` without exactly its fields, or any `Float`, which is never committed |
+| `extraction-relation-ends` | a `!Relation` whose subject is not of a source type of its edge type, or whose object is not of a target type, a subtype counting as its parent |
+| `fact-without-evidence` | a fact, named `facts[<index>]`, whose `evidence` is empty or absent |
+| `fact-evidence-unlisted` | a fact citing an id no item of the document's `evidence` carries |
+| `duplicate-identity` | two evidence items under one id |
+| `evidence-payload-mismatch` | an evidence item whose `payload` does not hash to its `content_hash` (`ekr hash` prints the right one) |
 
 ## Worked example: a library catalogue
 
@@ -1923,14 +2190,14 @@ ekr commit 00000000-0000-4000-a000-000000000701           # "kind": "Committed",
 
 ```console
 ekr snapshot --valid-at 2020-01-01
-ekr explain 00000000-0000-4000-a000-000000000501
+ekr explain 00000000-0000-4000-a000-000000000501 --documents
 ```
 
 The snapshot's `matching_assertions` contains `00000000-0000-4000-a000-000000000501`: the claim is
 believed on 2020-01-01, because its valid time starts on 2019-04-01. For this assertion, which a
 transaction added and nothing has retracted or superseded, `ekr explain` prints five links:
-`Assertion` (now `Accepted` by the validator), `Proposal`, `Validation`, `Commit` and `Evidence`,
-and the evidence link's `text` is the statement in `wrote.txt`.
+`Assertion` (now `Accepted` by the validator), `Proposal`, `Validation`, `Commit` and `Evidence`.
+With `--documents` the evidence link's `text` is the statement in `wrote.txt`.
 
 ### 6. Publish the book and add a translation
 

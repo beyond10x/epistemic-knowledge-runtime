@@ -6,7 +6,6 @@ status: implemented
 title: ekr_views::load replays once, not once per schema version
 relations:
 - serves: vision:o5
-- blocks: story:view-streams-overview-and-expansion
 revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-28T02:45:11Z", actor: "human:timo", revision: 2}

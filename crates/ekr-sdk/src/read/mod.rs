@@ -16,7 +16,7 @@
 //! | [`Reader::snapshot`] | `snapshot` | [`Snapshot`] |
 //! | [`Reader::ontology`] | `ontology` | [`Ontology`] |
 //! | [`Reader::transactions`] | `transactions` | [`Transactions`] |
-//! | [`Reader::explain`] | `explain` | [`Explanation`] |
+//! | [`Reader::explain`], [`Reader::explain_documents`] | `explain` | [`Explanation`], `ekr.explanation/2` |
 //! | [`Reader::quality`] | `quality` | [`StoreQuality`], `ekr.store-quality/1` |
 //! | [`Reader::rejections`] | `rejections` | [`Rejections`], `ekr.rejections/1` |
 //! | [`Reader::code_names`] | `code-names` | [`CodeNames`], `ekr.code-names/1` |
@@ -451,12 +451,21 @@ impl<T: Transport> Reader<T> {
     }
 
     /// `explain`: the assertion at the head, where it came from, what later changed it, and its
-    /// evidence.
+    /// evidence, each record by hash (`ekr.explanation/2`).
     ///
     /// # Errors
     /// [`ReadError`]; an unknown id is `ekr.kernel.AssertionNotFound`.
     pub fn explain(&mut self, assertion: AssertionId) -> Result<Explanation, ReadError> {
         self.read(Argv::new("explain").arg(assertion))
+    }
+
+    /// `explain --documents`: [`Reader::explain`] with the whole records its links name — each
+    /// proposal record, commit receipt and evidence payload ([`ExplainedEvidence::payload`]).
+    ///
+    /// # Errors
+    /// [`ReadError`]; an unknown id is `ekr.kernel.AssertionNotFound`.
+    pub fn explain_documents(&mut self, assertion: AssertionId) -> Result<Explanation, ReadError> {
+        self.read(Argv::new("explain").arg(assertion).arg("--documents"))
     }
 }
 
@@ -551,5 +560,13 @@ impl OneShotReader {
     /// [`ReadError`].
     pub fn explain(&mut self, assertion: AssertionId) -> Result<Explanation, ReadError> {
         self.reader.explain(assertion)
+    }
+
+    /// [`Reader::explain_documents`], one-shot.
+    ///
+    /// # Errors
+    /// [`ReadError`].
+    pub fn explain_documents(&mut self, assertion: AssertionId) -> Result<Explanation, ReadError> {
+        self.reader.explain_documents(assertion)
     }
 }

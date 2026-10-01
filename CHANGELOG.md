@@ -4,6 +4,148 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.25] — 2026-10-01
+
+A long import costs less as the store grows; the SDK resolver no longer answers a stale node; the
+extraction document, fact quality from a judged sample, explain by reference, one event-type rule
+and per-type property definitions in the projection.
+
+### Added
+
+- **The extraction document, `ekr.extraction-document/1`** (`docs/cli.md`, Extraction
+  documents): the format an extracting agent writes what it read from its sources in. It names
+  the types it needs (node and edge types, with properties) instead of identifying them, lists the
+  named things it found (a node type's name and aliases), its facts (`!Property` or `!Relation`)
+  and the evidence items they cite, each the entry and payload an `!AddEvidence` carries.
+  `ekr example ekr.extraction-document/1` (alias `extraction`) prints one for the example seed and
+  `ekr schema ekr.extraction-document/1` its JSON Schema. Value types are written as a seed
+  writes them, a `NodeRef` naming its types in `parameters: {allowed_types: [...]}`.
+  `ekr_integrate::read_extraction` reads it against a store's ontology and refuses each problem by
+  its code (`docs/cli.md` lists all sixteen): a document over 8388608 bytes, nested deeper than 32
+  (the YAML loader stops there, so a deep nesting is refused at once), holding a YAML alias or
+  malformed; a name declared twice; a store type redeclared with other parents, abstractness or
+  cardinality; a type neither the document nor the store declares; an empty Enum or NodeRef; a
+  reference with no identifying alias; an undeclared property; a value its property's type does
+  not hold; a relation its edge type does not connect; a fact citing no evidence or an id the
+  document does not carry; two evidence items under one id; and a payload that does not hash to
+  its entry. The vendored YAML loader gains an opt-in depth bound for this. Specified, with the
+  report applying a document will print, in `systems/ekr/domains/integrate.yaml`. No verb applies
+  a document yet.
+
+- **Fact quality is reported from a judged, reproducible sample** (`docs/cli.md`, `ekr sample`
+  and `ekr fact-quality`). `ekr sample --seed S --size N [--type <type id>] [--revision N]` prints
+  the `ekr.fact-sample/1` document: the revision's Active assertions ranked by the SHA-256 of
+  `ekr.fact-sample/1:<seed>:<assertion id>`, the `N` lowest, each with its subject, the names a
+  judge reads it by and the bytes of every evidence entry it cites. One seed, size, type and
+  revision draw the same facts on either provider and in every run; a larger size extends a
+  smaller one. `ekr fact-quality <file | ->` reads the caller's verdicts, an
+  `ekr.fact-judgements/1` document, opens no store, and prints the `ekr.fact-quality/1` document:
+  passed, failed, the pass rate and its Wilson score interval at `--confidence` basis points
+  (9500 by default), computed with only exactly rounded IEEE 754 operations so every host prints
+  the same numbers. It prints the library's bytes as they are, on one line, and `ekr session`
+  embeds them unparsed; the workspace's `serde_json` reads every JSON number with
+  `float_roundtrip`, so no parse rounds one to a neighbouring binary64. A size outside 1–1000 or a confidence outside 1–9999 is refused as
+  `ekr.views.LimitExceeded`, an assertion judged twice as `ekr.views.JudgedTwice`. The runtime
+  judges nothing. Both verbs are `ekr session` verbs. Specified as `ekr.views.DrawFactSample` and
+  `ekr.views.ReportFactQuality` in `systems/ekr/domains/views.yaml`, with `ekr_views::draw_sample`
+  and `ekr_views::report_fact_quality` in the library.
+
+### Changed
+
+- **`ekr explain` answers by reference, in `ekr.explanation/2`** (`docs/cli.md`, `ekr explain`).
+  The document gains `format`; a `Proposal` link names its proposal record by `record_hash` and
+  carries only the document's operations about the assertion; a `Commit` link, and a `Lifecycle`
+  link's new `commit`, name the receipt and the proposal and validation records by hash instead of
+  embedding the receipt; an `Evidence` link no longer carries `payload` and `text`. The chain —
+  which links, in which order, naming which records — is unchanged. `ekr explain --documents`
+  (MCP `explain` with `documents: true`, SDK `Reader::explain_documents`) adds the whole records:
+  the proposal record as `record`, each commit receipt as `receipt`, and each evidence link's
+  `payload` and `text`. The kernel looks the chain up from what the verified graph records of
+  each assertion (the instant of the commit that added it, the revision of the one that retracted
+  or superseded it) and parses only those commits' documents, where it parsed every committed
+  document per call. At a consumer's 1× shape (4,127 nodes, 67k assertions, 57 commits; SQLite)
+  an answer is 23–64 KB through the session and one-shot (3.2–7.9 MB before) and 57–118 KB
+  through MCP (6.3–15.8 MB before). **The 0.5 s per-call bound is not met.** A call costs about
+  0.52–0.56 s CPU through the session and 0.44–0.65 s through MCP (28–90 s wall under load
+  before), and about 4 s one-shot. Most of the session and MCP cost is capturing the head for
+  the read, and most of the one-shot cost is opening the store, where every retained blob's
+  SHA-256 is checked again; neither is explain's own work, and the open is a task of its own.
+  Explain's own work, with the store open, is reported by the 1× bench in
+  `crates/ekr/tests/explain_by_reference.rs`. Explain trusts the verified graph and reads only the
+  documents on the assertion's own chain; a record of a capture on no chain is not read
+  (`kernel.yaml`, "What explain trusts"). Two records claiming one revision are refused as
+  `origin-ambiguous`. Specified as `ekr.kernel.ExplanationResult` in
+  `systems/ekr/domains/kernel.yaml`. SDK: `Explanation.format`, and `ExplainedEvidence.payload` is
+  now an `Option`.
+
+- **One rule decides which node types are events** (`docs/cli.md`, Roles and `ekr ocel`).
+  `GET /roles` of `ekr view` now marks `event` or `observation` exactly the types the overview,
+  the timeline and `ekr ocel` treat as events, and `observation` exactly the overview's
+  observation type, the one the viewer lays out as the observation. A node type now counts as an
+  event type only by the timeline's rule (`ekr.views.TypeTiming`): when at least 60% of its judged
+  nodes carry the timeline's time at one moment — a timestamp-like value, or dated facts within
+  one hour. Before, `/roles` used its own structural rule — a type with any valid-time assertion
+  that pointed at another type — so one store could get different event types from the two.
+  Visible change: a store whose types qualified only under the structural rule, for example one
+  whose nodes carry one dated fact each, now has no event type, and its types lose their `event`
+  and `observation` roles in `/roles`; `subject` still reads the edge types' source and target
+  types. Roles move both ways across revisions: a revision that adds a dated fact can make a type
+  an event type or stop it being one. `/roles` is now derived in `ekr-views`
+  (`ekr_views::Index::view_roles_document`, with `Index::event_types` the one rule), specified in
+  `systems/ekr/domains/views.yaml`.
+
+### Fixed
+
+- **Queuing a node drops cached answers that share its aliases** (`ekr-sdk`, `Resolver`). When
+  `resolve` or `resolve_with` queues a node for a `ProposeNew` answer, it now drops every other
+  cached key of the same type that shares an alias with that node, the rule `observe` already
+  applied to a committed `CreateNode`. Before, a key cached earlier (`["Ada", "X"]` resolved to the
+  node holding `X`) went on answering that node after a node holding `Ada` was queued, where
+  `ekr resolve` against the flushed store answers `Ambiguous`, so a consumer could assert a fact
+  about the wrong node. Keys of other types, and keys sharing no alias with the queued node, stay
+  cached.
+- **An `ekr-sdk` protocol error says what the process printed** (`docs/sdk.md`, "Failure, the
+  latch and cancellation"). When `ekr session` or a one-shot `ekr` answered with something that is
+  not JSON, `TransportError::Protocol` named the verb, the parse error and the stderr tail, but
+  not the answer, so the message read "(expected ident at line 1 column 2); stderr tail: (empty)"
+  and nothing more. It now carries `answer`: the start of what the process printed, raw and
+  without its final line end, at most 400 of the bytes printed (`ANSWER_BYTES`), cut back to a
+  character boundary and ended with ` [cut]` (`ANSWER_CUT`) when it was longer. The message shows
+  it escaped as a string literal, and so does the `Latched` error a session failed this way
+  returns for every later call. Code that builds a `Protocol` value, rather than matching one with
+  `..`, names the new field.
+
+- **A subtype that redeclares a property renders, and each type shows its own definition**
+  (`ekr view`, `ekr.graph-projection/1` and the overview's `ontology`). A revision in which two
+  types declare one property id with another name or value kind — a child type redeclaring an
+  inherited property, which a `ModifyProperty` can produce — was refused as inconsistent by the
+  projection, the overview and so the viewer. `ontology.properties` now lists one entry per
+  distinct definition of an id; where an id has more than one, each entry carries `owners`, every
+  type that has that definition, whether it declares it or inherits it, so a reader finds any
+  type's definition by lookup; the entries of one id ascend by their first owner. The viewer names
+  a property, and its value kind, as the type of the node, edge or chip shown has it, and shows
+  the id where no such type is known; the schema history names a version's added property as that
+  version named it. A revision whose types define each property alike renders the same bytes as
+  before, with no `owners`.
+
+- **A held evidence payload is not read again while its stream has not moved**
+  (`story:commit-cost-flat-with-store-size`). A store handle served a verified object from its
+  memo only when its class was `Canonical`; every other class had its stream read again on every
+  history load, because another handle may raise it. Evidence payloads are `Provenance`, so each
+  `propose`, `validate` and `commit` read one object stream per evidence payload in the store,
+  and a transaction cost more the more evidence the store held. A raise appends an event to the
+  object's own stream, so a handle now looks through the tenant log from the position it last
+  looked through — one provider read when nothing was appended — and reads again only the held
+  objects whose streams have an event there. A class raised by another handle is still seen on
+  the next load. Refusals are unchanged except one: a SQLite handle that already holds an evidence
+  payload whose stream event is then redacted in place (eventlog `redact`, which nothing in the
+  runtime calls yet) serves the payload until it next reads that stream, where it refused before
+  (`task:held-bytes-notice-deleted-blobs`); a fresh handle, and a file-provider handle, refuse
+  as before. `ekr_store::stream_reads` counts object-stream and log reads
+  (`crates/ekr-store/tests/eventlog_object_memo.rs`), and `crates/ekr-sdk/tests/commit_scaling.rs`
+  is an ignored release harness that times each transaction of a 10,000- and an 80,000-fact delta
+  over one base store.
+
 ## [0.0.24] — 2026-09-30
 
 A store exports as an OCEL 2.0 event log; the viewer's compact mode works from the keyboard and in

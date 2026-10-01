@@ -59,7 +59,7 @@ WORKFLOW
      ekr rejections [--from N] [--to M]            rejected transactions and their issues, by the
                                                    revision each was validated against
      ekr snapshot [--at N] [--valid-at YYYY-MM-DD]  read the result back
-     ekr explain <assertion_id>                    why an assertion is what it is
+     ekr explain <assertion_id> [--documents]      why an assertion is what it is
      ekr quality [--revision N]                    the store's quality beyond its size:
                                                    evidenced assertions, constrained
                                                    properties, names shared within a type
@@ -74,6 +74,12 @@ WORKFLOW
      ekr code-names <file>... [--at N]             which store names your code quotes as literals:
                                                    file, line and kind; exit 0, the count is
                                                    meta.findings
+     ekr sample --seed S --size N [--type <id>] [--revision N]
+                                                   a reproducible sample of facts, each with its
+                                                   evidence bytes, for you to judge
+     ekr fact-quality judged.json [--confidence BP]
+                                                   the pass rate of your ekr.fact-judgements/1
+                                                   verdicts, with its Wilson interval
 
 DOCUMENT LIMITS (fixed by the format version; write ekr.transaction-document/2)
   An ekr.transaction-document/2 holds 1 to 10000 operations and at most 10000 evidence entries
@@ -173,13 +179,28 @@ RESOLVE BEFORE YOU CREATE: ekr resolve
   A node that exists but lacks the alias a reference names gains it with AddAlias
   (`ekr operations AddAlias`); ekr resolve finds it by that alias from the next revision on.
 
+EXTRACTION DOCUMENTS
+  An agent that extracts knowledge from sources writes it as one ekr.extraction-document/1
+  (`ekr example ekr.extraction-document/1`, `ekr schema ekr.extraction-document/1`): the types it
+  needs by name, the named things it found (a node type's name and aliases), its facts (!Property
+  or !Relation) and the evidence items they cite (each the entry and payload an AddEvidence
+  carries). Value types are written as in a seed, a NodeRef naming types in
+  parameters: {allowed_types: [...]}. The reader refuses, by code, among others:
+  extraction-type-undeclared (a type neither the document nor the store declares),
+  extraction-name-duplicate, extraction-type-conflict, extraction-property-undeclared,
+  extraction-value-mismatch, extraction-relation-ends, reference-without-identity,
+  fact-without-evidence (every fact cites at least one evidence item), fact-evidence-unlisted,
+  duplicate-identity and evidence-payload-mismatch; docs/cli.md lists every code. No verb applies
+  it yet: record what it says with propose, validate and commit.
+
 ADDING EVIDENCE
   After the seed, a transaction adds evidence with AddEvidence: the entry and its payload bytes
   together (`ekr operations AddEvidence`). An AddAssertion in the same or a later transaction
   cites its id. The payload must hash to the entry's content_hash (evidence-payload-mismatch),
   the id must be new (identity-already-exists), the source must be !HumanStatement
   (evidence-unsupported-source) and extracted_by the host operator (propose refuses otherwise,
-  as ekr.kernel.ProposalAttribution). The commit stores the payload; explain prints it.
+  as ekr.kernel.ProposalAttribution). The commit stores the payload; explain --documents
+  prints it.
 
 ADDING EVIDENCE TO A SEED
   Evidence the seed's own assertions cite enters with the seed, before `ekr seed`. To add a new
@@ -210,12 +231,15 @@ EXIT CODES
 
 OUTPUT
   guide, operations and example print text; every other verb prints one JSON document.
-  A proposal record's document_bytes (in the results of propose, commit and explain) prints as
-  one standard padded base64 string (RFC 4648), not as a number array.
-  To read the seed's evidence payloads, explain an assertion that cites them: `ekr explain` adds
-  two fields to each Evidence link, `payload`, the evidence's retained bytes as one base64 string, and `text`, the
-  same bytes as a string when they are valid UTF-8 (absent otherwise). No other verb prints a
-  payload.
+  A proposal record's document_bytes (in the results of propose, commit and explain --documents)
+  prints as one standard padded base64 string (RFC 4648), not as a number array.
+  `ekr explain` prints ekr.explanation/2: each proposal, commit receipt and evidence payload is
+  named by its hash, and a proposal carries only its operations about the assertion. To read
+  the whole records, and the seed's evidence payloads, explain an assertion that cites them
+  with --documents: `ekr explain --documents` adds two fields to each Evidence link, `payload`,
+  the evidence's retained bytes as one base64 string, and `text`, the same bytes as a string
+  when they are valid UTF-8 (absent otherwise), a `record` to each Proposal link and a `receipt`
+  to each commit. No other verb prints a payload.
 ";
 
 /// One `ekr.kernel.OperationKind`: a `GraphOperation` variant, by its YAML tag.
@@ -674,6 +698,9 @@ pub enum ExampleFormat {
     /// A typed reference for `ekr resolve`.
     #[value(name = "typed-reference")]
     TypedReference,
+    /// What an extracting agent read, for a store to take in.
+    #[value(name = "ekr.extraction-document/1", alias = "extraction")]
+    Extraction,
 }
 
 /// The examples `ekr example` prints: one complete document of each format, and a schema change.
@@ -699,6 +726,9 @@ pub enum ExampleDocument {
     /// `CreateNode` example creates.
     #[value(name = "typed-reference")]
     TypedReference,
+    /// What an extracting agent read, for a store seeded from the example seed.
+    #[value(name = "ekr.extraction-document/1", alias = "extraction")]
+    Extraction,
 }
 
 /// `ekr example <name>`: a complete document of that format, or the schema change. The `/1`
@@ -718,6 +748,7 @@ pub(super) fn example(example: ExampleDocument) -> String {
         ExampleDocument::Seed => include_str!("examples/seed.yaml").to_owned(),
         ExampleDocument::Host => include_str!("examples/host.json").to_owned(),
         ExampleDocument::TypedReference => include_str!("examples/typed-reference.yaml").to_owned(),
+        ExampleDocument::Extraction => include_str!("examples/extraction.yaml").to_owned(),
     }
 }
 

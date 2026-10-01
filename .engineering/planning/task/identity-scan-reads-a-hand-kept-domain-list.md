@@ -6,6 +6,7 @@ status: draft
 title: The id-type scan reads a hand-kept list of domain files
 relations:
 - serves: vision:o5
+- decomposes: epic:p2-observation-layer
 revision: 1
 ---
 ## Defect

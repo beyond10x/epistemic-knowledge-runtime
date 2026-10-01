@@ -283,6 +283,11 @@ pub struct ListedTransaction {
 /// `ekr explain`: an assertion, where it came from, what later changed it, and its evidence.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Explanation {
+    /// The answer's format, `ekr.explanation/2`: proposals, commit receipts and evidence named
+    /// by hash. Empty for the unversioned answer of an `ekr` before it, which embedded each
+    /// whole record.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub format: String,
     /// The assertion asked about.
     pub assertion_id: AssertionId,
     /// The revision every link was read at.
@@ -300,29 +305,32 @@ pub enum ExplanationLink {
     Assertion(SnapshotAssertion),
     /// The seed it came from.
     Seed(Map<String, Value>),
-    /// The retained proposal of the transaction that added it.
+    /// The transaction that added it: its proposal by reference, with the operations about the
+    /// assertion, and with `documents` the whole proposal record as `record`.
     Proposal(Map<String, Value>),
     /// That transaction's validation.
     Validation(Map<String, Value>),
-    /// That transaction's commit receipt.
+    /// That transaction's commit by reference, and with `documents` its receipt as `receipt`.
     Commit(Map<String, Value>),
-    /// A later retraction or supersession of it.
+    /// A later retraction or supersession of it, with its commit by reference.
     Lifecycle(Map<String, Value>),
-    /// Evidence cited, with its retained bytes.
+    /// Evidence cited, by its content hash, and with `documents` its retained bytes.
     Evidence(ExplainedEvidence),
     /// A kind this SDK does not know, added by a newer `ekr`.
     #[serde(other)]
     Other,
 }
 
-/// An evidence link: the entry, its retained bytes and, when they are UTF-8, their text.
+/// An evidence link: the entry and, when the explanation was read with its documents
+/// ([`super::Reader::explain_documents`]), its retained bytes and, when they are UTF-8, their text.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ExplainedEvidence {
     /// The evidence entry.
     #[serde(flatten)]
     pub evidence: SnapshotEvidence,
-    /// The retained bytes, standard padded base64.
-    pub payload: String,
+    /// The retained bytes, standard padded base64, when read with the documents.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub payload: Option<String>,
     /// The same bytes as text, when they are UTF-8.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text: Option<String>,

@@ -8,6 +8,7 @@ relations:
 - serves: vision:o5
 - derived_from: task:no-store-at-a-mistyped-path
 - derived_from: task:sqlite-provider-open-contention
+- decomposes: epic:p1-kernel-ontology-core
 scope:
 - confidence: inferred
   path: crates/ekr-kernel/src/commit.rs

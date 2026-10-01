@@ -139,6 +139,8 @@ fn the_crate_declares_no_string_similarity_dependency() {
         "ekr-core",
         "ekr-graph",
         "ekr-ontology",
+        // Optional, behind the `schema` feature: derives the extraction document's JSON Schema.
+        "schemars",
         "serde",
         "proptest",
         "serde_json",

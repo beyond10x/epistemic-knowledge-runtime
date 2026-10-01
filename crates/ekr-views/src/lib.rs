@@ -45,6 +45,16 @@
 //!
 //! [`export_ocel`] (`ekr.ocel/1`) exports one revision as an OCEL 2.0 object-centric event log,
 //! its event types the overview's or the ones a request names; [`ocel`] is its pure half.
+//!
+//! [`draw_sample`] (`ekr.fact-sample/1`) draws a reproducible sample of one revision's facts, each
+//! with the bytes of its evidence, for a judge; [`sample`] is its pure half.
+//! [`report_fact_quality`] (`ekr.fact-quality/1`) reports the pass rate of the judged sample,
+//! [`FactJudgements`], with its Wilson score interval; it reads no store. The runtime judges
+//! nothing.
+//!
+//! [`Index::event_types`] is EKR's one rule for which node types are events: the timeline,
+//! [`ocel`] and [`Index::view_roles_document`] (`ekr.view-roles/1`, the host's `GET /roles`) all
+//! read it.
 
 mod changes;
 mod code_names;
@@ -53,6 +63,8 @@ mod index;
 mod ocel;
 mod quality;
 mod query;
+mod roles;
+mod sample;
 mod timeline;
 
 pub use changes::{
@@ -70,6 +82,13 @@ pub use query::{
     NodeSummary, NodesSearched, OverviewRequest, QueryError, SearchRequest, SliceEdge, SliceMeta,
     SliceNode, SlicePage, SliceRecord, DETAIL_FORMAT, MATCHES_FORMAT, OVERVIEW_FORMAT,
     SLICE_FORMAT,
+};
+pub use roles::{Role, ROLES_FORMAT};
+pub use sample::{
+    draw_key, draw_sample, report_fact_quality, sample, wilson_interval, wilson_z, FactJudgements,
+    FactQualityError, FactQualityReported, FactSampleDrawn, Judgement, JudgementsMalformed,
+    SampleOrigin, SampleRequest, Verdict, DEFAULT_CONFIDENCE, FACT_QUALITY_FORMAT,
+    JUDGEMENTS_FORMAT, SAMPLE_FORMAT,
 };
 pub use timeline::{BucketWidth, SubjectsTimelined, TimelineRequest, TIMELINE_FORMAT};
 
@@ -109,7 +128,8 @@ pub struct GraphProjected {
     pub node_types: u64,
     /// Entries of `ontology.edge_types`.
     pub edge_types: u64,
-    /// Entries of `ontology.properties`.
+    /// Entries of `ontology.properties`: one per definition of each property id, so more than the
+    /// ids when two types define one differently.
     pub properties: u64,
     /// Assertion entries under `edges[]`.
     pub edge_assertions: u64,
@@ -151,12 +171,10 @@ pub enum ProjectError {
     #[error("the verified read refused: {0}")]
     Read(String),
     /// The revision holds state `ekr.graph-projection/1` cannot represent without losing part of
-    /// it. Two causes. One is an assertion whose subject the revision does not hold, which a
-    /// revision the kernel admitted never has. The other is one property id that two types
-    /// declare with a different name or a different value kind: the ontology admits it, and the
-    /// format's single `ontology.properties` entry per id carries one name and one value kind
-    /// (task:projection-carries-per-type-property-definitions). Declarations that differ only in
-    /// what that entry does not carry, such as `required`, render.
+    /// it, such as an assertion whose subject the revision does not hold, which a revision the
+    /// kernel admitted never has. One property id that two types declare with a different name or
+    /// value kind is not such state: `ontology.properties` gives each definition its own entry,
+    /// naming its `owners` (task:projection-carries-per-type-property-definitions).
     #[error("the projected revision is inconsistent: {0}")]
     Inconsistent(String),
 }

@@ -1,15 +1,15 @@
 {
   "format": "ekr.conformance-baseline/1",
   "suite": "systems/ekr/conformance/suite.json",
-  "suite_digest": "sha256:138ffc42cf6c37a376e1e83f6d3bfe4a9ade74a5d6e5faef49729722a11e6140",
+  "suite_digest": "sha256:103517defa12f2f29b4c53cfc499eb794492a0ced2d2d2b9cf018c2b06731889",
   "suite_version": "ess-conformance/13",
   "component": "ekr-kernel",
   "providers": [
     "file",
     "sqlite"
   ],
-  "total": 54,
-  "answered_floor": 54,
+  "total": 55,
+  "answered_floor": 55,
   "unavailable_ceiling": 0,
   "quarantine": [],
   "scenarios": [
@@ -62,6 +62,7 @@
     "ekr.kernel/authored/an-edge-type-widened-to-a-new-target-type-takes-edges-to-it",
     "ekr.kernel/authored/an-edge-type-widening-that-removes-an-end-is-rejected-by-name",
     "ekr.kernel/authored/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name",
+    "ekr.kernel/authored/each-committed-assertion-is-explained-from-its-own-commit",
     "ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it",
     "ekr.kernel/authored/one-alias-added-twice-in-a-transaction-is-rejected-by-name",
     "ekr.kernel/authored/rejections-list-every-planted-issue-by-its-basis-revision",

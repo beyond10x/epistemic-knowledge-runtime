@@ -2,14 +2,15 @@
 format: aep.planning-md/3
 id: task:lineage-shows-widened-ends-and-modified-properties
 kind: task
-status: active
+status: implemented
 title: The schema lineage lists widened edge ends and modified properties
 relations:
 - serves: vision:o5
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-30T00:47:41Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-09-30T00:47:41Z", actor: "human:timo", revision: 3}
+- {from: "active", to: "implemented", at: "2026-09-30T12:13:40Z", actor: "human:timo", revision: 4, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}}
 ---
 ## Context
 

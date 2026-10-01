@@ -6,6 +6,7 @@ status: draft
 title: Rebuilding a released revision reuses its retained verdicts
 relations:
 - serves: vision:o5
+- decomposes: epic:read-and-storage-cost
 revision: 1
 ---
 ## Context

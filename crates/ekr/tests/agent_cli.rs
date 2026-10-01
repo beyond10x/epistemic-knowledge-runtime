@@ -16,11 +16,12 @@ use ekr_kernel::{GraphOperation, SeedDocument, TransactionDocument};
 use serde_json::Value;
 
 const BACKENDS: [&str; 2] = ["file", "sqlite"];
-const FORMATS: [&str; 4] = [
+const FORMATS: [&str; 5] = [
     "ekr.transaction-document/2",
     "ekr-seed/2",
     "ekr.cli-host/1",
     "typed-reference",
+    "ekr.extraction-document/1",
 ];
 /// 2026-03-12T00:00:00Z.
 const MARCH_12: i64 = 1_773_273_600_000;
@@ -270,6 +271,11 @@ fn guide_prints_the_workflow_roles_exit_codes_and_where_ids_come_from() {
         "ekr resolve",
         "ekr example typed-reference",
         "ProposeNew",
+        // story:extraction-document-applies-to-a-store: the document an extracting agent writes.
+        "ekr example ekr.extraction-document/1",
+        "ekr schema ekr.extraction-document/1",
+        "fact-without-evidence",
+        "extraction-type-undeclared",
     ] {
         assert!(guide.contains(needle), "guide lacks {needle:?}:\n{guide}");
     }
@@ -348,6 +354,14 @@ fn every_example_document_is_accepted_by_its_real_reader() {
     assert_eq!(names::<ekr::cli::ExampleDocument>(), examples);
     let unknown = run(&["example", "ekr-seed/9"]);
     assert_eq!(unknown.status.code(), Some(2));
+    // The extraction document is read against the store the example seed seeds, under its alias
+    // too.
+    let seed = SeedDocument::from_yaml(&text(&["example", "ekr-seed/2"])).unwrap();
+    let store = ekr_ontology::Ontology::load(seed.ontology).unwrap();
+    let extraction = text(&["example", "ekr.extraction-document/1"]);
+    assert_eq!(text(&["example", "extraction"]), extraction);
+    ekr_integrate::read_extraction(&extraction, &store)
+        .unwrap_or_else(|e| panic!("the extraction example is refused: {e}"));
 }
 
 #[test]
@@ -812,6 +826,27 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
                 "meta.findings",
                 "ekr head",
                 store,
+            ],
+        ),
+        (
+            "sample",
+            &[
+                "ekr.fact-sample/1",
+                "evidence",
+                "ekr fact-quality",
+                "ekr ontology",
+                "ekr head",
+                store,
+            ],
+        ),
+        (
+            "fact-quality",
+            &[
+                "ekr.fact-judgements/1",
+                "ekr.fact-quality/1",
+                "Wilson",
+                "ekr sample",
+                "stdin",
             ],
         ),
     ];
@@ -1360,7 +1395,12 @@ fn every_byte_string_prints_as_one_base64_string() {
         let GraphOperation::AddAssertion(assertion) = assertion else {
             unreachable!()
         };
-        results.push(("explain", world.ok(&["explain", &assertion.id.to_string()])));
+        let explained = assertion.id.to_string();
+        results.push(("explain", world.ok(&["explain", &explained])));
+        results.push((
+            "explain --documents",
+            world.ok(&["explain", &explained, "--documents"]),
+        ));
         results.push(("snapshot", world.ok(&["snapshot"])));
         results.push(("transactions", world.ok(&["transactions"])));
         results.push(("head", world.ok(&["head"])));
@@ -1386,13 +1426,14 @@ fn guide_prose() -> String {
         .join(" ")
 }
 
-/// The seed's evidence text is readable from a seeded store: `ekr explain` prints each Evidence
-/// link's retained payload as base64 in `payload` and, being UTF-8, as `text`, as OUTPUT says.
+/// The seed's evidence text is readable from a seeded store: `ekr explain --documents` prints
+/// each Evidence link's retained payload as base64 in `payload` and, being UTF-8, as `text`, as
+/// OUTPUT says; `ekr explain` names the evidence by its hash and prints no payload.
 #[test]
 fn explain_prints_each_evidence_payload_as_base64_and_text() {
     let guide = guide_prose();
     for sentence in [
-        "`ekr explain` adds two fields to each Evidence link",
+        "`ekr explain --documents` adds two fields to each Evidence link",
         "`payload`, the evidence's retained bytes as one base64 string",
         "`text`, the same bytes as a string when they are valid UTF-8",
     ] {
@@ -1416,7 +1457,7 @@ fn explain_prints_each_evidence_payload_as_base64_and_text() {
             ),
         ] {
             assert!(snapshot["graph"]["graph"]["assertions"][id].is_object());
-            let explained = world.ok(&["explain", id]);
+            let explained = world.ok(&["explain", id, "--documents"]);
             let evidence: Vec<&Value> = explained["links"]
                 .as_array()
                 .unwrap()
@@ -1431,14 +1472,20 @@ fn explain_prints_each_evidence_payload_as_base64_and_text() {
             );
             assert_eq!(evidence[0]["text"], claim, "{explained}");
         }
-        // Links of other kinds carry no payload.
-        let explained = world.ok(&["explain", "00000000-0000-4000-8000-000000000510"]);
+        // Links of other kinds carry no payload, and without --documents no link does.
+        let seeded = "00000000-0000-4000-8000-000000000510";
+        let explained = world.ok(&["explain", seeded, "--documents"]);
         for link in explained["links"].as_array().unwrap() {
             assert_eq!(
                 link.get("payload").is_some(),
                 link["kind"] == "Evidence",
                 "{link}"
             );
+        }
+        let referenced = world.ok(&["explain", seeded]);
+        for link in referenced["links"].as_array().unwrap() {
+            assert!(link.get("payload").is_none(), "{link}");
+            assert!(link.get("text").is_none(), "{link}");
         }
     }
 }
@@ -1696,7 +1743,7 @@ fn guide_says_how_to_add_evidence_to_a_seed() {
 /// `ekr hash` printed, seeds a store, and commits an assertion citing it.
 ///
 /// After the fix: on both providers the seed exits 0, the new assertion validates and commits,
-/// and `ekr explain` returns the new payload as the assertion's evidence text.
+/// and `ekr explain --documents` returns the new payload as the assertion's evidence text.
 #[test]
 fn a_new_evidence_entry_hashed_by_ekr_hash_seeds_and_a_committed_assertion_cites_it() {
     let host: Value = serde_json::from_str(&text(&["example", "ekr.cli-host/1"])).unwrap();
@@ -1748,7 +1795,7 @@ fn a_new_evidence_entry_hashed_by_ekr_hash_seeds_and_a_committed_assertion_cites
             "Committed",
             "{backend}"
         );
-        let explained = world.ok(&["explain", &assertion]);
+        let explained = world.ok(&["explain", &assertion, "--documents"]);
         let texts: Vec<&Value> = explained["links"]
             .as_array()
             .unwrap()

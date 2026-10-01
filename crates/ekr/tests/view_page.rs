@@ -1255,6 +1255,82 @@ fn the_schema_history_lists_widened_ends_and_modified_properties_and_calls_only_
     }
     assert!(version_card(&dom, 2).contains("changes nothing"));
 }
+/// The `ekr.graph-overview/1` entries of `ontology.properties` for property `id`, in order.
+fn property_entries(document: &Value, id: &str) -> Vec<Value> {
+    document["ontology"]["properties"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|entry| entry["id"] == id)
+        .cloned()
+        .collect()
+}
+
+/// `task:projection-carries-per-type-property-definitions`: a revision in which a subtype
+/// redeclares a property its parent declares is served, and each type shows its own definition.
+/// `tests/fixtures/view-redeclared/gauges` seeds `Gauge`, declaring `measure` as a String, and
+/// `Dial`, a child of `Gauge` declaring nothing; its one commit is a `ModifyProperty` on `Dial`
+/// redeclaring that property as the Integer `reading`, so schema evolution produces the
+/// redeclaration. `ekr view` serves the projection and the overview of both revisions, the head's
+/// listing one definition per type, and the page names the property on each type as that type
+/// declares it.
+#[test]
+fn a_subtype_redeclaring_a_property_is_served_and_each_type_shows_its_own_definition() {
+    const GAUGE: &str = "00000000-0000-4000-8000-00000000c201";
+    const DIAL: &str = "00000000-0000-4000-8000-00000000c202";
+    const MEASURE: &str = "00000000-0000-4000-8000-00000000c801";
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/view-redeclared/gauges"));
+    let server = seeded.serve();
+    let (status, body) = server.get("/projection");
+    assert_eq!(status, 200, "{}", String::from_utf8_lossy(&body));
+    assert_eq!(body, seeded.projection_bytes());
+    let (status, body) = server.get("/overview");
+    assert_eq!(status, 200, "{}", String::from_utf8_lossy(&body));
+    let overview: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(overview["meta"]["revision"], 1);
+    assert_eq!(
+        property_entries(&overview, MEASURE),
+        vec![
+            serde_json::json!({"id": MEASURE, "name": "measure", "value_kind": "String", "owners": [GAUGE]}),
+            serde_json::json!({"id": MEASURE, "name": "reading", "value_kind": "Integer", "owners": [DIAL]}),
+        ],
+        "the head's overview gives each type its own definition"
+    );
+    let (status, body) = server.get("/overview?revision=0");
+    assert_eq!(status, 200, "{}", String::from_utf8_lossy(&body));
+    let before: Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(
+        property_entries(&before, MEASURE),
+        vec![serde_json::json!({"id": MEASURE, "name": "measure", "value_kind": "String"})],
+        "revision 0, before the redeclaration, projects one definition and no owners"
+    );
+    drop(server);
+
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let double = seeded.double(Duration::ZERO);
+    let dom = rendered(&browser, &format!("{}#schema=1", double.url));
+    let seeded_version = version_card(&dom, 0);
+    // A version's added property is named as that version named it (`measure` in version 0),
+    // never by a later redeclaration.
+    let gauge_chip = "<span class=\"p\">Gauge.</span>measure <span class=\"p\">String</span>";
+    assert!(
+        seeded_version.contains(gauge_chip) && !seeded_version.contains("Dial.</span>reading"),
+        "version 0's property chips name it as version 0 did, {gauge_chip}: {seeded_version}"
+    );
+    let dial = seeded_version
+        .split(&format!("title=\"{DIAL}\""))
+        .nth(1)
+        .and_then(|rest| rest.split("typechip").next())
+        .unwrap_or_default();
+    assert!(
+        dial.contains("reading") && !dial.contains("measure"),
+        "Dial's type chip names the property as Dial declares it: {dial}"
+    );
+    reads_no_projection(&double.requests(), "view-redeclared/gauges");
+}
 
 /// `task:timeline-rows-are-subjects`: the timeline's rows are subjects — one per node of the first
 /// row type `/timeline` lists that has an event, each under its own name — read from `/timeline`
@@ -3353,5 +3429,62 @@ fn a_narrow_window_opens_compact_and_the_graph_keeps_its_width() {
         driven.errors.is_empty(),
         "the page reported errors: {:?}",
         driven.errors
+    );
+}
+
+/// Adversary, wave extract-06 unit J, F2. `tests/fixtures/adversary-x6-j/chain` seeds `Gauge`
+/// (`measure`, String), `Dial` (a child of `Gauge` redeclaring that property as the Integer
+/// `reading`) and `Knob` (a child of `Dial` declaring nothing, so the kernel resolves Dial's
+/// definition for it), and one `Knob` node holding the Integer 7 under that id. The node panel
+/// names the property through `pname(k, n.type)`; `Knob` is in no entry's `owners`, so it falls
+/// back to the id's first entry, Gauge's `measure`, and the Integer 7 is labelled with the
+/// String definition of another type.
+#[test]
+fn a_node_of_a_subtype_inheriting_a_redeclared_property_shows_its_resolved_definition() {
+    const KNOB_ONE: &str = "00000000-0000-4000-8000-00000000c303";
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/adversary-x6-j/chain"));
+    let double = seeded.double(Duration::ZERO);
+    let dom = rendered(&browser, &format!("{}#node={KNOB_ONE}", double.url));
+    assert!(dom.contains("Knob One"), "the node panel is shown: {dom}");
+    let properties = dom
+        .split("Properties")
+        .nth(1)
+        .and_then(|rest| rest.split("</dl>").next())
+        .unwrap_or_default();
+    assert!(
+        properties.contains("<dt>reading</dt>") && !properties.contains("<dt>measure</dt>"),
+        "Knob inherits Dial's definition, the Integer `reading`: {properties}"
+    );
+}
+
+/// Adversary, wave extract-06 unit J, F3. `tests/fixtures/adversary-x6-j/renamed` seeds `Gauge`
+/// (`measure`, String) and `Dial` (redeclaring it as the Integer `reading`), so version 0 already
+/// holds two definitions of the id; its one commit renames Gauge's to `level` (version 1). The
+/// schema history's page says "every type and property is named as the version that added or
+/// removed it names it", and the overview's lineage names version 0's property `measure`. The
+/// version-0 card's property chip now reads Gauge's definition at the shown revision instead,
+/// so version 0 is shown adding a property called `level`, a name it never had.
+#[test]
+fn the_schema_history_names_a_redeclared_property_as_the_version_that_added_it() {
+    let Some(browser) = browser() else {
+        eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");
+        return;
+    };
+    let seeded = Seeded::new(&manifest_dir().join("tests/fixtures/adversary-x6-j/renamed"));
+    let double = seeded.double(Duration::ZERO);
+    let dom = rendered(&browser, &format!("{}#schema=1", double.url));
+    let seeded_version = version_card(&dom, 0);
+    assert!(
+        !seeded_version.is_empty(),
+        "version 0's card is shown: {dom}"
+    );
+    let chip = "<span class=\"p\">Gauge.</span>measure <span class=\"p\">String</span>";
+    assert!(
+        seeded_version.contains(chip),
+        "version 0 added Gauge's property as `measure`, {chip}: {seeded_version}"
     );
 }

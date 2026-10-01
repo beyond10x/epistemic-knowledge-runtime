@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-01T09:14:53Z",
+  "actor": "human:timo",
+  "artifact": "task:projection-carries-per-type-property-definitions",
+  "kind": "task",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "impl/per-type-property-definitions d53bd3ea",
+    "review": "review-result:adversary-extract-06-j-pass-1",
+    "outcome": "fixed"
+  }
+}

@@ -79,6 +79,233 @@ types:
       Ambiguous: ekr.integrate.AmbiguousReference
       Refused: ekr.integrate.ResolutionRefusal
 
+  # The extraction document, `ekr.extraction-document/1` (design § 24, § 63): what an extracting
+  # agent hands the engine — the ontology it needs by name, the named things it found, the facts
+  # it read about them and the evidence each fact cites. It is written by a consumer's extractor,
+  # which the engine does not start, and read before anything is written: a name no declaration
+  # of the document or the store gives is refused, and so is a fact citing no evidence. Applying
+  # it resolves every reference before any CreateNode, adds each evidence item with AddEvidence
+  # and commits the facts as assertions through validated transactions.
+  - name: ekr.integrate.ExtractionFormat
+    kind: enum
+    variants:
+      - ekr.extraction-document/1
+
+  # A value type by name, as `ekr.ontology.ValueTypeProjection` is by id: `allowed_types` names
+  # the node types a NodeRef may point at. Exactly the one parameter its kind takes is present; the
+  # document writes it as `parameters` exactly as a value type writes its own
+  # (`{allowed_types: [...]}`, `{variants: [...]}`, the element type, the fields). An Enum's
+  # variants and a NodeRef's types are at least one, each once; a Record field is written once.
+  - name: ekr.integrate.ValueSpec
+    kind: struct
+    fields:
+      - name: value_kind
+        type: ekr.ontology.ValueKind
+      - name: allowed_types
+        type: Optional<List<String>>
+      - name: variants
+        type: Optional<List<String>>
+      - name: element
+        type: Optional<ekr.integrate.ValueSpec>
+      - name: fields
+        type: Optional<Map<String, ekr.integrate.ValueSpec>>
+
+  # A property by name, with its value type; unique on the type that declares it.
+  - name: ekr.integrate.PropertySpec
+    kind: struct
+    fields:
+      - name: name
+        type: String
+      - name: value
+        type: ekr.integrate.ValueSpec
+      - name: cardinality
+        type: ekr.ontology.Cardinality
+      - name: required
+        type: Boolean
+
+  # A node type by name: its parents by name and the properties it declares itself. A name is
+  # not an identity (invariant 3): applying the document maps each name to the id the store holds,
+  # or mints one for a type the store lacks.
+  - name: ekr.integrate.NodeTypeSpec
+    kind: struct
+    fields:
+      - name: name
+        type: String
+      - name: parents
+        type: List<String>
+      - name: abstract_type
+        type: Boolean
+      - name: properties
+        type: List<ekr.integrate.PropertySpec>
+
+  # An edge type by name: its ends by node type name.
+  - name: ekr.integrate.EdgeTypeSpec
+    kind: struct
+    fields:
+      - name: name
+        type: String
+      - name: source_types
+        type: List<String>
+      - name: target_types
+        type: List<String>
+      - name: cardinality
+        type: ekr.ontology.Cardinality
+      - name: properties
+        type: List<ekr.integrate.PropertySpec>
+
+  # The ontology the document needs, by name. Applying it adds what the store lacks through the
+  # schema operations (DefineNodeType, DefineEdgeType, ModifyProperty, WidenEdgeType).
+  - name: ekr.integrate.OntologySpec
+    kind: struct
+    fields:
+      - name: node_types
+        type: List<ekr.integrate.NodeTypeSpec>
+      - name: edge_types
+        type: List<ekr.integrate.EdgeTypeSpec>
+
+  # A named thing: a node by its type's name and the aliases it is known by. Once the name maps to
+  # a type id it is an `ekr.integrate.TypedReference`, with these aliases, and resolves as one.
+  - name: ekr.integrate.ExtractedReference
+    kind: struct
+    fields:
+      - name: node_type
+        type: String
+      - name: aliases
+        type: List<String>
+
+  # A property value read about a named thing. `evidence` holds the ids of evidence items of the
+  # same document; at least one.
+  - name: ekr.integrate.PropertyFact
+    kind: struct
+    fields:
+      - name: subject
+        type: ekr.integrate.ExtractedReference
+      - name: property
+        type: String
+      - name: value
+        type: ekr.graph.TypedValue
+      - name: evidence
+        type: List<ekr.graph.EvidenceId>
+
+  # A relation read between two named things, by edge type name.
+  - name: ekr.integrate.RelationFact
+    kind: struct
+    fields:
+      - name: subject
+        type: ekr.integrate.ExtractedReference
+      - name: relation
+        type: String
+      - name: object
+        type: ekr.integrate.ExtractedReference
+      - name: evidence
+        type: List<ekr.graph.EvidenceId>
+
+  - name: ekr.integrate.ExtractedFact
+    kind: union
+    tag: kind
+    variants:
+      Property: ekr.integrate.PropertyFact
+      Relation: ekr.integrate.RelationFact
+
+  # Each evidence item is the entry and payload an ekr.kernel AddEvidence carries: an evidence
+  # entry (`ekr.graph.Evidence`) and the exact bytes its content_hash addresses.
+  - name: ekr.integrate.ExtractionDocument
+    kind: struct
+    fields:
+      - name: format
+        type: ekr.integrate.ExtractionFormat
+      - name: ontology
+        type: ekr.integrate.OntologySpec
+      - name: entities
+        type: List<ekr.integrate.ExtractedReference>
+      - name: facts
+        type: List<ekr.integrate.ExtractedFact>
+      - name: evidence
+        type: List<ekr.kernel.EvidenceAdditionProjection>
+
+  # Why the reader refuses a document. Before it is decoded: over 8388608 bytes; containers
+  # nested deeper than 32, the transaction document's limit, which the YAML loader stops at; a
+  # YAML alias; anything but one document of the format. Once decoded, checked in document order,
+  # the first being the answer: a name the document declares twice (a node type, an edge type, a
+  # property of one type, an Enum variant, a NodeRef type); a store type redeclared with other
+  # parents, abstractness or cardinality; a node type or edge type no declaration of the document
+  # or the store gives; an Enum with no variant or a NodeRef to no type; a reference with no alias
+  # but the empty string (as ekr.integrate.ResolutionRefusalCode names it); a property its
+  # subject's type and ancestors do not declare; a property value its type does not hold; a
+  # relation between node types its edge type does not connect, subtypes conforming; a fact citing
+  # no evidence; a fact citing an evidence id the document does not hold; two evidence items under
+  # one id; a payload that does not hash to its entry's content_hash (the codes
+  # ekr.kernel AddEvidence validation uses for the same two).
+  - name: ekr.integrate.ExtractionRefusalCode
+    kind: enum
+    variants:
+      - extraction-document-too-large
+      - extraction-document-too-deep
+      - extraction-yaml-alias
+      - extraction-document-malformed
+      - extraction-name-duplicate
+      - extraction-type-conflict
+      - extraction-type-undeclared
+      - extraction-value-type-empty
+      - reference-without-identity
+      - extraction-property-undeclared
+      - extraction-value-mismatch
+      - extraction-relation-ends
+      - fact-without-evidence
+      - fact-evidence-unlisted
+      - duplicate-identity
+      - evidence-payload-mismatch
+
+  # `name` is what the refused part names: the type, `Type.property`, the position of the entity
+  # or fact with what it carries, an evidence id, or before decoding the reason.
+  - name: ekr.integrate.ExtractionRefusal
+    kind: struct
+    fields:
+      - name: code
+        type: ekr.integrate.ExtractionRefusalCode
+      - name: name
+        type: String
+
+  # The apply report: what applying one extraction document did.
+  - name: ekr.integrate.CommittedExtraction
+    kind: struct
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+
+  # One operation validation rejected, by its index in the transaction, with the issues it raised.
+  - name: ekr.integrate.RejectedExtraction
+    kind: struct
+    fields:
+      - name: transaction_id
+        type: ekr.kernel.TransactionId
+      - name: operation
+        type: Integer
+      - name: issues
+        type: List<ekr.kernel.ValidationIssueRecord>
+
+  # A named thing the store answers with more than one node: nothing is chosen, and no fact about
+  # it is applied. `outcome` is the resolver's Ambiguous answer.
+  - name: ekr.integrate.AmbiguousExtraction
+    kind: struct
+    fields:
+      - name: reference
+        type: ekr.integrate.ExtractedReference
+      - name: outcome
+        type: ekr.integrate.ResolutionOutcome
+
+  - name: ekr.integrate.ExtractionReport
+    kind: struct
+    fields:
+      - name: committed
+        type: List<ekr.integrate.CommittedExtraction>
+      - name: rejected
+        type: List<ekr.integrate.RejectedExtraction>
+      - name: ambiguous
+        type: List<ekr.integrate.AmbiguousExtraction>
+
 entities:
   # Design § 46 Merge: two or more nodes found to be one canonical entity. Declared as an identity
   # only; every relation is undecided.

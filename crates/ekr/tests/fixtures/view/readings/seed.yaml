@@ -121,6 +121,17 @@ ontology:
     inverse: null
     symmetric: false
     transitive: false
+  - id: 00000000-0000-4000-8000-000000001208
+    name: TELEMETRY_FROM_FACILITY
+    source_types:
+    - 00000000-0000-4000-8000-000000001101
+    target_types:
+    - 00000000-0000-4000-8000-000000001104
+    cardinality: Many
+    properties: {}
+    inverse: null
+    symmetric: false
+    transitive: false
 graph:
   format: ekr.graph-document/2
   graph:
@@ -188,6 +199,13 @@ graph:
         source: 00000000-0000-4000-8000-000000001403
         target: 00000000-0000-4000-8000-000000001404
         properties: {}
+      00000000-0000-4000-8000-000000001704:
+        id: 00000000-0000-4000-8000-000000001704
+        root_id: 00000000-0000-4000-8000-000000001002
+        type_id: 00000000-0000-4000-8000-000000001208
+        source: 00000000-0000-4000-8000-000000001401
+        target: 00000000-0000-4000-8000-000000001404
+        properties: {}
     assertions:
       00000000-0000-4000-8000-000000001501:
         id: 00000000-0000-4000-8000-000000001501
@@ -220,7 +238,7 @@ graph:
         assessment: Proposed
         lifecycle: Active
         valid_time:
-          from: null
+          from: 1767226200000
           to: null
         transaction_time:
           recorded_from: 0
@@ -258,7 +276,26 @@ graph:
         assessment: Proposed
         lifecycle: Active
         valid_time:
-          from: null
+          from: 1767238200000
+          to: null
+        transaction_time:
+          recorded_from: 0
+          recorded_to: null
+      00000000-0000-4000-8000-000000001506:
+        id: 00000000-0000-4000-8000-000000001506
+        root_id: 00000000-0000-4000-8000-000000001002
+        subject: !Node 00000000-0000-4000-8000-000000001402
+        predicate: !Property 00000000-0000-4000-8000-000000001302
+        object: !Value
+          value_kind: String
+          value: partial
+        evidence:
+        - 00000000-0000-4000-8000-000000001601
+        proposed_by: 00000000-0000-4000-8000-000000000101
+        assessment: Proposed
+        lifecycle: Active
+        valid_time:
+          from: 1767226200000
           to: null
         transaction_time:
           recorded_from: 0

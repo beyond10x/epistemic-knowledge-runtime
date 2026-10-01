@@ -73,7 +73,7 @@ fn the_committed_suite_is_the_complete_views_inventory() {
         authored,
         "every authored scenario file is selected"
     );
-    assert_eq!(names.len(), authored + 39, "{names:#?}");
+    assert_eq!(names.len(), authored + 46, "{names:#?}");
 }
 
 /// The authored files `views-provenance.json` records the suite was synthesized from are exactly

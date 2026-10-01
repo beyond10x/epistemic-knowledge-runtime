@@ -1,0 +1,183 @@
+# story:fact-quality-by-judged-sample: for a judged sample of known results the reported rate and
+# Wilson interval are the closed-form values (ekr.views.FactQualityV1), in basis points rounded
+# down as ekr.views.FactQualityReported carries them.
+#
+# With n judged, k passed and z the normal quantile at (1 + confidence / 10000) / 2, the interval
+# is (2k + z² ∓ z·√(z² + 4k(n − k)/n)) / (2(n + z²)):
+#   8 of 10 at 9500 (z 1.959963984540054):  (0.490162…, 0.943317…) → 4901, 9433;
+#   8 of 10 at 9900 (z 2.5758293035489004): (0.400818…, 0.959868…) → 4008, 9598;
+#   0 of 3 at 9500: lower exactly 0, upper z²/(3 + z²) = 0.561497… → 0, 5614;
+#   3 of 3 at 9000 (z 1.6448536269514722): (0.525804…, exactly 1) → 5258, 10000.
+# A request stating no confidence is reported at 9500. The report reads no store.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-fact-quality-report-is-the-wilson-interval-of-the-judged-sample
+summary: A judged sample's pass rate and its Wilson interval at the stated confidence, 9500 when none is stated, are the closed-form values, with the bounds exactly 0 and 1 where nothing or everything passed.
+
+timeline:
+  - at: 2027-01-16T10:00:00Z
+    command: ekr.views.ReportFactQuality
+    actor: ekr.views.Reader
+    input:
+      judgements:
+        - assertion: 00000000-0000-4000-8000-000000d00401
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00402
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00403
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00404
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00405
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00406
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00407
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00408
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00409
+          verdict: Fail
+        - assertion: 00000000-0000-4000-8000-000000d0040a
+          verdict: Fail
+      sample: null
+      confidence: 9500
+    outcome: reported
+    events:
+      - event: ekr.views.FactQualityReported
+        payload:
+          confidence: 9500
+          judged: 10
+          passed: 8
+          failed: 2
+          rate_bp: 8000
+          lower_bp: 4901
+          upper_bp: 9433
+
+  - at: 2027-01-16T10:01:00Z
+    command: ekr.views.ReportFactQuality
+    actor: ekr.views.Reader
+    input:
+      judgements:
+        - assertion: 00000000-0000-4000-8000-000000d00401
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00402
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00403
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00404
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00405
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00406
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00407
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00408
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00409
+          verdict: Fail
+        - assertion: 00000000-0000-4000-8000-000000d0040a
+          verdict: Fail
+      sample: null
+      confidence: null
+    outcome: reported
+    events:
+      - event: ekr.views.FactQualityReported
+        payload:
+          confidence: 9500
+          judged: 10
+          passed: 8
+          failed: 2
+          rate_bp: 8000
+          lower_bp: 4901
+          upper_bp: 9433
+
+  - at: 2027-01-16T10:02:00Z
+    command: ekr.views.ReportFactQuality
+    actor: ekr.views.Reader
+    input:
+      judgements:
+        - assertion: 00000000-0000-4000-8000-000000d00401
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00402
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00403
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00404
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00405
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00406
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00407
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00408
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00409
+          verdict: Fail
+        - assertion: 00000000-0000-4000-8000-000000d0040a
+          verdict: Fail
+      sample: null
+      confidence: 9900
+    outcome: reported
+    events:
+      - event: ekr.views.FactQualityReported
+        payload:
+          confidence: 9900
+          judged: 10
+          passed: 8
+          failed: 2
+          rate_bp: 8000
+          lower_bp: 4008
+          upper_bp: 9598
+
+  - at: 2027-01-16T10:03:00Z
+    command: ekr.views.ReportFactQuality
+    actor: ekr.views.Reader
+    input:
+      judgements:
+        - assertion: 00000000-0000-4000-8000-000000d00401
+          verdict: Fail
+        - assertion: 00000000-0000-4000-8000-000000d00402
+          verdict: Fail
+        - assertion: 00000000-0000-4000-8000-000000d00403
+          verdict: Fail
+      sample: null
+      confidence: 9500
+    outcome: reported
+    events:
+      - event: ekr.views.FactQualityReported
+        payload:
+          confidence: 9500
+          judged: 3
+          passed: 0
+          failed: 3
+          rate_bp: 0
+          lower_bp: 0
+          upper_bp: 5614
+
+  - at: 2027-01-16T10:04:00Z
+    command: ekr.views.ReportFactQuality
+    actor: ekr.views.Reader
+    input:
+      judgements:
+        - assertion: 00000000-0000-4000-8000-000000d00401
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00402
+          verdict: Pass
+        - assertion: 00000000-0000-4000-8000-000000d00403
+          verdict: Pass
+      sample: null
+      confidence: 9000
+    outcome: reported
+    events:
+      - event: ekr.views.FactQualityReported
+        payload:
+          confidence: 9000
+          judged: 3
+          passed: 3
+          failed: 0
+          rate_bp: 10000
+          lower_bp: 5258
+          upper_bp: 10000

@@ -1,0 +1,79 @@
+# story:explain-reads-an-index, acceptance 2.
+#
+# The target has committed revision 1 (fixture `revision-1.yaml`: assertion 85f861a70a8d citing
+# evidence 0401) before the first act. Assertion 85f861a70a8d is explained, then a later
+# transaction (the default document, `propose-node.yaml`: one CreateNode and no assertion) is
+# proposed, validated against revision 1 and committed as revision 2, and the assertion is
+# explained again.
+#
+# Explain looks an assertion's origin up instead of reading every committed document, so the
+# later commit must not change the chain: both times the assertion is explained through exactly
+# its own Assertion, Proposal, Validation and Commit links and the one evidence its transaction
+# lists — five links. A target that took the newest commit for its origin, or both commits,
+# answers another count; one that lost the earlier commit once another followed it refuses.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: each-committed-assertion-is-explained-from-its-own-commit
+summary: A committed assertion is explained through its own commit's five-link chain, before and after a later commit.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Explain
+    actor: ekr.kernel.Operator
+    input:
+      assertion_id: 00000000-0000-4000-8000-85f861a70a8d
+    outcome: explained
+    events:
+      - event: ekr.kernel.Explained
+        payload:
+          assertion_id: 00000000-0000-4000-8000-85f861a70a8d
+          links: 5
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: transaction_document
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:02Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 1
+    outcome: validated
+    events:
+      - event: ekr.kernel.TransactionValidated
+        payload:
+          against: 1
+
+  - at: 2027-01-15T08:00:03Z
+    command: ekr.kernel.Commit
+    actor: ekr.kernel.Committer
+    input:
+      transaction_id: {$instance: proposal}
+    outcome: committed
+    events:
+      - event: ekr.kernel.RevisionCommitted
+        payload:
+          number: 2
+
+  - at: 2027-01-15T08:00:04Z
+    command: ekr.kernel.Explain
+    actor: ekr.kernel.Operator
+    input:
+      assertion_id: 00000000-0000-4000-8000-85f861a70a8d
+    outcome: explained
+    events:
+      - event: ekr.kernel.Explained
+        payload:
+          assertion_id: 00000000-0000-4000-8000-85f861a70a8d
+          links: 5

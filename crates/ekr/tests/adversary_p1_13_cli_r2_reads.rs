@@ -71,9 +71,9 @@ fn document_bytes_as_base64(value: &mut Value) {
     }
 }
 
-/// The explanation as the CLI prints it (`ekr guide`, OUTPUT): each Evidence link gains
-/// `payload`, its retained bytes read through `Runtime::content` as base64, and `text` when
-/// those bytes are UTF-8. Every other field of every link is compared unchanged.
+/// The explanation's Evidence links as `ekr explain --documents` prints them (`ekr guide`,
+/// OUTPUT): each gains `payload`, its retained bytes read through `Runtime::content` as base64,
+/// and `text` when those bytes are UTF-8.
 fn evidence_as_printed(runtime: &Runtime, value: &mut Value) {
     for link in value["links"].as_array_mut().expect("links") {
         if link["kind"] != "Evidence" {
@@ -195,7 +195,6 @@ impl World {
         let read = self.runtime().read(None).unwrap();
         let mut value = serde_json::to_value(read.explain(id).unwrap()).unwrap();
         document_bytes_as_base64(&mut value);
-        evidence_as_printed(&self.runtime(), &mut value);
         value
     }
 
@@ -435,6 +434,23 @@ fn explain_a_seed_only_assertion_superseded_by_a_later_proposal() {
         let alice = world.ok(&["explain", ALICE]);
         assert_eq!(alice, world.kernel_explain(ALICE), "{backend}");
         assert_eq!(alice["at"], 1);
+        let whole = world.ok(&["explain", ALICE, "--documents"]);
+        let mut printed = world.kernel_explain(ALICE);
+        evidence_as_printed(&world.runtime(), &mut printed);
+        let evidence_links = |explained: &Value| -> Vec<Value> {
+            explained["links"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|link| link["kind"] == "Evidence")
+                .cloned()
+                .collect()
+        };
+        assert_eq!(
+            evidence_links(&whole),
+            evidence_links(&printed),
+            "{backend}"
+        );
         assert_eq!(
             kinds(&alice),
             [
@@ -460,7 +476,7 @@ fn explain_a_seed_only_assertion_superseded_by_a_later_proposal() {
             links[1]["validation_profile"], host["authority"]["validation_profile"],
             "{backend}"
         );
-        assert_eq!(links[2]["receipt"]["event_id"], commit["event_id"]);
+        assert_eq!(links[2]["commit"]["event_id"], commit["event_id"]);
         assert_eq!(links[4]["transaction_id"], T_BOB);
         assert_eq!(evidence(&alice), [E_ALICE, E_BOB], "{backend}");
 
@@ -532,7 +548,7 @@ fn explain_a_replacement_accepted_before_its_supersession() {
         );
         let links = alice["links"].as_array().unwrap();
         assert_eq!(links[1]["transaction_id"], T_ALICE);
-        assert_eq!(links[4]["receipt"]["event_id"], superseded["event_id"]);
+        assert_eq!(links[4]["commit"]["event_id"], superseded["event_id"]);
         assert_eq!(links[5]["id"], BOB);
         assert_eq!(
             links[6]["transaction_id"], T_BOB_ADD,

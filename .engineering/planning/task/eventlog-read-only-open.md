@@ -6,6 +6,7 @@ status: draft
 title: The store opens read-only natively, without a private copy
 relations:
 - serves: vision:o5
+- decomposes: epic:read-and-storage-cost
 revision: 1
 ---
 ## Context

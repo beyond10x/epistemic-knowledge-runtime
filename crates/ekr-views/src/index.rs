@@ -13,7 +13,7 @@
 //! so a later commit leaves every held index current.
 
 use std::cmp::Ordering;
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::sync::{Arc, OnceLock};
 
 use ekr_core::{AssertionId, EdgeId, NodeId, PropertyId, RevisionNumber, TypeId};
@@ -262,13 +262,7 @@ impl Index {
             loaded,
         };
         let (overview, node_time) = index.overview_parts();
-        let events: HashSet<TypeId> = overview
-            .roles
-            .types
-            .iter()
-            .filter(|timing| timing.event)
-            .map(|timing| timing.type_id)
-            .collect();
+        let events = event_types(&overview.roles);
         index.node_event = index
             .node_type
             .iter()
@@ -291,6 +285,14 @@ impl Index {
         &self.loaded
     }
 
+    /// The indexed revision's event types: EKR's one rule for which node types are events
+    /// (`views.yaml`, `ekr.views.TypeTiming` `event`). The timeline, `ekr.ocel/1` and the
+    /// `event` role of `ekr.view-roles/1` all read it here.
+    #[must_use]
+    pub fn event_types(&self) -> BTreeSet<TypeId> {
+        event_types(&self.overview.roles)
+    }
+
     /// Node `node`'s `(other end, edge)` pairs, in edge id order.
     pub(crate) fn adjacent(&self, node: u32) -> &[(u32, u32)] {
         let node = node as usize;
@@ -310,8 +312,7 @@ impl Index {
                     }
                     by_type
                 });
-        let ontology =
-            document::project_ontology(&graph.ontology, &by_type).map_err(|e| e.to_string());
+        let ontology = Ok(document::project_ontology(&graph.ontology, &by_type));
 
         let declared = graph.ontology.to_document();
         let mut node_types: Vec<TypeId> = declared.node_types.iter().map(|t| t.id).collect();
@@ -676,6 +677,16 @@ impl Index {
                 .collect(),
         }
     }
+}
+
+/// The types `roles` marks as events.
+fn event_types(roles: &OverviewRoles) -> BTreeSet<TypeId> {
+    roles
+        .types
+        .iter()
+        .filter(|timing| timing.event)
+        .map(|timing| timing.type_id)
+        .collect()
 }
 
 const HOUR_MS: i128 = 3_600_000;

@@ -2,12 +2,14 @@
 format: aep.planning-md/3
 id: task:agent-cannot-add-evidence
 kind: task
-status: draft
+status: archived
 title: An agent using the CLI cannot add evidence for a new claim
 relations:
 - serves: vision:o5
 - derived_from: story:agent-discoverable-cli
-revision: 1
+revision: 2
+transitions:
+- {from: "draft", to: "archived", at: "2026-09-30T12:21:07Z", actor: "human:timo", revision: 2}
 ---
 ## What is wrong
 

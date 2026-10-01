@@ -6,6 +6,7 @@ status: implemented
 title: Move the EKR planning store to aep.project/3
 relations:
 - serves: vision:o2
+- decomposes: epic:p0-bootstrap
 scope:
 - confidence: cited
   path: .engineering/planning

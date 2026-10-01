@@ -7,6 +7,7 @@ title: ekr view loads an overview and streams expansions instead of the whole pr
 relations:
 - serves: vision:o5
 - depends_on: story:data-free-graph-viewer
+- decomposes: epic:p4-operator-surface
 scope:
 - confidence: cited
   path: crates/ekr/src/cli/view.rs

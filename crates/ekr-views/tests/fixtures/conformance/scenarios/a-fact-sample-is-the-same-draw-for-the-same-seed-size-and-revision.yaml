@@ -1,0 +1,167 @@
+# story:fact-quality-by-judged-sample: the same seed, size and revision draw the same sample, on
+# both providers (ekr.views.FactSampleV1, the draw in the domain summary's fact-quality paragraph).
+#
+# The store `quality` (crates/ekr-views/tests/support/fixtures.rs, `Fixture::Quality`; see
+# a-quality-report-counts-evidence-constraints-and-shared-names.yaml): assertions a1 to a6 are
+# 00000000-0000-4000-8000-000000d00401 to 00000000-0000-4000-8000-000000d00406, all about item nodes (type 00000000-0000-4000-8000-000000d00001); no fact is
+# about an `other` node (type 00000000-0000-4000-8000-000000d00002). a1 cites E0, a2 E0 and E1,
+# a3 E1, a4 X0, a5 X0 and E0, a6 X1. Active at revision 1: a1 to a5; at revision 3, the head: a3,
+# a4, a5, a6 (a1 retracted at 2, a2 superseded at 3).
+#
+# Draw keys, SHA-256 of `ekr.fact-sample/1:<seed>:<assertion id>`, in ascending order:
+#   seed 7:  a2 (1052…), a3 (18bc…), a1 (3272…), a4 (4c4d…), a5 (4cca…), a6 (bb34…);
+#   seed -2: a6 (0cbc…), a1 (5b25…), a3 (5d3d…), a2 (6e1c…), a5 (c71b…), a4 (f7b4…).
+# So seed 7, size 3 draws a2, a3, a1 at revision 1 (4 evidence entries) and a3, a4, a5 at the
+# head (4); seed -2, size 2 draws a1, a3 at revision 1 (2); a size above the population draws it
+# all; a type no fact's subject is of draws nothing and is no refusal.
+type: ess-scenario/1
+domain: ekr.views
+scenario: a-fact-sample-is-the-same-draw-for-the-same-seed-size-and-revision
+summary: Drawing twice with one seed, size and revision draws the same facts; another seed, the head, a larger size and a type filter draw exactly the facts their draw keys name.
+
+timeline:
+  - at: 2027-01-16T09:00:00Z
+    command: ekr.views.DrawFactSample
+    actor: ekr.views.Reader
+    input:
+      store: quality
+      at: 1
+      seed: 7
+      size: 3
+      type: null
+    outcome: drawn
+    events:
+      - event: ekr.views.FactSampleDrawn
+        payload:
+          revision: 1
+          seed: 7
+          size: 3
+          population: 5
+          drawn: 3
+          evidence: 4
+          first_assertion: 00000000-0000-4000-8000-000000d00402
+
+  - at: 2027-01-16T09:01:00Z
+    command: ekr.views.DrawFactSample
+    actor: ekr.views.Reader
+    input:
+      store: quality
+      at: 1
+      seed: 7
+      size: 3
+      type: null
+    outcome: drawn
+    events:
+      - event: ekr.views.FactSampleDrawn
+        payload:
+          revision: 1
+          seed: 7
+          size: 3
+          population: 5
+          drawn: 3
+          evidence: 4
+          first_assertion: 00000000-0000-4000-8000-000000d00402
+
+  - at: 2027-01-16T09:02:00Z
+    command: ekr.views.DrawFactSample
+    actor: ekr.views.Reader
+    input:
+      store: quality
+      at: 1
+      seed: -2
+      size: 2
+      type: null
+    outcome: drawn
+    events:
+      - event: ekr.views.FactSampleDrawn
+        payload:
+          revision: 1
+          seed: -2
+          size: 2
+          population: 5
+          drawn: 2
+          evidence: 2
+          first_assertion: 00000000-0000-4000-8000-000000d00401
+
+  - at: 2027-01-16T09:03:00Z
+    command: ekr.views.DrawFactSample
+    actor: ekr.views.Reader
+    input:
+      store: quality
+      at: null
+      seed: 7
+      size: 3
+      type: null
+    outcome: drawn
+    events:
+      - event: ekr.views.FactSampleDrawn
+        payload:
+          revision: 3
+          seed: 7
+          size: 3
+          population: 4
+          drawn: 3
+          evidence: 4
+          first_assertion: 00000000-0000-4000-8000-000000d00403
+
+  - at: 2027-01-16T09:04:00Z
+    command: ekr.views.DrawFactSample
+    actor: ekr.views.Reader
+    input:
+      store: quality
+      at: null
+      seed: 7
+      size: 1000
+      type: null
+    outcome: drawn
+    events:
+      - event: ekr.views.FactSampleDrawn
+        payload:
+          revision: 3
+          seed: 7
+          size: 1000
+          population: 4
+          drawn: 4
+          evidence: 5
+          first_assertion: 00000000-0000-4000-8000-000000d00403
+
+  - at: 2027-01-16T09:05:00Z
+    command: ekr.views.DrawFactSample
+    actor: ekr.views.Reader
+    input:
+      store: quality
+      at: 1
+      seed: 7
+      size: 5
+      type: 00000000-0000-4000-8000-000000d00001
+    outcome: drawn
+    events:
+      - event: ekr.views.FactSampleDrawn
+        payload:
+          revision: 1
+          seed: 7
+          size: 5
+          population: 5
+          drawn: 5
+          evidence: 7
+          first_assertion: 00000000-0000-4000-8000-000000d00402
+
+  - at: 2027-01-16T09:06:00Z
+    command: ekr.views.DrawFactSample
+    actor: ekr.views.Reader
+    input:
+      store: quality
+      at: null
+      seed: 7
+      size: 5
+      type: 00000000-0000-4000-8000-000000d00002
+    outcome: drawn
+    events:
+      - event: ekr.views.FactSampleDrawn
+        payload:
+          revision: 3
+          seed: 7
+          size: 5
+          population: 0
+          drawn: 0
+          evidence: 0

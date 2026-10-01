@@ -75,12 +75,13 @@ crate under `systems/ekr/` (the v2 convention; `ess specify validate` runs in th
 | `ekr-interpret` | § 18, § 24, § 48–49 | agent contract, interpretation session protocol (A5), trust profiles, consensus |
 | `ekr-integrate` | § 27–28, § 44–46 | integration plans, mappings, resolver with explicit merge/split transactions, contradiction handling |
 | `ekr-views` | § 47, § 62, A1–A4, A15 | attention queue and numbered answers, approvals for outward writes, obligations and horizons, rendered views, query scopes, explain chain |
-| `ekr-mcp` | § 70, A14 | read-only MCP tools for agents; record text is untrusted evidence |
+| ~~`ekr-mcp`~~ | § 70, A14 | not a crate: the read-only MCP server is `ekr mcp` in `crates/ekr/src/cli/mcp.rs` (0.0.13); record text is untrusted evidence |
 | `ekr-frontier` | § 30–32 | knowledge frontier, tasks, prioritisation, budgets |
 | `ekr-schema` | § 25–26, § 50, § 64 | schema discovery over transient roots, `SchemaProposal`, risk classes, gates |
 | `ekr-runtime` | § 33, § 43, § 70, A7, A11 | the epistemic loop as `ekr` verbs ordered by an AEP driver map; timer and continuous modes; cost accounting with a stop condition |
 | `ekr-maintain` | § 35–43, § 60, § 66–67 | retention, consolidation, decay, GC with quarantine and grace, deletion requests |
 | `ekr-metrics` | § 61, § 75, A9 | epistemic health counters |
+| `ekr-sdk` | § 70 | a consumer's client (0.0.19): one child `ekr session`, typed documents and reads, resolve-or-create, batches, evidence; links no kernel, store or graph crate (`epic:consumer-sdk`) |
 | `ekr` | — | the binary: clap derive over every verb |
 | `xtask` | — | development and migration utilities |
 
@@ -248,6 +249,21 @@ Outcome: the v2 instance runs on this runtime with nothing lost that the predece
 Exit: record counts reconcile per kind against v1 and against `import-report.json`; every open item on
 the v2 attention page has a counterpart on the v3 one; seven days unattended produce the same evidence
 a CLI round produces.
+
+### Beside the phases
+
+Epics that are not a phase, recorded 2026-09-30 from the planning store:
+
+- `epic:consumer-sdk` (active): a consumer drives a store through `ekr-sdk` and writes only its own
+  domain code; 0.0.19–0.0.23.
+- `epic:ingestion-throughput` (implemented): a long ingest is bound by its work; 0.0.12–0.0.18.
+- `epic:read-and-storage-cost` (draft): the read and storage cost the 2026-09-29 audit measured.
+- `epic:type-packs` (draft, blocked by `decision-blocker:property-sensitivity-home`): shared base
+  schemas with a sensitivity class per property.
+
+Slices of P3 (the resolver by alias, the extraction document), P4 (views, the viewer, MCP, the
+check reads) and P6 (quality, code names, rejections) shipped before P2 at the operator's direction
+(`release-plan:roadmap-2026-09-28`); their phases stay open until their exit evidence exists.
 
 ## 5. Ordering
 

@@ -1,36 +1,41 @@
 //! `story:data-free-graph-viewer`: `ekr view` serves `GET /roles[?revision=N]`, the node-type
-//! roles derived from a store's shape alone, driven end to end through the real binary.
+//! roles derived from a store's event types, observation type and edge types alone, driven end to
+//! end through the real binary.
 //!
 //! Two fixture stores under `tests/fixtures/view/` carry different ontologies — different type,
 //! edge-type, property and entity names and a different shape — and each documents the answer the
 //! rule gives it in `roles.json`, by type id. How each type gets its role, by the rule in
-//! `docs/cli.md` § "Roles":
+//! `docs/cli.md` § "Roles". "Event type" is the one rule's (`task:one-event-type-rule`): a type
+//! whose node has two dated facts within an hour of each other is one; a node with one dated fact
+//! is not judged. The observation type is the overview's: among the event types whose neighbour
+//! types per node reach the mean, the one with the most nodes, ties to the lowest id.
 //!
 //! `readings`, five types:
 //!
-//! | type id (last digits) | timed | points at | pointed at by | role |
+//! | type id (last digits) | event type | neighbour types per node | pointed at by | role |
 //! |---|---|---|---|---|
-//! | 1101 | yes | 1102 | — | observation: pointed at by nothing, points at 1102, which is advancing |
-//! | 1102 | yes | 1103, 1104 | 1101 | event: advancing (timed, points on), and pointed at |
-//! | 1103 | no | 1104 | 1102 | subject: not advancing, pointed at |
-//! | 1104 | no | — | 1102, 1103 | subject |
-//! | 1105 | no | itself only | itself only | none: a self-loop is no arc |
+//! | 1101 | yes: two dated facts ten minutes apart | 2 (1102, 1104) | — | observation: ties 1102 and has the lower id |
+//! | 1102 | yes: three dated facts within ten minutes | 2 (1101, 1103) | 1101 | event |
+//! | 1103 | no: one dated fact | — | 1102 | subject |
+//! | 1104 | no | — | 1101, 1102, 1103 | subject |
+//! | 1105 | no | — | itself only | none: a self-loop is no arc |
 //!
 //! `sessions`, eight types:
 //!
-//! | type id (last digits) | timed | points at | pointed at by | role |
+//! | type id (last digits) | event type | neighbour types per node | pointed at by | role |
 //! |---|---|---|---|---|
-//! | 2101 | no | 2102 | 2103 | subject |
-//! | 2102 | no | 2107 (symmetric) | 2101, 2103, 2104, 2107 | subject |
-//! | 2103 | yes | 2101, 2102, 2106 | 2104, 2105 | event |
-//! | 2104 | yes | 2102, 2103 | 2105 | event: advancing, and pointed at, so not an observation |
-//! | 2105 | no | 2103, 2104 | — | observation: untimed, but points at an advancing type |
-//! | 2106 | yes | — | 2103 | subject: timed, but points at nothing, so not advancing |
-//! | 2107 | no | 2102 | 2102 (symmetric) | subject: only because a symmetric edge type is read both ways |
+//! | 2101 | no | — | 2103, 2105 | subject |
+//! | 2102 | no | — | 2101, 2103, 2104, 2107 | subject |
+//! | 2103 | yes: two dated facts ten minutes apart | 2 (2104, 2106) | 2104, 2105 | event |
+//! | 2104 | yes: two dated facts ten minutes apart | 2 (2103, 2105) | 2105 | event |
+//! | 2105 | yes: two dated facts five minutes apart | 3 (2101, 2104, 2106) | — | observation: alone above the mean of 7/3 |
+//! | 2106 | no: one dated fact | — | 2103, 2105 | subject |
+//! | 2107 | no | — | 2102 (symmetric) | subject: only because a symmetric edge type is read both ways |
 //! | 2108 | no | — | — | none: no arc at all |
 //!
-//! `readings/propose-timed-serial.yaml` adds one timed assertion about a 1103 node, so at
-//! revision 1 that type is advancing and pointed at: an event (`roles-revision-1.json`).
+//! `readings/propose-timed-serial.yaml` adds a second dated fact about the 1103 node, half an hour
+//! after its first, so at revision 1 that type is an event type and an event; 1101 still ties
+//! for the observation type with the lowest id (`roles-revision-1.json`).
 
 use std::collections::BTreeMap;
 use std::io::{BufRead, BufReader, Read, Write};
@@ -510,5 +515,110 @@ fn renaming_every_name_in_a_store_leaves_its_roles_unchanged_id_for_id() {
             served_copy, served_original,
             "{store}: the renamed copy's roles, id for id"
         );
+    }
+}
+
+/// `task:one-event-type-rule`, through the binary: on each fixture store, and on `readings` at
+/// revision 1, the `event` and `observation` entries of `/roles` together are exactly the
+/// overview's event types (`roles.types[].event`, which the timeline reads) and exactly the event
+/// types `ekr ocel` writes when no type is named, there is at least one, and the `observation`
+/// entry is the overview's `roles.observation_type`.
+#[test]
+fn roles_the_overview_and_ocel_name_the_same_event_types() {
+    use std::collections::BTreeSet;
+
+    /// `/roles`' event and observation entries together, and its observation entries; the
+    /// overview's event types, and its observation type.
+    struct Served {
+        roles: BTreeSet<String>,
+        observed: BTreeSet<String>,
+        overview: BTreeSet<String>,
+        observation: BTreeSet<String>,
+    }
+
+    fn served_events(server: &Server, revision: u64) -> Served {
+        let roles = server.roles(&format!("/roles?revision={revision}"));
+        let with = |role: &str| -> BTreeSet<String> {
+            roles["node_types"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|entry| entry["role"] == role)
+                .map(|entry| entry["type_id"].as_str().unwrap().to_owned())
+                .collect()
+        };
+        let observed = with("observation");
+        let roles = with("event").union(&observed).cloned().collect();
+        let overview = server.get(&format!("/overview?revision={revision}"));
+        assert_eq!(overview.status, 200, "GET /overview?revision={revision}");
+        let overview: Value = serde_json::from_slice(&overview.body).unwrap();
+        let observation = overview["roles"]["observation_type"]
+            .as_str()
+            .map(str::to_owned)
+            .into_iter()
+            .collect();
+        let overview = overview["roles"]["types"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|timing| timing["event"] == true)
+            .map(|timing| timing["type"].as_str().unwrap().to_owned())
+            .collect();
+        Served {
+            roles,
+            observed,
+            overview,
+            observation,
+        }
+    }
+
+    fn ocel_events(world: &World, revision: u64) -> BTreeSet<String> {
+        let exported = world.ok(&["ocel", "--revision", &revision.to_string()]);
+        exported["ocel"]["eventTypes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|event_type| event_type["name"].as_str().unwrap().to_owned())
+            .collect()
+    }
+
+    let readings = World::seeded("file", &fixture("readings", "seed.yaml"));
+    let propose = fixture("readings", "propose-timed-serial.yaml")
+        .display()
+        .to_string();
+    assert_eq!(
+        readings.ok(&["propose", &propose])["transaction_id"],
+        T_SERIAL
+    );
+    assert_eq!(
+        readings.ok(&["validate", T_SERIAL, "--against", "0"])["kind"],
+        "Validated"
+    );
+    assert_eq!(readings.ok(&["commit", T_SERIAL])["result"]["revision"], 1);
+    let sessions = World::seeded("file", &fixture("sessions", "seed.yaml"));
+    for (store, world, revisions) in [
+        ("readings", &readings, &[0_u64, 1][..]),
+        ("sessions", &sessions, &[0][..]),
+    ] {
+        let server = world.serve();
+        for &revision in revisions {
+            let Served {
+                roles,
+                observed,
+                overview,
+                observation,
+            } = served_events(&server, revision);
+            assert_eq!(
+                observed, observation,
+                "{store} at {revision}: /roles' observation and the overview's"
+            );
+            let ocel = ocel_events(world, revision);
+            assert!(!roles.is_empty(), "{store} at {revision}: some event type");
+            assert_eq!(
+                roles, overview,
+                "{store} at {revision}: /roles and the overview"
+            );
+            assert_eq!(roles, ocel, "{store} at {revision}: /roles and ekr ocel");
+        }
     }
 }

@@ -435,7 +435,8 @@ const Data = (() => {
   // The document the UI reads, keyed by ids throughout; every name is looked up in `names`:
   //   meta       revision, head (from /head, never below the revision), schema_version_number,
   //              counts {nodes, edges, assertions, evidence}
-  //   names      type, edgeType, prop (id → name), propKind (id → value kind)
+  //   names      type, edgeType, prop (id → name), propKind (id → value kind), own (type id → property id →
+  //              {name, kind}: that type's own definition, for each id types define differently), split (those ids)
   //   ontology   as the overview carries it
   //   nodeTypes, edgeTypes   Map type id → how many the revision holds
   //   roles      {types: Map type id → its valid-time timing, observation: a type id or null}
@@ -446,10 +447,18 @@ const Data = (() => {
   //              modified [{owner, property, name, changed}]}], revisions [{revision, committed_at, transaction_id,
   //              schema_version_number, nodes, edges, assertions}], undated {nodes, edges}}
   function adapt(o, head) {
-    const names = {type: new Map(), edgeType: new Map(), prop: new Map(), propKind: new Map()};
+    const names = {type: new Map(), edgeType: new Map(), prop: new Map(), propKind: new Map(), own: new Map(), split: new Set()};
     for (const t of o.ontology.node_types) names.type.set(t.id, t.name);
     for (const t of o.ontology.edge_types) names.edgeType.set(t.id, t.name);
-    for (const x of o.ontology.properties) { names.prop.set(x.id, x.name); names.propKind.set(x.id, x.value_kind); }
+    // an id every type defines alike has one entry; one that types define differently has an entry per
+    // definition, naming in owners every type that has it, declared or inherited
+    for (const x of o.ontology.properties) {
+      if (x.owners) names.split.add(x.id); else { names.prop.set(x.id, x.name); names.propKind.set(x.id, x.value_kind); }
+      for (const t of x.owners || []) {
+        if (!names.own.has(t)) names.own.set(t, new Map());
+        names.own.get(t).set(x.id, {name: x.name, kind: x.value_kind});
+      }
+    }
     const nodeTypes = new Map(o.ontology.node_types.map(t => [t.id, t]));
     const edgeTypes = new Map(o.ontology.edge_types.map(t => [t.id, t]));
     const owners = new Map();
@@ -742,7 +751,10 @@ async function main() {
   if (refused) $("error").textContent = refused;
   const tname = t => doc.names.type.get(t) ?? t;
   const ename = t => t === CO ? CO : doc.names.edgeType.get(t) ?? doc.names.type.get(t) ?? t;
-  const pname = p => doc.names.prop.get(p) ?? p;
+  // a property as type `t` has it; an id types define differently is named only through the type that has it,
+  // and by its id where no type in view has it, never by another type's definition
+  const pname = (p, t) => (doc.names.split.has(p) ? doc.names.own.get(t)?.get(p)?.name : doc.names.prop.get(p)) ?? p;
+  const pkind = (p, t) => (doc.names.split.has(p) ? doc.names.own.get(t)?.get(p)?.kind : doc.names.propKind.get(p)) ?? "";
   // the role the overview's valid-time rule gives a type
   const roleOf = t => t != null && t === doc.roles.observation ? "observation type" : doc.roles.types.get(t)?.event ? "event type" : null;
   const roleBadge = t => roleOf(t) ? h("span", {class: "badge", title: "from the valid time of the type's facts"}, roleOf(t)) : "";
@@ -1577,12 +1589,12 @@ async function main() {
     if (l.reason) parts.push(l.reason);
     return parts.join(" · ");
   }
-  const predicateName = c => c.predicate_kind === "Property" ? pname(c.predicate) : c.predicate_kind === "Relation" ? ename(c.predicate) : tname(c.predicate);
+  const predicateName = (c, t) => c.predicate_kind === "Property" ? pname(c.predicate, t) : c.predicate_kind === "Relation" ? ename(c.predicate) : tname(c.predicate);
   const objectOf = c => c.object_kind === "Value" ? val(Data.plain(c.object_value)) : c.object_kind === "Node" ? nodeLink(c.object_ref) : c.object_ref ?? "";
-  function claimCard(c, subject, source) {
+  function claimCard(c, subject, source, type) {
     const rows = [
       subject ? ["subject", subject] : null,
-      ["predicate", [predicateName(c), " ", h("span", {class: "aid"}, c.predicate_kind)]],
+      ["predicate", [predicateName(c, type), " ", h("span", {class: "aid"}, c.predicate_kind)]],
       ["object", objectOf(c)],
       ["assessment", assessment(c.assessment)],
       ["lifecycle", lifecycle(c.lifecycle)],
@@ -1685,11 +1697,12 @@ async function main() {
         n.state ? h("div", {class: "sub"}, `state: ${n.state}`) : "",
         h("div", {class: "idline"}, n.id, ` · revision ${d.meta.revision}`), pathButtons(id)),
       own,
-      props.length ? card(cardHead("Properties"), h("dl", null, props.map(([k, vs]) => [h("dt", null, pname(k)), h("dd", null, join(vs.map(val), ", "))]))) : "",
-      card(cardHead(`Stated with evidence · ${fmt(d.assertions.length)}`), list.length ? list.map((c, i) => claimCard(c, null, i < 10)) : h("div", {class: "empty"}, "no assertion"),
+      props.length ? card(cardHead("Properties"), h("dl", null, props.map(([k, vs]) => [h("dt", null, pname(k, n.type)), h("dd", null, join(vs.map(val), ", "))]))) : "",
+      card(cardHead(`Stated with evidence · ${fmt(d.assertions.length)}`), list.length ? list.map((c, i) => claimCard(c, null, i < 10, n.type)) : h("div", {class: "empty"}, "no assertion"),
         d.assertions.length > list.length ? h("div", {class: "actions"}, h("button", {"data-act": "stated-all", "data-id": id}, `Show all ${fmt(d.assertions.length)}`)) : ""),
       d.referencing.length ? card(cardHead(`Stated about it · ${fmt(d.referencing.length)}`),
-        d.referencing.slice(0, all ? undefined : STATED).map(r => claimCard(r.assertion, r.subject_kind === "Node" ? nodeLink(r.subject) : `${r.subject_kind} ${r.subject}`, false))) : "",
+        d.referencing.slice(0, all ? undefined : STATED).map(r => claimCard(r.assertion, r.subject_kind === "Node" ? nodeLink(r.subject) : `${r.subject_kind} ${r.subject}`, false,
+          r.subject_kind === "Node" ? known.get(r.subject)?.type : undefined))) : "",
       card(cardHead(`Connections · ${fmt(d.edges.length)}`), groups.length ? groups : h("div", {class: "empty"}, "none")));
     hydrateSources();
   }
@@ -1719,8 +1732,8 @@ async function main() {
           : [h("dt", null, "assertions"), h("dd", null, d.assertions.length ? d.assertions.map(shortId).join(", ") : "none")]),
         read ? srcBlock(d.evidence, d.valid_from) : h("div", {class: "empty", style: "margin-top:8px"}, "open either end for the assertions that state it")),
       d.stated?.length ? card(cardHead("Stated by"), d.stated.map(c => claimCard(c, nodeLink(d.source), false))) : "",
-      props.length ? card(cardHead("Properties"), h("dl", null, props.map(([k, vs]) => [h("dt", null, pname(k)), h("dd", null, join(vs.map(val), ", "))]))) : "",
-      d.claims?.length ? card(cardHead("Assertions about this edge"), d.claims.map(c => claimCard(c, null, false))) : "");
+      props.length ? card(cardHead("Properties"), h("dl", null, props.map(([k, vs]) => [h("dt", null, pname(k, d.type)), h("dd", null, join(vs.map(val), ", "))]))) : "",
+      d.claims?.length ? card(cardHead("Assertions about this edge"), d.claims.map(c => claimCard(c, null, false, d.type))) : "");
     evidenceShown = null;
     hydrateSources();
   }
@@ -2653,11 +2666,11 @@ async function main() {
     const a = v.added;
     // every type and property is named as the version that added or removed it names it
     const nodeChip = t => h("span", {class: "typechip", title: t.id}, h("span", {class: "sw", style: swatch(t.id)}), t.name,
-      t.properties.length ? [" ", h("span", {class: "p"}, t.properties.map(pname).join(", "))] : "");
+      t.properties.length ? [" ", h("span", {class: "p"}, t.properties.map(p => pname(p, t.id)).join(", "))] : "");
     const edgeChip = t => h("span", {class: "typechip edge", title: t.id}, h("span", {class: "sw"}), t.name, " ",
       h("span", {class: "p"}, `${t.source_types.map(tname).join("|")} → ${t.target_types.map(tname).join("|")}`));
     const propChip = p => h("span", {class: "typechip", title: p.id}, p.owner ? h("span", {class: "p"}, `${p.owner_kind === "edge" ? ename(p.owner) : tname(p.owner)}.`) : "",
-      p.name, " ", h("span", {class: "p"}, doc.names.propKind.get(p.id) || ""));
+      p.name, " ", h("span", {class: "p"}, pkind(p.id, p.owner)));
     const otherChip = m => h("span", {class: "typechip", title: `${m.kind} ${m.id}`}, m.name);
     const KIND = {NodeType: "node type", EdgeType: "edge type", Property: "property"};
     const goneChip = m => h("span", {class: "typechip gone", title: `${KIND[m.kind] || m.kind} ${m.id}`}, m.name, " ", h("span", {class: "p"}, KIND[m.kind] || m.kind));
@@ -2848,7 +2861,7 @@ async function main() {
     let best = null;
     for (const [prop, list] of per) {
       const values = new Set(list.map(c => JSON.stringify(c.object_value)));
-      if (values.size > 1 && (!best || values.size > best.values)) best = {prop, list, values: values.size};
+      if (values.size > 1 && (!best || values.size > best.values)) best = {prop, list, values: values.size, type: d.node?.type};
     }
     return best;
   }
@@ -3214,7 +3227,7 @@ async function main() {
     const count = d.lanes.reduce((sm, l) => sm + l.items.length, 0);
     put($("tlHead"), h("h1", {title: node.name}, node.name), node.type ? typeChip(node.type) : "",
       h("span", {class: "badge"}, `${fmt(count)} events within ${tl.hops} hop${tl.hops > 1 ? "s" : ""}`),
-      hist ? h("span", {class: "badge", title: `${fmt(hist.values)} values stated over time`}, `${pname(hist.prop)} history`) : "");
+      hist ? h("span", {class: "badge", title: `${fmt(hist.values)} values stated over time`}, `${pname(hist.prop, hist.type)} history`) : "");
     $("tlSub").textContent = `lanes ordered by salience (weighted links × recency × burstiness; hover a lane name for why) · drag a lane name to reorder · ` +
       `wheel zooms, drag pans, double-click fits · click an item for its details`;
     put($("tlLegend"), d.hiddenLanes.length ? [h("span", {style: "color:var(--text-muted)"}, "hidden:"),
@@ -3237,7 +3250,7 @@ async function main() {
       h("div", {class: "tlrows", style: `height:${H}px`}, h("canvas", {id: "tlLanes", style: `position:absolute;left:${LN.LABEL}px;top:0;cursor:grab`}),
         geo.map(g => {
           if (g.key === "*status") return h("div", {class: "tllane", "data-why": "*status", style: `top:${g.top}px;width:${LN.LABEL}px;height:${g.h}px;border-top:0`},
-            pname(hist.prop), h("span", {class: "n"}, `${fmt(d.status.length)} stated value${d.status.length === 1 ? "" : "s"}`));
+            pname(hist.prop, hist.type), h("span", {class: "n"}, `${fmt(d.status.length)} stated value${d.status.length === 1 ? "" : "s"}`));
           const l = g.lane, other = l.key === "*other";
           return h("div", {class: "tllane", draggable: other ? null : "true", "data-lane": other ? null : l.key, "data-why": l.key, style: `top:${g.top}px;width:${LN.LABEL}px;height:${g.h}px`},
             other ? h("a", {class: "link", "data-tlact": "other"}, `other · ${l.types.length} types ▸`) :
@@ -3343,7 +3356,7 @@ async function main() {
   function itemTip(m, ev) {
     if (m.seg) {
       const st = m.seg;
-      showTip([h("span", {class: "v"}, st.value), h("div", {class: "t"}, `${pname(ln.d.hist.prop)} · ${dLong(st.t)} → ${st.open ? "still current" : dLong(st.end)}` +
+      showTip([h("span", {class: "v"}, st.value), h("div", {class: "t"}, `${pname(ln.d.hist.prop, ln.d.hist.type)} · ${dLong(st.t)} → ${st.open ? "still current" : dLong(st.end)}` +
         `${st.open ? "" : ` (${dur(st.end - st.t)})`} · ${st.lifecycle}`)], ev);
       return;
     }
@@ -3354,7 +3367,7 @@ async function main() {
   function laneWhy(key, ev) {
     if (key === "*status") {
       const hs = ln.d.hist;
-      showTip([h("b", null, pname(hs.prop)), h("div", {class: "t", style: "white-space:normal"}, `${fmt(hs.values)} values stated over time: the property of this node whose value changes most`)], ev);
+      showTip([h("b", null, pname(hs.prop, hs.type)), h("div", {class: "t", style: "white-space:normal"}, `${fmt(hs.values)} values stated over time: the property of this node whose value changes most`)], ev);
       return;
     }
     const l = ln.d.lanes.find(x => x.key === key), e = tlModel().events.find(x => x.type === key);

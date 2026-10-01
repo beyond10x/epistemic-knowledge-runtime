@@ -187,7 +187,8 @@ fn ok(transport: &mut dyn Transport, request: Request) -> Json {
     }
 }
 
-/// Standard base64 with padding, as `ekr explain` prints an evidence link's `payload`.
+/// Standard base64 with padding, as `ekr explain --documents` prints an evidence link's
+/// `payload`.
 fn base64(bytes: &[u8]) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut out = String::new();
@@ -255,10 +256,10 @@ fn assertions(transport: &mut dyn Transport) -> BTreeMap<String, Json> {
         .collect()
 }
 
-/// The payload of every evidence link `ekr explain` prints for `assertion`, by evidence id. It
-/// lists the evidence its assertion cites and every other id its transaction's `evidence` lists
-/// (`docs/cli.md`, `ekr explain`), so each payload is also held to the bytes `evidence` minted
-/// that id for.
+/// The payload of every evidence link `ekr explain --documents` prints for `assertion`, by
+/// evidence id. It lists the evidence its assertion cites and every other id its transaction's
+/// `evidence` lists (`docs/cli.md`, `ekr explain`), so each payload is also held to the bytes
+/// `evidence` minted that id for.
 fn explained_evidence(
     transport: &mut dyn Transport,
     assertion: AssertionId,
@@ -266,7 +267,11 @@ fn explained_evidence(
 ) -> BTreeMap<String, String> {
     let explained = ok(
         transport,
-        Request::new(["explain".to_owned(), assertion.to_string()]),
+        Request::new([
+            "explain".to_owned(),
+            assertion.to_string(),
+            "--documents".to_owned(),
+        ]),
     );
     let links: BTreeMap<String, String> = explained["links"]
         .as_array()
@@ -509,7 +514,11 @@ fn two_runs_over_one_store_with_a_rebuilt_set_add_each_entry_once() {
             assert!(second.is_committed(*cites), "{backend:?}");
             let explained = ok(
                 &mut session,
-                Request::new(["explain".to_owned(), assertion.to_string()]),
+                Request::new([
+                    "explain".to_owned(),
+                    assertion.to_string(),
+                    "--documents".to_owned(),
+                ]),
             );
             let payload = explained["links"]
                 .as_array()

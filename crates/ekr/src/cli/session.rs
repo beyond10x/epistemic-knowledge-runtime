@@ -95,9 +95,18 @@ struct Request {
 struct Answer {
     exit: u8,
     /// The verb's JSON document; `null` when it printed nothing.
-    stdout: Value,
+    stdout: Stdout,
     /// The verb's stderr text, newline included; empty when it printed nothing there.
     stderr: String,
+}
+
+/// An answer's `stdout`: a document, `null` included, or the exact bytes a verb printed raw
+/// (`Printed::Raw`), embedded as they are.
+#[derive(Serialize)]
+#[serde(untagged)]
+enum Stdout {
+    Document(Value),
+    Raw(Box<serde_json::value::RawValue>),
 }
 
 /// Opens the store `cli`'s configuration names, once — or, where the path holds no store, starts
@@ -167,7 +176,7 @@ pub fn serve(
             },
             Err(failure) => Answer {
                 exit: failure.code(),
-                stdout: Value::Null,
+                stdout: Stdout::Document(Value::Null),
                 stderr: stderr(&failure),
             },
         };
@@ -242,7 +251,7 @@ fn respond(
     session: &mut Session,
     watch: &mut Watch,
     now: &dyn Fn() -> Timestamp,
-) -> Result<Value, Failure> {
+) -> Result<Stdout, Failure> {
     let request: Request = serde_json::from_slice(line).map_err(|error| {
         Failure::refused(
             MALFORMED,
@@ -254,7 +263,7 @@ fn respond(
         // Not a one-shot verb: one of the `ekr.views` reads, or no verb at all.
         Err(unknown) if unknown.name() == Some(UNKNOWN) => {
             return match views::parse(&request.argv) {
-                Some(views) => read_views(&views?, session, watch),
+                Some(views) => read_views(&views?, session, watch).map(Stdout::Document),
                 None => Err(unknown),
             };
         }
@@ -315,6 +324,8 @@ fn respond(
     }
     let document = match printed {
         super::Printed::Document(document) => document,
+        // Only `fact-quality` prints raw, and it proposes, validates and commits nothing.
+        super::Printed::Raw(document) => return Ok(Stdout::Raw(document)),
         super::Printed::Text(_) => {
             return Err(Failure::fault("the verb printed text, not a JSON document"))
         }
@@ -336,7 +347,7 @@ fn respond(
         }
         Tracked::Validates(_) | Tracked::Commits(_) | Tracked::Nothing => {}
     }
-    Ok(document)
+    Ok(Stdout::Document(document))
 }
 
 /// A views verb ([`views`]) against the session's store: refused as [`admit`] refuses a global
@@ -704,6 +715,8 @@ fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
         | Command::CodeNames { .. }
         | Command::Quality { .. }
         | Command::Ocel { .. }
+        | Command::Sample { .. }
+        | Command::FactQuality { .. }
         | Command::Schema { .. }
         | Command::Mint { .. }
         | Command::Hash { .. } => Ok(()),

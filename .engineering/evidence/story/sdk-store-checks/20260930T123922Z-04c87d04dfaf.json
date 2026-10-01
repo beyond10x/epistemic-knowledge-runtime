@@ -1,0 +1,14 @@
+{
+  "at": "2026-09-30T12:39:22Z",
+  "actor": "human:timo",
+  "artifact": "story:sdk-store-checks",
+  "kind": "story",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "release-plan revision 3 collision notes",
+    "review": "review-result:next-waves-parallel-safety-r2",
+    "outcome": "fixed"
+  }
+}

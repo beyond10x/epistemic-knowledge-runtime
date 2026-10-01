@@ -99,13 +99,13 @@ later call return an error, and the session is never restarted. To continue, sta
 |---|---|
 | `TransportError::Died` | the child ended before answering. The message names the verb, how the child ended (for example `signal: 9 (SIGKILL)`) and the last 4096 bytes it wrote to stderr (`STDERR_TAIL_BYTES`) |
 | `TransportError::TimedOut` | no reply within `timeout`; the child was killed |
-| `TransportError::Protocol` | the child printed a line that is not a reply |
+| `TransportError::Protocol` | the child printed a line that is not a reply. `answer` holds the start of that line, raw and without its line end: at most 400 of the bytes printed (`ANSWER_BYTES`), cut back to a character boundary and ended with ` [cut]` (`ANSWER_CUT`) when it was longer. Bytes that are not UTF-8 read as U+FFFD. The message shows the answer escaped as a string literal (in quotes, with a quote, a backslash or a control character escaped), beside the verb, what was wrong with it and the stderr tail. The answer is what the process printed, and can include text the process echoed from the request |
 | `TransportError::Cancelled` | the session was cancelled (below) |
 | `TransportError::Latched` | a call made after any of the above. It names this call's verb and the original failure |
 
 A one-shot process that times out, ends on a signal, or prints something other than JSON fails
-only its own call. The error carries the last 4096 bytes of its stderr, and the session is not
-latched.
+only its own call. The error carries the last 4096 bytes of its stderr and, for output that is
+not JSON, the start of what it printed in `answer`. The session is not latched.
 
 `cancel_handle()` returns a `CancelHandle`. `cancel()` only stores `true` in an atomic flag, which
 is async-signal-safe, so a signal handler can call it. A thread in the session checks the flag
@@ -447,7 +447,9 @@ The cache stays correct in three ways:
 - **Queued nodes are flushed before any resolve that shares an alias with them.** When a resolve
   the cache cannot answer shares an alias with a queued node of the same type, the queue is
   flushed first, so `ekr resolve` finds that node rather than proposing a second one with the same
-  alias.
+  alias. Queuing a node also drops every other cached key of its type that shares one of its
+  aliases, because once the node is committed `ekr resolve` no longer answers such a key with the
+  node it cached; it may answer `Ambiguous`.
 - **Invalidation is per alias.** `invalidate(type_id, alias)` drops every cached key of that type
   that holds the alias. `observe(&report, &groups)` records a consumer's own `Batcher` commits.
   Their revisions count as the SDK's, and every alias that a committed `CreateNode` or `AddAlias`
@@ -612,7 +614,8 @@ let changed = reader.changes(Since::Revision(0), None, None, None)?; // Changes
 | `snapshot(at, valid_at)` | `snapshot` | `Snapshot`: `root` and the graph, every map keyed by id |
 | `ontology(at)` | `ontology` | `Ontology`: node and edge types by name and id, the schema version |
 | `transactions(state)` | `transactions` | `Transactions`: each id, state, proposer, time and operation count |
-| `explain(assertion)` | `explain` | `Explanation`: `links`, one `ExplanationLink` per kind |
+| `explain(assertion)` | `explain` | `Explanation`, `ekr.explanation/2`: `links`, one `ExplanationLink` per kind, each record by hash |
+| `explain_documents(assertion)` | `explain --documents` | the same `Explanation` with the whole records: each evidence link's `payload` and `text` |
 | `quality(revision)` | `quality` | `StoreQuality`, `ekr.store-quality/1`: evidenced assertions, constrained properties, `shared_names` |
 | `rejections(from, to)` | `rejections` | `Rejections`, `ekr.rejections/1`: each `RejectedTransaction` with its `issues` |
 | `code_names(files, at)` | `code-names` | `CodeNames`, `ekr.code-names/1`: each `CodeNameFinding` with `file`, `line`, `column`, `runtime_word` and `names` |
@@ -664,7 +667,7 @@ A read that returns no value fails with a `ReadError` that names the verb:
 | `Usage { verb, message }` | `ekr` did not accept the argv, for example because the binary predates the verb |
 | `Fault { verb, fault }` | a store that does not open or cannot be read, including one never seeded for `head` |
 | `Document { verb, source }` | the document does not read as the verb's value |
-| `Transport(error)` | no reply was read |
+| `Transport(error)` | no reply was read. A one-shot `ekr` that printed something other than JSON is `TransportError::Protocol`, whose `answer` holds the start of what it printed |
 
 The values are serde models of what `ekr` prints. A reader ignores a field it does not know, so a
 newer `ekr` does not break an older consumer. A kind it does not know does not break the read

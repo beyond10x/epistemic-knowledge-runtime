@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use crate::binary::EkrBinary;
 use crate::reply::Reply;
 use crate::session::{command, SessionOptions, StderrTail, StoreConfig, STDERR_TAIL_BYTES};
-use crate::transport::{Request, Transport, TransportError};
+use crate::transport::{answer_start, Request, Transport, TransportError};
 
 /// How often a waiting read looks at its process.
 const TICK: Duration = Duration::from_millis(10);
@@ -94,6 +94,7 @@ impl Transport for OneShot {
                 serde_json::from_slice(&stdout).map_err(|error| TransportError::Protocol {
                     verb,
                     detail: format!("a one-shot ekr printed something that is not JSON: {error}"),
+                    answer: answer_start(&stdout),
                     stderr_tail: tail(&stderr),
                 })?,
             )

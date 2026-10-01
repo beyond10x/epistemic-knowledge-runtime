@@ -132,8 +132,8 @@ pub use document::{
 /// Typed persistence failures exposed without granting the caller storage or writer access.
 pub use ekr_store::StoreError as PersistenceError;
 pub use explain::{
-    ExplainedLifecycle, ExplainedSeed, ExplainedValidation, ExplanationLink, ExplanationResult,
-    ProjectionError, SnapshotResult,
+    ExplainedCommit, ExplainedLifecycle, ExplainedProposal, ExplainedSeed, ExplainedValidation,
+    ExplanationLink, ExplanationResult, ProjectionError, SnapshotResult,
 };
 pub use issue::{ValidationIssue, ValidatorName};
 pub use migrate::{MigratedOccurrence, StoreMigrationV1};

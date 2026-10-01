@@ -6,7 +6,7 @@ status: draft
 title: One-shot reads are served from a persisted, verified read model instead of a rebuild
 relations:
 - serves: vision:o5
-- decomposes: epic:ingestion-throughput
+- decomposes: epic:read-and-storage-cost
 revision: 1
 ---
 ## Context
