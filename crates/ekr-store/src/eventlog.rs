@@ -411,6 +411,15 @@ fn waiting_out_the_lock<T>(
         }
     }
 }
+/// What the File provider reports when the history at its root is no longer the one a handle
+/// observed: the journal no longer extends what the handle saw (eventlog-file `fe8a0a7`, `lib.rs`,
+/// `capture.rs` and `inline_admin.rs`, each as `EventLogError::Backend`). The provider names the
+/// condition by no variant of its own, so this is the one place its text is read.
+const FILE_DIVERGED: &str = "file history diverged from this handle's observed history";
+/// Whether a provider error is its refusal of a diverged history: [`StoreError::Diverged`].
+pub(crate) fn diverged(error: &EventLogError) -> bool {
+    matches!(error, EventLogError::Backend(message) if message.contains(FILE_DIVERGED))
+}
 impl EventlogStore<FileEventStore> {
     /// Opens the File provider outside an entered async runtime.
     /// # Errors

@@ -105,6 +105,15 @@ and per-type property definitions in the projection.
   an event type or stop it being one. `/roles` is now derived in `ekr-views`
   (`ekr_views::Index::view_roles_document`, with `Index::event_types` the one rule), specified in
   `systems/ekr/domains/views.yaml`.
+- **A diverged history is a typed store error** (`ekr-store`, `StoreError::Diverged`). The File
+  provider's refusal of a history that is no longer the one a handle observed — a store replaced
+  under the same device and inode — was `StoreError::Backend`; it is now `StoreError::Diverged`,
+  with the same text, and `ekr-views` carries it as `ProjectError::Diverged`. `ekr session`,
+  `ekr mcp` and `ekr view` reopen the store on that variant instead of on the provider's message,
+  so a reworded provider message no longer turns the reopen off. A session reopens only for a
+  fault that came from the store: a request that fails for its own reason, such as a document
+  that cannot be read, prints its own failure while the store at the path is diverged. What each
+  prints is otherwise unchanged.
 
 ### Fixed
 

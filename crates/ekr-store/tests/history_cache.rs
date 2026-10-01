@@ -549,6 +549,35 @@ fn a_held_object_is_not_served_from_a_file_store_that_diverged() {
     );
 }
 
+/// The file provider's refusal of a history that diverged from what a live handle observed
+/// reaches a caller as [`StoreError::Diverged`], on a head read and on a single-object read alike:
+/// a variant to match, so no caller depends on how the provider words it.
+#[test]
+fn a_file_store_that_diverged_is_refused_as_a_typed_divergence() {
+    let held_dir = TempDir::new().unwrap();
+    let other_dir = TempDir::new().unwrap();
+    let reader = file(held_dir.path());
+    let payloads = written(&reader, "typed divergence", 1);
+    reader.history().unwrap();
+    written(&file(other_dir.path()), "typed divergence replacement", 1);
+    std::fs::remove_dir_all(held_dir.path().join("state")).unwrap();
+    copy_tree(
+        &other_dir.path().join("state"),
+        &held_dir.path().join("state"),
+    );
+
+    let head = reader.history();
+    assert!(
+        matches!(head, Err(StoreError::Diverged(_))),
+        "a head read of a diverged file store answered {head:?}"
+    );
+    let got = reader.get(&ContentHash::of_bytes(&payloads[0]));
+    assert!(
+        matches!(got, Err(StoreError::Diverged(_))),
+        "an object read of a diverged file store answered {got:?}"
+    );
+}
+
 // ---------------------------------------------------------------------------------------------
 // Measurement: two consecutive history reads on one handle over a large store. Ignored; run with
 // `cargo test -p ekr-store --test history_cache -- --ignored --nocapture`.

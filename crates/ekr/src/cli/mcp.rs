@@ -62,7 +62,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use serde_json::{json, Map, Value};
 
-use super::session::{diverged, Checked, Held, STORE_REPLACED};
+use super::session::{Checked, Held, STORE_REPLACED};
 use super::view::{
     head_document, not_a_node_id, project_refusal, since_not_one, LIMIT_EXCEEDED, NODE_NOT_FOUND,
     SEARCH_LIMIT, SINCE_MALFORMED,
@@ -303,7 +303,7 @@ impl From<Failure> for Unanswered {
         match failure {
             Failure::Refused { name, message } => Self::Refused { name, message },
             Failure::Usage { message } => Self::params(message),
-            Failure::Fault { message } => Self::internal(message),
+            Failure::Fault { message, .. } => Self::internal(message),
         }
     }
 }
@@ -407,9 +407,10 @@ impl Server {
             match self.tool(&name, arguments.clone()) {
                 // The held history diverged from the store at the path: one replaced under the
                 // same device and inode. Reopened once, the call is answered from that store.
-                Err(
-                    Unanswered::Error { ref message, .. } | Unanswered::Refused { ref message, .. },
-                ) if diverged(message) => {
+                Err(Unanswered::Error {
+                    code: INTERNAL_ERROR,
+                    ..
+                }) if self.store.diverged() => {
                     self.store.forget();
                     self.tool(&name, arguments)
                 }
