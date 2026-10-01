@@ -24,8 +24,10 @@ summary: >-
   Determinism, which every renderer of ekr.graph-projection/1 holds to so that two renders of one
   revision are byte-identical. (1) Order. By id: every array whose members carry an `id`, and
   every array of ids, ascending in the lowercase hyphenated text of the UUID — ontology.node_types,
-  ontology.edge_types, ontology.properties, each type's properties, source_types, target_types and
-  assertions, nodes, edges, evidence, each node's and edge's assertions, each assertion's evidence,
+  ontology.edge_types, ontology.properties (the entries of one id by their first owner, see
+  ekr.views.ProjectedProperty), each property's owners, each type's properties, source_types,
+  target_types and assertions, nodes, edges, evidence, each node's and edge's assertions, each
+  assertion's evidence,
   assessment.validators (a set) and each schema version's added. By number, ascending:
   schema.versions and schema.revisions. In the store's own order, because the order is part of the
   value: each node's aliases, each property's value list in props (an ordered list in which
@@ -269,6 +271,24 @@ types:
   # The ontology at the projected revision: the schema version that revision's canonical state is
   # valid against. `properties` on a type is the ids of the property definitions it declares;
   # `assertions` are those whose subject is that type.
+  #
+  # Per-type property definitions (task:projection-carries-per-type-property-definitions).
+  # `ontology.properties` holds one entry per definition of a property id among the node and edge
+  # types that have it, a definition being its name and value kind together: all of one that
+  # this entry carries, so two declarations that differ only in anything else are one
+  # definition. A node type has the definition ekr.ontology resolves for it (properties_of: its
+  # own declaration, else the most specific ancestor's), declared or inherited; an edge type has
+  # what it declares. One id may have several definitions, because the ontology admits a type that
+  # redeclares an inherited property with another name or value kind, and ModifyProperty on a
+  # child type produces one. An id every type that has it defines alike has exactly one entry, and
+  # `owners` is absent. An id with two or more definitions has one entry for each, and each
+  # entry's `owners` is the ids of every type that has that definition, whether it declares it or
+  # inherits it; every type that has the property is in exactly one entry's `owners`, so the
+  # entries of one id have different first owners. A reader takes type T's definition of property
+  # P from the entry with id P whose `owners` holds T, else from P's only entry, by lookup alone:
+  # no hierarchy is needed. A revision whose types define each property alike renders exactly the
+  # bytes it rendered before `owners` existed, so no format version changes and every earlier
+  # document reads as before.
   - name: ekr.views.ProjectedProperty
     kind: struct
     fields:
@@ -278,6 +298,8 @@ types:
         type: String
       - name: value_kind
         type: ekr.ontology.ValueKind
+      - name: owners
+        type: Optional<List<ekr.ontology.TypeId>>
 
   - name: ekr.views.ProjectedNodeType
     kind: struct

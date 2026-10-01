@@ -1,0 +1,74 @@
+format: ekr-seed/2
+ontology:
+  version:
+    id: 00000000-0000-4000-8000-00000000c001
+    number: 0
+    parent: null
+    created_at: 0
+  node_types:
+  - id: 00000000-0000-4000-8000-00000000c201
+    name: Gauge
+    parents: []
+    properties:
+      00000000-0000-4000-8000-00000000c801:
+        id: 00000000-0000-4000-8000-00000000c801
+        name: measure
+        value_type:
+          value_kind: String
+        cardinality: One
+        required: false
+        constraints: []
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-00000000c202
+    name: Dial
+    parents:
+    - 00000000-0000-4000-8000-00000000c201
+    properties:
+      00000000-0000-4000-8000-00000000c801:
+        id: 00000000-0000-4000-8000-00000000c801
+        name: reading
+        value_type:
+          value_kind: Integer
+        cardinality: One
+        required: false
+        constraints: []
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  - id: 00000000-0000-4000-8000-00000000c203
+    name: Knob
+    parents:
+    - 00000000-0000-4000-8000-00000000c202
+    properties: {}
+    abstract_type: false
+    lifecycle: null
+    operations: {}
+  edge_types: []
+graph:
+  format: ekr.graph-document/2
+  graph:
+    root:
+      id: 00000000-0000-4000-8000-00000000c002
+      space: Canonical
+      schema_version_id: 00000000-0000-4000-8000-00000000c001
+      parent: null
+      created_at: 0
+    revision: 0
+    nodes:
+      00000000-0000-4000-8000-00000000c303:
+        id: 00000000-0000-4000-8000-00000000c303
+        root_id: 00000000-0000-4000-8000-00000000c002
+        type_id: 00000000-0000-4000-8000-00000000c203
+        canonical_name: Knob One
+        aliases: []
+        type_state: null
+        properties:
+          00000000-0000-4000-8000-00000000c801:
+          - value_kind: Integer
+            value: 7
+    edges: {}
+    assertions: {}
+    evidence: {}
+evidence_payloads: {}
