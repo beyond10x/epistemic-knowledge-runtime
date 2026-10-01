@@ -1313,16 +1313,13 @@ fn a_subtype_redeclaring_a_property_is_served_and_each_type_shows_its_own_defini
     let double = seeded.double(Duration::ZERO);
     let dom = rendered(&browser, &format!("{}#schema=1", double.url));
     let seeded_version = version_card(&dom, 0);
-    for (owner, shown) in [
-        ("Gauge", "measure <span class=\"p\">String</span>"),
-        ("Dial", "reading <span class=\"p\">Integer</span>"),
-    ] {
-        let chip = format!("<span class=\"p\">{owner}.</span>{shown}");
-        assert!(
-            seeded_version.contains(&chip),
-            "{owner} shows its own definition of the property, {chip}: {seeded_version}"
-        );
-    }
+    // A version's added property is named as that version named it (`measure` in version 0),
+    // never by a later redeclaration.
+    let gauge_chip = "<span class=\"p\">Gauge.</span>measure <span class=\"p\">String</span>";
+    assert!(
+        seeded_version.contains(gauge_chip) && !seeded_version.contains("Dial.</span>reading"),
+        "version 0's property chips name it as version 0 did, {gauge_chip}: {seeded_version}"
+    );
     let dial = seeded_version
         .split(&format!("title=\"{DIAL}\""))
         .nth(1)
@@ -3443,7 +3440,6 @@ fn a_narrow_window_opens_compact_and_the_graph_keeps_its_width() {
 /// back to the id's first entry, Gauge's `measure`, and the Integer 7 is labelled with the
 /// String definition of another type.
 #[test]
-#[ignore = "adversary x6-j F2: a node of an inheriting subtype shows another type's definition of a redeclared property"]
 fn a_node_of_a_subtype_inheriting_a_redeclared_property_shows_its_resolved_definition() {
     const KNOB_ONE: &str = "00000000-0000-4000-8000-00000000c303";
     let Some(browser) = browser() else {
@@ -3473,7 +3469,6 @@ fn a_node_of_a_subtype_inheriting_a_redeclared_property_shows_its_resolved_defin
 /// version-0 card's property chip now reads Gauge's definition at the shown revision instead,
 /// so version 0 is shown adding a property called `level`, a name it never had.
 #[test]
-#[ignore = "adversary x6-j F3: the schema history names a version's property by the shown revision's definition, not the version's"]
 fn the_schema_history_names_a_redeclared_property_as_the_version_that_added_it() {
     let Some(browser) = browser() else {
         eprintln!("skipped: no headless Chromium (set EKR_VIEW_BROWSER to one)");

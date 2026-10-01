@@ -297,9 +297,9 @@ pub struct ViewProperty {
     pub name: String,
     /// Its value kind.
     pub value_kind: String,
-    /// The types whose declaration this is, present only when the id has more than one
-    /// definition; a type's own definition of an id is the entry naming it here, else the id's
-    /// only entry.
+    /// Every type that has this definition, declared or inherited, present only when the id has
+    /// more than one definition; a type's definition of an id is the entry naming it here, else
+    /// the id's only entry.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub owners: Option<Vec<String>>,
 }

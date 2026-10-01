@@ -6,10 +6,10 @@
 //! `tests/inheritance_and_declaration_coherence.rs`, grand `String` <- parent `Integer`). Until
 //! the task landed, the projection's `ontology.properties` held one entry per id and the render
 //! refused such a revision with `ProjectError::Inconsistent`. It now holds one entry per distinct
-//! definition of an id; when an id has more than one, each entry's `owners` names the types whose
-//! declaration it is, so each type's own definition is projected. An id every declaring type
-//! defines alike keeps its single entry and carries no `owners`, so the bytes of every revision
-//! the earlier renderer rendered are unchanged.
+//! definition of an id; when an id has more than one, each entry's `owners` names every type
+//! that has it, declared or inherited, so each type's own definition is projected. An id every
+//! declaring type defines alike keeps its single entry and carries no `owners`, so the bytes of
+//! every revision the earlier renderer rendered are unchanged.
 
 mod support;
 

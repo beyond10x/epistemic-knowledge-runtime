@@ -252,18 +252,21 @@ types:
   #
   # Per-type property definitions (task:projection-carries-per-type-property-definitions).
   # `ontology.properties` holds one entry per definition of a property id among the node and edge
-  # types that declare it, a definition being its name and value kind together: all of one that
+  # types that have it, a definition being its name and value kind together: all of one that
   # this entry carries, so two declarations that differ only in anything else are one
-  # definition. One id may have several, because the ontology admits a type that redeclares an
-  # inherited property with another name or value kind, and ModifyProperty on a child type
-  # produces one. An id every declaring type defines alike has exactly one entry, and `owners` is
-  # absent. An id with two or more definitions has one entry for each, and each entry's `owners`
-  # is the ids of the types whose declaration it is; every declaring type is in exactly one entry's
-  # `owners`, so the entries of one id have different first owners. A reader takes type T's
-  # definition of property P from the entry with id P whose `owners` holds T, else from P's only
-  # entry. A revision whose types define each property alike renders exactly the bytes it rendered
-  # before `owners` existed, so no format version changes and every earlier document reads as
-  # before.
+  # definition. A node type has the definition ekr.ontology resolves for it (properties_of: its
+  # own declaration, else the most specific ancestor's), declared or inherited; an edge type has
+  # what it declares. One id may have several definitions, because the ontology admits a type that
+  # redeclares an inherited property with another name or value kind, and ModifyProperty on a
+  # child type produces one. An id every type that has it defines alike has exactly one entry, and
+  # `owners` is absent. An id with two or more definitions has one entry for each, and each
+  # entry's `owners` is the ids of every type that has that definition, whether it declares it or
+  # inherits it; every type that has the property is in exactly one entry's `owners`, so the
+  # entries of one id have different first owners. A reader takes type T's definition of property
+  # P from the entry with id P whose `owners` holds T, else from P's only entry, by lookup alone:
+  # no hierarchy is needed. A revision whose types define each property alike renders exactly the
+  # bytes it rendered before `owners` existed, so no format version changes and every earlier
+  # document reads as before.
   - name: ekr.views.ProjectedProperty
     kind: struct
     fields:

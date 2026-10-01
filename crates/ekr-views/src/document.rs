@@ -136,8 +136,8 @@ pub(crate) struct ProjectedAssertion {
     evidence: Vec<String>,
 }
 
-/// One definition of a property id: `owners` is present only when the id has more than one,
-/// and then names the types whose declaration this one is.
+/// One definition of a property id: `owners` is present only when the id has more than one, and
+/// then names every type that has this one, declared or inherited.
 #[derive(Serialize)]
 struct ProjectedProperty {
     id: String,
@@ -593,10 +593,10 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
 /// ontology the kernel admits, including one in which two types define one property id
 /// differently.
 pub(crate) fn project_ontology(
-    ontology: &Ontology,
+    resolved: &Ontology,
     by_type: &BTreeMap<TypeId, Vec<&Assertion>>,
 ) -> ProjectedOntology {
-    let ontology = ontology.to_document();
+    let ontology = resolved.to_document();
     let mut node_types: Vec<ProjectedNodeType> = ontology
         .node_types
         .iter()
@@ -623,21 +623,25 @@ pub(crate) fn project_ontology(
     edge_types.sort_by(|a, b| a.id.cmp(&b.id));
     // `ontology.properties` holds one entry per definition of a property id, a definition being
     // its name and value kind — all of one the format carries, so declarations that differ only
-    // in anything else are one definition. An id every declaring type defines alike has one entry
-    // and no `owners`, exactly as before per-type definitions existed. An id two types define
-    // differently, as a child type redeclaring an inherited property may, has one entry per
-    // definition, each naming in `owners` the types whose declaration it is
-    // (task:projection-carries-per-type-property-definitions). Each declaring type is in exactly
-    // one entry's owners, so the entries of one id ascend by their first owner without a tie.
+    // in anything else are one definition. Every type that has a property is counted with the
+    // definition it has: a node type with what `Ontology::properties_of` resolves for it, declared
+    // or inherited, and an edge type, which inherits nothing, with what it declares. An id every
+    // such type defines alike has one entry and no `owners`, exactly as before per-type
+    // definitions existed: an inherited definition is always some type's declaration, so it adds
+    // no second one. An id types define differently, as a child type redeclaring an inherited
+    // property may, has one entry per definition, each naming in `owners` every type that has it
+    // (task:projection-carries-per-type-property-definitions), so a reader finds any type's
+    // definition by lookup alone, with no hierarchy. Each such type is in exactly one entry's
+    // owners, so the entries of one id ascend by their first owner without a tie.
     let mut definitions: BTreeMap<String, BTreeMap<(String, String), BTreeSet<String>>> =
         BTreeMap::new();
     for (owner, property) in ontology
         .node_types
         .iter()
         .flat_map(|declared| {
-            declared
-                .properties
-                .values()
+            resolved
+                .properties_of(declared.id)
+                .into_values()
                 .map(move |property| (declared.id, property))
         })
         .chain(ontology.edge_types.iter().flat_map(|declared| {

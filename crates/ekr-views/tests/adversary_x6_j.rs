@@ -118,7 +118,6 @@ fn definition_for(document: &Json, owner: u64) -> Option<(String, String)> {
 /// for `Leaf`, and the projection carries no `parents` from which a reader could find one. The
 /// value 7 under the `Leaf` node cannot be named from the document that holds it.
 #[test]
-#[ignore = "adversary x6-j F1: an inheriting subtype of a redeclaring type is in no entry's owners; the projection cannot name its property"]
 fn an_inheriting_subtype_of_a_redeclaring_type_has_a_definition_the_projection_names() {
     let mut document = empty_seed();
     document.ontology.node_types.push(node_type(

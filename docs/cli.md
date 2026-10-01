@@ -665,9 +665,12 @@ then answers:
 **A property two types define differently.** A type may redeclare a property it inherits with
 another name or value kind; a `ModifyProperty` on a child type does. The projection and the
 overview then list one `ontology.properties` entry per definition of that id, each naming in
-`owners` the types whose declaration it is, the entries of one id ordered by their first owner. A
-property every type declaring it defines alike has one entry and no `owners`, as before. The page
-names a property, and shows its value kind, as the type in view declares it.
+`owners` every type that has that definition, whether it declares it or inherits it, so a type's
+definition is found by lookup alone; the entries of one id are ordered by their first owner. A
+property every type that has it defines alike has one entry and no `owners`, as before. The page
+names a property, and shows its value kind, as the type of the node, edge or type chip shown has
+it, and shows the property's id where no such type is known; the schema history names a version's
+added property as that version named it.
 
 Any other method is 405 and any other path 404. A request that announces a body (a
 `Content-Length` above zero or any `Transfer-Encoding`) is 413; the body is never read. A request
