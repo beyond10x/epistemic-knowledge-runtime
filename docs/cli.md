@@ -332,10 +332,14 @@ Then, in order:
    with the object node. Each evidence item a fact cites is added by `!AddEvidence` with the first
    assertion citing it, unless the store already holds its id. An item no fact cites is not added.
    A rejected transaction is split and submitted again, down to the one fact validation refuses.
-   A fact the store already asserts — an active assertion with the same subject, predicate, object,
-   valid time and evidence — or that an earlier fact of the document says too is held, not
-   asserted again. So applying the same document a second time adds no node, evidence entry or
-   assertion, and its report lists every fact under `held`.
+   A fact is held, not asserted, when an assertion making its claim — the same subject,
+   predicate, object and valid time — cites every evidence item the fact cites: one the store
+   holds active, one an earlier fact of the document made, or one the store holds retracted or
+   superseded, which asserting it again from the same evidence would undo (a superseded
+   assertion's valid time ends where its replacement starts; the fact's reaches that far). So
+   applying the same document a second time adds no node, evidence entry or assertion, and its
+   report lists every fact under `held`. A fact citing evidence no such assertion cited is
+   asserted.
 
 Every write goes through `propose`, `validate` and `commit`, the same requests a consumer sends
 running the SDK's `ekr_sdk::extraction::apply` over an `ekr session`: the verb runs that routine,
@@ -349,8 +353,8 @@ It prints the `ekr.integrate.ExtractionReport`:
 | `committed` | each transaction committed, in order, as `transaction_id` and `revision`: the schema change, the new nodes, the facts |
 | `rejected` | each part of the document not applied: `item` (`ontology`, `entities[<index>]`, `facts[<index>]`, or `facts[<index>].subject` / `.object` where a named thing first appears), and either `transaction_id` with the validators' `issues` (`validator`, `code`, `message`) or `refusal`, why no validator answered — a refusal of `ekr propose`, or a named thing the fact rests on that was not created |
 | `ambiguous` | each named thing the store answers with more than one node: `reference`, its node type and every alias of the named things that share one, the name first, and `candidates`, the nodes in id order |
-| `held` | each fact not asserted because the store already asserts it, or an earlier fact of the document says the same, as `facts[<index>]` |
-| `stopped` | `null` when applying went to the end of the document; otherwise why it stopped once something had committed — a request that got no answer it could act on |
+| `held` | each fact not asserted, as `item` (`facts[<index>]`) and `reason`: `asserted` (the store holds the claim active), `repeated` (an earlier fact of the document asserted it), `retracted` or `superseded` (an operator retracted or superseded the claim, and the fact brings no evidence it did not cite) |
+| `stopped` | `null` when applying went to the end of the document; otherwise why it stopped once something had committed — a request that got no answer it could act on. `committed` then lists every transaction committed until then, those of the batch that stopped included |
 
 Exit 0 means the document was read and tried, whatever `rejected` holds. Once something has
 committed the verb does not fault: if a request then gets no answer it can act on, it prints the
@@ -1823,6 +1827,7 @@ Against the ontology of the store it is read for it refuses, naming the first in
 | `extraction-name-duplicate` | a node type, an edge type, a property of one type, an `Enum` variant or a `NodeRef` type the document declares twice |
 | `extraction-type-conflict` | a type the store holds, redeclared with other `parents` or another `abstract_type` (a node type) or another `cardinality` (an edge type): no schema operation changes those |
 | `extraction-type-undeclared` | a node type or edge type neither the document's `ontology` nor the store declares, named by a parent, an edge type's end, a `NodeRef`, a named thing, a fact's subject or object, or a relation |
+| `extraction-property-conflict` | a node type of the document declaring a property, named `Type.property`, that one of its ancestors already declares with another value type, cardinality, `required` or constraints: the property is the ancestor's and no schema operation lets a subtype change it. Declare it alike, or change it on the ancestor |
 | `extraction-value-type-empty` | an `Enum` with no variant or a `NodeRef` to no node type |
 | `reference-without-identity` | a named thing, or a fact's subject or object, with no alias but the empty string |
 | `reference-type-has-subtypes` | a named thing, or a fact's subject or object, whose node type is abstract or has a subtype once the document's `ontology` is applied: `ekr resolve` refuses a reference to such a type, so the document is refused before anything is written. Name the concrete type |
@@ -1832,6 +1837,7 @@ Against the ontology of the store it is read for it refuses, naming the first in
 | `fact-without-evidence` | a fact, named `facts[<index>]`, whose `evidence` is empty or absent |
 | `fact-evidence-unlisted` | a fact citing an id no item of the document's `evidence` carries |
 | `duplicate-identity` | two evidence items under one id |
+| `extraction-evidence-kind-unsupported` | an evidence item whose `source` is not a `!HumanStatement`, the one source the kernel admits as evidence today |
 | `evidence-payload-mismatch` | an evidence item whose `payload` does not hash to its `content_hash` (`ekr hash` prints the right one) |
 
 ## Worked example: a library catalogue

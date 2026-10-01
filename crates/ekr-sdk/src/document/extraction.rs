@@ -14,8 +14,10 @@
 //! reader's codes and through the same bounded loader (`ekr_core::decode::observe_yaml`): more than
 //! [`EXTRACTION_INPUT_BYTES`] bytes, containers nested deeper than [`EXTRACTION_DEPTH`], a YAML alias,
 //! an alias that is not a YAML string, anything but one document of the format. It then makes the
-//! reader's checks of the document alone ([`ExtractionDocument::check`]): two evidence items under
-//! one id, a payload that does not hash to its entry. What the document names against a store is
+//! reader's checks of the document alone ([`ExtractionDocument::check`]): a fact citing an id no
+//! evidence item carries, two evidence items under one id, a payload that does not hash to its
+//! entry. An evidence item whose source is not a `!HumanStatement` is refused as the reader refuses
+//! it, `extraction-evidence-kind-unsupported`. What the document names against a store is
 //! checked by `ekr apply-extraction` before it applies anything, and by
 //! [`crate::extraction::apply`] before it writes anything.
 
@@ -47,7 +49,9 @@ pub(crate) mod code {
     pub(crate) const MALFORMED: &str = "extraction-document-malformed";
     pub(crate) const WITHOUT_IDENTITY: &str = "reference-without-identity";
     pub(crate) const HAS_SUBTYPES: &str = "reference-type-has-subtypes";
+    pub(crate) const EVIDENCE_UNLISTED: &str = "fact-evidence-unlisted";
     pub(crate) const DUPLICATE_IDENTITY: &str = "duplicate-identity";
+    pub(crate) const EVIDENCE_KIND: &str = "extraction-evidence-kind-unsupported";
     pub(crate) const PAYLOAD_MISMATCH: &str = "evidence-payload-mismatch";
 }
 
@@ -203,19 +207,34 @@ impl ExtractionDocument {
             };
             ExtractionRefusal::new(code, bound.to_string())
         })?;
-        let document: Self = serde_yaml_ng::from_str(text)
-            .map_err(|error| ExtractionRefusal::new(code::MALFORMED, error.to_string()))?;
+        let document: Self = serde_yaml_ng::from_str(text).map_err(|error| {
+            unsupported_source(text)
+                .unwrap_or_else(|| ExtractionRefusal::new(code::MALFORMED, error.to_string()))
+        })?;
         document.check()?;
         Ok(document)
     }
 
-    /// The engine reader's checks of the document alone, in its order: each evidence item's id
-    /// held by no earlier item (`duplicate-identity`) and its payload hashing to its entry's
-    /// `content_hash` (`evidence-payload-mismatch`).
+    /// The engine reader's checks of the document alone, in its order: every id a fact cites
+    /// carried by an evidence item of the document (`fact-evidence-unlisted`, naming
+    /// `facts[<index>]: <id>`); then each evidence item's id held by no earlier item
+    /// (`duplicate-identity`) and its payload hashing to its entry's `content_hash`
+    /// (`evidence-payload-mismatch`), naming the evidence id. A fact citing no evidence is left to
+    /// the kernel, which rejects an assertion without evidence.
     ///
     /// # Errors
-    /// The first [`ExtractionRefusal`], naming the evidence id.
+    /// The first [`ExtractionRefusal`].
     pub fn check(&self) -> Result<(), ExtractionRefusal> {
+        let listed: std::collections::BTreeSet<EvidenceId> =
+            self.evidence.iter().map(|item| item.evidence.id).collect();
+        for (at, fact) in self.facts.iter().enumerate() {
+            if let Some(id) = fact.evidence().iter().find(|id| !listed.contains(id)) {
+                return Err(ExtractionRefusal::new(
+                    code::EVIDENCE_UNLISTED,
+                    format!("facts[{at}]: {id}"),
+                ));
+            }
+        }
         let mut ids = std::collections::BTreeSet::new();
         for item in &self.evidence {
             let id = item.evidence.id;
@@ -244,6 +263,25 @@ impl ExtractionDocument {
     }
 }
 
+/// The engine reader's refusal of an evidence item whose source is not a `!HumanStatement`, the
+/// one source the kernel admits (`extraction-evidence-kind-unsupported`): asked only of a text the
+/// mirror did not decode, whose evidence source it does not model.
+fn unsupported_source(text: &str) -> Option<ExtractionRefusal> {
+    let document: serde_yaml_ng::Value = serde_yaml_ng::from_str(text).ok()?;
+    document["evidence"]
+        .as_sequence()?
+        .iter()
+        .find_map(|item| match &item["evidence"]["source"] {
+            serde_yaml_ng::Value::Tagged(tagged) if tagged.tag != "HumanStatement" => {
+                Some(ExtractionRefusal::new(
+                    code::EVIDENCE_KIND,
+                    item["evidence"]["id"].as_str().unwrap_or_default(),
+                ))
+            }
+            _ => None,
+        })
+}
+
 impl Default for ExtractionDocument {
     fn default() -> Self {
         Self::new()
@@ -270,7 +308,7 @@ mod wire {
         NodeRef { allowed_types: Vec<String> },
         Enum { variants: Vec<String> },
         List(Box<Value>),
-        Record(BTreeMap<String, Value>),
+        Record(#[serde(deserialize_with = "ekr_core::decode::unique_map")] BTreeMap<String, Value>),
     }
 
     #[derive(Serialize, Deserialize)]

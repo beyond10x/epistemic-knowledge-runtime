@@ -264,7 +264,6 @@ fn mirror_refuses(document: &str, code: &str) {
 /// A confidence past ten thousand basis points: the reader's `Confidence` is `try_from = "u16"`
 /// and refuses it while decoding; the SDK's is `transparent` and reads it.
 #[test]
-#[ignore = "adversary c7-v pass 2: the SDK mirror reads a confidence the reader refuses"]
 fn adv2_mirror_refuses_a_confidence_past_certain() {
     mirror_refuses(
         &known_types().replace("confidence: 10000", "confidence: 20000"),
@@ -275,7 +274,6 @@ fn adv2_mirror_refuses_a_confidence_past_certain() {
 /// A record value with one field written twice: the reader's `Value::Record` decodes through
 /// `ekr_core::decode::unique_map`, the SDK's `Value::Record` through a plain map.
 #[test]
-#[ignore = "adversary c7-v pass 2: the SDK mirror reads a record value whose field is written twice"]
 fn adv2_mirror_refuses_a_record_value_with_a_field_written_twice() {
     mirror_refuses(
         &known_types().replace(
@@ -290,7 +288,6 @@ fn adv2_mirror_refuses_a_record_value_with_a_field_written_twice() {
 /// A record type with one field written twice in the document's ontology: the reader's
 /// `ValueSpec::Record` decodes through `unique_map`, the mirror's wire form through a plain map.
 #[test]
-#[ignore = "adversary c7-v pass 2: the SDK mirror reads a record type whose field is written twice"]
 fn adv2_mirror_refuses_a_record_type_with_a_field_written_twice() {
     mirror_refuses(
         &known_types().replace(
@@ -308,7 +305,6 @@ fn adv2_mirror_refuses_a_record_type_with_a_field_written_twice() {
 /// routine applies it whenever the store already holds that id, so the two paths write different
 /// stores from one document.
 #[test]
-#[ignore = "adversary c7-v pass 2: the SDK routine applies a fact citing evidence its document does not list"]
 fn adv2_a_fact_citing_unlisted_evidence_is_refused_on_both_paths() {
     let document = "format: ekr.extraction-document/1
 facts:
@@ -429,7 +425,6 @@ evidence: []
 /// facts batch and the run then stops, the batch's commits live in `BatchError::report`, which
 /// `apply` never absorbs; the run's own report is empty, so `apply` returns the error.
 #[test]
-#[ignore = "adversary c7-v pass 2: a stop inside the facts batch, after its first commit, is an error"]
 fn adv2_a_stop_after_the_runs_first_commit_inside_the_facts_batch_is_a_report() {
     let world = with_globex_and_apollo();
     let before = world.revision();
@@ -454,7 +449,6 @@ fn adv2_a_stop_after_the_runs_first_commit_inside_the_facts_batch_is_a_report() 
 /// The same stop after the schema change and the new nodes committed: `stopped` is set, and the
 /// report must name every transaction that committed — the commit inside the facts batch too.
 #[test]
-#[ignore = "adversary c7-v pass 2: the report under `stopped` omits the commits of the batch that stopped"]
 fn adv2_a_stop_inside_the_facts_batch_reports_every_commit_before_it() {
     let world = World::new("file");
     let before = world.revision();
@@ -492,14 +486,21 @@ fn adv2_a_rerun_after_a_stop_adds_only_what_did_not_commit() {
     assert!(first.stopped.is_some(), "{first:?}");
     let before = world.revision();
     let again = world.verb(&three_facts());
-    assert_eq!(again["held"], serde_json::json!(["facts[0]"]), "{again}");
+    assert_eq!(
+        again["held"],
+        serde_json::json!([{"item": "facts[0]", "reason": "asserted"}]),
+        "{again}"
+    );
     assert_eq!(again["committed"].as_array().unwrap().len(), 1, "{again}");
     assert_eq!(again["rejected"][0]["item"], "facts[1]", "{again}");
     assert_eq!(world.revision(), before + 1);
     let third = world.verb(&three_facts());
     assert_eq!(
         third["held"],
-        serde_json::json!(["facts[0]", "facts[2]"]),
+        serde_json::json!([
+            {"item": "facts[0]", "reason": "asserted"},
+            {"item": "facts[2]", "reason": "asserted"}
+        ]),
         "{third}"
     );
     assert_eq!(third["committed"], serde_json::json!([]), "{third}");
@@ -512,7 +513,6 @@ fn adv2_a_rerun_after_a_stop_adds_only_what_did_not_commit() {
 /// *active* identical assertion, so the second run asserts it again, from the same evidence, and
 /// the report lists it as committed, not held.
 #[test]
-#[ignore = "adversary c7-v pass 2: a second run re-asserts a fact the operator retracted, from the same evidence"]
 fn adv2_a_second_run_does_not_reassert_a_retracted_fact() {
     let world = World::new("file");
     world.verb(&known_types());
@@ -547,7 +547,6 @@ fn adv2_a_second_run_does_not_reassert_a_retracted_fact() {
 /// second run asserts the old name again over all valid time, beside its replacement, for a
 /// property of cardinality One.
 #[test]
-#[ignore = "adversary c7-v pass 2: a second run re-asserts a superseded fact over all valid time"]
 fn adv2_a_second_run_does_not_reassert_a_superseded_fact() {
     use ekr_sdk::document::{
         Assertion, NodeId, Object, Predicate, Subject, Supersession, TemporalRange, Timestamp,
@@ -628,7 +627,11 @@ evidence:
     assert_eq!(report["held"], serde_json::json!([]), "{report}");
     assert_eq!(report["committed"].as_array().unwrap().len(), 1, "{report}");
     let again = world.verb(&document);
-    assert_eq!(again["held"], serde_json::json!(["facts[0]"]), "{again}");
+    assert_eq!(
+        again["held"],
+        serde_json::json!([{"item": "facts[0]", "reason": "asserted"}]),
+        "{again}"
+    );
 }
 
 // --- 2. Group naming across orders and providers ----------------------------------------------
@@ -681,7 +684,6 @@ fn adv2_a_group_is_named_alike_in_every_order_on_both_providers() {
 /// variant, so the verb faults (exit 1) on an item from a URL. The domain declares two outcomes,
 /// `applied` (a report, the kernel's rejection a row of it) and `refused` (exit 2).
 #[test]
-#[ignore = "adversary c7-v pass 2: the verb faults on a reader-accepted document whose evidence is from a URL"]
 fn adv2_the_verb_does_not_fault_on_evidence_from_a_url() {
     let world = World::new("file");
     let document = known_types().replace(
@@ -702,7 +704,6 @@ fn adv2_the_verb_does_not_fault_on_evidence_from_a_url() {
 /// subtype's own declaration and accepts the document; `Ontology::ensure` calls it a conflict and
 /// the verb faults (exit 1), an outcome the domain does not declare.
 #[test]
-#[ignore = "adversary c7-v pass 2: the verb faults on a reader-accepted subtype that redeclares an inherited property"]
 fn adv2_the_verb_does_not_fault_on_a_subtype_redeclaring_a_property() {
     let world = World::new("file");
     // The reader runs first: had it refused the document, the verb would exit 2.

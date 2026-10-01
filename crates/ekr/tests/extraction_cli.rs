@@ -16,7 +16,7 @@ use ekr_sdk::document::{
 };
 use ekr_sdk::extraction::{
     apply, AmbiguousExtraction, ApplyError, CommittedExtraction, ExtractionIssue, ExtractionReport,
-    RejectedExtraction,
+    HeldExtraction, HeldReason, RejectedExtraction,
 };
 use ekr_sdk::session::{Backend, ProcessSession, SessionOptions, StoreConfig};
 use serde_json::Value;
@@ -520,7 +520,16 @@ fn the_report_carries_the_fields_the_domain_declares() {
     // document asserted it with the same evidence, so nothing is committed.
     assert_eq!(report["rejected"], serde_json::json!([]), "{report}");
     assert_eq!(report["committed"], serde_json::json!([]), "{report}");
-    assert_eq!(report["held"], serde_json::json!(["facts[0]"]), "{report}");
+    assert_eq!(
+        report["held"],
+        serde_json::json!([{"item": "facts[0]", "reason": "asserted"}]),
+        "{report}"
+    );
+    assert_eq!(
+        keys(&report["held"][0]),
+        declared_fields("ekr.integrate.HeldExtraction"),
+        "{report}"
+    );
     assert_eq!(report["stopped"], Value::Null, "{report}");
 
     // The example grows the schema, which the example host's profile fixes: the schema change is
@@ -607,7 +616,13 @@ fn the_sdk_routine_reports_through_its_own_types() {
     assert!(report.rejected.is_empty(), "{report:?}");
     // The property about Globex is the one the first document asserted: held, not asserted again.
     assert!(report.committed.is_empty(), "{report:?}");
-    assert_eq!(report.held, ["facts[0]"], "{report:?}");
+    let held: &HeldExtraction = &report.held[0];
+    assert_eq!(
+        (held.item.as_str(), held.reason),
+        ("facts[0]", HeldReason::Asserted),
+        "{report:?}"
+    );
+    assert_eq!(report.held.len(), 1, "{report:?}");
     assert_eq!(report.stopped, None);
     assert_eq!(report.ambiguous.len(), 1, "{report:?}");
     let ambiguous: &AmbiguousExtraction = &report.ambiguous[0];
@@ -705,6 +720,42 @@ fn the_mirror_refuses_by_the_readers_codes() {
         ),
         (format!("{KNOWN_TYPES}{second}"), "duplicate-identity"),
         (
+            KNOWN_TYPES.replace("confidence: 10000", "confidence: 20000"),
+            "extraction-document-malformed",
+        ),
+        (
+            KNOWN_TYPES.replace(
+                "value: {value_kind: String, value: Globex Corporation}",
+                "value: {value_kind: Record, value: {a: {value_kind: Integer, value: 1}, a: \
+                 {value_kind: Integer, value: 2}}}",
+            ),
+            "extraction-document-malformed",
+        ),
+        (
+            KNOWN_TYPES.replace(
+                "entities:",
+                "ontology:\n  node_types:\n  - name: Gadget\n    properties:\n    - name: size\n      \
+                 value: {value_kind: Record, parameters: {w: {value_kind: Integer}, w: \
+                 {value_kind: Integer}}}\nentities:",
+            ),
+            "extraction-document-malformed",
+        ),
+        (
+            KNOWN_TYPES.replacen(
+                "evidence: [00000000-0000-4000-8000-000000000403]",
+                "evidence: [00000000-0000-4000-8000-000000000404]",
+                1,
+            ),
+            "fact-evidence-unlisted",
+        ),
+        (
+            KNOWN_TYPES.replace(
+                "source: !HumanStatement\n      identity: Quarterly report",
+                "source: !Url https://example.org/report",
+            ),
+            "extraction-evidence-kind-unsupported",
+        ),
+        (
             KNOWN_TYPES.replace("payload: [67,", "payload: [68,"),
             "evidence-payload-mismatch",
         ),
@@ -773,8 +824,7 @@ fn a_failure_after_a_commit_is_reported_with_what_committed() {
     let document = ExtractionDocument::from_yaml(&example_document()).unwrap();
     let operator = OPERATOR.parse::<AgentId>().unwrap();
     let mut cut = DiesAfterFirstCommit {
-        session: ProcessSession::start(&binary, world.config(), SessionOptions::default())
-            .unwrap(),
+        session: ProcessSession::start(&binary, world.config(), SessionOptions::default()).unwrap(),
         committed: false,
     };
     let report = apply(&mut cut, &document, operator).unwrap();
@@ -787,8 +837,7 @@ fn a_failure_after_a_commit_is_reported_with_what_committed() {
 
     let fresh = World::new("file", true);
     let mut dead = DiesAfterFirstCommit {
-        session: ProcessSession::start(&binary, fresh.config(), SessionOptions::default())
-            .unwrap(),
+        session: ProcessSession::start(&binary, fresh.config(), SessionOptions::default()).unwrap(),
         committed: true,
     };
     assert!(matches!(
@@ -797,4 +846,186 @@ fn a_failure_after_a_commit_is_reported_with_what_committed() {
     ));
     dead.session.close().unwrap();
     assert_eq!(fresh.store_json(&["head"])["revision"], 0);
+}
+
+/// A new subtype redeclaring a property its parent declares otherwise: the property is the
+/// parent's and no schema operation lets the subtype change it. Decided (wave correct-07): the
+/// reader refuses the document as `extraction-property-conflict`, exit 2, before anything is
+/// written; over a child session the SDK routine refuses it before any write too. The same
+/// declaration made alike, and the subtype's own property declared on the parent, both apply.
+#[test]
+fn a_subtype_redeclaring_an_inherited_property_is_refused_before_any_write() {
+    let conflicting = "format: ekr.extraction-document/1
+ontology:
+  node_types:
+  - name: Company
+    parents: [Organization]
+    properties:
+    - name: legal_name
+      value: {value_kind: Integer}
+entities:
+- node_type: Company
+  aliases: [Initech]
+facts: []
+evidence: []
+";
+    let world = World::new("file", true);
+    let path = world.file("conflict.yaml");
+    std::fs::write(&path, conflicting).unwrap();
+    let output = world.store_output(&["apply-extraction", path.to_str().unwrap()]);
+    assert_eq!(output.status.code(), Some(2));
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(
+        stderr.starts_with("ekr: extraction-property-conflict: ")
+            && stderr.contains("Company.legal_name"),
+        "{stderr}"
+    );
+    assert_eq!(world.store_json(&["head"])["revision"], 0);
+
+    let binary = EkrBinary::open(binary()).unwrap();
+    let mut session =
+        ProcessSession::start(&binary, world.config(), SessionOptions::default()).unwrap();
+    let mirrored = ExtractionDocument::from_yaml(conflicting).unwrap();
+    let refused = apply(
+        &mut session,
+        &mirrored,
+        OPERATOR.parse::<AgentId>().unwrap(),
+    );
+    session.close().unwrap();
+    assert!(
+        matches!(refused, Err(ApplyError::Ontology(_))),
+        "{refused:?}"
+    );
+    assert_eq!(world.store_json(&["head"])["revision"], 0);
+
+    // Declared alike, the subtype inherits the parent's property and the document applies.
+    let alike = world.apply_verb(&conflicting.replace(
+        "value: {value_kind: Integer}",
+        "value: {value_kind: String}",
+    ));
+    assert_eq!(alike["rejected"], serde_json::json!([]), "{alike}");
+    assert_eq!(alike["stopped"], Value::Null, "{alike}");
+}
+
+/// The id of the one active assertion of `world` whose object mentions `needle`.
+fn active_saying(world: &World, needle: &str) -> ekr_sdk::document::AssertionId {
+    let snapshot = world.store_json(&["snapshot"]);
+    let found: Vec<&Value> = snapshot["graph"]["graph"]["assertions"]
+        .as_object()
+        .unwrap()
+        .values()
+        .filter(|assertion| {
+            assertion["lifecycle"] == "Active" && assertion["object"].to_string().contains(needle)
+        })
+        .collect();
+    assert_eq!(found.len(), 1, "{found:?}");
+    found[0]["id"].as_str().unwrap().parse().unwrap()
+}
+
+/// `operations` committed as one transaction over a child session, as the host operator.
+fn commit_by_hand(world: &World, operations: Vec<ekr_sdk::document::Operation>) {
+    let binary = EkrBinary::open(binary()).unwrap();
+    let mut session =
+        ProcessSession::start(&binary, world.config(), SessionOptions::default()).unwrap();
+    let report = ekr_sdk::batch::Batcher::new(OPERATOR.parse().unwrap())
+        .commit(&mut session, &[operations])
+        .unwrap();
+    session.close().unwrap();
+    assert_eq!(report.committed.len(), 1, "{report:?}");
+}
+
+/// A claim an operator retracted or superseded is not asserted again from the evidence it cited:
+/// the report holds the fact with that reason. From evidence the claim never cited, it is
+/// asserted.
+#[test]
+fn a_retracted_or_superseded_claim_is_held_with_its_reason() {
+    use ekr_sdk::document::{
+        Assertion, Object, Operation, Predicate, Retraction, Subject, Supersession, TemporalRange,
+        Timestamp, Value as Said,
+    };
+
+    let retracted = World::new("file", true);
+    retracted.apply_verb(KNOWN_TYPES);
+    let id = active_saying(&retracted, "Globex Corporation");
+    commit_by_hand(
+        &retracted,
+        vec![Operation::RetractAssertion(Retraction::new(id, "wrong"))],
+    );
+    let report = retracted.apply_verb(KNOWN_TYPES);
+    assert_eq!(report["committed"], serde_json::json!([]), "{report}");
+    assert_eq!(
+        report["held"],
+        serde_json::json!([
+            {"item": "facts[0]", "reason": "retracted"},
+            {"item": "facts[1]", "reason": "asserted"}
+        ]),
+        "{report}"
+    );
+
+    // The same claim from item 0404, which the retracted assertion never cited: asserted.
+    let payload = b"Globex Corporation, as the registry lists it.".to_vec();
+    let bytes: Vec<String> = payload.iter().map(u8::to_string).collect();
+    let fresh = format!(
+        "format: ekr.extraction-document/1
+facts:
+- !Property
+  subject: {{node_type: Organization, aliases: [Globex]}}
+  property: legal_name
+  value: {{value_kind: String, value: Globex Corporation}}
+  evidence: [00000000-0000-4000-8000-000000000404]
+evidence:
+- evidence:
+    id: 00000000-0000-4000-8000-000000000404
+    source: !HumanStatement
+      identity: Registry extract
+    content_hash: {}
+    extracted_by: 00000000-0000-4000-8000-000000000101
+    observed_at: 1773360000000
+    confidence: 9000
+  payload: [{}]
+",
+        ekr_sdk::document::payload_hash(&payload),
+        bytes.join(", ")
+    );
+    let report = retracted.apply_verb(&fresh);
+    assert_eq!(report["held"], serde_json::json!([]), "{report}");
+    assert_eq!(report["committed"].as_array().unwrap().len(), 1, "{report}");
+
+    let superseded = World::new("file", true);
+    superseded.apply_verb(KNOWN_TYPES);
+    let old = active_saying(&superseded, "Globex Corporation");
+    let snapshot = superseded.store_json(&["snapshot"]);
+    let graph = &snapshot["graph"]["graph"];
+    let globex = graph["nodes"]
+        .as_object()
+        .unwrap()
+        .iter()
+        .find(|(_, node)| node["canonical_name"] == "Globex")
+        .map(|(id, _)| id.parse().unwrap())
+        .unwrap();
+    let from = Timestamp::from_millis(1_775_001_600_000);
+    let replacement = Assertion::new(
+        graph["root"]["id"].as_str().unwrap().parse().unwrap(),
+        Subject::Node(globex),
+        Predicate::Property("00000000-0000-4000-8000-000000000801".parse().unwrap()),
+        Object::Value(Said::String("Globex Inc".to_owned())),
+        OPERATOR.parse().unwrap(),
+    )
+    .citing("00000000-0000-4000-8000-000000000403".parse().unwrap())
+    .with_valid_time(TemporalRange::since(from));
+    let by = replacement.id;
+    commit_by_hand(
+        &superseded,
+        vec![
+            Operation::AddAssertion(Box::new(replacement)),
+            Operation::SupersedeAssertion(Supersession::new(old, by, from)),
+        ],
+    );
+    let report = superseded.apply_verb(KNOWN_TYPES);
+    assert_eq!(report["committed"], serde_json::json!([]), "{report}");
+    assert_eq!(
+        report["held"][0],
+        serde_json::json!({"item": "facts[0]", "reason": "superseded"}),
+        "{report}"
+    );
 }

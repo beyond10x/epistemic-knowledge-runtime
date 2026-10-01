@@ -246,6 +246,7 @@ types:
       - extraction-name-duplicate
       - extraction-type-conflict
       - extraction-type-undeclared
+      - extraction-property-conflict
       - extraction-value-type-empty
       - reference-without-identity
       - reference-type-has-subtypes
@@ -255,6 +256,7 @@ types:
       - fact-without-evidence
       - fact-evidence-unlisted
       - duplicate-identity
+      - extraction-evidence-kind-unsupported
       - evidence-payload-mismatch
 
   # `name` is what the refused part names: the type, `Type.property`, the position of the entity
@@ -323,16 +325,40 @@ types:
       - name: candidates
         type: List<ekr.graph.NodeId>
 
+  # The re-apply rule. A fact is held, not asserted, when an assertion making its claim — the same
+  # subject, predicate, object and valid time — cites every evidence item the fact cites. `reason`
+  # says which: `asserted`, the store holds it active; `repeated`, an earlier fact of the document
+  # asserted it; `retracted` or `superseded`, the store held it and an operator retracted or
+  # superseded it, which asserting it again from the same evidence would undo. A fact citing
+  # evidence no such assertion cited is asserted, whatever became of the claim.
+  - name: ekr.integrate.HeldReason
+    kind: enum
+    variants:
+      - asserted
+      - repeated
+      - retracted
+      - superseded
+
+  - name: ekr.integrate.HeldExtraction
+    kind: struct
+    fields:
+      - name: item
+        type: String
+      - name: reason
+        type: ekr.integrate.HeldReason
+
   # What applying one document did. Named things of one node type that share an alias, transitively,
   # are one thing whatever order the document lists them in: resolved once with every alias of its
   # members, and created, where the store holds none, named by the least in byte order of its
-  # members' first aliases. `held` lists each fact (`facts[<i>]`) not asserted because the store
-  # already holds an active assertion with the same subject, predicate, object, valid time and
-  # evidence, or an earlier fact of the document says the same: a document applied twice adds
-  # nothing the second time. `stopped` says why applying ended before the end of the document once
-  # something had committed, a request getting no answer it could act on; absent when it went to
-  # its end. A document the reader refuses — a named thing whose type is abstract or has a subtype
-  # once the document's ontology is applied among them — is refused before anything is written.
+  # members' first aliases. `held` lists each fact not asserted (ekr.integrate.HeldExtraction): a
+  # document applied twice adds nothing the second time. `stopped` says why applying ended before
+  # the end of the document once something had committed, a request getting no answer it could act
+  # on; absent when it went to its end. `committed` then names every transaction committed until
+  # then, the ones the batch that stopped committed included: a stop after any commit is a report,
+  # never a refusal or a fault. A document the reader refuses is refused before anything is
+  # written — among them a named thing whose type is abstract or has a subtype once the document's
+  # ontology is applied, a subtype redeclaring a property an ancestor declares otherwise, and an
+  # evidence item whose source is not a HumanStatement.
   - name: ekr.integrate.ExtractionReport
     kind: struct
     fields:
@@ -343,7 +369,7 @@ types:
       - name: ambiguous
         type: List<ekr.integrate.AmbiguousExtraction>
       - name: held
-        type: List<String>
+        type: List<ekr.integrate.HeldExtraction>
       - name: stopped
         type: Optional<String>
 

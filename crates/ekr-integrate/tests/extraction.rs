@@ -287,6 +287,7 @@ fn every_code() -> Vec<ExtractionRefusalCode> {
             | Code::ExtractionNameDuplicate
             | Code::ExtractionTypeConflict
             | Code::ExtractionTypeUndeclared
+            | Code::ExtractionPropertyConflict
             | Code::ExtractionValueTypeEmpty
             | Code::ReferenceWithoutIdentity
             | Code::ReferenceTypeHasSubtypes
@@ -296,6 +297,7 @@ fn every_code() -> Vec<ExtractionRefusalCode> {
             | Code::FactWithoutEvidence
             | Code::FactEvidenceUnlisted
             | Code::DuplicateIdentity
+            | Code::ExtractionEvidenceKindUnsupported
             | Code::EvidencePayloadMismatch => {}
         }
     }

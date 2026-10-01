@@ -12,7 +12,9 @@
 //! does not hash to its entry); a named thing with no alias but the empty string
 //! (`reference-without-identity`); and a named thing whose node type is abstract or has a subtype
 //! once the document's ontology is applied (`reference-type-has-subtypes`), which `ekr resolve`
-//! would refuse. Every type, property and relation the document names is looked up then too, so
+//! would refuse. A document [`Ontology::ensure`] refuses to plan — a subtype redeclaring a
+//! property an ancestor declares otherwise — is [`ApplyError::Ontology`], before any write too; the
+//! engine's reader refuses it first, as `extraction-property-conflict`. Every type, property and relation the document names is looked up then too, so
 //! a name no declaration gives is [`ApplyError::Undeclared`] before anything is written.
 //!
 //! In order, over `transport`:
@@ -30,16 +32,19 @@
 //! 3. every fact about things that resolved, as one `!AddAssertion` each — `!Property` with the
 //!    value, `!Relation` with the object node — committed through a [`Batcher`] with the
 //!    document's evidence: each item a fact cites is added with the first fact citing it, unless
-//!    the store already holds its id. An item no fact cites is not added. A fact the store already
-//!    asserts — an active assertion with the same subject, predicate, object, valid time and
-//!    evidence — or that an earlier fact of the document says too is [held](ExtractionReport::held)
-//!    and not asserted again. So a document applied a second time adds no node, evidence entry or
-//!    assertion.
+//!    the store already holds its id. An item no fact cites is not added. A fact is
+//!    [held](ExtractionReport::held), not asserted, when an assertion making its claim — the same
+//!    subject, predicate, object and valid time — cites every evidence item it cites: one the
+//!    store holds active, one an earlier fact of the document made, or one the store holds
+//!    retracted or superseded, which asserting it again from the same evidence would undo. So a
+//!    document applied a second time adds no node, evidence entry or assertion. A fact citing
+//!    evidence no such assertion cited is asserted.
 //!
 //! The only requests that write are `propose`, `validate` and `commit`; the rest are `snapshot`,
 //! `ontology`, `head` and `resolve`. Once something has committed, the routine does not end in an
 //! error: a request that then gets no answer it can act on stops it, and the report names why
-//! ([`ExtractionReport::stopped`]) beside what committed until then.
+//! ([`ExtractionReport::stopped`]) beside every transaction committed until then, the ones the
+//! batch or flush that stopped committed included.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -68,12 +73,38 @@ pub struct ExtractionReport {
     pub rejected: Vec<RejectedExtraction>,
     /// Every named thing the store answers with more than one node, once each.
     pub ambiguous: Vec<AmbiguousExtraction>,
-    /// Every fact not asserted because the store already asserts it, or an earlier fact of the
-    /// document says the same, by its item: `facts[<index>]`.
-    pub held: Vec<String>,
+    /// Every fact not asserted, and why: the store holds an assertion of the same claim citing all
+    /// of its evidence, active, retracted or superseded, or an earlier fact of the document says
+    /// the same from the same evidence.
+    pub held: Vec<HeldExtraction>,
     /// Why applying stopped before the end of the document, after something had committed;
     /// `None` when it went to its end.
     pub stopped: Option<String>,
+}
+
+/// A fact not asserted: `ekr.integrate.HeldExtraction`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+pub struct HeldExtraction {
+    /// The fact: `facts[<index>]`.
+    pub item: String,
+    /// Why.
+    pub reason: HeldReason,
+}
+
+/// Why a fact is not asserted: `ekr.integrate.HeldReason`. In each case the assertion making its
+/// claim — the same subject, predicate, object and valid time — cites every evidence item the
+/// fact cites; a fact citing evidence no such assertion cited is asserted.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum HeldReason {
+    /// The store holds it, active.
+    Asserted,
+    /// An earlier fact of the document says it.
+    Repeated,
+    /// The store held it and it was retracted: asserting it again would undo that decision.
+    Retracted,
+    /// The store held it and it was superseded: asserting it again would undo that decision.
+    Superseded,
 }
 
 /// One committed transaction: `ekr.integrate.CommittedExtraction`.
@@ -331,30 +362,65 @@ fn root_of(parent: &mut [usize], mut at: usize) -> usize {
     at
 }
 
-/// An active assertion as compared for [`ExtractionReport::held`]: its subject node, predicate,
-/// object as JSON, valid time and evidence.
-type Claim = (
-    NodeId,
-    Predicate,
-    String,
-    Option<Timestamp>,
-    Option<Timestamp>,
-    BTreeSet<EvidenceId>,
-);
+/// What an assertion claims, as compared for [`ExtractionReport::held`]: its subject node, predicate,
+/// object as JSON and the start of its valid time. The end is compared apart, in [`Made`]: a
+/// supersession ends the superseded assertion's valid time where its replacement starts.
+type Claim = (NodeId, Predicate, String, Option<Timestamp>);
 
-/// What `assertion` claims.
-fn claim(assertion: &Assertion) -> Option<Claim> {
+/// One assertion making a claim: what became of it, the end of its valid time, and its evidence.
+type Made = (HeldReason, Option<Timestamp>, BTreeSet<EvidenceId>);
+
+/// What `assertion` claims, where its valid time ends, and the evidence it cites.
+fn claim(assertion: &Assertion) -> Option<(Claim, Option<Timestamp>, BTreeSet<EvidenceId>)> {
     let Subject::Node(subject) = assertion.subject else {
         return None;
     };
     Some((
-        subject,
-        assertion.predicate,
-        serde_json::to_value(&assertion.object).ok()?.to_string(),
-        assertion.valid_time.from,
+        (
+            subject,
+            assertion.predicate,
+            serde_json::to_value(&assertion.object).ok()?.to_string(),
+            assertion.valid_time.from,
+        ),
         assertion.valid_time.to,
         assertion.evidence.clone(),
     ))
+}
+
+/// Every claim the store holds, each with the evidence of every assertion making it and what
+/// became of that assertion: active, retracted or superseded.
+type Claims = BTreeMap<Claim, Vec<Made>>;
+
+/// Why a fact whose valid time ends at `to` and that cites `evidence` is not asserted, given the
+/// assertions `made` making its claim: an active assertion citing all of it, then one an earlier
+/// fact of the document made, then a retracted one, then a superseded one. Each ends where the
+/// fact does, but a superseded one, whose end is where its replacement starts and which the fact
+/// reaches. `None` when one of its items is evidence no such assertion cited.
+fn held_because(
+    made: &[Made],
+    to: Option<Timestamp>,
+    evidence: &BTreeSet<EvidenceId>,
+) -> Option<HeldReason> {
+    let ends = |reason: HeldReason, end: Option<Timestamp>| match reason {
+        HeldReason::Superseded => match (to, end) {
+            (None, _) => true,
+            (Some(to), Some(end)) => to >= end,
+            (Some(_), None) => false,
+        },
+        _ => end == to,
+    };
+    [
+        HeldReason::Asserted,
+        HeldReason::Repeated,
+        HeldReason::Retracted,
+        HeldReason::Superseded,
+    ]
+    .into_iter()
+    .find(|wanted| {
+        made.iter().any(|(reason, end, cited)| {
+            reason == wanted && ends(*reason, *end) && evidence.is_subset(cited)
+        })
+    })
 }
 
 /// Apply `document` to the store `transport` answers for, proposing as `operator`, the host
@@ -386,11 +452,18 @@ pub fn apply<T: Transport + ?Sized>(
         },
     )?;
     let held: BTreeSet<EvidenceId> = graph.evidence.keys().copied().collect();
-    let asserted: BTreeSet<Claim> = graph
-        .assertions
-        .values()
-        .filter(|assertion| assertion.lifecycle == serde_json::json!("Active"))
-        .filter_map(|assertion| {
+    let mut claims: Claims = BTreeMap::new();
+    for (claim, made) in graph.assertions.values().filter_map(|assertion| {
+        let lifecycle = if assertion.lifecycle == serde_json::json!("Active") {
+            HeldReason::Asserted
+        } else if assertion.lifecycle.get("Retracted").is_some() {
+            HeldReason::Retracted
+        } else if assertion.lifecycle.get("Superseded").is_some() {
+            HeldReason::Superseded
+        } else {
+            return None;
+        };
+        {
             let SnapshotSubject::Node(subject) = assertion.subject else {
                 return None;
             };
@@ -400,15 +473,22 @@ pub fn apply<T: Transport + ?Sized>(
                 SnapshotPredicate::Other => return None,
             };
             Some((
-                subject,
-                predicate,
-                assertion.object.to_string(),
-                assertion.valid_time.from,
-                assertion.valid_time.to,
-                assertion.evidence.iter().copied().collect(),
+                (
+                    subject,
+                    predicate,
+                    assertion.object.to_string(),
+                    assertion.valid_time.from,
+                ),
+                (
+                    lifecycle,
+                    assertion.valid_time.to,
+                    assertion.evidence.iter().copied().collect(),
+                ),
             ))
-        })
-        .collect();
+        }
+    }) {
+        claims.entry(claim).or_default().push(made);
+    }
 
     let mut report = ExtractionReport::default();
     let run = Run {
@@ -417,7 +497,7 @@ pub fn apply<T: Transport + ?Sized>(
         root: graph.root.id,
         operator,
         held,
-        asserted,
+        claims,
     };
     if let Err(error) = run.go(transport, &change, &mut report) {
         if report.committed.is_empty() {
@@ -436,8 +516,8 @@ struct Run<'a> {
     operator: AgentId,
     /// The evidence ids the store holds.
     held: BTreeSet<EvidenceId>,
-    /// The claims of the store's active assertions.
-    asserted: BTreeSet<Claim>,
+    /// The claims of the store's assertions, and of the facts asserted so far.
+    claims: Claims,
 }
 
 impl Run<'_> {
@@ -449,7 +529,9 @@ impl Run<'_> {
     ) -> Result<(), ApplyError> {
         let batcher = Batcher::new(self.operator);
         if !change.is_empty() {
-            let schema = batcher.commit(transport, &[change.operations().to_vec()])?;
+            let schema = batcher
+                .commit(transport, &[change.operations().to_vec()])
+                .map_err(|error| report.stopped_in(error, |_| "ontology".to_owned()))?;
             let refused = !schema.rejected.is_empty() || schema.refused.is_some();
             report.absorb(schema, |_| "ontology".to_owned());
             if refused {
@@ -507,9 +589,16 @@ impl Run<'_> {
                         .evidence()
                         .iter()
                         .fold(assertion, |assertion, id| assertion.citing(*id));
-                    if claim(&cited).is_some_and(|claim| !self.asserted.insert(claim)) {
-                        report.held.push(format!("facts[{at}]"));
-                        continue;
+                    if let Some((claim, to, evidence)) = claim(&cited) {
+                        let made = self.claims.entry(claim).or_default();
+                        if let Some(reason) = held_because(made, to, &evidence) {
+                            report.held.push(HeldExtraction {
+                                item: format!("facts[{at}]"),
+                                reason,
+                            });
+                            continue;
+                        }
+                        made.push((HeldReason::Repeated, to, evidence));
                     }
                     groups.push(vec![cited.into()]);
                     labels.push(format!("facts[{at}]"));
@@ -532,7 +621,9 @@ impl Run<'_> {
                 evidence.mark_committed(id);
             }
         }
-        let facts = batcher.commit_with_evidence(transport, &groups, &mut evidence)?;
+        let facts = batcher
+            .commit_with_evidence(transport, &groups, &mut evidence)
+            .map_err(|error| report.stopped_in(error, |group| labels[group].clone()))?;
         report.absorb(facts, |group| labels[group].clone());
         Ok(())
     }
@@ -548,7 +639,11 @@ impl Run<'_> {
         let mut created: BTreeMap<NodeId, usize> = BTreeMap::new();
         for (at, group) in self.plan.groups.iter().enumerate() {
             let typed = TypedReference::new(group.type_id, group.aliases.iter().cloned());
-            things.push(match resolver.resolve(transport, &typed)? {
+            let resolved = resolver.resolve(transport, &typed).map_err(|error| {
+                report.absorb(resolver.take_pending().report, |_| "entities".to_owned());
+                ApplyError::from(error)
+            })?;
+            things.push(match resolved {
                 Resolution::Resolved(node) => Thing::Node(node),
                 Resolution::Queued(node) => {
                     created.insert(node, at);
@@ -561,7 +656,10 @@ impl Run<'_> {
             });
         }
 
-        let flushed = resolver.flush(transport)?;
+        let flushed = resolver.flush(transport).map_err(|error| {
+            report.absorb(resolver.take_pending().report, |_| "entities".to_owned());
+            ApplyError::from(error)
+        })?;
         let mut missing: BTreeSet<NodeId> = flushed
             .report
             .rejected
@@ -623,6 +721,12 @@ fn ambiguous(group: &Group, candidates: Vec<NodeId>) -> AmbiguousExtraction {
 }
 
 impl ExtractionReport {
+    /// Adds what a batch committed and rejected before it stopped, and passes on why it stopped.
+    fn stopped_in(&mut self, error: Box<BatchError>, item: impl Fn(usize) -> String) -> ApplyError {
+        self.absorb(error.report.clone(), item);
+        ApplyError::Batch(error)
+    }
+
     /// Adds a batcher's report: its commits, and one rejection per refused group, named by
     /// `item`.
     fn absorb(&mut self, batch: BatchReport, item: impl Fn(usize) -> String) {
