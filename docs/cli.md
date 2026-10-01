@@ -1541,7 +1541,7 @@ ontology:
     - name: status
       value:
         value_kind: Enum
-        parameters: [active, closed]
+        parameters: {variants: [active, closed]}
       cardinality: One
       required: false
   edge_types:
@@ -1581,21 +1581,36 @@ evidence:
 | key | holds |
 |---|---|
 | `format` | exactly `ekr.extraction-document/1` |
-| `ontology` | optional. `node_types` (each `name`, `parents` by name, `abstract_type`, `properties`) and `edge_types` (each `name`, `source_types` and `target_types` by node type name, `cardinality`, `properties`). A property is `name`, `value`, `cardinality` and `required`; `value` is a [value type](#value-types) whose `NodeRef` names node types in `parameters` rather than listing their ids. A type the store lacks is added; one it holds by that name is kept |
+| `ontology` | optional. `node_types` (each `name`, `parents` by name, `abstract_type`, `properties`) and `edge_types` (each `name`, `source_types` and `target_types` by node type name, `cardinality`, `properties`). A property is `name`, `value`, `cardinality` and `required`; `value` is a [value type](#value-types), written as one is (`parameters: {variants: [...]}` for an `Enum`), except that a `NodeRef` names its node types in `parameters: {allowed_types: [...]}` rather than listing their ids. An `Enum`'s variants and a `NodeRef`'s types are at least one, each once; a `Record` field is written once. A type the store lacks is added; one it holds by that name is kept |
 | `entities` | optional. Named things, each `node_type` (a node type's name) and `aliases` (the names it is known by, compared byte for byte). Each resolves as a [typed reference](#ekr-resolve) of that type before anything is created |
 | `facts` | `!Property` (`subject`, a named thing; `property`, declared on the subject's type or an ancestor; `value`, a value as a transaction writes one) or `!Relation` (`subject`, `relation`, an edge type's name, and `object`). Each lists in `evidence` the ids of the evidence items it rests on: at least one |
 | `evidence` | the evidence items, each the `evidence` entry and `payload` bytes an [`!AddEvidence`](#evidence-after-the-seed) carries, under the same rules: a fresh id, `source: !HumanStatement`, `extracted_by` the host operator and a payload that hashes to `content_hash` |
 
-The reader refuses a document over 8388608 bytes, a YAML alias (`*name`), a fact written other than
-as a `!Property` or `!Relation` tag, an unknown or missing key and a second document. Against the
-ontology of the store it is read for it refuses, naming the first in document order:
+The reader refuses, by code, a document it cannot read:
 
 | code | when |
 |---|---|
+| `extraction-document-too-large` | over 8388608 bytes, the transaction document's cap |
+| `extraction-document-too-deep` | containers nested deeper than 32, the transaction document's limit. The YAML loader stops at the first container past it, so a deeper document is refused at once |
+| `extraction-yaml-alias` | a YAML alias (`*name`): write each value out |
+| `extraction-document-malformed` | anything else that is not one document of the format: another `format`, an unknown or missing key, a mapping key written twice, a fact written other than as a `!Property` or `!Relation` tag, an alias that is not a YAML string (`~`, `true`, `1.0` and `0x10` are not; quote them), a second document |
+
+Against the ontology of the store it is read for it refuses, naming the first in document order:
+
+| code | when |
+|---|---|
+| `extraction-name-duplicate` | a node type, an edge type, a property of one type, an `Enum` variant or a `NodeRef` type the document declares twice |
+| `extraction-type-conflict` | a type the store holds, redeclared with other `parents` or another `abstract_type` (a node type) or another `cardinality` (an edge type): no schema operation changes those |
 | `extraction-type-undeclared` | a node type or edge type neither the document's `ontology` nor the store declares, named by a parent, an edge type's end, a `NodeRef`, a named thing, a fact's subject or object, or a relation |
+| `extraction-value-type-empty` | an `Enum` with no variant or a `NodeRef` to no node type |
+| `reference-without-identity` | a named thing, or a fact's subject or object, with no alias but the empty string |
 | `extraction-property-undeclared` | a `!Property` fact's property, named `Type.property`, that the subject's type and its ancestors do not declare in the document or the store |
+| `extraction-value-mismatch` | a `!Property` fact's value its property's type does not hold: another kind, an `Enum` variant it does not list, a `Record` without exactly its fields, or any `Float`, which is never committed |
+| `extraction-relation-ends` | a `!Relation` whose subject is not of a source type of its edge type, or whose object is not of a target type, a subtype counting as its parent |
 | `fact-without-evidence` | a fact, named `facts[<index>]`, whose `evidence` is empty or absent |
 | `fact-evidence-unlisted` | a fact citing an id no item of the document's `evidence` carries |
+| `duplicate-identity` | two evidence items under one id |
+| `evidence-payload-mismatch` | an evidence item whose `payload` does not hash to its `content_hash` (`ekr hash` prints the right one) |
 
 ## Worked example: a library catalogue
 

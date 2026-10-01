@@ -178,10 +178,14 @@ EXTRACTION DOCUMENTS
   (`ekr example ekr.extraction-document/1`, `ekr schema ekr.extraction-document/1`): the types it
   needs by name, the named things it found (a node type's name and aliases), its facts (!Property
   or !Relation) and the evidence items they cite (each the entry and payload an AddEvidence
-  carries). The reader refuses, by code: extraction-type-undeclared (a type neither the document
-  nor the store declares), extraction-property-undeclared, fact-without-evidence (every fact cites
-  at least one evidence item) and fact-evidence-unlisted (a cited id no item carries). No verb
-  applies it yet: record what it says with propose, validate and commit.
+  carries). Value types are written as in a seed, a NodeRef naming types in
+  parameters: {allowed_types: [...]}. The reader refuses, by code, among others:
+  extraction-type-undeclared (a type neither the document nor the store declares),
+  extraction-name-duplicate, extraction-type-conflict, extraction-property-undeclared,
+  extraction-value-mismatch, extraction-relation-ends, reference-without-identity,
+  fact-without-evidence (every fact cites at least one evidence item), fact-evidence-unlisted,
+  duplicate-identity and evidence-payload-mismatch; docs/cli.md lists every code. No verb applies
+  it yet: record what it says with propose, validate and commit.
 
 ADDING EVIDENCE
   After the seed, a transaction adds evidence with AddEvidence: the entry and its payload bytes

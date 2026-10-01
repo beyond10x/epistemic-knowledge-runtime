@@ -15,8 +15,9 @@ ontology:
       value:
         value_kind: Enum
         parameters:
-        - active
-        - closed
+          variants:
+          - active
+          - closed
       cardinality: One
       required: false
   edge_types:

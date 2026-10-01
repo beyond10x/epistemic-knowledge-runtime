@@ -112,5 +112,14 @@ fn adv_the_schema_and_the_reader_agree_on_tags_and_repeats() {
     // A tag on a scalar that names no variant is a gap the description states.
     assert!(description.contains("a tag on a scalar"), "{description}");
     parted.retain(|line| !line.starts_with("a named thing's node type written with a tag"));
+    // A name declared twice in a list of declarations is not a repeated item JSON Schema can
+    // see (`uniqueItems` compares whole declarations); the reader refuses it by code, and the
+    // description says so.
+    assert!(
+        description.contains("a name declared twice")
+            && description.contains("extraction-name-duplicate"),
+        "{description}"
+    );
+    parted.retain(|line| line != "a node type declared twice: schema accepts, reader refuses");
     assert!(parted.is_empty(), "{parted:#?}");
 }

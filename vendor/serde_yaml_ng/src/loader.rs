@@ -9,6 +9,8 @@ use std::sync::Arc;
 pub(crate) struct Loader<'input> {
     parser: Option<Parser<'input>>,
     document_count: usize,
+    /// Local: the deepest container nesting loaded before the parser stops (observation facade).
+    max_depth: Option<usize>,
 }
 
 pub(crate) struct Document<'input> {
@@ -37,7 +39,15 @@ impl<'input> Loader<'input> {
         Ok(Loader {
             parser: Some(Parser::new(input)),
             document_count: 0,
+            max_depth: None,
         })
+    }
+
+    /// Local: stop reading, with a recursion limit error on the document, at the first container
+    /// nested deeper than `max_depth`. The parser reads no event past it.
+    pub fn with_max_depth(mut self, max_depth: usize) -> Self {
+        self.max_depth = Some(max_depth);
+        self
     }
 
     pub fn next_document(&mut self) -> Option<Document<'input>> {
@@ -50,6 +60,7 @@ impl<'input> Loader<'input> {
         self.document_count += 1;
 
         let mut anchors = BTreeMap::new();
+        let mut depth = 0usize;
         let mut document = Document {
             events: Vec::new(),
             error: None,
@@ -113,7 +124,17 @@ impl<'input> Loader<'input> {
                 }
                 YamlEvent::MappingEnd => Event::MappingEnd,
             };
+            match event {
+                Event::SequenceStart(_) | Event::MappingStart(_) => depth += 1,
+                Event::SequenceEnd | Event::MappingEnd => depth = depth.saturating_sub(1),
+                _ => {}
+            }
             document.events.push((event, mark));
+            if matches!(self.max_depth, Some(max_depth) if depth > max_depth) {
+                document.error = Some(error::new(ErrorImpl::RecursionLimitExceeded(mark)).shared());
+                self.parser = None;
+                return Some(document);
+            }
         }
     }
 }

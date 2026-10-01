@@ -1119,3 +1119,25 @@ fn every_document_block_in_the_cli_docs_validates_against_its_printed_schema() {
         "docs/cli.md carries no document block of the three formats"
     );
 }
+
+// 7 --------------------------------------------------------------------------------------------
+
+/// The extraction reader's limits are the transaction reader's: one input cap and one depth, so
+/// a document within one reader's bounds is within the other's.
+#[test]
+fn the_extraction_reader_bounds_a_document_as_the_transaction_reader_does() {
+    let limits = ekr_kernel::DOCUMENT_V2_LIMITS;
+    assert_eq!(ekr_integrate::EXTRACTION_DEPTH, limits.depth);
+    assert_eq!(ekr_integrate::EXTRACTION_INPUT_BYTES, limits.input_bytes);
+    let description = schema(EXTRACTION)["description"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    for code in ekr_integrate::ExtractionRefusalCode::ALL {
+        assert!(
+            description.contains(&format!("`{}`", code.code())),
+            "the schema's description does not name {}",
+            code.code()
+        );
+    }
+}

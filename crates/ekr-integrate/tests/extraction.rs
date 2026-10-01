@@ -276,20 +276,30 @@ fn keys(value: &Value) -> BTreeSet<String> {
 
 /// Every code by an exhaustive match: a new variant does not compile here until it is listed.
 fn every_code() -> Vec<ExtractionRefusalCode> {
-    let all = [
-        ExtractionRefusalCode::ExtractionTypeUndeclared,
-        ExtractionRefusalCode::ExtractionPropertyUndeclared,
-        ExtractionRefusalCode::FactWithoutEvidence,
-        ExtractionRefusalCode::FactEvidenceUnlisted,
-    ];
+    use ExtractionRefusalCode as Code;
+    let all = Code::ALL;
     for code in all {
         match code {
-            ExtractionRefusalCode::ExtractionTypeUndeclared
-            | ExtractionRefusalCode::ExtractionPropertyUndeclared
-            | ExtractionRefusalCode::FactWithoutEvidence
-            | ExtractionRefusalCode::FactEvidenceUnlisted => {}
+            Code::ExtractionDocumentTooLarge
+            | Code::ExtractionDocumentTooDeep
+            | Code::ExtractionYamlAlias
+            | Code::ExtractionDocumentMalformed
+            | Code::ExtractionNameDuplicate
+            | Code::ExtractionTypeConflict
+            | Code::ExtractionTypeUndeclared
+            | Code::ExtractionValueTypeEmpty
+            | Code::ReferenceWithoutIdentity
+            | Code::ExtractionPropertyUndeclared
+            | Code::ExtractionValueMismatch
+            | Code::ExtractionRelationEnds
+            | Code::FactWithoutEvidence
+            | Code::FactEvidenceUnlisted
+            | Code::DuplicateIdentity
+            | Code::EvidencePayloadMismatch => {}
         }
     }
+    let distinct: BTreeSet<_> = all.iter().collect();
+    assert_eq!(distinct.len(), all.len(), "ALL lists each code once");
     all.to_vec()
 }
 
@@ -379,4 +389,41 @@ fn the_examples_keys_are_the_fields_the_domain_declares() {
         keys(&document["evidence"][0]),
         declared_fields("ekr.kernel.EvidenceAdditionProjection")
     );
+}
+
+/// Each refusal before decoding carries its own code.
+#[test]
+fn a_refusal_before_decoding_names_its_code() {
+    use ExtractionRefusalCode as Code;
+    let example = example();
+    let code = |document: &str| match ExtractionDocument::from_yaml(document) {
+        Err(ExtractionError::Document(refusal)) => refusal.code,
+        other => panic!("{other:?}"),
+    };
+    let alias = edit(
+        &edit(
+            &example,
+            "  aliases:\n  - Carol\n",
+            "  aliases: &carol\n  - Carol\n",
+        ),
+        "  aliases:\n  - Apollo\n",
+        "  aliases: *carol\n",
+    );
+    assert_eq!(code(&alias), Code::ExtractionYamlAlias);
+    let over = "#".repeat(ekr_integrate::EXTRACTION_INPUT_BYTES + 1);
+    assert_eq!(code(&over), Code::ExtractionDocumentTooLarge);
+    let deep = format!(
+        "format: ekr.extraction-document/1\nevidence: []\nfacts: {}{}\n",
+        "[".repeat(ekr_integrate::EXTRACTION_DEPTH),
+        "]".repeat(ekr_integrate::EXTRACTION_DEPTH)
+    );
+    assert_eq!(code(&deep), Code::ExtractionDocumentTooDeep);
+    let within = format!(
+        "format: ekr.extraction-document/1\nevidence: []\nfacts: {}{}\n",
+        "[".repeat(ekr_integrate::EXTRACTION_DEPTH - 1),
+        "]".repeat(ekr_integrate::EXTRACTION_DEPTH - 1)
+    );
+    assert_eq!(code(&within), Code::ExtractionDocumentMalformed);
+    let twice = edit(&example, "entities:\n", "entities: []\nentities:\n");
+    assert_eq!(code(&twice), Code::ExtractionDocumentMalformed);
 }

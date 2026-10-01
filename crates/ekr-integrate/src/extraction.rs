@@ -16,29 +16,50 @@
 //! # The reader
 //!
 //! [`read_extraction`] decodes a document ([`ExtractionDocument::from_yaml`]) and checks it against
-//! the ontology of the store it is for ([`ExtractionDocument::check`]). Decoding refuses, as
-//! [`ExtractionError::Document`]: more than [`EXTRACTION_INPUT_BYTES`] bytes; a YAML alias
-//! (`*name`), which repeats its anchor's value on every use; any format but
-//! [`EXTRACTION_FORMAT`]; an unknown or missing field; a fact written other than as a `!Property`
-//! or `!Relation` tag; and a second document. Checking refuses, as a named
-//! [`ExtractionRefusal`] and in document order, the first of:
+//! the ontology of the store it is for ([`ExtractionDocument::check`]). Every refusal is an
+//! [`ExtractionRefusal`] with a code. Decoding refuses, as [`ExtractionError::Document`]:
 //!
+//! * `extraction-document-too-large` — more than [`EXTRACTION_INPUT_BYTES`] bytes;
+//! * `extraction-document-too-deep` — containers nested deeper than [`EXTRACTION_DEPTH`], the
+//!   transaction reader's limit. The YAML loader stops at the first container past it, so a deep
+//!   nesting costs what the limit allows, not what the input holds;
+//! * `extraction-yaml-alias` — a YAML alias (`*name`), which repeats its anchor's value;
+//! * `extraction-document-malformed` — anything but one document of the format: another format,
+//!   an unknown or missing field, a mapping key written twice, a fact written other than as a
+//!   `!Property` or `!Relation` tag, an alias that is not a YAML string.
+//!
+//! Checking refuses, as [`ExtractionError::Refused`] and in document order, the first of:
+//!
+//! * `extraction-name-duplicate` — a node type, edge type, property of one type, `Enum` variant
+//!   or `NodeRef` type the document declares twice;
+//! * `extraction-type-conflict` — a type the store holds, redeclared with other parents or another
+//!   abstractness (a node type) or another cardinality (an edge type), which no schema operation
+//!   changes;
 //! * `extraction-type-undeclared` — a node type or edge type that neither the document's ontology
 //!   nor the store declares, named by a parent, an edge type's end, a `NodeRef`, a named thing, a
 //!   fact's subject or object, or a relation;
+//! * `extraction-value-type-empty` — an `Enum` with no variant or a `NodeRef` to no node type;
+//! * `reference-without-identity` — a named thing, or a fact's subject or object, with no alias
+//!   but the empty string;
 //! * `extraction-property-undeclared` — a property fact's property that neither declares on the
 //!   subject's type or any of its ancestors;
+//! * `extraction-value-mismatch` — a property fact's value its property's type does not hold (any
+//!   `Float`, which is never committed);
+//! * `extraction-relation-ends` — a relation whose subject or object is not of a node type, or a
+//!   subtype of one, at that end of its edge type;
 //! * `fact-without-evidence` — a fact citing no evidence item;
-//! * `fact-evidence-unlisted` — a fact citing an id no evidence item of the document carries.
+//! * `fact-evidence-unlisted` — a fact citing an id no evidence item of the document carries;
+//! * `duplicate-identity` — two evidence items under one id;
+//! * `evidence-payload-mismatch` — an evidence item whose payload does not hash to its entry.
 //!
 //! Nothing here writes: AGENTS.md invariant 1.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
-use ekr_core::EvidenceId;
+use ekr_core::{ContentHash, EvidenceId, TypeId};
 use ekr_graph::Evidence;
-use ekr_ontology::{Cardinality, Ontology, Value};
+use ekr_ontology::{Cardinality, Ontology, Value, ValueType};
 use serde::{Deserialize, Serialize};
 
 /// The exact `format` of an extraction document.
@@ -47,6 +68,10 @@ pub const EXTRACTION_FORMAT: &str = "ekr.extraction-document/1";
 /// The most bytes of an extraction document read: the input limit of an
 /// `ekr.transaction-document/2`.
 pub const EXTRACTION_INPUT_BYTES: usize = 8 * 1024 * 1024;
+
+/// The deepest container nesting an extraction document may have: the depth limit of an
+/// `ekr.transaction-document/2`, the document's own mapping counting one.
+pub const EXTRACTION_DEPTH: usize = 32;
 
 /// `ekr.integrate.ExtractionFormat`: the one format this reader reads.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -58,7 +83,9 @@ pub enum ExtractionFormat {
 }
 
 /// `ekr.integrate.ValueSpec`: a value type with node types named rather than identified, written
-/// as a value type is (`value_kind`, and `parameters` for the kinds that take one).
+/// as a value type is: `value_kind`, and `parameters` for the kinds that take one —
+/// `{allowed_types: [<node type name>, ...]}` for a `NodeRef`, `{variants: [...]}` for an `Enum`,
+/// the element type for a `List` and the fields for a `Record`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(tag = "value_kind", content = "parameters", deny_unknown_fields)]
@@ -77,14 +104,28 @@ pub enum ValueSpec {
     Timestamp,
     /// A length of time.
     Duration,
-    /// A reference to a node of one of the node types of these names.
-    NodeRef(Vec<String>),
+    /// A reference to a node of one of these node types, by name.
+    NodeRef {
+        /// The node types, by name; at least one, each once.
+        #[cfg_attr(
+            feature = "schema",
+            schemars(length(min = 1), extend("uniqueItems" = true))
+        )]
+        allowed_types: Vec<String>,
+    },
     /// One of these variants.
-    Enum(Vec<String>),
+    Enum {
+        /// The variants; at least one, each once.
+        #[cfg_attr(
+            feature = "schema",
+            schemars(length(min = 1), extend("uniqueItems" = true))
+        )]
+        variants: Vec<String>,
+    },
     /// A list whose every element has this type.
     List(Box<ValueSpec>),
-    /// These named fields, each of its own type.
-    Record(BTreeMap<String, ValueSpec>),
+    /// These named fields, each of its own type; a field is written once.
+    Record(#[serde(deserialize_with = "ekr_core::decode::unique_map")] BTreeMap<String, ValueSpec>),
 }
 
 /// `ekr.integrate.PropertySpec`: a property by name.
@@ -161,7 +202,9 @@ pub struct OntologySpec {
 pub struct ExtractedReference {
     /// The name of the node type it is an instance of.
     pub node_type: String,
-    /// The names it is known by, each compared byte for byte.
+    /// The names it is known by, each a YAML string compared byte for byte, as a
+    /// [`crate::TypedReference`]'s are: a null, a boolean or a number is refused.
+    #[serde(deserialize_with = "crate::strings")]
     pub aliases: Vec<String>,
 }
 
@@ -253,38 +296,146 @@ pub struct ExtractionDocument {
     pub evidence: Vec<ExtractionEvidence>,
 }
 
-/// `ekr.integrate.ExtractionRefusalCode`.
+/// `ekr.integrate.ExtractionRefusalCode`: why the reader refused a document.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum ExtractionRefusalCode {
+    /// More than [`EXTRACTION_INPUT_BYTES`] bytes.
+    #[serde(rename = "extraction-document-too-large")]
+    ExtractionDocumentTooLarge,
+    /// Containers nested deeper than [`EXTRACTION_DEPTH`].
+    #[serde(rename = "extraction-document-too-deep")]
+    ExtractionDocumentTooDeep,
+    /// A YAML alias.
+    #[serde(rename = "extraction-yaml-alias")]
+    ExtractionYamlAlias,
+    /// Not one document of the format.
+    #[serde(rename = "extraction-document-malformed")]
+    ExtractionDocumentMalformed,
+    /// A name the document declares twice.
+    #[serde(rename = "extraction-name-duplicate")]
+    ExtractionNameDuplicate,
+    /// A store type redeclared in a way no schema operation makes.
+    #[serde(rename = "extraction-type-conflict")]
+    ExtractionTypeConflict,
     /// A node or edge type no declaration of the document or the store gives.
     #[serde(rename = "extraction-type-undeclared")]
     ExtractionTypeUndeclared,
+    /// An `Enum` with no variant or a `NodeRef` to no node type.
+    #[serde(rename = "extraction-value-type-empty")]
+    ExtractionValueTypeEmpty,
+    /// A reference with no alias but the empty string.
+    #[serde(rename = "reference-without-identity")]
+    ReferenceWithoutIdentity,
     /// A property the subject's type and its ancestors do not declare.
     #[serde(rename = "extraction-property-undeclared")]
     ExtractionPropertyUndeclared,
+    /// A property value its property's type does not hold.
+    #[serde(rename = "extraction-value-mismatch")]
+    ExtractionValueMismatch,
+    /// A relation between node types its edge type does not connect.
+    #[serde(rename = "extraction-relation-ends")]
+    ExtractionRelationEnds,
     /// A fact citing no evidence item.
     #[serde(rename = "fact-without-evidence")]
     FactWithoutEvidence,
     /// A fact citing an id no evidence item of the document carries.
     #[serde(rename = "fact-evidence-unlisted")]
     FactEvidenceUnlisted,
+    /// Two evidence items under one id.
+    #[serde(rename = "duplicate-identity")]
+    DuplicateIdentity,
+    /// An evidence payload that does not hash to its entry's `content_hash`.
+    #[serde(rename = "evidence-payload-mismatch")]
+    EvidencePayloadMismatch,
 }
 
 impl ExtractionRefusalCode {
+    /// Every code, in the order the domain declares them.
+    pub const ALL: [Self; 16] = [
+        Self::ExtractionDocumentTooLarge,
+        Self::ExtractionDocumentTooDeep,
+        Self::ExtractionYamlAlias,
+        Self::ExtractionDocumentMalformed,
+        Self::ExtractionNameDuplicate,
+        Self::ExtractionTypeConflict,
+        Self::ExtractionTypeUndeclared,
+        Self::ExtractionValueTypeEmpty,
+        Self::ReferenceWithoutIdentity,
+        Self::ExtractionPropertyUndeclared,
+        Self::ExtractionValueMismatch,
+        Self::ExtractionRelationEnds,
+        Self::FactWithoutEvidence,
+        Self::FactEvidenceUnlisted,
+        Self::DuplicateIdentity,
+        Self::EvidencePayloadMismatch,
+    ];
+
     /// The code as the domain spells it.
     #[must_use]
     pub const fn code(self) -> &'static str {
         match self {
+            Self::ExtractionDocumentTooLarge => "extraction-document-too-large",
+            Self::ExtractionDocumentTooDeep => "extraction-document-too-deep",
+            Self::ExtractionYamlAlias => "extraction-yaml-alias",
+            Self::ExtractionDocumentMalformed => "extraction-document-malformed",
+            Self::ExtractionNameDuplicate => "extraction-name-duplicate",
+            Self::ExtractionTypeConflict => "extraction-type-conflict",
             Self::ExtractionTypeUndeclared => "extraction-type-undeclared",
+            Self::ExtractionValueTypeEmpty => "extraction-value-type-empty",
+            Self::ReferenceWithoutIdentity => "reference-without-identity",
             Self::ExtractionPropertyUndeclared => "extraction-property-undeclared",
+            Self::ExtractionValueMismatch => "extraction-value-mismatch",
+            Self::ExtractionRelationEnds => "extraction-relation-ends",
             Self::FactWithoutEvidence => "fact-without-evidence",
             Self::FactEvidenceUnlisted => "fact-evidence-unlisted",
+            Self::DuplicateIdentity => "duplicate-identity",
+            Self::EvidencePayloadMismatch => "evidence-payload-mismatch",
+        }
+    }
+
+    /// What the code means, for a reader of the refusal.
+    const fn meaning(self) -> &'static str {
+        match self {
+            Self::ExtractionDocumentTooLarge => "the document is larger than the reader reads:",
+            Self::ExtractionDocumentTooDeep => "the document nests deeper than the reader reads:",
+            Self::ExtractionYamlAlias => {
+                "a YAML alias (`*name`) is not accepted; write each value out:"
+            }
+            Self::ExtractionDocumentMalformed => "not an ekr.extraction-document/1 document:",
+            Self::ExtractionNameDuplicate => "the document declares this name twice:",
+            Self::ExtractionTypeConflict => {
+                "the store declares this type with other parents, abstractness or cardinality, \
+                 which no schema operation changes:"
+            }
+            Self::ExtractionTypeUndeclared => {
+                "no node type or edge type of the document's ontology or the store's is named"
+            }
+            Self::ExtractionValueTypeEmpty => "an Enum with no variant or a NodeRef to no type:",
+            Self::ReferenceWithoutIdentity => {
+                "the reference holds no alias but the empty string, so nothing identifies it:"
+            }
+            Self::ExtractionPropertyUndeclared => {
+                "the subject's type and its ancestors declare no property"
+            }
+            Self::ExtractionValueMismatch => "the property's type does not hold the value:",
+            Self::ExtractionRelationEnds => {
+                "the edge type does not connect the subject's and object's node types:"
+            }
+            Self::FactWithoutEvidence => "cites no evidence item:",
+            Self::FactEvidenceUnlisted => {
+                "cites an evidence id the document's evidence does not hold:"
+            }
+            Self::DuplicateIdentity => "two evidence items carry the id",
+            Self::EvidencePayloadMismatch => {
+                "the payload's bytes do not hash to the content_hash of the evidence item"
+            }
         }
     }
 }
 
 /// `ekr.integrate.ExtractionRefusal`: a code, and what the refused part names — the type,
-/// `Type.property`, or `facts[<index>]` and, for an unlisted id, `: <id>`.
+/// `Type.property`, `facts[<index>]` or `entities[<index>]` with what it carries, an evidence id,
+/// or for a document refusal the reason.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ExtractionRefusal {
@@ -296,37 +447,38 @@ pub struct ExtractionRefusal {
 
 impl fmt::Display for ExtractionRefusal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let what = match self.code {
-            ExtractionRefusalCode::ExtractionTypeUndeclared => {
-                "no node type or edge type of the document's ontology or the store's is named"
-            }
-            ExtractionRefusalCode::ExtractionPropertyUndeclared => {
-                "the subject's type and its ancestors declare no property"
-            }
-            ExtractionRefusalCode::FactWithoutEvidence => "cites no evidence item:",
-            ExtractionRefusalCode::FactEvidenceUnlisted => {
-                "cites an evidence id the document's evidence does not hold:"
-            }
-        };
-        write!(f, "{}: {what} {}", self.code.code(), self.name)
+        write!(
+            f,
+            "{}: {} {}",
+            self.code.code(),
+            self.code.meaning(),
+            self.name
+        )
     }
 }
 
 /// Why a document was not read.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ExtractionError {
-    /// It is not an extraction document: the text says why.
-    Document(String),
+    /// It is not an extraction document the reader reads; the code says why.
+    Document(ExtractionRefusal),
     /// It is one, and names something the store cannot take.
     Refused(ExtractionRefusal),
 }
 
+impl ExtractionError {
+    /// The refusal, whichever stage made it.
+    #[must_use]
+    pub const fn refusal(&self) -> &ExtractionRefusal {
+        match self {
+            Self::Document(refusal) | Self::Refused(refusal) => refusal,
+        }
+    }
+}
+
 impl fmt::Display for ExtractionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Document(error) => write!(f, "not an {EXTRACTION_FORMAT} document: {error}"),
-            Self::Refused(refusal) => refusal.fmt(f),
-        }
+        self.refusal().fmt(f)
     }
 }
 
@@ -345,6 +497,14 @@ pub fn read_extraction(
     Ok(document)
 }
 
+/// A refusal of `code` naming `name`.
+fn refusal(code: ExtractionRefusalCode, name: impl Into<String>) -> ExtractionRefusal {
+    ExtractionRefusal {
+        code,
+        name: name.into(),
+    }
+}
+
 impl ExtractionDocument {
     /// Decodes one document. Refuses what the [module](self) documentation lists under decoding.
     ///
@@ -353,183 +513,427 @@ impl ExtractionDocument {
     pub fn from_yaml(text: &str) -> Result<Self, ExtractionError> {
         use serde_yaml_ng::observation::{Documents, Event};
 
-        let fault = |error: &dyn fmt::Display| ExtractionError::Document(error.to_string());
+        let refused = |code, name: &dyn fmt::Display| {
+            ExtractionError::Document(refusal(code, name.to_string()))
+        };
+        let malformed = |error: &dyn fmt::Display| {
+            refused(ExtractionRefusalCode::ExtractionDocumentMalformed, error)
+        };
         if text.len() > EXTRACTION_INPUT_BYTES {
-            return Err(fault(&format_args!("over {EXTRACTION_INPUT_BYTES} bytes")));
+            return Err(refused(
+                ExtractionRefusalCode::ExtractionDocumentTooLarge,
+                &format_args!("{} bytes, at most {EXTRACTION_INPUT_BYTES}", text.len()),
+            ));
         }
-        let mut documents = Documents::from_str(text).map_err(|e| fault(&e))?;
+        let mut documents =
+            Documents::from_str_within_depth(text, EXTRACTION_DEPTH).map_err(|e| malformed(&e))?;
         while let Some(document) = documents.next_document() {
-            document.check().map_err(|e| fault(&e))?;
+            let mut depth = 0usize;
             for at in 0..document.event_count() {
-                if let Some(Event::Alias { .. }) = document.event(at).map_err(|e| fault(&e))? {
-                    return Err(fault(
-                        &"a YAML alias (`*name`) is not accepted: write each value out",
-                    ));
+                match document.event(at).map_err(|e| malformed(&e))? {
+                    Some(Event::Alias { .. }) => {
+                        return Err(refused(
+                            ExtractionRefusalCode::ExtractionYamlAlias,
+                            &format_args!("event {at}"),
+                        ))
+                    }
+                    Some(Event::MappingStart(_) | Event::SequenceStart(_)) => {
+                        depth += 1;
+                        if depth > EXTRACTION_DEPTH {
+                            return Err(refused(
+                                ExtractionRefusalCode::ExtractionDocumentTooDeep,
+                                &format_args!("nested more than {EXTRACTION_DEPTH} deep"),
+                            ));
+                        }
+                    }
+                    Some(Event::MappingEnd | Event::SequenceEnd) => depth = depth.saturating_sub(1),
+                    _ => {}
                 }
             }
+            document.check().map_err(|e| malformed(&e))?;
         }
-        serde_yaml_ng::from_str(text).map_err(|e| fault(&e))
+        serde_yaml_ng::from_str(text).map_err(|e| malformed(&e))
     }
 
-    /// Checks every name against this document's ontology and `store`'s, and every fact's
-    /// evidence against this document's, in document order.
+    /// Checks the document against itself and `store`'s ontology, in document order.
     ///
     /// # Errors
     /// The first [`ExtractionRefusal`] the [module](self) documentation lists under checking.
     pub fn check(&self, store: &Ontology) -> Result<(), ExtractionRefusal> {
-        let names = Names::of(&self.ontology, store);
-        let refuse = |code, name: String| Err(ExtractionRefusal { code, name });
+        use ExtractionRefusalCode as Code;
+
+        let held = Names::of_store(store);
+        let names = held.with(&self.ontology);
         let node_type = |name: &str| {
             if names.nodes.contains_key(name) {
                 Ok(())
             } else {
-                refuse(
-                    ExtractionRefusalCode::ExtractionTypeUndeclared,
-                    name.to_owned(),
-                )
+                Err(refusal(Code::ExtractionTypeUndeclared, name))
             }
         };
 
-        for declared in &self.ontology.node_types {
-            declared
-                .parents
+        let mut declared = BTreeSet::new();
+        for spec in &self.ontology.node_types {
+            if !declared.insert(spec.name.as_str()) {
+                return Err(refusal(Code::ExtractionNameDuplicate, spec.name.as_str()));
+            }
+            unique_properties(&spec.name, &spec.properties)?;
+            if let Some(store_type) = held.nodes.get(&spec.name) {
+                let parents: BTreeSet<String> = spec.parents.iter().cloned().collect();
+                if parents != store_type.parents || spec.abstract_type != store_type.abstract_type {
+                    return Err(refusal(Code::ExtractionTypeConflict, spec.name.as_str()));
+                }
+            }
+            spec.parents
                 .iter()
                 .try_for_each(|parent| node_type(parent))?;
-            for property in &declared.properties {
-                value_node_types(&property.value, &node_type)?;
+            for property in &spec.properties {
+                value_spec(
+                    &format!("{}.{}", spec.name, property.name),
+                    &property.value,
+                    &node_type,
+                )?;
             }
         }
-        for declared in &self.ontology.edge_types {
-            declared
-                .source_types
+        let mut declared = BTreeSet::new();
+        for spec in &self.ontology.edge_types {
+            if !declared.insert(spec.name.as_str()) {
+                return Err(refusal(Code::ExtractionNameDuplicate, spec.name.as_str()));
+            }
+            unique_properties(&spec.name, &spec.properties)?;
+            if held
+                .edges
+                .get(&spec.name)
+                .is_some_and(|store_type| store_type.cardinality != spec.cardinality)
+            {
+                return Err(refusal(Code::ExtractionTypeConflict, spec.name.as_str()));
+            }
+            spec.source_types
                 .iter()
-                .chain(&declared.target_types)
+                .chain(&spec.target_types)
                 .try_for_each(|end| node_type(end))?;
-            for property in &declared.properties {
-                value_node_types(&property.value, &node_type)?;
+            for property in &spec.properties {
+                value_spec(
+                    &format!("{}.{}", spec.name, property.name),
+                    &property.value,
+                    &node_type,
+                )?;
             }
         }
-        for entity in &self.entities {
-            node_type(&entity.node_type)?;
+
+        let reference = |at: String, reference: &ExtractedReference| {
+            if reference.aliases.iter().all(String::is_empty) {
+                return Err(refusal(Code::ReferenceWithoutIdentity, at));
+            }
+            node_type(&reference.node_type)
+        };
+        for (at, entity) in self.entities.iter().enumerate() {
+            reference(format!("entities[{at}]"), entity)?;
         }
+
         let listed: BTreeSet<EvidenceId> =
             self.evidence.iter().map(|item| item.evidence.id).collect();
         for (at, fact) in self.facts.iter().enumerate() {
             match fact {
                 ExtractedFact::Property(fact) => {
-                    node_type(&fact.subject.node_type)?;
-                    if !names.declares(&fact.subject.node_type, &fact.property) {
-                        return refuse(
-                            ExtractionRefusalCode::ExtractionPropertyUndeclared,
-                            format!("{}.{}", fact.subject.node_type, fact.property),
-                        );
+                    reference(format!("facts[{at}].subject"), &fact.subject)?;
+                    let named = format!("{}.{}", fact.subject.node_type, fact.property);
+                    let Some(value_type) = names.property(&fact.subject.node_type, &fact.property)
+                    else {
+                        return Err(refusal(Code::ExtractionPropertyUndeclared, named));
+                    };
+                    if !holds(value_type, &fact.value) {
+                        return Err(refusal(
+                            Code::ExtractionValueMismatch,
+                            format!("facts[{at}]: {named}"),
+                        ));
                     }
                 }
                 ExtractedFact::Relation(fact) => {
-                    node_type(&fact.subject.node_type)?;
-                    if !names.edges.contains(&fact.relation) {
-                        return refuse(
-                            ExtractionRefusalCode::ExtractionTypeUndeclared,
-                            fact.relation.clone(),
-                        );
+                    reference(format!("facts[{at}].subject"), &fact.subject)?;
+                    let Some(edge) = names.edges.get(&fact.relation) else {
+                        return Err(refusal(
+                            Code::ExtractionTypeUndeclared,
+                            fact.relation.as_str(),
+                        ));
+                    };
+                    reference(format!("facts[{at}].object"), &fact.object)?;
+                    let connects = |node: &str, ends: &BTreeSet<String>| {
+                        ends.iter().any(|end| names.conforms(node, end))
+                    };
+                    if !connects(&fact.subject.node_type, &edge.sources)
+                        || !connects(&fact.object.node_type, &edge.targets)
+                    {
+                        return Err(refusal(
+                            Code::ExtractionRelationEnds,
+                            format!(
+                                "facts[{at}]: {} {} {}",
+                                fact.subject.node_type, fact.relation, fact.object.node_type
+                            ),
+                        ));
                     }
-                    node_type(&fact.object.node_type)?;
                 }
             }
             let cited = fact.evidence();
             if cited.is_empty() {
-                return refuse(
-                    ExtractionRefusalCode::FactWithoutEvidence,
-                    format!("facts[{at}]"),
-                );
+                return Err(refusal(Code::FactWithoutEvidence, format!("facts[{at}]")));
             }
             if let Some(id) = cited.iter().find(|id| !listed.contains(id)) {
-                return refuse(
-                    ExtractionRefusalCode::FactEvidenceUnlisted,
+                return Err(refusal(
+                    Code::FactEvidenceUnlisted,
                     format!("facts[{at}]: {id}"),
-                );
+                ));
+            }
+        }
+
+        let mut ids = BTreeSet::new();
+        for item in &self.evidence {
+            let id = item.evidence.id;
+            if !ids.insert(id) {
+                return Err(refusal(Code::DuplicateIdentity, id.to_string()));
+            }
+            if ContentHash::of_bytes(&item.payload) != item.evidence.content_hash {
+                return Err(refusal(Code::EvidencePayloadMismatch, id.to_string()));
             }
         }
         Ok(())
     }
 }
 
-/// Every node type a value type names, checked by `node_type`.
-fn value_node_types(
+/// Refuses a property name `owner` declares twice.
+fn unique_properties(owner: &str, properties: &[PropertySpec]) -> Result<(), ExtractionRefusal> {
+    let mut seen = BTreeSet::new();
+    match properties
+        .iter()
+        .find(|property| !seen.insert(property.name.as_str()))
+    {
+        Some(property) => Err(refusal(
+            ExtractionRefusalCode::ExtractionNameDuplicate,
+            format!("{owner}.{}", property.name),
+        )),
+        None => Ok(()),
+    }
+}
+
+/// Checks a declared value type at `site`: its lists not empty and without a repeat, and every
+/// node type it names, by `node_type`.
+fn value_spec(
+    site: &str,
     value: &ValueSpec,
     node_type: &impl Fn(&str) -> Result<(), ExtractionRefusal>,
 ) -> Result<(), ExtractionRefusal> {
+    let listed = |names: &[String]| {
+        if names.is_empty() {
+            return Err(refusal(
+                ExtractionRefusalCode::ExtractionValueTypeEmpty,
+                site,
+            ));
+        }
+        let mut seen = BTreeSet::new();
+        match names.iter().find(|name| !seen.insert(name.as_str())) {
+            Some(name) => Err(refusal(
+                ExtractionRefusalCode::ExtractionNameDuplicate,
+                format!("{site}: {name}"),
+            )),
+            None => Ok(()),
+        }
+    };
     match value {
-        ValueSpec::NodeRef(names) => names.iter().try_for_each(|name| node_type(name)),
-        ValueSpec::List(element) => value_node_types(element, node_type),
-        ValueSpec::Record(fields) => fields
-            .values()
-            .try_for_each(|field| value_node_types(field, node_type)),
+        ValueSpec::NodeRef { allowed_types } => {
+            listed(allowed_types)?;
+            allowed_types.iter().try_for_each(|name| node_type(name))
+        }
+        ValueSpec::Enum { variants } => listed(variants),
+        ValueSpec::List(element) => value_spec(site, element, node_type),
+        ValueSpec::Record(fields) => fields.iter().try_for_each(|(field, value)| {
+            value_spec(&format!("{site}.{field}"), value, node_type)
+        }),
         _ => Ok(()),
     }
 }
 
-/// What a document and a store declare between them, by name.
+/// Whether a value of `value_type` can be `value`. A `NodeRef` names a node by id, which only the
+/// store resolves, so its kind is what is checked here; a `Float` is never held.
+fn holds(value_type: &ValueSpec, value: &Value) -> bool {
+    match (value_type, value) {
+        (ValueSpec::String, Value::String(_))
+        | (ValueSpec::Boolean, Value::Boolean(_))
+        | (ValueSpec::Integer, Value::Integer(_))
+        | (ValueSpec::Decimal, Value::Decimal(_))
+        | (ValueSpec::Timestamp, Value::Timestamp(_))
+        | (ValueSpec::Duration, Value::Duration(_))
+        | (ValueSpec::NodeRef { .. }, Value::NodeRef(_)) => true,
+        (ValueSpec::Enum { variants }, Value::Enum(variant)) => variants.contains(variant),
+        (ValueSpec::List(element), Value::List(items)) => {
+            items.iter().all(|item| holds(element, item))
+        }
+        (ValueSpec::Record(fields), Value::Record(carried)) => {
+            fields.len() == carried.len()
+                && carried
+                    .iter()
+                    .all(|(field, value)| fields.get(field).is_some_and(|spec| holds(spec, value)))
+        }
+        _ => false,
+    }
+}
+
+/// A node type by name: its parents by name, its abstractness and its own properties' types.
+#[derive(Clone, Default)]
+struct NodeEntry {
+    parents: BTreeSet<String>,
+    abstract_type: bool,
+    properties: BTreeMap<String, ValueSpec>,
+}
+
+/// An edge type by name: its ends by node type name and its cardinality.
+#[derive(Clone)]
+struct EdgeEntry {
+    sources: BTreeSet<String>,
+    targets: BTreeSet<String>,
+    cardinality: Cardinality,
+}
+
+/// An ontology by name.
+#[derive(Clone)]
 struct Names {
-    /// Each node type's parents and the properties it declares itself, both sides merged.
-    nodes: BTreeMap<String, (BTreeSet<String>, BTreeSet<String>)>,
-    /// Every edge type.
-    edges: BTreeSet<String>,
+    nodes: BTreeMap<String, NodeEntry>,
+    edges: BTreeMap<String, EdgeEntry>,
 }
 
 impl Names {
-    fn of(spec: &OntologySpec, store: &Ontology) -> Self {
+    /// What `store` declares.
+    fn of_store(store: &Ontology) -> Self {
         let held = store.to_document();
-        let named: BTreeMap<_, _> = held
+        let named: BTreeMap<TypeId, String> = held
             .node_types
             .iter()
             .map(|declared| (declared.id, declared.name.clone()))
             .collect();
-        let mut nodes: BTreeMap<String, (BTreeSet<String>, BTreeSet<String>)> = BTreeMap::new();
-        for declared in &held.node_types {
-            let entry = nodes.entry(declared.name.clone()).or_default();
-            entry.0.extend(
-                declared
-                    .parents
-                    .iter()
-                    .filter_map(|id| named.get(id).cloned()),
-            );
-            entry
-                .1
-                .extend(declared.properties.values().map(|p| p.name.clone()));
-        }
-        for declared in &spec.node_types {
-            let entry = nodes.entry(declared.name.clone()).or_default();
-            entry.0.extend(declared.parents.iter().cloned());
-            entry
-                .1
-                .extend(declared.properties.iter().map(|p| p.name.clone()));
-        }
+        let names = |ids: &BTreeSet<TypeId>| -> BTreeSet<String> {
+            ids.iter().filter_map(|id| named.get(id).cloned()).collect()
+        };
+        let nodes = held
+            .node_types
+            .iter()
+            .map(|declared| {
+                let entry = NodeEntry {
+                    parents: names(&declared.parents),
+                    abstract_type: declared.abstract_type,
+                    properties: declared
+                        .properties
+                        .values()
+                        .map(|property| {
+                            (property.name.clone(), by_name(&property.value_type, &named))
+                        })
+                        .collect(),
+                };
+                (declared.name.clone(), entry)
+            })
+            .collect();
         let edges = held
             .edge_types
             .iter()
-            .map(|declared| declared.name.clone())
-            .chain(spec.edge_types.iter().map(|declared| declared.name.clone()))
+            .map(|declared| {
+                let entry = EdgeEntry {
+                    sources: names(&declared.source_types),
+                    targets: names(&declared.target_types),
+                    cardinality: declared.cardinality,
+                };
+                (declared.name.clone(), entry)
+            })
             .collect();
         Self { nodes, edges }
     }
 
-    /// Whether `node_type` or one of its ancestors declares `property`.
-    fn declares(&self, node_type: &str, property: &str) -> bool {
+    /// This ontology with `spec` applied: a new type as declared, a held one with the document's
+    /// properties declared over its own, and an edge type's ends widened to the document's.
+    fn with(&self, spec: &OntologySpec) -> Self {
+        let mut next = self.clone();
+        for declared in &spec.node_types {
+            let entry = next
+                .nodes
+                .entry(declared.name.clone())
+                .or_insert_with(|| NodeEntry {
+                    parents: declared.parents.iter().cloned().collect(),
+                    abstract_type: declared.abstract_type,
+                    properties: BTreeMap::new(),
+                });
+            for property in &declared.properties {
+                entry
+                    .properties
+                    .insert(property.name.clone(), property.value.clone());
+            }
+        }
+        for declared in &spec.edge_types {
+            let entry = next
+                .edges
+                .entry(declared.name.clone())
+                .or_insert_with(|| EdgeEntry {
+                    sources: BTreeSet::new(),
+                    targets: BTreeSet::new(),
+                    cardinality: declared.cardinality,
+                });
+            entry.sources.extend(declared.source_types.iter().cloned());
+            entry.targets.extend(declared.target_types.iter().cloned());
+        }
+        next
+    }
+
+    /// `node_type` and its ancestors, nearest first.
+    fn lineage<'a>(&'a self, node_type: &'a str) -> Vec<&'a str> {
         let mut seen = BTreeSet::new();
+        let mut order = Vec::new();
         let mut open = vec![node_type];
         while let Some(name) = open.pop() {
             if !seen.insert(name) {
                 continue;
             }
-            let Some((parents, properties)) = self.nodes.get(name) else {
-                continue;
-            };
-            if properties.contains(property) {
-                return true;
+            order.push(name);
+            if let Some(entry) = self.nodes.get(name) {
+                open.extend(entry.parents.iter().map(String::as_str).rev());
             }
-            open.extend(parents.iter().map(String::as_str));
         }
-        false
+        order
+    }
+
+    /// The type of `property` on `node_type`, declared there or on an ancestor.
+    fn property(&self, node_type: &str, property: &str) -> Option<&ValueSpec> {
+        self.lineage(node_type)
+            .into_iter()
+            .find_map(|name| self.nodes.get(name)?.properties.get(property))
+    }
+
+    /// Whether `node_type` is `ancestor` or a descendant of it.
+    fn conforms(&self, node_type: &str, ancestor: &str) -> bool {
+        self.lineage(node_type).contains(&ancestor)
+    }
+}
+
+/// A store's value type with its node types named.
+fn by_name(value_type: &ValueType, named: &BTreeMap<TypeId, String>) -> ValueSpec {
+    match value_type {
+        ValueType::String => ValueSpec::String,
+        ValueType::Boolean => ValueSpec::Boolean,
+        ValueType::Integer => ValueSpec::Integer,
+        ValueType::Float => ValueSpec::Float,
+        ValueType::Decimal => ValueSpec::Decimal,
+        ValueType::Timestamp => ValueSpec::Timestamp,
+        ValueType::Duration => ValueSpec::Duration,
+        ValueType::NodeRef { allowed_types } => ValueSpec::NodeRef {
+            allowed_types: allowed_types
+                .iter()
+                .map(|id| named.get(id).cloned().unwrap_or_else(|| id.to_string()))
+                .collect(),
+        },
+        ValueType::Enum { variants } => ValueSpec::Enum {
+            variants: variants.iter().cloned().collect(),
+        },
+        ValueType::List(element) => ValueSpec::List(Box::new(by_name(element, named))),
+        ValueType::Record(fields) => ValueSpec::Record(
+            fields
+                .iter()
+                .map(|(field, value)| (field.clone(), by_name(value, named)))
+                .collect(),
+        ),
     }
 }

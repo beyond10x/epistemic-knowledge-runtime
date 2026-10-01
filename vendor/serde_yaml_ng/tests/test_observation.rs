@@ -162,3 +162,25 @@ fn scalar_classification_reuses_the_default_resolver() {
     assert!(scalar.kind(false).is_err());
     assert!(serde_yaml_ng::from_str::<serde_yaml_ng::Value>("!!bool wrong").is_err());
 }
+
+#[test]
+fn a_depth_bound_stops_the_loader_at_the_first_container_past_it() {
+    let mut documents = Documents::from_str_within_depth("a: [[1]]\n", 3).unwrap();
+    documents.next_document().unwrap().check().unwrap();
+
+    let deep = format!("{}{}", "[".repeat(1 << 20), "]".repeat(1 << 20));
+    let started = std::time::Instant::now();
+    let mut documents = Documents::from_str_within_depth(&deep, 3).unwrap();
+    let document = documents.next_document().unwrap();
+    assert!(document.check().is_err());
+    assert_eq!(document.event_count(), 4);
+    assert!(matches!(
+        document.event(3).unwrap(),
+        Some(Event::SequenceStart(None))
+    ));
+    assert!(documents.next_document().is_none());
+    assert!(started.elapsed() < std::time::Duration::from_secs(5));
+
+    let mut documents = Documents::from_str("[[1]]\n").unwrap();
+    documents.next_document().unwrap().check().unwrap();
+}

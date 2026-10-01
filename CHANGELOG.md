@@ -12,11 +12,17 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   named things it found (a node type's name and aliases), its facts (`!Property` or `!Relation`)
   and the evidence items they cite, each the entry and payload an `!AddEvidence` carries.
   `ekr example ekr.extraction-document/1` (alias `extraction`) prints one for the example seed and
-  `ekr schema ekr.extraction-document/1` its JSON Schema. `ekr_integrate::read_extraction` reads
-  it against a store's ontology and refuses, by code, a type neither the document nor the store
-  declares (`extraction-type-undeclared`), an undeclared property
-  (`extraction-property-undeclared`), a fact citing no evidence (`fact-without-evidence`) and a
-  fact citing an id the document does not carry (`fact-evidence-unlisted`). Specified, with the
+  `ekr schema ekr.extraction-document/1` its JSON Schema. Value types are written as a seed
+  writes them, a `NodeRef` naming its types in `parameters: {allowed_types: [...]}`.
+  `ekr_integrate::read_extraction` reads it against a store's ontology and refuses each problem by
+  its code (`docs/cli.md` lists all sixteen): a document over 8388608 bytes, nested deeper than 32
+  (the YAML loader stops there, so a deep nesting is refused at once), holding a YAML alias or
+  malformed; a name declared twice; a store type redeclared with other parents, abstractness or
+  cardinality; a type neither the document nor the store declares; an empty Enum or NodeRef; a
+  reference with no identifying alias; an undeclared property; a value its property's type does
+  not hold; a relation its edge type does not connect; a fact citing no evidence or an id the
+  document does not carry; two evidence items under one id; and a payload that does not hash to
+  its entry. The vendored YAML loader gains an opt-in depth bound for this. Specified, with the
   report applying a document will print, in `systems/ekr/domains/integrate.yaml`. No verb applies
   a document yet.
 

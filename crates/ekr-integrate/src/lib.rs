@@ -113,7 +113,7 @@ pub use extraction::{
     read_extraction, EdgeTypeSpec, ExtractedFact, ExtractedReference, ExtractionDocument,
     ExtractionError, ExtractionEvidence, ExtractionFormat, ExtractionRefusal,
     ExtractionRefusalCode, NodeTypeSpec, OntologySpec, PropertyFact, PropertySpec, RelationFact,
-    ValueSpec, EXTRACTION_FORMAT, EXTRACTION_INPUT_BYTES,
+    ValueSpec, EXTRACTION_DEPTH, EXTRACTION_FORMAT, EXTRACTION_INPUT_BYTES,
 };
 
 /// A reference to a node by its type and the names it is known by, before it is resolved:
@@ -130,7 +130,9 @@ pub struct TypedReference {
 
 /// A list of strings, decoded self-describingly: a number, a boolean, a null, a tagged value or
 /// a null list is refused, not read as its text or as an empty list. `List<String>` means strings.
-fn strings<'de, D: serde::Deserializer<'de>>(decoder: D) -> Result<Vec<String>, D::Error> {
+pub(crate) fn strings<'de, D: serde::Deserializer<'de>>(
+    decoder: D,
+) -> Result<Vec<String>, D::Error> {
     struct Text(String);
     impl<'de> Deserialize<'de> for Text {
         fn deserialize<D: serde::Deserializer<'de>>(decoder: D) -> Result<Self, D::Error> {

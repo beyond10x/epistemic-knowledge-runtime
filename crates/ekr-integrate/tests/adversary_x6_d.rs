@@ -73,7 +73,6 @@ fn evidence_item(example: &str) -> String {
 /// `ekr_sdk::document::OntologySpec` refuses a second declaration of one name as
 /// `DuplicateName` (`check_unique`). The reader merges the two declarations instead.
 #[test]
-#[ignore = "finding: the reader accepts a node type, a property or an edge type declared twice"]
 fn adv_a_name_the_document_declares_twice_is_refused() {
     let example = example();
     let node_twice = edit(
@@ -115,7 +114,6 @@ fn adv_a_name_the_document_declares_twice_is_refused() {
 /// type the store holds "is kept". The reader instead merges the document's parents into the
 /// store's type, and so accepts a property the store's type does not have.
 #[test]
-#[ignore = "finding: a store type redeclared with another parent lends it the parent's properties"]
 fn adv_a_store_type_redeclared_with_another_parent_is_refused() {
     let document = edit(
         &edit(
@@ -140,7 +138,6 @@ fn adv_a_store_type_redeclared_with_another_parent_is_refused() {
 /// as `{value_kind: Enum, parameters: {variants: [a, b]}}`, which is what `ValueType` writes.
 /// The reader refuses that form and takes `parameters: [a, b]` only.
 #[test]
-#[ignore = "finding: an Enum value type written as docs/cli.md § Value types writes it is refused"]
 fn adv_an_enum_value_type_written_as_a_value_type_is_read() {
     let written = "value_kind: Enum\nparameters:\n  variants: [active, closed]\n";
     let held: ValueType = serde_yaml_ng::from_str(written).expect("a value type reads it");
@@ -151,31 +148,47 @@ fn adv_an_enum_value_type_written_as_a_value_type_is_read() {
         "ValueSpec refuses the value type form: {spec:?}"
     );
 
-    let document = edit(
-        &example(),
-        "        parameters:\n        - active\n        - closed\n",
-        "        parameters:\n          variants: [active, closed]\n",
+    let document = example();
+    assert!(
+        document.contains(
+            "        parameters:\n          variants:\n          - active\n          - closed\n"
+        ),
+        "the example writes its Enum as a value type does"
     );
     assert_eq!(verdict(&document), "accepted");
+    let list_form = edit(
+        &document,
+        "        parameters:\n          variants:\n          - active\n          - closed\n",
+        "        parameters:\n        - active\n        - closed\n",
+    );
+    assert_refused("an Enum whose parameters are a bare list", &list_form);
 }
 
 /// `ValueType` refuses an empty `Enum` or `NodeRef` at load ("a type no value inhabits is not a
 /// type", `ekr-ontology/src/value.rs`) and a repeated variant at decode (`unique_set`). The
 /// reader takes all of them, so a document it accepts declares a type no store loads.
 #[test]
-#[ignore = "finding: an empty or repeated Enum/NodeRef parameter list is accepted"]
 fn adv_an_enum_or_node_ref_no_store_can_declare_is_refused() {
     let example = example();
-    let enum_at = "        parameters:\n        - active\n        - closed\n";
+    let enum_at =
+        "        parameters:\n          variants:\n          - active\n          - closed\n";
     let mut accepted = Vec::new();
     for (what, document) in [
         (
             "Enum with no variant",
-            edit(&example, enum_at, "        parameters: []\n"),
+            edit(
+                &example,
+                enum_at,
+                "        parameters:\n          variants: []\n",
+            ),
         ),
         (
             "Enum with one variant twice",
-            edit(&example, enum_at, "        parameters: [active, active]\n"),
+            edit(
+                &example,
+                enum_at,
+                "        parameters:\n          variants: [active, active]\n",
+            ),
         ),
         (
             "NodeRef to no node type",
@@ -184,7 +197,11 @@ fn adv_an_enum_or_node_ref_no_store_can_declare_is_refused() {
                 "        value_kind: Enum\n",
                 "        value_kind: NodeRef\n",
             )
-            .replacen(enum_at, "        parameters: []\n", 1),
+            .replacen(
+                enum_at,
+                "        parameters:\n          allowed_types: []\n",
+                1,
+            ),
         ),
     ] {
         if verdict(&document) == "accepted" {
@@ -206,7 +223,6 @@ fn adv_an_enum_or_node_ref_no_store_can_declare_is_refused() {
 /// repeated key (`ekr_core::decode::unique_map`, and the YAML schema description: "The readers
 /// refuse ... a mapping key written twice").
 #[test]
-#[ignore = "finding: a Record value type with a field written twice keeps the last and is accepted"]
 fn adv_a_record_value_type_with_a_field_written_twice_is_refused() {
     let written = "value_kind: Record\nparameters:\n  amount:\n    value_kind: String\n  \
                    amount:\n    value_kind: Integer\n";
@@ -223,7 +239,6 @@ fn adv_a_record_value_type_with_a_field_written_twice_is_refused() {
 /// than the property's, an `Enum` value no variant names, and a `Float` (which `docs/cli.md`
 /// says "no Float value can be committed") are all accepted.
 #[test]
-#[ignore = "finding: a property fact whose value cannot satisfy the property's type is accepted"]
 fn adv_a_property_fact_whose_value_the_property_cannot_hold_is_refused() {
     let example = example();
     let status = "  property: status\n  value:\n    value_kind: Enum\n    value: active\n";
@@ -264,7 +279,6 @@ fn adv_a_property_fact_whose_value_the_property_cannot_hold_is_refused() {
 /// A relation whose subject is not of a source type of the edge type: `CEO_OF` runs from
 /// `Person` to `Organization` in the example store, and a `Project` is its subject here.
 #[test]
-#[ignore = "finding: a relation between types its edge type does not connect is accepted"]
 fn adv_a_relation_between_types_its_edge_type_does_not_connect_is_refused() {
     let document = edit(
         &example(),
@@ -281,7 +295,6 @@ fn adv_a_relation_between_types_its_edge_type_does_not_connect_is_refused() {
 /// refuses an alias YAML reads as null, a boolean or a number ("`List<String>` means strings",
 /// `lib.rs`); `ExtractedReference.aliases` is a plain `Vec<String>` and reads each as its text.
 #[test]
-#[ignore = "finding: an alias YAML reads as null, a boolean or a number is accepted as text"]
 fn adv_an_alias_that_is_not_a_string_is_refused_as_a_typed_reference_refuses_it() {
     let example = example();
     let mut accepted = Vec::new();
@@ -307,7 +320,6 @@ fn adv_an_alias_that_is_not_a_string_is_refused_as_a_typed_reference_refuses_it(
 /// A named thing with no alias, or only the empty one, identifies nothing: the resolver it is to
 /// resolve through refuses it as `reference-without-identity`. The reader accepts it.
 #[test]
-#[ignore = "finding: a named thing with no identifying alias is accepted"]
 fn adv_a_named_thing_with_no_identifying_alias_is_refused() {
     let example = example();
     let mut accepted = Vec::new();
@@ -332,7 +344,6 @@ fn adv_a_named_thing_with_no_identifying_alias_is_refused() {
 /// Two evidence items under one id: a fact citing it rests on whichever an applier picks, and the
 /// second `AddEvidence` of one id cannot commit. The reader collects ids into a set and accepts.
 #[test]
-#[ignore = "finding: two evidence items under one id are accepted"]
 fn adv_two_evidence_items_under_one_id_are_refused() {
     let example = example();
     let item = evidence_item(&example);
@@ -351,7 +362,6 @@ fn adv_two_evidence_items_under_one_id_are_refused() {
 /// the schema says the payload is "the exact bytes its `content_hash` addresses". The reader does
 /// not compare them.
 #[test]
-#[ignore = "finding: an evidence payload that does not hash to its content_hash is accepted"]
 fn adv_an_evidence_payload_that_does_not_hash_to_its_entry_is_refused() {
     let document = edit(&example(), "payload: [67, ", "payload: [68, ");
     assert_refused("payload byte 0 changed, content_hash kept", &document);
@@ -372,8 +382,8 @@ fn nested_lists(n: usize, parameters_first: bool) -> String {
     }
     edit(
         &example(),
-        "      value:\n        value_kind: Enum\n        parameters:\n        - active\n        \
-         - closed\n",
+        "      value:\n        value_kind: Enum\n        parameters:\n          variants:\n          \
+         - active\n          - closed\n",
         &format!("      value: {spec}\n"),
     )
 }
@@ -427,7 +437,6 @@ fn flow_nesting(depth: usize) -> String {
 /// Prints the time of each depth it measures, then gives the largest flow nesting the cap admits
 /// a budget of 30 s (the example reads in milliseconds).
 #[test]
-#[ignore = "finding: a flow nesting within the 8 MiB cap is not answered in 30 s (quadratic load)"]
 fn adv_the_deepest_flow_nesting_under_the_byte_cap_is_answered_promptly() {
     for depth in [4_096, 8_192, 16_384, 32_768] {
         let document = flow_nesting(depth);
@@ -533,8 +542,8 @@ fn adv_every_site_that_names_a_type_refuses_an_undeclared_one() {
                 "        value_kind: NodeRef\n",
             )
             .replacen(
-                "        parameters:\n        - active\n        - closed\n",
-                "        parameters:\n        - Gadget\n",
+                "        parameters:\n          variants:\n          - active\n          - closed\n",
+                "        parameters:\n          allowed_types:\n          - Gadget\n",
                 1,
             ),
             "Gadget",

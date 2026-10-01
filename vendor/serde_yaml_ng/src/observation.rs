@@ -26,6 +26,17 @@ impl<'input> Documents<'input> {
         })
     }
 
+    /// Begin observing an already bounded UTF-8 input whose containers nest at most
+    /// `max_depth` deep. At the first container nested deeper, the parser stops: the document
+    /// holds the events up to and including that container's start, and [`Document::check`]
+    /// returns a recursion limit error. No later event and no later document is read, so the
+    /// loader's work on a deeper nesting is bounded by the limit rather than by the input.
+    pub fn from_str_within_depth(input: &'input str, max_depth: usize) -> Result<Self> {
+        Ok(Self {
+            loader: Loader::new(Progress::Str(input))?.with_max_depth(max_depth),
+        })
+    }
+
     /// Buffer the next document, retaining any loader error on that document.
     /// A document containing an error must never be admitted without [`Document::check`].
     pub fn next_document(&mut self) -> Option<Document<'input>> {

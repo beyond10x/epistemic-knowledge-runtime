@@ -34,14 +34,29 @@ fn extraction_document() -> schemars::Schema {
         &format!(
             "An extraction document: what an extracting agent read from its sources, for a store \
              to take in (`ekr example {format}`). Types, properties and relations are named, never \
-             identified. Beyond the schema, the reader also refuses a YAML alias (`*name`), a \
-             document over {} bytes, and, against the store it is read for, a node type or edge \
-             type that neither the document's ontology nor the store declares \
-             (`extraction-type-undeclared`), a property the subject's type and its ancestors do \
-             not declare (`extraction-property-undeclared`) and a fact citing an evidence id no \
-             evidence item of the document carries (`fact-evidence-unlisted`); a fact citing no \
-             evidence is refused as `fact-without-evidence`.",
-            ekr_integrate::EXTRACTION_INPUT_BYTES
+             identified. Beyond the schema, the reader also refuses, each by its code: a \
+             document over {} bytes (`extraction-document-too-large`); containers nested deeper \
+             than {} (`extraction-document-too-deep`); a YAML alias (`*name`, \
+             `extraction-yaml-alias`); a mapping key written twice \
+             (`extraction-document-malformed`); a name declared twice in the document, a node \
+             type, an edge type or a property of one type (`extraction-name-duplicate`); and, \
+             against the store it is read for, a store type redeclared with other parents, \
+             abstractness or cardinality (`extraction-type-conflict`), a node type or edge type \
+             that neither the document's ontology nor the store declares \
+             (`extraction-type-undeclared`), a named thing or a fact's subject or object with no \
+             alias but the empty string (`reference-without-identity`), a property the subject's \
+             type and its ancestors do not declare (`extraction-property-undeclared`), a value \
+             its property's type does not hold (`extraction-value-mismatch`), a relation between \
+             node types its edge type does not connect (`extraction-relation-ends`), a fact \
+             citing an evidence id no evidence item of the document carries \
+             (`fact-evidence-unlisted`), two evidence items under one id (`duplicate-identity`) \
+             and a payload that does not hash to its entry's content_hash \
+             (`evidence-payload-mismatch`). A fact citing no evidence, an empty or repeated Enum \
+             variant list and an empty or repeated NodeRef type list are refused by both, by the \
+             reader as `fact-without-evidence`, `extraction-value-type-empty` and \
+             `extraction-name-duplicate`.",
+            ekr_integrate::EXTRACTION_INPUT_BYTES,
+            ekr_integrate::EXTRACTION_DEPTH
         ),
         &[
             ("format", &format!("Exactly `{format}`.")),
@@ -71,6 +86,15 @@ fn extraction_document() -> schemars::Schema {
             ),
         ],
     );
+    // An alias is a YAML string, as a typed reference's is: the reader refuses a null, a boolean
+    // or a number, so the schema does not widen it to any scalar as it does other text.
+    if let Some(aliases) = schema
+        .get_mut("$defs")
+        .and_then(|definitions| definitions.get_mut("ExtractedReference"))
+        .and_then(|reference| reference["properties"]["aliases"].as_object_mut())
+    {
+        aliases.insert("items".to_owned(), serde_json::json!({"type": "string"}));
+    }
     // A fact's `evidence` decodes as empty when absent, so that the reader can refuse it by name
     // (`fact-without-evidence`); the schema refuses both, which the derive cannot say.
     for fact in ["PropertyFact", "RelationFact"] {
