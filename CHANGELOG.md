@@ -7,14 +7,20 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 ### Changed
 
 - **One rule decides which node types are events** (`docs/cli.md`, Roles and `ekr ocel`).
-  `GET /roles` of `ekr view` now marks `event` exactly the types the overview, the timeline and
-  `ekr ocel` treat as events: the valid-time rule of `ekr.views.TypeTiming`, where a type is an
-  event type when at least 60% of its judged nodes are instant. Before, `/roles` used its own
-  structural rule — a type with a valid-time assertion that points at another type — so one store
-  could get different event types from the two. An event type is now `event` whatever its arcs,
-  checked before `observation`; `observation` and `subject` still read the edge types' source and
-  target types. `/roles` is now derived in `ekr-views` (`ekr_views::Index::view_roles_document`,
-  with `Index::event_types` the one rule), specified in `systems/ekr/domains/views.yaml`.
+  `GET /roles` of `ekr view` now marks `event` or `observation` exactly the types the overview,
+  the timeline and `ekr ocel` treat as events, and `observation` exactly the overview's
+  observation type, the one the viewer lays out as the observation. A node type now counts as an
+  event type only by the timeline's rule (`ekr.views.TypeTiming`): when at least 60% of its judged
+  nodes carry the timeline's time at one moment — a timestamp-like value, or dated facts within
+  one hour. Before, `/roles` used its own structural rule — a type with any valid-time assertion
+  that pointed at another type — so one store could get different event types from the two.
+  Visible change: a store whose types qualified only under the structural rule, for example one
+  whose nodes carry one dated fact each, now has no event type, and its types lose their `event`
+  and `observation` roles in `/roles`; `subject` still reads the edge types' source and target
+  types. Roles move both ways across revisions: a revision that adds a dated fact can make a type
+  an event type or stop it being one. `/roles` is now derived in `ekr-views`
+  (`ekr_views::Index::view_roles_document`, with `Index::event_types` the one rule), specified in
+  `systems/ekr/domains/views.yaml`.
 
 ## [0.0.24] — 2026-09-30
 

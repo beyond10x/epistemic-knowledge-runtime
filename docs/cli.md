@@ -461,8 +461,8 @@ ekr ocel --events Person
 
 The event types are EKR's one event-type rule, the same types the overview marks as events
 (`roles.types[].event` of `ekr.graph-overview/1`), the timeline walks to and `GET /roles` marks
-`event` (§ Roles). The rule: a node is judged when it holds a timestamp-like property value (a
-`Timestamp`, or an `Integer` of epoch milliseconds from 1,000,000,000,000 up to
+`event` or `observation` (§ Roles). The rule: a node is judged when it holds a timestamp-like
+property value (a `Timestamp`, or an `Integer` of epoch milliseconds from 1,000,000,000,000 up to
 10,000,000,000,000), or when it has at least two dated facts: `valid_time.from` of assertions of
 any lifecycle whose subject it is, or whose relation object it is. It is instant when it is
 timestamped or its dated facts lie within one hour. A type is an event type when it has a judged
@@ -784,37 +784,50 @@ exactly as `/projection` is: 404 `ekr.views.RevisionNotFound` for a revision the
 hold, 400 `invalid-query` for any query but exactly `revision=N` with `N` in ASCII decimal
 digits (an empty pair, a second pair, a sign or a space is refused).
 
-The rule reads the store's shape and its event types and nothing else — never a type, edge-type,
-property or entity name, and never an id compared to a constant — so a store whose every name is
-changed gets the same roles, id for id. To apply it by hand to the revision's ontology and
-assertions:
+The rule reads the store's event types, its observation type and its edge types and nothing else
+— never a type, edge-type, property or entity name — so a store whose every name is changed gets
+the same roles, id for id. To apply it by hand to the revision:
 
-1. **Arcs.** First widen each edge type's `source_types` and `target_types` to every node type that
+1. **Event types.** The event types are EKR's one event-type rule, given in § `ekr ocel`: a type
+   is an event type when at least 60% of its judged nodes are instant, that is, carry the
+   timeline's time at one moment — a timestamp-like property value, or dated facts that lie
+   within one hour. They are the types the overview marks `roles.types[].event` and the timeline
+   and `ekr ocel` treat as events, at the same revision. The *observation type* is the
+   overview's `roles.observation_type`, one of the event types, the one the viewer lays out as the
+   observation (ties go to the lowest type id).
+2. **Arcs.** First widen each edge type's `source_types` and `target_types` to every node type that
    conforms to one of them: the listed types and all their descendants through `parents`,
    transitively, which is how the runtime checks an edge's endpoints. Each edge type then gives an
    arc from every widened source type to every widened target type; a `symmetric` edge type gives
    the reverse arcs too. An arc from a type to itself is dropped. Abstract types count like any
    other.
-2. **Degree.** A type's *targets* are the other types it has an arc to; its *sources* are the other
-   types with an arc to it.
-3. **Event types.** The event types are EKR's one event-type rule, given in § `ekr ocel`: the
-   types the overview marks `roles.types[].event` and the timeline and `ekr ocel` treat as events,
-   at the same revision.
+3. **Sources.** A type's *sources* are the other types with an arc to it.
 
 Each node type then takes the first role whose condition holds:
 
 | role | condition |
 |---|---|
-| `event` | an event type |
-| `observation` | no sources, and at least one target is an event type |
+| `observation` | the observation type |
+| `event` | any other event type |
 | `subject` | at least one source |
 | none | anything else: no entry |
 
-So the `event` entries are exactly the event types the overview, the timeline and `ekr ocel` use;
-an observation points at events and nothing points at it; a subject is pointed at and is not an
-event. An event type is an event whatever its arcs, a type that is no event type and has no arc to
-or from another type after widening has no role, and a revision that adds a dated fact can move a
-type from `subject` to `event`.
+So the `event` and `observation` entries together are exactly the event types the overview, the
+timeline and `ekr ocel` use, and the `observation` entry is the overview's observation type. An
+event type is an `event` or the `observation` whatever its arcs; a type that is no event type and
+that no other type points at after widening has no role.
+
+Before the one event-type rule, `/roles` judged events by its own structural rule: a type with any
+valid-time assertion that pointed at another type was an `event`, and a type nothing pointed at
+that pointed at one was an `observation`. Now a node type counts as an event type only by the
+timeline's rule above. A store whose nodes carry one dated fact each, or whose dated facts lie
+more than an hour apart, has no event type at all: its types lose their `event` and `observation`
+roles, and keep `subject` where another type points at them.
+
+Roles move both ways across revisions. A revision that adds a dated fact can make a type an event
+type (a node's second dated fact, within an hour of its first) or stop it being one (a dated fact
+more than an hour from the others makes its node judged but not instant), and the observation type
+can move to another event type as the overview's choice among them changes.
 
 ### `ekr session`
 

@@ -2,7 +2,8 @@
 //! `ekr view` binary.
 //!
 //! The unit made `GET /roles` mark `event` exactly the types `Index::event_types` returns (the
-//! overview's valid-time rule) and checks `event` before `observation`. These cases probe what a
+//! overview's valid-time rule) and checked `event` before `observation` (since its fix commit,
+//! `observation` is the overview's observation type). These cases probe what a
 //! consumer of `/roles` and `/overview` sees from that, on the `readings` and `sessions` fixture
 //! seeds the unit edited, on those seeds as they stood at the unit's base (`40e11f625`), and across
 //! revisions.
@@ -213,23 +214,41 @@ fn assertion_mut<'a>(seed: &'a mut Yaml, last: &str) -> &'a mut Yaml {
         .unwrap_or_else(|| panic!("assertion {last}"))
 }
 
-/// The `readings` seed as it stood at the unit's base: 1504 undated, no 1506.
+/// `seed` without edge type `edge_type` and edge `edge`s, each of which it must hold.
+fn without_edges(seed: &mut Yaml, edge_type: &str, edges: &[&str]) {
+    let types = seed["ontology"]["edge_types"].as_sequence_mut().unwrap();
+    let before = types.len();
+    types.retain(|declared| declared["id"].as_str() != Some(id(edge_type).as_str()));
+    assert_eq!(types.len() + 1, before, "edge type {edge_type}");
+    let held = seed["graph"]["graph"]["edges"].as_mapping_mut().unwrap();
+    for edge in edges {
+        assert!(held.remove(Yaml::String(id(edge))).is_some(), "edge {edge}");
+    }
+}
+
+/// The `readings` seed as it stood at the unit's base: 1502 and 1504 undated, no 1506, no edge
+/// type 1208 and no edge 1704.
 fn readings_at_base() -> Yaml {
     let mut seed = seed("readings");
+    assertion_mut(&mut seed, "1502")["valid_time"]["from"] = Yaml::Null;
     assertion_mut(&mut seed, "1504")["valid_time"]["from"] = Yaml::Null;
     assert!(assertions(&mut seed)
         .remove(Yaml::String(id("1506")))
         .is_some());
+    without_edges(&mut seed, "1208", &["1704"]);
     seed
 }
 
-/// The `sessions` seed as it stood at the unit's base: 2505 undated, no 2507.
+/// The `sessions` seed as it stood at the unit's base: 2503 and 2505 undated, no 2507, no edge
+/// type 2209 and no edges 2704 and 2705.
 fn sessions_at_base() -> Yaml {
     let mut seed = seed("sessions");
+    assertion_mut(&mut seed, "2503")["valid_time"]["from"] = Yaml::Null;
     assertion_mut(&mut seed, "2505")["valid_time"]["from"] = Yaml::Null;
     assert!(assertions(&mut seed)
         .remove(Yaml::String(id("2507")))
         .is_some());
+    without_edges(&mut seed, "2209", &["2704", "2705"]);
     seed
 }
 
@@ -287,8 +306,11 @@ fn the_base_sessions_seed_loses_every_event_and_observation() {
 /// each, one node each, so the lowest id, 1101, is the observation type. At the base, `/roles`
 /// placed 1101 `observation` (timed, no sources, its target 1102 timed with targets) and agreed.
 /// Now it places 1101 `event`, and no type at all is an `observation`.
+///
+/// Fixed by the unit's fix commit: `/roles` marks exactly the overview's observation type
+/// `observation`. The `readings` fixture itself now has this shape (1502 dated, edge type 1208
+/// and edge 1704 for the same 1101 → 1104 link), so the additions here repeat it.
 #[test]
-#[ignore = "adversary x6-e: /roles marks the overview's observation type `event`, never `observation`"]
 fn the_overviews_observation_type_is_the_roles_observation() {
     let mut seed = seed("readings");
     assertion_mut(&mut seed, "1502")["valid_time"]["from"] =
@@ -338,9 +360,8 @@ fn the_overviews_observation_type_is_the_roles_observation() {
 /// adds. Revision 1 adds a third dated fact about the `Outage` node two days after its first, so
 /// that node's dated facts no longer lie within one hour: it is judged and not instant, and 1102
 /// stops being an event type. By hand at revision 1: 1102 subject, 1103 subject, 1104 subject,
-/// and 1101, pointing at no event, loses `observation`. `docs/cli.md` § Roles names only the
-/// other direction ("a revision that adds a dated fact can move a type from `subject` to
-/// `event`").
+/// and 1101, now the only event type, stays the observation. (Before the fix commit `docs/cli.md`
+/// § Roles named only the other direction.)
 #[test]
 fn a_revision_adding_a_late_dated_fact_moves_an_event_type_to_subject() {
     let world = World::seeded(&seed("readings"));
@@ -390,6 +411,7 @@ fn a_revision_adding_a_late_dated_fact_moves_an_event_type_to_subject() {
     assert_eq!(
         server.roles("/roles?revision=1"),
         expect(&[
+            ("1101", "observation"),
             ("1102", "subject"),
             ("1103", "subject"),
             ("1104", "subject")

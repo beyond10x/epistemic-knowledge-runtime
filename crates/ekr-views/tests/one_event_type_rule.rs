@@ -5,7 +5,8 @@
 //! and [`Index::event_types`] is it. Each consumer is read through its own answer, not through
 //! that function:
 //!
-//! * `/roles`: the `event` entries of [`Index::view_roles_document`] (`ekr.view-roles/1`);
+//! * `/roles`: the `event` and `observation` entries of [`Index::view_roles_document`]
+//!   (`ekr.view-roles/1`), whose `observation` entry must be the overview's observation type;
 //! * the timeline: the overview's `roles.types[].event`, which the page's timeline reads, and
 //!   the types of every event `ekr.graph-timeline/1` lists for any subject, which must be among
 //!   them;
@@ -75,31 +76,35 @@ fn strings(values: impl IntoIterator<Item = Value>) -> BTreeSet<String> {
         .collect()
 }
 
-/// The `event` entries of `/roles`.
-fn roles_events(index: &Index) -> BTreeSet<String> {
+/// The entries of `/roles` with role `role`.
+fn roles_with(index: &Index, role: &str) -> BTreeSet<String> {
     let roles = json(&index.view_roles_document());
     strings(
         roles["node_types"]
             .as_array()
             .expect("node_types")
             .iter()
-            .filter(|entry| entry["role"] == "event")
+            .filter(|entry| entry["role"] == role)
             .map(|entry| entry["type_id"].clone()),
     )
 }
 
-/// The overview's event types, which the timeline reads.
-fn overview_events(index: &Index) -> BTreeSet<String> {
+/// The overview's event types, which the timeline reads, and its observation type.
+fn overview_events(index: &Index) -> (BTreeSet<String>, BTreeSet<String>) {
     let request = OverviewRequest::new(None).expect("the default limit");
     let overview = json(&index.overview(&request).expect("the overview").bytes);
-    strings(
+    let events = strings(
         overview["roles"]["types"]
             .as_array()
             .expect("roles.types")
             .iter()
             .filter(|timing| timing["event"] == true)
             .map(|timing| timing["type"].clone()),
-    )
+    );
+    let observation = strings(
+        Some(overview["roles"]["observation_type"].clone()).filter(|value| !value.is_null()),
+    );
+    (events, observation)
 }
 
 /// The types of every event the timeline lists for any subject, within three hops.
@@ -150,15 +155,25 @@ fn roles_the_timeline_and_ocel_agree_on_the_event_types_of_every_fixture() {
                 .map(ToString::to_string)
                 .collect();
             let nodes: Vec<NodeId> = index.loaded().graph.nodes.keys().copied().collect();
-            let roles = roles_events(&index);
-            let overview = overview_events(&index);
+            let observed = roles_with(&index, "observation");
+            let roles: BTreeSet<String> = roles_with(&index, "event")
+                .union(&observed)
+                .cloned()
+                .collect();
+            let (overview, observation) = overview_events(&index);
             let ocel = ocel_events(&index);
             let timeline = timeline_events(&index, &nodes);
             with_events += usize::from(!rule.is_empty());
-            if roles != rule || overview != rule || ocel != rule || !timeline.is_subset(&rule) {
+            if roles != rule
+                || observed != observation
+                || overview != rule
+                || ocel != rule
+                || !timeline.is_subset(&rule)
+            {
                 disagreements.push(format!(
-                    "{fixture:?} at revision {revision}: rule {rule:?}, /roles {roles:?}, \
-                     overview {overview:?}, ocel {ocel:?}, timeline {timeline:?}"
+                    "{fixture:?} at revision {revision}: rule {rule:?}, /roles {roles:?} \
+                     (observation {observed:?}), overview {overview:?} (observation \
+                     {observation:?}), ocel {ocel:?}, timeline {timeline:?}"
                 ));
             }
         }

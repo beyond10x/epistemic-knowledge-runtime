@@ -290,18 +290,19 @@ fn a_schema_change_under_a_self_loop_type_keeps_the_docs_closing_sentence_true()
 ///
 /// Types: 9101 abstract root; 9102 and 9103 abstract, each parent 9101; 9104 concrete, parents
 /// 9102 and 9103 (the diamond); 9105 concrete; 9106 concrete; 9107 abstract; 9108 concrete,
-/// parent 9107. The nodes of 9104 and 9108 each have two dated facts ten minutes apart, so those
-/// two are the event types (`task:one-event-type-rule`). Edge types: 9201 9101 → 9105; 9202 9106
-/// → 9102; 9203 9105 → 9107, symmetric.
+/// parent 9107. The node of 9104 has two dated facts ten minutes apart, so 9104 is the one event
+/// type (`task:one-event-type-rule`) and the overview's observation type; 9108's node has none.
+/// Edge types: 9201 9101 → 9105; 9202 9106 → 9102; 9203 9105 → 9107, symmetric.
 ///
 /// By hand. Widened: 9201 {9101, 9102, 9103, 9104} → {9105}; 9202 {9106} → {9102, 9104}; 9203
-/// {9105} → {9107, 9108} and back. Roles: 9101 none (no source, target 9105 no event type), 9102
-/// subject, 9103 none, 9104 event, 9105 subject, 9106 observation (no source, target 9104 an
-/// event type only through widening 9102), 9107 subject, 9108 event.
+/// {9105} → {9107, 9108} and back. Roles: 9101, 9103 and 9106 none (no source), 9102 subject,
+/// 9104 observation, 9105 subject, 9107 subject, 9108 subject (its one source, 9105, only through
+/// widening 9203's target 9107).
 ///
-/// Kills: no widening of a target list (9106 then points at 9102 alone and is unplaced). Since
-/// the event types became the one rule's, an event role no longer depends on arcs, so widening one
-/// level only, or reversing a symmetric edge for the declared lists only, changes no role here.
+/// Kills: no widening of a target list (9108 then has no source and is unplaced). Since the event
+/// types became the one rule's and the observation the overview's, only `subject` reads arcs, so
+/// widening one level only, or reversing a symmetric edge for the declared lists only, changes no
+/// role here.
 #[test]
 fn widening_is_transitive_through_a_diamond_and_reverses_a_symmetric_edge_to_descendants() {
     let mut seed = readings();
@@ -359,9 +360,7 @@ fn widening_is_transitive_through_a_diamond_and_reverses_a_symmetric_edge_to_des
     graph["assertions"] = Yaml::Mapping(
         [
             timed("9501", "9404", "9301", 1_767_225_600_000),
-            timed("9502", "9408", "9302", 1_767_225_600_000),
             timed("9503", "9404", "9301", 1_767_226_200_000),
-            timed("9504", "9408", "9302", 1_767_226_200_000),
         ]
         .into_iter()
         .collect(),
@@ -371,11 +370,10 @@ fn widening_is_transitive_through_a_diamond_and_reverses_a_symmetric_edge_to_des
         world.serve().roles("/roles"),
         expect(&[
             ("9102", "subject"),
-            ("9104", "event"),
+            ("9104", "observation"),
             ("9105", "subject"),
-            ("9106", "observation"),
             ("9107", "subject"),
-            ("9108", "event"),
+            ("9108", "subject"),
         ])
     );
 }
