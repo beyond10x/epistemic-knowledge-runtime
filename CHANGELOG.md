@@ -6,6 +6,22 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Fixed
 
+- **A SQLite store replaced in place is no longer answered from the database the reader
+  opened.** A database copied over the store file of a live `ekr session`, `ekr mcp` or
+  `ekr view` keeps the file's device and inode, and its connection went on answering the
+  replaced database. The store now checks the file before every read and write (one `stat`
+  while it is unchanged; its log's first and newest events, read from the file alone, when it
+  has changed) and refuses a replaced one as `store-replaced` (`StoreError::Replaced`); the three
+  hosts open the store at the path again and answer from it. Copy a database over a live store
+  only with its `-wal` and `-shm` files: SQLite writes the replaced database's WAL into the file
+  at the path when the replaced connection closes.
+- **A held object withdrawn by its stream is refused as a fresh handle refuses it.** An object's
+  stream is now judged before its bytes, so a handle holding a non-canonical object whose stream
+  gained an event it does not read refuses it with the refusal a fresh handle gives, not another;
+  an object read by `get` is checked as a history load checks it. The store domain records that
+  any operation withdrawing retained bytes appends an event to the object's stream, and a guard
+  lists every provider withdrawal in the sources.
+
 - **`ekr migrate` migrates a store that took evidence after its seed.** It refused any store
   holding a committed `!AddEvidence` with `ekr: a stored document could not be read:
   required-object-missing`, exit 1, on both providers, because it published each commit without

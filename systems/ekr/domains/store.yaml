@@ -297,3 +297,44 @@ events:
         type: Integer
       - name: stored_at
         type: Timestamp
+
+# Held bytes and a replaced store. Decided 2026-10-01 (store audit) for
+# task:sqlite-store-replaced-in-place and task:held-bytes-notice-deleted-blobs together: a live
+# handle never answers from bytes a fresh handle would refuse. Three rules hold it.
+#
+# 1. A store file replaced in place is refused by name. Replaced means the SQLite database file at
+#    the handle's path no longer has the device and inode the handle opened, or its log header is
+#    not the one the handle opened: the log's first event, read from the file alone, is not the
+#    one the handle's own connection begins with, or the newest event the handle saw in the file
+#    is no longer at its place. The store checks before every read and write: one stat while the
+#    file is unchanged, and the header read from the file (immutable: no lock, no WAL) when it has
+#    changed; at open it checks once. The refusal is ekr.store.StoreReplaced, named
+#    `store-replaced` (Rust StoreError::Replaced). `ekr session`, `ekr mcp` and `ekr view` open the
+#    store at the path again on it, as on a history the File provider refuses as diverged, and
+#    answer from what is there; one that does not open is `store-replaced` there too. A File store
+#    replaced in place is the provider's own divergence refusal.
+# 2. Any operation that withdraws retained bytes (a redaction, a deletion, a retention lowering)
+#    appends an event to the object's stream, so a handle holding the object sees the stream move
+#    when it looks through the log for its held objects' streams, and reads that stream again. An
+#    object's stream is judged before its bytes, so a stream recording what the store does not
+#    read is refused by the holding handle exactly as by a fresh one. Nothing in the runtime
+#    redacts or deletes retained bytes in place without that event: its one provider deletion is
+#    of the replay checkpoint's cache blob, after the pointer event naming its successor, and a
+#    source guard holds that list. Canonical objects are never withdrawn (invariant 5), and the
+#    memo does not look for them.
+# 3. Not seen, recorded rather than hidden: a redaction or blob deletion made through a provider
+#    directly, outside the runtime, without that event; a backup of the same store restored over
+#    its SQLite file while the handle had not seen any event in the file the backup lacks; and the
+#    replaced database's WAL beside the file, which SQLite writes into the file at the path when
+#    the replaced connection closes. Copy a database over a live store only with its -wal and -shm
+#    files, or with no handle open.
+errors:
+  - name: ekr.store.StoreReplaced
+    summary: >-
+      The SQLite database file at the store's path is no longer the one this handle opened;
+      nothing was answered or written through the handle.
+    fields:
+      - name: path
+        type: String
+      - name: reason
+        type: String

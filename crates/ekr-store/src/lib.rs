@@ -128,6 +128,15 @@ pub enum StoreError {
     #[error("the store is unavailable: {0}")]
     Diverged(String),
 
+    /// `store-replaced`: the SQLite database file at this handle's path is no longer the one it
+    /// opened — another file is there, or the file there holds a log whose first event, or the
+    /// newest event the handle saw in it, is not the handle's (a database copied over it in
+    /// place, for one). Nothing is answered or written through the handle; a store opened at the
+    /// path again reads what is there, or is refused the same way. A long-running reader opens
+    /// the store again on it, as on [`StoreError::Diverged`].
+    #[error("store-replaced: {0}")]
+    Replaced(String),
+
     /// An existing-only open found no store at the path: nothing there, an empty directory, an
     /// empty file, a symlink to nothing, a SQLite database without the owner tables, or a File
     /// directory holding only what the provider writes before its manifest. Nothing was created.

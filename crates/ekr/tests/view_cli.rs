@@ -872,6 +872,54 @@ fn ekr_view_answers_from_a_store_replaced_by_rename() {
     }
 }
 
+/// `task:sqlite-store-replaced-in-place`: a SQLite database copied over the store file of a
+/// running `ekr view` — `cp` over it, which keeps its device and inode — is refused by the held
+/// runtime as `store-replaced`, and the server opens the store at the path again and answers the
+/// next request from it, never from the database it opened.
+#[test]
+fn ekr_view_answers_from_a_sqlite_database_copied_over_its_file() {
+    let world = World::seeded_with_two_revisions("sqlite");
+    let server = world.serve();
+    let answer = server.get("/head");
+    assert_eq!(answer.status, 200);
+    assert_eq!(answer.body, b"{\"format\":\"ekr.view-head/1\",\"head\":1}");
+
+    let replacement = World::new("sqlite");
+    let seed = fixture("seed-different.yaml").display().to_string();
+    assert_eq!(replacement.ok(&["seed", &seed])["result"]["revision"], 0);
+    let identity = |path: &std::path::Path| {
+        use std::os::unix::fs::MetadataExt as _;
+        let metadata = std::fs::metadata(path).unwrap();
+        (metadata.dev(), metadata.ino())
+    };
+    let before = identity(&world.store());
+    std::fs::copy(replacement.store(), world.store()).unwrap();
+    assert_eq!(
+        identity(&world.store()),
+        before,
+        "precondition: the same device and inode"
+    );
+
+    let answer = server.get("/head");
+    assert_eq!(answer.status, 200);
+    assert_eq!(
+        answer.body, b"{\"format\":\"ekr.view-head/1\",\"head\":0}",
+        "the head of the database now at the path"
+    );
+    let runtime = world.runtime();
+    let expected = ekr_views::project(&runtime, Some(RevisionNumber::new(0)))
+        .unwrap()
+        .bytes;
+    drop(runtime);
+    let projection = server.get("/projection?revision=0");
+    assert_eq!(projection.status, 200);
+    assert!(
+        projection.body == expected,
+        "revision 0 of the database now at the path"
+    );
+    server.stop();
+}
+
 #[test]
 fn ekr_view_opens_an_existing_store_only() {
     for backend in BACKENDS {

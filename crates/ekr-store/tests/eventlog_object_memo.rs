@@ -6,7 +6,9 @@
 //! handle's memo served only `Canonical` objects, because another handle may raise any other
 //! class, so every load read one object stream per evidence object and the cost of a verb grew
 //! with the evidence in the store. A raise appends an event to the object's stream, so the log
-//! says when a held class may have moved.
+//! says when a held class may have moved. So does a withdrawal of retained bytes, which the store
+//! domain requires to append an event there too (held bytes); section 3 holds that no source
+//! withdraws bytes in place.
 //!
 //! Every case runs on the SQLite and the file provider. Reads are counted with
 //! `ekr_store::stream_reads`, the per-thread tally of provider stream reads.
@@ -309,4 +311,93 @@ fn a_held_provenance_object_is_not_read_again_after_a_write_that_leaves_it_alone
             .map(|line| format!("file: {line}")),
     );
     assert!(wrong.is_empty(), "\n{}", wrong.join("\n"));
+}
+
+// ---------------------------------------------------------------------------------------------
+// 3. Nothing withdraws retained bytes in place (`systems/ekr/domains/store.yaml`, held bytes):
+//    the memo above sees a withdrawal only as an event on the object's stream.
+// ---------------------------------------------------------------------------------------------
+
+/// The workspace's `crates` directory, found from the invoking checkout at run time.
+fn crates_directory() -> std::path::PathBuf {
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR");
+    std::path::Path::new(&manifest)
+        .parent()
+        .expect("the crate sits in the workspace's crates directory")
+        .to_owned()
+}
+
+/// Every `.rs` file under `directory`.
+fn sources(directory: &Path, found: &mut Vec<std::path::PathBuf>) {
+    for entry in std::fs::read_dir(directory).expect("a source directory") {
+        let path = entry.expect("an entry").path();
+        if path.is_dir() {
+            sources(&path, found);
+        } else if path.extension().is_some_and(|extension| extension == "rs") {
+            found.push(path);
+        }
+    }
+}
+
+/// How many provider withdrawals `source` calls outside line comments: `redact(` and
+/// `delete_blob(`, the two calls that take retained bytes away in place.
+fn withdrawals(source: &str) -> usize {
+    source
+        .lines()
+        .map(|line| line.split("//").next().unwrap_or_default())
+        .map(|code| code.matches(".redact(").count() + code.matches(".delete_blob(").count())
+        .sum()
+}
+
+/// Every product source of the workspace calling a provider withdrawal, with how many it calls,
+/// is one this list names: the checkpoint pointer's deletion of the cache blob it has just
+/// replaced, after appending the pointer event that names its successor, and the test-only
+/// provider wrapper of `eventlog_reads.rs`. A new call — a redaction or a deletion path — must
+/// append an event to the object's stream and is added here with that said.
+#[test]
+fn no_source_withdraws_retained_bytes_without_an_event_on_the_object_stream() {
+    let allowed = [
+        ("ekr-store/src/eventlog.rs", 1),
+        ("ekr-store/src/eventlog_reads.rs", 4),
+    ];
+    let root = crates_directory();
+    let mut all = Vec::new();
+    for entry in std::fs::read_dir(&root).expect("the crates directory") {
+        let source = entry.expect("an entry").path().join("src");
+        if source.is_dir() {
+            sources(&source, &mut all);
+        }
+    }
+    assert!(
+        all.len() > 50,
+        "the workspace's sources are found: {}",
+        all.len()
+    );
+    let mut found: Vec<(String, usize)> = all
+        .iter()
+        .filter_map(|path| {
+            let calls = withdrawals(&std::fs::read_to_string(path).expect("a UTF-8 source"));
+            let name = path
+                .strip_prefix(&root)
+                .expect("under the crates directory")
+                .to_string_lossy()
+                .replace('\\', "/");
+            (calls > 0).then_some((name, calls))
+        })
+        .collect();
+    let expected: Vec<(String, usize)> = allowed
+        .iter()
+        .map(|(name, calls)| ((*name).to_owned(), *calls))
+        .collect();
+    found.sort();
+    assert_eq!(
+        found, expected,
+        "provider withdrawals in product sources; each must append an event to the object's \
+         stream (systems/ekr/domains/store.yaml, held bytes)"
+    );
+    assert_eq!(
+        withdrawals("        provider.redact(&stream, 1, \"why\").await?; // .delete_blob("),
+        1,
+        "the guard finds a call, and not one in a comment"
+    );
 }

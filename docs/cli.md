@@ -862,9 +862,12 @@ with `store-replaced`, naming the path and why it does not open, and is never an
 replaced store; each later request tries again. A file store replaced under the same device and
 inode — deleted and created again, or its files replaced inside the directory — passes that
 comparison, but the reader's next read finds the history there diverged from the one it holds;
-it then opens the store at the path once and answers the request from it. `ekr view` answers
+it then opens the store at the path once and answers the request from it. A SQLite database copied
+over the file in place, which keeps its device and inode too, is refused by the reader as
+`store-replaced` — its log, read from the file, is not the one the reader opened — and is followed
+the same way. `ekr view` answers
 `store-replaced` 503 with `{"refusal": "store-replaced", …}`; `GET /` reads no store and is
-served throughout. Move a SQLite database together with its `-wal` and `-shm` files.
+served throughout. Move or copy a SQLite database together with its `-wal` and `-shm` files.
 
 The query of `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and `/changes` is
 `name=value` pairs joined by `&`, each name one the path takes and at most once, each value

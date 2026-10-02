@@ -16,7 +16,9 @@
 //!
 //! Every case runs on one provider; the store is written through `ekr_store` and redacted
 //! through the provider. Nothing in this runtime calls `redact` yet: roadmap D1 and P6 route
-//! deletion requests through it.
+//! deletion requests through it. The store domain decides (held bytes,
+//! `task:held-bytes-notice-deleted-blobs`) that any operation withdrawing retained bytes appends
+//! an event to the object's stream, so the SQLite case redacts and records the redaction that way.
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -174,13 +176,45 @@ fn held_handle_after_redaction<S: RevisionLog + ObjectStore + Initialize>(
     (held, fresh)
 }
 
+/// The event every withdrawal of retained bytes appends to the object's stream
+/// (`systems/ekr/domains/store.yaml`, held bytes, `task:held-bytes-notice-deleted-blobs`). Nothing
+/// in this runtime withdraws bytes yet, so no event name is declared for it: this one stands in
+/// for it. The memo sees the stream move, whatever the event says.
+fn withdrawal_recorded<P: EventStore>(
+    rt: &tokio::runtime::Runtime,
+    provider: &P,
+    stream: &StreamId,
+) {
+    let event = eventlog_core::NewEvent::new(
+        "adversary.x6c.WithdrawalRecorded",
+        1,
+        serde_json::json!({"reason": "adversary deletion request"}),
+    )
+    .unwrap();
+    let meta = eventlog_core::CommandMeta {
+        idempotency_key: format!("adversary-x6c-withdrawal-{}", EventId::mint()),
+        request_hash: "adversary-x6c-withdrawal".into(),
+        subject: "adversary".into(),
+        actor: "adversary".into(),
+        request_id: "adversary-x6c-withdrawal".into(),
+        trace_id: "adversary-x6c-withdrawal".into(),
+        causation_id: None,
+        causation_depth: 0,
+        occurred_at: time::OffsetDateTime::UNIX_EPOCH,
+        claim: None,
+    };
+    rt.block_on(provider.append(stream, eventlog_core::Expected::Any, &[event], &meta))
+        .unwrap();
+}
+
 /// SQLite redaction is an `UPDATE` of the event row: no new log position, and the connection the
-/// held handle uses sees the redacted row at once. Before the unit the held handle read the
-/// evidence stream again on this load and refused it, `stream-envelope-disagrees`, as the fresh
-/// handle does.
+/// held handle uses sees the redacted row at once. Redacted through the provider alone, the held
+/// handle does not see it (`task:held-bytes-notice-deleted-blobs`). The decision is that nothing
+/// redacts in place without appending an event to the object's stream: redacted that way, the
+/// held handle's next load reads the evidence stream again and refuses it,
+/// `stream-envelope-disagrees`, exactly as a fresh handle does.
 #[test]
-#[ignore = "task:held-bytes-notice-deleted-blobs: an in-place redaction of a held non-canonical object's stream event moves no feed position"]
-fn a_held_evidence_payload_whose_event_is_redacted_is_refused_as_a_fresh_handle_refuses_it_on_sqlite(
+fn a_held_evidence_payload_whose_redaction_is_recorded_is_refused_as_a_fresh_handle_refuses_it_on_sqlite(
 ) {
     let directory = TempDir::new().unwrap();
     let root = directory.path().join("sqlite");
@@ -198,11 +232,12 @@ fn a_held_evidence_payload_whose_event_is_redacted_is_refused_as_a_fresh_handle_
             .unwrap();
         rt.block_on(provider.redact(stream, 1, "adversary deletion request"))
             .unwrap();
+        withdrawal_recorded(&rt, &provider, stream);
     });
     assert_eq!(
         held, fresh,
         "sqlite: the handle that held the evidence answered {held:?} after its stream event was \
-         redacted; a fresh handle answers {fresh:?}"
+         redacted and the redaction recorded; a fresh handle answers {fresh:?}"
     );
 }
 

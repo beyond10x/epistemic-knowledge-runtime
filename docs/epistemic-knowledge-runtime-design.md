@@ -5039,3 +5039,50 @@ scenarios `an-edge-type-widened-to-a-new-target-type-takes-edges-to-it`,
 `a-widening-to-a-type-no-version-declares-is-rejected-by-name` and
 `a-widening-that-adds-no-type-is-rejected-by-name` on both providers, and
 `crates/ekr/tests/docs_cli.rs`, which runs `docs/cli.md` § Evolve the schema, step 4, as written.
+
+---
+
+# 102. Held Bytes and a Replaced Store
+
+*Added 2026-10-02 by `task:sqlite-store-replaced-in-place` and
+`task:held-bytes-notice-deleted-blobs` (wave correct-07, unit S). Extends §§ 37, 57 and 98. It moves no retained encoding and no root;
+the rule is written once, in `systems/ekr/domains/store.yaml` (held bytes and a replaced store).*
+
+**What was measured.** A store handle keeps the objects it verified (§ 98) and its SQLite
+connection keeps its page cache. A database copied over the file of a live handle, keeping its
+device and inode, was answered from the history the handle opened, by the store and through
+`ekr session`; a seed payload whose blob was deleted on disk, and a held evidence payload whose
+event was redacted in place on SQLite, were answered by the handle that held them while a fresh
+handle refused them.
+
+## 102.1 The rule
+
+A live handle never answers from bytes a fresh handle would refuse. A SQLite database file
+replaced in place — another device and inode at the path, or a log header that is not the one the
+handle opened (the first event, read from the file alone, against the handle's own connection; and
+the newest event the handle saw in the file, which must stay at its place) — is refused before
+every read and write as `store-replaced` (`StoreError::Replaced`), and the session, MCP and view
+hosts open the store again on it, as on a diverged File history. A read of an unchanged file costs
+one `stat`. Any operation that withdraws retained bytes appends an event to the object's stream,
+so a holding handle sees it when it looks through the log, and an object's stream is judged before
+its bytes, so the holding handle refuses it as a fresh one does. Nothing in the runtime withdraws
+bytes in place.
+
+## 102.2 What is not seen
+
+A redaction or deletion made through a provider directly, without that event; a backup of the same
+store restored over its file while the handle had seen no event the backup lacks; and the replaced
+database's WAL, which SQLite writes into the file at the path when the replaced connection closes.
+The last needs a provider that can close a connection without checkpointing; eventlog has none at
+the pinned revision.
+
+Executed by `crates/ekr-store/tests/history_cache.rs`
+(`a_sqlite_store_overwritten_in_place_is_refused_as_replaced`),
+`crates/ekr/src/cli/session/tests.rs`
+(`a_session_never_answers_from_a_sqlite_store_overwritten_in_place`), `crates/ekr/tests/mcp.rs`
+and `crates/ekr/tests/view_cli.rs` (`…_copied_over_its_file`),
+`crates/ekr-store/tests/adversary_x6_c.rs` and
+`crates/ekr-kernel/tests/adversary_perf01_r_shared_reads.rs`
+(a recorded redaction and a recorded withdrawal answered as a fresh handle answers them), and
+`crates/ekr-store/tests/eventlog_object_memo.rs`, whose guard lists every provider withdrawal in
+the workspace's sources.

@@ -419,18 +419,50 @@ fn a_reader_racing_a_committing_handle_sees_one_state_per_capture() {
     }
 }
 
-/// Deletes the retained object at `hash` from the provider itself.
-fn delete_object(path: &std::path::Path, file: bool, hash: ContentHash) {
+/// Withdraws the retained object at `hash` as the store domain requires any withdrawal to
+/// (`systems/ekr/domains/store.yaml`, held bytes): its blob is deleted and an event is appended to
+/// its object stream. Nothing in this runtime withdraws bytes yet, so no event name is declared
+/// for it; this one stands in for it.
+fn withdraw_object(path: &std::path::Path, file: bool, hash: ContentHash) {
+    async fn withdraw<P: eventlog_core::EventStore>(provider: P, hash: ContentHash) {
+        let tenant = eventlog_core::TenantId::new("test").unwrap();
+        provider.delete_blob(&tenant, &hash.to_hex()).await.unwrap();
+        let stream =
+            eventlog_core::StreamId::new(tenant, "ekr.store.object", hash.to_hex()).unwrap();
+        let event = eventlog_core::NewEvent::new(
+            "adversary.perf01r.WithdrawalRecorded",
+            1,
+            serde_json::json!({"reason": "adversary deletion request"}),
+        )
+        .unwrap();
+        let meta = eventlog_core::CommandMeta {
+            idempotency_key: format!("adversary-perf01r-withdrawal-{hash}"),
+            request_hash: "adversary-perf01r-withdrawal".into(),
+            subject: "adversary".into(),
+            actor: "adversary".into(),
+            request_id: "adversary-perf01r-withdrawal".into(),
+            trace_id: "adversary-perf01r-withdrawal".into(),
+            causation_id: None,
+            causation_depth: 0,
+            occurred_at: ::time::OffsetDateTime::UNIX_EPOCH,
+            claim: None,
+        };
+        provider
+            .append(&stream, eventlog_core::Expected::Any, &[event], &meta)
+            .await
+            .unwrap();
+    }
     let executor = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap();
-    let tenant = eventlog_core::TenantId::new("test").unwrap();
     executor.block_on(async {
-        use eventlog_core::EventStore;
         if file {
-            let provider = eventlog_file::FileEventStore::open(path).await.unwrap();
-            provider.delete_blob(&tenant, &hash.to_hex()).await.unwrap();
+            withdraw(
+                eventlog_file::FileEventStore::open(path).await.unwrap(),
+                hash,
+            )
+            .await;
         } else {
             let provider = eventlog_sqlite::SqliteEventStore::open(
                 &path.join("state.db").to_string_lossy(),
@@ -438,17 +470,18 @@ fn delete_object(path: &std::path::Path, file: bool, hash: ContentHash) {
             )
             .await
             .unwrap();
-            provider.delete_blob(&tenant, &hash.to_hex()).await.unwrap();
+            withdraw(provider, hash).await;
         }
     });
 }
 
 /// The seed input a handle rebuilt once is not handed out after the seed's named evidence
-/// payload went missing from the store: the handle that read before answers the deletion as a
-/// fresh handle does.
+/// payload was withdrawn from the store: the handle that read before answers the withdrawal as a
+/// fresh handle does. A blob deleted through the provider alone is not seen by the handle that
+/// holds its bytes (`task:held-bytes-notice-deleted-blobs`); the store domain decides that every
+/// withdrawal also appends an event to the object's stream, and so this one does.
 #[test]
-#[ignore = "held bytes outlive a deleted blob: task:held-bytes-notice-deleted-blobs"]
-fn a_seed_payload_deleted_after_a_read_is_answered_as_a_fresh_handle_answers_it() {
+fn a_seed_payload_withdrawn_after_a_read_is_answered_as_a_fresh_handle_answers_it() {
     for file in [false, true] {
         let directory = tempfile::tempdir().unwrap();
         let seed = fixture();
@@ -456,7 +489,7 @@ fn a_seed_payload_deleted_after_a_read_is_answered_as_a_fresh_handle_answers_it(
         kernel.seed(seed.clone(), at(10)).unwrap();
         let _ = kernel.read(None).unwrap();
         let payload = *seed.evidence_payloads.keys().next().unwrap();
-        delete_object(directory.path(), file, payload);
+        withdraw_object(directory.path(), file, payload);
         let fresh = open(directory.path(), file)
             .read(None)
             .map(|read| read.root)
@@ -465,6 +498,7 @@ fn a_seed_payload_deleted_after_a_read_is_answered_as_a_fresh_handle_answers_it(
             .read(None)
             .map(|read| read.root)
             .map_err(|error| error.to_string());
+        assert!(fresh.is_err(), "file={file}: control: {fresh:?}");
         assert_eq!(again, fresh, "file={file}");
     }
 }

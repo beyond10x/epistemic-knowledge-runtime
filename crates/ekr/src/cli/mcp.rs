@@ -410,7 +410,7 @@ impl Server {
                 Err(Unanswered::Error {
                     code: INTERNAL_ERROR,
                     ..
-                }) if self.store.diverged() => {
+                }) if self.store.reopens() => {
                     self.store.forget();
                     self.tool(&name, arguments)
                 }
