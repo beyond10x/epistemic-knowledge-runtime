@@ -1,4 +1,12 @@
-//! `ReportStoreQuality` and its format `ekr.store-quality/1` ([`report_quality`]): how well one
+//! `R        // Evidence attached after the assertion was added counts as cited evidence does
+        // (`story:evidence-attaches-to-a-held-assertion`).
+        let cited: Vec<EvidenceId> = assertion
+            .evidence
+            .iter()
+            .copied()
+            .chain(graph.attached(assertion.id).map(|attached| attached.evidence))
+            .map(|e| e.id())
+            .collect();portStoreQuality` and its format `ekr.store-quality/1` ([`report_quality`]): how well one
 //! revision's assertions are evidenced, its properties constrained and its nodes of one type
 //! named apart (`views.yaml`, `ekr.views.StoreQualityV1`).
 //!
@@ -146,7 +154,15 @@ pub fn quality(
             continue;
         }
         active += 1;
-        let cited: Vec<EvidenceId> = assertion.evidence.iter().map(|e| e.id()).collect();
+        // Evidence attached after the assertion was added counts as cited evidence does
+        // (`story:evidence-attaches-to-a-held-assertion`).
+        let cited: Vec<EvidenceId> = assertion
+            .evidence
+            .iter()
+            .copied()
+            .chain(graph.attached(assertion.id).map(|attached| attached.evidence))
+            .map(|e| e.id())
+            .collect();
         if cited.iter().any(held) {
             with_evidence += 1;
         }

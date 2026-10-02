@@ -53,7 +53,8 @@ pub use seed::{
     SeedNode, Space, GRAPH_FORMAT, SEED_FORMAT,
 };
 pub use transaction::{
-    AliasAddition, EdgeWidening, EntityMerge, EvidenceAddition, Invocation, Operation,
+    AliasAddition, EdgeWidening, EntityMerge, EvidenceAddition, EvidenceAttachment, Invocation,
+    Operation,
     OperationKind, PropertyModification, PropertyMutation, Retraction, Supersession, Transaction,
     TransactionBuilder, TransactionDocument, TRANSACTION_FORMAT,
 };

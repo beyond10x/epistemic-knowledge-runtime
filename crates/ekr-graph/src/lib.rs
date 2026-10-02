@@ -110,6 +110,7 @@
 //! let id = held.id;
 //!
 //! let graph = CanonicalGraph {
+//!     attachments: Default::default(),
 //!     root: GraphRoot {
 //!         id: root_id,
 //!         space: Space::Canonical,
@@ -138,6 +139,7 @@
 
 pub mod aliases;
 pub mod assertion;
+pub mod attachment;
 pub mod canonical;
 pub mod edge;
 pub mod events;
@@ -152,6 +154,7 @@ pub mod value;
 mod schema;
 
 pub use aliases::AliasIndex;
+pub use attachment::{AttachedEvidence, Attachments};
 pub use assertion::{
     Assertion, AssertionLifecycle, Assessment, InvertedRange, Object, Predicate, RetractionReason,
     Subject, TemporalRange, TransactionTime,

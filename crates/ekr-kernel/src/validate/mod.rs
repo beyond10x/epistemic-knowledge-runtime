@@ -30,6 +30,7 @@
 //! by the validator whose question it actually is.
 
 pub mod authorization;
+mod attachment;
 mod candidate;
 pub mod cardinality;
 mod lifecycle;

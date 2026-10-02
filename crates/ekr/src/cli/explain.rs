@@ -11,9 +11,9 @@ use crate::exit::Failure;
 ///
 /// With `documents`, each link also carries the whole retained record it references, read from
 /// the same capture: a Proposal link its proposal record as `record`, every commit (a Commit link,
-/// a Lifecycle link's `commit`) its commit receipt as `receipt`, and an Evidence link its
-/// retained payload, read through `Runtime::content` at the link's own `content_hash`: `payload`
-/// in base64 and, when the bytes are UTF-8, `text`.
+/// a Lifecycle or an Attachment link's `commit`) its commit receipt as `receipt`, and an Evidence
+/// link its retained payload, read through `Runtime::content` at the link's own `content_hash`:
+/// `payload` in base64 and, when the bytes are UTF-8, `text`.
 pub(super) fn run(
     runtime: &Runtime,
     assertion: AssertionId,
@@ -45,6 +45,13 @@ pub(super) fn run(
                 let record = held(&read, change.commit.transaction_id)?;
                 let Some(commit) = fields.get_mut("commit").and_then(Value::as_object_mut) else {
                     return Err(Failure::fault("a Lifecycle link without its commit"));
+                };
+                insert(commit, "receipt", &record.committed)?;
+            }
+            ExplanationLink::Attachment(attached) => {
+                let record = held(&read, attached.commit.transaction_id)?;
+                let Some(commit) = fields.get_mut("commit").and_then(Value::as_object_mut) else {
+                    return Err(Failure::fault("an Attachment link without its commit"));
                 };
                 insert(commit, "receipt", &record.committed)?;
             }

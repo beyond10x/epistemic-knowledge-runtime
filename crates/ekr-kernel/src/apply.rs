@@ -3,7 +3,7 @@ use crate::replay::Revision;
 use crate::{GraphOperation, ValidatedTransaction};
 use ekr_core::{AgentId, ContentHash, Timestamp};
 use ekr_graph::{
-    AssertionLifecycle, Assessment, CanonicalGraph, CanonicalRef, Edge, Node, Root, TransactionTime,
+    AssertionLifecycle, Assessment, AttachedEvidence, CanonicalGraph, CanonicalRef, Edge, Node, Root, TransactionTime,
 };
 use ekr_store::{evidence_root, knowledge_root, StoreError};
 use std::cell::RefCell;
@@ -239,6 +239,22 @@ fn applied_graph(
                 assertion.transaction_time = TransactionTime::since(at);
                 graph.assertions.insert(assertion.id, assertion);
             }
+            // Recorded beside the assertion, which is not changed; validation held it current and
+            // the evidence new to it (design § 102.3).
+            GraphOperation::AttachEvidence(attachment) => {
+                if !graph.assertions.contains_key(&attachment.assertion) {
+                    return Err(StoreError::Document("admitted-assertion-missing".into()));
+                }
+                let revision = graph.revision;
+                graph
+                    .attachments
+                    .entry(attachment.assertion)
+                    .or_default()
+                    .insert(AttachedEvidence {
+                        evidence: CanonicalRef::new(attachment.evidence),
+                        revision,
+                    });
+            }
             // The entry joins retained evidence; its payload is published beside the commit
             // receipt as a Provenance object (`crate::commands`), never inside a record.
             GraphOperation::AddEvidence(addition) => {
@@ -340,6 +356,7 @@ fn applied_graph(
             | GraphOperation::CreateNode(_)
             | GraphOperation::CreateEdge(_)
             | GraphOperation::AddAssertion(_)
+            | GraphOperation::AttachEvidence(_)
             | GraphOperation::AddEvidence(_) => {}
         }
     }

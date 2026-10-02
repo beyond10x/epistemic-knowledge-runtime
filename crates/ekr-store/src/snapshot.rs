@@ -9,7 +9,7 @@ use ekr_core::{
     SchemaVersionId,
 };
 use ekr_graph::{
-    Assertion, CanonicalGraph, CanonicalValue, Edge, Evidence, GraphRoot, InadmissibleValue, Node,
+    Assertion, Attachments, CanonicalGraph, CanonicalValue, Edge, Evidence, GraphRoot, InadmissibleValue, Node,
     Object, Space, Subject,
 };
 use ekr_ontology::Value;
@@ -38,6 +38,11 @@ pub struct GraphDocument {
     /// Not generic and not widened: [`Evidence`] carries no value at all, so there is no transient
     /// instantiation of it and nothing for the crossing to refuse.
     pub evidence: BTreeMap<EvidenceId, Evidence>,
+    /// The evidence attached to its assertions after they were added, by assertion id
+    /// (`story:evidence-attaches-to-a-held-assertion`). Omitted from the document when empty, so
+    /// a graph without attachments is written as the bytes it was written as before the field
+    /// existed. An attachment carries no value, so it has no transient instantiation either.
+    pub attachments: Attachments,
 }
 
 // The remote derive preserves the useful in-memory graph shape while requiring a complete,
@@ -55,6 +60,12 @@ struct GraphFields {
     assertions: BTreeMap<AssertionId, Assertion<Value>>,
     #[serde(deserialize_with = "ekr_core::decode::unique_map")]
     evidence: BTreeMap<EvidenceId, Evidence>,
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeMap::is_empty",
+        deserialize_with = "ekr_core::decode::unique_map"
+    )]
+    attachments: Attachments,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -125,6 +136,7 @@ impl GraphDocument {
                 .map(|(id, assertion)| (*id, widen_assertion(assertion)))
                 .collect(),
             evidence: graph.evidence.clone(),
+            attachments: graph.attachments.clone(),
         }
     }
 

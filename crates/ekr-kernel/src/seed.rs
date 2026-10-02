@@ -651,6 +651,10 @@ fn admitted(
     if document.root.parent.is_some() || document.revision != RevisionNumber::SEED {
         return invalid("seed-root-lineage");
     }
+    // An attachment is made by a commit, at a revision after the seed (design § 102.3).
+    if !document.attachments.is_empty() {
+        return invalid("seed-attachments");
+    }
     if context.operator == context.validator {
         return invalid("proposer-is-validator");
     }
@@ -728,6 +732,7 @@ fn admitted(
     // revision: it supplies the seed's ontology and independently verified evidence to the
     // invariant validators. No ValidatedTransaction is sealed and no against-revision exists.
     let mut initial = CanonicalGraph {
+        attachments: Default::default(),
         root: document.root,
         revision: RevisionNumber::SEED,
         ontology: ontology.clone(),
@@ -822,6 +827,7 @@ fn admitted(
         .collect::<Result<_, MembraneError>>()
         .map_err(narrow_error)?;
     Ok(CanonicalGraph {
+        attachments: Default::default(),
         root: document.root,
         revision: RevisionNumber::SEED,
         ontology,

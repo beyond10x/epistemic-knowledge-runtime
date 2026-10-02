@@ -45,9 +45,9 @@ pub use checks::{
     StoreQuality,
 };
 pub use kernel::{
-    ExplainedEvidence, Explanation, ExplanationLink, Head, ListedTransaction, NamedType, Ontology,
+    ExplainedAttachment, ExplainedEvidence, Explanation, ExplanationLink, Head, ListedTransaction, NamedType, Ontology,
     OntologyCardinality, OntologyEdgeType, OntologyNodeType, OntologyProperty, OntologyValueType,
-    RecordedTime, Root, Snapshot, SnapshotAssertion, SnapshotEdge, SnapshotEvidence, SnapshotGraph,
+    RecordedTime, Root, Snapshot, SnapshotAssertion, SnapshotAttachment, SnapshotEdge, SnapshotEvidence, SnapshotGraph,
     SnapshotGraphDocument, SnapshotNode, SnapshotPredicate, SnapshotRoot, SnapshotSubject,
     TransactionState, Transactions, ValidTime,
 };
