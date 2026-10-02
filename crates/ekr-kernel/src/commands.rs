@@ -520,6 +520,13 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         let result = commit_result(&prepared)?;
         // A stale decision moves no head: no checkpoint and no pointer (design § 99).
         if matches!(result, CommitCommandResult::Committed(_)) {
+            // The store confirmed the immutable attempt. Retire its exact cached predecessor
+            // here, while this command pays for the obsolete graph's destruction, rather than
+            // leaving that destruction to a later validation. Held reader snapshots stay valid.
+            drop(state);
+            if let Ok(mut cache) = self.authority.cache.lock() {
+                cache.confirmed(&prepared.decision);
+            }
             self.retain_head();
         }
         Ok(result)

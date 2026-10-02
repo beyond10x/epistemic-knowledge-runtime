@@ -125,10 +125,9 @@ pub(crate) struct Revision {
     pub(crate) ontology: Arc<ekr_ontology::Ontology>,
     pub(crate) graph: Option<Arc<ekr_graph::CanonicalGraph>>,
     /// The index of this revision's assertions about edges, by edge, kept with its graph: built by
-    /// the first validation against this revision that reads it and shared by every state that
-    /// holds this revision, so a session builds it once per revision while it holds the graph.
-    /// Every graph of one revision is the same graph, so the index holds for whichever copy a state
-    /// holds; it is released with the graph, and a graph rebuilt later builds it again.
+    /// the first validation that reads it and shared by every state holding this revision or a
+    /// verified successor whose operations leave this lookup unchanged. A cold reconstruction
+    /// starts with a fresh cell; sharing never crosses an unverified graph boundary.
     pub(crate) asserted_edges: AssertedEdgesCell,
     /// Mutable lookup scratch shared along a lineage; every use checks exact revision and roots.
     pub(crate) alias_holders: Arc<std::sync::Mutex<crate::validate::AliasCache>>,
@@ -153,6 +152,35 @@ impl Revision {
         self.graph = None;
         self.asserted_edges = AssertedEdgesCell::default();
         self.alias_holders = Default::default();
+    }
+    /// This lookup records assertion identities by edge subject, including retracted assertions.
+    /// Only adding an edge assertion changes it; node assertions, lifecycle changes and deleting
+    /// an edge leave the lookup intact. A future operation must make an explicit choice here.
+    fn asserted_edges_after(&self, tx: &GraphTransaction<CanonicalValue>) -> AssertedEdgesCell {
+        let changes = tx.operations.iter().any(|operation| match operation {
+            GraphOperation::AddAssertion(assertion) => {
+                matches!(assertion.subject, ekr_graph::Subject::Edge(_))
+            }
+            GraphOperation::CreateNode(_)
+            | GraphOperation::AddAlias(_)
+            | GraphOperation::UpdateProperty(_)
+            | GraphOperation::CreateEdge(_)
+            | GraphOperation::DeleteEdge(_)
+            | GraphOperation::RetractAssertion(_)
+            | GraphOperation::DefineNodeType(_)
+            | GraphOperation::DefineEdgeType(_)
+            | GraphOperation::ModifyProperty(_)
+            | GraphOperation::MergeEntity(_)
+            | GraphOperation::Invoke { .. }
+            | GraphOperation::SupersedeAssertion(_)
+            | GraphOperation::AddEvidence(_)
+            | GraphOperation::WidenEdgeType(_) => false,
+        });
+        if changes {
+            AssertedEdgesCell::default()
+        } else {
+            Arc::clone(&self.asserted_edges)
+        }
     }
     /// The graph at this revision, or [`GRAPH_NOT_HELD`].
     pub(crate) fn graph(&self) -> Result<&ekr_graph::CanonicalGraph, StoreError> {
@@ -255,21 +283,28 @@ impl ReplayState {
 /// is the state reached over the other. The provider's own event identity is not an input of
 /// replay and is not bound, so a candidate replayed before publication and the same occurrence
 /// read back after it share a digest.
-pub(crate) fn prefix_digests(occurrences: &[RecordedOccurrence]) -> Vec<ContentHash> {
-    struct Step<'a>(ContentHash, &'a RecordedOccurrence);
+fn extend_digest(
+    previous: ContentHash,
+    version: u64,
+    event: &ekr_graph::RevisionEvent,
+) -> ContentHash {
+    struct Step<'a>(ContentHash, u64, &'a ekr_graph::RevisionEvent);
     impl Canonical for Step<'_> {
         fn encode(&self, out: &mut Encoder) {
             "ekr.replay-prefix/1".encode(out);
             self.0.encode(out);
-            self.1.version.encode(out);
-            self.1.event.encode(out);
+            self.1.encode(out);
+            self.2.encode(out);
         }
     }
+    ContentHash::of(&Step(previous, version, event))
+}
+pub(crate) fn prefix_digests(occurrences: &[RecordedOccurrence]) -> Vec<ContentHash> {
     let mut digests = Vec::with_capacity(occurrences.len() + 1);
     let mut digest = ContentHash::of("ekr.replay-prefix/1");
     digests.push(digest);
     for occurrence in occurrences {
-        digest = ContentHash::of(&Step(digest, occurrence));
+        digest = extend_digest(digest, occurrence.version, &occurrence.event);
         digests.push(digest);
     }
     digests
@@ -361,6 +396,33 @@ impl ReplayCache {
             .iter()
             .max_by_key(|(covered, _, _)| *covered)
             .map(|(_, _, state)| Arc::clone(state))
+    }
+    /// Retire the predecessor only after the store confirms this exact publication. The cached
+    /// candidate must extend that predecessor's digest with the confirmed occurrence, so neither
+    /// the longest unrelated candidate nor a different history at the same version is proof.
+    /// Before confirmation the predecessor stays available for CAS retries. Readers holding an
+    /// old state keep their own Arc, and the successor already keeps checkpoint/historical graphs
+    /// required by replay. An absent match merely leaves the normal bounded cache in place.
+    pub(crate) fn confirmed(&mut self, publication: &ekr_store::Publication) {
+        let Some(version) = publication.expected_version.checked_add(1) else {
+            return;
+        };
+        let obsolete = self.entries.iter().find_map(|(covered, digest, state)| {
+            if state.version != publication.expected_version {
+                return None;
+            }
+            let next = extend_digest(*digest, version, &publication.event);
+            self.entries
+                .iter()
+                .any(|(later, found, candidate)| {
+                    *later == covered + 1 && *found == next && candidate.version == version
+                })
+                .then_some((*covered, *digest))
+        });
+        if let Some(obsolete) = obsolete {
+            self.entries
+                .retain(|(covered, digest, _)| (*covered, *digest) != obsolete);
+        }
     }
     /// Releases the graph of revision `number` from every held state that holds it and does not
     /// keep it as its head or as the retained checkpoint's head. Each such state is replaced by a
@@ -1193,6 +1255,7 @@ impl KernelAuthority {
                         Arc::new(graph.ontology.clone())
                     };
                     let graph_root = prior.graph_root;
+                    let asserted_edges = prior.asserted_edges_after(validated.transaction());
                     let alias_holders = Arc::clone(&prior.alias_holders);
                     alias_holders
                         .lock()
@@ -1219,7 +1282,7 @@ impl KernelAuthority {
                             graph_root,
                             ontology,
                             graph: Some(Arc::new(graph)),
-                            asserted_edges: AssertedEdgesCell::default(),
+                            asserted_edges,
                             alias_holders,
                         },
                     );
@@ -1488,6 +1551,119 @@ mod tests {
         holds_the_head_graph(&file(directory.path(), false), "file");
         let directory = tempfile::tempdir().unwrap();
         holds_the_head_graph(&sqlite(directory.path(), false), "sqlite");
+    }
+
+    #[test]
+    fn confirmed_commit_releases_the_previous_head_before_the_next_command() {
+        fn check<S: RevisionLog + ObjectStore + Initialize>(kernel: &Commit<S>) {
+            let seed = seed();
+            kernel
+                .seed(seed.clone(), || Timestamp::from_millis(10))
+                .unwrap();
+            commit(kernel, &seed, 1);
+            let held = kernel.read_state().unwrap();
+            let graph = std::sync::Arc::downgrade(held.head().graph.as_ref().unwrap());
+            commit(kernel, &seed, 2);
+            assert_ne!(
+                retained(kernel),
+                Some(1),
+                "fixture must not checkpoint the old head"
+            );
+            assert!(
+                graph.upgrade().is_some(),
+                "a reader still holds its immutable graph"
+            );
+            assert_eq!(held.head().root.revision, RevisionNumber::new(1));
+            drop(held);
+            assert!(
+                graph.upgrade().is_none(),
+                "the confirmed commit still caches its obsolete head"
+            );
+        }
+        let directory = tempfile::tempdir().unwrap();
+        check(&file(directory.path(), false));
+        let directory = tempfile::tempdir().unwrap();
+        check(&sqlite(directory.path(), false));
+    }
+
+    #[test]
+    fn node_only_commits_share_the_unchanged_assertion_edge_index() {
+        fn check<S: RevisionLog + ObjectStore + Initialize>(kernel: &Commit<S>) {
+            let seed = seed();
+            kernel
+                .seed(seed.clone(), || Timestamp::from_millis(10))
+                .unwrap();
+            commit(kernel, &seed, 1);
+            let before = crate::validate::edge_indexes_built();
+            let (_, verdict) = validated(kernel, &seed, 2, seed.ontology.node_types[0].id, 1);
+            assert!(matches!(verdict, ValidationCommandResult::Validated(_)));
+            assert_eq!(
+                crate::validate::edge_indexes_built() - before,
+                0,
+                "a node-only commit rebuilt an unchanged edge-assertion index"
+            );
+        }
+        let directory = tempfile::tempdir().unwrap();
+        check(&file(directory.path(), false));
+        let directory = tempfile::tempdir().unwrap();
+        check(&sqlite(directory.path(), false));
+    }
+
+    #[test]
+    fn retirement_requires_the_confirmed_occurrence_and_matching_prefix() {
+        let directory = tempfile::tempdir().unwrap();
+        let kernel = sqlite(directory.path(), false);
+        let seed = seed();
+        kernel
+            .seed(seed.clone(), || Timestamp::from_millis(10))
+            .unwrap();
+        let (id, _) = validated(&kernel, &seed, 1, seed.ontology.node_types[0].id, 0);
+        let before = kernel.read_state().unwrap();
+        kernel.commit(id, context().operator, || at(1, 2)).unwrap();
+        let after = kernel.read_state().unwrap();
+        let history = kernel.store.history().unwrap();
+        let publication = ekr_store::Publication {
+            expected_version: before.version,
+            event: history.occurrences.last().unwrap().event.clone(),
+            objects: BTreeMap::new(),
+        };
+        let mut cache = super::ReplayCache::default();
+        let prior = (before.version as usize, before.digest.unwrap());
+        cache.insert(prior.0, prior.1, before.clone());
+        cache.insert(after.version as usize, after.digest.unwrap(), after.clone());
+        // Another branch at the same stream version is not a prefix of this publication.
+        let unrelated = ekr_core::ContentHash::of("another verified history");
+        cache.insert(prior.0, unrelated, before);
+        let mut different = publication.clone();
+        different.event.event_id = ekr_core::EventId::mint();
+        cache.confirmed(&different);
+        assert_eq!(
+            cache.entries.len(),
+            3,
+            "different occurrence retired a predecessor"
+        );
+        different = publication.clone();
+        different.expected_version += 1;
+        cache.confirmed(&different);
+        assert_eq!(
+            cache.entries.len(),
+            3,
+            "different position retired a predecessor"
+        );
+        cache.confirmed(&publication);
+        assert_eq!(cache.entries.len(), 2);
+        assert!(cache
+            .entries
+            .iter()
+            .all(|(covered, digest, _)| (*covered, *digest) != prior));
+        assert!(cache
+            .entries
+            .iter()
+            .any(|(_, digest, _)| *digest == unrelated));
+        assert!(cache
+            .entries
+            .iter()
+            .any(|(_, digest, _)| Some(*digest) == after.digest));
     }
 
     #[test]

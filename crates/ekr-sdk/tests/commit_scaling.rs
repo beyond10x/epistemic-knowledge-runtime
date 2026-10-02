@@ -8,6 +8,8 @@
 //! `validate` and `commit` the [`Batcher`] makes. The acceptance is that a transaction at the end
 //! of the large delta costs at most [`BOUND`] times one at the end of the small delta, and that
 //! the last transactions of the large delta cost at most [`BOUND`] times its first.
+//! At the default sizes on SQLite, validation and commit also separately require first/last
+//! 15-transaction medians within 1.2x (`task:validate-cost-flat-with-store-size`).
 //!
 //! Ignored: it measures time, which a loaded machine distorts, and at the acceptance's sizes it
 //! takes about an hour ([`Sizes`]). Run it in release, where it builds a release `ekr`:
@@ -407,6 +409,7 @@ fn measure(backend: Backend, sizes: Sizes) -> Vec<String> {
         timed(&deltas[0], sizes.small),
         timed(&deltas[1], sizes.large),
     );
+    let mut wrong = Vec::new();
     if large.len() >= 30 {
         let first = median(&large[..15]);
         let last = median(&large[large.len() - 15..]);
@@ -420,6 +423,21 @@ fn measure(backend: Backend, sizes: Sizes) -> Vec<String> {
                 .unwrap_or_else(|_| "unavailable".into())
                 .trim(),
         );
+        if matches!(backend, Backend::Sqlite)
+            && (sizes.base, sizes.small, sizes.large) == (20_000, 10_000, 80_000)
+        {
+            for (verb, first, last) in [
+                ("validate", first.validate, last.validate),
+                ("commit", first.commit, last.commit),
+            ] {
+                let ratio = last.as_secs_f64() / first.as_secs_f64();
+                if ratio > 1.2 {
+                    wrong.push(format!(
+                        "{backend:?}: {verb} last/first 15-transaction median {ratio:.3}x exceeds 1.2x"
+                    ));
+                }
+            }
+        }
     }
     let small_end = mean(&small[small.len() - WINDOW..]);
     let large_start = mean(&large[..WINDOW]);
@@ -449,7 +467,6 @@ fn measure(backend: Backend, sizes: Sizes) -> Vec<String> {
     let within = large_end.total().as_secs_f64() / large_start.total().as_secs_f64();
     println!("{backend:?}: large/small {across:.2}x, large last/first {within:.2}x");
 
-    let mut wrong = Vec::new();
     if across > BOUND {
         wrong.push(format!(
             "{backend:?}: a transaction at the end of the large delta costs {across:.2}x one at the \
