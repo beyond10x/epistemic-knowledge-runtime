@@ -16,11 +16,28 @@
 //!   opened.
 //!
 //! The header is read only when the file's `stat` (identity, size, modification and change time)
-//! differs from the one it last matched at, so a read of an unchanged store costs one `stat`. A
-//! file that changes while it is read is read again; one that never reads steadily is left to the
-//! next check rather than refused. Whatever disagrees is [`StoreError::Replaced`],
-//! `store-replaced`, and nothing is answered from the handle; a store opened at the path again
-//! reads what is there, or is refused the same way.
+//! differs from the one it last matched at, so a read of an unchanged store costs one `stat`.
+//!
+//! Only positive evidence proves a replacement: another device or inode, or a header that reads
+//! successfully, **settled**, and differs from the one recorded. A checkpoint writes the database
+//! file page by page, and a file read meanwhile can read as malformed, or as a mix of two
+//! versions, while its `stat` holds still (file times are coarse). A read is therefore settled
+//! only when no checkpoint ran across it: the WAL index's checkpoint record (`nBackfill` and
+//! `nBackfillAttempted` in the `-shm` file, SQLite's documented WAL-index format) is the same
+//! before and after the read and shows none in progress, and the file's `stat` is the same too. A
+//! read that errs or is not settled is taken again, a bounded number of times ([`ATTEMPTS`]),
+//! counted and never timed; one still unsettled after them proves nothing, the check passes
+//! without recording the `stat`, and the next entry checks again. A read error never concludes
+//! `store-replaced`: a database that is really damaged is refused by the read that follows, under
+//! its own code.
+//!
+//! Whatever settled header disagrees is [`StoreError::Replaced`], `store-replaced`, and nothing is
+//! answered from the handle; a store opened at the path again reads what is there, or is refused
+//! the same way.
+//!
+//! A plain read-only connection would read a consistent snapshot, but through the WAL beside the
+//! file: over a database copied onto a store whose WAL still holds frames, it reads the replaced
+//! database's pages, and the replacement it is meant to find is hidden. The file alone is read.
 //!
 //! Not seen: a backup of this same store restored over it, holding no event older than the newest
 //! one this handle has seen in the file, has the same header, and passes.
@@ -91,8 +108,32 @@ fn stamp(path: &Path) -> std::io::Result<Stamp> {
     })
 }
 
-/// How many times the header is read again when the file changed while it was read.
-const STEADY_ATTEMPTS: usize = 8;
+/// How many times the header is read before an unsettled or unreadable file is left to the next
+/// check: a count, never a duration.
+pub(super) const ATTEMPTS: usize = 64;
+
+/// The WAL index's checkpoint record: `nBackfill` and `nBackfillAttempted` (`-shm` offsets 96 and
+/// 128, native byte order). A checkpoint sets the second before it writes the database file and
+/// the first, to the same frame, after; they differ while one is in progress. `None` without a
+/// `-shm` file, where no connection holds the WAL open and nothing checkpoints.
+fn checkpoint_record(database: &Path) -> Option<(u32, u32)> {
+    let mut name = database.as_os_str().to_owned();
+    name.push("-shm");
+    let index = std::fs::read(PathBuf::from(name)).ok()?;
+    let word = |at: usize| -> Option<u32> {
+        Some(u32::from_ne_bytes(index.get(at..at + 4)?.try_into().ok()?))
+    };
+    Some((word(96)?, word(128)?))
+}
+
+/// The file's `stat` and its checkpoint record, when no checkpoint is in progress.
+fn quiet(database: &Path) -> Option<(Stamp, Option<(u32, u32)>)> {
+    let record = checkpoint_record(database);
+    if record.is_some_and(|(backfilled, attempted)| backfilled != attempted) {
+        return None;
+    }
+    Some((stamp(database).ok()?, record))
+}
 
 /// What the database file alone says.
 enum Header {
@@ -140,15 +181,11 @@ impl AtPath {
             return Ok(());
         }
         let at = seen.newest.as_ref().map(|(position, _)| *position);
-        let Some((header, steady)) = self.steady_header(at) else {
+        // Unsettled or unreadable after every attempt: no evidence either way. Nothing is recorded,
+        // so the next entry checks again; a damaged database is refused by the read that follows.
+        let Some((header, steady)) = self.settled_header(at) else {
             return Ok(());
         };
-        let header = header.map_err(|error| {
-            replaced(
-                &self.path,
-                &format!("the file no longer reads as the database opened: {error}"),
-            )
-        })?;
         match header {
             Header::Empty if seen.first.is_some() => {
                 return Err(replaced(
@@ -184,14 +221,21 @@ impl AtPath {
         Ok(())
     }
 
-    /// The header read while the file's `stat` stayed the same, with that `stat`; `None` when it
-    /// changed during every attempt.
-    fn steady_header(&self, at: Option<u64>) -> Option<(Result<Header, rusqlite::Error>, Stamp)> {
-        for _ in 0..STEADY_ATTEMPTS {
-            let before = stamp(&self.path).ok()?;
+    /// The first header that reads successfully and settled — no checkpoint in progress before
+    /// it, and the file's `stat` and checkpoint record the same after it as before — with that
+    /// `stat`; `None` when none of [`ATTEMPTS`] reads is. A read that errs is one that did not
+    /// settle.
+    fn settled_header(&self, at: Option<u64>) -> Option<(Header, Stamp)> {
+        for _ in 0..ATTEMPTS {
+            let Some(before) = quiet(&self.path) else {
+                continue;
+            };
             let header = self.header(at);
-            if stamp(&self.path).ok()? == before {
-                return Some((header, before));
+            if quiet(&self.path).as_ref() != Some(&before) {
+                continue;
+            }
+            if let Ok(header) = header {
+                return Some((header, before.0));
             }
         }
         None

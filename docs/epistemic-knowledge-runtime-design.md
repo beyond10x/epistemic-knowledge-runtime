@@ -5063,7 +5063,11 @@ handle opened (the first event, read from the file alone, against the handle's o
 the newest event the handle saw in the file, which must stay at its place) — is refused before
 every read and write as `store-replaced` (`StoreError::Replaced`), and the session, MCP and view
 hosts open the store again on it, as on a diverged File history. A read of an unchanged file costs
-one `stat`. Any operation that withdraws retained bytes appends an event to the object's stream,
+one `stat`. Only positive evidence counts: another device or inode, or a header read successfully
+while no checkpoint ran across the read (the WAL index's checkpoint record unchanged and idle)
+that differs from the recorded one. A checkpoint half-way through writing the file makes a read
+fail as malformed while the `stat` holds still; such a read, retried a bounded number of times,
+proves nothing (adversary pass c7-s, `crates/ekr-store/tests/adversary_c7_s.rs`). Any operation that withdraws retained bytes appends an event to the object's stream,
 so a holding handle sees it when it looks through the log, and an object's stream is judged before
 its bytes, so the holding handle refuses it as a fresh one does. Nothing in the runtime withdraws
 bytes in place.

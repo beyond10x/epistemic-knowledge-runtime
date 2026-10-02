@@ -120,6 +120,15 @@ struct Raced {
 
 impl Raced {
     fn verdict(&self, publications: u64) -> Result<(), String> {
+        eprintln!(
+            "raced: {} reads, {} external checkpoints, {publications} publications; refused: {} \
+             reads, {} writes; other read failures: {}",
+            self.reads,
+            self.checkpoints,
+            self.read_refused.len(),
+            self.write_refused.len(),
+            self.read_other.len()
+        );
         if self.read_refused.is_empty()
             && self.read_other.is_empty()
             && self.write_refused.is_empty()
@@ -233,7 +242,6 @@ fn race(checkpointer: bool, opening: bool, publications: u64, size: usize) -> Ra
 /// holding a proposal refuse every store verb instead. The header is read from a database file a
 /// checkpoint is half-way through writing, which reads as malformed while its `stat` holds still.
 #[test]
-#[ignore = "adversary c7-s: a header read during a checkpoint is refused as store-replaced"]
 fn adversary_c7_s_a_reader_beside_a_writer_and_a_checkpointer_is_never_refused_as_replaced() {
     let raced = race(true, false, 150, 24 * 1024);
     if let Err(failure) = raced.verdict(150) {
@@ -245,7 +253,6 @@ fn adversary_c7_s_a_reader_beside_a_writer_and_a_checkpointer_is_never_refused_a
 /// 1000 WAL pages, SQLite's default, which eventlog keeps) are the only writes to the database
 /// file. A long-running host beside `ekr` processes that commit is this.
 #[test]
-#[ignore = "adversary c7-s: a header read during the writer's own checkpoint is refused as store-replaced"]
 fn adversary_c7_s_a_reader_beside_a_writer_that_checkpoints_itself_is_never_refused_as_replaced() {
     let raced = race(false, false, 400, 24 * 1024);
     if let Err(failure) = raced.verdict(400) {
@@ -259,7 +266,6 @@ fn adversary_c7_s_a_reader_beside_a_writer_that_checkpoints_itself_is_never_refu
 /// `store-replaced`, and that command fails. Measured red in 1 of 5 runs: 15937 of
 /// 18533 opens refused, in the package suite run.
 #[test]
-#[ignore = "adversary c7-s: an open during the writer's own checkpoint is refused as store-replaced"]
 fn adversary_c7_s_an_open_beside_a_writer_that_checkpoints_itself_is_never_refused_as_replaced() {
     let raced = race(false, true, 400, 24 * 1024);
     if let Err(failure) = raced.verdict(400) {
