@@ -204,7 +204,7 @@ impl<T: Transport> Reader<T> {
             argv.extend(query.events.iter().cloned());
         }
         for selector in &query.event_time {
-            argv.extend(["--event-time".to_owned(), selector.clone()]);
+            argv.push(format!("--event-time={selector}"));
         }
         let reply = self.transport.request(&Request::new(argv))?;
         let verb = "ocel".to_owned();
