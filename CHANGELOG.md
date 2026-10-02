@@ -2,7 +2,7 @@
 
 Every change a user of the runtime sees, per release. Unreleased work sits at the top.
 
-## [Unreleased]
+## [0.0.27] — 2026-10-02
 
 ### Added
 
@@ -51,6 +51,13 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   are 0 and 1. Nonempty report bytes are unchanged.
 - **Duplicate evidence attachments in a stored graph are refused**, including different JSON
   spellings that decode to the same attachment, rather than silently collapsing records.
+
+### Known limitations
+
+- SQLite commit scaling remains above the performance target: the default-size measurement
+  recorded a last/first commit median ratio of 1.321 against the 1.2 limit. Validation passed
+  at 0.979. The reviewed optimizations ship in this release, while
+  `task:validate-cost-flat-with-store-size` remains open with its original acceptance bounds.
 
 ## [0.0.26] — 2026-10-02
 

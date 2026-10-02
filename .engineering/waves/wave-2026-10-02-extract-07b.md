@@ -1,7 +1,8 @@
 # Wave extract-07b — resume the consumer extraction path
 
 Skill: aep:implementing 0.19.1, wave mode. Coordinator: Codex.
-Status: implementing. The operator explicitly requested continuation toward 0.0.27 on 2026-10-02.
+Status: release authorized; W's remaining performance target is carried forward. The operator
+explicitly requested continuation toward 0.0.27 and subsequently instructed "cut new version".
 This resumes the accepted `release-plan:next-waves-2026-10-01` and the retained extract-07
 units; it does not restart their work. All running committed code is Rust with clap derive.
 
@@ -21,7 +22,7 @@ Build directories are under `<home>/.cache/b10x-target/`; scratch roots under
 | W | task:validate-cost-flat-with-store-size | impl/validate-cost-flat / ekr-x7-w | ekr-x7b-w | w | source integrated and managed tree retired; combined correctness green, performance acceptance remains open |
 | consumer | K: story:sdk-store-checks; O: task:ocel-export-prints-its-counts and task:ocel-times-events-by-a-named-property; Q: task:quality-counts-seed-evidence-and-constrained-types; N: task:code-names-matches-whole-words; F: task:fact-quality-states-the-empty-interval | impl/x7b-consumer / ekr-x7b-consumer | ekr-x7b-consumer | consumer | integrated through d30befbbe with selector corrections and retained adversary cases; managed tree retired |
 | F/K adversary | empty interval and judged SDK sample | review/x7b-fk / ekr-x7b-review-fk | ekr-x7b-review-fk | review-fk | F/K and subsequent O/N reviews integrated; managed tree retired |
-| coordinator | integration, planning, conformance synthesis | wave/extract-07b / ekr-extract-07b | ekr-extract-07b | coordinator | final source correctness passed at 570cb34cf; feature artifacts implemented, W acceptance and release remain |
+| coordinator | integration, planning, conformance synthesis | wave/extract-07b / ekr-extract-07b | ekr-extract-07b | coordinator | final source correctness passed at 570cb34cf; feature artifacts implemented; operator authorized release with W target carried forward |
 
 No unit writes the planning store. Each implementation receives a file brief and is followed by
 an independent adversary using the skill's role procedure. Codex dispatches generic collaboration
@@ -217,3 +218,34 @@ symbolizing the retained profiles. The clean integration tree `ekr-extract-07b` 
 for the next coordinator, along with the exact Atlas authority tree. Resume from this page and
 W's task, reconcile actual Git/worktree state, then apply the operator's scope decision before
 starting further storage implementation. Draft CI is additional pending evidence, not a release.
+
+## Operator-authorized release boundary
+
+The operator's subsequent instruction, "cut new version", resolves the pending release-scope
+choice: publish the completed source as 0.0.27 and carry W's unmet performance target forward.
+The approval and exact scope are recorded through AEP in W's task and the release plan. W remains
+active, both performance findings remain escalated, and its acceptance bounds are unchanged.
+The reviewed optimizations are included with the measured limitation stated in the changelog.
+This supersedes the earlier hold on publication; it does not claim a green scaling measurement.
+
+The following owner lines are read directly from this wave's review records for this closing
+record. They count finding occurrences, including W's same acceptance finding on both passes;
+they do not imply that each occurrence is a unique issue:
+
+```text
+.engineering/planning/review-result/adversary-extract-07b-w-pass-2.md:Owners: 1 finding, 0 coordinator, 1 implementor. Zero NEW behavioral findings; one still-unmet performance acceptance finding.
+.engineering/planning/review-result/adversary-extract-07b-on-pass-1.md:Owners: 1 finding, 0 coordinator, 1 implementor. Root has routed the source repair to the consumer implementor. This pass did not apply or inspect that correction.
+.engineering/planning/review-result/adversary-extract-07b-fk-pass-1.md:Owners: 0 findings, 0 coordinator, 0 implementor. This result covers F/K at the exact reviewed commit plus these tests, not later consumer work or the combined wave.
+.engineering/planning/review-result/adversary-extract-07b-w-pass-1.md:Owners: 1 finding, 0 coordinator, 1 implementor (remaining acceptance work; regression origin undecided).
+.engineering/planning/review-result/adversary-extract-07b-q-pass-1.md:Owners: 0 findings, 0 coordinator, 0 implementor.
+.engineering/planning/review-result/adversary-extract-07b-a-pass-2.md:Owners: 0 findings, 0 coordinator, 0 implementor.
+.engineering/planning/review-result/adversary-extract-07b-a-pass-1.md:Owners: 1 finding, 0 coordinator, 1 implementor.
+.engineering/planning/review-result/adversary-extract-07b-on-pass-2.md:Owners: 1 finding, 0 coordinator, 1 implementor. Prior timestamp-selector finding resolved; one newly measured events-path finding remains.
+```
+
+The complete source gate is retained at `coordinator/full-serialization-combined-check.log`.
+Subsequent release edits change planning and release documentation only. Required candidate,
+main and tag checks are still enforced through publication; the GitHub Release must name the
+exact verified tag. Source publication needs no downstream pin promotion or synchronous docs
+rollout. Required remote checks and release verification are recorded by their GitHub runs and
+release object; no pending remote result is described as successful here.

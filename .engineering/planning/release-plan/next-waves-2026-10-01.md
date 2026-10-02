@@ -7,7 +7,7 @@ title: Waves correct-07, extract-07b and storage-08 after 0.0.25
 relations:
 - serves: vision:o5
 - supersedes: release-plan:next-waves-2026-09-30
-revision: 4
+revision: 5
 transitions:
 - {from: "draft", to: "active", at: "2026-10-01T18:42:14Z", actor: "human:timo", revision: 4, decided_on: {"recorded":{"review_outcome":3}}}
 ---
@@ -98,3 +98,18 @@ rebased onto main after correct-07 releases, before its adversary pass.
 - Store hygiene from the audit, not work: P1-era reviews with no recorded outcomes (592 findings
   against 294 outcomes store-wide), `verification-report:p1-exit` still draft, and epics P2, P3, P4 and
   P6 whose unclaimed promises wait on those blockers.
+
+## Operator decision to release the completed work
+
+After the coordinator reported the green complete source gate, the failing W commit-scaling
+measurement and the options to reopen storage scope, hold the draft or defer W, the operator
+instructed: "cut new version". This authorizes release of the completed extract-07b source as
+0.0.27 while carrying W's unmet performance target forward. The reviewed optimizations remain
+in the release; this decision accepts the known performance limitation for this release and does
+not assert that W passed, change its bounds, or authorize a native dependency release.
+
+`task:validate-cost-flat-with-store-size` stays active with its failed measurements and escalated
+review outcomes. Its further performance work is outside this release's completion conditions.
+Required repository correctness and security checks still must pass on the release candidate,
+and publication completes only after the exact tag and GitHub Release are verified. Documentation
+publication remains asynchronous.

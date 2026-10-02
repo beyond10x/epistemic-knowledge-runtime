@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 26
+revision: 27
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -544,3 +544,18 @@ adversary round or repeated benchmark is proposed. The reviewed code and all red
 preserved; main and the release remain unchanged. The wave's Recovery and boundaries section
 explicitly defers new dependency releases, so that expansion is not inferred from the existing
 extract-07b implementation authorization.
+
+## Operator decision to release the completed work
+
+After the coordinator reported the green complete source gate, the failing W commit-scaling
+measurement and the options to reopen storage scope, hold the draft or defer W, the operator
+instructed: "cut new version". This authorizes release of the completed extract-07b source as
+0.0.27 while carrying W's unmet performance target forward. The reviewed optimizations remain
+in the release; this decision accepts the known performance limitation for this release and does
+not assert that W passed, change its bounds, or authorize a native dependency release.
+
+`task:validate-cost-flat-with-store-size` stays active with its failed measurements and escalated
+review outcomes. Its further performance work is outside this release's completion conditions.
+Required repository correctness and security checks still must pass on the release candidate,
+and publication completes only after the exact tag and GitHub Release are verified. Documentation
+publication remains asynchronous.
