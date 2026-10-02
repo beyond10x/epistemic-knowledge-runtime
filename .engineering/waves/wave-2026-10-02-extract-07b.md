@@ -89,4 +89,19 @@ claim: each requires its own acceptance evidence and the combined gate.
   active. Work continues from the fresh profile, including internal record sharing and selected
   state reads in session `settle`. That session change is disjoint from O's response/stderr edits;
   integration must preserve both.
-- F/K adversary in progress in its isolated tree; O/N/Q follow after consumer handoff.
+- F/K pass 1: `review-result:adversary-extract-07b-fk-pass-1`; no finding, integrated with
+  tests through c0ad8c535. The report retains the exact first-case and suite outputs.
+- O/N pass 1: `review-result:adversary-extract-07b-on-pass-1`; a valid leading-dash event
+  type works with the CLI's equals syntax but the SDK passes it as a separate argument and
+  refuses it. The consumer implementor owns the correction; Q review proceeds separately.
+
+## Intermediate retention
+
+A's source and both review passes are published on `wave/extract-07b` through 2f37aacbc.
+Managed finish, exact-id dry-run and exact-id GC removed `ekr-x7-a` with remote ancestor proof;
+the coordinator scratch holds each result and A's small evidence logs remain retained.
+Automatic approval review refused removal of its disposable build cache because rm-f style
+commands are prohibited. The cache remains; source cleanup succeeded.
+The completed F/K review tree was reused for O/N after its clean reviewed commit. Consumer
+source cadbc785a contains F/K/O/N/Q and the A integration, with generated suites still assigned
+to the coordinator. All unit and review results precede the required combined gate.
