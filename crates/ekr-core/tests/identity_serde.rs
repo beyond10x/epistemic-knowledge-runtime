@@ -18,6 +18,9 @@ use proptest::prelude::*;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+#[path = "support/identity_types.rs"]
+mod identity_types;
+
 /// The contract every minted id type keeps, stated once.
 fn assert_id_contract<T>(minted: T)
 where
@@ -90,25 +93,151 @@ macro_rules! id_cases {
     };
 }
 
-id_cases! {
-    agent_id => AgentId,
-    transaction_id => TransactionId,
-    revision_id => RevisionId,
-    issue_id => IssueId,
-    type_id => TypeId,
-    property_id => PropertyId,
-    schema_version_id => SchemaVersionId,
-    graph_root_id => GraphRootId,
-    node_id => NodeId,
-    edge_id => EdgeId,
-    assertion_id => AssertionId,
-    support_id => SupportId,
-    attachment_id => AttachmentId,
-    evidence_id => EvidenceId,
-    observation_id => ObservationId,
-    event_id => EventId,
-    merge_id => MergeId,
-    split_id => SplitId,
+identity_types::identity_types!(id_cases);
+
+/// Exercise directory discovery through the real guard, rather than a second scanner.
+mod adversary_input08 {
+    use super::*;
+
+    struct Fixture(PathBuf);
+
+    impl Fixture {
+        fn new() -> Self {
+            let root = std::env::temp_dir().join(format!(
+                "ekr-input08-identity-adversary-{}",
+                uuid::Uuid::now_v7()
+            ));
+            std::fs::create_dir_all(root.join("crates/ekr-core")).unwrap();
+            let domains = root.join("systems/ekr/domains");
+            std::fs::create_dir_all(&domains).unwrap();
+            for entry in std::fs::read_dir(workspace_root().join("systems/ekr/domains")).unwrap() {
+                let path = entry.unwrap().path();
+                if path
+                    .extension()
+                    .is_some_and(|extension| extension == "yaml")
+                {
+                    std::fs::copy(&path, domains.join(path.file_name().unwrap())).unwrap();
+                }
+            }
+            Self(root)
+        }
+
+        fn domains(&self) -> PathBuf {
+            self.0.join("systems/ekr/domains")
+        }
+
+        fn scan(&self) -> (bool, String) {
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "every_ess_id_type_exists_in_the_crate",
+                    "--nocapture",
+                ])
+                .env("CARGO_MANIFEST_DIR", self.0.join("crates/ekr-core"))
+                .output()
+                .unwrap();
+            let text = format!(
+                "{}{}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(
+                text.contains("running 1 test"),
+                "guard was not selected: {text}"
+            );
+            (output.status.success(), text)
+        }
+    }
+
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            std::fs::remove_dir_all(&self.0).expect("remove this test's fixture only");
+        }
+    }
+
+    #[test]
+    fn renamed_domain_files_preserve_the_identity_inventory() {
+        let fixture = Fixture::new();
+        let paths: Vec<_> = std::fs::read_dir(fixture.domains())
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .collect();
+        for (index, path) in paths.into_iter().enumerate() {
+            std::fs::rename(
+                &path,
+                fixture.domains().join(format!("renamed-{index}.yaml")),
+            )
+            .unwrap();
+        }
+        let (success, output) = fixture.scan();
+        assert!(
+            success,
+            "domain filenames are not identity declarations: {output}"
+        );
+    }
+
+    #[test]
+    fn semantic_yaml_spelling_does_not_hide_a_new_identity() {
+        let fixture = Fixture::new();
+        let (success, output) = fixture.scan();
+        assert!(success, "unchanged fixture control: {output}");
+        for declaration in [
+            "types:\n  - of: 'Uuid'\n    kind: \"newtype\"\n    name: ekr.adversary.UnimplementedId\n",
+            "types: [{name: ekr.adversary.UnimplementedId, of: Uuid, kind: newtype}]\n",
+        ] {
+            std::fs::write(fixture.domains().join("new-domain.yaml"), declaration).unwrap();
+            let (success, output) = fixture.scan();
+            assert!(!success && output.contains("UnimplementedId"), "missing identity escaped: {output}");
+        }
+    }
+
+    #[test]
+    fn removing_a_declared_identity_is_not_hidden_by_the_typed_inventory() {
+        let fixture = Fixture::new();
+        let path = fixture.domains().join("observe.yaml");
+        let source = std::fs::read_to_string(&path).unwrap();
+        let declaration =
+            "  - name: ekr.observe.SourceCheckpointId\n    kind: newtype\n    of: Uuid\n";
+        assert_eq!(
+            source.matches(declaration).count(),
+            1,
+            "fixture declaration changed"
+        );
+        std::fs::write(path, source.replace(declaration, "")).unwrap();
+        let (success, output) = fixture.scan();
+        assert!(
+            !success && output.contains("SourceCheckpointId"),
+            "removed declaration escaped: {output}"
+        );
+    }
+
+    #[test]
+    fn public_observation_ids_keep_uuid_bits_and_canonical_text() {
+        use ekr_core::{Canonical, SourceCheckpointId, SourceUnitId};
+        let bits = uuid::Uuid::from_u128(u128::MAX);
+        let unit = SourceUnitId::from_uuid(bits);
+        let checkpoint = SourceCheckpointId::from_uuid(bits);
+        assert_eq!(unit.to_uuid(), bits);
+        assert_eq!(checkpoint.to_uuid(), bits);
+        assert_eq!(unit.canonical_bytes(), checkpoint.canonical_bytes());
+        assert_eq!(
+            serde_json::to_string(&unit).unwrap(),
+            "\"ffffffff-ffff-ffff-ffff-ffffffffffff\""
+        );
+        assert_eq!(
+            serde_json::to_string(&checkpoint).unwrap(),
+            "\"ffffffff-ffff-ffff-ffff-ffffffffffff\""
+        );
+        for malformed in [
+            "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF",
+            "ffffffffffffffffffffffffffffffff",
+        ] {
+            assert!(malformed.parse::<SourceUnitId>().is_err());
+            assert!(malformed.parse::<SourceCheckpointId>().is_err());
+        }
+        assert_eq!(SourceUnitId::mint().to_uuid().get_version_num(), 7);
+        assert_eq!(SourceCheckpointId::mint().to_uuid().get_version_num(), 7);
+    }
 }
 
 fn workspace_root() -> PathBuf {
@@ -126,12 +255,9 @@ fn workspace_root() -> PathBuf {
 /// Read from the document as `serde_yaml_ng` parses it, so each key is found wherever it sits in
 /// its mapping: the line scan this replaced saw a declaration only when `name:` came first
 /// (adversary pass 1, wave p1-14).
-fn ess_uuid_newtypes(domain_file: &str) -> Vec<String> {
-    let path = workspace_root()
-        .join("systems/ekr/domains")
-        .join(domain_file);
-    let text = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
+fn ess_uuid_newtypes(path: &Path) -> Vec<String> {
+    let text =
+        std::fs::read_to_string(path).unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
 
     let document: serde_yaml_ng::Value = serde_yaml_ng::from_str(&text)
         .unwrap_or_else(|e| panic!("parsing {}: {e}", path.display()));
@@ -144,7 +270,10 @@ fn ess_uuid_newtypes(domain_file: &str) -> Vec<String> {
             let field = |key: &str| declared.get(key).and_then(serde_yaml_ng::Value::as_str);
             if field("kind") == Some("newtype") && field("of") == Some("Uuid") {
                 let name = field("name").unwrap_or_else(|| {
-                    panic!("a Uuid newtype in {domain_file} has no name: {declared:?}")
+                    panic!(
+                        "a Uuid newtype in {} has no name: {declared:?}",
+                        path.display()
+                    )
                 });
                 found.push(
                     name.rsplit('.')
@@ -160,18 +289,20 @@ fn ess_uuid_newtypes(domain_file: &str) -> Vec<String> {
 
 #[test]
 fn every_ess_id_type_exists_in_the_crate() {
-    // Every domain of the runtime. `store.yaml` declares no id newtype since `ekr.store.SnapshotId`
-    // was removed in wave p1-14; it is scanned so that an id declared there must be carried here too.
-    let mut declared: Vec<String> = [
-        "kernel.yaml",
-        "ontology.yaml",
-        "graph.yaml",
-        "store.yaml",
-        "integrate.yaml",
-    ]
-    .into_iter()
-    .flat_map(ess_uuid_newtypes)
-    .collect();
+    let domains = workspace_root().join("systems/ekr/domains");
+    let mut paths: Vec<_> = std::fs::read_dir(&domains)
+        .unwrap_or_else(|error| panic!("listing {}: {error}", domains.display()))
+        .map(|entry| entry.expect("a domain directory entry is readable").path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "yaml")
+        })
+        .collect();
+    paths.sort();
+    let mut declared: Vec<String> = paths
+        .iter()
+        .flat_map(|path| ess_uuid_newtypes(path))
+        .collect();
     declared.sort();
 
     let mut enumerated: Vec<String> = ENUMERATED.iter().map(|n| (*n).to_owned()).collect();
@@ -185,6 +316,70 @@ fn every_ess_id_type_exists_in_the_crate() {
         enumerated, declared,
         "the id types this suite enumerates and the ESS declarations must be the same set"
     );
+}
+
+/// Exercise the actual inventory guard in a separate process, with a fixture workspace supplied
+/// through Cargo's runtime path. A new domain must be found without editing a filename list.
+#[test]
+fn an_unknown_domain_filename_with_a_missing_identity_fails_the_actual_scan() {
+    let fixture = std::env::temp_dir().join(format!("ekr-identity-scan-{}", uuid::Uuid::now_v7()));
+    let domains = fixture.join("systems/ekr/domains");
+    std::fs::create_dir_all(&domains).unwrap();
+    let manifest = fixture.join("crates/ekr-core");
+    std::fs::create_dir_all(&manifest).unwrap();
+    for entry in std::fs::read_dir(workspace_root().join("systems/ekr/domains")).unwrap() {
+        let path = entry.unwrap().path();
+        if path
+            .extension()
+            .is_some_and(|extension| extension == "yaml")
+        {
+            std::fs::copy(&path, domains.join(path.file_name().unwrap())).unwrap();
+        }
+    }
+    let scan = || {
+        std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "every_ess_id_type_exists_in_the_crate",
+                "--nocapture",
+            ])
+            .env("CARGO_MANIFEST_DIR", &manifest)
+            .output()
+            .unwrap()
+    };
+    let control = scan();
+    assert!(
+        control.status.success(),
+        "the unchanged domains must pass: {}{}",
+        String::from_utf8_lossy(&control.stdout),
+        String::from_utf8_lossy(&control.stderr)
+    );
+    std::fs::write(
+        domains.join("a-new-domain-never-listed-before.yaml"),
+        "types:\n  - {of: Uuid, name: ekr.fixture.MissingId, kind: newtype}\n",
+    )
+    .unwrap();
+    let missing = scan();
+    let output = format!(
+        "{}{}",
+        String::from_utf8_lossy(&missing.stdout),
+        String::from_utf8_lossy(&missing.stderr)
+    );
+    assert!(
+        !missing.status.success() && output.contains("MissingId"),
+        "the actual scanner must refuse and name an unimplemented identity from a new domain: {output}"
+    );
+    std::fs::remove_dir_all(fixture).unwrap();
+}
+
+#[test]
+fn existing_observe_identities_have_typed_contract_cases() {
+    for declared in ess_uuid_newtypes(&workspace_root().join("systems/ekr/domains/observe.yaml")) {
+        assert!(
+            ENUMERATED.contains(&declared.as_str()),
+            "existing observe identity {declared} has no typed serde/mint contract case"
+        );
+    }
 }
 
 /// Adversary, wave p2p3p4-01 unit I: the `id_newtype!` rustdoc states how many types share the

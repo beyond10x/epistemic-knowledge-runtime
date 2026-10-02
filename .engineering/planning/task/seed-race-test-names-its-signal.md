@@ -7,7 +7,7 @@ title: The seed and head race test names the signal a process ended by
 relations:
 - decomposes: epic:p6-maintenance-observability
 - serves: vision:o5
-revision: 1
+revision: 2
 ---
 ## What is wrong
 
@@ -28,3 +28,10 @@ each head. If it recurs, find the cause from that.
 
 - A process ending by a signal in the case names the signal in the failure message.
 - The case passes 50 runs in a row at load above 30, or the cause is named here and fixed.
+
+## Released diagnostic correction
+
+Source inspection at released main confirms that
+crates/ekr/tests/adversary2_p5_01_store_open.rs prints seed and head signal numbers.
+The earlier missing-signal description is obsolete. This is partial completion, not closure:
+the repeated stress acceptance remains unverified. No stress runs were performed in this review.

@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 27
+revision: 28
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -559,3 +559,17 @@ review outcomes. Its further performance work is outside this release's completi
 Required repository correctness and security checks still must pass on the release candidate,
 and publication completes only after the exact tag and GitHub Release are verified. Documentation
 publication remains asynchronous.
+
+## Profiling artifact preservation during the next waves
+
+The completed W build target was preserved losslessly as
+<cache>/ekr-extract-07b/w/retained-target.tar.zst before its disposable cache was cleaned.
+The coordinator compared the archive against the original target with tar --diff, verified its
+compressed stream and digest, and checked that no process had the target open. Cargo accepted
+its existing cache marker and cleaned it successfully. Raw profiles, reports and measurements
+remain unchanged. The retained-target-recovery.txt record beside the archive gives the exact
+restoration procedure; exact profiling ELF/debug artifacts are inside the archive.
+This changes storage location only, not the unmet acceptance, limits or task status.
+
+Archive SHA-256:
+2c24125ad27ffaf0d46216f41e0d9d4f068c48f882b12ff5ccf8b4beafbb3da1

@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-02T18:26:33Z",
+  "actor": "agent:codex-ekr-next-three-root",
+  "artifact": "task:identity-scan-reads-a-hand-kept-domain-list",
+  "kind": "task",
+  "revision": 4,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "cargo test -p ekr-core --all-features --locked; package format and clippy",
+    "reference": "<cache>/ekr-next-three/input-08/identity/public-report.md"
+  }
+}

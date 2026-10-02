@@ -1,5 +1,7 @@
 //! Strict decoding primitives shared by live typed input carriers.
 
+pub mod yaml;
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
@@ -103,7 +105,7 @@ pub enum YamlRefusal {
 /// # Errors
 /// The first [`YamlRefusal`], in that order within each document.
 pub fn observe_yaml(text: &str, max_bytes: usize, max_depth: usize) -> Result<(), YamlRefusal> {
-    use serde_yaml_ng::observation::{Documents, Event};
+    use serde_yaml_ng::observation::Event;
 
     let malformed = |error: &dyn fmt::Display| YamlRefusal::Malformed(error.to_string());
     if text.len() > max_bytes {
@@ -112,8 +114,7 @@ pub fn observe_yaml(text: &str, max_bytes: usize, max_depth: usize) -> Result<()
             limit: max_bytes,
         });
     }
-    let mut documents =
-        Documents::from_str_within_depth(text, max_depth).map_err(|e| malformed(&e))?;
+    let mut documents = yaml::load(text, max_depth).map_err(|e| malformed(&e))?;
     while let Some(document) = documents.next_document() {
         let mut depth = 0usize;
         for at in 0..document.event_count() {

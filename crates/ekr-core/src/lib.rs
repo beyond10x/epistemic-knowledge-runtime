@@ -39,6 +39,7 @@ pub use hash::{ContentHash, ContentHashParseError};
 pub use identity::{
     AgentId, AssertionId, AttachmentId, EdgeId, EventId, EvidenceId, GraphRootId, IdParseError,
     IssueId, MergeId, NodeId, ObservationId, PropertyId, RevisionId, RevisionNumber,
-    RevisionNumberParseError, SchemaVersionId, SplitId, SupportId, TransactionId, TypeId,
+    RevisionNumberParseError, SchemaVersionId, SourceCheckpointId, SourceUnitId, SplitId,
+    SupportId, TransactionId, TypeId,
 };
 pub use time::{Timestamp, TimestampParseError};

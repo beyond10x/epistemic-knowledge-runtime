@@ -2,6 +2,19 @@
 
 Every change a user of the runtime sees, per release. Unreleased work sits at the top.
 
+## [Unreleased]
+
+### Fixed
+
+- **Ontology YAML is bounded before decoding.** `Ontology::from_yaml` caps input at 16 MiB,
+  nesting at 64 containers, expanded nodes at 33,554,432 and expanded scalar/key text at
+  16 MiB. Bounded aliases remain supported. Ontology, seed and transaction readers share
+  the existing bounded loader and alias accounting.
+- **Identity coverage follows the ESS domain files.** The guard discovers domain documents
+  instead of relying on a fixed filename list. Existing observation identities
+  `SourceUnitId` and `SourceCheckpointId` gain the same public UUID carriers and shared
+  serialization/minting coverage as the other identities.
+
 ## [0.0.27] — 2026-10-02
 
 ### Added
