@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 22
+revision: 24
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -411,3 +411,95 @@ and story guards, formatting and touched-crate clippy. Those checks passed. The 
 probe shows fewer record-copy allocations while preserving complete JSON bytes; it does not
 claim that all allocation disappears or that timing acceptance is green. The next measurement
 must use the exact combined revision and the unchanged default SQLite workload and bounds.
+
+## Sixth measurement and storage diagnostic — acceptance remains red
+
+Frozen source: `570cb34cf157e0703d3a48c7ce6d102933cb380d`. Default SQLite workload:
+20,000 / 10,000 / 80,000 facts, unchanged first/last 15 windows, 1.2 per-verb bounds,
+and existing 1.5 aggregate bounds. `combined6/scaling.log` reports validation 41.5→46.1 ms
+(1.111×, pass), commit 520.2→650.9 ms (1.251×, fail), aggregate ratios 2.12× / 2.07×,
+exit 101, and 274.85 seconds. Checkpoint transaction 119 took 5,070.8 ms to commit;
+transactions 117/118 took 587.3/621.5 ms. Their mean is 2,093.2 ms, with checkpoint 119
+accounting for 80.75% of those commit milliseconds. All measurements remain retained.
+
+`combined6/functions-phases.txt` and `workers.txt` separate main-thread and asynchronous
+provider work. Ordinary main+worker CPU sample counts grew 359→382 (1.064×); checkpoint
+counts grew 69+94→136+221. Worker command assignment follows chronological main-command
+samples, so it is an inference. Checkpoint 119 has 137 main+worker samples spanning 5.059
+seconds, about 1.38 seconds of nominal sampling at 99 Hz. Cycles-only data cannot separate
+storage waiting from descheduling. It does not justify another speculative CPU correction.
+
+The original W transcript explicitly printed `TMPDIR=<cache>/claude-tmp` before profiling;
+its script did not override that value. Both that path and all six resumed fixture paths are
+on ext4. Selective original output is retained in `combined6/recovered-w-environment.txt`.
+Current `/tmp` being tmpfs does not establish that the original run used tmpfs. A tmpfs run
+would not replace ext4 acceptance.
+
+An unchanged-source diagnostic tested three ranked explanations: full-checkpoint writes/syncs;
+worker waiting/scheduling; and remaining encoding/copy CPU. It traced pwrite64, fsync,
+fdatasync and futex without payload bytes. The executed CLI build ID,
+`11689baad643c66b0fa0c5cf2c833a9a11d101d8`, matches the combined6 perf build-ID record.
+`diagnostic-io/executed-artifact.txt` retains that identity and unlimited workload file-size limits.
+
+Two incomplete attempts are preserved and excluded from acceptance. An inherited 64 MiB
+file-size limit stopped the linker with SIGXFSZ before fixtures: invalid diagnostic, exit 101.
+An external trace-size monitor then stopped raw tracing at 69,267,834 bytes before base
+completion: exit 143. The final attempt streamed per-thread count/sum/max durations and
+only calls lasting at least 20 ms, with a 600-second timeout and an external 64 MiB output
+monitor. It completed in 380.26 seconds, exit 101, retaining 2,923,594 bytes of summaries
+and slow calls. No bound or source changed.
+
+`diagnostic-io/syscall-summary.log` records the following aggregate for trace IDs 1507000 and above, used as an approximation
+of activity from the large-phase start onward:
+
+- 1,816 fsync calls: 45.932106 seconds summed duration; maximum 1.138453 seconds.
+- 2,775,803 pwrite64 calls: 13.397234 seconds; maximum 0.114338 seconds.
+- No fdatasync calls observed.
+
+The run did not retain clone events or a complete TID-to-process membership table. These are
+phase aggregates, not proved large-child worker totals. In particular, membership of threads
+1507494, 1520179 and 1520180 is not independently established. Thread 1507005 alone accounts
+for 910 fsync calls and 22.318939 seconds; it is reported separately without relying on the
+additional thread attribution.
+
+The large main thread, independently identified as PID 1507000, recorded 367,607 futex waits,
+totaling 154.338468 seconds, with a maximum of 3.608053 seconds. Large-phase elapsed time
+was 289.9 seconds. Its final five-second process sample had 159.39 seconds cumulative CPU
+(user 132.41 / system 26.98); this is a lower bound before exit, not a complete per-command
+measurement. Main waits overlap worker CPU and storage calls. Worker idle waits also overlap;
+neither can be added to CPU/storage totals as disjoint elapsed costs.
+
+The final pre-close main wait spans approximately Unix time 1790957303.447759–1790957306.219604
+(2.771845 seconds). Two slow fsync returns in that span total 0.353918 seconds. Their linkage
+to the last full checkpoint is plausible, but no command markers were traced, so exact
+checkpoint-119 attribution is not proved. The later close checkpoint has separate waits and
+must not be charged to transaction 119. Ordinary commit medians over the 12 non-checkpoint
+samples were 785.5→948.5 ms (about 1.208×); the all-15 medians were 785.5→965.1 ms (1.229×).
+These traced timings are diagnostic only.
+
+Storage waits are directly observed and materially contribute; their durations do not alone
+explain the whole elapsed gap. Tracing adds substantial overhead: base 52.3 seconds versus
+untraced 36.8 seconds. The coordinator's full gate concurrently exercised the same ext4
+filesystem. No new EKR-owned repeated CPU work has been established. One same-revision
+ext4 measurement after that known concurrent gate finishes is a justified controlled probe:
+remove syscall tracing, retain the acceptance run's 99 Hz perf sampling, and change only the
+known competing gate workload. Retain all earlier results and every bound, cadence,
+durability setting and dependency pin. Do not repeat measurements merely until one passes.
+
+## Combined source correctness gate
+
+The complete `task check` passed on frozen source
+`570cb34cf157e0703d3a48c7ce6d102933cb380d`. The retained coordinator log
+`<cache>/ekr-extract-07b/coordinator/full-serialization-combined-check.log` ends with:
+
+```text
+CHECK_EXIT=0
+Fri Oct  2 16:19:40 UTC 2026
+```
+
+This covers formatting, workspace clippy and tests, benchmark-feature compilation, rustdoc,
+vendored YAML compatibility, pinned specification validation, generated-suite freshness and
+planning validation. Historical prose-only planning review warnings remain. The previously
+recorded ext4 temporary directory is used without changing the inode-reuse test. All feature
+acceptance and retained review corrections are exercised on the combined source. Implementation
+status does not claim publication: wave release remains held on the separate performance task.

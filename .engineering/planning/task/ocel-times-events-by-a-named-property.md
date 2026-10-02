@@ -2,16 +2,17 @@
 format: aep.planning-md/3
 id: task:ocel-times-events-by-a-named-property
 kind: task
-status: active
+status: implemented
 title: ekr ocel times events by a named date property
 relations:
 - decomposes: epic:consumer-sdk
 - serves: vision:o5
 - informed_by: task:ocel-export-prints-its-counts
-revision: 5
+revision: 7
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-02T10:34:31Z", actor: "agent:codex-ekr-x7b", revision: 3}
 - {from: "proposed", to: "active", at: "2026-10-02T10:34:31Z", actor: "agent:codex-ekr-x7b", revision: 4}
+- {from: "active", to: "implemented", at: "2026-10-02T16:21:30Z", actor: "agent:codex-ekr-x7b-root", revision: 7, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}}
 ---
 ## What is wrong
 
@@ -59,3 +60,21 @@ inherited properties. Names are case-sensitive; ambiguous type/property names an
 mappings are named refusals, while repeated identical mappings may deduplicate. Split a selector
 at its last dot. A missing timestamp leaves the node undated; multiple distinct timestamps refuse
 ambiguity rather than silently choosing one. The authored scenarios must exercise these rules.
+
+## Combined source correctness gate
+
+The complete `task check` passed on frozen source
+`570cb34cf157e0703d3a48c7ce6d102933cb380d`. The retained coordinator log
+`<cache>/ekr-extract-07b/coordinator/full-serialization-combined-check.log` ends with:
+
+```text
+CHECK_EXIT=0
+Fri Oct  2 16:19:40 UTC 2026
+```
+
+This covers formatting, workspace clippy and tests, benchmark-feature compilation, rustdoc,
+vendored YAML compatibility, pinned specification validation, generated-suite freshness and
+planning validation. Historical prose-only planning review warnings remain. The previously
+recorded ext4 temporary directory is used without changing the inode-reuse test. All feature
+acceptance and retained review corrections are exercised on the combined source. Implementation
+status does not claim publication: wave release remains held on the separate performance task.

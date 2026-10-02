@@ -2,15 +2,16 @@
 format: aep.planning-md/3
 id: task:ocel-export-prints-its-counts
 kind: task
-status: active
+status: implemented
 title: ekr ocel prints the counts of its export
 relations:
 - decomposes: epic:consumer-sdk
 - serves: vision:o5
-revision: 6
+revision: 8
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-02T10:34:31Z", actor: "agent:codex-ekr-x7b", revision: 3}
 - {from: "proposed", to: "active", at: "2026-10-02T10:34:31Z", actor: "agent:codex-ekr-x7b", revision: 4}
+- {from: "active", to: "implemented", at: "2026-10-02T16:21:30Z", actor: "agent:codex-ekr-x7b-root", revision: 8, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}}
 ---
 ## What is wrong
 
@@ -94,3 +95,21 @@ carried 0, new 1, resolved 1
 }
 
 ```
+
+## Combined source correctness gate
+
+The complete `task check` passed on frozen source
+`570cb34cf157e0703d3a48c7ce6d102933cb380d`. The retained coordinator log
+`<cache>/ekr-extract-07b/coordinator/full-serialization-combined-check.log` ends with:
+
+```text
+CHECK_EXIT=0
+Fri Oct  2 16:19:40 UTC 2026
+```
+
+This covers formatting, workspace clippy and tests, benchmark-feature compilation, rustdoc,
+vendored YAML compatibility, pinned specification validation, generated-suite freshness and
+planning validation. Historical prose-only planning review warnings remain. The previously
+recorded ext4 temporary directory is used without changing the inode-reuse test. All feature
+acceptance and retained review corrections are exercised on the combined source. Implementation
+status does not claim publication: wave release remains held on the separate performance task.

@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:evidence-attaches-to-a-held-assertion
 kind: story
-status: active
+status: implemented
 title: Evidence attaches to an assertion the store already holds
 relations:
 - decomposes: epic:consumer-sdk
@@ -85,10 +85,11 @@ scope:
   path: systems/ekr/domains/kernel.yaml
 - confidence: cited
   path: systems/ekr/domains/views.yaml
-revision: 44
+revision: 46
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T09:59:45Z", actor: "human:timo", revision: 38}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:06Z", actor: "human:timo", revision: 39}
+- {from: "active", to: "implemented", at: "2026-10-02T16:21:29Z", actor: "agent:codex-ekr-x7b-root", revision: 46, decided_on: {"recorded":{"test_result":1,"review_outcome":3}}}
 ---
 ## Context
 
@@ -236,3 +237,21 @@ Only the affected membrane target was refreshed. Its diff was reviewed, then tha
 again with TRYBUILD overwrite disabled. Raw initial, refresh and verification outputs remain in
 coordinator remaining-crates-check.log, attachment-membrane-refresh.log and
 attachment-membrane-verified.log.
+
+## Combined source correctness gate
+
+The complete `task check` passed on frozen source
+`570cb34cf157e0703d3a48c7ce6d102933cb380d`. The retained coordinator log
+`<cache>/ekr-extract-07b/coordinator/full-serialization-combined-check.log` ends with:
+
+```text
+CHECK_EXIT=0
+Fri Oct  2 16:19:40 UTC 2026
+```
+
+This covers formatting, workspace clippy and tests, benchmark-feature compilation, rustdoc,
+vendored YAML compatibility, pinned specification validation, generated-suite freshness and
+planning validation. Historical prose-only planning review warnings remain. The previously
+recorded ext4 temporary directory is used without changing the inode-reuse test. All feature
+acceptance and retained review corrections are exercised on the combined source. Implementation
+status does not claim publication: wave release remains held on the separate performance task.

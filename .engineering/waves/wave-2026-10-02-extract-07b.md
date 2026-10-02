@@ -18,10 +18,10 @@ Build directories are under `<home>/.cache/b10x-target/`; scratch roots under
 | Unit | Artifacts | Branch / managed id | Build directory | Scratch | Stage |
 |---|---|---|---|---|---|
 | A | story:evidence-attaches-to-a-held-assertion | impl/evidence-attachment / ekr-x7-a | ekr-x7b-a | a | integrated at 0283e993e after decoder correction and second adversary pass |
-| W | task:validate-cost-flat-with-store-size | impl/validate-cost-flat / ekr-x7-w | ekr-x7b-w | w | formatting and borrowed checkpoint correction 64fd48919 integrated; next default-size measurement and final combined gate pending |
+| W | task:validate-cost-flat-with-store-size | impl/validate-cost-flat / ekr-x7-w | ekr-x7b-w | w | formatting and borrowed checkpoint correction integrated; combined correctness green, performance acceptance remains open |
 | consumer | K: story:sdk-store-checks; O: task:ocel-export-prints-its-counts and task:ocel-times-events-by-a-named-property; Q: task:quality-counts-seed-evidence-and-constrained-types; N: task:code-names-matches-whole-words; F: task:fact-quality-states-the-empty-interval | impl/x7b-consumer / ekr-x7b-consumer | ekr-x7b-consumer | consumer | integrated through d30befbbe with selector corrections and retained adversary cases; managed tree retired |
 | F/K adversary | empty interval and judged SDK sample | review/x7b-fk / ekr-x7b-review-fk | ekr-x7b-review-fk | review-fk | F/K and subsequent O/N reviews integrated; managed tree retired |
-| coordinator | integration, planning, conformance synthesis | wave/extract-07b / ekr-extract-07b | ekr-extract-07b | coordinator | combined correctness passed at 4a3e384b0; W correction, final acceptance and release remain |
+| coordinator | integration, planning, conformance synthesis | wave/extract-07b / ekr-extract-07b | ekr-extract-07b | coordinator | final source correctness passed at 570cb34cf; feature artifacts implemented, W acceptance and release remain |
 
 No unit writes the planning store. Each implementation receives a file brief and is followed by
 an independent adversary using the skill's role procedure. Codex dispatches generic collaboration
@@ -179,3 +179,21 @@ serializer-name oracles, public-surface/story guards and touched-crate clippy pa
 reviewed the correction, including the observable serde-name difference reproduced and fixed by
 a retained case. The task records the source and probe evidence. The fifth measurement remains
 the latest completed acceptance result; this correction does not itself close the task.
+
+## Final source gate and remaining measurement
+
+The retained `coordinator/full-serialization-combined-check.log` covers the frozen source
+`570cb34cf157e0703d3a48c7ce6d102933cb380d` and ends with:
+
+```text
+CHECK_EXIT=0
+Fri Oct  2 16:19:40 UTC 2026
+```
+
+A and the consumer artifacts now carry that combined evidence and are implemented. W remains
+active: `w/combined6/scaling.log` still fails commit and aggregate timing acceptance. Its task
+records the retained syscall diagnostic, uncertainty about thread attribution, and corrected
+ext4 provenance. A single controlled comparison follows completion of the coordinator's gate,
+using the identical source, default SQLite workload, ext4 fixture storage and perf sampling.
+No threshold, cadence, durability setting or dependency pin changes. No new adversary pass is
+opened. Source release remains pending the result; the changelog remains Unreleased.
