@@ -7,6 +7,22 @@ summary: >-
   and each later version has number + 1 and the version it was derived from as its parent. A
   schema transaction derives the next version by applying SchemaChanges in order.
 
+# Ontology::from_yaml bounds caller input before typed materialization: at most 16,777,216
+# input bytes, 64 nested containers (root counts one, including alias expansion), 33,554,432
+# expanded scalar/key/container nodes and 16,777,216 expanded scalar/key bytes. Bounds are
+# inclusive. Bounded aliases remain supported; recursive aliases are refused. The loader
+# stops at the first container past the depth bound instead of loading the entire input.
+# Resource refusals are OntologyError::Syntax with ontology-too-large, ontology-too-deep or
+# ontology-alias-expansion in the message. Existing syntax and semantic refusals remain.
+# Planned cases (unexecuted until input-08 verification) in crates/ekr-ontology/tests/ontology_load.rs:
+# ontology_yaml_refuses_input_bytes_before_decoding
+# ontology_yaml_refuses_excessive_container_depth
+# ontology_yaml_bounds_expanded_alias_nodes_and_text
+# ontology_yaml_preserves_bounded_aliases_and_existing_refusals
+# Unit case in schema.rs: ontology_yaml_stops_loading_at_the_depth_cut.
+# The production YAML ingress inventory and its unclassified-reader counterexamples are
+# held in crates/ekr-ontology/tests/yaml_ingress.rs.
+
 naming:
   wire: ontology
   display: Ontology

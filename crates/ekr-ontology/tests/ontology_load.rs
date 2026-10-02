@@ -604,3 +604,81 @@ fn value_envelopes_do_not_discard_unknown_semantics() {
         ekr_ontology::Value::Integer(1)
     );
 }
+
+const EMPTY_ONTOLOGY_YAML: &str =
+    "version: {id: 018f2a00-0000-7000-8000-000000000001, number: 0, created_at: 0}\n";
+
+fn ontology_resource_refusal(text: &str, code: &str) {
+    let error =
+        Ontology::from_yaml(text).expect_err("the reader must refuse before typed decoding");
+    assert!(
+        matches!(&error, OntologyError::Syntax(message) if message.contains(code)),
+        "expected {code}, got {error:?}"
+    );
+}
+
+#[test]
+fn ontology_yaml_refuses_input_bytes_before_decoding() {
+    const LIMIT: usize = 16_777_216;
+    let mut text = format!("{EMPTY_ONTOLOGY_YAML}#");
+    text.extend(std::iter::repeat_n('x', LIMIT - text.len()));
+    assert_eq!(text.len(), LIMIT);
+    assert!(
+        Ontology::from_yaml(&text).is_ok(),
+        "inclusive byte boundary"
+    );
+    text.push('x');
+    ontology_resource_refusal(&text, "ontology-too-large");
+}
+
+#[test]
+fn ontology_yaml_refuses_excessive_container_depth() {
+    let text = format!("{}x{}", "[".repeat(65), "]".repeat(65));
+    ontology_resource_refusal(&text, "ontology-too-deep");
+}
+
+#[test]
+fn ontology_yaml_bounds_expanded_alias_nodes_and_text() {
+    let mut nodes = String::from("a0: &a0 [[], []]\n");
+    for level in 1..=25 {
+        nodes.push_str(&format!(
+            "a{level}: &a{level} [*a{}, *a{}]\n",
+            level - 1,
+            level - 1
+        ));
+    }
+    let mut text = format!("a: &a {}\nb: [", "x".repeat(1 << 20));
+    text.push_str(&std::iter::repeat_n("*a", 16).collect::<Vec<_>>().join(", "));
+    text.push_str("]\n");
+    let mut missed = Vec::new();
+    for (input, code) in [
+        (&nodes, "ontology-alias-expansion: nodes"),
+        (&text, "ontology-alias-expansion: text"),
+    ] {
+        let result = Ontology::from_yaml(input);
+        if !matches!(&result, Err(OntologyError::Syntax(message)) if message.contains(code)) {
+            missed.push(format!("expected {code}, got {result:?}"));
+        }
+    }
+    assert!(missed.is_empty(), "{}", missed.join("\n"));
+}
+
+#[test]
+fn ontology_yaml_preserves_bounded_aliases_and_existing_refusals() {
+    let aliases = format!("{EMPTY_ONTOLOGY_YAML}node_types: &empty []\nedge_types: *empty\n");
+    assert_eq!(
+        Ontology::from_yaml(&aliases).unwrap(),
+        Ontology::from_yaml(EMPTY_ONTOLOGY_YAML).unwrap()
+    );
+    for text in [
+        format!("{EMPTY_ONTOLOGY_YAML}node_types: &recursive [*recursive]\n"),
+        format!("{EMPTY_ONTOLOGY_YAML}unknown: []\n"),
+        format!("{EMPTY_ONTOLOGY_YAML}---\n{EMPTY_ONTOLOGY_YAML}"),
+        String::from("version: ["),
+    ] {
+        assert!(
+            matches!(Ontology::from_yaml(&text), Err(OntologyError::Syntax(_))),
+            "{text}"
+        );
+    }
+}
