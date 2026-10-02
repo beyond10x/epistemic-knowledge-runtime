@@ -29,6 +29,15 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Fixed
 
+- **A read-only open of a SQLite store that another process is writing no longer fails with
+  `unable to open database file`.** A writer leaves its `-wal` without its `-shm` for a moment as
+  it opens and as it closes, and a read-only connection, which may not create a `-shm`, reported
+  `SQLITE_CANTOPEN` (extended code 14) then. Where the read-only open could write the store's
+  directory, SQLite could also leave an empty `-wal` behind it, after which every later read-only
+  open of that store failed the same way. The open now reads a store whose `-wal` is absent or
+  empty from the database file alone, and reads a store whose `-wal` holds data but has no `-shm`
+  again, up to 12 times with pauses of at most 527 ms in all, before reporting the error with
+  SQLite's extended code.
 - **A SQLite store replaced in place is no longer answered from the database the reader
   opened.** A database copied over the store file of a live `ekr session`, `ekr mcp` or
   `ekr view` keeps the file's device and inode, and its connection went on answering the
