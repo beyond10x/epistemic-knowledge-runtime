@@ -153,7 +153,7 @@ impl KernelAuthority {
         if history.occurrences.is_empty() {
             return Ok(BTreeSet::new());
         }
-        let digests = crate::replay::prefix_digests(&history.occurrences);
+        let digests = self.cache()?.digests(&history.occurrences);
         let reached = self.cache()?.longest(&digests);
         let continues = |covered: usize, state: &crate::replay::ReplayState| {
             let head = state.head().root.revision;

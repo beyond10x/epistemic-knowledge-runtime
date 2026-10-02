@@ -407,7 +407,11 @@ impl KernelAuthority {
     /// the retained one, after this authority wrote it.
     pub(crate) fn checkpoint_retained(&self, covered: u64, revision: RevisionNumber) {
         if let Ok(mut cache) = self.cache.lock() {
+            let previous = cache.retained;
             cache.retained = Some((covered, revision));
+            if let Some((_, previous)) = previous.filter(|(_, previous)| *previous != revision) {
+                cache.release(previous);
+            }
         }
     }
 }

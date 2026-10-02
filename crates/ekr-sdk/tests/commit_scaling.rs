@@ -258,6 +258,7 @@ impl Cost {
 struct Timed<'s> {
     session: &'s mut ProcessSession,
     costs: Vec<Cost>,
+    input_bytes: Vec<usize>,
 }
 
 impl Transport for Timed<'_> {
@@ -266,10 +267,14 @@ impl Transport for Timed<'_> {
         let reply = self.session.request(request);
         let took = started.elapsed();
         match request.verb() {
-            "propose" => self.costs.push(Cost {
-                propose: took,
-                ..Cost::default()
-            }),
+            "propose" => {
+                self.costs.push(Cost {
+                    propose: took,
+                    ..Cost::default()
+                });
+                self.input_bytes
+                    .push(request.stdin.as_ref().map_or(0, String::len));
+            }
             "validate" => {
                 if let Some(cost) = self.costs.last_mut() {
                     cost.validate += took;
@@ -297,6 +302,7 @@ fn apply(directory: &Path, backend: Backend, first: usize, count: usize) -> Vec<
     let mut timed = Timed {
         session: &mut session,
         costs: Vec::new(),
+        input_bytes: Vec::new(),
     };
     let report = Batcher::new(operator())
         .with_limits(OPERATIONS, 8 << 20)
@@ -305,7 +311,14 @@ fn apply(directory: &Path, backend: Backend, first: usize, count: usize) -> Vec<
     assert!(report.rejected.is_empty(), "{:?}", report.rejected);
     assert!(report.refused.is_none(), "{:?}", report.refused);
     let costs = timed.costs;
+    let input_bytes = timed.input_bytes;
     session.close().unwrap();
+    for (index, bytes) in input_bytes.into_iter().enumerate() {
+        println!(
+            "facts {first}..{} transaction {index}: proposal_input_bytes={bytes}",
+            first + count
+        );
+    }
     costs
 }
 
@@ -324,7 +337,7 @@ fn mean(costs: &[Cost]) -> Cost {
 }
 
 /// Independent medians of the verbs, for the validate/commit scaling task's 15-transaction
-/// measurement. This diagnostic does not replace the older whole-transaction assertions.
+/// measurement. These task assertions supplement the older whole-transaction assertions.
 fn median(costs: &[Cost]) -> Cost {
     let field = |get: fn(&Cost) -> Duration| {
         let mut values: Vec<_> = costs.iter().map(get).collect();
