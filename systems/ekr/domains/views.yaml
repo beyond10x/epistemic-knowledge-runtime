@@ -1935,7 +1935,8 @@ types:
   # counts the judgements, `passed` those whose verdict is Pass and `failed` the rest. With n =
   # judged and k = passed, `rate` is k / n and `lower` and `upper` are the Wilson score interval
   # (2k + z² ∓ z·√(z² + 4k(n − k)/n)) / (2(n + z²)), held within [0, 1]: `lower` is exactly 0 when
-  # k is 0 and `upper` exactly 1 when k is n. All three are omitted when n is 0.
+  # k is 0 and `upper` exactly 1 when k is n. When n is 0, rate is explicitly null and the
+  # vacuous interval is lower 0, upper 1; the interval reports no information about the rate.
   - name: ekr.views.FactQualityV1
     kind: struct
     fields:
@@ -1950,9 +1951,9 @@ types:
       - name: rate
         type: Optional<Decimal>
       - name: lower
-        type: Optional<Decimal>
+        type: Decimal
       - name: upper
-        type: Optional<Decimal>
+        type: Decimal
 
 actors:
   - name: ekr.views.Reader
@@ -3081,7 +3082,8 @@ events:
 
   # What one fact-quality report returned, every field a function of the document. `confidence`
   # is meta's; `judged`, `passed` and `failed` the document's; `rate_bp`, `lower_bp` and
-  # `upper_bp` are 10000 times rate, lower and upper rounded down, omitted with them;
+  # `upper_bp` are 10000 times rate, lower and upper rounded down. rate_bp is omitted when
+  # no fact was judged; lower_bp and upper_bp then state the vacuous interval, 0 and 10000;
   # `fact_quality_hash` the hex SHA-256 of the document's exact bytes.
   - name: ekr.views.FactQualityReported
     fields:
@@ -3096,8 +3098,8 @@ events:
       - name: rate_bp
         type: Optional<Integer>
       - name: lower_bp
-        type: Optional<Integer>
+        type: Integer
       - name: upper_bp
-        type: Optional<Integer>
+        type: Integer
       - name: fact_quality_hash
         type: ekr.kernel.ContentHash

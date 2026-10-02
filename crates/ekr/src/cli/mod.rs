@@ -397,7 +397,8 @@ pub enum Command {
     /// `{"format": "ekr.fact-judgements/1", "sample": {"revision", "seed", "size", "type"},
     /// "judgements": [{"assertion": <id>, "verdict": "Pass" | "Fail"}, ...]}`, `sample` optional
     /// and echoed. Opens no store. `rate` is passed / judged and `lower` and `upper` the Wilson
-    /// score interval at --confidence; the three are left out when nothing was judged. An
+    /// score interval at --confidence; when nothing was judged, rate is null and the interval
+    /// is [0, 1]. An
     /// assertion judged twice is refused as `ekr.views.JudgedTwice` (exit 2).
     #[command(after_help = SEE)]
     FactQuality {

@@ -553,12 +553,9 @@ struct FactQualityV1<'a> {
     judged: u64,
     passed: u64,
     failed: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
     rate: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    lower: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    upper: Option<f64>,
+    lower: f64,
+    upper: f64,
 }
 
 /// The confidence when a request states none, in basis points.
@@ -607,8 +604,8 @@ pub fn report_fact_quality(
         passed,
         failed: total - passed,
         rate: interval.map(|(rate, _, _)| rate),
-        lower: interval.map(|(_, lower, _)| lower),
-        upper: interval.map(|(_, _, upper)| upper),
+        lower: interval.map_or(0.0, |(_, lower, _)| lower),
+        upper: interval.map_or(1.0, |(_, _, upper)| upper),
     };
     // Finite numbers, integers and texts: the document always encodes.
     let bytes = serde_json::to_vec(&document).expect("an ekr.fact-quality/1 document encodes");
@@ -623,8 +620,8 @@ pub fn report_fact_quality(
         passed,
         failed: total - passed,
         rate_bp: (total > 0).then(|| passed * 10_000 / total),
-        lower_bp: interval.map(|(_, lower, _)| basis_points(lower)),
-        upper_bp: interval.map(|(_, _, upper)| basis_points(upper)),
+        lower_bp: Some(basis_points(document.lower)),
+        upper_bp: Some(basis_points(document.upper)),
         fact_quality_hash: hash(&bytes),
     };
     Ok(Answer { bytes, summary })

@@ -204,9 +204,9 @@ fn an_empty_judged_sample_reports_zero_judged_and_an_empty_input_is_a_fault() {
         (&report["judged"], &report["passed"], &report["failed"]),
         (&json!(0), &json!(0), &json!(0))
     );
-    for omitted in ["rate", "lower", "upper"] {
-        assert!(report.get(omitted).is_none(), "{report}");
-    }
+    assert_eq!(report.get("rate"), Some(&Value::Null), "{report}");
+    assert_eq!(report["lower"], 0.0, "{report}");
+    assert_eq!(report["upper"], 1.0, "{report}");
 
     let empty = with_stdin(&["fact-quality", "-"], "");
     assert_eq!(empty.status.code(), Some(1));
