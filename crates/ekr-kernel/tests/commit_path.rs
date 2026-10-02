@@ -48,6 +48,7 @@ fn world() -> World {
             edge_types: vec![],
         },
         graph: GraphDocument {
+            attachments: Default::default(),
             root: GraphRoot {
                 id: GraphRootId::mint(),
                 space: Space::Canonical,

@@ -83,6 +83,7 @@ fn node(n: u64, type_id: TypeId, name: &str, aliases: &[&str]) -> Node {
 
 fn graph(nodes: impl IntoIterator<Item = Node>) -> CanonicalGraph {
     CanonicalGraph {
+        attachments: Default::default(),
         root: GraphRoot {
             id: root_id(1),
             space: Space::Canonical,

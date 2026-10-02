@@ -77,7 +77,7 @@ scope:
   path: systems/ekr/domains/kernel.yaml
 - confidence: cited
   path: systems/ekr/domains/views.yaml
-revision: 39
+revision: 40
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T09:59:45Z", actor: "human:timo", revision: 38}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:06Z", actor: "human:timo", revision: 39}
@@ -178,3 +178,17 @@ the compiler and the `AddAlias` precedent; the graph-collection placement above 
 - Would collide with, in wave extract-07: `story:extraction-verb-shares-the-sdk-path` on
   `docs/cli.md`, `cli/agent.rs`, `tests/agent_cli.rs`, the kernel conformance manifest and suites;
   `task:seed-document-bounds-alias-expansion` on `docs/cli.md`.
+
+## Resume acceptance evidence (2026-10-02)
+
+Recovered implementation and released-main reconciliation were followed by package validation and two adversary passes. The first found silent duplicate attachment decoding; correction bf48f7060 rejects repeated decoded records. The second pass adds equivalent JSON-spelling coverage and finds no residue. Reports: review-result:adversary-extract-07b-a-pass-1 and review-result:adversary-extract-07b-a-pass-2. The combined wave gate remains required before implementation status changes.
+
+The required large-store run, measured by the implementation's ignored attachment case (measurement.log, exit 0):
+
+```text
+sqlite: seeded 70000 assertions in 23.043622751s
+sqlite: 1000 AddEvidence + 1000 AttachEvidence (627176 bytes) against 70000 assertions: propose 3.732851352s, validate 30.591794ms, commit 931.509635ms, total 4.694952781s
+file: seeded 70000 assertions in 23.600420943s
+file: 1000 AddEvidence + 1000 AttachEvidence (627176 bytes) against 70000 assertions: propose 3.496460526s, validate 34.732145ms, commit 2.760908659s, total 6.29210133s
+
+```

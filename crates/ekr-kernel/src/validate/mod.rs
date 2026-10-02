@@ -29,6 +29,7 @@
 //! `Invoke` on a node that is not there. The transaction is refused in every one of those cases —
 //! by the validator whose question it actually is.
 
+mod attachment;
 pub mod authorization;
 mod candidate;
 pub mod cardinality;

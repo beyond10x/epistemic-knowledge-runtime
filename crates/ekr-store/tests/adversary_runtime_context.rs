@@ -62,6 +62,7 @@ fn graph(ontology: &Ontology) -> CanonicalGraph {
         vec![CanonicalValue::Enum("canonical".to_owned())],
     );
     CanonicalGraph {
+        attachments: Default::default(),
         root: GraphRoot {
             id: root_id,
             space: Space::Canonical,

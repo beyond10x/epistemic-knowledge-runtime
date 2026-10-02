@@ -365,6 +365,7 @@ fn empty_ontology(schema: SchemaVersionId) -> Ontology {
 fn graph_of(assertions: Vec<Assertion>) -> CanonicalGraph {
     let schema = SchemaVersionId::mint();
     CanonicalGraph {
+        attachments: Default::default(),
         root: GraphRoot {
             id: GraphRootId::mint(),
             space: Space::Canonical,

@@ -159,8 +159,9 @@ impl EvidenceSet {
     }
 
     /// The `!AddEvidence` operations `operations` introduces into a transaction that already
-    /// holds `attached`: one per id its assertions cite that this set minted, that is not
-    /// committed and not in `attached`, in the order first cited. Each is added to `attached`.
+    /// holds `attached`: one per id its assertions cite or its attachments attach that this set
+    /// minted, that is not committed and not in `attached`, in the order first cited. Each is
+    /// added to `attached`.
     pub(crate) fn introduce(
         &self,
         operations: &[Operation],
@@ -168,14 +169,10 @@ impl EvidenceSet {
     ) -> Vec<Operation> {
         operations
             .iter()
-            .filter_map(|operation| match operation {
-                Operation::AddAssertion(assertion) => Some(assertion.evidence.iter()),
-                _ => None,
-            })
-            .flatten()
+            .flat_map(Operation::rests_on)
             .filter_map(|id| {
-                let entry = self.entries.get(id)?;
-                (!self.committed.contains(id) && attached.insert(*id)).then(|| entry.clone().into())
+                let entry = self.entries.get(&id)?;
+                (!self.committed.contains(&id) && attached.insert(id)).then(|| entry.clone().into())
             })
             .collect()
     }

@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 8
+revision: 9
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -63,7 +63,7 @@ raw perf stacks had already been deleted by the prior session. The profile's loa
 its harness log and must be carried into the final measurement report, not guessed here.
 
 WIP 39b37674 isolates repeated decoding of retained evidence on cached command replays.
-Its counted quantity is native object reads for a command. Its retained mutation result was
+Its counted quantity is retained objects placed into command histories, including memo hits; this is not a count of native provider reads. Its retained mutation result was
 490 versus 196 reads with evidence skipping disabled, followed by an eight-case green
 add_evidence lane with skipping restored. An earlier successive-transaction case still grew;
 there is no claim that the full 1.2x acceptance passed. Complete the default-size measurement

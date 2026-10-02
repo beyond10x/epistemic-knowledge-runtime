@@ -96,6 +96,7 @@ impl Fixture {
                 edge_types: vec![relation],
             },
             graph: GraphDocument {
+                attachments: Default::default(),
                 root: GraphRoot {
                     id: root,
                     space: Space::Canonical,

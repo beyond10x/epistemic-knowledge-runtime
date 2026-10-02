@@ -146,7 +146,19 @@ pub fn quality(
             continue;
         }
         active += 1;
-        let cited: Vec<EvidenceId> = assertion.evidence.iter().map(|e| e.id()).collect();
+        // Evidence attached after the assertion was added counts as cited evidence does
+        // (`story:evidence-attaches-to-a-held-assertion`).
+        let cited: Vec<EvidenceId> = assertion
+            .evidence
+            .iter()
+            .copied()
+            .chain(
+                graph
+                    .attached(assertion.id)
+                    .map(|attached| attached.evidence),
+            )
+            .map(|e| e.id())
+            .collect();
         if cited.iter().any(held) {
             with_evidence += 1;
         }

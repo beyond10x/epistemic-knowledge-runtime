@@ -75,6 +75,7 @@ fn graph() -> CanonicalGraph {
         transaction_time: TransactionTime::since(Timestamp::from_millis(10)),
     };
     CanonicalGraph {
+        attachments: Default::default(),
         root: GraphRoot {
             id: root,
             space: Space::Canonical,
@@ -343,6 +344,7 @@ fn the_two_roots_are_distinct_value_addresses() {
     assert_ne!(knowledge_root(&base), evidence_root(&base));
     assert_eq!(evidence_root(&base), ContentHash::of(&base.evidence));
     let empty = CanonicalGraph {
+        attachments: Default::default(),
         nodes: BTreeMap::new(),
         edges: BTreeMap::new(),
         assertions: BTreeMap::new(),
@@ -350,4 +352,27 @@ fn the_two_roots_are_distinct_value_addresses() {
         ..base
     };
     assert_ne!(knowledge_root(&empty), evidence_root(&empty));
+}
+
+#[test]
+fn every_attachment_coordinate_reaches_only_the_knowledge_root() {
+    let base = graph();
+    let mut roots = BTreeSet::from([knowledge_root(&base)]);
+    for (assertion, evidence, revision) in [
+        (ASSERTION, EVIDENCE, 1),
+        (ASSERTION + 1, EVIDENCE, 1),
+        (ASSERTION, EVIDENCE + 1, 1),
+        (ASSERTION, EVIDENCE, 2),
+    ] {
+        let mut changed = base.clone();
+        changed.attachments.insert(
+            id(assertion),
+            BTreeSet::from([ekr_graph::AttachedEvidence {
+                evidence: CanonicalRef::new(id(evidence)),
+                revision: RevisionNumber::new(revision),
+            }]),
+        );
+        assert!(roots.insert(knowledge_root(&changed)));
+        assert_eq!(evidence_root(&changed), evidence_root(&base));
+    }
 }
