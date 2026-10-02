@@ -2,15 +2,16 @@
 format: aep.planning-md/3
 id: task:seed-document-bounds-alias-expansion
 kind: task
-status: active
+status: implemented
 title: ekr seed bounds the size and alias expansion of its document
 relations:
 - serves: vision:o5
 - decomposes: epic:p6-maintenance-observability
-revision: 7
+revision: 8
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 6, decided_on: {"recorded":{"review_outcome":1}}}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 7, decided_on: {"recorded":{"review_outcome":1}}}
+- {from: "active", to: "implemented", at: "2026-10-02T10:29:26Z", actor: "agent:codex-ekr-x7b", revision: 8, decided_on: {"recorded":{"test_result":1,"review_outcome":2}}}
 ---
 ## Context
 

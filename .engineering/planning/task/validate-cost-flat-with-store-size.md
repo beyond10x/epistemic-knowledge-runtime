@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 7
+revision: 8
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -48,3 +48,26 @@ transactions, load printed, no idle machine required.
   transaction (for example claims copied, or objects read); a counting test in the default gate
   asserts that quantity is equal in two stores whose assertion counts differ at least fourfold
 - Refusals byte-identical (the kernel differentials and conformance suites pass).
+
+## Recovered profile and resume boundary (2026-10-02)
+
+The previous implementor's retained transcript reports frame-pointer samples for the
+20,000-fact base and 80,000-fact large delta. Its small profiling lane was reduced to 2,700,
+so this is diagnostic evidence, not the default-size acceptance measurement.
+Per-transaction normalized samples from transactions 18–28 to 111–120 were reported as:
+evidence loading 272.5 to 539.2 (validate 50.0 to 110.2; commit 100.3 to 150.4),
+lifecycle checking 0 to 0. This contradicts the initial lifecycle-copy hypothesis for that run.
+Other reported growth remained in checkpoint writes, root calculation and transaction-map cloning.
+Source: the retained unit-W transcript and profile text, recovered by the read-only resume audit;
+raw perf stacks had already been deleted by the prior session. The profile's load is retained in
+its harness log and must be carried into the final measurement report, not guessed here.
+
+WIP 39b37674 isolates repeated decoding of retained evidence on cached command replays.
+Its counted quantity is native object reads for a command. Its retained mutation result was
+490 versus 196 reads with evidence skipping disabled, followed by an eight-case green
+add_evidence lane with skipping restored. An earlier successive-transaction case still grew;
+there is no claim that the full 1.2x acceptance passed. Complete the default-size measurement
+and differential refusal tests before closing this task.
+
+Reconcile with released main first: replay_history must use the current entered() guard,
+and skipping evidence must not hide an appended withdrawal event or a replaced SQLite store.
