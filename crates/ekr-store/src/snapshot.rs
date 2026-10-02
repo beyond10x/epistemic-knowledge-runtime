@@ -1,7 +1,7 @@
 //! Serializable graph data. Only the kernel admits a document as canonical state.
 //! The store delegates every seed replay to its injected authority.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use ekr_core::{
@@ -9,8 +9,8 @@ use ekr_core::{
     SchemaVersionId,
 };
 use ekr_graph::{
-    Assertion, Attachments, CanonicalGraph, CanonicalValue, Edge, Evidence, GraphRoot,
-    InadmissibleValue, Node, Object, Space, Subject,
+    Assertion, AttachedEvidence, Attachments, CanonicalGraph, CanonicalValue, Edge, Evidence,
+    GraphRoot, InadmissibleValue, Node, Object, Space, Subject,
 };
 use ekr_ontology::Value;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -63,9 +63,25 @@ struct GraphFields {
     #[serde(
         default,
         skip_serializing_if = "BTreeMap::is_empty",
-        deserialize_with = "ekr_core::decode::unique_map"
+        deserialize_with = "unique_attachments"
     )]
     attachments: Attachments,
+}
+
+// Keep the map and each nested set strict without changing their serialized shape.
+fn unique_attachments<'de, D: Deserializer<'de>>(input: D) -> Result<Attachments, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(transparent)]
+    struct Records(
+        #[serde(deserialize_with = "ekr_core::decode::unique_set")] BTreeSet<AttachedEvidence>,
+    );
+
+    ekr_core::decode::unique_map::<_, AssertionId, Records>(input).map(|entries| {
+        entries
+            .into_iter()
+            .map(|(id, records)| (id, records.0))
+            .collect()
+    })
 }
 
 #[derive(Serialize, Deserialize)]
