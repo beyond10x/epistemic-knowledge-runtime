@@ -401,3 +401,27 @@ fn no_source_withdraws_retained_bytes_without_an_event_on_the_object_stream() {
         "the guard finds a call, and not one in a comment"
     );
 }
+
+/// Adversary pass c7-s on the guard above: it counts `.redact(` and `.delete_blob(` as text, so a
+/// withdrawal written as a qualified call — the form a generic helper over `EventStore` takes — or
+/// as the provider's `forget_tenant`, which removes every event and blob of the tenant and leaves
+/// no stream to append the event to, is not counted, and a new product source calling one passes
+/// the guard.
+#[test]
+#[ignore = "adversary c7-s: the withdrawal guard misses a qualified call and forget_tenant"]
+fn adversary_c7_s_the_withdrawal_guard_counts_every_form_of_a_provider_withdrawal() {
+    let forms = [
+        "        EventStore::redact(&provider, &stream, 1, \"why\").await?;",
+        "        <P as EventStore>::delete_blob(&provider, &tenant, &digest).await?;",
+        "        provider.forget_tenant(&tenant).await?;",
+    ];
+    let missed: Vec<&str> = forms
+        .iter()
+        .filter(|form| withdrawals(form) == 0)
+        .map(|form| form.trim())
+        .collect();
+    assert!(
+        missed.is_empty(),
+        "the guard counts no withdrawal in: {missed:#?}"
+    );
+}
