@@ -203,7 +203,14 @@ fn sqlite_head_racing_the_first_seed_answers_only_documented_states() {
             std::thread::sleep(std::time::Duration::from_millis(round % 4));
         }
         let seeded = seeding.wait_with_output().unwrap();
-        assert_eq!(seeded.status.code(), Some(0), "{}", stderr(&seeded));
+        assert_eq!(
+            seeded.status.code(),
+            Some(0),
+            "round {round}: seed ended {} (signal {:?}), stderr: {:?}",
+            seeded.status,
+            std::os::unix::process::ExitStatusExt::signal(&seeded.status),
+            stderr(&seeded)
+        );
         for head in heads {
             let output = head.wait_with_output().unwrap();
             let text = stderr(&output);
@@ -211,7 +218,11 @@ fn sqlite_head_racing_the_first_seed_answers_only_documented_states() {
                 || text.starts_with("ekr: store-not-found: ")
                 || text.contains("the lineage has no seed");
             if !documented {
-                undocumented.push(format!("round {round}: {:?} {text}", output.status.code()));
+                undocumented.push(format!(
+                    "round {round}: {} (signal {:?}) {text}",
+                    output.status,
+                    std::os::unix::process::ExitStatusExt::signal(&output.status)
+                ));
             }
         }
     }
