@@ -15,6 +15,7 @@
 //! ```text
 //! cargo test --release -p ekr-sdk --test commit_scaling -- --ignored --nocapture
 //! EKR_SCALING_QUICK=1 cargo test --release -p ekr-sdk --test commit_scaling -- --ignored --nocapture
+//! EKR_SCALING_PROVIDER=sqlite cargo test --release -p ekr-sdk --test commit_scaling -- --ignored --nocapture
 //! ```
 //!
 //! Synthetic data only: invented organisations and messages.
@@ -320,6 +321,21 @@ fn mean(costs: &[Cost]) -> Cost {
     }
 }
 
+/// Independent medians of the verbs, for the validate/commit scaling task's 15-transaction
+/// measurement. This diagnostic does not replace the older whole-transaction assertions.
+fn median(costs: &[Cost]) -> Cost {
+    let field = |get: fn(&Cost) -> Duration| {
+        let mut values: Vec<_> = costs.iter().map(get).collect();
+        values.sort_unstable();
+        values[values.len() / 2]
+    };
+    Cost {
+        propose: field(|cost| cost.propose),
+        validate: field(|cost| cost.validate),
+        commit: field(|cost| cost.commit),
+    }
+}
+
 fn line(label: &str, cost: Cost) -> String {
     format!(
         "{label:<34} propose {:>8.1} ms  validate {:>8.1} ms  commit {:>8.1} ms  total {:>8.1} ms",
@@ -391,6 +407,20 @@ fn measure(backend: Backend, sizes: Sizes) -> Vec<String> {
         timed(&deltas[0], sizes.small),
         timed(&deltas[1], sizes.large),
     );
+    if large.len() >= 30 {
+        let first = median(&large[..15]);
+        let last = median(&large[large.len() - 15..]);
+        println!("{}", line(&format!("{backend:?} first 15 medians"), first));
+        println!("{}", line(&format!("{backend:?} last 15 medians"), last));
+        println!(
+            "{backend:?} median ratios: validate {:.3}x; commit {:.3}x; load {}",
+            last.validate.as_secs_f64() / first.validate.as_secs_f64(),
+            last.commit.as_secs_f64() / first.commit.as_secs_f64(),
+            std::fs::read_to_string("/proc/loadavg")
+                .unwrap_or_else(|_| "unavailable".into())
+                .trim(),
+        );
+    }
     let small_end = mean(&small[small.len() - WINDOW..]);
     let large_start = mean(&large[..WINDOW]);
     let large_end = mean(&large[large.len() - WINDOW..]);
@@ -441,7 +471,14 @@ fn a_transaction_costs_the_same_in_a_large_delta_as_in_a_small_one() {
     let sizes = Sizes::from_environment();
     println!("{sizes:?} facts");
     let mut wrong = Vec::new();
-    for backend in [Backend::Sqlite, Backend::File] {
+    let providers = match std::env::var("EKR_SCALING_PROVIDER").as_deref() {
+        Ok("sqlite") => vec![Backend::Sqlite],
+        Ok("file") => vec![Backend::File],
+        Err(_) => vec![Backend::Sqlite, Backend::File],
+        Ok(other) => panic!("EKR_SCALING_PROVIDER={other}: expected sqlite or file"),
+    };
+    println!("Providers: {providers:?}");
+    for backend in providers {
         wrong.extend(measure(backend, sizes));
     }
     assert!(wrong.is_empty(), "\n{}", wrong.join("\n"));

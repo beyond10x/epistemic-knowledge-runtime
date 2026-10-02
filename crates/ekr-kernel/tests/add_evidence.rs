@@ -518,6 +518,7 @@ fn a_command_loads_the_same_objects_however_much_evidence_the_store_holds() {
     }
     for file in [false, true] {
         let (fewer, more) = (seventh(file, 1), seventh(file, 8));
+        eprintln!("file {file}: retained objects loaded into command histories: {fewer} / {more}");
         assert_eq!(
             more, fewer,
             "file {file}: objects the seventh transaction placed into histories over 7 and over \
@@ -558,6 +559,155 @@ fn a_verified_read_still_holds_every_added_payload() {
                 Some(payload.as_slice()),
                 "file {file}"
             );
+        }
+    }
+}
+
+/// A cached command may omit the bytes it already verified, but not the stream check that
+/// withdraws those bytes. Compare its named refusal with a complete history read, repeatedly:
+/// a failed fast replay must not clear the condition and make its next attempt succeed.
+#[test]
+fn cached_commands_refuse_withdrawn_evidence_as_complete_history_does() {
+    use eventlog_core::{CommandMeta, EventStore, Expected, NewEvent, StreamId, TenantId};
+    for file in [false, true] {
+        for (reopened, cold) in [(false, false), (true, false), (false, true)] {
+            let directory = tempfile::tempdir().unwrap();
+            let seed = seeded();
+            let mut runtime = open(directory.path(), file);
+            runtime.seed(seed.document.clone(), at(10)).unwrap();
+            let bytes = b"later withdrawn evidence";
+            let evidence = human_evidence(EvidenceId::mint(), bytes);
+            committed(
+                &runtime,
+                &transaction(vec![
+                    add_evidence(evidence.clone(), bytes),
+                    GraphOperation::AddAssertion(Box::new(assertion(&seed, evidence.id, "held"))),
+                ]),
+                20,
+            );
+            runtime.retain_checkpoint_at_rest();
+            if reopened {
+                drop(runtime);
+                runtime = open(directory.path(), file);
+            }
+            let tx = transaction(vec![GraphOperation::AddAssertion(Box::new(assertion(
+                &seed,
+                evidence.id,
+                "next",
+            )))]);
+            assert!(matches!(
+                verdict(&runtime, &tx, 30),
+                ValidationCommandResult::Validated(_)
+            ));
+            runtime.transactions().unwrap();
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let stream = StreamId::new(
+                TenantId::new("test").unwrap(),
+                "ekr.store.object",
+                evidence.content_hash.to_hex(),
+            )
+            .unwrap();
+            let event = NewEvent::new("test.WithdrawalRecorded", 1, serde_json::json!({})).unwrap();
+            let unrelated = StreamId::new(
+                TenantId::new("test").unwrap(),
+                "ekr.store.object",
+                ContentHash::of_bytes(b"not a dependency of the history").to_hex(),
+            )
+            .unwrap();
+            let meta = CommandMeta {
+                idempotency_key: EventId::mint().to_string(),
+                request_hash: "withdrawal".into(),
+                subject: "test".into(),
+                actor: "test".into(),
+                request_id: "withdrawal".into(),
+                trace_id: "withdrawal".into(),
+                causation_id: None,
+                causation_depth: 0,
+                occurred_at: ::time::OffsetDateTime::UNIX_EPOCH,
+                claim: None,
+            };
+            if file {
+                let provider = rt
+                    .block_on(eventlog_file::FileEventStore::open(directory.path()))
+                    .unwrap();
+                rt.block_on(provider.append(
+                    &unrelated,
+                    Expected::Any,
+                    std::slice::from_ref(&event),
+                    &meta,
+                ))
+                .unwrap();
+                assert!(
+                    runtime.transactions().is_ok(),
+                    "unrelated invalid stream must not refuse history"
+                );
+                rt.block_on(provider.append(&stream, Expected::Any, &[event], &meta))
+                    .unwrap();
+            } else {
+                let db = directory.path().join("state.db");
+                let provider = rt
+                    .block_on(eventlog_sqlite::SqliteEventStore::open(
+                        db.to_str().unwrap(),
+                        "ekr",
+                    ))
+                    .unwrap();
+                rt.block_on(provider.append(
+                    &unrelated,
+                    Expected::Any,
+                    std::slice::from_ref(&event),
+                    &meta,
+                ))
+                .unwrap();
+                assert!(
+                    runtime.transactions().is_ok(),
+                    "unrelated invalid stream must not refuse history"
+                );
+                rt.block_on(provider.append(&stream, Expected::Any, &[event], &meta))
+                    .unwrap();
+            }
+            if cold {
+                drop(runtime);
+                runtime = open(directory.path(), file);
+            }
+            let fresh = open(directory.path(), file)
+                .read(None)
+                .err()
+                .unwrap()
+                .to_string();
+            assert!(fresh.contains("unsupported-retention-envelope"), "{fresh}");
+            for _ in 0..2 {
+                let answers = [
+                    runtime
+                        .transactions()
+                        .map(|_| ())
+                        .map_err(|e| e.to_string()),
+                    runtime
+                        .propose(&encode(&transaction(vec![])), context().operator, at(40))
+                        .map(|_| ())
+                        .map_err(|e| e.to_string()),
+                    runtime
+                        .validate(tx.id, RevisionNumber::new(0), at(41))
+                        .map(|_| ())
+                        .map_err(|e| e.to_string()),
+                    runtime
+                        .commit(tx.id, context().operator, at(42))
+                        .map(|_| ())
+                        .map_err(|e| e.to_string()),
+                ];
+                for (verb, answer) in ["transactions", "propose", "validate historical", "commit"]
+                    .into_iter()
+                    .zip(answers)
+                {
+                    assert_eq!(
+                        answer,
+                        Err(fresh.clone()),
+                        "file {file}, reopened {reopened}, {verb}"
+                    );
+                }
+            }
         }
     }
 }

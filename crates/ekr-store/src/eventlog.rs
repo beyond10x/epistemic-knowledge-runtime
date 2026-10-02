@@ -126,6 +126,10 @@ pub struct EventlogStore<S: EventStore> {
     /// the log from it finds every event appended to a held stream since that object was
     /// verified.
     log_seen: std::sync::Mutex<Option<u64>>,
+    /// Tenant feed position preceding the most recent successful command replay. A cold handle
+    /// verifies the complete payload set once; later changes to existing object streams are
+    /// checked before it may reuse a replay that omits those payloads.
+    replay_checked: std::sync::Mutex<Option<u64>>,
     /// The revision stream's prefix this handle has read and checked. The stream is append-only,
     /// so a later read fetches only the occurrences after it.
     revisions: std::sync::Mutex<HeldRevisions>,
@@ -557,6 +561,7 @@ impl<S: EventStore> EventlogStore<S> {
             ontology,
             authority: None,
             verified: std::sync::Mutex::default(),
+            replay_checked: std::sync::Mutex::default(),
             log_seen: std::sync::Mutex::default(),
             revisions: std::sync::Mutex::default(),
             checkpoints: true,
@@ -687,6 +692,7 @@ impl<S: EventStore> EventlogStore<S> {
     #[must_use]
     pub fn under(mut self, authority: impl CommitAuthority + 'static) -> Self {
         self.authority = Some(Box::new(authority));
+        self.replay_checked = std::sync::Mutex::default();
         self
     }
     fn authority(&self) -> Result<&dyn CommitAuthority, StoreError> {
@@ -1276,6 +1282,9 @@ impl<S: EventStore> EventlogStore<S> {
     /// Drops everything this handle holds: the revision prefix and every verified object.
     fn forget_everything(&self, revisions: &mut HeldRevisions) {
         *revisions = HeldRevisions::default();
+        if let Ok(mut checked) = self.replay_checked.lock() {
+            *checked = None;
+        }
         let seen = self.log_seen.lock();
         if let Ok(mut held) = self.verified.lock() {
             held.clear();
@@ -1376,19 +1385,92 @@ impl<S: EventStore> EventlogStore<S> {
         &self,
         replayed: impl Fn(&RetainedHistory) -> Result<T, StoreError>,
     ) -> Result<(RetainedHistory, T), StoreError> {
+        let (boundary, complete) = self.replay_boundary()?;
         let partial = self
             .load_history_requiring(MAX_READ_LIMIT, None, |history| {
-                self.authority()?.replay_objects(history)
+                if complete {
+                    self.authority()?.required_objects(history)
+                } else {
+                    self.authority()?.replay_objects(history)
+                }
             })
             .and_then(|history| replayed(&history).map(|answer| (history, answer)));
-        match partial {
-            Ok(answer) => Ok(answer),
+        let answer = match partial {
+            Ok(answer) => answer,
             Err(_) => {
                 let history = self.load_history(MAX_READ_LIMIT, None)?;
                 let answer = replayed(&history)?;
-                Ok((history, answer))
+                (history, answer)
+            }
+        };
+        if !answer.0.occurrences.is_empty() {
+            self.remember_replayed(boundary)?;
+        }
+        Ok(answer)
+    }
+    /// Look from the last successful replay through the tenant feed, before loading its history.
+    /// A first object event creates immutable bytes; later events can withdraw or change their
+    /// retention, including for payloads a cached replay no longer loads. Changed objects are
+    /// checked again; a refusal requires the complete history, preserving its refusal ordering
+    /// and ignoring damage to objects that history does not require. Unreadable or inconsistent feeds
+    /// also require the complete history and cannot advance this cursor. It advances only after
+    /// successful verification, so a refusal remains a refusal on every retry.
+    fn replay_boundary(&self) -> Result<(Option<u64>, bool), StoreError> {
+        let prior = *self
+            .replay_checked
+            .lock()
+            .map_err(|_| StoreError::Document("replay-feed-position-poisoned".into()))?;
+        let mut complete = prior.is_none();
+        let mut after = prior.unwrap_or(0);
+        let mut changed = BTreeSet::new();
+        loop {
+            crate::verified::count_stream_read(|reads| reads.feed += 1);
+            let Ok(page) =
+                self.runtime()
+                    .block_on(self.store.read_feed(&self.tenant, after, MAX_READ_LIMIT))
+            else {
+                return Ok((None, true));
+            };
+            for event in &page.events {
+                if event.tenant != self.tenant || event.global_seq <= after {
+                    return Ok((None, true));
+                }
+                after = event.global_seq;
+                if event.stream_type == OBJECT_STREAM_TYPE
+                    && (event.version != 1
+                        || event.name != OBJECT_STORED
+                        || event.schema_version != 1
+                        || event.is_redacted())
+                {
+                    if let Ok(hash) = event.stream_id.parse::<ContentHash>() {
+                        changed.insert(hash);
+                    } else {
+                        complete = true;
+                    }
+                }
+            }
+            if !page.has_more {
+                if !complete && !changed.is_empty() {
+                    complete = self
+                        .required(&changed.into_iter().collect::<Vec<_>>())
+                        .is_err();
+                }
+                return Ok((Some(after), complete));
+            }
+            if page.events.is_empty() {
+                return Ok((None, true));
             }
         }
+    }
+    fn remember_replayed(&self, boundary: Option<u64>) -> Result<(), StoreError> {
+        if let Some(boundary) = boundary {
+            let mut checked = self
+                .replay_checked
+                .lock()
+                .map_err(|_| StoreError::Document("replay-feed-position-poisoned".into()))?;
+            *checked = Some(checked.map_or(boundary, |prior| prior.max(boundary)));
+        }
+        Ok(())
     }
     fn load_history_requiring(
         &self,
@@ -1435,19 +1517,25 @@ impl<S: EventStore> EventlogStore<S> {
     /// [`Self::load_authority_objects`] loads and verifies again, returning that answer: the one
     /// the complete history gives. As in [`Self::replayed`].
     pub(super) fn verify_replayed(&self, history: &mut RetainedHistory) -> Result<(), StoreError> {
+        let (boundary, complete) = self.replay_boundary()?;
         let partial = self.authority().and_then(|authority| {
-            let required = authority.replay_objects(history)?;
+            let required = if complete {
+                authority.required_objects(history)?
+            } else {
+                authority.replay_objects(history)?
+            };
             self.load_objects(history, required)?;
             let wanted = authority.objects_if_held(history)?;
             self.load_present(history, wanted)?;
             authority.verify(history, self.ontology.as_ref(), None)
         });
         if partial.is_ok() {
-            return Ok(());
+            return self.remember_replayed(boundary);
         }
         self.load_authority_objects(history)?;
         self.authority()?
-            .verify(history, self.ontology.as_ref(), None)
+            .verify(history, self.ontology.as_ref(), None)?;
+        self.remember_replayed(boundary)
     }
     /// Loads each object of `hashes` the history does not hold yet and the store holds an object
     /// for, as [`Self::load_objects`] loads it; one with no object stream is left out.
@@ -1655,7 +1743,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         Ok(history)
     }
     fn replay_history(&self) -> Result<RetainedHistory, StoreError> {
-        ensure_sync_context()?;
+        self.entered()?;
         self.replayed(|history| {
             if history.occurrences.is_empty() {
                 return Ok(());
