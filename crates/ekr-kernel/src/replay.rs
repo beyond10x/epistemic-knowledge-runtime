@@ -289,6 +289,8 @@ fn extend_digest(
     version: u64,
     event: &ekr_graph::RevisionEvent,
 ) -> ContentHash {
+    #[cfg(test)]
+    PREFIX_STEPS.with(|count| count.set(count.get() + 1));
     struct Step<'a>(ContentHash, u64, &'a ekr_graph::RevisionEvent);
     impl Canonical for Step<'_> {
         fn encode(&self, out: &mut Encoder) {
@@ -299,6 +301,10 @@ fn extend_digest(
         }
     }
     ContentHash::of(&Step(previous, version, event))
+}
+#[cfg(test)]
+thread_local! {
+    static PREFIX_STEPS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 pub(crate) fn prefix_digests(occurrences: &[RecordedOccurrence]) -> Vec<ContentHash> {
     let mut digests = Vec::with_capacity(occurrences.len() + 1);
@@ -319,6 +325,10 @@ pub(crate) fn prefix_digests(occurrences: &[RecordedOccurrence]) -> Vec<ContentH
 #[derive(Default)]
 pub(crate) struct ReplayCache {
     entries: Vec<(usize, ContentHash, Arc<ReplayState>)>,
+    /// Inputs and digests from the latest hashing pass. Every reuse compares the complete
+    /// domain occurrence and its position; provider identities do not enter the digest.
+    prefix_occurrences: Vec<RecordedOccurrence>,
+    prefix_hashes: Arc<Vec<ContentHash>>,
     /// The seed envelope this authority admitted, the evidence payloads it names, and whether it
     /// names them (`ekr-seed-envelope/3`: read where held) rather than carrying them (`/2`:
     /// required).
@@ -367,6 +377,35 @@ impl Drop for Keeping<'_> {
 pub(crate) type AliasCell = Arc<OnceLock<Arc<AliasIndex>>>;
 impl ReplayCache {
     const CAPACITY: usize = 4;
+    /// Hash only the suffix after the first different occurrence. Comparing complete inputs
+    /// keeps this a pure hash memo, including for a shorter history, a fork or tampered history;
+    /// it confers no replay authority and never substitutes for retained-object verification.
+    pub(crate) fn digests(&mut self, occurrences: &[RecordedOccurrence]) -> Arc<Vec<ContentHash>> {
+        let common = self
+            .prefix_occurrences
+            .iter()
+            .zip(occurrences)
+            .take_while(|(left, right)| left.version == right.version && left.event == right.event)
+            .count();
+        if common != occurrences.len() || common != self.prefix_occurrences.len() {
+            self.prefix_occurrences.truncate(common);
+            let digests = Arc::make_mut(&mut self.prefix_hashes);
+            digests.truncate(common + 1);
+            if digests.is_empty() {
+                digests.push(ContentHash::of("ekr.replay-prefix/1"));
+            }
+            let mut previous = digests[common];
+            for occurrence in &occurrences[common..] {
+                previous = extend_digest(previous, occurrence.version, &occurrence.event);
+                digests.push(previous);
+            }
+            self.prefix_occurrences
+                .extend_from_slice(&occurrences[common..]);
+        } else if self.prefix_hashes.is_empty() {
+            Arc::make_mut(&mut self.prefix_hashes).push(ContentHash::of("ekr.replay-prefix/1"));
+        }
+        Arc::clone(&self.prefix_hashes)
+    }
     /// The alias-index cell of the head `revision_id` with `root`: the held one when it is that
     /// head's, and otherwise a new one, which replaces it.
     pub(crate) fn alias_cell(
@@ -426,13 +465,15 @@ impl ReplayCache {
         }
     }
     /// Releases the graph of revision `number` from every held state that holds it and does not
-    /// keep it as its head or as the retained checkpoint's head. Each such state is replaced by a
+    /// keep it as its head, the retained checkpoint's head or an active historical read. Each
+    /// state is replaced by a
     /// copy without it, so that a caller still sharing the old state keeps what it holds.
-    fn release(&mut self, number: RevisionNumber) {
+    pub(crate) fn release(&mut self, number: RevisionNumber) {
         let checkpointed = self.retained.map(|(_, revision)| revision);
         for entry in &mut self.entries {
             let state = &entry.2;
             let releases = Some(number) != checkpointed
+                && Some(number) != self.keep
                 && state.head().root.revision != number
                 && state
                     .revisions
@@ -921,9 +962,9 @@ impl KernelAuthority {
         // selected revision is computed in full, as before.
         let shared = ontology.is_none() && selected.is_none();
         let digests = if shared && !history.occurrences.is_empty() {
-            prefix_digests(&history.occurrences)
+            self.cache()?.digests(&history.occurrences)
         } else {
-            Vec::new()
+            Arc::default()
         };
         let reached = if shared && reuse {
             self.cache
@@ -1585,6 +1626,134 @@ mod tests {
         check(&file(directory.path(), false));
         let directory = tempfile::tempdir().unwrap();
         check(&sqlite(directory.path(), false));
+    }
+
+    #[test]
+    fn a_new_checkpoint_releases_its_predecessors_graph_before_the_next_command() {
+        fn check<S: RevisionLog + ObjectStore + Initialize>(kernel: &Commit<S>) {
+            let seed = seed();
+            kernel
+                .seed(seed.clone(), || Timestamp::from_millis(10))
+                .unwrap();
+            for n in 1..=5 {
+                commit(kernel, &seed, n);
+            }
+            assert_eq!(retained(kernel), Some(5));
+            let held = kernel.read_state().unwrap();
+            let graph = std::sync::Arc::downgrade(held.head().graph.as_ref().unwrap());
+            for n in 6..=10 {
+                commit(kernel, &seed, n);
+            }
+            assert_eq!(retained(kernel), Some(10));
+            assert_eq!(held.head().root.revision, RevisionNumber::new(5));
+            drop(held);
+            assert!(
+                graph.upgrade().is_none(),
+                "the new checkpoint still caches its predecessor's graph"
+            );
+        }
+        let directory = tempfile::tempdir().unwrap();
+        check(&file(directory.path(), false));
+        let directory = tempfile::tempdir().unwrap();
+        check(&sqlite(directory.path(), false));
+    }
+
+    #[test]
+    fn warm_validation_hashes_no_more_prefix_occurrences_as_history_grows() {
+        fn count<S: RevisionLog + ObjectStore + Initialize>(kernel: &Commit<S>, size: u64) -> u64 {
+            let seed = seed();
+            kernel
+                .seed(seed.clone(), || Timestamp::from_millis(10))
+                .unwrap();
+            for n in 1..=size {
+                commit(kernel, &seed, n);
+            }
+            let (id, bytes) = document(&seed, size + 1, seed.ontology.node_types[0].id);
+            kernel
+                .propose(&bytes, context().operator, || at(size + 1, 0))
+                .unwrap();
+            let before = super::PREFIX_STEPS.with(std::cell::Cell::get);
+            let verdict = kernel
+                .validate(id, RevisionNumber::new(size), || at(size + 1, 1))
+                .unwrap();
+            assert!(matches!(verdict, ValidationCommandResult::Validated(_)));
+            super::PREFIX_STEPS.with(std::cell::Cell::get) - before
+        }
+        for use_file in [false, true] {
+            let counts: Vec<_> = [4, 16]
+                .into_iter()
+                .map(|size| {
+                    let directory = tempfile::tempdir().unwrap();
+                    if use_file {
+                        count(&file(directory.path(), false), size)
+                    } else {
+                        count(&sqlite(directory.path(), false), size)
+                    }
+                })
+                .collect();
+            assert_eq!(
+                counts[0], counts[1],
+                "file={use_file}: prefix hashing grows with history: {counts:?}"
+            );
+            assert_eq!(
+                counts,
+                [1, 1],
+                "only the new validation occurrence is hashed"
+            );
+        }
+    }
+
+    #[test]
+    fn prefix_hash_memo_compares_every_occurrence_and_preserves_held_digest_vectors() {
+        let directory = tempfile::tempdir().unwrap();
+        let kernel = sqlite(directory.path(), false);
+        let seed = seed();
+        kernel
+            .seed(seed.clone(), || Timestamp::from_millis(10))
+            .unwrap();
+        for n in 1..=3 {
+            commit(&kernel, &seed, n);
+        }
+        let mut occurrences = kernel.store.history().unwrap().occurrences;
+        let expected = super::prefix_digests(&occurrences);
+        let mut cache = super::ReplayCache::default();
+        let held = cache.digests(&occurrences);
+        assert_eq!(*held, expected);
+        for occurrence in &mut occurrences {
+            occurrence.provider_event_id.push_str(" native identity");
+        }
+        let before = super::PREFIX_STEPS.with(std::cell::Cell::get);
+        assert_eq!(*cache.digests(&occurrences), expected);
+        assert_eq!(super::PREFIX_STEPS.with(std::cell::Cell::get) - before, 0);
+        for index in [0, occurrences.len() / 2, occurrences.len() - 1] {
+            let prior = occurrences[index].event.record_hash;
+            occurrences[index].event.record_hash =
+                ekr_core::ContentHash::of("changed retained record");
+            let actual = cache.digests(&occurrences);
+            assert_eq!(*actual, super::prefix_digests(&occurrences));
+            assert_ne!(*actual, expected);
+            assert_eq!(
+                *held, expected,
+                "a later memo update changed a held digest vector"
+            );
+            occurrences[index].event.record_hash = prior;
+            assert_eq!(*cache.digests(&occurrences), expected);
+            let prior_version = occurrences[index].version;
+            occurrences[index].version += 1;
+            let actual = cache.digests(&occurrences);
+            assert_eq!(*actual, super::prefix_digests(&occurrences));
+            assert_ne!(*actual, expected, "stream position is independently bound");
+            occurrences[index].version = prior_version;
+            assert_eq!(*cache.digests(&occurrences), expected);
+        }
+        let shorter = occurrences.len() / 2;
+        assert_eq!(
+            *cache.digests(&occurrences[..shorter]),
+            expected[..=shorter]
+        );
+        assert_eq!(*cache.digests(&occurrences), expected);
+        assert_eq!(*cache.digests(&[]), super::prefix_digests(&[]));
+        assert_eq!(*held, expected);
     }
 
     #[test]

@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 18
+revision: 19
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -290,3 +290,24 @@ changes. The prefix/checkpoint correction is committed separately before this ex
 Sources: retained combined4 profile and the implementor's allocation-probe report in W scratch;
 coordinator source review and dispatch. Full combined correctness and the unchanged default-size
 measurement remain required before the task can be implemented.
+
+## Verified prefix and checkpoint correction integrated
+
+The verified-prefix and superseded-checkpoint correction is integrated from 723cf92cc. The memo
+compares every canonical event and stream position before reusing a digest; it does not replace
+retained-object checks or admit replay state. Tests compare its result with the original hash
+function after content and position changes at either end and in the middle, shortened and empty
+histories, native-provider identity changes and later mutation while an old digest vector is held.
+The checkpoint correction preserves explicit historical keep guards and public held snapshots.
+
+The coordinator reviewed both changes and the position-only case added during that review.
+The implementor reports a green full kernel/store suite and clippy; raw results are retained as
+store-kernel-prefix.log and clippy-prefix.log in W scratch, beside the initial counted failures.
+The ignored benchmark additionally records each actual proposal input length, after timing the
+request. Its timing windows, thresholds and generated operations are unchanged.
+
+Separately, the integration's SDK/store/views/tooling tests and format, all-target clippy,
+documentation, vendor, pinned specification, freshness and planning checks passed before this
+merge. Logs: coordinator remaining-consumer-store-check.log and combined-nontest-check.log.
+This is accumulated correction evidence, not a completed final combined gate. Graph reuse and
+unchanged default-size timing acceptance are still open.
