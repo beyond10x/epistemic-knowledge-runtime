@@ -665,3 +665,96 @@ fn shared_yaml_calls_remain_counted_after_their_import_is_classified() {
         missed.join("\n")
     );
 }
+
+#[test]
+fn adversary_input08_pass2_another_call_counts_after_an_admitted_call() {
+    let mut missed = Vec::new();
+    for (imports, call) in [
+        ("", "::ekr_core::decode::yaml::load(s, limit)"),
+        (
+            "use ekr_core::{decode::{yaml::{self as _tape, load as _read}}};",
+            "_read(s, limit)",
+        ),
+        (
+            "use ekr_core::{decode::{yaml::{self as _tape, load as _read}}};",
+            "_tape::load(s, limit)",
+        ),
+        (
+            "use ekr_core::decode as d; use d::yaml as y; use y::load as read;",
+            "read(s, limit)",
+        ),
+        (
+            "use y::load as read; use d::yaml as y; use ekr_core::decode as d;",
+            "read(s, limit)",
+        ),
+        (
+            "use ekr_core::*; use decode::*; use yaml::*;",
+            "load(s, limit)",
+        ),
+        (
+            "use yaml::*; use decode::*; use ekr_core::*;",
+            "load(s, limit)",
+        ),
+        (
+            "use ekr_core::decode as d; use d::{observe_yaml as _observe};",
+            "_observe(s, bytes, depth)",
+        ),
+        (
+            "use crate::yaml::{self as _tape, next as advance};",
+            "advance(&mut documents)",
+        ),
+        (
+            "use crate::yaml::{self as _tape, next as advance};",
+            "_tape::next(&mut documents)",
+        ),
+    ] {
+        let mut once = Inventory::new();
+        references(
+            "crates/new-reader/src/lib.rs",
+            &format!("{imports} fn first() {{ {call}; }}"),
+            &mut once,
+        );
+        let mut twice = Inventory::new();
+        references(
+            "crates/new-reader/src/lib.rs",
+            &format!("{imports} fn first() {{ {call}; }} fn second() {{ {call}; }}"),
+            &mut twice,
+        );
+        if twice.values().sum::<usize>() != once.values().sum::<usize>() + 1 {
+            missed.push(format!("{imports} {call}"));
+        }
+    }
+    assert!(
+        missed.is_empty(),
+        "extra calls escaped:\n{}",
+        missed.join("\n")
+    );
+}
+
+#[test]
+fn adversary_input08_pass2_facade_prose_does_not_change_real_reader_counts() {
+    let imports = "use ekr_core::decode::yaml::load as _read;";
+    let live = format!("{imports} fn first() {{ _read(s, limit); }}");
+    let mut once = Inventory::new();
+    references("crates/new-reader/src/lib.rs", &live, &mut once);
+    assert_eq!(
+        once.get(&(
+            "crates/new-reader/src/lib.rs".into(),
+            "shared reader _read".into()
+        )),
+        Some(&1),
+    );
+    let prose = r####"
+        // _read(s, limit); ekr_core::decode::yaml::load(s, limit);
+        /* outer /* _read(s, limit); */ _read(s, limit); */
+        const EXAMPLE: &str = r###"_read(s, limit); use ekr_core::decode::yaml;"###;
+        const OTHER: &str = "_read(s, limit);";
+    "####;
+    let mut with_prose = Inventory::new();
+    references(
+        "crates/new-reader/src/lib.rs",
+        &format!("{live}\n{prose}"),
+        &mut with_prose,
+    );
+    assert_eq!(with_prose, once);
+}

@@ -14,7 +14,7 @@ summary: >-
 # stops at the first container past the depth bound instead of loading the entire input.
 # Resource refusals are OntologyError::Syntax with ontology-too-large, ontology-too-deep or
 # ontology-alias-expansion in the message. Existing syntax and semantic refusals remain.
-# Planned cases (unexecuted until input-08 verification) in crates/ekr-ontology/tests/ontology_load.rs:
+# Bounds cases in crates/ekr-ontology/tests/ontology_load.rs:
 # ontology_yaml_refuses_input_bytes_before_decoding
 # ontology_yaml_refuses_excessive_container_depth
 # ontology_yaml_bounds_expanded_alias_nodes_and_text
