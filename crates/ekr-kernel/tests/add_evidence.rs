@@ -780,3 +780,105 @@ fn adversary_peer_validation_at_an_old_basis_matches_full_replay() {
         assert_eq!(held.transactions().unwrap(), full.transactions().unwrap());
     }
 }
+
+#[test]
+fn adversary_empty_and_unknown_state_requests_still_refuse_withdrawn_history() {
+    use eventlog_core::{CommandMeta, EventStore, Expected, NewEvent, StreamId, TenantId};
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let seed = seeded();
+        let runtime = open(directory.path(), file);
+        runtime.seed(seed.document.clone(), at(10)).unwrap();
+        let bytes = b"state-query historical evidence";
+        let evidence = human_evidence(EvidenceId::mint(), bytes);
+        let tx = transaction(vec![
+            add_evidence(evidence.clone(), bytes),
+            GraphOperation::AddAssertion(Box::new(assertion(&seed, evidence.id, "held"))),
+        ]);
+        committed(&runtime, &tx, 20);
+        assert_eq!(
+            runtime.transaction_states([tx.id]).unwrap()[&tx.id],
+            TransactionState::Committed
+        );
+        let unknown = TransactionId::mint();
+        assert!(runtime.transaction_states([unknown]).unwrap().is_empty());
+        assert!(runtime.transaction_states([]).unwrap().is_empty());
+        let held = runtime.transactions().unwrap();
+        let held_bytes = serde_json::to_vec(&*held).unwrap();
+        runtime.retain_checkpoint_at_rest();
+        let checkpoint_reader = open(directory.path(), file);
+        checkpoint_reader.transaction_states([tx.id]).unwrap();
+        let executor = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let stream = StreamId::new(
+            TenantId::new("test").unwrap(),
+            "ekr.store.object",
+            evidence.content_hash.to_hex(),
+        )
+        .unwrap();
+        let event = NewEvent::new("test.WithdrawalRecorded", 1, serde_json::json!({})).unwrap();
+        let meta = CommandMeta {
+            idempotency_key: EventId::mint().to_string(),
+            request_hash: "withdrawal".into(),
+            subject: "test".into(),
+            actor: "test".into(),
+            request_id: "withdrawal".into(),
+            trace_id: "withdrawal".into(),
+            causation_id: None,
+            causation_depth: 0,
+            occurred_at: ::time::OffsetDateTime::UNIX_EPOCH,
+            claim: None,
+        };
+        if file {
+            let provider = executor
+                .block_on(eventlog_file::FileEventStore::open(directory.path()))
+                .unwrap();
+            executor
+                .block_on(provider.append(&stream, Expected::Any, &[event], &meta))
+                .unwrap();
+        } else {
+            let database = directory.path().join("state.db");
+            let provider = executor
+                .block_on(eventlog_sqlite::SqliteEventStore::open(
+                    database.to_str().unwrap(),
+                    "ekr",
+                ))
+                .unwrap();
+            executor
+                .block_on(provider.append(&stream, Expected::Any, &[event], &meta))
+                .unwrap();
+        }
+        let cold = open(directory.path(), file);
+        let mut complete = open(directory.path(), file);
+        complete.set_full_replay(true);
+        let expected = complete
+            .read(None)
+            .err()
+            .expect("the required evidence was withdrawn")
+            .to_string();
+        assert!(
+            expected.contains("unsupported-retention-envelope"),
+            "{expected}"
+        );
+        for reader in [&runtime, &checkpoint_reader, &cold] {
+            for _ in 0..2 {
+                for ids in [vec![], vec![unknown], vec![unknown, unknown]] {
+                    assert_eq!(
+                        reader
+                            .transaction_states(ids)
+                            .map_err(|error| error.to_string()),
+                        Err(expected.clone()),
+                        "file={file}: an empty selection cannot bypass verification"
+                    );
+                }
+            }
+        }
+        assert_eq!(
+            serde_json::to_vec(&*held).unwrap(),
+            held_bytes,
+            "captured records remain immutable after a failed read"
+        );
+    }
+}
