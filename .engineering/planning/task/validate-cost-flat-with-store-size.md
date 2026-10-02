@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 25
+revision: 26
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -526,3 +526,21 @@ own heavy workload did not meet acceptance. This rejects contention as a suffici
 for the remaining failure. All earlier measurements remain retained; no further repeated sampling
 is planned. The task remains active and the release remains held. No acceptance threshold,
 durability setting, checkpoint cadence, retained format or native dependency pin is relaxed.
+
+## Remaining scope boundary
+
+The implementor's retained `w/controlled6/evidence-body.md` reports ordinary-commit medians
+of 458.3 to 616.7 ms, excluding checkpoint transactions, so the failure is not solely a checkpoint
+outlier in the aggregate. Its chronological attribution of asynchronous worker samples is an
+inference: main plus worker ordinary CPU samples were 380 to 386, while checkpoint native SHA
+samples grew from 44 to 133. Inclusive profile categories overlap and do not apportion elapsed time.
+
+The coordinator reviewed that report against the raw measurement and previous syscall diagnostic.
+No sufficiently large new EKR-owned avoidable copy or replay has been established within the
+current full-root bytes, checkpoint format/cadence, durability and native dependency constraints.
+This is not proof that the acceptance bound is impossible. The recommendation is to retain W's
+NEEDS-CHANGE outcome and seek a decision about reopening deferred native storage work. No new
+adversary round or repeated benchmark is proposed. The reviewed code and all red evidence are
+preserved; main and the release remain unchanged. The wave's Recovery and boundaries section
+explicitly defers new dependency releases, so that expansion is not inferred from the existing
+extract-07b implementation authorization.
