@@ -801,7 +801,8 @@ binary64 value. `ekr session` embeds those bytes in its answer as they are.
 points from 1 to 9999 (9500, 95 %, when absent), with `z` the standard normal quantile at
 `(1 + confidence / 10000) / 2`: `(2k + z² ∓ z·√(z² + 4k(n − k)/n)) / (2(n + z²))` for `k` passed of
 `n` judged. `lower` is exactly `0` when nothing passed and `upper` exactly `1` when everything did;
-the three are left out when nothing was judged. Compare `lower` with your bar to say, at that
+when nothing was judged, `rate` is explicitly `null`, `lower` is `0` and `upper` is `1` (the
+vacuous interval). Compare `lower` with your bar to say, at that
 confidence, that the pass rate is above it. The arithmetic uses only the operations IEEE 754
 rounds exactly, so every host prints the same numbers.
 

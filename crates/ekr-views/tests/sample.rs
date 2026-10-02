@@ -495,20 +495,20 @@ fn the_report_is_the_same_bytes_for_the_same_input_and_echoes_the_sample() {
 }
 
 #[test]
-fn no_judgement_reports_no_rate_and_no_interval() {
+fn no_judgement_reports_an_explicit_null_rate_and_the_vacuous_interval() {
     let answer = report_fact_quality(&of(0, 0), None).unwrap();
     let document: Value = serde_json::from_slice(&answer.bytes).unwrap();
     assert_eq!(document["judged"], 0);
-    for omitted in ["rate", "lower", "upper"] {
-        assert!(document.get(omitted).is_none(), "{document}");
-    }
+    assert_eq!(document.get("rate"), Some(&Value::Null), "{document}");
+    assert_eq!(document["lower"], 0.0, "{document}");
+    assert_eq!(document["upper"], 1.0, "{document}");
     assert_eq!(
         (
             answer.summary.rate_bp,
             answer.summary.lower_bp,
             answer.summary.upper_bp
         ),
-        (None, None, None)
+        (None, Some(0), Some(10_000))
     );
 }
 

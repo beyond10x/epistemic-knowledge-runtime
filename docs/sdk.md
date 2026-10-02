@@ -693,6 +693,26 @@ parts that vary by kind stay JSON `Value`s, read by their tag as [the page](cli.
 documents them. These are an assertion's `object`, `assessment` and `lifecycle`, an evidence
 entry's `source`, and the origin links of an explanation.
 
+## Sampled fact checks
+
+`Reader::draw_sample(seed, size, filter, revision)` calls `ekr sample`, returning a typed
+`checks::FactSample`: the revision, request and population, then the drawn facts in draw order,
+with their names, assertions and retained evidence text or base64. The optional filter is a
+`TypeId`; a revision of `None` reads the head. The same seed, size and revision reproduce the
+same sample. `OneShotReader` provides the same call.
+
+The runtime does no judging. Implement `checks::Judge::judge` for your judge, returning one
+`Verdict` for each supplied fact in the same order. `checks::judge_sample(&sample, batch_size,
+&mut judge)` visits batches in sample order and returns a `FactJudgements` document with the
+sample's origin. `batch_size` is a `NonZeroUsize`. A judge error or a batch with the wrong number
+of verdicts returns an error, with no completed judgement document; no report is submitted.
+
+`Reader::report_judged(&judgements, confidence)` and the identical `OneShotReader` call send
+that document to `ekr fact-quality -`. Confidence is optional integer basis points (9500 by
+default). `checks::FactQuality` contains the counts, rate and Wilson interval; an empty judgement
+set has `rate: None`, serialized as explicit `null`, and bounds `0` and `1`. The transport's
+named refusals, usage errors and faults remain `ReadError` values.
+
 ## Recording and replay
 
 `RecordingTransport::record(inner)` passes each request to `inner` and records every request that
