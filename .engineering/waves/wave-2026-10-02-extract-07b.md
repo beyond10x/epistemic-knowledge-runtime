@@ -193,7 +193,9 @@ Fri Oct  2 16:19:40 UTC 2026
 A and the consumer artifacts now carry that combined evidence and are implemented. W remains
 active: `w/combined6/scaling.log` still fails commit and aggregate timing acceptance. Its task
 records the retained syscall diagnostic, uncertainty about thread attribution, and corrected
-ext4 provenance. A single controlled comparison follows completion of the coordinator's gate,
-using the identical source, default SQLite workload, ext4 fixture storage and perf sampling.
+ext4 provenance. A single controlled comparison after completion of the coordinator's gate,
+using the identical source, default SQLite workload, ext4 fixture storage and perf sampling,
+also fails commit and aggregate acceptance (`w/controlled6/scaling.log`). Its exact result is
+recorded in W's task. No further repeated sampling is planned.
 No threshold, cadence, durability setting or dependency pin changes. No new adversary pass is
-opened. Source release remains pending the result; the changelog remains Unreleased.
+opened. Source release remains held on W; the changelog remains Unreleased.

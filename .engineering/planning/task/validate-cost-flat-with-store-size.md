@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 24
+revision: 25
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -503,3 +503,26 @@ planning validation. Historical prose-only planning review warnings remain. The 
 recorded ext4 temporary directory is used without changing the inode-reuse test. All feature
 acceptance and retained review corrections are exercised on the combined source. Implementation
 status does not claim publication: wave release remains held on the separate performance task.
+
+## Controlled measurement after the combined gate
+
+The coordinator's complete correctness gate ended before this one further measurement started.
+The implementor retained the same source, CLI build identity, ext4 fixture filesystem, default
+SQLite sizes, first/last full-transaction windows, bounds and perf sampling. No syscall tracer
+ran. `w/controlled6/scaling.log` records the result:
+
+```text
+Sqlite first 15 medians            propose    518.7 ms  validate     28.8 ms  commit    468.1 ms  total   1015.7 ms
+Sqlite last 15 medians             propose    545.8 ms  validate     28.2 ms  commit    618.5 ms  total   1192.5 ms
+Sqlite median ratios: validate 0.979x; commit 1.321x; load 4.72 7.31 8.33 2/6388 1698381
+Sqlite: large/small 1.65x, large last/first 1.57x
+MEASUREMENT_EXIT=101
+Fri Oct  2 16:24:50 UTC 2026
+```
+
+Validation passes its bound, while commit and the existing aggregate assertions still fail.
+The final checkpoint is faster than in the earlier concurrent run, but removing the coordinator's
+own heavy workload did not meet acceptance. This rejects contention as a sufficient explanation
+for the remaining failure. All earlier measurements remain retained; no further repeated sampling
+is planned. The task remains active and the release remains held. No acceptance threshold,
+durability setting, checkpoint cadence, retained format or native dependency pin is relaxed.
