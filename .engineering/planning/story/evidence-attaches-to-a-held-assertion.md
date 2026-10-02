@@ -85,7 +85,7 @@ scope:
   path: systems/ekr/domains/kernel.yaml
 - confidence: cited
   path: systems/ekr/domains/views.yaml
-revision: 43
+revision: 44
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T09:59:45Z", actor: "human:timo", revision: 38}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:06Z", actor: "human:timo", revision: 39}
@@ -222,3 +222,17 @@ The story's machine-readable scope now includes the core carrier and its existin
 Focused workspace identity_serde, rename_stability and public_surface tests pass, with raw output
 retained in coordinator attachment-identity-corrected.log. The global identity and public-surface
 guards are unchanged. Full combined correctness still follows the final W correction.
+
+## Identity diagnostic reconciliation
+
+The new identity carrier changes rustc's incidental list of Canonical implementors in
+transient_state_has_no_content_address.stderr. The old and new diagnostics were compared before
+refresh: ContentHash::of(node), ContentHash::of(edge) and ContentHash::of(assertion) still fail
+at their same expressions with E0277 and the same primary missing-Canonical message. Only the
+help-list entry BTreeMap<K, V> becomes AttachmentId. No forbidden operation compiles and no
+compile-fail case was removed.
+
+Only the affected membrane target was refreshed. Its diff was reviewed, then that target passed
+again with TRYBUILD overwrite disabled. Raw initial, refresh and verification outputs remain in
+coordinator remaining-crates-check.log, attachment-membrane-refresh.log and
+attachment-membrane-verified.log.
