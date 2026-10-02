@@ -128,3 +128,12 @@ real CLI replies, operation evidence manifests, attachment ordering and historic
 the pure named-timestamp OCEL projection against the runtime export. The guard itself is unchanged.
 The corrected public-surface and story-contract checks pass; CLI documentation and agent checks
 also pass. This is focused evidence, with the full combined gate still required after W lands.
+
+The initial full consumer gate found two additional CLI documentation issues. The operations
+section retained the old count; adversary_add_alias_l_cli caught it and passes after correction.
+The attachment example also requires the preceding AddEvidence example, while its heading
+claimed the seed alone supplied all ids. The page and reference now name that prerequisite.
+The existing adversary case executes the printed preparation and requires the attachment to
+validate, retaining its unresolved-reference assertions for every operation. Its transaction
+helper now parses a complete envelope and refuses parse errors instead of silently losing the
+evidence manifest. Sequential examples and documentation checks are rerun with this correction.

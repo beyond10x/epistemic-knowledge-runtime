@@ -636,7 +636,8 @@ impl OperationKind {
   List the evidence id in transaction.evidence. The attachment is a record of its own: the
   assertion's claim, valid time, lifecycle and evidence stay as they are. ekr explain lists
   it, with the revision that attached it, from that revision on; a supersession does not
-  carry it to the replacement. This example uses the evidence from the AddEvidence example.",
+  carry it to the replacement. First commit the AddEvidence example; this example attaches
+  the evidence it adds.",
                 "- !AttachEvidence
   assertion: 00000000-0000-4000-8000-000000000511
   evidence: 00000000-0000-4000-8000-000000000403",
@@ -696,6 +697,11 @@ the shape only and is not accepted today.";
 pub(super) fn operation(kind: OperationKind) -> String {
     let (summary, fields, example) = kind.text();
     let (status, heading) = match kind.applied() {
+        Applied::Always if matches!(kind, OperationKind::AttachEvidence) => (
+            String::new(),
+            "Example (assertion ids from ekr example ekr-seed/2; validates against a store seeded \
+             from it after committing the AddEvidence example):",
+        ),
         Applied::Always => (
             String::new(),
             "Example (ids from ekr example ekr-seed/2; validates against a store seeded from it):",

@@ -853,6 +853,8 @@ how to add evidence after the seed and to a seed, and how to change the schema.
 Without an argument, lists the sixteen operation kinds, one per line, marking the four schema
 changes (`[schema change: …]`) and the one kind that is not applied (`[not applied: …]`). With a
 kind (`ekr operations AddAssertion`), prints its fields and an example operation.
+The `AttachEvidence` example requires committing the `AddEvidence` example first, as its page
+states; its assertion comes from the example seed and its evidence comes from that commit.
 
 ### `ekr example`
 
