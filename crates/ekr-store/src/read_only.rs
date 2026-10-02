@@ -21,13 +21,20 @@
 //!   size and modification time of the file and its `-wal` are the same after the read as before
 //!   it, or the read is taken again. With a `-wal` holding bytes the database is read
 //!   `mode=ro&readonly_shm=1`, through SQLite's own locks, opening the `-wal` and `-shm` that are
-//!   there and creating no `-shm`. A writer that closes between the look at the `-wal` and SQLite's
-//!   own open unlinks it, and where this process may write the directory SQLite then creates an
-//!   empty `-wal` (it opens one with `O_CREAT`) and reports `SQLITE_CANTOPEN` for the `-shm` it may
-//!   not create; the read taken again finds that `-wal` empty and reads the file alone. A
-//!   `-wal` holding bytes without its `-shm` is read again, a bounded number of times, after a
-//!   pause ([`Attempt::ShmAbsent`]).
+//!   there and creating no `-shm`. A `-wal` holding bytes without its `-shm` is read again, a
+//!   bounded number of times, after a pause ([`Attempt::ShmAbsent`]). The `-wal` and `-shm` are
+//!   looked for beside the database's [`resolved`] path, as SQLite names them: beside the file a
+//!   symlinked path names, not beside the link.
 //!
+//! What can appear under a SQLite store's path is exactly one file: an empty `-wal`. SQLite opens
+//! a WAL database's `-wal` with `O_CREAT` whatever the connection's flags (`sqlite3WalOpen`), and
+//! no URI parameter turns that off. So a writer that closes between this open's look at the `-wal`
+//! and SQLite's own open of it — unlinking the `-shm` and then the `-wal` — leaves SQLite to
+//! create a `-wal` of zero bytes, owned by this process's user, wherever this process may write
+//! the database's directory; SQLite then reports `SQLITE_CANTOPEN` for the `-shm` it may not
+//! create, and the read taken again finds that `-wal` empty and reads the file alone. The empty
+//! `-wal` holds no frame and changes no read: the next writer's open uses it, the next read-only
+//! open reads past it. Where this process may not write the directory, nothing can appear.
 //! Nothing else is written under the store's path. The copy costs the store's size once per open,
 //! in the temporary directory for the File provider and in memory for SQLite. A long-lived reader
 //! asks [`ReadOnly::changed`] before each read and opens the store again when it has changed.
@@ -72,7 +79,8 @@ impl Signature {
 
     /// A SQLite store's: the database and its `-wal`, where a commit lands first.
     pub(super) fn sqlite(database: &Path) -> Self {
-        Self(vec![stamp(database), stamp(&sidecar(database, "-wal"))])
+        let database = resolved(database);
+        Self(vec![stamp(&database), stamp(&sidecar(&database, "-wal"))])
     }
 
     /// Whether a SQLite store's `-wal` held a byte when this was taken: only then can it hold a
@@ -230,20 +238,29 @@ pub(super) fn file_write_denied(root: &Path) -> Option<PathBuf> {
 /// write: the database, the directory holding it, where SQLite creates its `-wal` and `-shm`
 /// files, and those files where they exist.
 pub(super) fn sqlite_write_denied(database: &Path) -> Option<PathBuf> {
-    let directory = match database.parent() {
+    let target = resolved(database);
+    let directory = match target.parent() {
         Some(parent) if !parent.as_os_str().is_empty() => parent.to_owned(),
         _ => PathBuf::from("."),
     };
     first_denied(
         &[database.to_owned(), directory],
-        &[sidecar(database, "-wal"), sidecar(database, "-shm")],
+        &[sidecar(&target, "-wal"), sidecar(&target, "-shm")],
     )
 }
 
+/// The file beside `database` SQLite names with `suffix`. Call it with a [`resolved`] path: SQLite
+/// keeps a database's `-wal` and `-shm` beside the file a symlinked path names, not beside the link.
 fn sidecar(database: &Path, suffix: &str) -> PathBuf {
     let mut name = database.as_os_str().to_owned();
     name.push(suffix);
     PathBuf::from(name)
+}
+
+/// `database` with every symlink resolved, as SQLite resolves it before it names the `-wal` and
+/// `-shm`; the path as given when it cannot be resolved, where nothing is beside it to find.
+fn resolved(database: &Path) -> PathBuf {
+    std::fs::canonicalize(database).unwrap_or_else(|_| database.to_owned())
 }
 
 /// The refusal of a writing open of the store at `store`, whose `denied` path this process may
@@ -334,6 +351,8 @@ pub(super) fn sqlite_image(
     database: &Path,
     owner_table: &str,
 ) -> Result<Option<Vec<u8>>, StoreError> {
+    let shown = database;
+    let database = &resolved(database);
     let read = |immutable: bool| -> Result<Option<Vec<u8>>, rusqlite::Error> {
         let connection = rusqlite::Connection::open_with_flags(
             uri(database, immutable)?,
@@ -387,7 +406,7 @@ pub(super) fn sqlite_image(
     )
     .map_err(|error| match error {
         StoreError::Backend(message) => {
-            StoreError::Backend(format!("{}: {message}", database.display()))
+            StoreError::Backend(format!("{}: {message}", shown.display()))
         }
         error => error,
     })

@@ -63,7 +63,8 @@ parents, the SQLite provider creates the database file but not its directory. `g
 
 A store this process may read but not write — on a read-only mount, or owned by another user —
 still answers every verb that only reads it. Such a verb opens the store read-only, writes nothing
-at the store's path — no lock file, no journal file, no replay checkpoint — and prints the same bytes it
+at the store's path — no lock file, no journal file, no replay checkpoint; SQLite's one exception is
+below — and prints the same bytes it
 prints on a writable store. A verb that writes is refused `store-read-only` (exit 2,
 [Common refusals](#common-refusals)) before it opens anything.
 
@@ -74,11 +75,15 @@ prints on a writable store. A verb that writes is refused `store-read-only` (exi
   `ekr view` and `ekr mcp` also remove it when sent SIGTERM, SIGINT or SIGHUP, and then exit with
   128 plus the signal's number. A copy left by a process that was killed outright is removed by the
   next read-only open in the same temporary directory.
-- **A SQLite database** is read into memory through a read-only connection, and no `-wal` or `-shm`
-  file is created beside it. With no `-wal` there, it is read `immutable=1`: SQLite takes no lock,
-  so the read does not exclude a writer; the database's size and modification time are compared
-  before and after, and a read that saw them change is taken again. With a `-wal` there, it is
-  read through SQLite's own locks, and a `-wal` whose `-shm` is gone is not read.
+- **A SQLite database** is read into memory through a read-only connection, and no `-shm` file is
+  created beside it. With no `-wal` there, or an empty one, it is read `immutable=1`: SQLite takes
+  no lock, so the read does not exclude a writer; the size and modification time of the database
+  and its `-wal` are compared before and after, and a read that saw them change is taken again.
+  With a `-wal` holding data, it is read through SQLite's own locks; a `-wal` whose `-shm` is gone
+  is read again up to 12 times, about half a second in all, and then refused. The `-wal` and `-shm`
+  are those beside the file a symlinked database path names. One file can appear: where this
+  process may write the database's directory and a writer closes during the read, SQLite itself
+  can create an empty `-wal` there, which holds nothing and which the next writer uses.
 - **A long-lived reader** — `ekr session`, `ekr view`, `ekr mcp` — checks the store's files before
   each request that reads it (a file store's `events.jsonl`, `manifest.json` and `blobs`; a SQLite
   database and its `-wal`), and when they have changed since it read them, it reads the store

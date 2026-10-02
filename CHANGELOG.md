@@ -37,7 +37,12 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   open of that store failed the same way. The open now reads a store whose `-wal` is absent or
   empty from the database file alone, and reads a store whose `-wal` holds data but has no `-shm`
   again, up to 12 times with pauses of at most 527 ms in all, before reporting the error with
-  SQLite's extended code.
+  SQLite's extended code. What a read-only open can leave at the store's path is stated exactly
+  (`docs/cli.md`): where the process may write the directory and a writer closes during the
+  open, SQLite itself can create an empty `-wal`, which holds nothing.
+- **A read-only open through a symlinked SQLite database path no longer misses commits still in
+  the writer's `-wal`.** It looked for the `-wal` beside the link, found none, and read the
+  database file alone; it now looks beside the file the link names, as SQLite does.
 - **A SQLite store replaced in place is no longer answered from the database the reader
   opened.** A database copied over the store file of a live `ekr session`, `ekr mcp` or
   `ekr view` keeps the file's device and inode, and its connection went on answering the

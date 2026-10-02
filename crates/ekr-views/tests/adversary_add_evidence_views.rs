@@ -180,6 +180,9 @@ const HEAD_READS: [&str; 3] = [
 /// - every later render finds the head with the same number of reads at 400 entries as at 50.
 ///   Asking the runtime once per entry, which made a render quadratic before wave ingest-02 (400
 ///   entries 13.66 s), adds reads of the head per entry.
+///
+/// Not seen: work in the render that reads nothing from the store, such as a quadratic loop over
+/// entries already in memory (`task:no-test-asserts-wall-clock-cost` adds a counter for it).
 #[test]
 fn rendering_costs_linear_time_in_the_evidence_commits_added() {
     for file in [false, true] {

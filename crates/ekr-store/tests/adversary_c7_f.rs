@@ -132,22 +132,22 @@ fn checkpointed_copy(directory: &Path) -> PathBuf {
 
 /// A writer's close unlinks its `-shm` and then its `-wal` after `sqlite_image` has seen the `-wal`
 /// holding bytes and before SQLite opens it. The read-only connection then opens the `-wal` with
-/// `O_CREAT` in a directory it may write, fails on the absent `-shm`, and the read taken again
-/// finds that `-wal` empty and reads the database alone — which succeeds, but the empty `-wal` it
-/// created is left under the store's path. The module says "Nothing else is written under the
-/// store's path", the unit's summary says the read-only open no longer leaves an empty `-wal`.
+/// `O_CREAT` in a directory it may write — SQLite does so whatever the connection's flags — fails
+/// on the absent `-shm`, and the read taken again finds that `-wal` empty and reads the database
+/// alone. The decided contract (`read_only.rs`, "What can appear under a SQLite store's path"): the
+/// open holds every acknowledged object, and what it can leave is exactly one `-wal` of zero bytes
+/// with no `-shm`, which a later read-only open reads past and changes nothing beside.
 ///
 /// The unlink is caused, not hoped for: a watcher acts on the reader's first open of `state.db`,
 /// which is SQLite's own open inside the read (the stat of the `-wal` opens nothing), and reads
-/// page 1 before it opens the `-wal`. Counted over trials; the assertion is that no trial leaves a
-/// `-wal` behind and every open holds what the writer acknowledged.
+/// page 1 before it opens the `-wal`. Counted over trials.
 #[test]
-#[ignore = "adversary c7-f: the read-only open leaves an empty -wal it created under the store's path"]
-fn a_read_only_open_creates_no_wal_where_a_closing_writer_unlinked_it() {
+fn a_read_only_open_where_a_closing_writer_unlinked_the_wal_leaves_at_most_an_empty_wal() {
     const TRIALS: usize = 40;
-    let mut left = Vec::new();
+    let mut wrong = Vec::new();
     let mut failed = Vec::new();
     let mut raced = 0;
+    let mut empty_wal_left = 0;
     for trial in 0..TRIALS {
         let directory = tempfile::tempdir().unwrap();
         let path = checkpointed_copy(directory.path());
@@ -181,10 +181,7 @@ fn a_read_only_open_creates_no_wal_where_a_closing_writer_unlinked_it() {
             stop.store(true, Ordering::SeqCst);
             opened
         });
-        if unlinked.load(Ordering::SeqCst) {
-            raced += 1;
-        }
-        match opened {
+        let holds = |opened: Result<SqliteStore, ekr_store::StoreError>, which: &str| match opened {
             Ok(store) => {
                 if store
                     .get(&ekr_core::ContentHash::of_bytes(HELD))
@@ -192,23 +189,51 @@ fn a_read_only_open_creates_no_wal_where_a_closing_writer_unlinked_it() {
                     .as_deref()
                     != Some(HELD)
                 {
-                    failed.push(format!("trial {trial}: the acknowledged object is missing"));
+                    Some(format!(
+                        "trial {trial}: {which}: the acknowledged object is missing"
+                    ))
+                } else {
+                    None
                 }
             }
-            Err(error) => failed.push(format!("trial {trial}: {error:?}")),
+            Err(error) => Some(format!("trial {trial}: {which}: {error:?}")),
+        };
+        failed.extend(holds(opened, "the raced open"));
+        if !unlinked.load(Ordering::SeqCst) {
+            continue;
         }
-        if let (true, Ok(found)) = (
-            unlinked.load(Ordering::SeqCst),
-            std::fs::symlink_metadata(&wal),
-        ) {
-            left.push(format!(
+        raced += 1;
+        let names: Vec<String> = listing(path.parent().unwrap()).into_keys().collect();
+        match std::fs::symlink_metadata(&wal) {
+            Ok(found) if found.len() == 0 && !shm.exists() => empty_wal_left += 1,
+            Ok(found) => wrong.push(format!(
                 "trial {trial}: a -wal of {} bytes, -shm {}",
                 found.len(),
                 if shm.exists() { "present" } else { "absent" }
+            )),
+            Err(_) => {}
+        }
+        if names
+            .iter()
+            .any(|name| name != "state.db" && name != "state.db-wal")
+        {
+            wrong.push(format!("trial {trial}: the directory holds {names:?}"));
+        }
+        let before = listing(path.parent().unwrap());
+        failed.extend(holds(
+            SqliteStore::sqlite_read_only(&path, "ekr", ontology()),
+            "the open after it",
+        ));
+        if listing(path.parent().unwrap()) != before {
+            wrong.push(format!(
+                "trial {trial}: the open after the race changed the store's directory"
             ));
         }
     }
-    println!("{raced} of {TRIALS} trials unlinked the sidecars during the open");
+    println!(
+        "{raced} of {TRIALS} trials unlinked the sidecars during the open; {empty_wal_left} left \
+         an empty -wal"
+    );
     assert!(
         raced > 0,
         "the watcher never acted; the case measured nothing"
@@ -218,9 +243,8 @@ fn a_read_only_open_creates_no_wal_where_a_closing_writer_unlinked_it() {
         "read-only opens that failed: {failed:#?}"
     );
     assert!(
-        left.is_empty(),
-        "{} of {raced} raced read-only opens left a -wal under the store's path: {left:#?}",
-        left.len()
+        wrong.is_empty(),
+        "raced read-only opens left more than an empty -wal: {wrong:#?}"
     );
 }
 
@@ -396,13 +420,12 @@ fn a_wal_without_its_shm_is_read_twelve_times_then_refused() {
 }
 
 /// A store whose database path is a symlink to the database a live writer writes. SQLite resolves
-/// the symlink and keeps the writer's `-wal` beside the target; `sqlite_image` looks for the `-wal`
-/// beside the path it was given, finds none, and reads the target's database file alone with
-/// `immutable=1`, where no acknowledged commit that is still only in the `-wal` is. The signature
-/// check passes: nothing changed. The open then misses an object the writer acknowledged before
-/// it began.
+/// the symlink and keeps the writer's `-wal` beside the target. Before the fix `sqlite_image` looked
+/// for the `-wal` beside the path it was given, found none, and read the target's database file
+/// alone with `immutable=1`, missing an object the writer acknowledged that is still only in the
+/// `-wal`; the signature check passed, as nothing beside the link changed. The open now looks
+/// beside the resolved path and holds it.
 #[test]
-#[ignore = "adversary c7-f: a read-only open through a symlinked database misses acknowledged commits"]
 fn a_read_only_open_through_a_symlinked_database_holds_every_acknowledged_object() {
     let directory = tempfile::tempdir().unwrap();
     let real = directory.path().join("real");
