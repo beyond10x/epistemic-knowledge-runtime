@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-02T19:13:29Z",
+  "actor": "agent:codex-ekr-features",
+  "artifact": "task:public-site-differentiators",
+  "kind": "task",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Existing ekr-docs builder tests: 3 passed; site check/build passed; Playwright desktop 1440px and mobile 390px: no page overflow, missing anchors or scripts; screenshots visually inspected. Claims checked against release 0.0.27, README, CLI and roadmap."
+  }
+}

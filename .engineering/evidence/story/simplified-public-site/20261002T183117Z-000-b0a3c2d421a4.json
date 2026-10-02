@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-02T18:31:17Z",
+  "actor": "agent:codex-ekr-public-docs",
+  "artifact": "story:simplified-public-site",
+  "kind": "story",
+  "revision": 6,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Full task check passed in required GitHub correctness; documentation build and shared source gates passed on the exact candidate tree merged by PR61",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/37045231499"
+  }
+}
