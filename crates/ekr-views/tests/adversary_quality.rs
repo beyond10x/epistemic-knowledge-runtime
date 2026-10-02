@@ -50,6 +50,87 @@ const ASSERTIONS: u64 = 0xad_0400;
 const TRANSACTIONS: u64 = 0xad_0500;
 const MANY: u64 = 2_000;
 
+/// Removing an assertion with two seed attachments removes one counted assertion, while
+/// historical reads retain the attachments even after reopening the native provider.
+#[test]
+fn attached_seed_counts_follow_retraction_without_rewriting_historical_counts() {
+    for provider in PROVIDERS {
+        let work = tempfile::tempdir().expect("work directory");
+        let runtime = fixtures::open(work.path(), provider);
+        Fixture::QualitySeedAttachment.build(&runtime);
+        let historical = read(&runtime, Some(4)).0;
+        assert_eq!(
+            read(&runtime, None).1["assertions"]["with_seed_evidence"],
+            3
+        );
+        let mut writer = writer(&runtime);
+        writer.clock += 100_000;
+        writer.commit(vec![GraphOperation::RetractAssertion(
+            ekr_kernel::Retraction {
+                assertion: id(fixtures::Q_ASSERTIONS + 4),
+                reason: ekr_graph::RetractionReason::new("operator withdraws attached assertion"),
+            },
+        )]);
+        let expected = json!({
+            "active": 3, "with_evidence": 3, "with_item_evidence": 2,
+            "with_seed_evidence": 2, "with_evidence_share": 10000,
+            "with_item_evidence_share": 6666,
+        });
+        assert_eq!(read(&runtime, None).1["assertions"], expected);
+        assert_eq!(read(&runtime, Some(4)).0, historical);
+        drop(runtime);
+        let reopened = fixtures::open(work.path(), provider);
+        assert_eq!(read(&reopened, None).1["assertions"], expected);
+        assert_eq!(read(&reopened, Some(4)).0, historical);
+    }
+}
+
+/// Identical retained bytes do not turn a later evidence identity into seed evidence.
+#[test]
+fn seed_counts_classify_evidence_identity_even_when_payload_hashes_are_equal() {
+    for provider in PROVIDERS {
+        let work = tempfile::tempdir().expect("work directory");
+        let runtime = fixtures::open(work.path(), provider);
+        build_thirds(&runtime);
+        let historical = read(&runtime, Some(1)).0;
+        let (mut later, payload) = evidence(SEED_EVIDENCE);
+        later.id = id(ADDED_EVIDENCE + 1);
+        let mut writer = writer(&runtime);
+        writer.clock += 100_000;
+        writer.transactions += 10;
+        writer.commit(vec![
+            GraphOperation::AddEvidence(Box::new(EvidenceAddition {
+                evidence: later,
+                payload,
+            })),
+            GraphOperation::AddAssertion(Box::new(titled(4, 2, &[ADDED_EVIDENCE + 1]))),
+        ]);
+        assert_eq!(
+            read(&runtime, None).1["assertions"],
+            json!({
+                "active": 4, "with_evidence": 4, "with_item_evidence": 3,
+                "with_seed_evidence": 2, "with_evidence_share": 10000,
+                "with_item_evidence_share": 7500,
+            })
+        );
+        writer.commit(vec![GraphOperation::AttachEvidence(
+            ekr_kernel::EvidenceAttachment {
+                assertion: id(ASSERTIONS + 4),
+                evidence: id(SEED_EVIDENCE),
+            },
+        )]);
+        assert_eq!(
+            read(&runtime, None).1["assertions"]["with_seed_evidence"],
+            3
+        );
+        assert_eq!(
+            read(&runtime, None).1["assertions"]["with_item_evidence"],
+            3
+        );
+        assert_eq!(read(&runtime, Some(1)).0, historical);
+    }
+}
+
 fn uuid(n: u64) -> String {
     format!("00000000-0000-4000-8000-{n:012x}")
 }
@@ -131,6 +212,9 @@ impl Writer<'_> {
             .iter()
             .filter_map(|operation| match operation {
                 GraphOperation::AddAssertion(assertion) => Some(assertion.evidence.clone()),
+                GraphOperation::AttachEvidence(attachment) => {
+                    Some(BTreeSet::from([attachment.evidence]))
+                }
                 _ => None,
             })
             .flatten()
