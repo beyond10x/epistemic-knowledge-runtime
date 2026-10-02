@@ -692,6 +692,17 @@ parts that vary by kind stay JSON `Value`s, read by their tag as [the page](cli.
 documents them. These are an assertion's `object`, `assessment` and `lifecycle`, an evidence
 entry's `source`, and the origin links of an explanation.
 
+`Reader::ocel(&OcelQuery)` and `OneShotReader::ocel` return an `OcelExport` with its typed
+`document` and `counts`. Counts are read from the request's stderr summary, not recomputed from
+JSON. The query carries optional `revision`, `events` type names, and repeatable `event_time`
+selectors (for example `Alert.fired_at`). `events` and `event_time` are mutually exclusive.
+Timestamp selectors resolve against the requested revision, with inherited properties supported.
+
+`Reader::code_names_with_mode(files, revision, CodeNameMode::Words)` and its `OneShotReader`
+counterpart select whole-word matches, including identifiers and comments. The existing
+`code_names` call retains literal mode. A word-mode result carries `meta.mode: Some(Words)`;
+the default result omits that field when serialized.
+
 ## Sampled fact checks
 
 `Reader::draw_sample(seed, size, filter, revision)` calls `ekr sample`, returning a typed

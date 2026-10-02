@@ -249,6 +249,34 @@ fn expected(reader: &str, generic: Option<&str>) -> Value {
 }
 
 #[test]
+fn words_finds_a_bare_zorbed_by_and_its_comment_without_matching_longer_words() {
+    for backend in BACKENDS {
+        let world = World {
+            directory: tempfile::tempdir().unwrap(),
+            backend,
+        };
+        let seed = world.directory.path().join("seed.yaml");
+        let source = world.directory.path().join("reader.rs");
+        std::fs::write(
+            &seed,
+            std::fs::read_to_string(fixture("store/seed.yaml"))
+                .unwrap()
+                .replace("BOUND_IN", "ZORBED_BY"),
+        )
+        .unwrap();
+        world.ok(&["seed", seed.to_str().unwrap()]);
+        std::fs::write(&source, "// ZORBED_BY\nlet ZORBED_BY = 1;\nZORBED_BY_suffix prefixZORBED_BY éZORBED_BY ZORBED_BYé\n`ZORBED_BY`\n").unwrap();
+        let report = world.ok(&["code-names", "--words", source.to_str().unwrap()]);
+        assert_eq!(report["meta"]["findings"], 3);
+        assert_eq!(report["meta"]["mode"], "Words");
+        assert_eq!(
+            world.ok(&["code-names", source.to_str().unwrap()])["meta"]["findings"],
+            1
+        );
+    }
+}
+
+#[test]
 fn ekr_code_names_reports_every_planted_name_with_its_file_and_line_on_both_providers() {
     let (reader, generic) = sources();
     for backend in BACKENDS {

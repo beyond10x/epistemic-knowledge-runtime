@@ -31,9 +31,9 @@ use std::sync::OnceLock;
 use ekr_core::{NodeId, RevisionNumber, TransactionId};
 use ekr_sdk::binary::EkrBinary;
 use ekr_sdk::read::{
-    AssertionQuality, CodeNameFinding, CodeNameKind, CodeNameMatch, CodeNames, CodeNamesMeta,
-    OneShotReader, PropertyQuality, QualityMeta, ReadError, Reader, RejectedTransaction,
-    RejectionIssue, Rejections, SharedName, StoreQuality,
+    AssertionQuality, CodeNameFinding, CodeNameKind, CodeNameMatch, CodeNameMode, CodeNames,
+    CodeNamesMeta, OneShotReader, PropertyQuality, QualityMeta, ReadError, Reader,
+    RejectedTransaction, RejectionIssue, Rejections, SharedName, StoreQuality,
 };
 use ekr_sdk::session::{Backend, ProcessSession, SessionOptions, StoreConfig};
 use ekr_sdk::transport::{Request, Transport};
@@ -65,6 +65,40 @@ const READER_TS: &str = "// reads the store\nconst company = \"Acme\";\nconst st
 const OTHER_RS: &str = "let person = \"Alice\";\n";
 /// A file whose path starts like a flag, `Bob` on line 1.
 const DASHED: &str = "`Bob`\n";
+
+#[test]
+fn typed_word_mode_preserves_comments_identifiers_and_transport_parity() {
+    for backend in [Backend::File, Backend::Sqlite] {
+        let world = World::planted(backend);
+        world.file(
+            "words.rs",
+            "// Acme\nlet Acme = AcmeSuffix;\nlet Accepted = 1;\n",
+        );
+        let mut session = world.session();
+        let mut one_shot = OneShotReader::new(&binary(), world.store(), world.options());
+        let typed = Reader::new(&mut session)
+            .code_names_with_mode(["words.rs"], None, CodeNameMode::Words)
+            .unwrap();
+        assert_eq!(typed.meta.mode, Some(CodeNameMode::Words));
+        assert_eq!(typed.meta.findings, 3);
+        assert_eq!(typed.meta.runtime_word_findings, 1);
+        let verb = vec!["code-names".into(), "--words".into(), "words.rs".into()];
+        one_value(
+            "whole words across transports",
+            &typed,
+            &one_shot
+                .code_names_with_mode(["words.rs"], None, CodeNameMode::Words)
+                .unwrap(),
+            &ok(&mut session, &verb),
+            &world.one_shot(&verb),
+        );
+        let literals = Reader::new(&mut session)
+            .code_names(["words.rs"], None)
+            .unwrap();
+        assert_eq!(literals.meta.findings, 0);
+        assert_eq!(literals.meta.mode, None);
+    }
+}
 
 // ---- the binary and a store under the example host ---------------------------------------------
 

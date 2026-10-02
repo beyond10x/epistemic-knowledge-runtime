@@ -1507,6 +1507,10 @@ types:
   # `exempt` the literals that equal a store id's text (below), `findings` every finding and
   # `runtime_word_findings` those of them whose `runtime_word` is true. A literal is both exempt
   # and a finding never.
+  - name: ekr.views.CodeNameMode
+    kind: enum
+    variants: [Literals, Words]
+
   - name: ekr.views.CodeNamesMeta
     kind: struct
     fields:
@@ -1524,6 +1528,8 @@ types:
         type: Integer
       - name: runtime_word_findings
         type: Integer
+      - name: mode
+        type: Optional<ekr.views.CodeNameMode>
 
   # ekr.code-names/1. What a literal is: in each line of a source's text (lines split at `\n`),
   # the text between an opening quote — `"`, `'` or a backtick — and the next quote of the same
@@ -1538,6 +1544,14 @@ types:
   # literals, and comments are not recognised: a quoted name in a comment is a literal like any
   # other, because the check is the same for every language. Finding the literals is linear in
   # the length of the text.
+  # In Words mode a revision name may occur anywhere in the line, including comments and bare
+  # identifiers. Exact case-sensitive text matches count only when each adjacent character is
+  # absent or neither Unicode alphanumeric nor underscore. Names may contain punctuation or
+  # spaces. Column is the first matched character's 1-based Unicode scalar position. Each
+  # (line, column, name) occurrence counts once; ties at one column sort by name. The legacy
+  # literals count counts these candidate name occurrences before exemptions in Words mode.
+  # meta.mode is Words only in that mode and omitted in default Literals mode, preserving its
+  # existing document bytes. All exemptions, name kinds and runtime_word flags remain the same.
   #
   # The store's names are those the revision holds: every node type's and edge type's name, the
   # name of every property any type declares, and every node's canonical name and aliases. A
@@ -1590,6 +1604,22 @@ types:
   # dated facts). A node of an event type with no time, or with a time the time form below cannot
   # write (a year outside 0000–9999), is not in the log: OCEL 2.0 gives every event a time.
   # Each node of an object type is an object.
+  #
+  # Named event time. A nonempty event_time list replaces the rule and cannot be combined with
+  # events. Each selector is TypeName.propertyName, split at its last dot. Resolve the type name
+  # exactly and uniquely in the requested revision, then the property name exactly and uniquely
+  # among that type's effective properties (including inherited declarations). Its value type
+  # must be Timestamp. Identical repeated selectors deduplicate; different properties mapped to
+  # one type refuse. Only the mapped types are event types. Their nodes with no value for the
+  # selected property are undated; one distinct Timestamp gives the time, while multiple distinct
+  # timestamps refuse instead of choosing. A timestamp outside the writable range is undated.
+  # Malformed, absent, ambiguous or conflicting selectors and ambiguous timestamp values refuse
+  # as EventTimeInvalid, naming the selector, reason and revision. Every other type is an object.
+  #
+  # The CLI emits the exact OcelExported event as one compact JSON object followed by a newline
+  # on stderr, including its counts and ocel_hash; stdout stays the existing ekr.ocel/1 document.
+  # A session puts this same text in the individual response's stderr; it writes no counts to
+  # the process's stderr. The hash is of the engine document bytes, before CLI pretty printing.
   #
   # Identities. A type's `name` is its type id, an event's or object's `id` its node id, an
   # attribute's `name` its property id and a relationship's `qualifier` its edge's type id. They
@@ -2029,6 +2059,16 @@ errors:
     summary: The revision's ontology holds no node type with a name the request lists as an event type; nothing was answered.
     fields:
       - name: name
+        type: String
+      - name: revision
+        type: ekr.kernel.RevisionNumber
+
+  - name: ekr.views.EventTimeInvalid
+    summary: A named event-time selector or its timestamp values are invalid or ambiguous; nothing was answered.
+    fields:
+      - name: selector
+        type: String
+      - name: reason
         type: String
       - name: revision
         type: ekr.kernel.RevisionNumber
@@ -2523,6 +2563,8 @@ commands:
         type: Optional<ekr.kernel.RevisionNumber>
       - name: sources
         type: List<ekr.views.SourceText>
+      - name: mode
+        type: Optional<ekr.views.CodeNameMode>
     response:
       - name: code_names
         type: ekr.views.CodeNamesV1
@@ -2572,6 +2614,8 @@ commands:
         type: Optional<ekr.kernel.RevisionNumber>
       - name: events
         type: List<String>
+      - name: event_time
+        type: Optional<List<String>>
     response:
       - name: log
         type: ekr.views.OcelLogV1
@@ -2607,6 +2651,10 @@ commands:
         external: the revision's ontology holds no node type with a name the request lists in events
         error: ekr.views.EventTypeNotFound
         summary: Nothing was answered; the refusal names the first such name.
+      - name: event-time-invalid
+        external: an event_time selector is malformed, absent, ambiguous or conflicting, or a selected node holds multiple distinct timestamps
+        error: ekr.views.EventTimeInvalid
+        summary: Nothing was answered; the refusal names the selector, reason and revision.
 
   # A reproducible sample of one revision's facts (ekr.views.FactSampleV1), for a judge. `at` is
   # the revision read, the head when absent; `seed` any integer; `size` how many facts to draw,
