@@ -814,3 +814,43 @@ fn adversary_a_validated_attachment_loses_to_a_committed_retraction() {
         assert!(kernel.snapshot().unwrap().attachments.is_empty());
     }
 }
+
+#[test]
+fn adversary_equivalent_attachment_spellings_are_duplicate_records() {
+    let directory = tempfile::tempdir().unwrap();
+    let kernel = open(directory.path(), false, profiles()[2].1.clone());
+    kernel
+        .seed(SeedDocument::from_yaml(SEED).unwrap(), || {
+            Timestamp::from_millis(10)
+        })
+        .unwrap();
+    let (held, add) = claim(ALICE, 100, id(SOURCE));
+    committed(&kernel, &transaction(vec![add], &[id(SOURCE)]), 20);
+    committed(
+        &kernel,
+        &transaction(vec![attach(held, id(OTHER))], &[id(OTHER)]),
+        30,
+    );
+    let document = ekr_store::GraphDocument::of(&kernel.snapshot().unwrap());
+    let bytes = document.to_bytes().unwrap();
+    assert_eq!(
+        ekr_store::GraphDocument::from_bytes(&bytes).unwrap(),
+        document
+    );
+    let entry = serde_json::to_string(document.attachments[&held].first().unwrap()).unwrap();
+    let escaped = entry.replacen('-', "\\u002d", 1);
+    assert_ne!(entry, escaped);
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&entry).unwrap(),
+        serde_json::from_str::<serde_json::Value>(&escaped).unwrap()
+    );
+    let needle = format!("[{entry}]");
+    let encoded = String::from_utf8(bytes).unwrap();
+    assert!(encoded.contains(&needle));
+    let duplicate = encoded.replacen(&needle, &format!("[{entry},{escaped}]"), 1);
+    let refusal = ekr_store::GraphDocument::from_bytes(duplicate.as_bytes()).unwrap_err();
+    assert!(
+        refusal.to_string().contains("duplicate decoded set member"),
+        "{refusal}"
+    );
+}
