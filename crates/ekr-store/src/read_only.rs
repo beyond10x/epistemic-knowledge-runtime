@@ -251,7 +251,7 @@ pub(super) fn sqlite_write_denied(database: &Path) -> Option<PathBuf> {
 
 /// The file beside `database` SQLite names with `suffix`. Call it with a [`resolved`] path: SQLite
 /// keeps a database's `-wal` and `-shm` beside the file a symlinked path names, not beside the link.
-fn sidecar(database: &Path, suffix: &str) -> PathBuf {
+pub(super) fn sidecar(database: &Path, suffix: &str) -> PathBuf {
     let mut name = database.as_os_str().to_owned();
     name.push(suffix);
     PathBuf::from(name)
@@ -259,7 +259,7 @@ fn sidecar(database: &Path, suffix: &str) -> PathBuf {
 
 /// `database` with every symlink resolved, as SQLite resolves it before it names the `-wal` and
 /// `-shm`; the path as given when it cannot be resolved, where nothing is beside it to find.
-fn resolved(database: &Path) -> PathBuf {
+pub(super) fn resolved(database: &Path) -> PathBuf {
     std::fs::canonicalize(database).unwrap_or_else(|_| database.to_owned())
 }
 

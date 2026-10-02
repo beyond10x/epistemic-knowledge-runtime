@@ -153,18 +153,27 @@ impl Raced {
 
 /// One handle publishes `publications` records of `size` bytes to a store a second handle reads
 /// throughout, each on its own thread; with `checkpointer`, a third, plain SQLite connection runs
-/// `PRAGMA wal_checkpoint(PASSIVE)` throughout too. No file is ever replaced.
-fn race(checkpointer: bool, opening: bool, publications: u64, size: usize) -> Raced {
+/// `PRAGMA wal_checkpoint(PASSIVE)` throughout too. With `link`, both handles open the store
+/// through a symlink to the database file, and the checkpointer opens the file itself. No file is
+/// ever replaced.
+fn race(link: bool, checkpointer: bool, opening: bool, publications: u64, size: usize) -> Raced {
     let directory = TempDir::new().unwrap();
-    let path = directory.path().join("state.db");
+    let target = directory.path().join("state.db");
+    let path = if link {
+        let link = directory.path().join("linked.db");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        link
+    } else {
+        target.clone()
+    };
     let writer = sqlite(&path);
     seeded(&writer, "shared");
     let done = Arc::new(AtomicBool::new(false));
     let checkpoints = checkpointer.then(|| {
         let done = Arc::clone(&done);
-        let path = path.clone();
+        let target = target.clone();
         std::thread::spawn(move || {
-            let connection = rusqlite::Connection::open(&path).unwrap();
+            let connection = rusqlite::Connection::open(&target).unwrap();
             connection
                 .busy_timeout(std::time::Duration::from_secs(5))
                 .unwrap();
@@ -243,7 +252,7 @@ fn race(checkpointer: bool, opening: bool, publications: u64, size: usize) -> Ra
 /// checkpoint is half-way through writing, which reads as malformed while its `stat` holds still.
 #[test]
 fn adversary_c7_s_a_reader_beside_a_writer_and_a_checkpointer_is_never_refused_as_replaced() {
-    let raced = race(true, false, 150, 24 * 1024);
+    let raced = race(false, true, false, 150, 24 * 1024);
     if let Err(failure) = raced.verdict(150) {
         panic!("{failure}");
     }
@@ -254,7 +263,7 @@ fn adversary_c7_s_a_reader_beside_a_writer_and_a_checkpointer_is_never_refused_a
 /// file. A long-running host beside `ekr` processes that commit is this.
 #[test]
 fn adversary_c7_s_a_reader_beside_a_writer_that_checkpoints_itself_is_never_refused_as_replaced() {
-    let raced = race(false, false, 400, 24 * 1024);
+    let raced = race(false, false, false, 400, 24 * 1024);
     if let Err(failure) = raced.verdict(400) {
         panic!("{failure}");
     }
@@ -267,7 +276,7 @@ fn adversary_c7_s_a_reader_beside_a_writer_that_checkpoints_itself_is_never_refu
 /// 18533 opens refused, in the package suite run.
 #[test]
 fn adversary_c7_s_an_open_beside_a_writer_that_checkpoints_itself_is_never_refused_as_replaced() {
-    let raced = race(false, true, 400, 24 * 1024);
+    let raced = race(false, false, true, 400, 24 * 1024);
     if let Err(failure) = raced.verdict(400) {
         panic!("{failure}");
     }
@@ -294,5 +303,61 @@ fn adversary_c7_s_a_database_renamed_over_the_path_is_refused_as_replaced() {
     assert!(
         matches!(read, Err(StoreError::Replaced(_))),
         "the read answered {read:?}"
+    );
+}
+
+/// A writable store opened through a symlink to its database file, beside a writer and a plain
+/// connection checkpointing the file. SQLite resolves the link and keeps the `-wal` and `-shm`
+/// beside the file it names, so the check must read the checkpoint record there: read beside the
+/// link it finds no `-shm`, takes that as "no checkpoint in progress", and settles on a header
+/// read from a file a checkpoint is half-way through writing. Nothing is replaced, so nothing may
+/// be refused as `store-replaced`.
+#[test]
+fn a_symlinked_store_beside_a_checkpointing_writer_is_never_refused_as_replaced() {
+    let raced = race(true, true, false, 150, 24 * 1024);
+    if let Err(failure) = raced.verdict(150) {
+        panic!("{failure}");
+    }
+}
+
+/// The same through a symlink, the reading side opening the store again and again.
+#[test]
+fn a_symlinked_store_opened_beside_a_checkpointing_writer_is_never_refused_as_replaced() {
+    let raced = race(true, true, true, 150, 24 * 1024);
+    if let Err(failure) = raced.verdict(150) {
+        panic!("{failure}");
+    }
+}
+
+/// GUARD: a different database copied over the file a symlinked store names — `cp` over it,
+/// which keeps the device and inode — is refused as `store-replaced` through the link, for a read
+/// and a write alike.
+#[test]
+fn a_database_copied_over_a_symlinked_store_is_refused_as_replaced() {
+    let held = TempDir::new().unwrap();
+    let other = TempDir::new().unwrap();
+    let target = held.path().join("state.db");
+    let link = held.path().join("linked.db");
+    std::os::unix::fs::symlink(&target, &link).unwrap();
+    let reader = sqlite(&link);
+    seeded(&reader, "held");
+    proposed(&reader, 1, 64);
+    reader.history().unwrap();
+    {
+        let replacement = sqlite(&other.path().join("state.db"));
+        seeded(&replacement, "other");
+        proposed(&replacement, 1, 64);
+        proposed(&replacement, 2, 64);
+    }
+    std::fs::copy(other.path().join("state.db"), &target).unwrap();
+    let read = reader.history().map(|history| history.occurrences.len());
+    assert!(
+        matches!(read, Err(StoreError::Replaced(_))),
+        "the read through the link answered {read:?}"
+    );
+    let wrote = proposal(&reader, 2, 64);
+    assert!(
+        matches!(wrote, Err(StoreError::Replaced(_))),
+        "the write through the link answered {wrote:?}"
     );
 }

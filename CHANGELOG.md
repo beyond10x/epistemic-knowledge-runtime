@@ -50,7 +50,9 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   while it is unchanged; its log's first and newest events, read from the file alone, when it
   has changed) and refuses a replaced one as `store-replaced` (`StoreError::Replaced`). Only
   another device or inode, or a header that reads while no checkpoint runs and differs, counts: a
-  header read that fails because a checkpoint is writing the file proves nothing. The three
+  header read that fails because a checkpoint is writing the file proves nothing; through a
+  symlinked store path, the checkpoint is read beside the file the link names, where SQLite keeps
+  it, so a checkpointing writer beside such a store is not taken for a replacement. The three
   hosts open the store at the path again and answer from it. Copy a database over a live store
   only with its `-wal` and `-shm` files: SQLite writes the replaced database's WAL into the file
   at the path when the replaced connection closes.

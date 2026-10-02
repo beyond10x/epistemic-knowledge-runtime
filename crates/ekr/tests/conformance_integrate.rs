@@ -3,12 +3,19 @@
 //! providers, and publishes `ekr.integrate.ExtractionApplied` for an applied document.
 //!
 //! `systems/ekr` declares the command on the `ekr-integrate` component; the suite ESS synthesizes
-//! for it (`ess conform synthesize --component ekr-integrate`) holds two scenarios,
-//! `ekr.integrate.ApplyExtraction/outcome/applied` and `.../outcome/refused`. Until that suite is
-//! committed, these cases drive the target through the same `ConformanceTarget` calls the runner
-//! makes for those two scenarios, with the fixtures the kernel suite's manifest names.
+//! for it (`ess conform synthesize --component ekr-integrate`) is committed as
+//! `systems/ekr/conformance/integrate-suite.json` and holds two scenarios,
+//! `ekr.integrate.ApplyExtraction/outcome/applied` and `.../outcome/refused`. The committed suite
+//! is admitted and run with `Runner::run_admitted` on both providers, and its scenario set, total,
+//! floor and each scenario's step floors are held against the hand-committed
+//! `systems/ekr/conformance/integrate-baseline.json`, never against the suite under test, so a
+//! scenario lost, or kept by name with its expectations stripped, and regenerated is named rather
+//! than absorbed. `integrate-provenance.json` records how the suite was synthesized; there are no
+//! authored integrate scenarios. Freshness of the committed suite against the specification is
+//! `task conform-fresh`'s synthesis-and-`cmp` step. A further case drives the target directly
+//! through the same `ConformanceTarget` calls the runner makes, and reads the event's counts.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use ekr::conformance::{IntegrateTarget, Provider};
@@ -16,11 +23,286 @@ use ess_conformance::target::{
     ConformanceTarget, Deadline, EventObservationRequest, ExternalOutcomeControl, ScenarioContext,
     SemanticCommandRequest, SemanticCommandResult,
 };
+use ess_conformance::{AdmittedSuite, CountReport, CountStatus, ExecutedRun, Runner};
 use ess_primitives::ids::CorrelationId;
 use ess_primitives::node::Node;
 
+const SUITE: &str = "systems/ekr/conformance/integrate-suite.json";
+const BASELINE: &str = "systems/ekr/conformance/integrate-baseline.json";
+const PROVENANCE: &str = "systems/ekr/conformance/integrate-provenance.json";
+
+/// The workspace root, resolved per process: this crate is `<root>/crates/ekr`.
+fn workspace_root() -> PathBuf {
+    PathBuf::from(
+        std::env::var("CARGO_MANIFEST_DIR").expect("Cargo supplies the runtime manifest directory"),
+    )
+    .ancestors()
+    .nth(2)
+    .expect("crates/ekr sits two levels below the workspace root")
+    .to_path_buf()
+}
+
+fn read(relative: &str) -> String {
+    let path = workspace_root().join(relative);
+    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("reading {}: {e}", path.display()))
+}
+
+fn json(relative: &str) -> serde_json::Value {
+    serde_json::from_str(&read(relative)).unwrap_or_else(|e| panic!("{relative}: {e}"))
+}
+
 fn fixtures() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/conformance")
+    workspace_root().join("crates/ekr/tests/fixtures/conformance")
+}
+
+/// The committed integrate baseline, in the views baseline's shape.
+struct Baseline {
+    suite_version: String,
+    total: u64,
+    answered_floor: u64,
+    unavailable_ceiling: u64,
+    scenarios: BTreeSet<String>,
+    step_floors: BTreeMap<String, BTreeMap<String, u64>>,
+}
+
+fn baseline() -> Baseline {
+    let value = json(BASELINE);
+    assert_eq!(value["format"], "ekr.conformance-baseline/1");
+    assert_eq!(value["suite"], SUITE);
+    assert_eq!(value["component"], "ekr-integrate");
+    assert_eq!(value["providers"], serde_json::json!(["file", "sqlite"]));
+    assert_eq!(
+        value["quarantine"],
+        serde_json::json!([]),
+        "the integrate baseline admits no quarantine"
+    );
+    assert_eq!(
+        value["authored"],
+        serde_json::json!({}),
+        "there are no authored integrate scenarios"
+    );
+    let number = |key: &str| value[key].as_u64().unwrap_or_else(|| panic!("{key}"));
+    let listed: Vec<String> = value["scenarios"]
+        .as_array()
+        .expect("scenario names")
+        .iter()
+        .map(|name| name.as_str().expect("name").to_owned())
+        .collect();
+    let scenarios: BTreeSet<String> = listed.iter().cloned().collect();
+    assert_eq!(
+        listed.len(),
+        scenarios.len(),
+        "{BASELINE} names a scenario twice"
+    );
+    let step_floors: BTreeMap<String, BTreeMap<String, u64>> = value["step_floors"]
+        .as_object()
+        .expect("step floors")
+        .iter()
+        .map(|(name, floors)| {
+            let floors = floors
+                .as_object()
+                .unwrap_or_else(|| panic!("{BASELINE}: {name}'s step floors"))
+                .iter()
+                .map(|(kind, floor)| {
+                    let floor = floor
+                        .as_u64()
+                        .unwrap_or_else(|| panic!("{BASELINE}: {name}'s {kind} floor"));
+                    (kind.clone(), floor)
+                })
+                .collect();
+            (name.clone(), floors)
+        })
+        .collect();
+    assert_eq!(
+        step_floors.keys().cloned().collect::<BTreeSet<_>>(),
+        scenarios,
+        "{BASELINE}: `step_floors` floors exactly the scenarios it names"
+    );
+    let baseline = Baseline {
+        suite_version: value["suite_version"]
+            .as_str()
+            .expect("suite_version")
+            .to_owned(),
+        total: number("total"),
+        answered_floor: number("answered_floor"),
+        unavailable_ceiling: number("unavailable_ceiling"),
+        scenarios,
+        step_floors,
+    };
+    assert_eq!(
+        baseline.scenarios.len() as u64,
+        baseline.total,
+        "{BASELINE}: total counts its own scenario list"
+    );
+    assert!(
+        baseline.answered_floor <= baseline.total,
+        "{BASELINE}: the answered floor exceeds the total"
+    );
+    baseline
+}
+
+fn admitted() -> AdmittedSuite {
+    AdmittedSuite::from_json(&read(SUITE))
+        .expect("the committed integrate suite admits under the pinned ESS library")
+}
+
+/// Each scenario of `suite` has at least the baseline's number of steps of every kind it floors.
+fn holds_the_step_floors(baseline: &Baseline, suite: &serde_json::Value) {
+    let mut changed = Vec::new();
+    for (name, floors) in &baseline.step_floors {
+        let Some(steps) = suite["scenarios"][name.as_str()]["steps"].as_array() else {
+            changed.push(format!("{name}: no steps"));
+            continue;
+        };
+        for (kind, floor) in floors {
+            let count = steps
+                .iter()
+                .filter(|step| step["step"] == kind.as_str())
+                .count() as u64;
+            if count < *floor {
+                changed.push(format!(
+                    "{name}: {count} {kind} step(s), below the baseline's floor of {floor}"
+                ));
+            }
+        }
+    }
+    assert!(
+        changed.is_empty(),
+        "the committed integrate suite changed scenario content {BASELINE} pins; a deliberate \
+         change updates the baseline in the same change: {changed:#?}"
+    );
+}
+
+/// The committed suite is the `ekr-integrate` component's, complete, with nothing refused; it
+/// selects exactly the scenarios the committed baseline names, each with at least its steps.
+#[test]
+fn the_committed_suite_is_the_complete_integrate_inventory() {
+    let baseline = baseline();
+    let admitted = admitted();
+    let suite = admitted.suite();
+    assert_eq!(suite.provenance.system.to_string(), "ekr");
+    assert_eq!(
+        suite.provenance.component.as_ref().map(ToString::to_string),
+        Some("ekr-integrate".to_owned())
+    );
+    assert_eq!(
+        suite.provenance.suite_version.to_string(),
+        baseline.suite_version
+    );
+    let coverage = admitted.coverage().expect("declared coverage inventory");
+    assert!(coverage.is_complete(), "coverage inventory is incomplete");
+    assert!(coverage.refused.is_empty(), "{:?}", coverage.refused);
+    let names: BTreeSet<String> = suite.scenarios.keys().map(ToString::to_string).collect();
+    assert_eq!(names, baseline.scenarios, "the committed integrate suite");
+    assert_eq!(suite.len() as u64, baseline.total);
+    holds_the_step_floors(&baseline, &json(SUITE));
+    assert!(
+        !names.iter().any(|name| name.contains("/authored/")),
+        "{names:#?}"
+    );
+}
+
+/// `integrate-provenance.json` records the synthesis of exactly the committed suite, for the
+/// `ekr-integrate` component, from no authored scenario directory.
+#[test]
+fn the_provenance_records_the_integrate_synthesis() {
+    let value = json(PROVENANCE);
+    assert_eq!(value["format"], "ekr.conformance-provenance/1");
+    assert_eq!(value["suite"], SUITE);
+    assert_eq!(value["producer"]["tool"], "ess");
+    assert_eq!(value["producer"]["version"], "0.36.0");
+    let command: Vec<&str> = value["command"]
+        .as_array()
+        .expect("synthesis command")
+        .iter()
+        .map(|part| part.as_str().expect("command word"))
+        .collect();
+    let argument = |flag: &str| {
+        command
+            .windows(2)
+            .find(|pair| pair[0] == flag)
+            .map(|pair| pair[1])
+    };
+    assert_eq!(command[..3], ["ess", "conform", "synthesize"]);
+    assert_eq!(argument("--path"), Some("systems/ekr"));
+    assert_eq!(argument("--component"), Some("ekr-integrate"));
+    assert_eq!(argument("--suite-format"), Some("5"));
+    assert_eq!(argument("--target"), Some("ir"));
+    assert_eq!(argument("--out"), Some(SUITE));
+    assert_eq!(
+        argument("--scenarios"),
+        None,
+        "no authored integrate scenarios"
+    );
+    assert_eq!(value["authored_scenarios"], serde_json::json!([]));
+}
+
+fn findings(run: &ExecutedRun) -> String {
+    let mut text = String::new();
+    for scenario in run.failures() {
+        text.push_str(&format!("\n{} [{}]", scenario.scenario, scenario.status));
+        for diagnostic in scenario.diagnostics() {
+            text.push_str(&format!("\n    {diagnostic}"));
+        }
+    }
+    text
+}
+
+/// Runs the admitted committed suite through a fresh [`IntegrateTarget`] over `provider`: every
+/// selected scenario ran and passed, and the run holds the baseline's set, total and floor.
+fn passes_every_admitted_scenario(provider: Provider) {
+    let baseline = baseline();
+    let admitted = admitted();
+    let work = tempfile::tempdir().unwrap();
+    let target = IntegrateTarget::new(provider, &fixtures(), work.path()).unwrap();
+    let run = Runner::for_suite(admitted.suite()).run_admitted(&admitted, &target);
+    let report = CountReport::from_run(&run, &admitted).expect("report/2 pairs with the suite");
+    let counts = report.counts();
+    println!(
+        "{provider:?} provider: selected {} total {} passed {} failed {} error {} unsupported {} \
+         skipped {}",
+        admitted.suite().len(),
+        counts.total,
+        counts.passed,
+        counts.failed,
+        counts.error,
+        counts.unsupported,
+        counts.skipped,
+    );
+    let ran: BTreeSet<String> = run
+        .scenarios
+        .iter()
+        .map(|scenario| scenario.scenario.to_string())
+        .collect();
+    assert_eq!(
+        ran, baseline.scenarios,
+        "the run answered a different scenario set"
+    );
+    assert_eq!(counts.total, baseline.total, "{}", findings(&run));
+    assert_eq!(counts.failed, 0, "failed scenarios:{}", findings(&run));
+    assert!(
+        counts.error + counts.unsupported + counts.skipped <= baseline.unavailable_ceiling,
+        "unavailable scenarios:{}",
+        findings(&run)
+    );
+    assert!(
+        counts.passed >= baseline.answered_floor,
+        "{}",
+        findings(&run)
+    );
+    assert_eq!(report.execution_status(), CountStatus::Passed);
+    assert_eq!(report.conformance_status(), CountStatus::Passed);
+    assert!(run.is_conformant(), "{}", findings(&run));
+}
+
+#[test]
+fn the_file_provider_passes_every_admitted_integrate_scenario() {
+    passes_every_admitted_scenario(Provider::File);
+}
+
+#[test]
+fn the_sqlite_provider_passes_every_admitted_integrate_scenario() {
+    passes_every_admitted_scenario(Provider::Sqlite);
 }
 
 fn correlation() -> CorrelationId {

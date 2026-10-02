@@ -115,11 +115,15 @@ pub(super) const ATTEMPTS: usize = 64;
 /// The WAL index's checkpoint record: `nBackfill` and `nBackfillAttempted` (`-shm` offsets 96 and
 /// 128, native byte order). A checkpoint sets the second before it writes the database file and
 /// the first, to the same frame, after; they differ while one is in progress. `None` without a
-/// `-shm` file, where no connection holds the WAL open and nothing checkpoints.
+/// `-shm` file, where no connection holds the WAL open and nothing checkpoints. SQLite keeps the
+/// `-shm` of a symlinked database beside the file the link names, so the path is resolved first;
+/// beside the link there is none, and a checkpoint in progress would read as none in progress.
 fn checkpoint_record(database: &Path) -> Option<(u32, u32)> {
-    let mut name = database.as_os_str().to_owned();
-    name.push("-shm");
-    let index = std::fs::read(PathBuf::from(name)).ok()?;
+    let index = std::fs::read(super::read_only::sidecar(
+        &super::read_only::resolved(database),
+        "-shm",
+    ))
+    .ok()?;
     let word = |at: usize| -> Option<u32> {
         Some(u32::from_ne_bytes(index.get(at..at + 4)?.try_into().ok()?))
     };
@@ -292,4 +296,61 @@ const EVENTS: &str = "ekr_events";
 
 fn replaced(path: &Path, why: &str) -> StoreError {
     StoreError::Replaced(format!("{}: {why}", path.display()))
+}
+
+#[cfg(all(test, unix))]
+mod through_a_symlink {
+    use super::{checkpoint_record, quiet};
+
+    /// SQLite keeps a symlinked database's `-shm` beside the file the link names. The checkpoint
+    /// record is read there: beside the link there is none, and a checkpoint in progress would
+    /// read as none in progress.
+    #[test]
+    fn the_checkpoint_record_is_read_beside_the_file_a_symlink_names() {
+        let directory = tempfile::TempDir::new().unwrap();
+        let target = directory.path().join("state.db");
+        let link = directory.path().join("linked.db");
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        let connection = rusqlite::Connection::open(&link).unwrap();
+        connection
+            .pragma_update(None, "journal_mode", "wal")
+            .unwrap();
+        connection
+            .execute_batch("CREATE TABLE t (x); INSERT INTO t VALUES (1);")
+            .unwrap();
+        let mut shm = target.as_os_str().to_owned();
+        shm.push("-shm");
+        assert!(
+            std::path::Path::new(&shm).exists(),
+            "precondition: the -shm is beside the file the link names"
+        );
+        let through_target = checkpoint_record(&target);
+        assert!(
+            through_target.is_some(),
+            "precondition: a checkpoint record"
+        );
+        assert_eq!(checkpoint_record(&link), through_target);
+    }
+
+    /// A checkpoint in progress (`nBackfill` behind `nBackfillAttempted`) beside the file a
+    /// symlink names is seen through the link, and the file is not taken as quiet.
+    #[test]
+    fn a_checkpoint_in_progress_beside_a_symlinked_file_is_not_quiet() {
+        let directory = tempfile::TempDir::new().unwrap();
+        let target = directory.path().join("state.db");
+        let link = directory.path().join("linked.db");
+        std::fs::write(&target, b"").unwrap();
+        std::os::unix::fs::symlink(&target, &link).unwrap();
+        let mut index = vec![0_u8; 136];
+        index[96..100].copy_from_slice(&3_u32.to_ne_bytes());
+        index[128..132].copy_from_slice(&7_u32.to_ne_bytes());
+        let mut shm = target.as_os_str().to_owned();
+        shm.push("-shm");
+        std::fs::write(&shm, &index).unwrap();
+        assert_eq!(checkpoint_record(&link), Some((3, 7)));
+        assert!(
+            quiet(&link).is_none(),
+            "a checkpoint in progress read as quiet"
+        );
+    }
 }

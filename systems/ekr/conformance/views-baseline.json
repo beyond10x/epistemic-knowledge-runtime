@@ -215,303 +215,303 @@
     "ekr.views.ChangesSince/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ChangesSince/outcome/listed": {
       "execute_command": 2,
       "expect_event": 1,
-      "expect_no_event": 23,
+      "expect_no_event": 24,
       "expect_outcome": 2
     },
     "ekr.views.ChangesSince/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ChangesSince/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ChangesSince/outcome/since-malformed": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.DescribeNode/outcome/described": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 23,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.DescribeNode/outcome/node-not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.DescribeNode/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.DescribeNode/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.DrawFactSample/outcome/drawn": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 23,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.DrawFactSample/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.DrawFactSample/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.DrawFactSample/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ExpandNeighbourhood/outcome/expanded": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 23,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ExpandNeighbourhood/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ExpandNeighbourhood/outcome/node-not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ExpandNeighbourhood/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ExpandNeighbourhood/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ExportOcel/outcome/event-type-not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ExportOcel/outcome/exported": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 23,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ExportOcel/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ExportOcel/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.FindCodeNames/outcome/found": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 23,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.FindCodeNames/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.FindCodeNames/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ProjectGraph/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ProjectGraph/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ProjectGraph/outcome/projected": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 23,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ProjectOverview/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ProjectOverview/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ProjectOverview/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ProjectOverview/outcome/overviewed": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 23,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ProjectTimeline/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ProjectTimeline/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ProjectTimeline/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ProjectTimeline/outcome/timelined": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 23,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ReportFactQuality/outcome/judged-twice": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ReportFactQuality/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ReportFactQuality/outcome/reported": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 23,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.ReportStoreQuality/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ReportStoreQuality/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.ReportStoreQuality/outcome/reported": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 23,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views.SearchNodes/outcome/limit-exceeded": {
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.SearchNodes/outcome/not-found": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.SearchNodes/outcome/not-seeded": {
       "configure_external_outcome": 1,
       "execute_command": 1,
       "expect_error": 1,
-      "expect_no_event": 24,
+      "expect_no_event": 25,
       "expect_outcome": 1
     },
     "ekr.views.SearchNodes/outcome/searched": {
       "execute_command": 1,
       "expect_event": 1,
-      "expect_no_event": 23,
+      "expect_no_event": 24,
       "expect_outcome": 1
     },
     "ekr.views/authored/a-cursor-pages-a-neighbourhood-to-its-end": {
