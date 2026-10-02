@@ -70,7 +70,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
     /// Runtime-context refusal, provider failure, a log that disagrees with itself, and any object
     /// or preparation record that does not verify, by name.
     pub fn inventory(&self) -> Result<StoreInventory, StoreError> {
-        ensure_sync_context()?;
+        self.entered()?;
         let events = self.published_events()?;
         let occurrences = self.occurrences(MAX_READ_LIMIT, None)?;
         let mut objects = BTreeMap::new();

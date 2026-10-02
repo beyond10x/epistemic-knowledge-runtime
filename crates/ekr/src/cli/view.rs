@@ -720,11 +720,11 @@ fn answer(held: &mut Held, memory: &mut Memory, port: u16, asked: &Asked) -> Ans
     route_answer(Some(held.current()), memory, route, query)
 }
 
-/// Whether an answer is a 500 from a held runtime whose store refuses its history as diverged
-/// ([`Held::diverged`]).
+/// Whether an answer is a 500 from a held runtime whose store refuses its history as diverged, or
+/// refuses to answer from a SQLite database replaced in place ([`Held::reopens`]).
 fn answered_diverged(answered: &Answered, held: &Held) -> bool {
     match answered {
-        Answered::Whole(reply) => reply.status == 500 && held.diverged(),
+        Answered::Whole(reply) => reply.status == 500 && held.reopens(),
         Answered::Stream(_) => false,
     }
 }
@@ -887,7 +887,10 @@ pub(super) fn project_refusal(error: &ProjectError) -> Option<&'static str> {
     match error {
         ProjectError::RevisionNotFound { .. } => Some("ekr.views.RevisionNotFound"),
         ProjectError::NotSeeded { .. } => Some("ekr.views.NotSeeded"),
-        ProjectError::Read(_) | ProjectError::Diverged(_) | ProjectError::Inconsistent(_) => None,
+        ProjectError::Read(_)
+        | ProjectError::Diverged(_)
+        | ProjectError::Replaced(_)
+        | ProjectError::Inconsistent(_) => None,
     }
 }
 

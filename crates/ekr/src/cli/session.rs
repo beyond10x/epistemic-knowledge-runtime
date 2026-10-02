@@ -31,11 +31,12 @@
 //! [`STORE_REPLACED`], naming the path, and never the replaced store's data; the next request
 //! tries again. A file store replaced under the same device and inode — deleted and created again,
 //! or its files replaced inside it — passes that check; the held runtime then refuses its read as a
-//! diverged history ([`diverged`]), and the reader opens the store at the path once and answers
-//! the request again from it. A session holding a transaction it proposed that is neither
-//! committed nor rejected — read from the held runtime, so one another process committed does not
-//! count — refuses the replacement instead, as [`PROPOSALS_OPEN`], on every store verb until the
-//! store it opened is back at the path.
+//! diverged history ([`reopens`]), and the reader opens the store at the path once and answers
+//! the request again from it. So does a SQLite database copied over the file in place, which the
+//! held runtime refuses as `store-replaced` (`PersistenceError::Replaced`). A session holding a
+//! transaction it proposed that is neither committed nor rejected — read from the held runtime,
+//! so one another process committed does not count — refuses the replacement instead, as
+//! [`PROPOSALS_OPEN`], on every store verb until the store it opened is back at the path.
 
 use std::cell::Cell;
 use std::collections::BTreeSet;
@@ -308,9 +309,10 @@ fn answer(
     }
     let mut stdin = request.stdin.as_deref().unwrap_or_default().as_bytes();
     let printed = match super::dispatch(cli.command, Source::Session(session), now, &mut stdin) {
-        // The held runtime's history diverged from the store at the path: a store replaced
-        // under the same device and inode. Reopened once, the request is run again there.
-        Err(failure) if reads_store && session.runtime.is_some() && failure.diverged() => {
+        // The held runtime's history diverged from the store at the path, or its SQLite database
+        // was replaced in place: a store replaced under the same device and inode. Reopened
+        // once, the request is run again there.
+        Err(failure) if reads_store && session.runtime.is_some() && failure.reopens() => {
             follow(session, watch, true)?;
             let mut stdin = request.stdin.as_deref().unwrap_or_default().as_bytes();
             super::dispatch(
@@ -389,7 +391,7 @@ fn read_views(
         None => Err(Failure::fault("the session holds no store")),
     };
     match answer(session, &mut watch.indexes) {
-        Err(failure) if failure.diverged() => {
+        Err(failure) if failure.reopens() => {
             follow(session, watch, true)?;
             answer(session, &mut watch.indexes)
         }
@@ -398,7 +400,8 @@ fn read_views(
 }
 
 /// Before a store verb: when the store at the session's path is not the one it opened — or,
-/// `diverged`, the held runtime found its history replaced under the same identity — reopens
+/// `diverged`, the held runtime found its history diverged or its database replaced under the
+/// same identity ([`Failure::reopens`]) — reopens
 /// there, unless a transaction the session proposed is open ([`PROPOSALS_OPEN`]). A reopen that
 /// fails is [`STORE_REPLACED`], a fault as `store-not-found` is, and leaves the session holding no
 /// runtime, so no later request is answered from the replaced store and each tries again.
@@ -630,28 +633,30 @@ impl Held {
     }
 
     /// Drops the held runtime, so the next [`Held::current`] opens the store at the path: for a
-    /// held history that diverged from the store there ([`diverged`]), which a store replaced
+    /// held history that diverged from the store there, or a SQLite database replaced in place
+    /// ([`reopens`]), which a store replaced
     /// under the same device and inode — deleted and created again, or its files replaced inside
     /// it — leaves the identity check blind to.
     pub(super) fn forget(&mut self) {
         self.runtime = None;
     }
 
-    /// [`diverged`] for the held runtime; `false` while none is held.
-    pub(super) fn diverged(&self) -> bool {
-        self.runtime.as_ref().is_some_and(diverged)
+    /// [`reopens`] for the held runtime; `false` while none is held.
+    pub(super) fn reopens(&self) -> bool {
+        self.runtime.as_ref().is_some_and(reopens)
     }
 }
 
 /// Whether `runtime`'s store refuses the history it observed as diverged from the store at its
-/// path: `ekr_store`'s typed [`ekr_kernel::PersistenceError::Diverged`], which the store maps from
-/// its provider. `ekr mcp` and `ekr view` ask it, by one head read, after a read through
-/// `runtime` answered a fault; a session reads its failure's own [`Failure::diverged`]. No reader
-/// tells a diverged history by a message's text.
-pub(super) fn diverged(runtime: &Runtime) -> bool {
+/// path, or refuses to answer because its SQLite database there was replaced in place:
+/// `ekr_store`'s typed [`ekr_kernel::PersistenceError::Diverged`], which the store maps from its
+/// provider, or [`ekr_kernel::PersistenceError::Replaced`]. `ekr mcp` and `ekr view` ask it, by
+/// one head read, after a read through `runtime` answered a fault; a session reads its failure's
+/// own [`Failure::reopens`]. No reader tells either by a message's text.
+pub(super) fn reopens(runtime: &Runtime) -> bool {
     matches!(
         runtime.head(),
-        Err(ekr_kernel::PersistenceError::Diverged(_))
+        Err(ekr_kernel::PersistenceError::Diverged(_) | ekr_kernel::PersistenceError::Replaced(_))
     )
 }
 
