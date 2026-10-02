@@ -7,7 +7,7 @@ title: ekr ontology --at reads only the schema history
 relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
-revision: 1
+revision: 2
 ---
 ## What is wrong
 
@@ -35,3 +35,23 @@ index kept with the history. The answer stays byte-identical.
   transactions before that revision: a counting test shows no data operation is replayed for it.
 - Its output is byte-identical to today's for every revision of the views and kernel fixtures, on
   both providers.
+
+## Refined scope and acceptance
+
+Cited baseline: crates/ekr/src/cli/ontology.rs routes a selected revision through runtime.read;
+crates/ekr-kernel/src/read.rs requires the graph; replay/checkpoint state already retains
+revision-to-ontology mappings. Reuse those verified mappings instead of introducing another
+persisted read model. Inferred surfaces: kernel read/replay/checkpoint interfaces, CLI ontology,
+their existing tests and the current kernel ESS contract if its read projection needs clarification.
+No new persistent format or dependency release is authorized.
+
+First measure current cold open, warm held-handle read, checkpoint plus tail and forced full replay.
+Separate opening integrity work from the selected ontology projection. The scoped claim is that
+selecting historical ontology after the same verified open executes no data operation replay;
+cold open retains the current full integrity obligations. Preserve byte-identical ontology output
+at every fixture revision on both providers, absent-revision and corruption refusals, host
+authority/profile checks, changed history detection and full-replay behavior. A counter must
+distinguish schema work, data replay and open verification. If the current authority cannot safely
+expose its verified mapping, report the measured blocker rather than trusting serialized receipts.
+The previous broad elapsed-time claim is replaced by this deterministic scoped work-count claim;
+the reported consumer timing remains historical motivation, not a new performance measurement.

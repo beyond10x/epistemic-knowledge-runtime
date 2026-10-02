@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:p6-maintenance-observability
 - serves: vision:o2
 - derived_from: task:seed-document-bounds-alias-expansion
-revision: 1
+revision: 2
 ---
 ## What is wrong
 
@@ -36,3 +36,31 @@ reader through it with limits stated per format.
   outside the process (a source guard names the allowed sites).
 - Each routed reader refuses a document past its depth before the full load, counted as unit B's
   test counts it.
+
+## Refined baseline and scope
+
+Source inspection supersedes the broad mechanism claim above. Ontology::from_yaml in
+crates/ekr-ontology/src/schema.rs still directly decodes caller input. ExtractionDocument::from_yaml
+already runs ekr_core::decode::observe_yaml before decoding. CodeNameIndex parses only
+EMBEDDED_DOMAINS in crates/ekr-views/src/code_names.rs; those are compile-time repository documents,
+not caller input. The vendored depth test already uses event counts.
+
+Cited surfaces: crates/ekr-ontology/src/schema.rs, crates/ekr-core/src/decode.rs,
+crates/ekr-kernel/src/yaml.rs, crates/ekr-integrate/src/extraction.rs.
+Inferred edits: ontology reader and its existing tests; a source inventory guard under
+crates/ekr/tests or ekr-ontology/tests; shared bounded decoder only if the existing facade
+cannot express the established reader policy. No change to embedded domain matching is needed.
+Coordinator owns planning and shared docs. No new entity or retained format is introduced.
+
+## Revised acceptance
+
+Inventory every production YAML ingress and classify caller input, bounded decode, or trusted
+retained/embedded input with its caller. Ontology input has stated byte, nesting and alias-work
+limits enforced before full materialization. Reuse existing shared primitives; do not duplicate
+the loader. Preserve successful supported ontology inputs, including previously supported
+bounded aliases unless an existing format contract forbids them. A case exceeds each bound
+and proves refusal; a deterministic event/materialization counter proves excessive depth is
+refused before full loading. The source guard detects a newly added unclassified outside-input
+decode, and explicitly permits embedded and already-bounded decodes. Existing extraction,
+seed and transaction-document limits and refusals stay covered. These regression cases
+assert surviving behavior after the fix, rather than constructing a now-unrepresentable value.

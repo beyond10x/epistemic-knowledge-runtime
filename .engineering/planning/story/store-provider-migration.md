@@ -7,14 +7,16 @@ title: A store moves between the file and SQLite providers with its identities a
 relations:
 - serves: vision:o2
 - decomposes: epic:p7-migration-cutover
-revision: 1
+revision: 2
 ---
 ## Context
 
-Asked by a consumer instance (2026-09-28): a store written with the file provider cannot be moved to
-SQLite. The routes today are rebuilding from the consumer's own inputs or replaying the retained
-transaction documents; both mint new commit times, so every revision root differs from the
-original (`docs/cli.md` has no migrate, export or import verb; `crates/ekr/src/cli` has none).
+The released CLI already provides preserving migration to the same provider
+(crates/ekr/src/cli/migrate.rs, module documentation; docs/cli.md, ekr migrate).
+The remaining outcome is a preserving move between the file and SQLite providers.
+Extend the existing migration path and preserve its source-read-only, destination-empty,
+kernel-replay and incomplete-migration guarantees. The earlier claim that no migrate verb
+existed described an obsolete baseline; it is superseded by this source inspection.
 
 ## Build
 
