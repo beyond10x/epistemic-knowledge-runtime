@@ -18,10 +18,10 @@ Build directories are under `<home>/.cache/b10x-target/`; scratch roots under
 | Unit | Artifacts | Branch / managed id | Build directory | Scratch | Stage |
 |---|---|---|---|---|---|
 | A | story:evidence-attaches-to-a-held-assertion | impl/evidence-attachment / ekr-x7-a | ekr-x7b-a | a | integrated at 0283e993e after decoder correction and second adversary pass |
-| W | task:validate-cost-flat-with-store-size | impl/validate-cost-flat / ekr-x7-w | ekr-x7b-w | w | combined 58f53523b misses both independent timing bounds; profile analysis continues |
+| W | task:validate-cost-flat-with-store-size | impl/validate-cost-flat / ekr-x7-w | ekr-x7b-w | w | combined 4a3e384b0 passes correctness but misses timing bounds; formatting and borrowed checkpoint correction in progress |
 | consumer | K: story:sdk-store-checks; O: task:ocel-export-prints-its-counts and task:ocel-times-events-by-a-named-property; Q: task:quality-counts-seed-evidence-and-constrained-types; N: task:code-names-matches-whole-words; F: task:fact-quality-states-the-empty-interval | impl/x7b-consumer / ekr-x7b-consumer | ekr-x7b-consumer | consumer | integrated through d30befbbe with selector corrections and retained adversary cases; managed tree retired |
 | F/K adversary | empty interval and judged SDK sample | review/x7b-fk / ekr-x7b-review-fk | ekr-x7b-review-fk | review-fk | F/K and subsequent O/N reviews integrated; managed tree retired |
-| coordinator | integration, planning, conformance synthesis | wave/extract-07b / ekr-extract-07b | ekr-extract-07b | coordinator | all units integrated; combined correctness reconciliation and W acceptance remain |
+| coordinator | integration, planning, conformance synthesis | wave/extract-07b / ekr-extract-07b | ekr-extract-07b | coordinator | combined correctness passed at 4a3e384b0; W correction, final acceptance and release remain |
 
 No unit writes the planning store. Each implementation receives a file brief and is followed by
 an independent adversary using the skill's role procedure. Codex dispatches generic collaboration
@@ -161,3 +161,13 @@ W's confirmed-publication retirement and unchanged edge-index sharing are integr
 The default-size benchmark now enforces each independent timing bound directly, preserving its
 aggregate checks. Its latest measurement remains red; the task records exact output and continues
 from the retained profile. No artifact is closed on the unit gates or the earlier aggregate pass.
+
+The later verified prefix, checkpoint retirement and privately owned graph reuse corrections are
+combined at 4a3e384b0f12a56edbaea40858dde3aff4fba512. The full `task check` passes there, with
+direct `CHECK_EXIT=0` recorded in coordinator/full-reuse-combined-check.log. The fifth default-size
+measurement in w/combined5/scaling.log still misses the task's timing bounds and the benchmark's
+aggregate assertions; the exact output is recorded in the task. Correctness does not close that
+acceptance. The bounded next correction targets hash text formatting and borrowed checkpoint
+serialization with the owned decoder and stored bytes unchanged. An encoding-inlining probe was
+rejected because its interleaved measurements showed no reliable improvement. The final source
+still needs both its measured acceptance and its complete combined gate before release.

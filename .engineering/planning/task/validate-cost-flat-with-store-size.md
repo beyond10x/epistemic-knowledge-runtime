@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 20
+revision: 21
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -336,3 +336,46 @@ binds target allocation, complete root, revision identity and commit time.
 Design section 104 records these boundaries and the additional private buffer per authority.
 The default-size timing acceptance and final combined repository gate remain pending. This
 correction and its counted improvement do not close the task by themselves.
+
+## Fifth full-size measurement (2026-10-02)
+
+The frozen combined source at 4a3e384b0f12a56edbaea40858dde3aff4fba512 includes the
+verified prefix, checkpoint retirement and exclusively owned graph reuse corrections.
+The default SQLite release measurement remains red. The following lines are copied directly
+from the retained `w/combined5/scaling.log`:
+
+```text
+Sqlite first 15 medians            propose    590.1 ms  validate     48.5 ms  commit    621.8 ms  total   1260.4 ms
+Sqlite last 15 medians             propose    741.9 ms  validate     60.4 ms  commit    861.9 ms  total   1664.1 ms
+Sqlite median ratios: validate 1.244x; commit 1.386x; load 17.74 17.26 16.89 7/6251 354886
+Sqlite: large/small 1.74x, large last/first 1.96x
+MEASUREMENT_EXIT=101
+```
+
+The raw harness log, frame-pointer recording and decoded stacks remain under
+`<cache>/ekr-extract-07b/w/combined5/`. This measurement does not satisfy either
+independent timing bound or the existing aggregate benchmark assertions. The task remains
+active. No sample size, transaction window or acceptance bound was changed. Further work
+must follow the profile and preserve the current canonical roots and refusal behavior.
+
+## Combined correctness gate after graph reuse (2026-10-02)
+
+The coordinator ran `task check` on the exact frozen measurement revision above, with the
+repository-pinned tools and the ext4 temporary directory documented in the wave. The complete
+log remains at `<cache>/ekr-extract-07b/coordinator/full-reuse-combined-check.log`.
+Its directly captured terminal result is:
+
+```text
+valid
+CHECK_EXIT=0
+Fri Oct  2 15:25:55 UTC 2026
+```
+
+This includes workspace tests, benchmark-feature compilation, documentation, vendor compatibility,
+specification validation, all generated-suite freshness comparisons and planning validation.
+The planning validator retains its historical prose-only review warnings. This is correctness
+evidence for the measured revision; it does not turn the failed timing measurement green.
+The next bounded correction targets hash text formatting and borrowed checkpoint output,
+preserving the current decoder, complete serialized bytes and canonical hashes. The native
+encoding-inlining probe showed no reliable improvement and is not being applied. Final acceptance
+still requires a green default-size measurement and a combined gate on the final source.
