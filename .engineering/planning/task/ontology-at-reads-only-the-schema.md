@@ -7,7 +7,7 @@ title: ekr ontology --at reads only the schema history
 relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
-revision: 2
+revision: 3
 ---
 ## What is wrong
 
@@ -55,3 +55,30 @@ distinguish schema work, data replay and open verification. If the current autho
 expose its verified mapping, report the measured blocker rather than trusting serialized receipts.
 The previous broad elapsed-time claim is replaced by this deterministic scoped work-count claim;
 the reported consumer timing remains historical motivation, not a new performance measurement.
+
+## Admission-boundary refinement from source scoping
+
+Runtime construction does not itself verify a store. The selected path deliberately reads only
+through its requested revision, so later corruption can be outside its result. An optimization
+must not replace that contract with unconditional head admission.
+
+The scoper identified a candidate for the original one-shot CLI benefit: attempt the existing
+complete history admission and materialize its verified checkpoint mapping, select from that
+mapping only after successful authority admission, and fall back to the unchanged selected-only
+path on any speculative failure. This is an unverified implementation hypothesis, not permission
+to trust a checkpoint or mutate retained state. A root-only checkpoint fast path does not prove
+the ontology mapping was admitted. Existing verified mappings can also benefit a warm handle.
+
+Before selecting this candidate, compare same-handle fallback with fresh selected-only controls
+for malformed native envelopes, malformed domain events and missing record objects after the
+selected revision, corruption before it, invalid checkpoints, repeat failures and replacement.
+A failed speculative head read must not poison occurrence/object/authority caches or change the
+selected result/refusal. No retained write is allowed on this read path.
+
+Measure cold checkpoint plus tail as well as warm reads. A warm-only improvement is insufficient
+to claim the original one-shot CLI problem solved. If safe checkpoint reuse cannot improve the
+cold selected read, record the unmet acceptance and hold the unit rather than closing it under
+a convenient warm benchmark. No-checkpoint and forced full replay retain their integrity work;
+report those separately. Exact source seams are history_at, history, reconstruct, ReplayState
+revision ontology entries, and Runtime/Commit read methods; do not infer admission from a
+revision number or the mutable prefix-hash memo alone.
