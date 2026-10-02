@@ -7,7 +7,7 @@ title: ekr ocel prints the counts of its export
 relations:
 - decomposes: epic:consumer-sdk
 - serves: vision:o5
-revision: 5
+revision: 6
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-02T10:34:31Z", actor: "agent:codex-ekr-x7b", revision: 3}
 - {from: "proposed", to: "active", at: "2026-10-02T10:34:31Z", actor: "agent:codex-ekr-x7b", revision: 4}
@@ -45,3 +45,52 @@ Use the existing OcelExported summary on stderr, preserving the export document'
 The session reply carries the same counts in its per-request stderr field; a successful
 session request must not leak counts to process-global stderr. SDK OCEL reads expose both.
 The named-time task preserves default stdout relative to the released 0.0.26 document.
+
+## Second correction verified (2026-10-02)
+
+Coordinator read the final source-only correction 848e023ec against 4ed8d5a3b.
+Each explicit event name now travels as one --events=<name> argument, matching the corrected
+--event-time=<selector> encoding. The test diff between those commits is empty: no assertion
+was dropped, weakened or re-pinned. The implementor's on2-correction-exact.log and
+on2-correction-suite.log retain the unchanged adversary matrix and complete SDK lane passing;
+on2-correction-clippy.log, formatting and diff checks are green. Both bot identities verified.
+No third attack was opened: the coordinator verified the second correction as the wave procedure
+requires. These unit results permit integration; artifact completion still requires the combined gate.
+
+The two recorded passes each found one introduced boundary defect. The CLI computes their trend:
+carried 0, new 1, resolved 1
+
+```json
+{
+  "artifact": "task:ocel-export-prints-its-counts",
+  "reviews": 2,
+  "from": "review-result:adversary-extract-07b-on-pass-1",
+  "from_reviewer": "unattributed",
+  "to": "review-result:adversary-extract-07b-on-pass-2",
+  "to_reviewer": "unattributed",
+  "carried": [],
+  "new": [
+    {
+      "file": "crates/ekr-sdk/src/read/ocel.rs",
+      "line": 204,
+      "category": "boundary",
+      "severity": "blocker",
+      "verdict": "NEEDS-CHANGE",
+      "origin": "introduced",
+      "message": "The SDK events list still passes leading-dash type names as separate argv values, so both transports refuse admitted names accepted by the CLI equals form."
+    }
+  ],
+  "resolved": [
+    {
+      "file": "crates/ekr-sdk/src/read/ocel.rs",
+      "line": 207,
+      "category": "boundary",
+      "severity": "blocker",
+      "verdict": "NEEDS-CHANGE",
+      "origin": "introduced",
+      "message": "The SDK passes valid leading-dash event-time selectors as separate argv values, so both transports refuse names the CLI accepts with equals syntax."
+    }
+  ]
+}
+
+```
