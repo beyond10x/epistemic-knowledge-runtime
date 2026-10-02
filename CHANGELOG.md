@@ -8,7 +8,7 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 - **Evidence attaches to an assertion the store already holds** (`docs/cli.md`, Evidence
   attached to a held assertion; design § 103). `!AttachEvidence {assertion, evidence}`,
-  operation 15, attaches retained evidence, or evidence an `!AddEvidence` of the same
+  operation index 15, attaches retained evidence, or evidence an `!AddEvidence` of the same
   transaction adds, to an accepted and active assertion, under every validation profile. The
   assertion is not changed: the attachment is its own record (which assertion, which evidence,
   which revision), kept by the canonical graph beside its assertions and listed by `ekr snapshot`
