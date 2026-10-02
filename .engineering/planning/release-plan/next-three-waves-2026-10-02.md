@@ -7,7 +7,7 @@ title: Input safety, historical paging and historical ontology after the release
 relations:
 - supersedes: release-plan:next-waves-2026-10-01
 - serves: vision:o5
-revision: 2
+revision: 3
 transitions:
 - {from: "draft", to: "active", at: "2026-10-02T18:02:02Z", actor: "agent:codex-ekr-next-three-root", revision: 2}
 ---
@@ -164,3 +164,11 @@ retained evidence is recorded first.
 }
 
 ```
+
+## Resource update during input wave
+
+The input wave's resource assignment section supersedes the initial serial-only choice after
+free storage recovered. Its recorded storage observation supports a separate identity adversary
+target alongside the YAML worker's target. The repository concurrency ceiling still holds and no
+concurrent tree shares a target. Subsequent resource changes and the exact ownership handoffs are
+recorded in each wave page before dispatch.
