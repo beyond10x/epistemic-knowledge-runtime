@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:p6-maintenance-observability
 - serves: vision:o5
 - derived_from: task:rendering-cost-test-passes-under-load
-revision: 1
+revision: 2
 ---
 ## What is wrong
 
@@ -21,6 +21,8 @@ AGENTS.md forbids a test that passes or fails on wall-clock time. Wave correct-0
   injected clock.
 - `crates/ekr-sdk/tests/spawn_busy.rs:131,153,168`, `adversary_spawn_busy.rs:212`,
   `session.rs:494,708`, `adversary_session_close.rs:218`: response-time bounds on subprocesses.
+- `crates/ekr/tests/view_page.rs:3394` (`a_narrow_window_opens_compact_and_the_graph_keeps_its_width`,
+  "the page settled"): timed out once in the 0.0.26 local gate at load 11–16, passed 3 of 3 alone.
 - `crates/ekr/tests/view_cli.rs:588`, `view_stream.rs:1040`, `adversary_v_view_r2.rs:198,275`,
   `adversary_code_names_cli.rs:244`.
 
