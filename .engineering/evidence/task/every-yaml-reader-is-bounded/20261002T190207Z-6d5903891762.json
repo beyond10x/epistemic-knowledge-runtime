@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-02T19:02:07Z",
+  "actor": "agent:codex-ekr-next-three-root",
+  "artifact": "task:every-yaml-reader-is-bounded",
+  "kind": "task",
+  "revision": 6,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Y candidate package tests, clippy, format, ingress inventory and integrate/SDK extraction targets; each recorded exit zero",
+    "reference": "<cache>/ekr-next-three/input-08/yaml/{packages,clippy,format-final,inventory-final,extraction,sdk-extraction}.{log,exit}; candidate 9b65ea399ad0b8ee920f6d923741ad6e0bc63c7f"
+  }
+}
