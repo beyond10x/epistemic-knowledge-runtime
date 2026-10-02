@@ -394,3 +394,66 @@ fn a_revision_beyond_the_head_is_refused_by_name_and_no_store_is_a_fault() {
         assert!(!empty.store().exists(), "{backend}: nothing was created");
     }
 }
+
+#[test]
+fn adversary_ocel_diagnostics_stay_inside_their_request_across_errors_and_raw_reports() {
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        let default = world.run(&["ocel"]);
+        let named = world.run(&["ocel", "--events", "Person"]);
+        assert_eq!(default.status.code(), Some(0));
+        assert_eq!(named.status.code(), Some(0));
+        let requests = [
+            json!({"argv": ["ocel"]}),
+            json!({"argv": ["ocel", "--event-time", "Person.absent"]}),
+            json!({"argv": ["fact-quality", "-"], "stdin": "{\"format\":\"ekr.fact-judgements/1\",\"judgements\":[]}"}),
+            json!({"argv": ["ocel", "--events", "Person"]}),
+            json!({"argv": ["head"]}),
+        ];
+        let mut child = world
+            .command(&["session"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        {
+            let mut stdin = child.stdin.take().unwrap();
+            for request in requests {
+                writeln!(stdin, "{request}").unwrap();
+            }
+        }
+        let output = child.wait_with_output().unwrap();
+        assert_eq!(output.status.code(), Some(0));
+        assert!(
+            output.stderr.is_empty(),
+            "success counts must not reach global stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let replies: Vec<Value> = String::from_utf8(output.stdout)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        assert_eq!(replies.len(), 5);
+        for (index, one_shot) in [(0, default), (3, named)] {
+            assert_eq!(replies[index]["exit"], 0);
+            assert_eq!(
+                replies[index]["stdout"],
+                serde_json::from_slice::<Value>(&one_shot.stdout).unwrap()
+            );
+            assert_eq!(
+                replies[index]["stderr"],
+                String::from_utf8(one_shot.stderr).unwrap()
+            );
+        }
+        assert_eq!(replies[1]["exit"], 2);
+        assert!(replies[1]["stderr"]
+            .as_str()
+            .unwrap()
+            .contains("ekr.views.EventTimeInvalid"));
+        assert_eq!(replies[2]["stdout"]["rate"], Value::Null);
+        assert_eq!(replies[2]["stderr"], "");
+        assert_eq!(replies[4]["stderr"], "");
+    }
+}
