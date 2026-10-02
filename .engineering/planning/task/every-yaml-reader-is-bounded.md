@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:p6-maintenance-observability
 - serves: vision:o2
 - derived_from: task:seed-document-bounds-alias-expansion
-revision: 5
+revision: 6
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-02T18:02:03Z", actor: "agent:codex-ekr-next-three-root", revision: 3}
 - {from: "proposed", to: "active", at: "2026-10-02T18:02:03Z", actor: "agent:codex-ekr-next-three-root", revision: 4}
@@ -80,3 +80,30 @@ ontology_yaml_stops_loading_at_the_depth_cut. The ingress inventory and its coun
 in crates/ekr-ontology/tests/yaml_ingress.rs. These are planned, unexecuted cases at this specification
 commit; later test-result evidence determines implementation. The specification was propagated
 identically to both input-wave unit trees before implementation.
+
+## Candidate verification and remaining checks
+
+Candidate 9b65ea399ad0b8ee920f6d923741ad6e0bc63c7f is bot-authored. The coordinator read the
+red-all-bounds.log and green-focused-rebuild.log outputs in <cache>/ekr-next-three/input-08/yaml,
+and inspected the shared loader move and ontology preflight. VERIFIED for the focused claim:
+input past the stated byte, depth and alias-work bounds now receives the named Syntax refusal
+before typed materialization. The implementor's interim report-public.md reports three failing
+cases becoming passing in the same four-case regression run, plus a passing early-depth event
+counter. Its complete package run reports 809 passed and six existing ignored cases, exit zero;
+this is quoted from that report, not an inferred clean-baseline count.
+
+The candidate is not yet an admitted unit. Clippy, downstream extraction checks, the independent
+adversary and combined wave gate remain pending. Remaining compilation paused when free storage
+fell below the wave's build floor. The existing full baseline was interrupted and is not a green
+baseline. The immutable focused red output remains the before evidence.
+
+## Scope
+
+Confirmed against the candidate: ontology/schema.rs preflight and ontology_load.rs bounds cases;
+core/decode.rs and new core/decode/yaml.rs shared observation/expansion primitives and their tests;
+kernel/yaml.rs retains its event counter wrapper; ontology/tests/yaml_ingress.rs inventories all
+crates/*/src and xtask/src YAML references with explicit caller classifications. The old kernel
+alias-budget algorithm moved rather than being duplicated. Core identity exports are untouched,
+so the anticipated core/lib.rs overlap with unit I did not occur. Extraction already used the
+bounded core facade and needs regression execution, not an extra reader implementation.
+Embedded code-name domains remain trusted compile-time inputs. The ESS comment is coordinator-owned.
