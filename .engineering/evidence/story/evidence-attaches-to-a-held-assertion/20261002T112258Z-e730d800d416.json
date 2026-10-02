@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-02T11:22:58Z",
+  "actor": "agent:codex-ekr-x7b",
+  "artifact": "story:evidence-attaches-to-a-held-assertion",
+  "kind": "story",
+  "revision": 39,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:adversary-extract-07b-a-pass-1",
+    "reference": "bf48f7060fc067635f440c2bcb0d1fc273545f8a",
+    "review": "review-result:adversary-extract-07b-a-pass-1",
+    "outcome": "fixed"
+  }
+}
