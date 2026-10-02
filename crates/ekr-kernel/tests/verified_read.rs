@@ -654,3 +654,115 @@ fn a_live_handle_keeps_the_alias_index_of_its_current_head_only() {
         );
     }
 }
+
+#[test]
+fn adversary_selected_states_follow_peer_decisions_without_mutating_held_snapshots() {
+    use std::sync::Arc;
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let seed = fixture();
+        let writer = open(directory.path(), file);
+        let reader = open(directory.path(), file);
+        assert!(matches!(
+            reader.transaction_states([]),
+            Err(CommitError::NotSeeded)
+        ));
+        writer.seed(seed.clone(), at(10)).unwrap();
+        let empty = reader.transactions().unwrap();
+        let (one, two, accepted, pending, rejected) = (
+            proposal(&seed),
+            proposal(&seed),
+            proposal(&seed),
+            proposal(&seed),
+            inadmissible(&seed),
+        );
+        let unknown = TransactionId::mint();
+        let ids = [
+            unknown,
+            rejected.id,
+            two.id,
+            pending.id,
+            one.id,
+            accepted.id,
+            one.id,
+        ];
+        for tx in [&one, &two, &accepted, &pending, &rejected] {
+            propose(&writer, tx);
+        }
+        let expected_proposed: BTreeMap<_, _> =
+            [one.id, two.id, accepted.id, pending.id, rejected.id]
+                .into_iter()
+                .map(|id| (id, TransactionState::Proposed))
+                .collect();
+        assert_eq!(reader.transaction_states(ids).unwrap(), expected_proposed);
+        let proposed = reader.transactions().unwrap();
+        let proposed_bytes = serde_json::to_vec(&*proposed).unwrap();
+        assert!(Arc::ptr_eq(&proposed, &reader.transactions().unwrap()));
+        for tx in [&one, &two, &accepted] {
+            validated(&writer, tx);
+        }
+        assert!(matches!(
+            writer
+                .validate(rejected.id, RevisionNumber::SEED, at(31))
+                .unwrap(),
+            ValidationCommandResult::Rejected(_)
+        ));
+        let mut expected = expected_proposed;
+        for id in [one.id, two.id, accepted.id] {
+            expected.insert(id, TransactionState::Validated);
+        }
+        expected.insert(rejected.id, TransactionState::Rejected);
+        assert_eq!(reader.transaction_states(ids).unwrap(), expected);
+        let validated_snapshot = reader.transactions().unwrap();
+        let validated_bytes = serde_json::to_vec(&*validated_snapshot).unwrap();
+        assert_eq!(
+            validated_snapshot
+                .iter()
+                .map(|(id, record)| (*id, record.state()))
+                .collect::<BTreeMap<_, _>>(),
+            expected
+        );
+        assert!(matches!(
+            writer.commit(one.id, context().operator, at(40)).unwrap(),
+            CommitCommandResult::Committed(_)
+        ));
+        assert!(matches!(
+            writer.commit(two.id, context().operator, at(41)).unwrap(),
+            CommitCommandResult::Stale(_)
+        ));
+        expected.insert(one.id, TransactionState::Committed);
+        expected.insert(two.id, TransactionState::Stale);
+        assert_eq!(reader.transaction_states(ids).unwrap(), expected);
+        assert!(reader
+            .transaction_states([unknown, unknown])
+            .unwrap()
+            .is_empty());
+        assert!(reader.transaction_states([]).unwrap().is_empty());
+        let current = reader.transactions().unwrap();
+        assert_eq!(
+            current
+                .iter()
+                .map(|(id, record)| (*id, record.state()))
+                .collect::<BTreeMap<_, _>>(),
+            expected
+        );
+        assert!(empty.is_empty());
+        assert_eq!(serde_json::to_vec(&*proposed).unwrap(), proposed_bytes);
+        assert_eq!(
+            serde_json::to_vec(&*validated_snapshot).unwrap(),
+            validated_bytes
+        );
+        let mut owned = current.clone();
+        Arc::make_mut(&mut owned).clear();
+        assert_eq!(reader.transaction_states(ids).unwrap(), expected);
+        assert_eq!(reader.transactions().unwrap(), current);
+        writer.retain_checkpoint_at_rest();
+        let reopened = open(directory.path(), file);
+        assert_eq!(reopened.transaction_states(ids).unwrap(), expected);
+        assert_eq!(reopened.transactions().unwrap(), current);
+        let mut replayed = open(directory.path(), file);
+        replayed.set_full_replay(true);
+        assert_eq!(replayed.transaction_states(ids).unwrap(), expected);
+        assert_eq!(replayed.transactions().unwrap(), current);
+    }
+}

@@ -476,3 +476,409 @@ fn evidence_extracted_by_another_agent_than_the_proposer_is_misattributed() {
         assert!(runtime.transactions().unwrap().is_empty());
     }
 }
+
+/// `task:validate-cost-flat-with-store-size`: the retained objects one evidence-carrying
+/// transaction's head read, proposal, validation and commit place into the histories they replay
+/// do not grow with the evidence the store already holds, on both providers.
+///
+/// Every payload an earlier commit added is retained and was checked when the handle first
+/// replayed past it; a command replays only the occurrences after the state the handle already
+/// reached, which reads only the payloads those occurrences add. Placing every earlier payload
+/// into each command's history again made each verb cost the evidence count. Two stores with the
+/// same transactions, one holding eight times the evidence of the other, load the same objects
+/// for the same next transaction. A verified read still holds every payload
+/// ([`a_verified_read_still_holds_every_added_payload`]).
+#[test]
+fn a_command_loads_the_same_objects_however_much_evidence_the_store_holds() {
+    /// The objects the seventh transaction loads, after six that add `per` payloads each.
+    fn seventh(file: bool, per: usize) -> u64 {
+        let directory = tempfile::tempdir().unwrap();
+        let seed = seeded();
+        let runtime = open(directory.path(), file);
+        runtime.seed(seed.document.clone(), at(10)).unwrap();
+        let mut loaded = 0;
+        for n in 0..7_i64 {
+            let added = if n == 6 { 1 } else { per };
+            let operations = (0..added)
+                .flat_map(|k| {
+                    let payload = format!("message {n}.{k}").into_bytes();
+                    let evidence = human_evidence(EvidenceId::mint(), &payload);
+                    let claim = assertion(&seed, evidence.id, &format!("claim {n}.{k}"));
+                    [
+                        add_evidence(evidence, &payload),
+                        GraphOperation::AddAssertion(Box::new(claim)),
+                    ]
+                })
+                .collect();
+            let _ = ekr_store::objects_loaded();
+            committed(&runtime, &transaction(operations), 20 + 10 * n);
+            loaded = ekr_store::objects_loaded();
+        }
+        loaded
+    }
+    for file in [false, true] {
+        let (fewer, more) = (seventh(file, 1), seventh(file, 8));
+        eprintln!("file {file}: retained objects loaded into command histories: {fewer} / {more}");
+        assert_eq!(
+            more, fewer,
+            "file {file}: objects the seventh transaction placed into histories over 7 and over \
+             49 payloads"
+        );
+    }
+}
+
+/// [`a_command_loads_the_same_objects_however_much_evidence_the_store_holds`] leaves a verified
+/// read as it was: it holds the payload of every evidence entry the lineage added.
+#[test]
+fn a_verified_read_still_holds_every_added_payload() {
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let seed = seeded();
+        let runtime = open(directory.path(), file);
+        runtime.seed(seed.document.clone(), at(10)).unwrap();
+        let mut payloads = Vec::new();
+        for n in 0..4_i64 {
+            let payload = format!("message {n}").into_bytes();
+            let evidence = human_evidence(EvidenceId::mint(), &payload);
+            let claim = assertion(&seed, evidence.id, &format!("claim {n}"));
+            committed(
+                &runtime,
+                &transaction(vec![
+                    add_evidence(evidence.clone(), &payload),
+                    GraphOperation::AddAssertion(Box::new(claim)),
+                ]),
+                20 + 10 * n,
+            );
+            payloads.push((evidence.content_hash, payload));
+        }
+        let read = runtime.read(None).unwrap();
+        for (hash, payload) in &payloads {
+            assert_eq!(read.content(hash), Some(payload.as_slice()), "file {file}");
+            assert_eq!(
+                runtime.content(hash).unwrap().as_deref(),
+                Some(payload.as_slice()),
+                "file {file}"
+            );
+        }
+    }
+}
+
+/// A cached command may omit the bytes it already verified, but not the stream check that
+/// withdraws those bytes. Compare its named refusal with a complete history read, repeatedly:
+/// a failed fast replay must not clear the condition and make its next attempt succeed.
+#[test]
+fn cached_commands_refuse_withdrawn_evidence_as_complete_history_does() {
+    use eventlog_core::{CommandMeta, EventStore, Expected, NewEvent, StreamId, TenantId};
+    for file in [false, true] {
+        for (reopened, cold) in [(false, false), (true, false), (false, true)] {
+            let directory = tempfile::tempdir().unwrap();
+            let seed = seeded();
+            let mut runtime = open(directory.path(), file);
+            runtime.seed(seed.document.clone(), at(10)).unwrap();
+            let bytes = b"later withdrawn evidence";
+            let evidence = human_evidence(EvidenceId::mint(), bytes);
+            committed(
+                &runtime,
+                &transaction(vec![
+                    add_evidence(evidence.clone(), bytes),
+                    GraphOperation::AddAssertion(Box::new(assertion(&seed, evidence.id, "held"))),
+                ]),
+                20,
+            );
+            runtime.retain_checkpoint_at_rest();
+            if reopened {
+                drop(runtime);
+                runtime = open(directory.path(), file);
+            }
+            let tx = transaction(vec![GraphOperation::AddAssertion(Box::new(assertion(
+                &seed,
+                evidence.id,
+                "next",
+            )))]);
+            assert!(matches!(
+                verdict(&runtime, &tx, 30),
+                ValidationCommandResult::Validated(_)
+            ));
+            runtime.transactions().unwrap();
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap();
+            let stream = StreamId::new(
+                TenantId::new("test").unwrap(),
+                "ekr.store.object",
+                evidence.content_hash.to_hex(),
+            )
+            .unwrap();
+            let event = NewEvent::new("test.WithdrawalRecorded", 1, serde_json::json!({})).unwrap();
+            let unrelated = StreamId::new(
+                TenantId::new("test").unwrap(),
+                "ekr.store.object",
+                ContentHash::of_bytes(b"not a dependency of the history").to_hex(),
+            )
+            .unwrap();
+            let meta = CommandMeta {
+                idempotency_key: EventId::mint().to_string(),
+                request_hash: "withdrawal".into(),
+                subject: "test".into(),
+                actor: "test".into(),
+                request_id: "withdrawal".into(),
+                trace_id: "withdrawal".into(),
+                causation_id: None,
+                causation_depth: 0,
+                occurred_at: ::time::OffsetDateTime::UNIX_EPOCH,
+                claim: None,
+            };
+            if file {
+                let provider = rt
+                    .block_on(eventlog_file::FileEventStore::open(directory.path()))
+                    .unwrap();
+                rt.block_on(provider.append(
+                    &unrelated,
+                    Expected::Any,
+                    std::slice::from_ref(&event),
+                    &meta,
+                ))
+                .unwrap();
+                assert!(
+                    runtime.transactions().is_ok(),
+                    "unrelated invalid stream must not refuse history"
+                );
+                rt.block_on(provider.append(&stream, Expected::Any, &[event], &meta))
+                    .unwrap();
+            } else {
+                let db = directory.path().join("state.db");
+                let provider = rt
+                    .block_on(eventlog_sqlite::SqliteEventStore::open(
+                        db.to_str().unwrap(),
+                        "ekr",
+                    ))
+                    .unwrap();
+                rt.block_on(provider.append(
+                    &unrelated,
+                    Expected::Any,
+                    std::slice::from_ref(&event),
+                    &meta,
+                ))
+                .unwrap();
+                assert!(
+                    runtime.transactions().is_ok(),
+                    "unrelated invalid stream must not refuse history"
+                );
+                rt.block_on(provider.append(&stream, Expected::Any, &[event], &meta))
+                    .unwrap();
+            }
+            if cold {
+                drop(runtime);
+                runtime = open(directory.path(), file);
+            }
+            let fresh = open(directory.path(), file)
+                .read(None)
+                .err()
+                .unwrap()
+                .to_string();
+            assert!(fresh.contains("unsupported-retention-envelope"), "{fresh}");
+            for _ in 0..2 {
+                let answers = [
+                    runtime
+                        .transactions()
+                        .map(|_| ())
+                        .map_err(|e| e.to_string()),
+                    runtime
+                        .transaction_states([tx.id])
+                        .map(|_| ())
+                        .map_err(|e| e.to_string()),
+                    runtime
+                        .propose(&encode(&transaction(vec![])), context().operator, at(40))
+                        .map(|_| ())
+                        .map_err(|e| e.to_string()),
+                    runtime
+                        .validate(tx.id, RevisionNumber::new(0), at(41))
+                        .map(|_| ())
+                        .map_err(|e| e.to_string()),
+                    runtime
+                        .commit(tx.id, context().operator, at(42))
+                        .map(|_| ())
+                        .map_err(|e| e.to_string()),
+                ];
+                for (verb, answer) in [
+                    "transactions",
+                    "transaction states",
+                    "propose",
+                    "validate historical",
+                    "commit",
+                ]
+                .into_iter()
+                .zip(answers)
+                {
+                    assert_eq!(
+                        answer,
+                        Err(fresh.clone()),
+                        "file {file}, reopened {reopened}, {verb}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+/// A checkpoint-backed command handle must recover an old validation basis introduced by a
+/// different handle, including evidence the checkpoint replay ordinarily leaves unloaded.
+#[test]
+fn adversary_peer_validation_at_an_old_basis_matches_full_replay() {
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let seed = seeded();
+        let writer = open(directory.path(), file);
+        writer.seed(seed.document.clone(), at(10)).unwrap();
+        let mut first_evidence = None;
+        for n in 0..6 {
+            let bytes = format!("old basis evidence {n}").into_bytes();
+            let evidence = human_evidence(EvidenceId::mint(), &bytes);
+            first_evidence.get_or_insert(evidence.id);
+            committed(
+                &writer,
+                &transaction(vec![
+                    add_evidence(evidence.clone(), &bytes),
+                    GraphOperation::AddAssertion(Box::new(assertion(&seed, evidence.id, "held"))),
+                ]),
+                20 + 10 * n,
+            );
+        }
+        writer.retain_checkpoint_at_rest();
+        drop(writer);
+        let held = open(directory.path(), file);
+        let before = held.transactions().unwrap();
+        assert_eq!(before.len(), 6);
+        let peer = open(directory.path(), file);
+        let tx = transaction(vec![GraphOperation::AddAssertion(Box::new(assertion(
+            &seed,
+            first_evidence.unwrap(),
+            "validated at old revision",
+        )))]);
+        peer.propose(&encode(&tx), context().operator, at(100))
+            .unwrap();
+        assert!(matches!(
+            peer.validate(tx.id, RevisionNumber::new(1), at(101))
+                .unwrap(),
+            ValidationCommandResult::Validated(_)
+        ));
+        let mut full = open(directory.path(), file);
+        full.set_full_replay(true);
+        let expected = full.transactions().unwrap();
+        assert_eq!(expected.len(), 7);
+        assert_eq!(held.transactions().unwrap(), expected);
+        let result = held.commit(tx.id, context().operator, at(102)).unwrap();
+        let CommitCommandResult::Stale(stale) = result else {
+            panic!("old-basis validation committed")
+        };
+        assert_eq!(
+            stale.expected_basis.previous_root.revision,
+            RevisionNumber::new(1)
+        );
+        assert_eq!(stale.observed_root.revision, RevisionNumber::new(6));
+        assert_eq!(held.transactions().unwrap(), full.transactions().unwrap());
+    }
+}
+
+#[test]
+fn adversary_empty_and_unknown_state_requests_still_refuse_withdrawn_history() {
+    use eventlog_core::{CommandMeta, EventStore, Expected, NewEvent, StreamId, TenantId};
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let seed = seeded();
+        let runtime = open(directory.path(), file);
+        runtime.seed(seed.document.clone(), at(10)).unwrap();
+        let bytes = b"state-query historical evidence";
+        let evidence = human_evidence(EvidenceId::mint(), bytes);
+        let tx = transaction(vec![
+            add_evidence(evidence.clone(), bytes),
+            GraphOperation::AddAssertion(Box::new(assertion(&seed, evidence.id, "held"))),
+        ]);
+        committed(&runtime, &tx, 20);
+        assert_eq!(
+            runtime.transaction_states([tx.id]).unwrap()[&tx.id],
+            TransactionState::Committed
+        );
+        let unknown = TransactionId::mint();
+        assert!(runtime.transaction_states([unknown]).unwrap().is_empty());
+        assert!(runtime.transaction_states([]).unwrap().is_empty());
+        let held = runtime.transactions().unwrap();
+        let held_bytes = serde_json::to_vec(&*held).unwrap();
+        runtime.retain_checkpoint_at_rest();
+        let checkpoint_reader = open(directory.path(), file);
+        checkpoint_reader.transaction_states([tx.id]).unwrap();
+        let executor = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let stream = StreamId::new(
+            TenantId::new("test").unwrap(),
+            "ekr.store.object",
+            evidence.content_hash.to_hex(),
+        )
+        .unwrap();
+        let event = NewEvent::new("test.WithdrawalRecorded", 1, serde_json::json!({})).unwrap();
+        let meta = CommandMeta {
+            idempotency_key: EventId::mint().to_string(),
+            request_hash: "withdrawal".into(),
+            subject: "test".into(),
+            actor: "test".into(),
+            request_id: "withdrawal".into(),
+            trace_id: "withdrawal".into(),
+            causation_id: None,
+            causation_depth: 0,
+            occurred_at: ::time::OffsetDateTime::UNIX_EPOCH,
+            claim: None,
+        };
+        if file {
+            let provider = executor
+                .block_on(eventlog_file::FileEventStore::open(directory.path()))
+                .unwrap();
+            executor
+                .block_on(provider.append(&stream, Expected::Any, &[event], &meta))
+                .unwrap();
+        } else {
+            let database = directory.path().join("state.db");
+            let provider = executor
+                .block_on(eventlog_sqlite::SqliteEventStore::open(
+                    database.to_str().unwrap(),
+                    "ekr",
+                ))
+                .unwrap();
+            executor
+                .block_on(provider.append(&stream, Expected::Any, &[event], &meta))
+                .unwrap();
+        }
+        let cold = open(directory.path(), file);
+        let mut complete = open(directory.path(), file);
+        complete.set_full_replay(true);
+        let expected = complete
+            .read(None)
+            .err()
+            .expect("the required evidence was withdrawn")
+            .to_string();
+        assert!(
+            expected.contains("unsupported-retention-envelope"),
+            "{expected}"
+        );
+        for reader in [&runtime, &checkpoint_reader, &cold] {
+            for _ in 0..2 {
+                for ids in [vec![], vec![unknown], vec![unknown, unknown]] {
+                    assert_eq!(
+                        reader
+                            .transaction_states(ids)
+                            .map_err(|error| error.to_string()),
+                        Err(expected.clone()),
+                        "file={file}: an empty selection cannot bypass verification"
+                    );
+                }
+            }
+        }
+        assert_eq!(
+            serde_json::to_vec(&*held).unwrap(),
+            held_bytes,
+            "captured records remain immutable after a failed read"
+        );
+    }
+}

@@ -128,6 +128,19 @@ pub trait CommitAuthority {
         &self,
         history: &RetainedHistory,
     ) -> Result<BTreeSet<ContentHash>, StoreError>;
+    /// [`Self::required_objects`] for a history the store only has the authority replay, never
+    /// hands to a reader: the payloads a replay continuing from what this authority has already
+    /// reached reads. A store may load only these for such a history, and loads
+    /// [`Self::required_objects`] instead whenever the replay refuses it, so the answer is the one
+    /// the complete history gives. [`Self::required_objects`] by default.
+    /// # Errors
+    /// Malformed retained records refuse discovery.
+    fn replay_objects(
+        &self,
+        history: &RetainedHistory,
+    ) -> Result<BTreeSet<ContentHash>, StoreError> {
+        self.required_objects(history)
+    }
     /// Payloads replay reads where the store holds them, and whose absence the authority judges
     /// itself, by name: the evidence payloads an `ekr-seed-envelope/3` names (design § 100.1).
     /// The store loads each of them it holds an object for, verified as a required object is, and
@@ -262,6 +275,15 @@ pub trait RevisionLog {
     /// # Errors
     /// Any physical history or object integrity failure.
     fn history(&self) -> Result<RetainedHistory, StoreError>;
+    /// [`Self::history`] for a caller that only replays it: the same occurrences, verified, with
+    /// the objects [`CommitAuthority::replay_objects`] names rather than every required one. Where
+    /// replaying that history is refused, the complete [`Self::history`] is loaded and its answer
+    /// returned. [`Self::history`] by default.
+    /// # Errors
+    /// Whatever [`Self::history`] refuses.
+    fn replay_history(&self) -> Result<RetainedHistory, StoreError> {
+        self.history()
+    }
     /// Verified history ending exactly at the requested committed revision.
     /// # Errors
     /// Missing revision or invalid required prefix; later payloads are never loaded.

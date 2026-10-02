@@ -55,8 +55,8 @@ impl Runtime {
             Backend::Sqlite(k) => k.propose_reader(reader, actor, now),
         }
     }
-    /// Reads every actual retained transaction state in one verified history capture, shared
-    /// with the verified state rather than copied from it.
+    /// Reads every actual retained transaction record in one verified history capture. The
+    /// snapshot is materialized on first read and shared by later reads of the same state.
     /// # Errors
     /// Missing seed or invalid retained history.
     pub fn transactions(
@@ -70,6 +70,22 @@ impl Runtime {
         match &self.backend {
             Backend::File(k) => k.transactions(),
             Backend::Sqlite(k) => k.transactions(),
+        }
+    }
+    /// Reads requested transaction lifecycle states at one verified boundary. Unknown ids are
+    /// absent; the complete retained history is still verified when no ids are requested.
+    /// # Errors
+    /// Missing seed or invalid retained history.
+    pub fn transaction_states(
+        &self,
+        ids: impl IntoIterator<Item = ekr_core::TransactionId>,
+    ) -> Result<
+        std::collections::BTreeMap<ekr_core::TransactionId, crate::TransactionState>,
+        crate::CommitError,
+    > {
+        match &self.backend {
+            Backend::File(k) => k.transaction_states(ids),
+            Backend::Sqlite(k) => k.transaction_states(ids),
         }
     }
     /// Publishes the exact submitted transaction document through the shared handler.

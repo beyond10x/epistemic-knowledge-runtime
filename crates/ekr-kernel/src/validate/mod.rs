@@ -29,6 +29,7 @@
 //! `Invoke` on a node that is not there. The transaction is refused in every one of those cases —
 //! by the validator whose question it actually is.
 
+mod aliases;
 mod attachment;
 pub mod authorization;
 mod candidate;
@@ -48,6 +49,7 @@ use ekr_graph::GraphSnapshot;
 
 use crate::issue::{ValidationIssue, ValidatorName};
 use crate::transaction::{GraphTransaction, ValidatedTransaction};
+pub(crate) use aliases::AliasCache;
 use candidate::Candidate;
 pub(crate) use candidate::{AssertedEdges, AssertedEdgesCell};
 
@@ -56,6 +58,8 @@ pub use cardinality::Cardinality;
 pub use ontology::OntologyConstraint;
 pub use provenance::Provenance;
 pub use reference::Reference;
+#[cfg(test)]
+pub(crate) use structural::ALIAS_NODES_VISITED;
 pub use structural::{HeldIdentities, Structural};
 pub use types::Types;
 
@@ -207,17 +211,18 @@ impl Pipeline {
     /// [`Pipeline::validate`], reading the index of assertions about edges kept with the
     /// snapshot's graph, `kept`, and building it there if it is not yet: the same verdict, with
     /// one index per graph however many validations read it. `kept` must be the one kept with
-    /// that graph.
+    /// that graph, and `aliases` must be bound to that graph's exact verified coordinates.
     pub(crate) fn validate_kept<'g>(
         &self,
         snapshot: &GraphSnapshot<'g>,
         proposal: &GraphTransaction,
         kept: &'g std::sync::OnceLock<AssertedEdges>,
+        aliases: &'g aliases::AliasHolders,
     ) -> Result<ValidatedTransaction, Vec<ValidationIssue>> {
         self.sealed(
             snapshot,
             proposal,
-            Candidate::kept(snapshot, proposal, kept),
+            Candidate::kept(snapshot, proposal, kept, aliases),
         )
     }
 

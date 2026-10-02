@@ -635,13 +635,20 @@ fn restored(
                 ontology: Arc::clone(&schema_at(number)?.1),
                 graph: if number == head { graph.take() } else { None },
                 asserted_edges: crate::validate::AssertedEdgesCell::default(),
+                alias_holders: Default::default(),
             },
         );
     }
     Ok(ReplayState {
         seed,
         revisions,
-        transactions: Arc::new(transactions),
+        transactions: Arc::new(
+            transactions
+                .into_iter()
+                .map(|(id, record)| (id, Arc::new(record)))
+                .collect(),
+        ),
+        transaction_snapshot: std::sync::OnceLock::new(),
         version,
         digest: Some(checkpoint.prefix),
         seed_payloads: checkpoint.seed_payloads,
@@ -927,14 +934,15 @@ mod tests {
         let mut unparseable = (*replayed).clone();
         unparseable.documents.clear();
         for record in unparseable.transactions_mut().values_mut() {
-            record.proposal.document_bytes = b"\x00 not a transaction document".to_vec();
+            std::sync::Arc::make_mut(record).proposal.document_bytes =
+                b"\x00 not a transaction document".to_vec();
         }
         let derived = super::held_by(&seeded, &unparseable).unwrap();
         assert_eq!(super::held_at(&derived), truth);
 
         let mut previous = unparseable.clone();
         for record in previous.transactions_mut().values_mut() {
-            if let Some(receipt) = &mut record.committed {
+            if let Some(receipt) = &mut std::sync::Arc::make_mut(record).committed {
                 receipt.created = None;
             }
         }

@@ -1,8 +1,8 @@
 //! Validation builds its candidate view once (`task:candidate-built-once-per-validation`).
 //!
 //! The candidate view is the node and edge index of canonical state with the operation set
-//! applied, which every validator that resolves an identity reads. Building it copies every node
-//! and edge of the graph, so the pipeline builds it once per validation and hands that one to every
+//! applied, which every validator that resolves an identity reads. Building it borrows existing
+//! node types and copies the edge index, so the pipeline builds it once and hands it to every
 //! validator, whatever the profile and whatever the verdict. The count is
 //! [`ekr_kernel::validate::candidates_built`]: every candidate view built on this thread.
 //!

@@ -19,7 +19,7 @@ pub(super) struct Edge {
 pub(super) struct Candidate<'g> {
     /// The canonical state the operation set applies to.
     basis: &'g CanonicalGraph,
-    pub(super) nodes: BTreeMap<NodeId, TypeId>,
+    pub(super) nodes: Nodes<'g>,
     pub(super) edges: BTreeMap<EdgeId, Edge>,
     /// The edges the operation set creates; see [`Candidate::available`].
     created_edges: BTreeSet<EdgeId>,
@@ -27,6 +27,35 @@ pub(super) struct Candidate<'g> {
     pub(super) property_counts: BTreeMap<NodeId, BTreeMap<PropertyId, usize>>,
     /// Canonical state's assertions about edges, by edge; see [`Candidate::asserted_edges`].
     asserted_edges: Index<'g>,
+    pub(super) aliases: Option<&'g super::aliases::AliasHolders>,
+}
+
+/// Existing node types stay in the verified graph; only creations belong to this candidate.
+pub(super) struct Nodes<'g> {
+    basis: &'g BTreeMap<NodeId, ekr_graph::Node>,
+    created: BTreeMap<NodeId, TypeId>,
+}
+
+impl Nodes<'_> {
+    pub(super) fn get(&self, id: &NodeId) -> Option<&TypeId> {
+        self.created
+            .get(id)
+            .or_else(|| self.basis.get(id).map(|node| &node.type_id))
+    }
+
+    pub(super) fn contains_key(&self, id: &NodeId) -> bool {
+        self.get(id).is_some()
+    }
+
+    fn insert(&mut self, id: NodeId, type_id: TypeId) {
+        self.created.insert(id, type_id);
+    }
+}
+
+impl ekr_ontology::NodeTypes for Nodes<'_> {
+    fn type_of(&self, node: NodeId) -> Option<TypeId> {
+        self.get(&node).copied()
+    }
 }
 
 /// Canonical state's assertions about edges, by edge, each list in the order canonical state holds
@@ -67,11 +96,10 @@ impl<'g> Candidate<'g> {
         let graph = snapshot.graph();
         let mut result = Self {
             basis: graph,
-            nodes: graph
-                .nodes
-                .iter()
-                .map(|(id, node)| (*id, node.type_id))
-                .collect(),
+            nodes: Nodes {
+                basis: &graph.nodes,
+                created: BTreeMap::new(),
+            },
             edges: graph
                 .edges
                 .iter()
@@ -90,6 +118,7 @@ impl<'g> Candidate<'g> {
             // canonical state held under its id, so canonical state's counts are not copied.
             property_counts: BTreeMap::new(),
             asserted_edges: Index::Own(OnceCell::new()),
+            aliases: None,
         };
         for operation in &proposal.operations {
             match operation {
@@ -141,9 +170,11 @@ impl<'g> Candidate<'g> {
         snapshot: &GraphSnapshot<'g>,
         proposal: &GraphTransaction,
         kept: &'g OnceLock<AssertedEdges>,
+        aliases: &'g super::aliases::AliasHolders,
     ) -> Self {
         Self {
             asserted_edges: Index::Kept(kept),
+            aliases: Some(aliases),
             ..Self::of(snapshot, proposal)
         }
     }
@@ -196,5 +227,76 @@ impl<'g> Candidate<'g> {
             .filter(|(_, edge)| edge.source == source && edge.type_id == type_id)
             .map(|(id, _)| *id)
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_candidate_borrows_existing_node_types_at_every_graph_size() {
+        let mut copies = Vec::new();
+        for size in [4, 16] {
+            let mut seed = crate::SeedDocument::from_yaml(include_str!(
+                "../../tests/fixtures/seed-minimal-v2.yaml"
+            ))
+            .unwrap();
+            let type_id = TypeId::mint();
+            seed.ontology
+                .node_types
+                .push(ekr_ontology::NodeType::new(type_id, "Subject"));
+            let mut graph = CanonicalGraph {
+                root: seed.graph.root,
+                revision: seed.graph.revision,
+                ontology: ekr_ontology::Ontology::load(seed.ontology).unwrap(),
+                nodes: BTreeMap::new(),
+                edges: BTreeMap::new(),
+                assertions: BTreeMap::new(),
+                attachments: BTreeMap::new(),
+                evidence: BTreeMap::new(),
+            };
+            for at in 0..size {
+                let id = NodeId::mint();
+                graph.nodes.insert(
+                    id,
+                    ekr_graph::Node::new(id, graph.root.id, type_id, format!("subject {at}")),
+                );
+            }
+            let created = NodeId::mint();
+            let transaction = GraphTransaction {
+                id: ekr_core::TransactionId::mint(),
+                proposer: ekr_core::AgentId::mint(),
+                operations: vec![GraphOperation::CreateNode(crate::NodeDraft {
+                    id: created,
+                    root_id: graph.root.id,
+                    type_id,
+                    canonical_name: "created".into(),
+                    properties: BTreeMap::new(),
+                    aliases: Vec::new(),
+                })],
+                evidence: BTreeSet::new(),
+                schema_version: None,
+            };
+            let view = Candidate::of(&GraphSnapshot::of(&graph), &transaction);
+            assert_eq!(view.nodes.get(&created), Some(&type_id));
+            assert_eq!(view.nodes.get(&NodeId::mint()), None);
+            copies.push(
+                graph
+                    .nodes
+                    .iter()
+                    .filter(|(id, node)| {
+                        let observed = view.nodes.get(id).unwrap();
+                        assert_eq!(*observed, node.type_id);
+                        !std::ptr::eq(observed, &node.type_id)
+                    })
+                    .count(),
+            );
+        }
+        assert_eq!(
+            copies,
+            [0, 0],
+            "unchanged node types copied into one validation candidate"
+        );
     }
 }

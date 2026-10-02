@@ -464,11 +464,15 @@ fn settle(runtime: &Runtime, proposed: &mut BTreeSet<TransactionId>) {
         return;
     }
     count(|work| work.settles += 1);
-    if let Ok(transactions) = runtime.transactions() {
+    if let Ok(states) = runtime.transaction_states(proposed.iter().copied()) {
         proposed.retain(|id| {
-            transactions
-                .get(id)
-                .is_none_or(|record| record.committed.is_none() && record.rejection.is_none())
+            states.get(id).is_none_or(|state| {
+                !matches!(
+                    state,
+                    ekr_kernel::TransactionState::Committed
+                        | ekr_kernel::TransactionState::Rejected
+                )
+            })
         });
     }
 }
