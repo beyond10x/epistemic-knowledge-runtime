@@ -163,7 +163,7 @@
     "counts": {
       "authored": 26,
       "generated": 36,
-      "outside": 48,
+      "outside": 49,
       "refused": 0
     },
     "generated": [
@@ -445,6 +445,17 @@
         "origin": "generated",
         "reason": "other_component",
         "scenario": "ekr.views.ExpandNeighbourhood/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ExportOcel"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ExportOcel/outcome/event-time-invalid"
       },
       {
         "needs": [
@@ -801,8 +812,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "3e64f6d933b9d666048c1fb87ccf576f1cff3cb1524e6a2d1a4f30bc3bb52512",
-    "spec_digest": "8589eb775848f45b1a6d24a55bcceaf23a0af9d38ae3a820565d4dd2680cbc69",
+    "contract_digest": "027875da702fedb13519361868b505f09a56eda1f5a87ae9cbe7cf25877f84c6",
+    "spec_digest": "84d423523534a173ee036937b2501923d5955aaf742d9fbe987e4288dbda679d",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"

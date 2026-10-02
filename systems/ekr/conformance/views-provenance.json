@@ -52,6 +52,7 @@
     "crates/ekr-views/tests/fixtures/conformance/scenarios/an-unknown-seed-is-refused-by-name.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/changes-refuse-a-malformed-since-and-each-bound.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/code-names-reports-each-planted-name-and-no-id-or-vocabulary.yaml",
+    "crates/ekr-views/tests/fixtures/conformance/scenarios/named-event-time-resolves-inherited-properties-at-the-requested-revision.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/seeded-evidence-is-projected-as-retained.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/the-edge-limit-cuts-a-page-between-a-node-and-its-edges.yaml",
     "crates/ekr-views/tests/fixtures/conformance/scenarios/the-overview-derives-roles-and-timeline-from-valid-time.yaml"

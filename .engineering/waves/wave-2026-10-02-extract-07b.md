@@ -100,8 +100,18 @@ claim: each requires its own acceptance evidence and the combined gate.
 A's source and both review passes are published on `wave/extract-07b` through 2f37aacbc.
 Managed finish, exact-id dry-run and exact-id GC removed `ekr-x7-a` with remote ancestor proof;
 the coordinator scratch holds each result and A's small evidence logs remain retained.
-Automatic approval review refused removal of its disposable build cache because rm-f style
-commands are prohibited. The cache remains; source cleanup succeeded.
+Automatic approval review refused forced removal of its disposable build cache. The safer
+non-forced removal succeeded after confirming no process used that exact task-owned directory;
+the source tree and disposable build cache are gone, while small evidence logs remain.
 The completed F/K review tree was reused for O/N after its clean reviewed commit. Consumer
 source cadbc785a contains F/K/O/N/Q and the A integration, with generated suites still assigned
 to the coordinator. All unit and review results precede the required combined gate.
+
+Consumer integration d30befbbe includes the two verified SDK selector corrections, Q's adversary
+cases and unchanged F/K review cases. The generated views suite now selects 78 scenarios
+(47 generated plus 31 authored); both native providers execute every scenario with no failure,
+error, unsupported or skipped result. The baseline raises answered_floor to 78 and no existing
+step floor falls. Kernel and integration suites were regenerated for the common specification
+digest; their selected inventories remain unchanged. Pinned specification, freshness and planning
+checks pass. Raw output is retained in coordinator consumer-conformance.log and
+consumer-integration-plan-spec.log. This remains unit/integration evidence, not the final wave gate.
