@@ -18,11 +18,15 @@ scope:
   path: README.md
 - confidence: inferred
   path: Taskfile.yml
+- confidence: cited
+  path: crates/ekr/tests/docs_cli.rs
 - confidence: inferred
   path: website/
+- confidence: cited
+  path: xtask/Cargo.toml
 - confidence: inferred
   path: xtask/src/bin/ekr-docs.rs
-revision: 4
+revision: 6
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-02T17:50:56Z", actor: "agent:codex-ekr-public-docs", revision: 3}
 - {from: "proposed", to: "active", at: "2026-10-02T17:50:56Z", actor: "agent:codex-ekr-public-docs", revision: 4}
@@ -46,3 +50,11 @@ The authored page has working local anchors, the correct project asset base, mob
 ## Delivery
 
 Use a managed tree and bot commits, PR and merge. Existing required correctness/common checks remain in force. Configured Connectors adapters do not include GitHub; bot-authenticated Gates API is the declared integration fallback. Retain compact verification evidence in AEP. This is one bounded documentation story; no multi-item decomposition or critic panel is required.
+
+## Implementation and verification in progress
+
+Added a script-free landing page with an overview, a propose/validate/commit diagram, installation and first-run commands, capabilities, current limits and source-owned guide links. The Rust clap builder lives in xtask/src/bin/ekr-docs.rs; xtask retains default-run so cargo xtask doctor remains compatible. Task check validates the site. The existing CLI example executor now also reads the actual HTML quickstart and runs it on both storage providers.
+
+Browser inspection at desktop and mobile widths found no horizontal page overflow, no missing local anchors and no scripts. Screenshots were visually inspected; every linked source guide exists in the candidate checkout. Rust builder tests passed. Full repository formatting and Clippy passed; the remaining task check stages are running and must pass before merge.
+
+GitHub Pages was enabled through the bot API with build_type workflow. The source builder has contents-read only. The separate publisher admits successful bot main builds and pins the same shared project-site workflow commit as Mantle and Codegate: fb4024ef7846729e5456591b9070db3d48c87e64. Deployment remains pending source review and required checks.
