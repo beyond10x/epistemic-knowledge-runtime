@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 19
+revision: 20
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -311,3 +311,28 @@ documentation, vendor, pinned specification, freshness and planning checks passe
 merge. Logs: coordinator remaining-consumer-store-check.log and combined-nontest-check.log.
 This is accumulated correction evidence, not a completed final combined gate. Graph reuse and
 unchanged default-size timing acceptance are still open.
+
+## Confirmed graph reuse integrated
+
+The bounded reuse correction was reviewed by the coordinator and passed the implementor's full
+kernel/store regression, focused all-target clippy and formatting checks. Source: 0704be44b;
+raw results: W store-kernel-recycle.log, clippy-recycle.log and recycle-unit-final.log.
+
+The initial copied-assertion regression is retained in red-recycle.log. The green case measures
+actual assertion totals at the same checkpoint phase, asserts their required size ratio, and
+requires no unchanged assertions to be copied. Its independent oracle clears both reuse layers,
+asserts that cloning actually occurred, and compares the complete graph and freshly hashed Root.
+The existing candidate-application counter remains exact.
+
+Coordinator review found that the first thread-local buffer owner could retain graph contents
+after the runtime closed. Ownership now belongs to the replay cache; the thread retains only a
+weak locator. reusable_graph_belongs_to_the_authority_not_the_thread proves the owner-drop
+boundary while the thread is still alive. Additional cases retain external readers and checkpoint
+graphs, preserve inherited attachments, reject an unconfirmed candidate as reuse provenance, and
+fall back for an equal root reconstructed in another allocation. Confirmed capture requires
+exclusive ownership, the sealed bridge and the exact parent/transaction proof; reuse additionally
+binds target allocation, complete root, revision identity and commit time.
+
+Design section 104 records these boundaries and the additional private buffer per authority.
+The default-size timing acceptance and final combined repository gate remain pending. This
+correction and its counted improvement do not close the task by themselves.

@@ -38,6 +38,12 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ### Fixed
 
+- **Warm append-only commits can reuse privately owned graph storage.** Prefix hashes,
+  immutable transaction records and unchanged validation indexes also reuse verified inputs.
+  A runtime may retain one additional predecessor graph as a buffer; held readers and checkpoints
+  prevent its extraction, and unsupported operations or mismatched histories use the existing
+  clone path. Closing the runtime releases the buffer. Canonical encodings and retained formats
+  are unchanged (design § 104).
 - **An empty judged sample has an explicit empty interval**: `rate` is null and the Wilson bounds
   are 0 and 1. Nonempty report bytes are unchanged.
 - **Duplicate evidence attachments in a stored graph are refused**, including different JSON

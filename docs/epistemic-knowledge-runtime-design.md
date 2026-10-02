@@ -5226,3 +5226,74 @@ message), `crates/ekr-kernel/tests/attachment_base_store.rs` (the base store's r
 `evidence-an-assertion-already-cites-is-rejected-by-name` on both providers, and
 `crates/ekr/tests/docs_cli.rs`, which holds `docs/cli.md`'s operation table and refusals to the
 binary.
+
+---
+
+# 104. Verified Replay Reuse in Warm Sessions
+
+*Added 2026-10-02 by wave extract-07b (`task:validate-cost-flat-with-store-size`). Extends
+§§ 98–99. Retained formats, canonical encodings, admission, refusal and checkpoint rules remain
+unchanged.*
+
+## 104.1 Reuse follows verified inputs
+
+A warm authority shares immutable transaction records internally, and a session settling a
+request reads the states of the transactions it needs. Public transaction snapshots remain
+immutable. Validation borrows unchanged node types and reuses an alias lookup only for the exact
+revision and roots it names. A historical or different lineage rebuilds that lookup.
+Record sharing and alias work are counted by the replay unit cases
+`validating_one_transaction_does_not_copy_prior_document_buffers` and
+`warm_alias_checks_visit_no_unchanged_nodes`; selected reads and held snapshots are exercised by
+`adversary_selected_states_follow_peer_decisions_without_mutating_held_snapshots` in
+`crates/ekr-kernel/tests/verified_read.rs`. `tests/candidate_built_once.rs` holds candidate reuse.
+
+Replay-prefix digests are memoized only after comparing each complete canonical event and its
+stream position. A changed, shortened or different history keeps only its equal prefix. Provider
+identities remain outside the canonical prefix encoding. The memo computes hashes; retained
+object verification and kernel admission still decide whether the history is admissible.
+`prefix_hash_memo_compares_every_occurrence_and_preserves_held_digest_vectors` exercises content
+and position changes, native identities, shortening and held vectors;
+`warm_validation_hashes_no_more_prefix_occurrences_as_history_grows` counts the hashing work.
+Both are kernel replay unit cases.
+
+An assertion-edge index is shared across a verified successor only when its operations leave
+assertion subjects unchanged. Adding an edge assertion invalidates it. Executed by
+`node_only_commits_share_the_unchanged_assertion_edge_index` and
+`an_edge_assertion_invalidates_the_shared_index_without_changing_older_verdicts` in the kernel
+replay unit tests and `tests/adversary_validate_once.rs`, respectively.
+
+## 104.2 A private buffer may replace a full graph copy
+
+After an exact confirmed publication, the authority may take an exclusively owned predecessor
+state and graph. Its sealed transaction advances that private graph to the confirmed head before
+the next append transaction is applied. Reuse requires the target graph allocation, complete
+root, revision identity and commit time to match. It is restricted to CreateNode, AddAssertion
+and AddEvidence without schema evolution; other operations use the clone path.
+
+This retains at most one additional predecessor buffer per authority. The replay cache owns it;
+a thread-local lookup holds only a weak reference. Closing the authority releases the buffer.
+External readers and retained checkpoints prevent extraction, and their immutable graphs remain
+available. A missing or mismatched buffer falls back to cloning. An abandoned candidate cannot
+become a buffer through an unconfirmed publication.
+
+Kernel replay unit cases execute these boundaries:
+`append_commits_copy_no_more_assertions_as_the_graph_grows` compares the complete graph and root
+with a forced clone and fresh hashing;
+`reusable_graph_belongs_to_the_authority_not_the_thread` holds the lifetime;
+`readers_and_checkpoint_graphs_prevent_reuse_extraction` holds the ownership fallback;
+`reused_graph_preserves_inherited_attachments_and_matches_forced_clone` holds attached evidence;
+`an_unpublished_candidate_cannot_seed_reuse` holds an abandoned decision and retry; and
+`an_equal_root_replayed_by_another_authority_falls_back_to_clone` holds the allocation boundary.
+
+## 104.3 Compatibility and measured acceptance
+
+Canonical hashing uses the accelerated SHA-256 backend without changing domains or encoded bytes.
+The independent SHA-256 oracle in `crates/ekr-core/tests/sha256_backend.rs`, literal content-hash
+vectors and streaming encoder contracts hold compatibility. Public graph types stay owned and
+unchanged; private reuse does not make mutable state visible to a reader.
+
+The default gate counts work. The ignored release benchmark in
+`crates/ekr-sdk/tests/commit_scaling.rs` separately enforces the task's validation and commit timing
+limits at its unchanged default SQLite sizes, alongside its existing aggregate checks. Exact
+measurements, load and unresolved results are recorded on the task. A counted improvement or a
+passing aggregate statistic alone does not establish that timing acceptance.
