@@ -76,7 +76,7 @@ pub const REPLAY_CHECKPOINT_BYTES: u64 = 16 * 1024 * 1024;
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct CheckpointV1 {
+struct CheckpointV1<G = GraphDocument> {
     format: String,
     /// The host context and anchor the replay ran under.
     authority: ContentHash,
@@ -87,7 +87,7 @@ struct CheckpointV1 {
     /// The head revision at the end of that prefix.
     revision: RevisionNumber,
     /// The head revision's graph.
-    graph: GraphDocument,
+    graph: G,
     /// Each schema version, from the revision it came into force at.
     ontologies: Vec<OntologyAt>,
     /// The evidence payloads the admitted seed envelope requires.
@@ -97,6 +97,15 @@ struct CheckpointV1 {
     /// other profile, so that their checkpoints are the bytes they were before the field existed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     held: Vec<HeldAt>,
+}
+
+/// Output borrows the verified graph; the default checkpoint carrier still decodes an owned
+/// GraphDocument and passes it through the unchanged checkpoint admission path.
+struct CheckpointGraph<'a>(&'a CanonicalGraph);
+impl Serialize for CheckpointGraph<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        GraphDocument::serialize_graph(self.0, serializer)
+    }
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -251,7 +260,7 @@ impl KernelAuthority {
             covered: state.version,
             prefix,
             revision: head.root.revision,
-            graph: GraphDocument::of(head.graph()?),
+            graph: CheckpointGraph(head.graph()?),
             ontologies,
             seed_payloads: state.seed_payloads.clone(),
             held: held_at(&state.held),
@@ -788,6 +797,58 @@ mod tests {
             transaction: &tx,
         };
         (tx.id, serde_yaml_ng::to_string(&wire).unwrap().into_bytes())
+    }
+
+    #[test]
+    fn checkpoint_writer_matches_the_complete_owned_document_bytes() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut authority = anchor();
+        authority.validation_profile = ValidationProfileV1::identity_keeping(context().validator);
+        let kernel = Commit::over_with_authority(context(), authority, |authority| {
+            Ok(FileStore::file(directory.path(), "borrowed", None)?.under(authority))
+        })
+        .unwrap();
+        let seed = seed();
+        kernel
+            .seed(seed.clone(), || Timestamp::from_millis(10))
+            .unwrap();
+        for n in 0..=6 {
+            if n != 0 {
+                let (id, bytes) = document(&seed, n);
+                let at = i64::try_from(n * 100).unwrap();
+                kernel
+                    .propose(&bytes, context().operator, || Timestamp::from_millis(at))
+                    .unwrap();
+                kernel
+                    .validate(id, RevisionNumber::new(n - 1), || {
+                        Timestamp::from_millis(at + 1)
+                    })
+                    .unwrap();
+                kernel
+                    .commit(id, context().operator, || Timestamp::from_millis(at + 2))
+                    .unwrap();
+            }
+            let state = kernel.read_state().unwrap();
+            let (_, _, actual) = kernel.authority.checkpoint(&state).unwrap().unwrap();
+            let owned: super::CheckpointV1 = serde_json::from_slice(&actual).unwrap();
+            assert_eq!(
+                owned.graph,
+                ekr_store::GraphDocument::of(state.head().graph().unwrap())
+            );
+            assert_eq!(actual, serde_json::to_vec(&owned).unwrap());
+            let borrowed = super::CheckpointV1 {
+                format: owned.format,
+                authority: owned.authority,
+                covered: owned.covered,
+                prefix: owned.prefix,
+                revision: owned.revision,
+                graph: super::CheckpointGraph(state.head().graph().unwrap()),
+                ontologies: owned.ontologies,
+                seed_payloads: owned.seed_payloads,
+                held: owned.held,
+            };
+            assert_eq!(actual, serde_json::to_vec(&borrowed).unwrap());
+        }
     }
 
     #[test]

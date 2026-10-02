@@ -34,6 +34,64 @@ const KNOWLEDGE_AS_A_PAYLOAD: &str =
     "6b96ce8883b869247cb3eb6ef32d555b302cd1748b72976b1d81eddf5312e243";
 
 #[test]
+fn formatting_a_hash_emits_one_complete_hex_string() {
+    use std::fmt::Write;
+    #[derive(Default)]
+    struct Sink {
+        text: String,
+        writes: usize,
+    }
+    impl Write for Sink {
+        fn write_str(&mut self, text: &str) -> std::fmt::Result {
+            self.writes += 1;
+            self.text.push_str(text);
+            Ok(())
+        }
+    }
+    let hash = ContentHash::from_bytes(std::array::from_fn(|index| index as u8));
+    let mut sink = Sink::default();
+    write!(sink, "{hash}").unwrap();
+    assert_eq!(sink.text, hash.to_hex());
+    assert_eq!(
+        sink.writes, 1,
+        "formatting must not dispatch once per nibble/byte"
+    );
+}
+
+#[test]
+fn hash_display_preserves_text_flags_and_propagates_writer_errors() {
+    use std::fmt::Write;
+    struct Refuses;
+    impl Write for Refuses {
+        fn write_str(&mut self, _: &str) -> std::fmt::Result {
+            Err(std::fmt::Error)
+        }
+    }
+    for offset in 0..=255u8 {
+        let hash = ContentHash::from_bytes(std::array::from_fn(|index| {
+            offset.wrapping_add(index as u8)
+        }));
+        let expected = hash.to_hex();
+        for text in [
+            format!("{hash}"),
+            format!("{hash:>80}"),
+            format!("{hash:<80}"),
+            format!("{hash:^80}"),
+            format!("{hash:080}"),
+            format!("{hash:.12}"),
+            format!("{hash:#}"),
+        ] {
+            assert_eq!(text, expected, "Display has always written the complete canonical spelling independently of text flags");
+        }
+        assert!(write!(Refuses, "{hash}").is_err());
+        assert_eq!(
+            serde_json::to_string(&hash).unwrap(),
+            format!("\"{expected}\"")
+        );
+    }
+}
+
+#[test]
 fn the_hash_is_sha256_of_its_domain_and_the_bytes_it_is_given() {
     assert_eq!(ContentHash::of_bytes(b"").to_string(), EMPTY);
     assert_eq!(ContentHash::of_bytes(b"abc").to_string(), ABC);

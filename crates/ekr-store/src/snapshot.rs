@@ -97,6 +97,28 @@ struct GraphEnvelopeRef<'a> {
     graph: &'a GraphDocument,
 }
 
+/// The same envelope over canonical records without allocating widened copies of the maps.
+/// CanonicalValue retains its existing serializer (and its per-value widening).
+#[derive(Serialize)]
+#[serde(rename = "GraphEnvelopeRef")]
+struct BorrowedGraphEnvelope<'a> {
+    format: GraphFormat,
+    graph: BorrowedGraphFields<'a>,
+}
+
+#[derive(Serialize)]
+#[serde(rename = "GraphFields")]
+struct BorrowedGraphFields<'a> {
+    root: &'a GraphRoot,
+    revision: RevisionNumber,
+    nodes: &'a BTreeMap<NodeId, Node>,
+    edges: &'a BTreeMap<EdgeId, Edge>,
+    assertions: &'a BTreeMap<AssertionId, Assertion>,
+    evidence: &'a BTreeMap<EvidenceId, Evidence>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    attachments: &'a Attachments,
+}
+
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct GraphEnvelope {
@@ -126,6 +148,42 @@ impl<'de> Deserialize<'de> for GraphDocument {
 }
 
 impl GraphDocument {
+    /// Serializes canonical state in this document's envelope without copying its record maps.
+    /// The bytes are exactly those of serializing [`Self::of`] for the same graph. Values retain
+    /// their normal canonical-to-wire conversion; this avoids the complete owned document.
+    ///
+    /// # Errors
+    /// Returns the serializer's error if writing the document fails.
+    pub fn serialize_graph<S: Serializer>(
+        graph: &CanonicalGraph,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        // A new canonical field requires an explicit serialization decision here.
+        let CanonicalGraph {
+            root,
+            revision,
+            ontology: _,
+            nodes,
+            edges,
+            assertions,
+            evidence,
+            attachments,
+        } = graph;
+        BorrowedGraphEnvelope {
+            format: GraphFormat::Current,
+            graph: BorrowedGraphFields {
+                root,
+                revision: *revision,
+                nodes,
+                edges,
+                assertions,
+                evidence,
+                attachments,
+            },
+        }
+        .serialize(serializer)
+    }
+
     /// The document a canonical graph writes.
     ///
     /// Total and lossless in this direction: every [`CanonicalValue`] is a [`Value`], because the

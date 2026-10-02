@@ -118,10 +118,13 @@ impl ContentHash {
 impl fmt::Display for ContentHash {
     /// Lowercase hex, and only lowercase: a content address has one text form or it is not one.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for byte in self.0 {
-            write!(f, "{byte:02x}")?;
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        let mut text = [0; HEX_LEN];
+        for (index, byte) in self.0.iter().enumerate() {
+            text[index * 2] = HEX[usize::from(byte >> 4)];
+            text[index * 2 + 1] = HEX[usize::from(byte & 15)];
         }
-        Ok(())
+        f.write_str(std::str::from_utf8(&text).expect("hex digits are ASCII"))
     }
 }
 
