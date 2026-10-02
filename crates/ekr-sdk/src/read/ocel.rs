@@ -199,9 +199,8 @@ impl<T: Transport> Reader<T> {
         if let Some(revision) = query.revision {
             argv.extend(["--revision".to_owned(), revision.to_string()]);
         }
-        if !query.events.is_empty() {
-            argv.push("--events".to_owned());
-            argv.extend(query.events.iter().cloned());
+        for name in &query.events {
+            argv.push(format!("--events={name}"));
         }
         for selector in &query.event_time {
             argv.push(format!("--event-time={selector}"));
