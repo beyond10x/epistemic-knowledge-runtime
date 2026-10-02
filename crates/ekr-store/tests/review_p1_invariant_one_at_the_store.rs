@@ -51,6 +51,7 @@ fn ontology() -> Ontology {
 /// A seed with no content. The case is about what advances the lineage, not about what is in it.
 fn graph(ontology: &Ontology) -> CanonicalGraph {
     CanonicalGraph {
+        attachments: Default::default(),
         root: GraphRoot {
             id: GraphRootId::mint(),
             space: Space::Canonical,
@@ -226,12 +227,13 @@ fn declared_entry_points() -> BTreeSet<String> {
 /// `sqlite_existing` and `file_existing` (`story:store-open-semantics`) open the same provider as
 /// `sqlite` and `file` and create nothing where no store is. `set_full_replay` sets a flag.
 /// `checkpoint_covered` (design § 99.5) reads the newest checkpoint pointer.
-const NOT_WRITERS: [&str; 22] = [
+const NOT_WRITERS: [&str; 23] = [
     "set_full_replay",
     "checkpoint_covered",
     "preparation",
     "published_events",
     "history",
+    "replay_history",
     "history_at",
     "seed_bytes",
     "fold",
@@ -384,6 +386,16 @@ fn a_commit_lands_with_no_validated_transaction_anywhere_in_the_process() {
         )
         .expect("a checkpoint write is not a commit");
     driven.insert("write_checkpoint");
+
+    let before_replay = store.history().expect("retained history").occurrences;
+    assert_eq!(
+        store
+            .replay_history()
+            .expect("verified replay history")
+            .occurrences,
+        before_replay,
+    );
+    assert_eq!(store.history().unwrap().occurrences, before_replay);
 
     let mut placed: BTreeSet<String> = driven.into_iter().map(str::to_owned).collect();
     placed.extend(NOT_WRITERS.map(str::to_owned));

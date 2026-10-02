@@ -57,7 +57,7 @@ pub struct Transaction {
     pub proposer: AgentId,
     /// One or more operations, applied all or nothing.
     pub operations: Vec<Operation>,
-    /// Exactly the evidence ids its `!AddAssertion`s cite.
+    /// Exactly the evidence ids its `!AddAssertion`s cite and its `!AttachEvidence`s attach.
     pub evidence: BTreeSet<EvidenceId>,
     /// The schema version a schema change produces; absent otherwise.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -65,8 +65,8 @@ pub struct Transaction {
 }
 
 /// Builds a [`TransactionDocument`] whose bookkeeping cannot disagree with its operations: the
-/// evidence manifest is the set its assertions cite, and a schema change names a freshly minted
-/// schema version.
+/// evidence manifest is the set its assertions cite and its attachments attach, and a schema
+/// change names a freshly minted schema version.
 #[derive(Clone, Debug)]
 pub struct TransactionBuilder {
     id: TransactionId,
@@ -130,11 +130,7 @@ impl TransactionBuilder {
         let evidence = self
             .operations
             .iter()
-            .filter_map(|operation| match operation {
-                Operation::AddAssertion(assertion) => Some(assertion.evidence.iter().copied()),
-                _ => None,
-            })
-            .flatten()
+            .flat_map(Operation::rests_on)
             .collect();
         let schema_version =
             (schema != 0).then(|| self.schema_version.unwrap_or_else(SchemaVersionId::mint));
@@ -187,6 +183,8 @@ pub enum Operation {
     WidenEdgeType(EdgeWidening),
     /// `!AddAlias`: one more alias for a node that exists.
     AddAlias(AliasAddition),
+    /// `!AttachEvidence`: evidence attached to an assertion the store holds.
+    AttachEvidence(EvidenceAttachment),
 }
 
 impl Operation {
@@ -209,6 +207,19 @@ impl Operation {
             Self::AddEvidence(_) => OperationKind::AddEvidence,
             Self::WidenEdgeType(_) => OperationKind::WidenEdgeType,
             Self::AddAlias(_) => OperationKind::AddAlias,
+            Self::AttachEvidence(_) => OperationKind::AttachEvidence,
+        }
+    }
+
+    /// The evidence ids it rests on: those an `!AddAssertion` cites, the one an
+    /// `!AttachEvidence` attaches, and none for any other kind. A transaction's `evidence` is
+    /// exactly the union of these over its operations.
+    #[must_use]
+    pub fn rests_on(&self) -> Vec<EvidenceId> {
+        match self {
+            Self::AddAssertion(assertion) => assertion.evidence.iter().copied().collect(),
+            Self::AttachEvidence(attachment) => vec![attachment.evidence],
+            _ => Vec::new(),
         }
     }
 
@@ -252,11 +263,13 @@ pub enum OperationKind {
     WidenEdgeType,
     /// `!AddAlias`.
     AddAlias,
+    /// `!AttachEvidence`.
+    AttachEvidence,
 }
 
 impl OperationKind {
     /// Every kind, in the order `ekr operations` lists them.
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 16] = [
         Self::CreateNode,
         Self::UpdateProperty,
         Self::CreateEdge,
@@ -272,6 +285,7 @@ impl OperationKind {
         Self::AddEvidence,
         Self::WidenEdgeType,
         Self::AddAlias,
+        Self::AttachEvidence,
     ];
 
     /// Its tag without `!`, as `ekr operations` prints it.
@@ -293,6 +307,7 @@ impl OperationKind {
             Self::AddEvidence => "AddEvidence",
             Self::WidenEdgeType => "WidenEdgeType",
             Self::AddAlias => "AddAlias",
+            Self::AttachEvidence => "AttachEvidence",
         }
     }
 
@@ -454,6 +469,31 @@ impl AliasAddition {
     }
 }
 
+/// `!AttachEvidence`: evidence attached to an assertion the store holds, accepted and active. The
+/// assertion is not changed; the attachment is a record of its own, which `ekr explain` lists from
+/// the revision that made it on. The evidence is one the store retains or an `!AddEvidence` of the
+/// same transaction adds, and is in the transaction's `evidence`.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceAttachment {
+    /// The assertion: one the store holds (`ekr snapshot`), accepted and active.
+    pub assertion: AssertionId,
+    /// The evidence: retained, or added by an `!AddEvidence` of the same transaction; not one the
+    /// assertion cites or has attached.
+    pub evidence: EvidenceId,
+}
+
+impl EvidenceAttachment {
+    /// Attach `evidence` to `assertion`.
+    #[must_use]
+    pub const fn new(assertion: AssertionId, evidence: EvidenceId) -> Self {
+        Self {
+            assertion,
+            evidence,
+        }
+    }
+}
+
 /// `!WidenEdgeType`: an edge type's ends written whole, as they are to be.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -558,4 +598,5 @@ operation_from! {
     EvidenceAddition => AddEvidence(Box::new),
     EdgeWidening => WidenEdgeType(std::convert::identity),
     AliasAddition => AddAlias(std::convert::identity),
+    EvidenceAttachment => AttachEvidence(std::convert::identity),
 }

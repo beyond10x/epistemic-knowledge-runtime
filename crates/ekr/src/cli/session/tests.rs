@@ -20,7 +20,7 @@ fn respond(
     watch: &mut Watch,
     now: &dyn Fn() -> Timestamp,
 ) -> Result<serde_json::Value, crate::exit::Failure> {
-    super::respond(line, session, watch, now).map(|stdout| match stdout {
+    super::respond(line, session, watch, now).map(|(stdout, _stderr)| match stdout {
         Stdout::Document(document) => document,
         Stdout::Raw(document) => serde_json::from_str(document.get()).expect("a JSON document"),
     })

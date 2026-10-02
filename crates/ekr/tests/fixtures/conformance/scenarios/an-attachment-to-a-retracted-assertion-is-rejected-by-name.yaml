@@ -1,0 +1,81 @@
+# story:evidence-attaches-to-a-held-assertion, acceptance 2, the assertion no longer active.
+#
+# The target has committed revision 1 before the first act: assertion 85f861a70a8d, accepted and
+# active. The fixture `retract-revision-1-assertion.yaml` retracts it, and is committed as
+# revision 2. The fixture `attach-evidence-retracted.yaml` then attaches the seed's evidence 0402
+# to it. Revision 2 still holds the assertion, retracted, and evidence attaches only to an accepted
+# and active one, so validation against revision 2 rejects it with exactly one issue, which the
+# Structural validator raises under the name assertion-not-active.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: an-attachment-to-a-retracted-assertion-is-rejected-by-name
+summary: Evidence attached to an assertion an earlier commit retracted is rejected with one issue, assertion-not-active, raised by Structural.
+
+arrange:
+  - instance: retraction
+    entity: ekr.kernel.GraphTransaction
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: retraction
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: retraction, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: retraction}
+      against: 1
+    outcome: validated
+    events:
+      - event: ekr.kernel.TransactionValidated
+        payload:
+          against: 1
+
+  - at: 2027-01-15T08:00:02Z
+    command: ekr.kernel.Commit
+    actor: ekr.kernel.Committer
+    input:
+      transaction_id: {$instance: retraction}
+    outcome: committed
+    events:
+      - event: ekr.kernel.RevisionCommitted
+        payload:
+          number: 2
+
+  - at: 2027-01-15T08:00:03Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: attachment
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:04Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 2
+    outcome: rejected
+    events:
+      - event: ekr.kernel.TransactionRejected
+        payload:
+          issues: 1
+
+assert:
+  - view: ekr.kernel.ValidationIssues
+    contains:
+      transaction_id: {$instance: proposal}
+      validator: Structural
+      code: assertion-not-active

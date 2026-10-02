@@ -233,13 +233,14 @@ let seeded = session.request(&Request::new(["seed", "-"]).with_stdin(seed.to_yam
 `TransactionBuilder::new(proposer)` starts a transaction under a minted id, and
 `TransactionBuilder::push` appends an operation. Every payload type converts into its
 `Operation` (`NodeDraft` into `!CreateNode`, `EvidenceAddition` into `!AddEvidence`,
-`AliasAddition` into `!AddAlias`, …), so a push reads `.push(draft.into())`. `!DeleteEdge` carries
-only an `EdgeId`, which has no such conversion: push `Operation::DeleteEdge(edge_id)`. The
-proposer is the host's `context.operator`.
+`AliasAddition` into `!AddAlias`, `EvidenceAttachment` into `!AttachEvidence`, …), so a
+push reads `.push(draft.into())`. `!DeleteEdge` carries only an `EdgeId`, which has no such
+conversion: push `Operation::DeleteEdge(edge_id)`. The proposer is the host's `context.operator`.
 
 `TransactionBuilder::build` fills in what the kernel checks against the operations: the `evidence`
-list is exactly the set the `!AddAssertion`s cite, and a schema change names a minted
-`schema_version` (`TransactionBuilder::with_schema_version` sets a given one). It refuses:
+list is exactly the set the `!AddAssertion`s cite and the `!AttachEvidence`s attach, and a schema
+change names a minted `schema_version` (`TransactionBuilder::with_schema_version` sets a given
+one). It refuses:
 
 | refusal | when |
 |---|---|
@@ -636,7 +637,10 @@ first page's `meta.revision` as `at`.
 The last three are the store checks ([`ekr quality`](cli.md#ekr-quality),
 [`ekr rejections`](cli.md#ekr-rejections), [`ekr code-names`](cli.md#ekr-code-names)).
 `quality(revision)` reads the head when `revision` is `None`; a share is `None` when its whole is
-0. `rejections(from, to)` selects the basis revisions `from` to `to`, both included, and a `None`
+0. `assertions.with_seed_evidence` counts active assertions citing or attached to retained seed
+evidence, and `properties.constrained_types` counts node and edge types directly declaring a
+constrained property. Shares remain integer basis points; divide by 10000 for a proportion.
+`rejections(from, to)` selects the basis revisions `from` to `to`, both included, and a `None`
 bound is unbounded. `code_names(files, at)` takes the source paths as strings; `ekr` reads a
 relative one from its working directory (`SessionOptions::current_dir`), and each finding's `file`
 is the path as given. A finding is not an error: test `meta.findings` to fail on one. A match's
@@ -691,6 +695,37 @@ the three store checks. In `Snapshot` and `Explanation`, the
 parts that vary by kind stay JSON `Value`s, read by their tag as [the page](cli.md#ekr-snapshot)
 documents them. These are an assertion's `object`, `assessment` and `lifecycle`, an evidence
 entry's `source`, and the origin links of an explanation.
+
+`Reader::ocel(&OcelQuery)` and `OneShotReader::ocel` return an `OcelExport` with its typed
+`document` and `counts`. Counts are read from the request's stderr summary, not recomputed from
+JSON. The query carries optional `revision`, `events` type names, and repeatable `event_time`
+selectors (for example `Alert.fired_at`). `events` and `event_time` are mutually exclusive.
+Timestamp selectors resolve against the requested revision, with inherited properties supported.
+
+`Reader::code_names_with_mode(files, revision, CodeNameMode::Words)` and its `OneShotReader`
+counterpart select whole-word matches, including identifiers and comments. The existing
+`code_names` call retains literal mode. A word-mode result carries `meta.mode: Some(Words)`;
+the default result omits that field when serialized.
+
+## Sampled fact checks
+
+`Reader::draw_sample(seed, size, filter, revision)` calls `ekr sample`, returning a typed
+`checks::FactSample`: the revision, request and population, then the drawn facts in draw order,
+with their names, assertions and retained evidence text or base64. The optional filter is a
+`TypeId`; a revision of `None` reads the head. The same seed, size and revision reproduce the
+same sample. `OneShotReader` provides the same call.
+
+The runtime does no judging. Implement `checks::Judge::judge` for your judge, returning one
+`Verdict` for each supplied fact in the same order. `checks::judge_sample(&sample, batch_size,
+&mut judge)` visits batches in sample order and returns a `FactJudgements` document with the
+sample's origin. `batch_size` is a `NonZeroUsize`. A judge error or a batch with the wrong number
+of verdicts returns an error, with no completed judgement document; no report is submitted.
+
+`Reader::report_judged(&judgements, confidence)` and the identical `OneShotReader` call send
+that document to `ekr fact-quality -`. Confidence is optional integer basis points (9500 by
+default). `checks::FactQuality` contains the counts, rate and Wilson interval; an empty judgement
+set has `rate: None`, serialized as explicit `null`, and bounds `0` and `1`. The transport's
+named refusals, usage errors and faults remain `ReadError` values.
 
 ## Recording and replay
 

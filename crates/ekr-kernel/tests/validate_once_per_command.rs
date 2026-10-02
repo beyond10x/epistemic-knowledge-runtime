@@ -241,8 +241,8 @@ fn a_validate_command_builds_one_candidate_view_whatever_the_verdict() {
     }
 }
 
-/// Three validations against one revision in a session build that revision's per-edge index once,
-/// and the first validation against the revision a commit makes builds that revision's once.
+/// Three validations against one revision build its per-edge index once. A commit adding only
+/// nodes and node assertions preserves that index, including on its first subsequent validation.
 #[test]
 fn a_session_builds_each_revisions_edge_index_once() {
     for (profile, authority) in profiles() {
@@ -281,7 +281,7 @@ fn a_session_builds_each_revisions_edge_index_once() {
                 .iter()
                 .map(|tx| validate(&runtime, &clock, tx).2)
                 .collect();
-            assert_eq!(built, [1, 0], "{at}: against revision 1");
+            assert_eq!(built, [0, 0], "{at}: unchanged edge subjects at revision 1");
         }
     }
 }

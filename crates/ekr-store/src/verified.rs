@@ -178,6 +178,26 @@ pub(crate) fn count_stream_read(add: impl FnOnce(&mut StreamReads)) {
     });
 }
 
+thread_local! {
+    static OBJECTS_LOADED: Cell<u64> = const { Cell::new(0) };
+}
+
+/// Retained objects the history loads on this thread placed into a history since the last call,
+/// which starts the count again: each counts once per history it is placed in, whether this
+/// handle read it from the provider or already held it verified.
+///
+/// Test instrumentation, as [`ReadWork`] is: it lets a test show that the objects a command loads
+/// do not grow with the evidence the store already holds.
+#[doc(hidden)]
+#[must_use]
+pub fn objects_loaded() -> u64 {
+    OBJECTS_LOADED.with(|loaded| loaded.replace(0))
+}
+
+pub(crate) fn count_objects_loaded(placed: usize) {
+    OBJECTS_LOADED.with(|loaded| loaded.set(loaded.get() + placed as u64));
+}
+
 #[cfg(test)]
 mod registry {
     use super::{addresses, read_work, register};

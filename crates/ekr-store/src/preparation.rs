@@ -1061,11 +1061,14 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             }
         }
         self.load_objects(&mut history, required)?;
-        if !history.occurrences.is_empty() {
-            self.load_authority_objects(&mut history)?;
+        // Both admissions only replay, so each history holds what that replay reads
+        // (`verify_replayed`), and the complete one where it is refused.
+        if history.occurrences.is_empty() {
+            self.authority()?
+                .verify(&history, self.ontology.as_ref(), None)?;
+        } else {
+            self.verify_replayed(&mut history)?;
         }
-        self.authority()?
-            .verify(&history, self.ontology.as_ref(), None)?;
         for (hash, object) in &decision.objects {
             history.objects.insert(
                 *hash,
@@ -1086,9 +1089,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
             event: decision.event.clone(),
         });
         self.load_object(&mut history, decision.event.record_hash)?;
-        self.load_authority_objects(&mut history)?;
-        self.authority()?
-            .verify(&history, self.ontology.as_ref(), None)?;
+        self.verify_replayed(&mut history)?;
         Ok(request)
     }
     /// A retained preparation record, each object a `/3` record names read back from the binding

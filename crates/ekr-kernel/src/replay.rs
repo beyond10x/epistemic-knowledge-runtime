@@ -73,7 +73,10 @@ impl TransactionRecord {
 pub(crate) struct ReplayState {
     pub(crate) seed: SeedResultV1,
     pub(crate) revisions: BTreeMap<RevisionNumber, Revision>,
-    pub(crate) transactions: Arc<BTreeMap<TransactionId, TransactionRecord>>,
+    pub(crate) transactions: Arc<BTreeMap<TransactionId, Arc<TransactionRecord>>>,
+    /// The public owned-record snapshot, materialized only when a reader asks for it and shared
+    /// by subsequent reads. Commands update individual shared records without copying old input.
+    pub(crate) transaction_snapshot: OnceLock<Arc<BTreeMap<TransactionId, TransactionRecord>>>,
     pub(crate) version: u64,
     /// The prefix digest of the occurrences this state covers, when replay computed it.
     pub(crate) digest: Option<ContentHash>,
@@ -122,11 +125,12 @@ pub(crate) struct Revision {
     pub(crate) ontology: Arc<ekr_ontology::Ontology>,
     pub(crate) graph: Option<Arc<ekr_graph::CanonicalGraph>>,
     /// The index of this revision's assertions about edges, by edge, kept with its graph: built by
-    /// the first validation against this revision that reads it and shared by every state that
-    /// holds this revision, so a session builds it once per revision while it holds the graph.
-    /// Every graph of one revision is the same graph, so the index holds for whichever copy a state
-    /// holds; it is released with the graph, and a graph rebuilt later builds it again.
+    /// the first validation that reads it and shared by every state holding this revision or a
+    /// verified successor whose operations leave this lookup unchanged. A cold reconstruction
+    /// starts with a fresh cell; sharing never crosses an unverified graph boundary.
     pub(crate) asserted_edges: AssertedEdgesCell,
+    /// Mutable lookup scratch shared along a lineage; every use checks exact revision and roots.
+    pub(crate) alias_holders: Arc<std::sync::Mutex<crate::validate::AliasCache>>,
 }
 impl Revision {
     pub(crate) fn replayed(admitted: AdmittedRevision) -> Self {
@@ -140,12 +144,44 @@ impl Revision {
             ontology: Arc::new(admitted.graph.ontology.clone()),
             graph: Some(Arc::new(admitted.graph)),
             asserted_edges: AssertedEdgesCell::default(),
+            alias_holders: Default::default(),
         }
     }
     /// Releases this revision's graph and the index kept with it.
     fn release_graph(&mut self) {
         self.graph = None;
         self.asserted_edges = AssertedEdgesCell::default();
+        self.alias_holders = Default::default();
+    }
+    /// This lookup records assertion identities by edge subject, including retracted assertions.
+    /// Only adding an edge assertion changes it; node assertions, lifecycle changes and deleting
+    /// an edge leave the lookup intact. A future operation must make an explicit choice here.
+    fn asserted_edges_after(&self, tx: &GraphTransaction<CanonicalValue>) -> AssertedEdgesCell {
+        let changes = tx.operations.iter().any(|operation| match operation {
+            GraphOperation::AddAssertion(assertion) => {
+                matches!(assertion.subject, ekr_graph::Subject::Edge(_))
+            }
+            GraphOperation::CreateNode(_)
+            | GraphOperation::AddAlias(_)
+            | GraphOperation::UpdateProperty(_)
+            | GraphOperation::CreateEdge(_)
+            | GraphOperation::DeleteEdge(_)
+            | GraphOperation::RetractAssertion(_)
+            | GraphOperation::DefineNodeType(_)
+            | GraphOperation::DefineEdgeType(_)
+            | GraphOperation::ModifyProperty(_)
+            | GraphOperation::MergeEntity(_)
+            | GraphOperation::Invoke { .. }
+            | GraphOperation::SupersedeAssertion(_)
+            | GraphOperation::AddEvidence(_)
+            | GraphOperation::AttachEvidence(_)
+            | GraphOperation::WidenEdgeType(_) => false,
+        });
+        if changes {
+            AssertedEdgesCell::default()
+        } else {
+            Arc::clone(&self.asserted_edges)
+        }
     }
     /// The graph at this revision, or [`GRAPH_NOT_HELD`].
     pub(crate) fn graph(&self) -> Result<&ekr_graph::CanonicalGraph, StoreError> {
@@ -199,9 +235,31 @@ impl ReplayState {
             }
         }
     }
-    /// The retained records to change, copied first only if another state still shares them.
-    pub(crate) fn transactions_mut(&mut self) -> &mut BTreeMap<TransactionId, TransactionRecord> {
+    /// The retained record index to change. Copying the index shares each unchanged record.
+    pub(crate) fn transactions_mut(
+        &mut self,
+    ) -> &mut BTreeMap<TransactionId, Arc<TransactionRecord>> {
+        self.transaction_snapshot.take();
         Arc::make_mut(&mut self.transactions)
+    }
+    /// Changes only the selected record, leaving every prior state's records immutable.
+    fn transaction_mut(&mut self, id: TransactionId) -> &mut TransactionRecord {
+        Arc::make_mut(
+            self.transactions_mut()
+                .get_mut(&id)
+                .expect("verified transaction"),
+        )
+    }
+    /// The unchanged public record-map shape, shared for every read of this verified state.
+    pub(crate) fn transaction_records(&self) -> Arc<BTreeMap<TransactionId, TransactionRecord>> {
+        Arc::clone(self.transaction_snapshot.get_or_init(|| {
+            Arc::new(
+                self.transactions
+                    .iter()
+                    .map(|(id, record)| (*id, (**record).clone()))
+                    .collect(),
+            )
+        }))
     }
     /// The retained proposal's parsed document, or a fresh parse of its verified bytes.
     pub(crate) fn document(
@@ -226,21 +284,34 @@ impl ReplayState {
 /// is the state reached over the other. The provider's own event identity is not an input of
 /// replay and is not bound, so a candidate replayed before publication and the same occurrence
 /// read back after it share a digest.
-pub(crate) fn prefix_digests(occurrences: &[RecordedOccurrence]) -> Vec<ContentHash> {
-    struct Step<'a>(ContentHash, &'a RecordedOccurrence);
+fn extend_digest(
+    previous: ContentHash,
+    version: u64,
+    event: &ekr_graph::RevisionEvent,
+) -> ContentHash {
+    #[cfg(test)]
+    PREFIX_STEPS.with(|count| count.set(count.get() + 1));
+    struct Step<'a>(ContentHash, u64, &'a ekr_graph::RevisionEvent);
     impl Canonical for Step<'_> {
         fn encode(&self, out: &mut Encoder) {
             "ekr.replay-prefix/1".encode(out);
             self.0.encode(out);
-            self.1.version.encode(out);
-            self.1.event.encode(out);
+            self.1.encode(out);
+            self.2.encode(out);
         }
     }
+    ContentHash::of(&Step(previous, version, event))
+}
+#[cfg(test)]
+thread_local! {
+    static PREFIX_STEPS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+pub(crate) fn prefix_digests(occurrences: &[RecordedOccurrence]) -> Vec<ContentHash> {
     let mut digests = Vec::with_capacity(occurrences.len() + 1);
     let mut digest = ContentHash::of("ekr.replay-prefix/1");
     digests.push(digest);
     for occurrence in occurrences {
-        digest = ContentHash::of(&Step(digest, occurrence));
+        digest = extend_digest(digest, occurrence.version, &occurrence.event);
         digests.push(digest);
     }
     digests
@@ -254,6 +325,13 @@ pub(crate) fn prefix_digests(occurrences: &[RecordedOccurrence]) -> Vec<ContentH
 #[derive(Default)]
 pub(crate) struct ReplayCache {
     entries: Vec<(usize, ContentHash, Arc<ReplayState>)>,
+    /// Private confirmed predecessor scratch. The authority owns it; the applying thread holds
+    /// only a weak locator, so dropping the authority releases every retained record promptly.
+    retired: Arc<std::sync::Mutex<Option<crate::apply::Retired>>>,
+    /// Inputs and digests from the latest hashing pass. Every reuse compares the complete
+    /// domain occurrence and its position; provider identities do not enter the digest.
+    prefix_occurrences: Vec<RecordedOccurrence>,
+    prefix_hashes: Arc<Vec<ContentHash>>,
     /// The seed envelope this authority admitted, the evidence payloads it names, and whether it
     /// names them (`ekr-seed-envelope/3`: read where held) rather than carrying them (`/2`:
     /// required).
@@ -302,6 +380,35 @@ impl Drop for Keeping<'_> {
 pub(crate) type AliasCell = Arc<OnceLock<Arc<AliasIndex>>>;
 impl ReplayCache {
     const CAPACITY: usize = 4;
+    /// Hash only the suffix after the first different occurrence. Comparing complete inputs
+    /// keeps this a pure hash memo, including for a shorter history, a fork or tampered history;
+    /// it confers no replay authority and never substitutes for retained-object verification.
+    pub(crate) fn digests(&mut self, occurrences: &[RecordedOccurrence]) -> Arc<Vec<ContentHash>> {
+        let common = self
+            .prefix_occurrences
+            .iter()
+            .zip(occurrences)
+            .take_while(|(left, right)| left.version == right.version && left.event == right.event)
+            .count();
+        if common != occurrences.len() || common != self.prefix_occurrences.len() {
+            self.prefix_occurrences.truncate(common);
+            let digests = Arc::make_mut(&mut self.prefix_hashes);
+            digests.truncate(common + 1);
+            if digests.is_empty() {
+                digests.push(ContentHash::of("ekr.replay-prefix/1"));
+            }
+            let mut previous = digests[common];
+            for occurrence in &occurrences[common..] {
+                previous = extend_digest(previous, occurrence.version, &occurrence.event);
+                digests.push(previous);
+            }
+            self.prefix_occurrences
+                .extend_from_slice(&occurrences[common..]);
+        } else if self.prefix_hashes.is_empty() {
+            Arc::make_mut(&mut self.prefix_hashes).push(ContentHash::of("ekr.replay-prefix/1"));
+        }
+        Arc::clone(&self.prefix_hashes)
+    }
     /// The alias-index cell of the head `revision_id` with `root`: the held one when it is that
     /// head's, and otherwise a new one, which replaces it.
     pub(crate) fn alias_cell(
@@ -333,14 +440,53 @@ impl ReplayCache {
             .max_by_key(|(covered, _, _)| *covered)
             .map(|(_, _, state)| Arc::clone(state))
     }
+    /// Retire the predecessor only after the store confirms this exact publication. The cached
+    /// candidate must extend that predecessor's digest with the confirmed occurrence, so neither
+    /// the longest unrelated candidate nor a different history at the same version is proof.
+    /// Before confirmation the predecessor stays available for CAS retries. Readers holding an
+    /// old state keep their own Arc, and the successor already keeps checkpoint/historical graphs
+    /// required by replay. An absent match merely leaves the normal bounded cache in place.
+    pub(crate) fn confirmed(&mut self, publication: &ekr_store::Publication) {
+        let Some(version) = publication.expected_version.checked_add(1) else {
+            return;
+        };
+        let obsolete = self.entries.iter().find_map(|(covered, digest, state)| {
+            if state.version != publication.expected_version {
+                return None;
+            }
+            let next = extend_digest(*digest, version, &publication.event);
+            self.entries
+                .iter()
+                .find(|(later, found, candidate)| {
+                    *later == covered + 1 && *found == next && candidate.version == version
+                })
+                .map(|(_, _, candidate)| ((*covered, *digest), Arc::clone(candidate)))
+        });
+        if let Some((obsolete, candidate)) = obsolete {
+            if let Some(index) = self
+                .entries
+                .iter()
+                .position(|(covered, digest, _)| (*covered, *digest) == obsolete)
+            {
+                let (_, _, retired) = self.entries.remove(index);
+                if let RevisionPayload::RevisionCommitted { transaction_id, .. } =
+                    publication.event.payload
+                {
+                    crate::apply::retire(&self.retired, retired, candidate.head(), transaction_id);
+                }
+            }
+        }
+    }
     /// Releases the graph of revision `number` from every held state that holds it and does not
-    /// keep it as its head or as the retained checkpoint's head. Each such state is replaced by a
+    /// keep it as its head, the retained checkpoint's head or an active historical read. Each
+    /// state is replaced by a
     /// copy without it, so that a caller still sharing the old state keeps what it holds.
-    fn release(&mut self, number: RevisionNumber) {
+    pub(crate) fn release(&mut self, number: RevisionNumber) {
         let checkpointed = self.retained.map(|(_, revision)| revision);
         for entry in &mut self.entries {
             let state = &entry.2;
             let releases = Some(number) != checkpointed
+                && Some(number) != self.keep
                 && state.head().root.revision != number
                 && state
                     .revisions
@@ -518,10 +664,15 @@ pub(crate) fn validate(
     } else {
         Pipeline::deterministic(validator)
     };
+    let mut aliases = prior
+        .alias_holders
+        .lock()
+        .map_err(|_| refuse("replay-cache-poisoned"))?;
     Ok(pipeline.validate_kept(
         &GraphSnapshot::of(graph),
         document.transaction(),
         &prior.asserted_edges,
+        aliases.at(prior.revision_id, prior.root, graph),
     ))
 }
 
@@ -794,7 +945,7 @@ impl KernelAuthority {
     /// which each revision is the basis of a validation or rejection: until replay reaches it,
     /// that revision's graph is kept. A record that does not read names nothing here; replay
     /// refuses it by its own name.
-    fn bases(history: &RetainedHistory, start: usize) -> BTreeMap<RevisionNumber, u64> {
+    pub(crate) fn bases(history: &RetainedHistory, start: usize) -> BTreeMap<RevisionNumber, u64> {
         let mut bases = BTreeMap::new();
         for occurrence in history.occurrences.iter().skip(start) {
             let basis = match occurrence.event.payload {
@@ -824,9 +975,9 @@ impl KernelAuthority {
         // selected revision is computed in full, as before.
         let shared = ontology.is_none() && selected.is_none();
         let digests = if shared && !history.occurrences.is_empty() {
-            prefix_digests(&history.occurrences)
+            self.cache()?.digests(&history.occurrences)
         } else {
-            Vec::new()
+            Arc::default()
         };
         let reached = if shared && reuse {
             self.cache
@@ -873,6 +1024,7 @@ impl KernelAuthority {
                 seed: seed_result,
                 revisions: BTreeMap::from([(RevisionNumber::SEED, Revision::replayed(seed))]),
                 transactions: Arc::default(),
+                transaction_snapshot: OnceLock::new(),
                 documents: BTreeMap::new(),
                 validated: BTreeMap::new(),
                 version: first.version,
@@ -941,7 +1093,7 @@ impl KernelAuthority {
                     state.documents.insert(transaction_id, Arc::new(document));
                     state.transactions_mut().insert(
                         transaction_id,
-                        TransactionRecord {
+                        Arc::new(TransactionRecord {
                             proposal: record,
                             proposal_record_hash: event.record_hash,
                             validation: None,
@@ -949,7 +1101,7 @@ impl KernelAuthority {
                             rejection: None,
                             committed: None,
                             stale: None,
-                        },
+                        }),
                     );
                 }
                 RevisionPayload::TransactionValidated {
@@ -993,10 +1145,7 @@ impl KernelAuthority {
                     state.validated.insert(transaction_id, validated);
                     state.note_basis(occurrence.version, against);
                     state.release(against, |number| kept(number, occurrence.version));
-                    let tx = state
-                        .transactions_mut()
-                        .get_mut(&transaction_id)
-                        .expect("verified transaction");
+                    let tx = state.transaction_mut(transaction_id);
                     tx.validation = Some(record);
                     tx.validation_record_hash = Some(event.record_hash);
                 }
@@ -1050,11 +1199,7 @@ impl KernelAuthority {
                     let basis = record.requested_basis.previous_root.revision;
                     state.note_basis(occurrence.version, basis);
                     state.release(basis, |number| kept(number, occurrence.version));
-                    state
-                        .transactions_mut()
-                        .get_mut(&transaction_id)
-                        .expect("verified transaction")
-                        .rejection = Some(record);
+                    state.transaction_mut(transaction_id).rejection = Some(record);
                     state.documents.remove(&transaction_id);
                 }
                 RevisionPayload::RevisionCommitted {
@@ -1165,6 +1310,17 @@ impl KernelAuthority {
                         Arc::new(graph.ontology.clone())
                     };
                     let graph_root = prior.graph_root;
+                    let asserted_edges = prior.asserted_edges_after(validated.transaction());
+                    let alias_holders = Arc::clone(&prior.alias_holders);
+                    alias_holders
+                        .lock()
+                        .map_err(|_| refuse("replay-cache-poisoned"))?
+                        .advance(
+                            (prior.revision_id, prior.root),
+                            (revision_id, root),
+                            &graph,
+                            validated.transaction(),
+                        );
                     let superseded = prior.root.revision;
                     if self.anchor.validation_profile.keeps_identities() {
                         state.held.hold(number, validated.transaction());
@@ -1181,17 +1337,14 @@ impl KernelAuthority {
                             graph_root,
                             ontology,
                             graph: Some(Arc::new(graph)),
-                            asserted_edges: AssertedEdgesCell::default(),
+                            asserted_edges,
+                            alias_holders,
                         },
                     );
                     state.release(superseded, |number| kept(number, occurrence.version));
                     state.validated.remove(&transaction_id);
                     state.documents.remove(&transaction_id);
-                    state
-                        .transactions_mut()
-                        .get_mut(&transaction_id)
-                        .expect("verified transaction")
-                        .committed = Some(record);
+                    state.transaction_mut(transaction_id).committed = Some(record);
                 }
                 RevisionPayload::TransactionStale {
                     transaction_id,
@@ -1223,11 +1376,7 @@ impl KernelAuthority {
                             && record.stale_at >= validation.validated_at,
                         "stale-record-disagrees",
                     )?;
-                    state
-                        .transactions_mut()
-                        .get_mut(&transaction_id)
-                        .expect("verified transaction")
-                        .stale = Some(record);
+                    state.transaction_mut(transaction_id).stale = Some(record);
                     state.validated.remove(&transaction_id);
                     state.documents.remove(&transaction_id);
                 }
@@ -1340,7 +1489,7 @@ mod tests {
                 type_id,
                 canonical_name: format!("subject {n}"),
                 properties: BTreeMap::new(),
-                aliases: Vec::new(),
+                aliases: vec![format!("subject {n}")],
             })],
             evidence: BTreeSet::new(),
             schema_version: None,
@@ -1457,6 +1606,803 @@ mod tests {
         holds_the_head_graph(&file(directory.path(), false), "file");
         let directory = tempfile::tempdir().unwrap();
         holds_the_head_graph(&sqlite(directory.path(), false), "sqlite");
+    }
+
+    #[test]
+    fn confirmed_commit_releases_the_previous_head_before_the_next_command() {
+        fn check<S: RevisionLog + ObjectStore + Initialize>(kernel: &Commit<S>) {
+            let seed = seed();
+            kernel
+                .seed(seed.clone(), || Timestamp::from_millis(10))
+                .unwrap();
+            commit(kernel, &seed, 1);
+            let held = kernel.read_state().unwrap();
+            let graph = std::sync::Arc::downgrade(held.head().graph.as_ref().unwrap());
+            commit(kernel, &seed, 2);
+            assert_ne!(
+                retained(kernel),
+                Some(1),
+                "fixture must not checkpoint the old head"
+            );
+            assert!(
+                graph.upgrade().is_some(),
+                "a reader still holds its immutable graph"
+            );
+            assert_eq!(held.head().root.revision, RevisionNumber::new(1));
+            drop(held);
+            assert!(
+                graph.upgrade().is_none(),
+                "the confirmed commit still caches its obsolete head"
+            );
+        }
+        let directory = tempfile::tempdir().unwrap();
+        check(&file(directory.path(), false));
+        let directory = tempfile::tempdir().unwrap();
+        check(&sqlite(directory.path(), false));
+    }
+
+    #[test]
+    fn a_new_checkpoint_releases_its_predecessors_graph_before_the_next_command() {
+        fn check<S: RevisionLog + ObjectStore + Initialize>(kernel: &Commit<S>) {
+            let seed = seed();
+            kernel
+                .seed(seed.clone(), || Timestamp::from_millis(10))
+                .unwrap();
+            for n in 1..=5 {
+                commit(kernel, &seed, n);
+            }
+            assert_eq!(retained(kernel), Some(5));
+            let held = kernel.read_state().unwrap();
+            let graph = std::sync::Arc::downgrade(held.head().graph.as_ref().unwrap());
+            for n in 6..=10 {
+                commit(kernel, &seed, n);
+            }
+            assert_eq!(retained(kernel), Some(10));
+            assert_eq!(held.head().root.revision, RevisionNumber::new(5));
+            drop(held);
+            assert!(
+                graph.upgrade().is_none(),
+                "the new checkpoint still caches its predecessor's graph"
+            );
+        }
+        let directory = tempfile::tempdir().unwrap();
+        check(&file(directory.path(), false));
+        let directory = tempfile::tempdir().unwrap();
+        check(&sqlite(directory.path(), false));
+    }
+
+    #[test]
+    fn warm_validation_hashes_no_more_prefix_occurrences_as_history_grows() {
+        fn count<S: RevisionLog + ObjectStore + Initialize>(kernel: &Commit<S>, size: u64) -> u64 {
+            let seed = seed();
+            kernel
+                .seed(seed.clone(), || Timestamp::from_millis(10))
+                .unwrap();
+            for n in 1..=size {
+                commit(kernel, &seed, n);
+            }
+            let (id, bytes) = document(&seed, size + 1, seed.ontology.node_types[0].id);
+            kernel
+                .propose(&bytes, context().operator, || at(size + 1, 0))
+                .unwrap();
+            let before = super::PREFIX_STEPS.with(std::cell::Cell::get);
+            let verdict = kernel
+                .validate(id, RevisionNumber::new(size), || at(size + 1, 1))
+                .unwrap();
+            assert!(matches!(verdict, ValidationCommandResult::Validated(_)));
+            super::PREFIX_STEPS.with(std::cell::Cell::get) - before
+        }
+        for use_file in [false, true] {
+            let counts: Vec<_> = [4, 16]
+                .into_iter()
+                .map(|size| {
+                    let directory = tempfile::tempdir().unwrap();
+                    if use_file {
+                        count(&file(directory.path(), false), size)
+                    } else {
+                        count(&sqlite(directory.path(), false), size)
+                    }
+                })
+                .collect();
+            assert_eq!(
+                counts[0], counts[1],
+                "file={use_file}: prefix hashing grows with history: {counts:?}"
+            );
+            assert_eq!(
+                counts,
+                [1, 1],
+                "only the new validation occurrence is hashed"
+            );
+        }
+    }
+
+    fn assertion_seed() -> SeedDocument {
+        use ekr_graph::{Confidence, Evidence, EvidenceSource};
+        use ekr_ontology::{PropertyDefinition, ValueType};
+        let mut seed = seed();
+        let property = "00000000-0000-4000-8000-000000000006".parse().unwrap();
+        seed.ontology.node_types[0].properties.insert(
+            property,
+            PropertyDefinition::new(property, "label", ValueType::String),
+        );
+        let bytes = b"retained assertion provenance".to_vec();
+        let hash = ekr_core::ContentHash::of_bytes(&bytes);
+        let entry = Evidence {
+            id: "00000000-0000-4000-8000-000000000007".parse().unwrap(),
+            source: EvidenceSource::HumanStatement {
+                identity: Some("operator".into()),
+            },
+            content_hash: hash,
+            extracted_by: context().operator,
+            observed_at: Timestamp::EPOCH,
+            confidence: Confidence::from_basis_points(10000).unwrap(),
+        };
+        let mut second = entry.clone();
+        second.id = "00000000-0000-4000-8000-000000000008".parse().unwrap();
+        seed.graph.evidence.insert(second.id, second);
+        seed.graph.evidence.insert(entry.id, entry);
+        seed.evidence_payloads.insert(hash, bytes.into());
+        seed
+    }
+
+    fn assertion_commit<S: RevisionLog + ObjectStore>(
+        kernel: &Commit<S>,
+        seed: &SeedDocument,
+        n: u64,
+    ) -> std::sync::Arc<crate::ValidatedTransaction> {
+        use ekr_graph::{
+            Assertion, AssertionLifecycle, Assessment, Object, Predicate, Subject, TemporalRange,
+            TransactionTime,
+        };
+        let (_, bytes) = document(seed, n, seed.ontology.node_types[0].id);
+        let wire: serde_yaml_ng::Value = serde_yaml_ng::from_slice(&bytes).unwrap();
+        let mut tx: GraphTransaction =
+            serde_yaml_ng::from_value(wire["transaction"].clone()).unwrap();
+        let GraphOperation::CreateNode(node) = &tx.operations[0] else {
+            unreachable!()
+        };
+        let evidence = *seed.graph.evidence.keys().next().unwrap();
+        tx.operations
+            .push(GraphOperation::AddAssertion(Box::new(Assertion {
+                id: ekr_core::AssertionId::mint(),
+                root_id: seed.graph.root.id,
+                subject: Subject::Node(node.id),
+                predicate: Predicate::Property(
+                    *seed.ontology.node_types[0]
+                        .properties
+                        .keys()
+                        .next()
+                        .unwrap(),
+                ),
+                object: Object::Value(ekr_ontology::Value::String(format!("value {n}"))),
+                evidence: BTreeSet::from([evidence]),
+                proposed_by: context().operator,
+                assessment: Assessment::Proposed,
+                lifecycle: AssertionLifecycle::Active,
+                valid_time: TemporalRange::UNBOUNDED,
+                transaction_time: TransactionTime::since(Timestamp::EPOCH),
+            })));
+        tx.evidence.insert(evidence);
+        commit_transaction(kernel, tx, n)
+    }
+
+    fn commit_transaction<S: RevisionLog + ObjectStore>(
+        kernel: &Commit<S>,
+        tx: GraphTransaction,
+        n: u64,
+    ) -> std::sync::Arc<crate::ValidatedTransaction> {
+        #[derive(serde::Serialize)]
+        struct Wire<'a> {
+            format: &'static str,
+            transaction: &'a GraphTransaction,
+        }
+        let wire = Wire {
+            format: "ekr.transaction-document/1",
+            transaction: &tx,
+        };
+        kernel
+            .propose(
+                serde_yaml_ng::to_string(&wire).unwrap().as_bytes(),
+                context().operator,
+                || at(n, 0),
+            )
+            .unwrap();
+        assert!(matches!(
+            kernel
+                .validate(tx.id, RevisionNumber::new(n - 1), || at(n, 1))
+                .unwrap(),
+            ValidationCommandResult::Validated(_)
+        ));
+        let validated = std::sync::Arc::clone(&kernel.read_state().unwrap().validated[&tx.id]);
+        assert!(matches!(
+            kernel
+                .commit(tx.id, context().operator, || at(n, 2))
+                .unwrap(),
+            CommitCommandResult::Committed(_)
+        ));
+        validated
+    }
+
+    #[test]
+    fn append_commits_copy_no_more_assertions_as_the_graph_grows() {
+        fn count<S: RevisionLog + ObjectStore + Initialize>(
+            kernel: &Commit<S>,
+            size: u64,
+        ) -> (usize, usize) {
+            let seed = assertion_seed();
+            kernel
+                .seed(seed.clone(), || Timestamp::from_millis(10))
+                .unwrap();
+            for n in 1..=size {
+                assertion_commit(kernel, &seed, n);
+            }
+            let prior = kernel.read_state().unwrap();
+            let assertions = prior.head().graph().unwrap().assertions.len();
+            let before = crate::apply::ASSERTIONS_COPIED.with(std::cell::Cell::get);
+            let applied = crate::apply::graphs_applied();
+            let validated = assertion_commit(kernel, &seed, size + 1);
+            let copied = crate::apply::ASSERTIONS_COPIED.with(std::cell::Cell::get) - before;
+            assert_eq!(crate::apply::graphs_applied() - applied, 1);
+            let result = kernel.read_state().unwrap();
+            let before_oracle = crate::apply::ASSERTIONS_COPIED.with(std::cell::Cell::get);
+            let (graph, root) = crate::apply::forced_clone(
+                prior.head(),
+                &validated,
+                &BTreeSet::from([context().validator]),
+                at(size + 1, 2),
+            )
+            .unwrap();
+            assert_eq!(
+                crate::apply::ASSERTIONS_COPIED.with(std::cell::Cell::get) - before_oracle,
+                assertions
+            );
+            assert_eq!(&graph, result.head().graph().unwrap());
+            assert_eq!(root, result.head().root);
+            (assertions, copied)
+        }
+        for use_file in [false, true] {
+            let counts: Vec<_> = [4, 24]
+                .into_iter()
+                .map(|size| {
+                    let directory = tempfile::tempdir().unwrap();
+                    if use_file {
+                        count(&file(directory.path(), false), size)
+                    } else {
+                        count(&sqlite(directory.path(), false), size)
+                    }
+                })
+                .collect();
+            assert!(
+                counts[1].0 >= 4 * counts[0].0,
+                "actual assertion totals: {counts:?}"
+            );
+            assert_eq!(
+                counts[0].1, counts[1].1,
+                "file={use_file}: full graph clone grows: {counts:?}"
+            );
+            assert_eq!(
+                counts[0].1, 0,
+                "exclusive confirmed predecessor is reusable"
+            );
+        }
+    }
+
+    #[test]
+    fn reusable_graph_belongs_to_the_authority_not_the_thread() {
+        let directory = tempfile::tempdir().unwrap();
+        let kernel = sqlite(directory.path(), false);
+        let seed = assertion_seed();
+        kernel
+            .seed(seed.clone(), || Timestamp::from_millis(10))
+            .unwrap();
+        for n in 1..=4 {
+            assertion_commit(&kernel, &seed, n);
+        }
+        let owner = {
+            let cache = kernel.authority.cache.lock().unwrap();
+            assert!(cache.retired.lock().unwrap().is_some());
+            std::sync::Arc::downgrade(&cache.retired)
+        };
+        drop(kernel);
+        assert!(
+            owner.upgrade().is_none(),
+            "thread locator must not keep retired graph alive"
+        );
+    }
+
+    #[test]
+    fn readers_and_checkpoint_graphs_prevent_reuse_extraction() {
+        fn check<S: RevisionLog + ObjectStore + Initialize>(kernel: &Commit<S>) {
+            let seed = assertion_seed();
+            kernel
+                .seed(seed.clone(), || Timestamp::from_millis(10))
+                .unwrap();
+            for n in 1..=2 {
+                assertion_commit(kernel, &seed, n);
+            }
+            let held = kernel.read_state().unwrap();
+            let frozen = held.head().graph().unwrap().clone();
+            assertion_commit(kernel, &seed, 3);
+            assert!(kernel
+                .authority
+                .cache
+                .lock()
+                .unwrap()
+                .retired
+                .lock()
+                .unwrap()
+                .is_none());
+            let before = crate::apply::ASSERTIONS_COPIED.with(std::cell::Cell::get);
+            assertion_commit(kernel, &seed, 4);
+            assert_eq!(
+                crate::apply::ASSERTIONS_COPIED.with(std::cell::Cell::get) - before,
+                3
+            );
+            assert_eq!(held.head().graph().unwrap(), &frozen);
+            drop(held);
+            for n in 5..=6 {
+                assertion_commit(kernel, &seed, n);
+            }
+            assert_eq!(retained(kernel), Some(5));
+            assert!(kernel
+                .authority
+                .cache
+                .lock()
+                .unwrap()
+                .retired
+                .lock()
+                .unwrap()
+                .is_none());
+            let before = crate::apply::ASSERTIONS_COPIED.with(std::cell::Cell::get);
+            assertion_commit(kernel, &seed, 7);
+            assert_eq!(
+                crate::apply::ASSERTIONS_COPIED.with(std::cell::Cell::get) - before,
+                6
+            );
+        }
+        let directory = tempfile::tempdir().unwrap();
+        check(&file(directory.path(), false));
+        let directory = tempfile::tempdir().unwrap();
+        check(&sqlite(directory.path(), false));
+    }
+
+    #[test]
+    fn reused_graph_preserves_inherited_attachments_and_matches_forced_clone() {
+        fn check<S: RevisionLog + ObjectStore + Initialize>(kernel: &Commit<S>) {
+            let seed = assertion_seed();
+            kernel
+                .seed(seed.clone(), || Timestamp::from_millis(10))
+                .unwrap();
+            assertion_commit(kernel, &seed, 1);
+            let assertion = *kernel
+                .read_state()
+                .unwrap()
+                .head()
+                .graph()
+                .unwrap()
+                .assertions
+                .keys()
+                .next()
+                .unwrap();
+            let evidence = *seed.graph.evidence.keys().last().unwrap();
+            commit_transaction(
+                kernel,
+                GraphTransaction {
+                    id: TransactionId::mint(),
+                    proposer: context().operator,
+                    operations: vec![GraphOperation::AttachEvidence(crate::EvidenceAttachment {
+                        assertion,
+                        evidence,
+                    })],
+                    evidence: BTreeSet::from([evidence]),
+                    schema_version: None,
+                },
+                2,
+            );
+            assert!(
+                kernel
+                    .authority
+                    .cache
+                    .lock()
+                    .unwrap()
+                    .retired
+                    .lock()
+                    .unwrap()
+                    .is_none(),
+                "nonappend publication cannot seed reuse"
+            );
+            for n in 3..=4 {
+                assertion_commit(kernel, &seed, n);
+            }
+            let prior = kernel.read_state().unwrap();
+            let before = crate::apply::ASSERTIONS_COPIED.with(std::cell::Cell::get);
+            let validated = assertion_commit(kernel, &seed, 5);
+            assert_eq!(
+                crate::apply::ASSERTIONS_COPIED.with(std::cell::Cell::get) - before,
+                0
+            );
+            let result = kernel.read_state().unwrap();
+            assert_eq!(result.head().graph().unwrap().attachments.len(), 1);
+            let (graph, root) = crate::apply::forced_clone(
+                prior.head(),
+                &validated,
+                &BTreeSet::from([context().validator]),
+                at(5, 2),
+            )
+            .unwrap();
+            assert_eq!(&graph, result.head().graph().unwrap());
+            assert_eq!(root, result.head().root);
+        }
+        let directory = tempfile::tempdir().unwrap();
+        check(&file(directory.path(), false));
+        let directory = tempfile::tempdir().unwrap();
+        check(&sqlite(directory.path(), false));
+    }
+
+    #[test]
+    fn an_unpublished_candidate_cannot_seed_reuse() {
+        fn check<S: RevisionLog + ObjectStore + Initialize>(kernel: &Commit<S>) {
+            let seed = assertion_seed();
+            kernel
+                .seed(seed.clone(), || Timestamp::from_millis(10))
+                .unwrap();
+            for n in 1..=4 {
+                assertion_commit(kernel, &seed, n);
+            }
+            let (id, verdict) = validated(kernel, &seed, 5, seed.ontology.node_types[0].id, 4);
+            assert!(matches!(verdict, ValidationCommandResult::Validated(_)));
+            let prior = kernel.read_state().unwrap();
+            let before = crate::apply::ASSERTIONS_COPIED.with(std::cell::Cell::get);
+            crate::apply::decide(
+                prior.head(),
+                &prior.validated[&id],
+                &BTreeSet::from([context().validator]),
+                at(5, 2),
+            )
+            .unwrap();
+            assert_eq!(
+                crate::apply::ASSERTIONS_COPIED.with(std::cell::Cell::get) - before,
+                0
+            );
+            // The command ends before publication: no confirmed prefix can authorize this graph.
+            drop(crate::apply::ReleaseDecided);
+            assert!(!crate::apply::decided_graph_held());
+            assert!(kernel
+                .authority
+                .cache
+                .lock()
+                .unwrap()
+                .retired
+                .lock()
+                .unwrap()
+                .is_none());
+            let before = crate::apply::ASSERTIONS_COPIED.with(std::cell::Cell::get);
+            assert!(matches!(
+                kernel.commit(id, context().operator, || at(5, 2)).unwrap(),
+                CommitCommandResult::Committed(_)
+            ));
+            assert_eq!(
+                crate::apply::ASSERTIONS_COPIED.with(std::cell::Cell::get) - before,
+                4,
+                "retry must clone after an unconfirmed candidate consumed scratch"
+            );
+        }
+        let directory = tempfile::tempdir().unwrap();
+        check(&file(directory.path(), false));
+        let directory = tempfile::tempdir().unwrap();
+        check(&sqlite(directory.path(), false));
+    }
+
+    #[test]
+    fn an_equal_root_replayed_by_another_authority_falls_back_to_clone() {
+        for use_file in [false, true] {
+            let directory = tempfile::tempdir().unwrap();
+            fn check<S: RevisionLog + ObjectStore + Initialize>(
+                kernel: &Commit<S>,
+                peer: &Commit<S>,
+            ) {
+                let seed = assertion_seed();
+                kernel
+                    .seed(seed.clone(), || Timestamp::from_millis(10))
+                    .unwrap();
+                for n in 1..=4 {
+                    assertion_commit(kernel, &seed, n);
+                }
+                let (id, verdict) = validated(kernel, &seed, 5, seed.ontology.node_types[0].id, 4);
+                assert!(matches!(verdict, ValidationCommandResult::Validated(_)));
+                let original = kernel.read_state().unwrap();
+                // Preserve real confirmed scratch across the diagnostic full replay so the
+                // equal-root allocation guard itself, rather than an empty slot, is exercised.
+                let saved = kernel
+                    .authority
+                    .cache
+                    .lock()
+                    .unwrap()
+                    .retired
+                    .lock()
+                    .unwrap()
+                    .take();
+                assert!(saved.is_some());
+                let replayed = peer.read_state().unwrap();
+                *kernel
+                    .authority
+                    .cache
+                    .lock()
+                    .unwrap()
+                    .retired
+                    .lock()
+                    .unwrap() = saved;
+                assert_eq!(original.head().root, replayed.head().root);
+                assert!(!std::sync::Arc::ptr_eq(
+                    original.head().graph.as_ref().unwrap(),
+                    replayed.head().graph.as_ref().unwrap()
+                ));
+                let before = crate::apply::ASSERTIONS_COPIED.with(std::cell::Cell::get);
+                let result = crate::apply::apply(
+                    replayed.head(),
+                    &original.validated[&id],
+                    &BTreeSet::from([context().validator]),
+                    at(5, 2),
+                )
+                .unwrap();
+                assert_eq!(
+                    crate::apply::ASSERTIONS_COPIED.with(std::cell::Cell::get) - before,
+                    4
+                );
+                let oracle = crate::apply::forced_clone(
+                    replayed.head(),
+                    &original.validated[&id],
+                    &BTreeSet::from([context().validator]),
+                    at(5, 2),
+                )
+                .unwrap();
+                assert_eq!(result, oracle);
+            }
+            if use_file {
+                check(
+                    &file(directory.path(), false),
+                    &file(directory.path(), true),
+                );
+            } else {
+                check(
+                    &sqlite(directory.path(), false),
+                    &sqlite(directory.path(), true),
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn prefix_hash_memo_compares_every_occurrence_and_preserves_held_digest_vectors() {
+        let directory = tempfile::tempdir().unwrap();
+        let kernel = sqlite(directory.path(), false);
+        let seed = seed();
+        kernel
+            .seed(seed.clone(), || Timestamp::from_millis(10))
+            .unwrap();
+        for n in 1..=3 {
+            commit(&kernel, &seed, n);
+        }
+        let mut occurrences = kernel.store.history().unwrap().occurrences;
+        let expected = super::prefix_digests(&occurrences);
+        let mut cache = super::ReplayCache::default();
+        let held = cache.digests(&occurrences);
+        assert_eq!(*held, expected);
+        for occurrence in &mut occurrences {
+            occurrence.provider_event_id.push_str(" native identity");
+        }
+        let before = super::PREFIX_STEPS.with(std::cell::Cell::get);
+        assert_eq!(*cache.digests(&occurrences), expected);
+        assert_eq!(super::PREFIX_STEPS.with(std::cell::Cell::get) - before, 0);
+        for index in [0, occurrences.len() / 2, occurrences.len() - 1] {
+            let prior = occurrences[index].event.record_hash;
+            occurrences[index].event.record_hash =
+                ekr_core::ContentHash::of("changed retained record");
+            let actual = cache.digests(&occurrences);
+            assert_eq!(*actual, super::prefix_digests(&occurrences));
+            assert_ne!(*actual, expected);
+            assert_eq!(
+                *held, expected,
+                "a later memo update changed a held digest vector"
+            );
+            occurrences[index].event.record_hash = prior;
+            assert_eq!(*cache.digests(&occurrences), expected);
+            let prior_version = occurrences[index].version;
+            occurrences[index].version += 1;
+            let actual = cache.digests(&occurrences);
+            assert_eq!(*actual, super::prefix_digests(&occurrences));
+            assert_ne!(*actual, expected, "stream position is independently bound");
+            occurrences[index].version = prior_version;
+            assert_eq!(*cache.digests(&occurrences), expected);
+        }
+        let shorter = occurrences.len() / 2;
+        assert_eq!(
+            *cache.digests(&occurrences[..shorter]),
+            expected[..=shorter]
+        );
+        assert_eq!(*cache.digests(&occurrences), expected);
+        assert_eq!(*cache.digests(&[]), super::prefix_digests(&[]));
+        assert_eq!(*held, expected);
+    }
+
+    #[test]
+    fn node_only_commits_share_the_unchanged_assertion_edge_index() {
+        fn check<S: RevisionLog + ObjectStore + Initialize>(kernel: &Commit<S>) {
+            let seed = seed();
+            kernel
+                .seed(seed.clone(), || Timestamp::from_millis(10))
+                .unwrap();
+            commit(kernel, &seed, 1);
+            let before = crate::validate::edge_indexes_built();
+            let (_, verdict) = validated(kernel, &seed, 2, seed.ontology.node_types[0].id, 1);
+            assert!(matches!(verdict, ValidationCommandResult::Validated(_)));
+            assert_eq!(
+                crate::validate::edge_indexes_built() - before,
+                0,
+                "a node-only commit rebuilt an unchanged edge-assertion index"
+            );
+        }
+        let directory = tempfile::tempdir().unwrap();
+        check(&file(directory.path(), false));
+        let directory = tempfile::tempdir().unwrap();
+        check(&sqlite(directory.path(), false));
+    }
+
+    #[test]
+    fn retirement_requires_the_confirmed_occurrence_and_matching_prefix() {
+        let directory = tempfile::tempdir().unwrap();
+        let kernel = sqlite(directory.path(), false);
+        let seed = seed();
+        kernel
+            .seed(seed.clone(), || Timestamp::from_millis(10))
+            .unwrap();
+        let (id, _) = validated(&kernel, &seed, 1, seed.ontology.node_types[0].id, 0);
+        let before = kernel.read_state().unwrap();
+        kernel.commit(id, context().operator, || at(1, 2)).unwrap();
+        let after = kernel.read_state().unwrap();
+        let history = kernel.store.history().unwrap();
+        let publication = ekr_store::Publication {
+            expected_version: before.version,
+            event: history.occurrences.last().unwrap().event.clone(),
+            objects: BTreeMap::new(),
+        };
+        let mut cache = super::ReplayCache::default();
+        let prior = (before.version as usize, before.digest.unwrap());
+        cache.insert(prior.0, prior.1, before.clone());
+        cache.insert(after.version as usize, after.digest.unwrap(), after.clone());
+        // Another branch at the same stream version is not a prefix of this publication.
+        let unrelated = ekr_core::ContentHash::of("another verified history");
+        cache.insert(prior.0, unrelated, before);
+        let mut different = publication.clone();
+        different.event.event_id = ekr_core::EventId::mint();
+        cache.confirmed(&different);
+        assert_eq!(
+            cache.entries.len(),
+            3,
+            "different occurrence retired a predecessor"
+        );
+        different = publication.clone();
+        different.expected_version += 1;
+        cache.confirmed(&different);
+        assert_eq!(
+            cache.entries.len(),
+            3,
+            "different position retired a predecessor"
+        );
+        cache.confirmed(&publication);
+        assert_eq!(cache.entries.len(), 2);
+        assert!(cache
+            .entries
+            .iter()
+            .all(|(covered, digest, _)| (*covered, *digest) != prior));
+        assert!(cache
+            .entries
+            .iter()
+            .any(|(_, digest, _)| *digest == unrelated));
+        assert!(cache
+            .entries
+            .iter()
+            .any(|(_, digest, _)| Some(*digest) == after.digest));
+    }
+
+    #[test]
+    fn validating_one_transaction_does_not_copy_prior_document_buffers() {
+        fn copied<S: RevisionLog + ObjectStore + Initialize>(
+            kernel: &Commit<S>,
+            count: u64,
+        ) -> usize {
+            let seed = seed();
+            kernel
+                .seed(seed.clone(), || Timestamp::from_millis(10))
+                .unwrap();
+            for n in 1..=count {
+                commit(kernel, &seed, n);
+            }
+            let before = kernel.read_state().unwrap();
+            let (id, bytes) = document(&seed, count + 1, seed.ontology.node_types[0].id);
+            kernel
+                .propose(&bytes, context().operator, || at(count + 1, 0))
+                .unwrap();
+            assert_eq!(
+                kernel.transaction_states([id]).unwrap()[&id],
+                super::TransactionState::Proposed
+            );
+            let verdict = kernel
+                .validate(id, RevisionNumber::new(count), || at(count + 1, 1))
+                .unwrap();
+            assert!(matches!(verdict, ValidationCommandResult::Validated(_)));
+            assert_eq!(
+                kernel.transaction_states([id]).unwrap()[&id],
+                super::TransactionState::Validated
+            );
+            let after = kernel.read_state().unwrap();
+            assert!(
+                after.transaction_snapshot.get().is_none(),
+                "selected state reads materialized all retained transaction records"
+            );
+            assert_eq!(
+                after.transactions.get(&id).unwrap().state(),
+                super::TransactionState::Validated
+            );
+            before
+                .transactions
+                .iter()
+                .filter(|(id, record)| {
+                    let later = after.transactions.get(id).unwrap();
+                    assert_eq!(*record, later);
+                    record.proposal.document_bytes.as_ptr()
+                        != later.proposal.document_bytes.as_ptr()
+                })
+                .count()
+        }
+        for file_provider in [false, true] {
+            let mut counts = Vec::new();
+            for size in [4, 16] {
+                let directory = tempfile::tempdir().unwrap();
+                let count = if file_provider {
+                    copied(&file(directory.path(), false), size)
+                } else {
+                    copied(&sqlite(directory.path(), false), size)
+                };
+                counts.push(count);
+            }
+            assert_eq!(
+                counts,
+                [0, 0],
+                "file={file_provider}: prior document buffers copied"
+            );
+        }
+    }
+
+    #[test]
+    fn warm_alias_checks_visit_no_unchanged_nodes() {
+        let mut visits = Vec::new();
+        for size in [4, 16] {
+            let directory = tempfile::tempdir().unwrap();
+            let kernel = sqlite(directory.path(), false);
+            let seed = seed();
+            kernel
+                .seed(seed.clone(), || Timestamp::from_millis(10))
+                .unwrap();
+            for n in 1..=size {
+                commit(&kernel, &seed, n);
+            }
+            let before = crate::validate::ALIAS_NODES_VISITED.with(std::cell::Cell::get);
+            let (_, result) = validated(
+                &kernel,
+                &seed,
+                size + 1,
+                seed.ontology.node_types[0].id,
+                size,
+            );
+            assert!(matches!(result, ValidationCommandResult::Validated(_)));
+            visits.push(crate::validate::ALIAS_NODES_VISITED.with(std::cell::Cell::get) - before);
+        }
+        assert_eq!(
+            visits,
+            [0, 0],
+            "unchanged canonical nodes scanned for aliases"
+        );
     }
 
     /// Seeds and commits six revisions through one handle, then validates one transaction against

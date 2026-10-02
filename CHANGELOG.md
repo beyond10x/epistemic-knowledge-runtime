@@ -2,7 +2,62 @@
 
 Every change a user of the runtime sees, per release. Unreleased work sits at the top.
 
-## [Unreleased]
+## [0.0.27] — 2026-10-02
+
+### Added
+
+- **Evidence attaches to an assertion the store already holds** (`docs/cli.md`, Evidence
+  attached to a held assertion; design § 103). `!AttachEvidence {assertion, evidence}`,
+  operation index 15, attaches retained evidence, or evidence an `!AddEvidence` of the same
+  transaction adds, to an accepted and active assertion, under every validation profile. The
+  assertion is not changed: the attachment is its own record (which assertion, which evidence,
+  which revision), kept by the canonical graph beside its assertions and listed by `ekr snapshot`
+  under `attachments`. `ekr explain` lists it as an `Attachment` link with the attaching commit,
+  and the evidence among its `Evidence` links, from that revision on; a supersession leaves it
+  with the superseded assertion. `ekr quality` counts attached evidence in `with_evidence` and
+  `with_item_evidence`. Refused by name: `unresolved-assertion`, `unresolved-evidence`, and the
+  new `assertion-not-active` and `evidence-already-attached`; the attached id is listed in
+  `transaction.evidence`. A graph with no attachment keeps its knowledge root and graph document
+  bytes, so no store's recorded roots move. The SDK gains `Operation::AttachEvidence`
+  (`EvidenceAttachment`), reads the link and the snapshot field typed, and its builder and batcher
+  count attached evidence in the manifest.
+
+- **Typed SDK fact checks** draw reproducible samples, report judged samples and run an injected
+  judge in ordered batches. A failed batch or a mismatched result count returns an error without
+  a partial judgement set.
+- **OCEL exports report counts** as one JSON line on stderr; sessions and SDK transports keep
+  those counts with the request. Existing stdout documents remain unchanged. Repeatable
+  `--event-time Type.property` selectors resolve inherited Timestamp properties at the requested
+  revision, with named refusals for ambiguous or invalid selections. SDK selectors preserve
+  leading dashes, spaces and equals signs in admitted names.
+- **`ekr code-names --words`** matches whole words with Unicode alphanumeric and underscore
+  boundaries, preserving locations, exemptions and the default literal matching mode.
+- **Quality reports add seed-evidence and constrained-type counts**: active assertions citing or
+  attached to retained seed evidence count once; each node or edge type directly declaring a
+  constrained property counts once. Existing counts and integer basis-point shares are unchanged.
+
+### Fixed
+
+- **Warm append-only commits can reuse privately owned graph storage.** Prefix hashes,
+  immutable transaction records and unchanged validation indexes also reuse verified inputs.
+  A runtime may retain one additional predecessor graph as a buffer; held readers and checkpoints
+  prevent its extraction, and unsupported operations or mismatched histories use the existing
+  clone path. Closing the runtime releases the buffer. Canonical encodings and retained formats
+  are unchanged (design § 104).
+- **Checkpoint output avoids copying complete graph record maps.** The store exposes
+  `GraphDocument::serialize_graph` for borrowed output in the existing document format; checkpoint
+  decoding is unchanged. Hash text formatting also avoids repeated writes of individual bytes.
+- **An empty judged sample has an explicit empty interval**: `rate` is null and the Wilson bounds
+  are 0 and 1. Nonempty report bytes are unchanged.
+- **Duplicate evidence attachments in a stored graph are refused**, including different JSON
+  spellings that decode to the same attachment, rather than silently collapsing records.
+
+### Known limitations
+
+- SQLite commit scaling remains above the performance target: the default-size measurement
+  recorded a last/first commit median ratio of 1.321 against the 1.2 limit. Validation passed
+  at 0.979. The reviewed optimizations ship in this release, while
+  `task:validate-cost-flat-with-store-size` remains open with its original acceptance bounds.
 
 ## [0.0.26] — 2026-10-02
 

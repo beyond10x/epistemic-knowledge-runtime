@@ -76,7 +76,7 @@ pub use log::{
 pub use objects::{ObjectStore, StorageClass, StoredObject};
 pub use snapshot::{Entity, GraphDocument, MembraneError};
 #[doc(hidden)]
-pub use verified::{read_work, stream_reads, ReadWork, StreamReads};
+pub use verified::{objects_loaded, read_work, stream_reads, ReadWork, StreamReads};
 
 use ekr_core::{ContentHash, RevisionNumber, TransactionId};
 

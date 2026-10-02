@@ -64,6 +64,7 @@ fn graph(ontology: &Ontology) -> CanonicalGraph {
         vec![CanonicalValue::Enum("canonical".to_owned())],
     );
     CanonicalGraph {
+        attachments: Default::default(),
         root: GraphRoot {
             id: root_id,
             space: Space::Canonical,
@@ -370,6 +371,7 @@ fn all_io_refuses<S: AtomicBlobEventStore>(store: EventlogStore<S>) {
         );
         exercised.refuses("resume", store.resume(&unelected));
         exercised.refuses("history", store.history());
+        exercised.refuses("replay_history", store.replay_history());
         exercised.refuses("history_at", store.history_at(RevisionNumber::SEED));
         exercised.refuses("seed_bytes", store.seed_bytes());
         exercised.refuses("head", store.head());

@@ -1,7 +1,7 @@
 //! Serializable graph data. Only the kernel admits a document as canonical state.
 //! The store delegates every seed replay to its injected authority.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use ekr_core::{
@@ -9,8 +9,8 @@ use ekr_core::{
     SchemaVersionId,
 };
 use ekr_graph::{
-    Assertion, CanonicalGraph, CanonicalValue, Edge, Evidence, GraphRoot, InadmissibleValue, Node,
-    Object, Space, Subject,
+    Assertion, AttachedEvidence, Attachments, CanonicalGraph, CanonicalValue, Edge, Evidence,
+    GraphRoot, InadmissibleValue, Node, Object, Space, Subject,
 };
 use ekr_ontology::Value;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -38,6 +38,11 @@ pub struct GraphDocument {
     /// Not generic and not widened: [`Evidence`] carries no value at all, so there is no transient
     /// instantiation of it and nothing for the crossing to refuse.
     pub evidence: BTreeMap<EvidenceId, Evidence>,
+    /// The evidence attached to its assertions after they were added, by assertion id
+    /// (`story:evidence-attaches-to-a-held-assertion`). Omitted from the document when empty, so
+    /// a graph without attachments is written as the bytes it was written as before the field
+    /// existed. An attachment carries no value, so it has no transient instantiation either.
+    pub attachments: Attachments,
 }
 
 // The remote derive preserves the useful in-memory graph shape while requiring a complete,
@@ -55,6 +60,28 @@ struct GraphFields {
     assertions: BTreeMap<AssertionId, Assertion<Value>>,
     #[serde(deserialize_with = "ekr_core::decode::unique_map")]
     evidence: BTreeMap<EvidenceId, Evidence>,
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeMap::is_empty",
+        deserialize_with = "unique_attachments"
+    )]
+    attachments: Attachments,
+}
+
+// Keep the map and each nested set strict without changing their serialized shape.
+fn unique_attachments<'de, D: Deserializer<'de>>(input: D) -> Result<Attachments, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(transparent)]
+    struct Records(
+        #[serde(deserialize_with = "ekr_core::decode::unique_set")] BTreeSet<AttachedEvidence>,
+    );
+
+    ekr_core::decode::unique_map::<_, AssertionId, Records>(input).map(|entries| {
+        entries
+            .into_iter()
+            .map(|(id, records)| (id, records.0))
+            .collect()
+    })
 }
 
 #[derive(Serialize, Deserialize)]
@@ -68,6 +95,28 @@ struct GraphEnvelopeRef<'a> {
     format: GraphFormat,
     #[serde(with = "GraphFields")]
     graph: &'a GraphDocument,
+}
+
+/// The same envelope over canonical records without allocating widened copies of the maps.
+/// CanonicalValue retains its existing serializer (and its per-value widening).
+#[derive(Serialize)]
+#[serde(rename = "GraphEnvelopeRef")]
+struct BorrowedGraphEnvelope<'a> {
+    format: GraphFormat,
+    graph: BorrowedGraphFields<'a>,
+}
+
+#[derive(Serialize)]
+#[serde(rename = "GraphFields")]
+struct BorrowedGraphFields<'a> {
+    root: &'a GraphRoot,
+    revision: RevisionNumber,
+    nodes: &'a BTreeMap<NodeId, Node>,
+    edges: &'a BTreeMap<EdgeId, Edge>,
+    assertions: &'a BTreeMap<AssertionId, Assertion>,
+    evidence: &'a BTreeMap<EvidenceId, Evidence>,
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    attachments: &'a Attachments,
 }
 
 #[derive(Deserialize)]
@@ -99,6 +148,42 @@ impl<'de> Deserialize<'de> for GraphDocument {
 }
 
 impl GraphDocument {
+    /// Serializes canonical state in this document's envelope without copying its record maps.
+    /// The bytes are exactly those of serializing [`Self::of`] for the same graph. Values retain
+    /// their normal canonical-to-wire conversion; this avoids the complete owned document.
+    ///
+    /// # Errors
+    /// Returns the serializer's error if writing the document fails.
+    pub fn serialize_graph<S: Serializer>(
+        graph: &CanonicalGraph,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        // A new canonical field requires an explicit serialization decision here.
+        let CanonicalGraph {
+            root,
+            revision,
+            ontology: _,
+            nodes,
+            edges,
+            assertions,
+            evidence,
+            attachments,
+        } = graph;
+        BorrowedGraphEnvelope {
+            format: GraphFormat::Current,
+            graph: BorrowedGraphFields {
+                root,
+                revision: *revision,
+                nodes,
+                edges,
+                assertions,
+                evidence,
+                attachments,
+            },
+        }
+        .serialize(serializer)
+    }
+
     /// The document a canonical graph writes.
     ///
     /// Total and lossless in this direction: every [`CanonicalValue`] is a [`Value`], because the
@@ -125,6 +210,7 @@ impl GraphDocument {
                 .map(|(id, assertion)| (*id, widen_assertion(assertion)))
                 .collect(),
             evidence: graph.evidence.clone(),
+            attachments: graph.attachments.clone(),
         }
     }
 

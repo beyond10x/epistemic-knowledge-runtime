@@ -5,7 +5,7 @@
     "counts": {
       "authored": 0,
       "generated": 2,
-      "outside": 82,
+      "outside": 83,
       "refused": 0
     },
     "generated": [
@@ -1173,6 +1173,17 @@
         ],
         "origin": "generated",
         "reason": "other_component",
+        "scenario": "ekr.views.ExportOcel/outcome/event-time-invalid"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ExportOcel"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
         "scenario": "ekr.views.ExportOcel/outcome/event-type-not-found"
       },
       {
@@ -1519,8 +1530,8 @@
   },
   "provenance": {
     "component": "ekr-integrate",
-    "contract_digest": "2e49cadd7221346d4522c33edc1d119af41a6522028f060aef741f6a59d83f45",
-    "spec_digest": "c53964f94bcb3667a560036dc036b4ca9eb1be1e6c4394af9c0a0bd98ecfc9a9",
+    "contract_digest": "027875da702fedb13519361868b505f09a56eda1f5a87ae9cbe7cf25877f84c6",
+    "spec_digest": "84d423523534a173ee036937b2501923d5955aaf742d9fbe987e4288dbda679d",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"

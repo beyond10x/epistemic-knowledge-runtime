@@ -669,7 +669,24 @@ fn a_validation_another_writer_lands_between_decision_and_admission_is_not_given
     }
 }
 
-/// A session of `commits` commits, each validated against the head.
+fn world_with_edge_claims() -> World {
+    let mut w = world();
+    w.document
+        .ontology
+        .edge_types
+        .iter_mut()
+        .find(|ty| ty.id == w.rel)
+        .unwrap()
+        .properties
+        .insert(
+            w.label,
+            PropertyDefinition::new(w.label, "label", ValueType::String),
+        );
+    w
+}
+
+/// A session of `commits` commits, each validated against the head and adding an edge assertion,
+/// so every revision changes the edge-subject lookup tested by the graph-release cases below.
 fn committed_session(
     path: &Path,
     file: bool,
@@ -681,7 +698,14 @@ fn committed_session(
     let session = open(path, file, authority);
     session.seed(w.document.clone(), || clock.tick()).unwrap();
     for number in 0..commits {
-        let tx = w.filler(TransactionId::mint());
+        let new_edge = EdgeId::mint();
+        let tx = transaction(
+            TransactionId::mint(),
+            vec![
+                w.create_edge(new_edge, w.rel, node(0), node(1)),
+                w.about(AssertionId::mint(), Subject::Edge(new_edge)),
+            ],
+        );
         session
             .propose(&encode(&tx), context().operator, || clock.tick())
             .unwrap();
@@ -695,6 +719,69 @@ fn committed_session(
         assert!(matches!(committed, CommitCommandResult::Committed(_)));
     }
     session
+}
+
+/// An edge assertion invalidates the formerly empty shared index. Its later deletion is refused
+/// at the new head, while the exact older graph still permits it, on both providers and profiles.
+#[test]
+fn an_edge_assertion_invalidates_the_shared_index_without_changing_older_verdicts() {
+    for (profile, authority) in profiles() {
+        for file in [true, false] {
+            let directory = tempfile::tempdir().unwrap();
+            let clock = Clock::new();
+            let w = world_with_edge_claims();
+            let session = open(directory.path(), file, &authority);
+            session.seed(w.document.clone(), || clock.tick()).unwrap();
+            let new_edge = EdgeId::mint();
+            for (number, operations) in [
+                vec![w.create_edge(new_edge, w.rel, node(0), node(1))],
+                vec![w.about(AssertionId::mint(), Subject::Edge(new_edge))],
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                let tx = transaction(TransactionId::mint(), operations);
+                session
+                    .propose(&encode(&tx), context().operator, || clock.tick())
+                    .unwrap();
+                let verdict = session
+                    .validate(tx.id, RevisionNumber::new(number as u64), || clock.tick())
+                    .unwrap();
+                assert!(
+                    matches!(verdict, ValidationCommandResult::Validated(_)),
+                    "{profile} file={file}: {verdict:?}"
+                );
+                assert!(matches!(
+                    session
+                        .commit(tx.id, context().operator, || clock.tick())
+                        .unwrap(),
+                    CommitCommandResult::Committed(_)
+                ));
+            }
+            for (against, accepts, expected_indexes) in [(2, false, 1), (1, true, 0), (2, false, 0)]
+            {
+                let tx = transaction(
+                    TransactionId::mint(),
+                    vec![GraphOperation::DeleteEdge(new_edge)],
+                );
+                session
+                    .propose(&encode(&tx), context().operator, || clock.tick())
+                    .unwrap();
+                let before = edge_indexes_built();
+                let verdict = session
+                    .validate(tx.id, RevisionNumber::new(against), || clock.tick())
+                    .unwrap();
+                assert_eq!(
+                    matches!(verdict, ValidationCommandResult::Validated(_)),
+                    accepts,
+                    "{profile} file={file} against={against}: {verdict:?}"
+                );
+                if against == 2 {
+                    assert_eq!(edge_indexes_built() - before, expected_indexes);
+                }
+            }
+        }
+    }
 }
 /// Proposes a filler and validates it against `against`: the candidate views and edge indexes
 /// the validate command alone built.
@@ -725,7 +812,7 @@ fn a_revisions_edge_index_is_released_with_its_graph() {
             let at = how(profile, file);
             let directory = tempfile::tempdir().unwrap();
             let clock = Clock::new();
-            let w = world();
+            let w = world_with_edge_claims();
             let session = committed_session(directory.path(), file, &authority, &w, &clock, 8);
             let (views, indexes) = validate_counted(&session, &w, &clock, 7);
             assert!(views >= 2, "{at}: revision 7 was reconstructed: {views}");
@@ -750,7 +837,7 @@ fn a_validate_command_against_an_older_released_revision_builds_one_candidate_vi
             let at = how(profile, file);
             let directory = tempfile::tempdir().unwrap();
             let clock = Clock::new();
-            let w = world();
+            let w = world_with_edge_claims();
             let session = committed_session(directory.path(), file, &authority, &w, &clock, 8);
             let (views, indexes) = validate_counted(&session, &w, &clock, 7);
             assert_eq!((views, indexes), (1, 1), "{at}: against revision 7 of 8");

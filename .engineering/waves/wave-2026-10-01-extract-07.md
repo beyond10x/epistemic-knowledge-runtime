@@ -1,9 +1,13 @@
 # Wave extract-07 — the extraction verb, the SDK's judged sample, evidence attachment, validate cost, typed divergence, document bounds
 
 Skill: aep:implementing 0.15.0 (wave mode). Coordinator: the orchestrating Claude session.
-Status: **open** (2026-10-01), dispatched on the operator's instruction of 2026-10-01 ("integrate
+Status: **superseded by correct-07 and extract-07b**, dispatched on the operator's instruction of 2026-10-01 ("integrate
 completed work, cleanup, dispatch next /wave"), from `release-plan:next-waves-2026-09-30`
 (revision 5) plus `task:validate-cost-flat-with-store-size`.
+
+Resume reconciliation, 2026-10-02: V, G, B and L shipped in correct-07 / 0.0.26. A and W retain
+their published WIP commits and managed worktrees; K was not implemented. A, W and K now run
+under `wave-2026-10-02-extract-07b.md`. The opening table below is historical.
 
 Base: `wave/extract-06` at `30703729` (all eight extract-06 units merged; its integration fixes and
 release 0.0.25 follow on that branch). Units branch from `30703729`; the integration branch

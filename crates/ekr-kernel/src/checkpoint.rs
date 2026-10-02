@@ -76,7 +76,7 @@ pub const REPLAY_CHECKPOINT_BYTES: u64 = 16 * 1024 * 1024;
 
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct CheckpointV1 {
+struct CheckpointV1<G = GraphDocument> {
     format: String,
     /// The host context and anchor the replay ran under.
     authority: ContentHash,
@@ -87,7 +87,7 @@ struct CheckpointV1 {
     /// The head revision at the end of that prefix.
     revision: RevisionNumber,
     /// The head revision's graph.
-    graph: GraphDocument,
+    graph: G,
     /// Each schema version, from the revision it came into force at.
     ontologies: Vec<OntologyAt>,
     /// The evidence payloads the admitted seed envelope requires.
@@ -97,6 +97,15 @@ struct CheckpointV1 {
     /// other profile, so that their checkpoints are the bytes they were before the field existed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     held: Vec<HeldAt>,
+}
+
+/// Output borrows the verified graph; the default checkpoint carrier still decodes an owned
+/// GraphDocument and passes it through the unchanged checkpoint admission path.
+struct CheckpointGraph<'a>(&'a CanonicalGraph);
+impl Serialize for CheckpointGraph<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        GraphDocument::serialize_graph(self.0, serializer)
+    }
 }
 #[derive(Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -251,7 +260,7 @@ impl KernelAuthority {
             covered: state.version,
             prefix,
             revision: head.root.revision,
-            graph: GraphDocument::of(head.graph()?),
+            graph: CheckpointGraph(head.graph()?),
             ontologies,
             seed_payloads: state.seed_payloads.clone(),
             held: held_at(&state.held),
@@ -407,7 +416,11 @@ impl KernelAuthority {
     /// the retained one, after this authority wrote it.
     pub(crate) fn checkpoint_retained(&self, covered: u64, revision: RevisionNumber) {
         if let Ok(mut cache) = self.cache.lock() {
+            let previous = cache.retained;
             cache.retained = Some((covered, revision));
+            if let Some((_, previous)) = previous.filter(|(_, previous)| *previous != revision) {
+                cache.release(previous);
+            }
         }
     }
 }
@@ -589,6 +602,7 @@ fn restored(
     require(document.revision == head, "checkpoint-graph-revision")?;
     let narrowed = |error: ekr_store::MembraneError| refuse(&format!("checkpoint-graph: {error}"));
     let graph = CanonicalGraph {
+        attachments: document.attachments,
         root: document.root,
         revision: document.revision,
         ontology: (*schema_at(head)?.1).clone(),
@@ -634,13 +648,20 @@ fn restored(
                 ontology: Arc::clone(&schema_at(number)?.1),
                 graph: if number == head { graph.take() } else { None },
                 asserted_edges: crate::validate::AssertedEdgesCell::default(),
+                alias_holders: Default::default(),
             },
         );
     }
     Ok(ReplayState {
         seed,
         revisions,
-        transactions: Arc::new(transactions),
+        transactions: Arc::new(
+            transactions
+                .into_iter()
+                .map(|(id, record)| (id, Arc::new(record)))
+                .collect(),
+        ),
+        transaction_snapshot: std::sync::OnceLock::new(),
         version,
         digest: Some(checkpoint.prefix),
         seed_payloads: checkpoint.seed_payloads,
@@ -776,6 +797,58 @@ mod tests {
             transaction: &tx,
         };
         (tx.id, serde_yaml_ng::to_string(&wire).unwrap().into_bytes())
+    }
+
+    #[test]
+    fn checkpoint_writer_matches_the_complete_owned_document_bytes() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut authority = anchor();
+        authority.validation_profile = ValidationProfileV1::identity_keeping(context().validator);
+        let kernel = Commit::over_with_authority(context(), authority, |authority| {
+            Ok(FileStore::file(directory.path(), "borrowed", None)?.under(authority))
+        })
+        .unwrap();
+        let seed = seed();
+        kernel
+            .seed(seed.clone(), || Timestamp::from_millis(10))
+            .unwrap();
+        for n in 0..=6 {
+            if n != 0 {
+                let (id, bytes) = document(&seed, n);
+                let at = i64::try_from(n * 100).unwrap();
+                kernel
+                    .propose(&bytes, context().operator, || Timestamp::from_millis(at))
+                    .unwrap();
+                kernel
+                    .validate(id, RevisionNumber::new(n - 1), || {
+                        Timestamp::from_millis(at + 1)
+                    })
+                    .unwrap();
+                kernel
+                    .commit(id, context().operator, || Timestamp::from_millis(at + 2))
+                    .unwrap();
+            }
+            let state = kernel.read_state().unwrap();
+            let (_, _, actual) = kernel.authority.checkpoint(&state).unwrap().unwrap();
+            let owned: super::CheckpointV1 = serde_json::from_slice(&actual).unwrap();
+            assert_eq!(
+                owned.graph,
+                ekr_store::GraphDocument::of(state.head().graph().unwrap())
+            );
+            assert_eq!(actual, serde_json::to_vec(&owned).unwrap());
+            let borrowed = super::CheckpointV1 {
+                format: owned.format,
+                authority: owned.authority,
+                covered: owned.covered,
+                prefix: owned.prefix,
+                revision: owned.revision,
+                graph: super::CheckpointGraph(state.head().graph().unwrap()),
+                ontologies: owned.ontologies,
+                seed_payloads: owned.seed_payloads,
+                held: owned.held,
+            };
+            assert_eq!(actual, serde_json::to_vec(&borrowed).unwrap());
+        }
     }
 
     #[test]
@@ -926,14 +999,15 @@ mod tests {
         let mut unparseable = (*replayed).clone();
         unparseable.documents.clear();
         for record in unparseable.transactions_mut().values_mut() {
-            record.proposal.document_bytes = b"\x00 not a transaction document".to_vec();
+            std::sync::Arc::make_mut(record).proposal.document_bytes =
+                b"\x00 not a transaction document".to_vec();
         }
         let derived = super::held_by(&seeded, &unparseable).unwrap();
         assert_eq!(super::held_at(&derived), truth);
 
         let mut previous = unparseable.clone();
         for record in previous.transactions_mut().values_mut() {
-            if let Some(receipt) = &mut record.committed {
+            if let Some(receipt) = &mut std::sync::Arc::make_mut(record).committed {
                 receipt.created = None;
             }
         }

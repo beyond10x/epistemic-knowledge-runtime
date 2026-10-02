@@ -5097,3 +5097,203 @@ and `crates/ekr/tests/view_cli.rs` (`…_copied_over_its_file`),
 (a recorded redaction and a recorded withdrawal answered as a fresh handle answers them), and
 `crates/ekr-store/tests/eventlog_object_memo.rs`, whose guard lists every provider withdrawal in
 the workspace's sources.
+
+---
+
+# 103. Evidence Attached to a Held Assertion
+
+*Added 2026-10-01 by `story:evidence-attaches-to-a-held-assertion` (wave extract-07). Extends §§ 13,
+16, 19, 21 and 62. It adds one operation and one collection of canonical state; it moves no retained
+encoding, no refusal a store already retains and no root of an existing revision.*
+
+**What was asked.** A consumer's store holds about 67,500 of 69,900 assertions that cite a whole
+source file as evidence, because they came from a full run before per-message evidence existed
+(`AddEvidence` came later, `decision-blocker:evidence-entry-after-seed`). The consumer can now name each assertion's exact message. The
+only route was an `AddAssertion` citing the message and a `SupersedeAssertion` of the old one: one
+new assertion and one history entry per fact that had not changed. Design § 44 lists "seek additional
+evidence" among what the contradiction subsystem can do, with no operation behind it.
+
+## 103.1 The operation
+
+`AttachEvidence` is `ekr.kernel.OperationKind` index 15, after `AddAlias` (14). Its payload is
+`{assertion, evidence}` (`ekr.kernel.EvidenceAttachmentProjection`), encoded as those two ids in that
+order. Appending the variant renumbers nothing, so no `validation_hash` a store retains moves. It is
+data, not a schema change, and is admitted under every validation profile, as `AddAlias` is.
+
+The evidence is one canonical state retains — seeded, or added by an earlier commit — or one an
+`AddEvidence` of the same transaction adds. The attached id is part of what the transaction rests
+on, so it is in `GraphTransaction.evidence`, which the structural validator holds equal to the
+evidence the transaction's assertions cite **and** its attachments attach. The message of
+`evidence-set-mismatch` says "cite or attach" only for a transaction that attaches; every other
+transaction is refused with the words it was refused with before, because replay compares every
+retained rejection's message with what the ruleset says now.
+
+## 103.2 What validation refuses
+
+The checks look the assertion up by id in the snapshot. They do not join the retraction and
+supersession check, which copies every claim of the graph (`validate/lifecycle.rs`), so a
+transaction of a thousand attachments pays a thousand lookups and not the graph's size.
+
+| case | validator | code |
+|---|---|---|
+| the assertion is not one canonical state holds — an assertion the same transaction adds is not one | Reference | `unresolved-assertion` |
+| the evidence is neither retained nor added by an `AddEvidence` of the transaction | Reference | `unresolved-evidence` |
+| the assertion is not accepted and active (`Assertion::is_current`) | Structural | `assertion-not-active` |
+| the same transaction retracts or supersedes the assertion | Structural | `assertion-not-active` |
+| the assertion already cites the evidence, already has it attached, or the transaction attaches it twice | Structural | `evidence-already-attached` |
+
+`unresolved-assertion` and `unresolved-evidence` are the codes an unknown id already earned; the two
+new codes name the two refusals no earlier operation could reach.
+
+## 103.3 The record, and the knowledge root
+
+An attachment is its own record, `ekr.graph.EvidenceAttachment`: which assertion, which evidence,
+which revision. It is not an edit of the assertion. The assertion's subject, predicate, object,
+valid time, lifecycle, assessment, transaction time and the evidence it was added with are the
+bytes they were, so its own address does not move.
+
+`CanonicalGraph` gains `attachments`, a map from an assertion's id to the set of its
+`AttachedEvidence {evidence, revision}`, ordered by evidence id. Commit inserts one entry per
+`AttachEvidence`, with the revision the commit produces. Nothing removes one.
+
+**How the knowledge root covers attachments.** The knowledge root is the address of the node, edge
+and assertion collections, in that order (§ 57). It now continues with the attachment collection
+written as a tagged `Some` — **only when the collection holds an attachment**. A graph with none
+encodes to exactly the bytes it encoded to before the collection existed, so every root a store
+records, every checkpoint's graph and every revision's address stays what it was; the `Some` tag
+cannot be mistaken for anything an enclosing encoding writes next. This is the shape
+`GraphTransaction.schema_version` and a `NodeDraft`'s aliases already take. A graph with
+attachments has a knowledge root no graph without them can have, and two graphs that differ only
+in an attachment, or only in the revision that made one, have different roots. The evidence root
+is unchanged in definition: an attachment adds no evidence, and an `AddEvidence` beside it moves
+the evidence root as it always did.
+
+`ekr.graph-document/2` gains `attachments` as an optional field, omitted when empty, so the
+document a snapshot or checkpoint writes for a graph without attachments is byte for byte the one
+it wrote before. A seed may not carry one (`seed-attachments`): an attachment is made by a commit,
+at a revision the seed precedes.
+
+`crates/ekr-kernel/tests/attachment_base_store.rs` holds the claim to retained bytes: a SQLite store
+written by the kernel at the wave's base (`30703729`), with a seed and six commits and a replay
+checkpoint, opens under this kernel from its checkpoint and again with a full replay, at the same
+head, and every revision's knowledge root, evidence root and graph document hash is the one the base
+recorded. Migrating that store to the File provider and reopening it preserves those same values.
+The attachment acceptance also migrates stores containing attachments on both providers and checks
+their historical explanations again after a full replay.
+
+## 103.4 Explain, supersession and quality
+
+`ekr explain` lists, after an assertion's lifecycle links, one `Attachment` link per attachment the
+captured revision holds — `assertion_id`, `evidence_id`, `revision` and the attaching commit by
+reference — and the attached evidence among its `Evidence` links. The attaching commit's document is
+read and must attach exactly that evidence to that assertion (`attachment-disagrees`). Only the
+attached id joins the chain's evidence, not the attaching commit's whole evidence set, so a
+transaction of a thousand attachments does not put a thousand entries into each explanation. An
+explanation at a revision before the attachment does not list it, because that revision's graph does
+not hold it. `ekr.explanation/2` gains the link kind without a version bump: a reader that does not
+know a kind skips it, which the SDK's reader already does, and the SDK reads it as a typed link.
+
+A supersession does not carry attachments to the replacement: they stay with the superseded
+assertion, and an explanation of the replacement lists none of them. The superseded assertion's own
+explanation, at any revision from the attachment on, still does.
+
+`ekr quality` counts attached evidence as it counts cited evidence, in `assertions.with_evidence`
+and in `assertions.with_item_evidence`: an assertion that cites only seeded evidence and has
+message evidence attached later is item-evidenced.
+
+## 103.5 Result, and what is not changed
+
+A transaction of `AddEvidence` and `AttachEvidence` commits on both providers under every profile;
+the assertion is byte-identical before and after; `ekr explain` at the new revision lists both
+evidence entries and at the revision before only the original; replay from the seed and from a
+checkpoint reproduces every root. 1,000 attachments in one transaction against a store of 70,000
+assertions commit; the measured time is recorded on the story, and no bound is set before
+`story:commit-cost-flat-with-store-size`.
+
+Out of this section: the views `describe` and `changes` reads showing attachments.
+
+Executed by `crates/ekr-kernel/tests/attach_evidence.rs` (the acceptance under every profile on both
+providers, each refusal through the store, the supersession case and the 1,000-attachment
+measurement), `crates/ekr-kernel/tests/validation.rs` (each refusal pinned by validator, code and
+message), `crates/ekr-kernel/tests/attachment_base_store.rs` (the base store's roots),
+`crates/ekr-views/tests/quality.rs` (both quality figures), the kernel conformance scenarios
+`evidence-added-and-attached-to-a-held-assertion-commits`,
+`an-attachment-to-an-assertion-no-revision-holds-is-rejected-by-name`,
+`an-attachment-of-evidence-no-revision-holds-is-rejected-by-name`,
+`an-attachment-to-a-retracted-assertion-is-rejected-by-name`,
+`an-attachment-to-a-superseded-assertion-is-rejected-by-name`,
+`evidence-already-attached-is-rejected-by-name` and
+`evidence-an-assertion-already-cites-is-rejected-by-name` on both providers, and
+`crates/ekr/tests/docs_cli.rs`, which holds `docs/cli.md`'s operation table and refusals to the
+binary.
+
+---
+
+# 104. Verified Replay Reuse in Warm Sessions
+
+*Added 2026-10-02 by wave extract-07b (`task:validate-cost-flat-with-store-size`). Extends
+§§ 98–99. Retained formats, canonical encodings, admission, refusal and checkpoint rules remain
+unchanged.*
+
+## 104.1 Reuse follows verified inputs
+
+A warm authority shares immutable transaction records internally, and a session settling a
+request reads the states of the transactions it needs. Public transaction snapshots remain
+immutable. Validation borrows unchanged node types and reuses an alias lookup only for the exact
+revision and roots it names. A historical or different lineage rebuilds that lookup.
+Record sharing and alias work are counted by the replay unit cases
+`validating_one_transaction_does_not_copy_prior_document_buffers` and
+`warm_alias_checks_visit_no_unchanged_nodes`; selected reads and held snapshots are exercised by
+`adversary_selected_states_follow_peer_decisions_without_mutating_held_snapshots` in
+`crates/ekr-kernel/tests/verified_read.rs`. `tests/candidate_built_once.rs` holds candidate reuse.
+
+Replay-prefix digests are memoized only after comparing each complete canonical event and its
+stream position. A changed, shortened or different history keeps only its equal prefix. Provider
+identities remain outside the canonical prefix encoding. The memo computes hashes; retained
+object verification and kernel admission still decide whether the history is admissible.
+`prefix_hash_memo_compares_every_occurrence_and_preserves_held_digest_vectors` exercises content
+and position changes, native identities, shortening and held vectors;
+`warm_validation_hashes_no_more_prefix_occurrences_as_history_grows` counts the hashing work.
+Both are kernel replay unit cases.
+
+An assertion-edge index is shared across a verified successor only when its operations leave
+assertion subjects unchanged. Adding an edge assertion invalidates it. Executed by
+`node_only_commits_share_the_unchanged_assertion_edge_index` and
+`an_edge_assertion_invalidates_the_shared_index_without_changing_older_verdicts` in the kernel
+replay unit tests and `tests/adversary_validate_once.rs`, respectively.
+
+## 104.2 A private buffer may replace a full graph copy
+
+After an exact confirmed publication, the authority may take an exclusively owned predecessor
+state and graph. Its sealed transaction advances that private graph to the confirmed head before
+the next append transaction is applied. Reuse requires the target graph allocation, complete
+root, revision identity and commit time to match. It is restricted to CreateNode, AddAssertion
+and AddEvidence without schema evolution; other operations use the clone path.
+
+This retains at most one additional predecessor buffer per authority. The replay cache owns it;
+a thread-local lookup holds only a weak reference. Closing the authority releases the buffer.
+External readers and retained checkpoints prevent extraction, and their immutable graphs remain
+available. A missing or mismatched buffer falls back to cloning. An abandoned candidate cannot
+become a buffer through an unconfirmed publication.
+
+Kernel replay unit cases execute these boundaries:
+`append_commits_copy_no_more_assertions_as_the_graph_grows` compares the complete graph and root
+with a forced clone and fresh hashing;
+`reusable_graph_belongs_to_the_authority_not_the_thread` holds the lifetime;
+`readers_and_checkpoint_graphs_prevent_reuse_extraction` holds the ownership fallback;
+`reused_graph_preserves_inherited_attachments_and_matches_forced_clone` holds attached evidence;
+`an_unpublished_candidate_cannot_seed_reuse` holds an abandoned decision and retry; and
+`an_equal_root_replayed_by_another_authority_falls_back_to_clone` holds the allocation boundary.
+
+## 104.3 Compatibility and measured acceptance
+
+Canonical hashing uses the accelerated SHA-256 backend without changing domains or encoded bytes.
+The independent SHA-256 oracle in `crates/ekr-core/tests/sha256_backend.rs`, literal content-hash
+vectors and streaming encoder contracts hold compatibility. Public graph types stay owned and
+unchanged; private reuse does not make mutable state visible to a reader.
+
+The default gate counts work. The ignored release benchmark in
+`crates/ekr-sdk/tests/commit_scaling.rs` separately enforces the task's validation and commit timing
+limits at its unchanged default SQLite sizes, alongside its existing aggregate checks. Exact
+measurements, load and unresolved results are recorded on the task. A counted improvement or a
+passing aggregate statistic alone does not establish that timing acceptance.

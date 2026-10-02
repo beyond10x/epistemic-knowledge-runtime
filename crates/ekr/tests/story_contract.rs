@@ -128,12 +128,14 @@ const EDGES: [(&str, &[&str]); 6] = [
 /// (`story:extraction-verb-shares-the-sdk-path`). `ekr-core`'s `serde_yaml_ng`, a dev
 /// dependency until then, carries the bounded YAML observation the extraction reader and the
 /// SDK's mirror share (`ekr_core::decode::observe_yaml`, wave correct-07).
+/// For `task:validate-cost-flat-with-store-size`, core's SHA-256 implementation uses `ring`;
+/// `sha2` remains a dev dependency as the independent oracle for unchanged digest bytes.
 const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
     (
         "ekr-core",
         &[
             "uuid",
-            "sha2",
+            "ring",
             "hex",
             "schemars",
             "serde",
@@ -141,7 +143,7 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
             "serde_yaml_ng",
             "thiserror",
         ],
-        &["proptest"],
+        &["proptest", "sha2"],
     ),
     (
         "ekr-kernel",

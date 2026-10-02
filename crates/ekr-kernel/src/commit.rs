@@ -40,7 +40,25 @@ impl CommitAuthority for KernelAuthority {
         // reads the ones it names where held (`objects_if_held`), judging an absent one itself.
         let (payloads, named) = self.seed_payloads(history, seed_hash)?;
         let mut required = if named { BTreeSet::new() } else { payloads };
-        required.extend(self.added_evidence_required(history)?);
+        required.extend(self.added_evidence_required(history, false)?);
+        Ok(required)
+    }
+    /// [`Self::required_objects`] with only the added payloads a replay continuing from the state
+    /// this authority reached reads: those the commits after it added. Every earlier one was
+    /// checked by the replay that reached that state, and replay never reads it again.
+    fn replay_objects(
+        &self,
+        history: &RetainedHistory,
+    ) -> Result<BTreeSet<ContentHash>, StoreError> {
+        let Some(first) = history.occurrences.first() else {
+            return Ok(BTreeSet::new());
+        };
+        let RevisionPayload::Seeded { seed_hash, .. } = first.event.payload else {
+            return Err(StoreError::NotSeeded);
+        };
+        let (payloads, named) = self.seed_payloads(history, seed_hash)?;
+        let mut required = if named { BTreeSet::new() } else { payloads };
+        required.extend(self.added_evidence_required(history, true)?);
         Ok(required)
     }
     fn objects_if_held(
@@ -121,20 +139,40 @@ impl KernelAuthority {
     /// evidence. Only the commits after that prefix are read: each retained receipt's proposal
     /// document, parsed for its `AddEvidence` operations. A receipt or document that does not
     /// read contributes nothing here; replay refuses it by its own name.
+    ///
+    /// With `replaying`, the payloads that state's head graph names are left out: a replay that
+    /// continues from it reads only the payloads of the commits after it. They are left out only
+    /// where that replay can continue from it, which needs the graph of every revision an
+    /// occurrence after it is validated or rejected against; otherwise every payload is named, as
+    /// a replay from the seed reads every one.
     fn added_evidence_required(
         &self,
         history: &RetainedHistory,
+        replaying: bool,
     ) -> Result<BTreeSet<ContentHash>, StoreError> {
         if history.occurrences.is_empty() {
             return Ok(BTreeSet::new());
         }
-        let digests = crate::replay::prefix_digests(&history.occurrences);
+        let digests = self.cache()?.digests(&history.occurrences);
         let reached = self.cache()?.longest(&digests);
+        let continues = |covered: usize, state: &crate::replay::ReplayState| {
+            let head = state.head().root.revision;
+            Self::bases(history, covered).keys().all(|basis| {
+                *basis > head
+                    || state
+                        .revisions
+                        .get(basis)
+                        .is_some_and(|revision| revision.graph.is_some())
+            })
+        };
         let (start, mut required) = match reached
             .as_ref()
-            .and_then(|(covered, state)| Some((*covered, state.head().graph.as_deref()?)))
+            .and_then(|(covered, state)| Some((*covered, state, state.head().graph.as_deref()?)))
         {
-            Some((covered, graph)) => (
+            Some((covered, state, _)) if replaying && continues(covered, state) => {
+                (covered, BTreeSet::new())
+            }
+            Some((covered, _, graph)) => (
                 covered,
                 graph
                     .evidence

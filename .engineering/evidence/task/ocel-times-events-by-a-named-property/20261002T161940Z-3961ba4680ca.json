@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-02T16:19:40Z",
+  "actor": "agent:codex-ekr-x7b-root",
+  "artifact": "task:ocel-times-events-by-a-named-property",
+  "kind": "task",
+  "revision": 6,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "task check on 570cb34cf157e0703d3a48c7ce6d102933cb380d; exit 0",
+    "reference": "<cache>/ekr-extract-07b/coordinator/full-serialization-combined-check.log"
+  }
+}

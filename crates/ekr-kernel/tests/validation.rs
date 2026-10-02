@@ -23,14 +23,14 @@ use ekr_core::{
     RevisionNumber, SchemaVersionId, Timestamp, TransactionId, TypeId,
 };
 use ekr_graph::{
-    Assertion, Assessment, CanonicalGraph, CanonicalRef, CanonicalValue, Confidence, Edge,
-    Evidence, EvidenceSource, GraphRoot, GraphSnapshot, Node, Object, Predicate, RetractionReason,
-    Space, Subject, TemporalRange, TransactionTime,
+    Assertion, Assessment, AttachedEvidence, CanonicalGraph, CanonicalRef, CanonicalValue,
+    Confidence, Edge, Evidence, EvidenceSource, GraphRoot, GraphSnapshot, Node, Object, Predicate,
+    RetractionReason, Space, Subject, TemporalRange, TransactionTime,
 };
 use ekr_kernel::{
-    Authorization, Cardinality as CardinalityValidator, EdgeDraft, EntityMerge, GraphOperation,
-    GraphTransaction, NodeDraft, OntologyConstraint, Pipeline, PropertyMutation, Provenance,
-    Reference, Structural, Types, ValidationIssue, Validator, ValidatorName,
+    Authorization, Cardinality as CardinalityValidator, EdgeDraft, EntityMerge, EvidenceAttachment,
+    GraphOperation, GraphTransaction, NodeDraft, OntologyConstraint, Pipeline, PropertyMutation,
+    Provenance, Reference, Structural, Types, ValidationIssue, Validator, ValidatorName,
 };
 use ekr_ontology::{
     Cardinality, EdgeType, Lifecycle, NodeType, Ontology, OntologyDocument, OperationDefinition,
@@ -167,6 +167,7 @@ impl World {
 
         Self {
             graph: CanonicalGraph {
+                attachments: Default::default(),
                 root: GraphRoot {
                     id: root_id,
                     space: Space::Canonical,
@@ -213,7 +214,10 @@ impl World {
         let evidence = operations
             .iter()
             .filter_map(|operation| match operation {
-                GraphOperation::AddAssertion(assertion) => Some(assertion.evidence.iter().copied()),
+                GraphOperation::AddAssertion(assertion) => Some(assertion.evidence.clone()),
+                GraphOperation::AttachEvidence(attachment) => {
+                    Some(BTreeSet::from([attachment.evidence]))
+                }
                 _ => None,
             })
             .flatten()
@@ -904,6 +908,222 @@ fn an_added_alias_is_held_to_the_rules_a_created_nodes_aliases_are_held_to() {
             .validate(&GraphSnapshot::of(&other_type), &proposal)
             .is_ok(),
         "a node of another type holding the alias does not identify this one"
+    );
+}
+
+/// `story:evidence-attaches-to-a-held-assertion`: an `AttachEvidence` names an assertion canonical
+/// state holds and evidence it retains or the transaction adds, and each way it can be wrong is
+/// one refusal, pinned whole — validator, code and message. The assertion is looked up by id: a
+/// held assertion that is not current, or that the same transaction retracts or supersedes, is
+/// `assertion-not-active`; evidence it cites, has attached, or that the transaction attaches to it
+/// twice, is `evidence-already-attached`; an assertion canonical state does not hold — one the
+/// same transaction adds among them — is `Reference`'s `unresolved-assertion`, and evidence
+/// nothing retains or adds its `unresolved-evidence`. Attached evidence is in the declared
+/// evidence set, which is held to it as to what assertions cite.
+#[test]
+fn an_attachment_is_refused_by_name_for_each_way_it_can_be_wrong() {
+    let mut world = World::new();
+    let (held, retained) = (world.held_assertion, world.retained_evidence);
+    let retained_entry = world.graph.evidence[&retained].clone();
+    let entry = |id: EvidenceId| Evidence {
+        id,
+        ..retained_entry.clone()
+    };
+    let (other, attached) = (EvidenceId::mint(), EvidenceId::mint());
+    world.graph.evidence.insert(other, entry(other));
+    world.graph.evidence.insert(attached, entry(attached));
+    world.graph.attachments.insert(
+        held,
+        BTreeSet::from([AttachedEvidence {
+            evidence: CanonicalRef::new(attached),
+            revision: RevisionNumber::new(5),
+        }]),
+    );
+    let withdrawn = AssertionId::mint();
+    let mut retracted = world.graph.assertions[&held].clone();
+    retracted.id = withdrawn;
+    retracted.lifecycle = ekr_graph::AssertionLifecycle::Retracted {
+        at_revision: RevisionNumber::new(6),
+        reason: RetractionReason::new("withdrawn"),
+    };
+    world.graph.assertions.insert(withdrawn, retracted);
+
+    let attach = |assertion: AssertionId, evidence: EvidenceId| {
+        GraphOperation::AttachEvidence(EvidenceAttachment {
+            assertion,
+            evidence,
+        })
+    };
+    let pinned = |issues: &[ValidationIssue]| -> Vec<(ValidatorName, String, String)> {
+        issues
+            .iter()
+            .map(|issue| (issue.validator, issue.code.clone(), issue.message.clone()))
+            .collect()
+    };
+    let one = |validator: ValidatorName, code: &str, message: String| {
+        vec![(validator, code.to_owned(), message)]
+    };
+
+    let admitted = world.proposal(vec![attach(held, other)]);
+    assert_eq!(admitted.evidence, BTreeSet::from([other]));
+    assert!(world
+        .pipeline()
+        .validate(&world.snapshot(), &admitted)
+        .is_ok());
+
+    let unknown = AssertionId::mint();
+    assert_eq!(
+        pinned(&refuse(&world, vec![attach(unknown, other)])),
+        one(
+            ValidatorName::Reference,
+            "unresolved-assertion",
+            format!(
+                "assertion {unknown} is not in the graph; evidence attaches to an assertion a \
+                 committed revision holds"
+            )
+        )
+    );
+    let fresh = AssertionId::mint();
+    assert_eq!(
+        pinned(&refuse(
+            &world,
+            vec![
+                GraphOperation::AddAssertion(Box::new(world.supported_assertion(fresh))),
+                attach(fresh, other),
+            ]
+        )),
+        one(
+            ValidatorName::Reference,
+            "unresolved-assertion",
+            format!(
+                "assertion {fresh} is not in the graph; evidence attaches to an assertion a \
+                 committed revision holds"
+            )
+        )
+    );
+    let missing = EvidenceId::mint();
+    assert_eq!(
+        pinned(&refuse(&world, vec![attach(held, missing)])),
+        one(
+            ValidatorName::Reference,
+            "unresolved-evidence",
+            format!(
+                "evidence {missing} attached to assertion {held} is not retained by canonical \
+                 state, and no AddEvidence of the transaction adds it"
+            )
+        )
+    );
+    assert_eq!(
+        pinned(&refuse(&world, vec![attach(withdrawn, other)])),
+        one(
+            ValidatorName::Structural,
+            "assertion-not-active",
+            format!(
+                "assertion {withdrawn} is not accepted and active; evidence attaches only to a \
+                 current assertion"
+            )
+        )
+    );
+    assert_eq!(
+        pinned(&refuse(
+            &world,
+            vec![
+                attach(held, other),
+                GraphOperation::RetractAssertion(ekr_kernel::Retraction {
+                    assertion: held,
+                    reason: RetractionReason::new("withdrawn"),
+                }),
+            ]
+        )),
+        one(
+            ValidatorName::Structural,
+            "assertion-not-active",
+            format!(
+                "assertion {held} is retracted or superseded by this transaction; evidence \
+                 attaches only to an assertion that stays active"
+            )
+        )
+    );
+    let replacement = AssertionId::mint();
+    let mut replacing = world.supported_assertion(replacement);
+    replacing.valid_time = TemporalRange::since(Timestamp::from_millis(1_000));
+    assert_eq!(
+        pinned(&refuse(
+            &world,
+            vec![
+                attach(held, other),
+                GraphOperation::AddAssertion(Box::new(replacing)),
+                GraphOperation::SupersedeAssertion(ekr_kernel::Supersession {
+                    assertion: held,
+                    by: replacement,
+                    effective_from: Timestamp::from_millis(1_000),
+                }),
+            ]
+        )),
+        one(
+            ValidatorName::Structural,
+            "assertion-not-active",
+            format!(
+                "assertion {held} is retracted or superseded by this transaction; evidence \
+                 attaches only to an assertion that stays active"
+            )
+        )
+    );
+    assert_eq!(
+        pinned(&refuse(&world, vec![attach(held, retained)])),
+        one(
+            ValidatorName::Structural,
+            "evidence-already-attached",
+            format!(
+                "assertion {held} already cites evidence {retained}; evidence attaches to an \
+                 assertion once"
+            )
+        )
+    );
+    assert_eq!(
+        pinned(&refuse(&world, vec![attach(held, attached)])),
+        one(
+            ValidatorName::Structural,
+            "evidence-already-attached",
+            format!(
+                "assertion {held} already has evidence {attached} attached, at revision 5; \
+                 evidence attaches to an assertion once"
+            )
+        )
+    );
+    assert_eq!(
+        pinned(&refuse(
+            &world,
+            vec![attach(held, other), attach(held, other)]
+        )),
+        one(
+            ValidatorName::Structural,
+            "evidence-already-attached",
+            format!(
+                "evidence {other} is attached to assertion {held} twice by this transaction; \
+                 evidence attaches to an assertion once"
+            )
+        )
+    );
+
+    let mut undeclared = world.proposal(vec![attach(held, other)]);
+    undeclared.evidence.clear();
+    let issues = world
+        .pipeline()
+        .validate(&world.snapshot(), &undeclared)
+        .err()
+        .unwrap_or_default();
+    assert_eq!(
+        pinned(&issues),
+        one(
+            ValidatorName::Structural,
+            "evidence-set-mismatch",
+            format!(
+                "the transaction declares it rests on [] and its assertions cite or its \
+                 attachments attach [\"{other}\"]; the declared set is what `evidence_hash` \
+                 addresses and is held to the operations"
+            )
+        )
     );
 }
 
@@ -1837,9 +2057,9 @@ fn every_issue_code_the_kernel_can_raise_is_raised_by_a_case() {
     );
 }
 
-/// The fifteen `GraphOperation` numbers are the domain's list, the declaration order and the
+/// The sixteen `GraphOperation` numbers are the domain's list, the declaration order and the
 /// encoding's, all three. There were eleven; `SupersedeAssertion` took 11, `AddEvidence` 12,
-/// `WidenEdgeType` 13 and `AddAlias` 14.
+/// `WidenEdgeType` 13, `AddAlias` 14 and `AttachEvidence` 15.
 ///
 /// `Encoder::variant`'s own doc puts the obligation here and names the precedent:
 ///
@@ -1866,13 +2086,13 @@ fn every_issue_code_the_kernel_can_raise_is_raised_by_a_case() {
 /// renumbering which moved all three lists together still turns this red.
 ///
 /// The name still says twelve: design § 95 cites the case by it, and an amendment adds rather
-/// than rewrites. It holds thirteen since `AddEvidence`, fourteen since `WidenEdgeType` and fifteen
-/// since `AddAlias`.
+/// than rewrites. It holds thirteen since `AddEvidence`, fourteen since `WidenEdgeType`, fifteen
+/// since `AddAlias` and sixteen since `AttachEvidence`.
 #[test]
 fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
     /// The names in the order their numbers count in, transcribed from
     /// `ekr.kernel.OperationKind`.
-    const NAMES: [&str; 15] = [
+    const NAMES: [&str; 16] = [
         "CreateNode",
         "UpdateProperty",
         "CreateEdge",
@@ -1888,6 +2108,7 @@ fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
         "AddEvidence",
         "WidenEdgeType",
         "AddAlias",
+        "AttachEvidence",
     ];
 
     let domain = read_workspace_file("systems/ekr/domains/kernel.yaml");
@@ -1987,7 +2208,7 @@ fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
         "the encode scan found {numbered:?}, which is not one arm per name"
     );
     for (position, (index, name)) in numbered.iter().enumerate() {
-        let expected = u32::try_from(position).expect("fifteen variants fit in a u32");
+        let expected = u32::try_from(position).expect("sixteen variants fit in a u32");
         assert_eq!(
             (*index, name.as_str()),
             (expected, NAMES[position]),
@@ -2000,7 +2221,7 @@ fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
     // tag byte and the index, big-endian, and it opens the encoding.
     let world = World::new();
     for (position, operation) in one_of_each_operation(&world).iter().enumerate() {
-        let index = u32::try_from(position).expect("fifteen variants fit in a u32");
+        let index = u32::try_from(position).expect("sixteen variants fit in a u32");
         let mut expected = vec![0x0f_u8];
         expected.extend_from_slice(&index.to_be_bytes());
         assert_eq!(
@@ -2012,7 +2233,7 @@ fn the_twelve_current_operation_numbers_are_the_domains_and_the_declarations() {
     }
 }
 
-/// One operation of each variant, in the order the fifteen numbers count in.
+/// One operation of each variant, in the order the sixteen numbers count in.
 fn one_of_each_operation(world: &World) -> Vec<GraphOperation<CanonicalValue>> {
     let node = NodeId::mint();
     vec![
@@ -2094,6 +2315,10 @@ fn one_of_each_operation(world: &World) -> Vec<GraphOperation<CanonicalValue>> {
         GraphOperation::AddAlias(ekr_kernel::AliasAddition {
             node,
             alias: "one".to_owned(),
+        }),
+        GraphOperation::AttachEvidence(EvidenceAttachment {
+            assertion: world.held_assertion,
+            evidence: world.retained_evidence,
         }),
     ]
 }
@@ -2311,7 +2536,7 @@ fn every_field_of_every_encoded_type_reaches_its_encoding() {
 /// Every struct whose fields the kernel's `validation_hash` is computed over, and the file each is
 /// declared in. The upstream ones are here because the kernel encodes them by hand: they are
 /// `ekr_ontology`'s, and a foreign trait cannot be implemented for a foreign type.
-const ENCODED: [(&str, &str); 15] = [
+const ENCODED: [(&str, &str); 16] = [
     ("GraphTransaction", "transaction"),
     ("EvidenceAddition", "transaction"),
     ("PropertyModification", "transaction"),
@@ -2321,6 +2546,7 @@ const ENCODED: [(&str, &str); 15] = [
     ("EntityMerge", "transaction"),
     ("EdgeWidening", "transaction"),
     ("AliasAddition", "transaction"),
+    ("EvidenceAttachment", "transaction"),
     ("PropertyDefinition", "ontology-types"),
     ("NodeType", "ontology-types"),
     ("EdgeType", "ontology-types"),

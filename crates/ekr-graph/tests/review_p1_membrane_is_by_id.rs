@@ -103,6 +103,7 @@ fn canonical_state_resolves_the_references_it_holds_and_answers_none_for_one_it_
         CanonicalRef::new(also_held.id),
     );
     let canonical = CanonicalGraph {
+        attachments: Default::default(),
         root: canonical_root,
         revision: RevisionNumber::SEED,
         ontology,

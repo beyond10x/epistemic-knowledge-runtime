@@ -105,6 +105,7 @@ fn a_reference_to_evidence_resolves_to_evidence_and_never_to_a_node() {
         confidence: Confidence::CERTAIN,
     };
     let with_both = CanonicalGraph {
+        attachments: Default::default(),
         root,
         revision: RevisionNumber::SEED,
         ontology: ontology(),
@@ -114,6 +115,7 @@ fn a_reference_to_evidence_resolves_to_evidence_and_never_to_a_node() {
         evidence: [(retained.id, retained.clone())].into_iter().collect(),
     };
     let nodes_only = CanonicalGraph {
+        attachments: Default::default(),
         evidence: BTreeMap::new(),
         ..with_both.clone()
     };

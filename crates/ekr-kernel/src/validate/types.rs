@@ -400,6 +400,7 @@ impl Check for Types {
                 | GraphOperation::ModifyProperty(_)
                 | GraphOperation::WidenEdgeType(_)
                 | GraphOperation::AddAlias(_)
+                | GraphOperation::AttachEvidence(_)
                 | GraphOperation::AddEvidence(_) => {}
             }
         }
@@ -459,6 +460,7 @@ fn values_of(operation: &GraphOperation) -> Vec<(String, &Value)> {
         | GraphOperation::ModifyProperty(_)
         | GraphOperation::WidenEdgeType(_)
         | GraphOperation::AddAlias(_)
+        | GraphOperation::AttachEvidence(_)
         | GraphOperation::MergeEntity(_)
         | GraphOperation::AddEvidence(_) => Vec::new(),
     }

@@ -27,9 +27,9 @@
 use std::fmt;
 use std::str::FromStr;
 
+use ring::digest::{Context, SHA256};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use sha2::{Digest, Sha256};
 
 use crate::canonical::Canonical;
 
@@ -58,10 +58,16 @@ impl ContentHash {
     /// The digest of a domain label followed by bytes: the payload domain's one hashing path, and
     /// what [`ContentHash::of`] computes for the value domain without holding the bytes.
     fn under_domain(domain: &[u8], bytes: &[u8]) -> Self {
-        let mut hasher = Sha256::new();
+        let mut hasher = Context::new(&SHA256);
         hasher.update(domain);
         hasher.update(bytes);
-        Self(hasher.finalize().into())
+        Self(
+            hasher
+                .finish()
+                .as_ref()
+                .try_into()
+                .expect("SHA-256 is 32 bytes"),
+        )
     }
 
     /// The address of a raw payload — bytes from outside the runtime, under
@@ -112,10 +118,13 @@ impl ContentHash {
 impl fmt::Display for ContentHash {
     /// Lowercase hex, and only lowercase: a content address has one text form or it is not one.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for byte in self.0 {
-            write!(f, "{byte:02x}")?;
+        const HEX: &[u8; 16] = b"0123456789abcdef";
+        let mut text = [0; HEX_LEN];
+        for (index, byte) in self.0.iter().enumerate() {
+            text[index * 2] = HEX[usize::from(byte >> 4)];
+            text[index * 2 + 1] = HEX[usize::from(byte & 15)];
         }
-        Ok(())
+        f.write_str(std::str::from_utf8(&text).expect("hex digits are ASCII"))
     }
 }
 

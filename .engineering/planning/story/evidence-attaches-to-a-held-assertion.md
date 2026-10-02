@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:evidence-attaches-to-a-held-assertion
 kind: story
-status: active
+status: implemented
 title: Evidence attaches to an assertion the store already holds
 relations:
 - decomposes: epic:consumer-sdk
@@ -11,6 +11,14 @@ relations:
 scope:
 - confidence: inferred
   path: CHANGELOG.md
+- confidence: cited
+  path: crates/ekr-core/src/identity.rs
+- confidence: cited
+  path: crates/ekr-core/src/lib.rs
+- confidence: cited
+  path: crates/ekr-core/tests/identity_serde.rs
+- confidence: cited
+  path: crates/ekr-core/tests/rename_stability.rs
 - confidence: inferred
   path: crates/ekr-graph/src/canonical.rs
 - confidence: cited
@@ -77,10 +85,11 @@ scope:
   path: systems/ekr/domains/kernel.yaml
 - confidence: cited
   path: systems/ekr/domains/views.yaml
-revision: 39
+revision: 46
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T09:59:45Z", actor: "human:timo", revision: 38}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:06Z", actor: "human:timo", revision: 39}
+- {from: "active", to: "implemented", at: "2026-10-02T16:21:29Z", actor: "agent:codex-ekr-x7b-root", revision: 46, decided_on: {"recorded":{"test_result":1,"review_outcome":3}}}
 ---
 ## Context
 
@@ -178,3 +187,71 @@ the compiler and the `AddAlias` precedent; the graph-collection placement above 
 - Would collide with, in wave extract-07: `story:extraction-verb-shares-the-sdk-path` on
   `docs/cli.md`, `cli/agent.rs`, `tests/agent_cli.rs`, the kernel conformance manifest and suites;
   `task:seed-document-bounds-alias-expansion` on `docs/cli.md`.
+
+## Resume acceptance evidence (2026-10-02)
+
+Recovered implementation and released-main reconciliation were followed by package validation and two adversary passes. The first found silent duplicate attachment decoding; correction bf48f7060 rejects repeated decoded records. The second pass adds equivalent JSON-spelling coverage and finds no residue. Reports: review-result:adversary-extract-07b-a-pass-1 and review-result:adversary-extract-07b-a-pass-2. The combined wave gate remains required before implementation status changes.
+
+The required large-store run, measured by the implementation's ignored attachment case (measurement.log, exit 0):
+
+```text
+sqlite: seeded 70000 assertions in 23.043622751s
+sqlite: 1000 AddEvidence + 1000 AttachEvidence (627176 bytes) against 70000 assertions: propose 3.732851352s, validate 30.591794ms, commit 931.509635ms, total 4.694952781s
+file: seeded 70000 assertions in 23.600420943s
+file: 1000 AddEvidence + 1000 AttachEvidence (627176 bytes) against 70000 assertions: propose 3.496460526s, validate 34.732145ms, commit 2.760908659s, total 6.29210133s
+
+```
+
+## Release documentation reconciliation (2026-10-02)
+
+Released-main reconciliation placed the attachment amendment in design section 103; section 102
+belongs to the released store replacement checks. The earlier scope's planned section number is
+historical. Current release notes and overview now cite section 103. The recovered attachment
+release note was also moved out of the 0.0.25 history into Unreleased, where extract-07b belongs.
+These are documentation corrections; no runtime acceptance or historical design amendment changed.
+
+## Integrated identity carrier
+
+The combined gate's every_ess_id_type_exists_in_the_crate case found that the accepted ESS
+AttachmentId declaration lacked its core UUID carrier. The core identity macro now declares and
+reexports AttachmentId, alongside SupportId; existing serde, arbitrary-bit roundtrip and mint
+uniqueness coverage includes it. The macro's documented count is updated to match its invocations.
+Runtime attachments continue to use assertion/evidence pair keys; this adds no minted runtime
+attachment field, graph bytes or canonical-root change.
+
+The story's machine-readable scope now includes the core carrier and its existing contract suites.
+Focused workspace identity_serde, rename_stability and public_surface tests pass, with raw output
+retained in coordinator attachment-identity-corrected.log. The global identity and public-surface
+guards are unchanged. Full combined correctness still follows the final W correction.
+
+## Identity diagnostic reconciliation
+
+The new identity carrier changes rustc's incidental list of Canonical implementors in
+transient_state_has_no_content_address.stderr. The old and new diagnostics were compared before
+refresh: ContentHash::of(node), ContentHash::of(edge) and ContentHash::of(assertion) still fail
+at their same expressions with E0277 and the same primary missing-Canonical message. Only the
+help-list entry BTreeMap<K, V> becomes AttachmentId. No forbidden operation compiles and no
+compile-fail case was removed.
+
+Only the affected membrane target was refreshed. Its diff was reviewed, then that target passed
+again with TRYBUILD overwrite disabled. Raw initial, refresh and verification outputs remain in
+coordinator remaining-crates-check.log, attachment-membrane-refresh.log and
+attachment-membrane-verified.log.
+
+## Combined source correctness gate
+
+The complete `task check` passed on frozen source
+`570cb34cf157e0703d3a48c7ce6d102933cb380d`. The retained coordinator log
+`<cache>/ekr-extract-07b/coordinator/full-serialization-combined-check.log` ends with:
+
+```text
+CHECK_EXIT=0
+Fri Oct  2 16:19:40 UTC 2026
+```
+
+This covers formatting, workspace clippy and tests, benchmark-feature compilation, rustdoc,
+vendored YAML compatibility, pinned specification validation, generated-suite freshness and
+planning validation. Historical prose-only planning review warnings remain. The previously
+recorded ext4 temporary directory is used without changing the inode-reuse test. All feature
+acceptance and retained review corrections are exercised on the combined source. Implementation
+status does not claim publication: wave release remains held on the separate performance task.
