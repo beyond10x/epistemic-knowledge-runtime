@@ -174,25 +174,30 @@ fn strings(value: &Value, into: &mut Vec<String>) {
     }
 }
 
-/// `ekr guide`, OUTPUT, says "the seed's evidence payloads" print as one base64 string. The
-/// printed seed says evidence 0401's payload is "Alice is CEO of Acme." So some verb an agent can
-/// run on a store seeded from it prints that payload, base64-encoded.
-///
-/// Measured: no verb prints any evidence payload. `snapshot` and `explain` carry only
-/// `content_hash`; the `evidence_payloads` branch of `render` (`src/cli/mod.rs`) is reached by
-/// no verb's result. After the fix, either a verb prints the payload (the read exists:
-/// `Runtime::content`) and this case holds it, or OUTPUT stops promising it and this case is
-/// replaced by one that holds the new sentence.
+/// `ekr guide`, OUTPUT, says the seed's evidence payloads are read by explaining an assertion
+/// that cites them with `--documents`, which adds `payload`, the retained bytes as one base64
+/// string, to each Evidence link, and that "No other verb prints a payload." The printed seed says
+/// evidence 0401's payload is "Alice is CEO of Acme." So on a store seeded from it,
+/// `explain --documents` of the assertion citing 0401 prints that payload base64-encoded, and no
+/// other read verb prints it, `explain` without the flag included.
 #[test]
-fn the_evidence_payloads_the_guide_says_print_as_base64_are_printed_by_some_verb() {
+fn the_evidence_payloads_the_guide_says_print_as_base64_are_printed_only_by_explain_documents() {
     let guide = text(&["guide"])
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ");
-    assert!(
-        guide.contains("the seed's evidence payloads"),
-        "precondition: {guide}"
-    );
+    for sentence in [
+        "To read the whole records, and the seed's evidence payloads, explain an assertion that \
+         cites them with --documents",
+        "`ekr explain --documents` adds two fields to each Evidence link, `payload`, the \
+         evidence's retained bytes as one base64 string",
+        "No other verb prints a payload.",
+    ] {
+        assert!(
+            guide.contains(sentence),
+            "precondition {sentence:?}: {guide}"
+        );
+    }
     let seed = text(&["example", "ekr-seed/2"]);
     let payload = "Alice is CEO of Acme.";
     assert!(
@@ -212,23 +217,38 @@ fn the_evidence_payloads_the_guide_says_print_as_base64_are_printed_by_some_verb
         })
         .map(|(id, _)| id.clone())
         .unwrap();
-    let mut printed = Vec::new();
+    let encoded = base64(payload.as_bytes());
+    let mut printing = Vec::new();
     for verb in [
         &["snapshot"][..],
         &["snapshot", "--valid-at", "2026-01-01"],
         &["explain", &assertion],
+        &["explain", &assertion, "--documents"],
         &["transactions"],
         &["head"],
         &["ontology"],
     ] {
+        let mut printed = Vec::new();
         strings(&world.ok(verb), &mut printed);
+        if printed.iter().any(|s| s == &encoded) {
+            printing.push(verb.join(" "));
+        }
     }
-    let encoded = base64(payload.as_bytes());
-    assert!(
-        printed.iter().any(|s| s == &encoded),
-        "no verb prints evidence 0401's payload as base64 {encoded:?}, though `ekr guide` OUTPUT \
-         says the seed's evidence payloads print that way"
+    assert_eq!(
+        printing,
+        [format!("explain {assertion} --documents")],
+        "`ekr guide` OUTPUT says evidence 0401's payload prints as base64 {encoded:?} under \
+         `explain --documents` and under no other verb"
     );
+    let explained = world.ok(&["explain", &assertion, "--documents"]);
+    let evidence: Vec<&Value> = explained["links"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|link| link["kind"] == "Evidence")
+        .collect();
+    assert_eq!(evidence.len(), 1, "{explained}");
+    assert_eq!(evidence[0]["payload"], encoded, "{explained}");
 }
 
 /// `ekr guide`, ASSESSMENT, as corrected: acceptance is judged at commit, and "An assertion added

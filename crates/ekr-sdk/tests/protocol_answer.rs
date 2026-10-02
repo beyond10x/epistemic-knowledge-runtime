@@ -242,3 +242,29 @@ fn one_final_line_end_is_dropped_and_no_more() {
     assert_eq!(session_answer(b"x\r\r\n"), "x\r");
     assert_eq!(session_answer(b"x\r\n"), "x");
 }
+
+/// `docs/sdk.md` states the bound and the marker of a `TransportError::Protocol` answer by value
+/// and by name; both are the crate's own constants.
+#[test]
+fn the_answer_bound_and_marker_docs_sdk_states_are_the_crates_constants() {
+    let manifest = std::env::var("CARGO_MANIFEST_DIR")
+        .expect("cargo sets CARGO_MANIFEST_DIR for a test process at run time");
+    let page = std::fs::read_to_string(Path::new(&manifest).join("../../docs/sdk.md"))
+        .expect("docs/sdk.md is readable");
+    let row = page
+        .lines()
+        .find(|line| line.starts_with("| `TransportError::Protocol` |"))
+        .expect("docs/sdk.md has a row for TransportError::Protocol");
+    for stated in [
+        format!(
+            "at most {} of the bytes printed (`ANSWER_BYTES`)",
+            ekr_sdk::transport::ANSWER_BYTES
+        ),
+        format!(
+            "ended with `{}` (`ANSWER_CUT`)",
+            ekr_sdk::transport::ANSWER_CUT
+        ),
+    ] {
+        assert!(row.contains(&stated), "{stated:?} is not in: {row}");
+    }
+}

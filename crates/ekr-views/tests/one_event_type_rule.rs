@@ -188,3 +188,65 @@ fn roles_the_timeline_and_ocel_agree_on_the_event_types_of_every_fixture() {
     );
     assert!(with_events > 0, "some fixture revision has an event type");
 }
+
+/// [`Index::view_roles`] is the `/roles` body: the document carries [`ekr_views::ROLES_FORMAT`]
+/// and one entry per type the map places, in type-id order, each [`ekr_views::Role`] written as
+/// its lowercase name. Its `Event` and `Observation` types are exactly the event types of the
+/// rule, every fixture revision.
+#[test]
+fn view_roles_is_the_roles_body_of_every_fixture() {
+    for (role, written) in [
+        (ekr_views::Role::Event, "event"),
+        (ekr_views::Role::Subject, "subject"),
+        (ekr_views::Role::Observation, "observation"),
+    ] {
+        assert_eq!(serde_json::to_value(role).unwrap(), written);
+    }
+    let mut placed = BTreeSet::new();
+    for fixture in FIXTURES {
+        let work = tempfile::tempdir().expect("work directory");
+        let runtime = fixtures::open(work.path(), Provider::File);
+        fixture.build(&runtime);
+        let head = runtime.head().expect("the head").expect("seeded").revision;
+        for revision in 0..=head.get() {
+            let index =
+                Index::load(&runtime, Some(RevisionNumber::new(revision))).expect("the revision");
+            let roles = index.view_roles();
+            let document = json(&index.view_roles_document());
+            assert_eq!(document["format"], ekr_views::ROLES_FORMAT, "{fixture:?}");
+            assert_eq!(document["revision"], revision, "{fixture:?}");
+            let expected: Vec<Value> = roles
+                .iter()
+                .map(|(type_id, role)| {
+                    serde_json::json!({
+                        "type_id": type_id.to_string(),
+                        "role": serde_json::to_value(role).unwrap(),
+                    })
+                })
+                .collect();
+            assert_eq!(
+                document["node_types"],
+                Value::Array(expected),
+                "{fixture:?} at revision {revision}"
+            );
+            let events: BTreeSet<_> = roles
+                .iter()
+                .filter(|(_, role)| {
+                    matches!(role, ekr_views::Role::Event | ekr_views::Role::Observation)
+                })
+                .map(|(type_id, _)| *type_id)
+                .collect();
+            assert_eq!(
+                events,
+                index.event_types(),
+                "{fixture:?} at revision {revision}"
+            );
+            placed.extend(roles.into_values().map(|role| format!("{role:?}")));
+        }
+    }
+    assert_eq!(
+        placed,
+        BTreeSet::from(["Event", "Observation", "Subject"].map(str::to_owned)),
+        "the fixtures place every role"
+    );
+}

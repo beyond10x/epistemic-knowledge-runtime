@@ -287,14 +287,17 @@ fn every_code() -> Vec<ExtractionRefusalCode> {
             | Code::ExtractionNameDuplicate
             | Code::ExtractionTypeConflict
             | Code::ExtractionTypeUndeclared
+            | Code::ExtractionPropertyConflict
             | Code::ExtractionValueTypeEmpty
             | Code::ReferenceWithoutIdentity
+            | Code::ReferenceTypeHasSubtypes
             | Code::ExtractionPropertyUndeclared
             | Code::ExtractionValueMismatch
             | Code::ExtractionRelationEnds
             | Code::FactWithoutEvidence
             | Code::FactEvidenceUnlisted
             | Code::DuplicateIdentity
+            | Code::ExtractionEvidenceKindUnsupported
             | Code::EvidencePayloadMismatch => {}
         }
     }
@@ -426,4 +429,86 @@ fn a_refusal_before_decoding_names_its_code() {
     assert_eq!(code(&within), Code::ExtractionDocumentMalformed);
     let twice = edit(&example, "entities:\n", "entities: []\nentities:\n");
     assert_eq!(code(&twice), Code::ExtractionDocumentMalformed);
+}
+
+/// The example reads into the types the crate exports, field for field: the format is the one
+/// constant, each named thing is an `ExtractedReference`, each fact a `PropertyFact` or a
+/// `RelationFact` with its subject, name and cited evidence, and each evidence item the entry and
+/// the exact bytes its hash addresses.
+#[test]
+fn the_example_reads_into_the_exported_fact_and_evidence_types() {
+    let document =
+        ekr_integrate::read_extraction(&example(), &store()).expect("the example is accepted");
+    assert_eq!(document.format, ekr_integrate::ExtractionFormat::V1);
+    assert_eq!(
+        serde_json::to_value(ekr_integrate::ExtractionFormat::V1).unwrap(),
+        serde_json::Value::from(ekr_integrate::EXTRACTION_FORMAT),
+        "the one format variant is written as the format constant"
+    );
+    let named = |node_type: &str, alias: &str| ekr_integrate::ExtractedReference {
+        node_type: node_type.to_owned(),
+        aliases: vec![alias.to_owned()],
+    };
+    assert_eq!(
+        document.entities,
+        [named("Person", "Carol"), named("Project", "Apollo")]
+    );
+
+    let [ekr_integrate::ExtractionEvidence { evidence, payload }] = document.evidence.as_slice()
+    else {
+        panic!("one evidence item: {:?}", document.evidence)
+    };
+    assert_eq!(
+        payload.as_slice(),
+        b"Carol, CEO of Globex Corporation, leads project Apollo."
+    );
+    assert_eq!(
+        evidence.content_hash,
+        ekr_core::ContentHash::of_bytes(payload)
+    );
+    let cited = vec![evidence.id];
+
+    assert_eq!(document.facts.len(), 4, "{:?}", document.facts);
+    let ExtractedFact::Property(ekr_integrate::PropertyFact {
+        subject,
+        property,
+        value,
+        evidence: rests_on,
+    }) = &document.facts[0]
+    else {
+        panic!("the first fact is a property: {:?}", document.facts[0])
+    };
+    assert_eq!(subject, &named("Organization", "Globex"));
+    assert_eq!(property, "legal_name");
+    assert_eq!(
+        value,
+        &ekr_ontology::Value::String("Globex Corporation".to_owned())
+    );
+    assert_eq!(rests_on, &cited);
+    assert_eq!(
+        document.facts[1],
+        ExtractedFact::Relation(ekr_integrate::RelationFact {
+            subject: named("Person", "Carol"),
+            relation: "CEO_OF".to_owned(),
+            object: named("Organization", "Globex"),
+            evidence: cited.clone(),
+        })
+    );
+    assert_eq!(
+        document.facts[2],
+        ExtractedFact::Relation(ekr_integrate::RelationFact {
+            subject: named("Person", "Carol"),
+            relation: "LEADS".to_owned(),
+            object: named("Project", "Apollo"),
+            evidence: cited.clone(),
+        })
+    );
+    let ExtractedFact::Property(ekr_integrate::PropertyFact {
+        property, value, ..
+    }) = &document.facts[3]
+    else {
+        panic!("the last fact is a property: {:?}", document.facts[3])
+    };
+    assert_eq!(property, "status");
+    assert_eq!(value, &ekr_ontology::Value::Enum("active".to_owned()));
 }

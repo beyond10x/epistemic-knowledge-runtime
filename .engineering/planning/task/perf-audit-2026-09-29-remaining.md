@@ -7,22 +7,15 @@ title: 'Performance audit 2026-09-29: findings not yet scheduled'
 relations:
 - serves: vision:o5
 - decomposes: epic:read-and-storage-cost
-revision: 1
+revision: 2
 ---
 ## Context
 
 Findings of the performance audit of 2026-09-29 that are recorded but not scheduled in waves
 perf-01 or perf-02. Each carries its measured cost at 1× / 3× / 10× of a consumer's shape.
 
-- **`explain`** parses every committed document per call and embeds whole documents in its answer
-  (`crates/ekr-kernel/src/explain.rs:381`): 4.6 / 10.7 / 31.7 s; answer 3.0 / 7.7 MB (MCP 6.0 /
-  15.4 MB). Fix: record assertion → committing transaction during replay; reference proposals and
-  receipts by hash (a spec change to the answer).
-- **Storage amplification**: preparation blobs are never reclaimed and each proposal is stored about
-  4 times (`crates/ekr-store/src/preparation.rs:1162`, `:1166`, `crates/ekr-kernel/src/commands.rs:578`):
-  preparations are about half the store; ~196 MB written per batch at 1×. Fix: reclaim preparation
-  blobs after publication; new receipts reference the proposal by hash (a migration; retained records
-  untouched, invariant 5). Estimated store at 1×: 522 → ~200 MB.
+- **`explain`** and **storage amplification**: scheduled as `story:explain-reads-an-index`
+  (implemented in 0.0.25) and `story:preparation-blobs-are-reclaimed`.
 - **Views**: `/changes` is uncached (0.30 / 0.69 s warm); timeline ranking is superlinear (cold 29 /
   182 / 1,064 ms); an overview at an old revision loads the full history (cold 1.6 / 3.8 / 12.5 s)
   (`crates/ekr-views/src/changes.rs:556`, `timeline.rs:333`, `crates/ekr-kernel/src/read.rs` `schema_history`).

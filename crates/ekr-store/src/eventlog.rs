@@ -36,6 +36,8 @@ mod inventory;
 mod preparation;
 #[path = "read_only.rs"]
 mod read_only;
+#[path = "replaced.rs"]
+mod replaced;
 pub use inventory::{InventoriedObject, Inventory, StoreInventory};
 pub use preparation::{
     NativeBlobWrite, NativeClaim, NativeCommandMeta, NativeExpected, NativeExpectedKind,
@@ -102,23 +104,27 @@ pub struct EventlogStore<S: EventStore> {
     authority: Option<Box<dyn CommitAuthority>>,
     /// Objects this handle has already read and verified: stream, metadata and bytes.
     ///
-    /// A digest binds one byte sequence in a tenant until the blob is deleted, and nothing in
-    /// this runtime deletes a retained object, so a verified read is not repeated. The one thing
-    /// that can move is the retention class, and only upwards, by an event on the object's
-    /// stream: a held class below the strongest is read again only once the log shows one
-    /// (`log_seen`). A redaction erases an event in place and moves no log position, so a handle
-    /// that holds an object below the strongest does not see its stream event redacted until it
-    /// next reads that stream (`task:held-bytes-notice-deleted-blobs`). An object this handle
-    /// writes is forgotten, and read again when it is next required. The bytes are held once, shared with the process's registry of verified bytes
-    /// (`crate::verified`) for as long as they are held.
+    /// A digest binds one byte sequence in a tenant until the blob is deleted, so a verified read
+    /// is not repeated while the object's stream stands still. What can move it is an event on
+    /// that stream: a retention raise, and — `systems/ekr/domains/store.yaml`, held bytes — any
+    /// operation that withdraws retained bytes (a redaction, a deletion, a retention lowering),
+    /// which appends one there; nothing in this runtime withdraws bytes in place without it. A
+    /// held object below the strongest class is read again once the log shows such an event
+    /// (`log_seen`); a `Canonical` object is never withdrawn (invariant 5) and is not looked for. A
+    /// redaction or blob deletion made through the provider directly, outside this runtime, moves
+    /// no log position and is not seen until the handle next reads that stream. An object this
+    /// handle writes is forgotten, and read again when it is next required. The bytes are held
+    /// once, shared with the process's registry of verified bytes (`crate::verified`) for as long
+    /// as they are held.
     verified: std::sync::Mutex<BTreeMap<ContentHash, HeldObject>>,
     /// The tenant log position through which this handle has looked for events on the streams of
     /// the objects it holds; `None` while it holds none.
     ///
-    /// A raise appends an event to the object's own stream, so an event the log published after
-    /// this position is the only way a held class can have moved. Every held object was verified
-    /// when the log had reached at least this position, so looking through the log from it finds
-    /// every event appended to a held stream since that object was verified.
+    /// A raise or a withdrawal appends an event to the object's own stream, so an event the log
+    /// published after this position is the only way a held object can have moved. Every held
+    /// object was verified when the log had reached at least this position, so looking through
+    /// the log from it finds every event appended to a held stream since that object was
+    /// verified.
     log_seen: std::sync::Mutex<Option<u64>>,
     /// The revision stream's prefix this handle has read and checked. The stream is append-only,
     /// so a later read fetches only the occurrences after it.
@@ -138,6 +144,10 @@ pub struct EventlogStore<S: EventStore> {
     /// pointer append, where its next write continues from. Taken by that write, and kept again
     /// only when the write appends: a write that appends nothing from it reads the stream afresh.
     pointer: std::sync::Mutex<Option<(Option<CheckpointWritten>, u64)>>,
+    /// For a SQLite store opened for writing: the database file it opened, checked before every
+    /// read and write (`replaced.rs`). A file replaced in place is refused as
+    /// [`StoreError::Replaced`].
+    at_path: Option<replaced::AtPath>,
     /// Set when the store was opened read-only: every write is refused and no checkpoint is
     /// written. Last, so that a File store's private copy is removed after the provider over it.
     read_only: Option<read_only::ReadOnly>,
@@ -227,7 +237,8 @@ fn checkpoint_key(hash: ContentHash) -> String {
 impl EventlogStore<SqliteEventStore> {
     /// Opens the SQLite provider outside an entered async runtime.
     /// # Errors
-    /// Runtime-context refusal, invalid tenant or provider failure.
+    /// Runtime-context refusal, invalid tenant, provider failure or
+    /// [`StoreError::Replaced`] for a database file that is not the log its connection reads.
     pub fn sqlite(
         path: &Path,
         tenant: &str,
@@ -235,10 +246,13 @@ impl EventlogStore<SqliteEventStore> {
     ) -> Result<Self, StoreError> {
         let runtime = new_runtime()?;
         let tenant = TenantId::new(tenant)?;
-        let path = path.to_string_lossy();
+        let named = path.to_string_lossy();
         let store =
-            waiting_out_the_lock(|| runtime.block_on(SqliteEventStore::open(&path, "ekr")))?;
-        Ok(Self::assemble(runtime, store, tenant, ontology.into()))
+            waiting_out_the_lock(|| runtime.block_on(SqliteEventStore::open(&named, "ekr")))?;
+        Self::at(
+            Self::assemble(runtime, store, tenant, ontology.into()),
+            path,
+        )
     }
     /// Opens an already provisioned SQLite store, creating no database and no tables: a path
     /// holding none is refused and left as it was. A store this process may not write — the
@@ -246,7 +260,8 @@ impl EventlogStore<SqliteEventStore> {
     /// [`StoreError::ReadOnly`] before anything is opened.
     /// # Errors
     /// Runtime-context refusal, invalid tenant, [`StoreError::NoStore`], [`StoreError::ReadOnly`]
-    /// or provider failure.
+    /// or provider failure, or [`StoreError::Replaced`] as
+    /// [`EventlogStore::sqlite`] refuses it.
     pub fn sqlite_existing(
         path: &Path,
         tenant: &str,
@@ -259,9 +274,9 @@ impl EventlogStore<SqliteEventStore> {
             return Err(read_only::denied(path, &denied));
         }
         let shown = path.display().to_string();
-        let path = path.to_string_lossy();
+        let named = path.to_string_lossy();
         let store = waiting_out_the_lock(|| {
-            runtime.block_on(SqliteEventStore::open_existing(&path, "ekr"))
+            runtime.block_on(SqliteEventStore::open_existing(&named, "ekr"))
         })
         .map_err(|error| match error {
             EventLogError::Invalid(message) if message == SQLITE_NO_OWNER_EVENTS => {
@@ -269,7 +284,10 @@ impl EventlogStore<SqliteEventStore> {
             }
             error => error.into(),
         })?;
-        Ok(Self::assemble(runtime, store, tenant, ontology.into()))
+        Self::at(
+            Self::assemble(runtime, store, tenant, ontology.into()),
+            path,
+        )
     }
     /// Opens an already provisioned SQLite store for a caller that only reads it: as
     /// [`EventlogStore::sqlite_existing`] where this process may write the store, and otherwise
@@ -287,9 +305,11 @@ impl EventlogStore<SqliteEventStore> {
             Self::sqlite_existing(path, tenant, ontology)
         }
     }
-    /// Opens an already provisioned SQLite store read-only, writing nothing at its path: its
-    /// database is read through a read-only connection into an image held in memory
-    /// (`read_only.rs` says how), every write through the store is refused as
+    /// Opens an already provisioned SQLite store read-only: its database is read through a
+    /// read-only connection into an image held in memory (`read_only.rs` says how). It writes
+    /// nothing at its path, with one exception SQLite makes: a writer that closes during the open
+    /// can leave SQLite to create an empty `-wal` beside the database where this process may write
+    /// the directory (`read_only.rs` says when). Every write through the store is refused as
     /// [`StoreError::ReadOnly`] and no replay checkpoint is written.
     /// # Errors
     /// Runtime-context refusal, invalid tenant, [`StoreError::NoStore`] or provider failure.
@@ -410,6 +430,15 @@ fn waiting_out_the_lock<T>(
             result => return result,
         }
     }
+}
+/// What the File provider reports when the history at its root is no longer the one a handle
+/// observed: the journal no longer extends what the handle saw (eventlog-file `fe8a0a7`, `lib.rs`,
+/// `capture.rs` and `inline_admin.rs`, each as `EventLogError::Backend`). The provider names the
+/// condition by no variant of its own, so this is the one place its text is read.
+const FILE_DIVERGED: &str = "file history diverged from this handle's observed history";
+/// Whether a provider error is its refusal of a diverged history: [`StoreError::Diverged`].
+pub(crate) fn diverged(error: &EventLogError) -> bool {
+    matches!(error, EventLogError::Backend(message) if message.contains(FILE_DIVERGED))
 }
 impl EventlogStore<FileEventStore> {
     /// Opens the File provider outside an entered async runtime.
@@ -534,8 +563,36 @@ impl<S: EventStore> EventlogStore<S> {
             checkpoint_offered: std::sync::atomic::AtomicBool::new(false),
             authorized: std::sync::Mutex::default(),
             pointer: std::sync::Mutex::default(),
+            at_path: None,
             read_only: None,
         }
+    }
+    /// What every read and write through this store does first: refuses a thread entered into an
+    /// async runtime, and a SQLite database replaced in place since this handle opened it.
+    fn entered(&self) -> Result<(), StoreError> {
+        ensure_sync_context()?;
+        let Some(at_path) = &self.at_path else {
+            return Ok(());
+        };
+        at_path.check(|position| {
+            let page = self.runtime().block_on(self.store.read_feed(
+                &self.tenant,
+                position.saturating_sub(1),
+                1,
+            ))?;
+            Ok(page
+                .events
+                .into_iter()
+                .next()
+                .filter(|event| event.global_seq == position)
+                .map(|event| event.event_id))
+        })
+    }
+    /// `opened`, recording the database file at `path` it opened and checking it once.
+    fn at(mut opened: Self, path: &Path) -> Result<Self, StoreError> {
+        opened.at_path = Some(replaced::AtPath::opened(path, opened.tenant.as_str())?);
+        opened.entered()?;
+        Ok(opened)
     }
     /// Replays every history read in full from the seed: the retained replay checkpoint is not
     /// offered to the authority. Checkpoints are still written.
@@ -660,7 +717,7 @@ impl<S: EventStore> EventlogStore<S> {
     /// # Errors
     /// Runtime-context refusal, provider failure or a feed that disagrees with itself.
     pub fn published_events(&self) -> Result<Vec<PublishedEvent>, StoreError> {
-        ensure_sync_context()?;
+        self.entered()?;
         let mut events: Vec<PublishedEvent> = Vec::new();
         let mut after = 0;
         loop {
@@ -924,10 +981,13 @@ impl<S: EventStore> EventlogStore<S> {
     ///
     /// An object this handle already verified is not fetched again, unless its held class is below
     /// the strongest and its stream has moved since this handle verified it: a raise appends an
-    /// event to that stream, so the handle first looks through the log for such events
-    /// ([`Self::look_through_log`]), and a moved object's stream is read and checked again in its
-    /// place in the batch, with its held bytes standing in for its blob. A class is never refused
-    /// from a stale memo.
+    /// event to that stream, and so does any operation that withdraws retained bytes
+    /// (`systems/ekr/domains/store.yaml`, held bytes), so the handle first looks through the log
+    /// for such events ([`Self::look_through_log`]), and a moved object's stream is read and
+    /// checked again in its place in the batch, with its held bytes standing in for its blob. A
+    /// stream is judged before the bytes ([`retained_object`]), so a moved stream this store does
+    /// not read is refused as a fresh handle refuses it. A class is never refused from a stale
+    /// memo.
     fn required(&self, hashes: &[ContentHash]) -> Result<Vec<RetainedObject>, StoreError> {
         let mut known = self.verified_objects(hashes)?;
         let below: Vec<ContentHash> = known
@@ -1577,7 +1637,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         self.resume_preparation(prepared)
     }
     fn history_at(&self, revision: RevisionNumber) -> Result<RetainedHistory, StoreError> {
-        ensure_sync_context()?;
+        self.entered()?;
         let history = self.load_history(1, Some(revision))?;
         if !history.occurrences.is_empty() {
             self.authority()?
@@ -1586,7 +1646,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         Ok(history)
     }
     fn history(&self) -> Result<RetainedHistory, StoreError> {
-        ensure_sync_context()?;
+        self.entered()?;
         let history = self.load_history(MAX_READ_LIMIT, None)?;
         if !history.occurrences.is_empty() {
             self.authority()?
@@ -1606,7 +1666,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         .map(|(history, ())| history)
     }
     fn publish(&self, publication: &Publication) -> Result<Appended, StoreError> {
-        ensure_sync_context()?;
+        self.entered()?;
         for attempt in 0..16 {
             let mut history = self.load_history(MAX_READ_LIMIT, None)?;
             self.authority()?
@@ -1720,14 +1780,14 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         }
     }
     fn fold(&self) -> Result<CanonicalGraph, StoreError> {
-        ensure_sync_context()?;
+        self.entered()?;
         Ok(self
             .admitted(None, MAX_READ_LIMIT)?
             .ok_or(StoreError::NotSeeded)?
             .graph)
     }
     fn head(&self) -> Result<Option<Root>, StoreError> {
-        ensure_sync_context()?;
+        self.entered()?;
         if let Some(root) = self.checkpointed_head()? {
             return Ok(Some(root));
         }
@@ -1743,7 +1803,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         .map(|(_, root)| root)
     }
     fn replay(&self, revision: RevisionNumber) -> Result<CanonicalGraph, StoreError> {
-        ensure_sync_context()?;
+        self.entered()?;
         Ok(self
             .admitted(Some(revision), 1)?
             .ok_or(StoreError::NotSeeded)?
@@ -1759,7 +1819,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
     /// Whether the pointer stands afterwards is the answer, so that a writer knows whether its
     /// checkpoint is the retained one.
     fn checkpoint_covered(&self) -> Result<Option<u64>, StoreError> {
-        ensure_sync_context()?;
+        self.entered()?;
         Ok(self.checkpoint_pointer()?.0.map(|pointer| pointer.covered))
     }
     fn write_checkpoint(
@@ -1768,7 +1828,7 @@ impl<S: AtomicBlobEventStore> RevisionLog for EventlogStore<S> {
         binding: ContentHash,
         checkpoint: Option<&[u8]>,
     ) -> Result<bool, StoreError> {
-        ensure_sync_context()?;
+        self.entered()?;
         // A checkpoint is a cache of verified work: a store opened read-only keeps none, and a
         // read on it is answered exactly as without one.
         if self.read_only.is_some() {
@@ -1905,7 +1965,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
 }
 impl<S: AtomicBlobEventStore> Initialize for EventlogStore<S> {
     fn initialize(&self, publication: &Publication) -> Result<Appended, StoreError> {
-        ensure_sync_context()?;
+        self.entered()?;
         if publication.expected_version != 0
             || !matches!(publication.event.payload, RevisionPayload::Seeded { .. })
         {
@@ -1921,7 +1981,7 @@ impl<S: AtomicBlobEventStore> ObjectStore for EventlogStore<S> {
         bytes: &[u8],
         stored_at: Timestamp,
     ) -> Result<StoredObject, StoreError> {
-        ensure_sync_context()?;
+        self.entered()?;
         let hash = ContentHash::of_bytes(bytes);
         let object = crate::PublicationObject {
             storage_class,
@@ -1963,10 +2023,10 @@ impl<S: AtomicBlobEventStore> ObjectStore for EventlogStore<S> {
         Err(StoreError::Conflict)
     }
     /// An object this handle already verified is answered from what it holds, once the provider
-    /// has confirmed the handle's held state as a history read does; any other is read and
-    /// checked, and then held.
+    /// has confirmed the handle's held state and the memo's stream check has passed, as a history
+    /// read does; any other is read and checked, and then held.
     fn get(&self, hash: &ContentHash) -> Result<Option<Vec<u8>>, StoreError> {
-        ensure_sync_context()?;
+        self.entered()?;
         {
             let mut held = self
                 .revisions
@@ -1974,8 +2034,14 @@ impl<S: AtomicBlobEventStore> ObjectStore for EventlogStore<S> {
                 .map_err(|_| StoreError::Document("held-revisions-poisoned".into()))?;
             self.confirm_held(&self.revision_stream()?, &mut held)?;
         }
-        if let Some(held) = self.verified_objects(&[*hash])?.remove(hash) {
-            return Ok(Some(held.bytes.to_vec()));
+        // A held object is answered after the memo's stream check, as a history load answers it:
+        // a withdrawal recorded on its stream since it was verified is seen here too.
+        if self.verified_objects(&[*hash])?.contains_key(hash) {
+            return Ok(self
+                .required(&[*hash])?
+                .into_iter()
+                .next()
+                .map(|held| held.bytes.to_vec()));
         }
         let as_of = self.look_through_log(false)?;
         let Some((checked, _)) = self.object_versioned(*hash)? else {
@@ -2085,19 +2151,22 @@ fn stored_metadata(events: &[RecordedEvent]) -> Result<Option<ObjectMetadata>, S
 /// One retained object from its whole stream, the metadata [`stored_metadata`] read from it, and
 /// its blob, however the three were read.
 ///
-/// The blob must be present and hash to the address with the recorded length, and every later
-/// event must be a retention raise that only strengthens the class. Returns the object at its
-/// strongest class and the stream's length.
+/// The stream is judged first: every later event must be a retention raise that only strengthens
+/// the class. Then the blob must be present and hash to the address with the recorded length.
+/// Returns the object at its strongest class and the stream's length. A stream that records what
+/// this store does not read — a withdrawal, say — is refused before the blob is looked at, so a
+/// handle holding the bytes and one that reads them refuse it alike.
 fn retained_object(
     hash: ContentHash,
     events: &[RecordedEvent],
     meta: ObjectMetadata,
     blob: Option<Vec<u8>>,
 ) -> Result<(CheckedObject, u64), StoreError> {
+    let class = recorded_class(hash, events, &meta)?;
     let bytes =
         blob.ok_or_else(|| StoreError::Document("object-integrity: native blob missing".into()))?;
     crate::verified::count(|work| work.blobs_read += 1);
-    checked_object(hash, events, meta, bytes, |bytes| {
+    checked_bytes(hash, events, meta, class, bytes, |bytes| {
         crate::verified::addresses(hash, bytes)
     })
 }
@@ -2107,18 +2176,22 @@ fn retained_object(
 fn checked_object(
     hash: ContentHash,
     events: &[RecordedEvent],
-    mut meta: ObjectMetadata,
+    meta: ObjectMetadata,
     bytes: impl Into<Arc<Vec<u8>>>,
     addressed: impl FnOnce(&[u8]) -> bool,
 ) -> Result<(CheckedObject, u64), StoreError> {
-    let bytes = bytes.into();
-    let later = events.get(1..).unwrap_or_default();
-    if meta.content_hash != hash || meta.byte_len != bytes.len() as u64 || !addressed(&bytes) {
-        return Err(StoreError::Document(
-            "object-integrity: address or byte length disagrees".into(),
-        ));
-    }
-    for event in later {
+    let class = recorded_class(hash, events, &meta)?;
+    checked_bytes(hash, events, meta, class, bytes, addressed)
+}
+/// The strongest class an object's stream records: every event after its first must be a
+/// retention raise that only strengthens the class.
+fn recorded_class(
+    hash: ContentHash,
+    events: &[RecordedEvent],
+    meta: &ObjectMetadata,
+) -> Result<StorageClass, StoreError> {
+    let mut class = meta.storage_class;
+    for event in events.get(1..).unwrap_or_default() {
         if event.name != OBJECT_RETENTION_RAISED || event.schema_version != 1 {
             return Err(StoreError::Document(
                 "unsupported-retention-envelope".into(),
@@ -2128,19 +2201,36 @@ fn checked_object(
             .map_err(|e| StoreError::Document(e.to_string()))?;
         if raised.content_hash != hash
             || raised.to.retention_rank() <= raised.from.retention_rank()
-            || raised.from.retention_rank() > meta.storage_class.retention_rank()
+            || raised.from.retention_rank() > class.retention_rank()
         {
             return Err(StoreError::Document(
                 "object-integrity: invalid retention metadata".into(),
             ));
         }
-        meta.storage_class = meta.storage_class.strongest(raised.to);
+        class = class.strongest(raised.to);
+    }
+    Ok(class)
+}
+/// The object at `class`, once `bytes` are the payload its metadata records at `hash`.
+fn checked_bytes(
+    hash: ContentHash,
+    events: &[RecordedEvent],
+    meta: ObjectMetadata,
+    class: StorageClass,
+    bytes: impl Into<Arc<Vec<u8>>>,
+    addressed: impl FnOnce(&[u8]) -> bool,
+) -> Result<(CheckedObject, u64), StoreError> {
+    let bytes = bytes.into();
+    if meta.content_hash != hash || meta.byte_len != bytes.len() as u64 || !addressed(&bytes) {
+        return Err(StoreError::Document(
+            "object-integrity: address or byte length disagrees".into(),
+        ));
     }
     Ok((
         CheckedObject(RetainedObject {
             metadata: StoredObject {
                 content_hash: hash,
-                storage_class: meta.storage_class,
+                storage_class: class,
                 byte_len: meta.byte_len,
                 stored_at: meta.stored_at,
             },

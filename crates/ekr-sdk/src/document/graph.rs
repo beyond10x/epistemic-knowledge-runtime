@@ -320,8 +320,25 @@ impl EvidenceSource {
 
 /// Basis points, 0 to 10000.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
-#[serde(transparent)]
+#[serde(try_from = "u16", into = "u16")]
 pub struct Confidence(u16);
+
+/// Read as the kernel reads it: a value above ten thousand basis points is refused while decoding.
+impl TryFrom<u16> for Confidence {
+    type Error = String;
+
+    fn try_from(basis_points: u16) -> Result<Self, Self::Error> {
+        Self::new(basis_points).ok_or_else(|| {
+            format!("{basis_points} is not a confidence: expected basis points between 0 and 10000")
+        })
+    }
+}
+
+impl From<Confidence> for u16 {
+    fn from(confidence: Confidence) -> Self {
+        confidence.0
+    }
+}
 
 impl Confidence {
     /// Ten thousand basis points.

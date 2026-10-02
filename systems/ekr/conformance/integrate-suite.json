@@ -1,0 +1,2055 @@
+{
+  "coverage": {
+    "authored": [],
+    "authored_sources": {},
+    "counts": {
+      "authored": 0,
+      "generated": 2,
+      "outside": 82,
+      "refused": 0
+    },
+    "generated": [
+      "ekr.integrate.ApplyExtraction/outcome/applied",
+      "ekr.integrate.ApplyExtraction/outcome/refused"
+    ],
+    "knowledge": "complete_inventory",
+    "outside": [
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.RevisionCommitted"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.CheckpointWritten"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Commit/outcome/committed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.RevisionCommitted"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.CheckpointWritten"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Commit/outcome/retained-commit"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionStale"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Commit/outcome/stale"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Commit/outcome/transaction-not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Commit/outcome/wrong-state"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Explain"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.Explained"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Explain/outcome/explained"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Explain"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Explain/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/committed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/stale"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Propose/proposed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/rejected"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/validated"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/state/Committed/refuses/ekr.kernel.Validate"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/state/Proposed/refuses/ekr.kernel.Commit"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Commit"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Validate"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Commit"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Validate"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/state/Validated/refuses/ekr.kernel.Validate"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.RevisionCommitted"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.CheckpointWritten"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/transition/commit/by/ekr.kernel.Commit/committed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionRejected"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/transition/reject/by/ekr.kernel.Validate/rejected"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Commit"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionStale"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/transition/stale/by/ekr.kernel.Commit/stale"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionValidated"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.GraphTransaction/transition/validate/by/ekr.kernel.Validate/validated"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Propose/outcome/malformed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Propose/outcome/misattributed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Propose/outcome/proposed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Seed"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Seed/outcome/already-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Seed"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Seed/outcome/invalid-seed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Seed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.Seeded"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.CheckpointWritten"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.CurrentRevision"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Revisions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Seed/outcome/retained-seed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Seed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.Seeded"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.CheckpointWritten"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.CurrentRevision"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Revisions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Seed/outcome/seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Snapshot"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Snapshot/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Snapshot"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.SnapshotTaken"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Snapshot/outcome/taken"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionRejected"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Validate/outcome/rejected"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Validate/outcome/revision-not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Validate/outcome/transaction-not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Propose"
+          },
+          {
+            "kind": "command",
+            "name": "ekr.kernel.Validate"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionProposed"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.kernel.TransactionValidated"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.ObjectStored"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.store.PublicationPrepared"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.PendingTransactions"
+          },
+          {
+            "kind": "view",
+            "name": "ekr.kernel.Transactions"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.kernel.Validate/outcome/validated"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ChangesSince"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ChangesSince/outcome/limit-exceeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ChangesSince"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.ChangesListed"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ChangesSince/outcome/listed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ChangesSince"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ChangesSince/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ChangesSince"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ChangesSince/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ChangesSince"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ChangesSince/outcome/since-malformed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.DescribeNode"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.NodeDescribed"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.DescribeNode/outcome/described"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.DescribeNode"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.DescribeNode/outcome/node-not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.DescribeNode"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.DescribeNode/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.DescribeNode"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.DescribeNode/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.DrawFactSample"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.FactSampleDrawn"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.DrawFactSample/outcome/drawn"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.DrawFactSample"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.DrawFactSample/outcome/limit-exceeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.DrawFactSample"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.DrawFactSample/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.DrawFactSample"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.DrawFactSample/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ExpandNeighbourhood"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.NeighbourhoodExpanded"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ExpandNeighbourhood/outcome/expanded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ExpandNeighbourhood"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ExpandNeighbourhood/outcome/limit-exceeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ExpandNeighbourhood"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ExpandNeighbourhood/outcome/node-not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ExpandNeighbourhood"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ExpandNeighbourhood/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ExpandNeighbourhood"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ExpandNeighbourhood/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ExportOcel"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ExportOcel/outcome/event-type-not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ExportOcel"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.OcelExported"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ExportOcel/outcome/exported"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ExportOcel"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ExportOcel/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ExportOcel"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ExportOcel/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.FindCodeNames"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.CodeNamesFound"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.FindCodeNames/outcome/found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.FindCodeNames"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.FindCodeNames/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.FindCodeNames"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.FindCodeNames/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectGraph"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectGraph/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectGraph"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectGraph/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectGraph"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.GraphProjected"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectGraph/outcome/projected"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectOverview"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectOverview/outcome/limit-exceeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectOverview"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectOverview/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectOverview"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectOverview/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectOverview"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.GraphOverviewed"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectOverview/outcome/overviewed"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectTimeline"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectTimeline/outcome/limit-exceeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectTimeline"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectTimeline/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectTimeline"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectTimeline/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ProjectTimeline"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.SubjectsTimelined"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ProjectTimeline/outcome/timelined"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ReportFactQuality"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ReportFactQuality/outcome/judged-twice"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ReportFactQuality"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ReportFactQuality/outcome/limit-exceeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ReportFactQuality"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.FactQualityReported"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ReportFactQuality/outcome/reported"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ReportStoreQuality"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ReportStoreQuality/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ReportStoreQuality"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ReportStoreQuality/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.ReportStoreQuality"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.StoreQualityReported"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.ReportStoreQuality/outcome/reported"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.SearchNodes"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.SearchNodes/outcome/limit-exceeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.SearchNodes"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.SearchNodes/outcome/not-found"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.SearchNodes"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.SearchNodes/outcome/not-seeded"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.views.SearchNodes"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.views.NodesSearched"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.views.SearchNodes/outcome/searched"
+      }
+    ],
+    "refused": [],
+    "selection": {
+      "filter": {
+        "kind": "all"
+      },
+      "origins": "generated",
+      "scope": {
+        "component": "ekr-integrate",
+        "kind": "component"
+      }
+    }
+  },
+  "provenance": {
+    "component": "ekr-integrate",
+    "contract_digest": "2e49cadd7221346d4522c33edc1d119af41a6522028f060aef741f6a59d83f45",
+    "spec_digest": "c53964f94bcb3667a560036dc036b4ca9eb1be1e6c4394af9c0a0bd98ecfc9a9",
+    "specification_version": "v1",
+    "suite_version": "ess-conformance/5",
+    "system": "ekr"
+  },
+  "scenarios": {
+    "ekr.integrate.ApplyExtraction/outcome/applied": {
+      "purpose": "`ekr.integrate.ApplyExtraction` answers `applied` for an input no other branch's guard claims",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.integrate.ExtractionDocumentPath"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.integrate.ApplyExtraction"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.integrate.ApplyExtraction",
+            "outcome": "applied"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.integrate.Applier"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.integrate.Applier",
+          "command": "ekr.integrate.ApplyExtraction",
+          "input": {
+            "extraction_document": {
+              "kind": "literal",
+              "value": "extraction_document"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.integrate.ApplyExtraction",
+            "outcome": "applied"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "shape": {
+            "ambiguous": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "committed": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "held": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "rejected": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
+    "ekr.integrate.ApplyExtraction/outcome/refused": {
+      "purpose": "`ekr.integrate.ApplyExtraction` answers `refused` for the cause it declares as external, injected",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.integrate.ExtractionDocumentPath"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.ExtractionRefusalCode"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.integrate.ApplyExtraction"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.integrate.ApplyExtraction",
+            "outcome": "refused"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.integrate.ExtractionRefused"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.integrate.Applier"
+        }
+      ],
+      "steps": [
+        {
+          "force": {
+            "command": "ekr.integrate.ApplyExtraction",
+            "outcome": "refused"
+          },
+          "step": "configure_external_outcome"
+        },
+        {
+          "actor": "ekr.integrate.Applier",
+          "command": "ekr.integrate.ApplyExtraction",
+          "input": {
+            "extraction_document": {
+              "kind": "literal",
+              "value": "extraction_document"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.integrate.ApplyExtraction",
+            "outcome": "refused"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.integrate.ExtractionRefused",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    }
+  }
+}

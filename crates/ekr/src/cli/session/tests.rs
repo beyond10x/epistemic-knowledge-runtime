@@ -72,6 +72,125 @@ fn a_session_follows_a_file_store_replaced_inside_its_directory() {
     assert_eq!(reader_work().reopens, 1);
 }
 
+/// A SQLite database overwritten in place — `cp` over the file, which keeps its device and inode —
+/// is never answered from the store the session opened: the held runtime refuses it as
+/// `store-replaced`, and the session reopens the store once and answers from the database now at
+/// the path, a store verb and a views verb alike (`task:sqlite-store-replaced-in-place`).
+#[test]
+fn a_session_never_answers_from_a_sqlite_store_overwritten_in_place() {
+    let clock = || Timestamp::from_millis(0);
+    for argv in [&["head"][..], &["overview"]] {
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let store = seeded(directory.path(), Backend::Sqlite, "store");
+        let path = store.store.clone();
+        let (mut session, mut watch) = session(store);
+        let revision = |answer: &serde_json::Value| {
+            answer
+                .get("revision")
+                .or_else(|| answer["meta"].get("revision"))
+                .cloned()
+        };
+        let first = respond(&line(argv), &mut session, &mut watch, &clock).expect("answers");
+        assert_eq!(revision(&first), Some(0.into()), "{argv:?}");
+        let next = seeded_with_a_commit(directory.path(), Backend::Sqlite, "next");
+        let before = identity(&path);
+        std::fs::copy(&next.store, &path).expect("copying the database over the store");
+        assert_eq!(
+            identity(&path),
+            before,
+            "precondition: the same device and inode"
+        );
+        let _ = reader_work();
+        match respond(&line(argv), &mut session, &mut watch, &clock) {
+            Ok(answer) => assert_eq!(
+                revision(&answer),
+                Some(1.into()),
+                "{argv:?}: answered {answer}, not from the store now at the path"
+            ),
+            Err(failure) => panic!("{argv:?}: the session did not follow the store: {failure}"),
+        }
+        assert_eq!(reader_work().reopens, 1, "{argv:?}: one reopen");
+    }
+}
+
+/// Every `.rs` file under `directory`.
+fn sources(directory: &std::path::Path, found: &mut Vec<std::path::PathBuf>) {
+    for entry in std::fs::read_dir(directory).expect("a source directory") {
+        let path = entry.expect("an entry").path();
+        if path.is_dir() {
+            sources(&path, found);
+        } else if path.extension().is_some_and(|extension| extension == "rs") {
+            found.push(path);
+        }
+    }
+}
+
+/// The string literals of `source` outside line comments, roughly: enough for a guard.
+fn literals(source: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    for line in source.lines() {
+        let code = match line.find("//") {
+            Some(at) if !line[..at].contains('"') => &line[..at],
+            _ => line,
+        };
+        let mut parts = code.split('"');
+        parts.next();
+        while let Some(inside) = parts.next() {
+            found.push(inside.to_owned());
+            parts.next();
+        }
+    }
+    found
+}
+
+/// The non-test sources under `root` holding a string literal that names divergence: a reader
+/// telling a diverged history by any part of a provider's message.
+fn naming_divergence(root: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut found = Vec::new();
+    sources(root, &mut found);
+    found
+        .into_iter()
+        .filter(|path| path.file_name().is_some_and(|name| name != "tests.rs"))
+        .filter(|path| {
+            literals(&std::fs::read_to_string(path).expect("a UTF-8 source"))
+                .iter()
+                .any(|literal| literal.to_ascii_lowercase().contains("diverge"))
+        })
+        .collect()
+}
+
+/// No CLI source outside its test modules holds a string literal naming divergence: the store
+/// reports a diverged history as a typed error, and the long-running readers match that.
+#[test]
+fn no_cli_source_holds_a_string_literal_naming_divergence() {
+    let manifest = std::env::var("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR");
+    let root = std::path::Path::new(&manifest).join("src");
+    let mut all = Vec::new();
+    sources(&root, &mut all);
+    assert!(all.len() > 10, "the CLI's sources are found: {all:?}");
+    let found = naming_divergence(&root);
+    assert!(
+        found.is_empty(),
+        "these CLI sources hold a string literal naming divergence: {found:?}"
+    );
+}
+
+/// The guard above finds a reader matching part of the provider's message, as eventlog-file's
+/// own tests match it (`message.contains("diverged")`).
+#[test]
+fn the_divergence_guard_finds_a_partial_provider_message_match() {
+    let directory = tempfile::tempdir().expect("a temporary directory");
+    std::fs::write(
+        directory.path().join("reader.rs"),
+        "pub(super) fn diverged(message: &str) -> bool {\n    message.contains(\"diverged\")\n}\n",
+    )
+    .expect("writing a source");
+    assert_eq!(
+        naming_divergence(directory.path()),
+        vec![directory.path().join("reader.rs")]
+    );
+}
+
 /// The proposals a session tracks are settled from its transactions only while there are some:
 /// one read per store verb from its `propose` until its `commit`, none before or after.
 #[test]

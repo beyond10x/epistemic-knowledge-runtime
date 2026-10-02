@@ -185,3 +185,11 @@ gives each its own directory and says so in its page.
 - A capability from `docs/predecessors.md` § 2 dropped without an ADR.
 - Customer or personal data copied into fixtures, tests or documentation. Fixtures use the
   runtime's own vocabulary.
+- A test that passes or fails on wall-clock time. Gates run at load averages of 30–45 on this
+  machine (observed through wave extract-06); a cost assertion counts work (calls, reads, bytes) or
+  compares two measurements taken in one process with a margin load cannot cross, and an
+  operating-system precondition that does not hold skips with its reason. A concurrency test keeps
+  the error it failed with in its message.
+- `git stash` in any worktree of this repository. Every worktree shares one stash list, so a `pop`
+  in one tree takes another unit's stash (observed in wave extract-07, 2026-10-01). Keep work aside
+  with a commit on the unit's branch or a copy under `~/.cache/<unit>-scratch/`.

@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:sdk-store-checks
 kind: story
-status: draft
+status: active
 title: Store health, the code-names check and fact quality are SDK calls
 relations:
 - depends_on: story:sdk-session-transport
@@ -16,7 +16,10 @@ scope:
   path: crates/ekr-sdk/src/checks.rs
 - confidence: inferred
   path: crates/ekr-sdk/tests/checks.rs
-revision: 3
+revision: 6
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-01T11:10:06Z", actor: "human:timo", revision: 4, decided_on: {"recorded":{"review_outcome":1}}}
+- {from: "proposed", to: "active", at: "2026-10-01T11:10:06Z", actor: "human:timo", revision: 5, decided_on: {"recorded":{"review_outcome":1}}}
 ---
 ## Context
 
@@ -26,10 +29,11 @@ hook, because the runtime does no judging (invariant 7).
 
 ## Build
 
-- `quality_report(rev)`, `check_code_names(files)`, `draw_sample(seed, size, filter)`,
-  `report_judged(judgements)` returning a rate with its Wilson interval.
+- `draw_sample(seed, size, filter)` and `report_judged(judgements)`, typed over `ekr sample` and
+  `ekr fact-quality` (0.0.25), the latter returning a rate with its Wilson interval.
 - `trait Judge` and a batching driver with no model code.
-- Each wrapper lands when its verb lands.
+- Already shipped and out of this story: `quality_report` and `check_code_names`
+  (`task:sdk-types-the-check-reads`, 0.0.22).
 
 ## Surface (inferred)
 

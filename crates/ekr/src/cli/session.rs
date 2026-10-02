@@ -31,11 +31,12 @@
 //! [`STORE_REPLACED`], naming the path, and never the replaced store's data; the next request
 //! tries again. A file store replaced under the same device and inode — deleted and created again,
 //! or its files replaced inside it — passes that check; the held runtime then refuses its read as a
-//! diverged history ([`diverged`]), and the reader opens the store at the path once and answers
-//! the request again from it. A session holding a transaction it proposed that is neither
-//! committed nor rejected — read from the held runtime, so one another process committed does not
-//! count — refuses the replacement instead, as [`PROPOSALS_OPEN`], on every store verb until the
-//! store it opened is back at the path.
+//! diverged history ([`reopens`]), and the reader opens the store at the path once and answers
+//! the request again from it. So does a SQLite database copied over the file in place, which the
+//! held runtime refuses as `store-replaced` (`PersistenceError::Replaced`). A session holding a
+//! transaction it proposed that is neither committed nor rejected — read from the held runtime,
+//! so one another process committed does not count — refuses the replacement instead, as
+//! [`PROPOSALS_OPEN`], on every store verb until the store it opened is back at the path.
 
 use std::cell::Cell;
 use std::collections::BTreeSet;
@@ -258,6 +259,16 @@ fn respond(
             format!("a request is {{\"argv\": [...]}}: {error}"),
         )
     })?;
+    answer(&request, session, watch, now)
+}
+
+/// One request, read from its line, answered as [`respond`] answers that line.
+fn answer(
+    request: &Request,
+    session: &mut Session,
+    watch: &mut Watch,
+    now: &dyn Fn() -> Timestamp,
+) -> Result<Stdout, Failure> {
     let cli = match parse(&request.argv) {
         Ok(cli) => cli,
         // Not a one-shot verb: one of the `ekr.views` reads, or no verb at all.
@@ -298,9 +309,10 @@ fn respond(
     }
     let mut stdin = request.stdin.as_deref().unwrap_or_default().as_bytes();
     let printed = match super::dispatch(cli.command, Source::Session(session), now, &mut stdin) {
-        // The held runtime's history diverged from the store at the path: a store replaced
-        // under the same device and inode. Reopened once, the request is run again there.
-        Err(failure) if reads_store && session.runtime.is_some() && failed_diverged(&failure) => {
+        // The held runtime's history diverged from the store at the path, or its SQLite database
+        // was replaced in place: a store replaced under the same device and inode. Reopened
+        // once, the request is run again there.
+        Err(failure) if reads_store && session.runtime.is_some() && failure.reopens() => {
             follow(session, watch, true)?;
             let mut stdin = request.stdin.as_deref().unwrap_or_default().as_bytes();
             super::dispatch(
@@ -379,7 +391,7 @@ fn read_views(
         None => Err(Failure::fault("the session holds no store")),
     };
     match answer(session, &mut watch.indexes) {
-        Err(failure) if failed_diverged(&failure) => {
+        Err(failure) if failure.reopens() => {
             follow(session, watch, true)?;
             answer(session, &mut watch.indexes)
         }
@@ -388,7 +400,8 @@ fn read_views(
 }
 
 /// Before a store verb: when the store at the session's path is not the one it opened — or,
-/// `diverged`, the held runtime found its history replaced under the same identity — reopens
+/// `diverged`, the held runtime found its history diverged or its database replaced under the
+/// same identity ([`Failure::reopens`]) — reopens
 /// there, unless a transaction the session proposed is open ([`PROPOSALS_OPEN`]). A reopen that
 /// fails is [`STORE_REPLACED`], a fault as `store-not-found` is, and leaves the session holding no
 /// runtime, so no later request is answered from the replaced store and each tries again.
@@ -548,7 +561,7 @@ fn reopen(store: &Store) -> Result<Runtime, Replaced> {
     store.open().map_err(|failure| {
         let why = match failure {
             Failure::Refused { name, message } => format!("{name}: {message}"),
-            Failure::Fault { message } | Failure::Usage { message } => message,
+            Failure::Fault { message, .. } | Failure::Usage { message } => message,
         };
         Replaced {
             message: format!(
@@ -620,30 +633,31 @@ impl Held {
     }
 
     /// Drops the held runtime, so the next [`Held::current`] opens the store at the path: for a
-    /// held history that diverged from the store there ([`diverged`]), which a store replaced
+    /// held history that diverged from the store there, or a SQLite database replaced in place
+    /// ([`reopens`]), which a store replaced
     /// under the same device and inode — deleted and created again, or its files replaced inside
     /// it — leaves the identity check blind to.
     pub(super) fn forget(&mut self) {
         self.runtime = None;
     }
-}
 
-/// What the file provider reports when the history at the path is no longer the one a handle
-/// observed (eventlog-file `fe8a0a7`, `lib.rs` and `capture.rs`).
-const DIVERGED: &str = "history diverged from this handle's observed history";
-
-/// Whether an error's text is the provider's refusal of a diverged history.
-pub(super) fn diverged(message: &str) -> bool {
-    message.contains(DIVERGED)
-}
-
-/// [`diverged`] for a verb's failure.
-fn failed_diverged(failure: &Failure) -> bool {
-    match failure {
-        Failure::Refused { message, .. }
-        | Failure::Fault { message }
-        | Failure::Usage { message } => diverged(message),
+    /// [`reopens`] for the held runtime; `false` while none is held.
+    pub(super) fn reopens(&self) -> bool {
+        self.runtime.as_ref().is_some_and(reopens)
     }
+}
+
+/// Whether `runtime`'s store refuses the history it observed as diverged from the store at its
+/// path, or refuses to answer because its SQLite database there was replaced in place:
+/// `ekr_store`'s typed [`ekr_kernel::PersistenceError::Diverged`], which the store maps from its
+/// provider, or [`ekr_kernel::PersistenceError::Replaced`]. `ekr mcp` and `ekr view` ask it, by
+/// one head read, after a read through `runtime` answered a fault; a session reads its failure's
+/// own [`Failure::reopens`]. No reader tells either by a message's text.
+pub(super) fn reopens(runtime: &Runtime) -> bool {
+    matches!(
+        runtime.head(),
+        Err(ekr_kernel::PersistenceError::Diverged(_) | ekr_kernel::PersistenceError::Replaced(_))
+    )
 }
 
 /// `argv` parsed by the one-shot verb's own clap definitions.
@@ -702,6 +716,7 @@ fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
         Command::Guide => Err(verb_refused("guide")),
         Command::Operations { .. } => Err(verb_refused("operations")),
         Command::Example { .. } => Err(verb_refused("example")),
+        Command::ApplyExtraction { .. } => Err(verb_refused("apply-extraction")),
         Command::Propose { .. }
         | Command::Validate { .. }
         | Command::Commit { .. }
@@ -725,8 +740,8 @@ fn admit(cli: &Cli, create: bool) -> Result<(), Failure> {
 
 /// The refusal of a verb a session does not serve: `seed` creates a store, which only a session
 /// started with `--create` does, `view` serves until interrupted, `mcp` until its own input ends,
-/// a session does not nest, `migrate` writes a second store, and `guide`, `operations` and
-/// `example` print text.
+/// a session does not nest, `migrate` writes a second store, `apply-extraction` is a run of the
+/// verbs a session serves, and `guide`, `operations` and `example` print text.
 pub(super) fn verb_refused(verb: &str) -> Failure {
     let instead = if verb == "seed" {
         "run `ekr seed` outside the session, or start the session with `ekr session --create`"
@@ -746,6 +761,74 @@ fn stderr(failure: &Failure) -> String {
     match failure {
         Failure::Usage { message } => message.clone(),
         failure => format!("{failure}\n"),
+    }
+}
+
+/// The transport `ekr apply-extraction` runs the SDK's apply routine over: each request answered
+/// as a session answers its line ([`answer`]), against the runtime the verb opened, in this
+/// process. No child process is started and nothing is serialised to a line; what each request
+/// is refused or answered with is what a child `ekr session` answers it with. Not exported.
+pub(super) struct InProcess<'a> {
+    session: Session,
+    watch: Watch,
+    now: &'a dyn Fn() -> Timestamp,
+}
+
+impl<'a> InProcess<'a> {
+    /// A session over `runtime`, opened from `store`, answering with `now` as its clock.
+    pub(super) fn new(store: Store, runtime: Runtime, now: &'a dyn Fn() -> Timestamp) -> Self {
+        let opened = identity(&store.store);
+        Self {
+            session: Session {
+                store,
+                runtime: Some(runtime),
+                create: false,
+            },
+            watch: Watch {
+                held: true,
+                opened,
+                proposed: BTreeSet::new(),
+                indexes: IndexCache::new(IndexCache::DEFAULT_CAPACITY),
+            },
+            now,
+        }
+    }
+
+    /// Ends the session as a child session ends at the end of its input: the replay checkpoint of
+    /// the head it reached, into the store it opened only.
+    pub(super) fn close(self) {
+        if let Some(runtime) = &self.session.runtime {
+            if identity(&self.session.store.store) == self.watch.opened {
+                runtime.retain_checkpoint_at_rest();
+            }
+        }
+    }
+}
+
+impl ekr_sdk::transport::Transport for InProcess<'_> {
+    fn request(
+        &mut self,
+        request: &ekr_sdk::transport::Request,
+    ) -> Result<ekr_sdk::reply::Reply, ekr_sdk::transport::TransportError> {
+        let request = Request {
+            argv: request.argv.clone(),
+            stdin: request.stdin.clone(),
+        };
+        let reply = |exit, document, stderr| ekr_sdk::reply::Reply {
+            exit,
+            document,
+            stderr,
+        };
+        Ok(
+            match answer(&request, &mut self.session, &mut self.watch, self.now) {
+                Ok(Stdout::Document(Value::Null)) => reply(0, None, String::new()),
+                Ok(Stdout::Document(document)) => reply(0, Some(document), String::new()),
+                Ok(Stdout::Raw(document)) => {
+                    reply(0, serde_json::from_str(document.get()).ok(), String::new())
+                }
+                Err(failure) => reply(i32::from(failure.code()), None, stderr(&failure)),
+            },
+        )
     }
 }
 

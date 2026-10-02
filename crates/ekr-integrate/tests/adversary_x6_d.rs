@@ -598,8 +598,17 @@ fn adv_every_site_that_names_a_type_refuses_an_undeclared_one() {
         "    node_type: Project\n    aliases:\n    - Apollo\n  property: status\n",
         "    node_type: Subproject\n    aliases:\n    - Apollo\n  property: status\n",
     );
+    // Once Project has a subtype, a reference to a Project is one `ekr resolve` refuses
+    // (`reference-type-has-subtypes`, wave correct-07): the document names its things by the
+    // concrete subtype, and the property declared on the parent is accepted on it.
+    assert!(
+        verdict(&inherited).starts_with("refused: reference-type-has-subtypes: "),
+        "{}",
+        verdict(&inherited)
+    );
+    let concrete = inherited.replace("node_type: Project\n", "node_type: Subproject\n");
     assert_eq!(
-        verdict(&inherited),
+        verdict(&concrete),
         "accepted",
         "a property declared on a parent"
     );

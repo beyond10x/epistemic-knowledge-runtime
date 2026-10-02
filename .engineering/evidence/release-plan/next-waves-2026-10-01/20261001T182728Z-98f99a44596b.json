@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-01T18:27:28Z",
+  "actor": "human:timo",
+  "artifact": "release-plan:next-waves-2026-10-01",
+  "kind": "release-plan",
+  "revision": 2,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:next-waves-1001-parallel-safety-r1",
+    "review": "review-result:next-waves-1001-parallel-safety-r1",
+    "outcome": "fixed"
+  }
+}

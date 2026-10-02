@@ -40,7 +40,7 @@ pub(super) fn run(
     let answer = ekr_views::find_code_names(runtime, at.map(RevisionNumber::new), sources)
         .map_err(|error| match project_refusal(&error) {
             Some(name) => Failure::refused(name, error),
-            None => Failure::fault(error),
+            None => Failure::unread(error),
         })?;
     serde_json::from_slice(&answer.bytes).map_err(Failure::fault)
 }

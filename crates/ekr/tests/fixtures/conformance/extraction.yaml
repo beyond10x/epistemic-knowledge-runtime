@@ -1,0 +1,20 @@
+format: ekr.extraction-document/1
+entities:
+- node_type: Person
+  aliases: [Dana]
+facts:
+- !Relation
+  subject: {node_type: Person, aliases: [Dana]}
+  relation: CEO_OF
+  object: {node_type: Organization, aliases: [Initech]}
+  evidence: [00000000-0000-4000-8000-000000000405]
+evidence:
+- evidence:
+    id: 00000000-0000-4000-8000-000000000405
+    source: !HumanStatement
+      identity: Annual report
+    content_hash: 94680afc91da2f0469dbd76ae5ede8035ba2d0238ede1b55dfb25e41a92bf54a
+    extracted_by: 00000000-0000-4000-8000-000000000101
+    observed_at: 1773273600000
+    confidence: 10000
+  payload: [68, 97, 110, 97, 32, 105, 115, 32, 67, 69, 79, 32, 111, 102, 32, 73, 110, 105, 116, 101, 99, 104, 46]
