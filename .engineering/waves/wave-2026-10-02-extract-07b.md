@@ -18,7 +18,7 @@ Build directories are under `<home>/.cache/b10x-target/`; scratch roots under
 | Unit | Artifacts | Branch / managed id | Build directory | Scratch | Stage |
 |---|---|---|---|---|---|
 | A | story:evidence-attaches-to-a-held-assertion | impl/evidence-attachment / ekr-x7-a | ekr-x7b-a | a | integrated at 0283e993e after decoder correction and second adversary pass |
-| W | task:validate-cost-flat-with-store-size | impl/validate-cost-flat / ekr-x7-w | ekr-x7b-w | w | formatting and borrowed checkpoint correction integrated; combined correctness green, performance acceptance remains open |
+| W | task:validate-cost-flat-with-store-size | impl/validate-cost-flat / ekr-x7-w | ekr-x7b-w | w | source integrated and managed tree retired; combined correctness green, performance acceptance remains open |
 | consumer | K: story:sdk-store-checks; O: task:ocel-export-prints-its-counts and task:ocel-times-events-by-a-named-property; Q: task:quality-counts-seed-evidence-and-constrained-types; N: task:code-names-matches-whole-words; F: task:fact-quality-states-the-empty-interval | impl/x7b-consumer / ekr-x7b-consumer | ekr-x7b-consumer | consumer | integrated through d30befbbe with selector corrections and retained adversary cases; managed tree retired |
 | F/K adversary | empty interval and judged SDK sample | review/x7b-fk / ekr-x7b-review-fk | ekr-x7b-review-fk | review-fk | F/K and subsequent O/N reviews integrated; managed tree retired |
 | coordinator | integration, planning, conformance synthesis | wave/extract-07b / ekr-extract-07b | ekr-extract-07b | coordinator | final source correctness passed at 570cb34cf; feature artifacts implemented, W acceptance and release remain |
@@ -199,3 +199,21 @@ also fails commit and aggregate acceptance (`w/controlled6/scaling.log`). Its ex
 recorded in W's task. No further repeated sampling is planned.
 No threshold, cadence, durability setting or dependency pin changes. No new adversary pass is
 opened. Source release remains held on W; the changelog remains Unreleased.
+
+## Review handoff
+
+Bot-authored draft pull request: https://github.com/beyond10x/epistemic-knowledge-runtime/pull/60.
+The complete source and failure evidence are published on `wave/extract-07b`. The coordinator
+recorded both W review findings as escalated, without marking W implemented or changing its
+acceptance. The operator's pending decision is whether to reopen deferred native storage work,
+retain the current scope with the draft held, or explicitly split W into a later release.
+No merge, tag or release has been performed.
+
+W's clean tree was finished and removed through reviewed exact-id managed GC. Recovery proof
+is the published integration branch and draft pull-request refs; coordinator scratch retains
+`w-final-gc-dry.json` and `w-final-gc-apply.json`. Small reports and complete measurement/profile
+evidence remain under the wave's W scratch root. Its release artifacts remain available for
+symbolizing the retained profiles. The clean integration tree `ekr-extract-07b` is retained
+for the next coordinator, along with the exact Atlas authority tree. Resume from this page and
+W's task, reconcile actual Git/worktree state, then apply the operator's scope decision before
+starting further storage implementation. Draft CI is additional pending evidence, not a release.
