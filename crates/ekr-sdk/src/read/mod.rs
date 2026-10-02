@@ -28,6 +28,7 @@
 
 mod checks;
 mod kernel;
+mod ocel;
 mod one_shot;
 mod views;
 
@@ -40,9 +41,9 @@ use crate::session::{SessionOptions, StoreConfig};
 use crate::transport::{Request, Transport, TransportError};
 
 pub use checks::{
-    AssertionQuality, CodeNameFinding, CodeNameKind, CodeNameMatch, CodeNames, CodeNamesMeta,
-    PropertyQuality, QualityMeta, RejectedTransaction, RejectionIssue, Rejections, SharedName,
-    StoreQuality,
+    AssertionQuality, CodeNameFinding, CodeNameKind, CodeNameMatch, CodeNameMode, CodeNames,
+    CodeNamesMeta, PropertyQuality, QualityMeta, RejectedTransaction, RejectionIssue, Rejections,
+    SharedName, StoreQuality,
 };
 pub use kernel::{
     ExplainedEvidence, Explanation, ExplanationLink, Head, ListedTransaction, NamedType, Ontology,
@@ -50,6 +51,11 @@ pub use kernel::{
     RecordedTime, Root, Snapshot, SnapshotAssertion, SnapshotEdge, SnapshotEvidence, SnapshotGraph,
     SnapshotGraphDocument, SnapshotNode, SnapshotPredicate, SnapshotRoot, SnapshotSubject,
     TransactionState, Transactions, ValidTime,
+};
+pub use ocel::{
+    OcelCounts, OcelDocument, OcelEvent, OcelEventAttribute, OcelExport, OcelLog, OcelMeta,
+    OcelName, OcelNames, OcelObject, OcelObjectAttribute, OcelQuery, OcelRelationship, OcelType,
+    OcelTypeAttribute,
 };
 pub use views::{
     ChangeKind, Changes, ChangesMeta, DetailMeta, DetailNode, GraphChange, MatchField, MatchTier,

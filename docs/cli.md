@@ -426,6 +426,14 @@ as for `ekr snapshot --at`.
 ontology: it reports every literal in the given source files that equals one of the store's names,
 at the head or as of revision `N`. It reads the files and the store and writes nothing.
 
+`ekr code-names --words <file>...` also finds names used as bare identifiers or in comments.
+A match is exact and case-sensitive, with neither adjacent character a Unicode alphanumeric
+character or underscore; `ZORBED_BY` matches while `ZORBED_BY_suffix` does not. Names may contain
+spaces and punctuation. In this mode `column` points to the first matched character (counted
+in Unicode scalar values), `meta.mode` is `Words`, and the existing `literals` count counts
+candidate name occurrences before exemptions. Without `--words`, the literal scan and its
+document bytes remain unchanged, and `meta.mode` is absent.
+
 - **A literal** is the text between two quotes of the same character — `"`, `'` or a backtick — on
   one line, with `\` escaping the character after it. Each line is scanned twice and a literal either
   scan finds counts once: one pass over all three characters at once consumes whole literals, so
@@ -545,7 +553,25 @@ member is what an OCEL 2.0 reader reads; write it to a file of its own, for exam
 ```console
 ekr ocel --revision 0
 ekr ocel --events Person
+ekr ocel --event-time Alert.fired_at --event-time Incident.reported_at
 ```
+
+On success stderr contains exactly one compact JSON line with the engine's `OcelExported`
+summary: `revision`, `event_types`, `object_types`, `events`, `objects`,
+`event_object_relationships`, `object_object_relationships`, `edges_between_events`,
+`undated_events`, `edges_of_undated_events`, `parallel_edges_merged`,
+`attribute_values_out_of_range` and `ocel_hash`. The hash covers the compact engine document,
+before CLI pretty printing. A session carries the same line in that request's `stderr` member.
+
+Repeat `--event-time TypeName.propertyName` to select event types and the `Timestamp` property
+that supplies each event's time. Selectors split at the last dot, so type names may contain dots;
+property names containing dots cannot be selected by this spelling. Names resolve in the
+requested revision, including inherited properties. Only selected types become events, and a
+node missing that property is omitted and counted in `undated_events`. A node with several
+distinct timestamps, an ambiguous name, an absent or non-Timestamp property, or two different
+properties selected for one type is refused as `ekr.views.EventTimeInvalid`; repeated identical
+selectors deduplicate. `--events` and `--event-time` cannot be combined. Without `--event-time`,
+the existing default and `--events` document bytes are unchanged.
 
 The event types are EKR's one event-type rule, the same types the overview marks as events
 (`roles.types[].event` of `ekr.graph-overview/1`), the timeline walks to and `GET /roles` marks

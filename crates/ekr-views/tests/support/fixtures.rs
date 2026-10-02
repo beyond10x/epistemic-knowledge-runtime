@@ -341,6 +341,8 @@ pub enum Fixture {
     /// whose time moves at revision 1 and stays at 2, when the fact moving it is retracted
     /// ([`build_ocel`]).
     Ocel,
+    /// Inherited timestamp selection, a historical property rename, and ambiguous values.
+    NamedEventTime,
     /// Four schema changes after the seed, each its own version: version 1 as
     /// [`Fixture::SchemaEvolution`]'s (revision 1); `observes` widened, its source gaining `Subject`
     /// and its target `Observation` (revision 2); `label` on `Subject` renamed `title` and made
@@ -370,6 +372,7 @@ impl Fixture {
             "changes" => Self::Changes,
             "quality" => Self::Quality,
             "ocel" => Self::Ocel,
+            "ocel-named-time" => Self::NamedEventTime,
             "schema-changes" => Self::SchemaChanges,
             "property-redeclared" => Self::PropertyRedeclared,
             _ => return None,
@@ -464,6 +467,7 @@ impl Fixture {
             }
             Self::Quality => build_quality(&mut writer),
             Self::Ocel => build_ocel(&mut writer),
+            Self::NamedEventTime => build_named_event_time(&mut writer),
             Self::SchemaChanges => build_schema_changes(&mut writer),
             Self::PropertyRedeclared => {
                 writer.seed(seed(0, false, false, 1));
@@ -753,6 +757,73 @@ fn ocel_fact(
         Some(valid_from),
         id(O_EVIDENCE),
     )
+}
+
+/// An inherited timestamp renamed at revision 1 and made ambiguous at revision 2.
+fn build_named_event_time(writer: &mut Writer<'_>) {
+    let mut document = empty_seed();
+    let mut parent = NodeType::new(id(0xfa_0010), "Parent");
+    let mut at = PropertyDefinition::new(id(0xfa_0020), "at", ValueType::Timestamp);
+    at.cardinality = Cardinality::Many;
+    parent.properties.insert(at.id, at.clone());
+    let earlier = PropertyDefinition::new(id(0xfa_0021), "earlier_at", ValueType::Timestamp);
+    parent.properties.insert(earlier.id, earlier);
+    let label = PropertyDefinition::new(id(0xfa_0022), "label", ValueType::String);
+    parent.properties.insert(label.id, label);
+    for number in [0xfa_0023, 0xfa_0024] {
+        let ambiguous = PropertyDefinition::new(id(number), "ambiguous", ValueType::Timestamp);
+        parent.properties.insert(ambiguous.id, ambiguous);
+    }
+    let mut child = NodeType::new(id(0xfa_0011), "Child.Kind");
+    child.parents.insert(parent.id);
+    document.ontology.node_types.extend([
+        parent,
+        child,
+        NodeType::new(id(0xfa_0012), "Thing"),
+        NodeType::new(id(0xfa_0013), "same"),
+        NodeType::new(id(0xfa_0014), "same"),
+    ]);
+    for (number, kind) in [
+        (0xfa_0100, 0xfa_0011),
+        (0xfa_0101, 0xfa_0011),
+        (0xfa_0102, 0xfa_0012),
+    ] {
+        let mut node = Node::<Value>::new(
+            id(number),
+            document.graph.root.id,
+            id(kind),
+            format!("node-{number}"),
+        );
+        if number == 0xfa_0100 {
+            node.properties
+                .insert(at.id, vec![Value::Timestamp(Timestamp::from_millis(2000))]);
+            node.properties.insert(
+                id(0xfa_0021),
+                vec![Value::Timestamp(Timestamp::from_millis(1000))],
+            );
+        }
+        document.graph.nodes.insert(node.id, node);
+    }
+    writer.seed(document);
+    at.name = "happened_at".to_owned();
+    writer.commit(
+        vec![GraphOperation::ModifyProperty(PropertyModification {
+            owner: Some(id(0xfa_0010)),
+            property: at,
+        })],
+        Some(id(0xfa_0300)),
+    );
+    writer.commit(
+        vec![GraphOperation::UpdateProperty(PropertyMutation {
+            node: id(0xfa_0100),
+            property: id(0xfa_0020),
+            values: vec![
+                Value::Timestamp(Timestamp::from_millis(2000)),
+                Value::Timestamp(Timestamp::from_millis(3000)),
+            ],
+        })],
+        None,
+    );
 }
 
 /// The `ocel` store, as an-ocel-export-takes-events-from-valid-time-and-objects-from-the-rest.yaml

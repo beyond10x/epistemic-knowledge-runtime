@@ -221,6 +221,35 @@ fn document(revision: u64, log: Value) -> Value {
 }
 
 #[test]
+fn ocel_counts_are_returned_on_each_requests_stderr_without_leaking_to_the_next_request() {
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        let output = world.run(&["ocel"]);
+        assert_eq!(output.status.code(), Some(0));
+        let counts: Value =
+            serde_json::from_slice(&output.stderr).expect("one JSON summary on stderr");
+        assert_eq!(counts["events"], 0);
+        assert_eq!(counts["objects"], 3);
+        assert_eq!(counts["object_object_relationships"], 1);
+        let answers = world.session(&[
+            json!({"argv": ["ocel"]}),
+            json!({"argv": ["head"]}),
+            json!({"argv": ["ocel", "--events", "Person"]}),
+        ]);
+        assert_eq!(
+            answers[0]["stderr"],
+            String::from_utf8(output.stderr).unwrap()
+        );
+        assert_eq!(answers[1]["stderr"], "");
+        let named = world.run(&["ocel", "--events", "Person"]);
+        assert_eq!(
+            answers[2]["stderr"],
+            String::from_utf8(named.stderr).unwrap()
+        );
+    }
+}
+
+#[test]
 fn ocel_prints_each_revision_of_the_example_store_as_an_ocel_2_0_log_on_both_providers() {
     for backend in BACKENDS {
         let world = World::seeded(backend);
