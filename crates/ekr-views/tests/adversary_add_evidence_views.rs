@@ -139,25 +139,47 @@ fn store_with_added_evidence(directory: &std::path::Path, file: bool, n: usize) 
     open()
 }
 
-/// The fastest of three renders of the head of `runtime`'s store.
-fn render_time(runtime: &Runtime, evidence: u64) -> std::time::Duration {
-    (0..3)
-        .map(|_| {
-            let started = std::time::Instant::now();
-            let rendered = ekr_views::project(runtime, None).unwrap();
-            let elapsed = started.elapsed();
-            assert_eq!(rendered.summary.retained_evidence, evidence);
-            elapsed
-        })
-        .min()
-        .unwrap()
+/// The provider reads one render of the head of `runtime`'s store makes on this thread, by kind,
+/// counted by the store (`ekr_kernel::read_work` and `ekr_kernel::stream_reads`). The runtime
+/// drives its store on the calling thread (a current-thread Tokio runtime), so the count is the
+/// render's, and the other cases this binary runs at the same time, each on its own thread, do not
+/// reach it. The store's blobs-hashed and bytes-compared counts are left out: which of the two a
+/// blob costs depends on the verified copies other live handles in the process hold.
+fn render_reads(runtime: &Runtime, evidence: u64) -> [(&'static str, u64); 6] {
+    let _ = (ekr_kernel::read_work(), ekr_kernel::stream_reads());
+    let rendered = ekr_views::project(runtime, None).unwrap();
+    let (work, streams) = (ekr_kernel::read_work(), ekr_kernel::stream_reads());
+    assert_eq!(rendered.summary.retained_evidence, evidence);
+    [
+        ("blobs read", work.blobs_read),
+        ("revision occurrences read", work.occurrences_read),
+        ("revision-stream reads", streams.revision),
+        ("checkpoint-stream reads", streams.checkpoint),
+        ("object-stream reads", streams.object),
+        ("tenant-log reads", streams.feed),
+    ]
 }
+
+/// The reads that find the head: a render that reads it once makes the same number of these
+/// whatever the number of entries it projects.
+const HEAD_READS: [&str; 3] = [
+    "revision-stream reads",
+    "checkpoint-stream reads",
+    "tenant-log reads",
+];
 
 /// `AddEvidence` makes the number of evidence entries grow with every ingest, so what a view
 /// costs per entry is what it costs per commit. The projection reads the head once
-/// ([`Runtime::schema_history`]) and must not cost more than linear time in the entries it
-/// projects: eight times the entries may take at most sixteen times as long (linear is eight,
-/// quadratic sixty-four) — twice linear, the slack `command_bench` gives kernel commands.
+/// ([`Runtime::schema_history`]) and must not cost more than linear work in the entries it
+/// projects. The work is the provider reads the store counts, not a clock, so the machine's load
+/// cannot move it (`AGENTS.md`):
+///
+/// - the first render of a reopened store verifies its history, and eight times the entries may
+///   cost at most sixteen times the reads of every kind (linear is eight, quadratic sixty-four) —
+///   twice linear, the slack `command_bench` gives kernel commands;
+/// - every later render finds the head with the same number of reads at 400 entries as at 50.
+///   Asking the runtime once per entry, which made a render quadratic before wave ingest-02 (400
+///   entries 13.66 s), adds reads of the head per entry.
 #[test]
 fn rendering_costs_linear_time_in_the_evidence_commits_added() {
     for file in [false, true] {
@@ -165,15 +187,36 @@ fn rendering_costs_linear_time_in_the_evidence_commits_added() {
         let large = tempfile::tempdir().unwrap();
         let small_runtime = store_with_added_evidence(small.path(), file, 50);
         let large_runtime = store_with_added_evidence(large.path(), file, 400);
-        let small_time = render_time(&small_runtime, 50);
-        let large_time = render_time(&large_runtime, 400);
-        println!("file={file}: 50 entries {small_time:?}, 400 entries {large_time:?}");
-        assert!(
-            large_time < small_time * 16,
-            "file={file}: rendering 400 added evidence entries took {large_time:?}, \
-             {:.1} times the {small_time:?} of 50",
-            large_time.as_secs_f64() / small_time.as_secs_f64()
-        );
+        let [small_reads, large_reads] = [(&small_runtime, 50), (&large_runtime, 400)]
+            .map(|(runtime, evidence)| [(); 3].map(|()| render_reads(runtime, evidence)));
+        println!("file={file}: 50 entries {small_reads:?}\n  400 entries {large_reads:?}");
+        for (entries, reads) in [(50, &small_reads[0]), (400, &large_reads[0])] {
+            assert!(
+                reads[0].1 >= entries,
+                "file={file}: the first render of {entries} entries read {reads:?}, not every \
+                 retained payload, so the count is not counting this render"
+            );
+        }
+        for ((what, small), (_, large)) in small_reads[0].iter().zip(&large_reads[0]) {
+            assert!(
+                *large <= small * 16,
+                "file={file}: the first render of 400 added evidence entries made {large} {what}, \
+                 {:.1} times the {small} of 50",
+                *large as f64 / *small as f64
+            );
+        }
+        for render in 1..3 {
+            for ((what, small), (_, large)) in small_reads[render].iter().zip(&large_reads[render])
+            {
+                if HEAD_READS.contains(what) {
+                    assert_eq!(
+                        small, large,
+                        "file={file}: render {render} made {small} {what} at 50 entries and \
+                         {large} at 400; a render reads the head once, not once per entry"
+                    );
+                }
+            }
+        }
     }
 }
 

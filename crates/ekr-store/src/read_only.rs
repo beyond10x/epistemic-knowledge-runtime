@@ -14,17 +14,22 @@
 //!   are sent SIGTERM, SIGINT or SIGHUP), or by the next read-only open in the same temporary
 //!   directory once no process of that pid is alive;
 //! * a SQLite store is read through a read-only connection into a database image held in memory,
-//!   which `SqliteEventStore::from_image` opens, and no file is created beside the database. With
-//!   no `-wal` file beside it the database file is the whole committed state, and it is read
+//!   which `SqliteEventStore::from_image` opens. With no `-wal` beside it, or one of zero bytes,
+//!   which holds no frame, the database file is the whole committed state, and it is read
 //!   `immutable=1`: SQLite then takes no lock and makes no `-shm` or `-wal`. A process that may not
 //!   write the file cannot change it, and a writer that may is detected rather than excluded: the
-//!   file's size and modification time, and the absence of a `-wal`, are the same after the read as
-//!   before it, or the read is taken again. With a `-wal` beside it the database is read
+//!   size and modification time of the file and its `-wal` are the same after the read as before
+//!   it, or the read is taken again. With a `-wal` holding bytes the database is read
 //!   `mode=ro&readonly_shm=1`, through SQLite's own locks, opening the `-wal` and `-shm` that are
-//!   there and creating neither.
+//!   there and creating no `-shm`. A writer that closes between the look at the `-wal` and SQLite's
+//!   own open unlinks it, and where this process may write the directory SQLite then creates an
+//!   empty `-wal` (it opens one with `O_CREAT`) and reports `SQLITE_CANTOPEN` for the `-shm` it may
+//!   not create; the read taken again finds that `-wal` empty and reads the file alone. A
+//!   `-wal` holding bytes without its `-shm` is read again, a bounded number of times, after a
+//!   pause ([`Attempt::ShmAbsent`]).
 //!
-//! Nothing is written under the store's path. The copy costs the store's size once per open, in
-//! the temporary directory for the File provider and in memory for SQLite. A long-lived reader
+//! Nothing else is written under the store's path. The copy costs the store's size once per open,
+//! in the temporary directory for the File provider and in memory for SQLite. A long-lived reader
 //! asks [`ReadOnly::changed`] before each read and opens the store again when it has changed.
 
 use crate::StoreError;
@@ -68,6 +73,12 @@ impl Signature {
     /// A SQLite store's: the database and its `-wal`, where a commit lands first.
     pub(super) fn sqlite(database: &Path) -> Self {
         Self(vec![stamp(database), stamp(&sidecar(database, "-wal"))])
+    }
+
+    /// Whether a SQLite store's `-wal` held a byte when this was taken: only then can it hold a
+    /// frame the database file does not.
+    fn wal_holds_bytes(&self) -> bool {
+        matches!(self.0.get(1), Some(Some((length, _))) if *length > 0)
     }
 }
 
@@ -351,28 +362,120 @@ pub(super) fn sqlite_image(
         }
         Ok(Some(image))
     };
-    let backend = |error: rusqlite::Error| StoreError::Backend(error.to_string());
-    let wal = sidecar(database, "-wal");
-    for _ in 0..IMMUTABLE_ATTEMPTS {
-        if std::fs::symlink_metadata(&wal).is_ok() {
-            return read(false).map_err(backend);
+    let backend = |error: rusqlite::Error| StoreError::Backend(described(&error));
+    let shm = sidecar(database, "-shm");
+    let present = |path: &Path| std::fs::symlink_metadata(path).is_ok();
+    reading(
+        || {
+            let before = Signature::sqlite(database);
+            if before.wal_holds_bytes() {
+                return match read(false) {
+                    Err(error) if cant_open(&error) && !present(&shm) => Attempt::ShmAbsent(error),
+                    result => Attempt::Done(result.map_err(backend)),
+                };
+            }
+            // No `-wal`, or one of zero bytes, which holds no frame: the file is the whole
+            // committed state. Read without locks and without creating a file, then check that
+            // nothing wrote it, or its `-wal`, meanwhile.
+            match read(true) {
+                Err(error) => Attempt::Done(Err(backend(error))),
+                Ok(image) if Signature::sqlite(database) == before => Attempt::Done(Ok(image)),
+                Ok(_) => Attempt::Changed,
+            }
+        },
+        std::thread::sleep,
+    )
+    .map_err(|error| match error {
+        StoreError::Backend(message) => {
+            StoreError::Backend(format!("{}: {message}", database.display()))
         }
-        // No `-wal`: the file is the whole committed state. Read without locks and without
-        // creating a file, then check that nothing wrote it meanwhile.
-        let before = Signature::sqlite(database);
-        let image = read(true).map_err(backend)?;
-        if Signature::sqlite(database) == before {
-            return Ok(image);
-        }
-    }
-    Err(StoreError::Backend(format!(
-        "{} changed during each of {IMMUTABLE_ATTEMPTS} read-only reads",
-        database.display()
-    )))
+        error => error,
+    })
 }
 
-/// How many times an immutable read is taken again when the database changed while it was read.
-const IMMUTABLE_ATTEMPTS: usize = 8;
+/// What one read of a SQLite store came to.
+enum Attempt<T> {
+    /// Its result, which ends the read.
+    Done(Result<T, StoreError>),
+    /// No `-wal` holding bytes, and the database file or its `-wal` changed while it was read
+    /// immutable.
+    Changed,
+    /// SQLite could not open the database through its `-wal`, and no `-shm` was beside it.
+    ///
+    /// A `readonly_shm` connection opens an existing `-shm` and never creates one, so it reports
+    /// `SQLITE_CANTOPEN` (extended code 14) whenever a `-wal` is there without its `-shm`. A writer
+    /// leaves the two that way for a moment twice: when its open has created the `-wal` and not
+    /// yet the `-shm`, and when its close has unlinked the `-shm` and not yet the `-wal`; and
+    /// SQLite's own read-only open leaves an empty `-wal` without a `-shm` when the writer's close
+    /// unlinks the `-wal` under it. Measured on 2026-10-02 with `tests/adversary_read_only_open.rs`
+    /// run 48 at a time at load 115 to 183, before an empty `-wal` was read as no `-wal`: 6 of 1440
+    /// runs failed, each with this error and no `-shm` after it, 3 while the writer opened and 3
+    /// while it closed, and one later run failed on the empty `-wal` in each of its reads.
+    ShmAbsent(rusqlite::Error),
+}
+
+/// How many reads a read-only open of a SQLite store takes before it reports the last one's
+/// failure: a database that changed while it was read is read again at once, a `-wal` without its
+/// `-shm` after a pause (see [`Attempt::ShmAbsent`]).
+const SQLITE_READ_ATTEMPTS: usize = 12;
+
+/// The first pause before a `-wal` without its `-shm` is read again; each later pause doubles,
+/// up to [`SQLITE_SHM_MAX_PAUSE`]. Eleven pauses add up to at most 527 ms.
+const SQLITE_SHM_FIRST_PAUSE: std::time::Duration = std::time::Duration::from_millis(1);
+
+/// The longest pause between two reads of a `-wal` without its `-shm`.
+const SQLITE_SHM_MAX_PAUSE: std::time::Duration = std::time::Duration::from_millis(100);
+
+/// Takes `attempt` until it is [`Attempt::Done`], at most [`SQLITE_READ_ATTEMPTS`] times, calling
+/// `pause` before each read taken again after [`Attempt::ShmAbsent`].
+fn reading<T>(
+    mut attempt: impl FnMut() -> Attempt<T>,
+    mut pause: impl FnMut(std::time::Duration),
+) -> Result<T, StoreError> {
+    let mut wait = SQLITE_SHM_FIRST_PAUSE;
+    let mut last = attempt();
+    for _ in 1..SQLITE_READ_ATTEMPTS {
+        match last {
+            Attempt::Done(result) => return result,
+            Attempt::Changed => {}
+            Attempt::ShmAbsent(_) => {
+                pause(wait);
+                wait = (wait * 2).min(SQLITE_SHM_MAX_PAUSE);
+            }
+        }
+        last = attempt();
+    }
+    match last {
+        Attempt::Done(result) => result,
+        Attempt::Changed => Err(StoreError::Backend(format!(
+            "changed during each of {SQLITE_READ_ATTEMPTS} read-only reads"
+        ))),
+        Attempt::ShmAbsent(error) => Err(StoreError::Backend(format!(
+            "{}; its -wal was there without the -shm a writer creates beside it in each of \
+             {SQLITE_READ_ATTEMPTS} read-only reads",
+            described(&error)
+        ))),
+    }
+}
+
+/// Whether SQLite reported that it could not open a file: `SQLITE_CANTOPEN` with any extended code.
+fn cant_open(error: &rusqlite::Error) -> bool {
+    matches!(
+        error,
+        rusqlite::Error::SqliteFailure(failure, _)
+            if failure.code == rusqlite::ErrorCode::CannotOpen
+    )
+}
+
+/// `error` as text that keeps SQLite's extended result code, which its message alone drops.
+fn described(error: &rusqlite::Error) -> String {
+    match error {
+        rusqlite::Error::SqliteFailure(failure, _) => {
+            format!("{error} (SQLite extended code {})", failure.extended_code)
+        }
+        error => error.to_string(),
+    }
+}
 
 /// `database` as a SQLite URI filename, read-only and, when asked, immutable. Every byte that is
 /// not unreserved is percent-encoded, so no path can add a query parameter of its own.
@@ -397,4 +500,110 @@ fn uri(database: &Path, immutable: bool) -> Result<String, rusqlite::Error> {
         "?mode=ro&readonly_shm=1"
     });
     Ok(uri)
+}
+
+#[cfg(test)]
+mod sidecars_in_flux {
+    use super::{reading, Attempt, SQLITE_READ_ATTEMPTS};
+    use crate::StoreError;
+    use std::time::Duration;
+
+    fn cant_open() -> rusqlite::Error {
+        rusqlite::Error::SqliteFailure(
+            rusqlite::ffi::Error::new(rusqlite::ffi::SQLITE_CANTOPEN),
+            Some("unable to open database file".into()),
+        )
+    }
+
+    /// A writer between creating the `-wal` and its `-shm`, or between unlinking them: the read is
+    /// taken again after a pause, and the one that succeeds is returned.
+    #[test]
+    fn a_wal_without_its_shm_is_read_again_until_the_shm_is_there() {
+        let mut calls = 0;
+        let mut pauses = Vec::new();
+        let read = reading(
+            || {
+                calls += 1;
+                if calls < 4 {
+                    Attempt::ShmAbsent(cant_open())
+                } else {
+                    Attempt::Done(Ok(7))
+                }
+            },
+            |pause| pauses.push(pause),
+        );
+        assert_eq!(read.unwrap(), 7);
+        assert_eq!(calls, 4);
+        assert_eq!(pauses.len(), 3, "one pause before each read taken again");
+        assert!(
+            pauses.windows(2).all(|pair| pair[0] < pair[1]),
+            "{pauses:?}"
+        );
+    }
+
+    /// A `-shm` that never appears is reported after [`SQLITE_READ_ATTEMPTS`] reads, naming
+    /// SQLite's own error, its extended code and the missing file.
+    #[test]
+    fn a_shm_that_never_appears_is_reported_after_the_bounded_reads() {
+        let mut calls = 0;
+        let mut waited = Duration::ZERO;
+        let read: Result<(), _> = reading(
+            || {
+                calls += 1;
+                Attempt::ShmAbsent(cant_open())
+            },
+            |pause| waited += pause,
+        );
+        assert_eq!(calls, SQLITE_READ_ATTEMPTS);
+        let Err(StoreError::Backend(message)) = read else {
+            panic!("{read:?}")
+        };
+        assert!(
+            message.contains("unable to open database file")
+                && message.contains("extended code 14")
+                && message.contains("-shm")
+                && message.contains(&format!("each of {SQLITE_READ_ATTEMPTS} read-only reads")),
+            "{message}"
+        );
+        assert!(waited < Duration::from_secs(1), "{waited:?} in pauses");
+    }
+
+    /// A database that changed while it was read immutable is read again at once, as before.
+    #[test]
+    fn a_database_that_changed_is_read_again_without_a_pause() {
+        let mut calls = 0;
+        let mut pauses = 0;
+        let read: Result<(), _> = reading(
+            || {
+                calls += 1;
+                Attempt::Changed
+            },
+            |_| pauses += 1,
+        );
+        assert_eq!(calls, SQLITE_READ_ATTEMPTS);
+        assert_eq!(pauses, 0);
+        assert!(
+            matches!(&read, Err(StoreError::Backend(message))
+                if message.contains("changed during each")),
+            "{read:?}"
+        );
+    }
+
+    /// Any other result, success or failure, ends the read at the first attempt.
+    #[test]
+    fn any_other_result_is_returned_at_once() {
+        let mut calls = 0;
+        let read: Result<(), _> = reading(
+            || {
+                calls += 1;
+                Attempt::Done(Err(StoreError::Backend("disk I/O error".into())))
+            },
+            |_| panic!("no pause"),
+        );
+        assert!(read.is_err());
+        assert_eq!(
+            calls, 1,
+            "only a -wal without its -shm, or a change, is read again"
+        );
+    }
 }
