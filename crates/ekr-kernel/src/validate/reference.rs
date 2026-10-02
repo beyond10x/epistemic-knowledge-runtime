@@ -181,6 +181,35 @@ impl Check for Reference {
                     }
                 }
                 GraphOperation::AddAlias(addition) => known.node(tx, addition.node, &mut issues),
+                // The assertion is looked up in canonical state alone: evidence attaches to an
+                // assertion a committed revision holds, and one the same transaction adds would
+                // cite the evidence instead (design § 103.2).
+                GraphOperation::AttachEvidence(attachment) => {
+                    let (assertion, evidence) = (attachment.assertion, attachment.evidence);
+                    if !known.state.assertions.contains_key(&assertion) {
+                        issues.push(issue(
+                            tx,
+                            ValidatorName::Reference,
+                            UNRESOLVED_ASSERTION,
+                            format!(
+                                "assertion {assertion} is not in the graph; evidence attaches to \
+                                 an assertion a committed revision holds"
+                            ),
+                        ));
+                    }
+                    if !known.holds_evidence(&evidence) {
+                        issues.push(issue(
+                            tx,
+                            ValidatorName::Reference,
+                            UNRESOLVED_EVIDENCE,
+                            format!(
+                                "evidence {evidence} attached to assertion {assertion} is not \
+                                 retained by canonical state, and no AddEvidence of the \
+                                 transaction adds it"
+                            ),
+                        ));
+                    }
+                }
                 // Names no graph identity but its own, which is new (`Structural`). Its source
                 // is a `HumanStatement` or refused by `Provenance`, so it names no assertion.
                 GraphOperation::AddEvidence(_)

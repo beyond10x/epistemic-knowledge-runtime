@@ -156,9 +156,10 @@ WHERE VALUES COME FROM
   revision numbers ekr head; a commit prints its revision
   times            milliseconds since the Unix epoch (valid_time.from, effective_from);
                    transaction_time.recorded_from is written as 0 and set by the kernel
-  evidence         a transaction's `evidence` list is exactly the evidence its assertions cite,
-                   and each must be retained (seeded, or added by an earlier commit) or be added
-                   by an AddEvidence of the same transaction (see ADDING EVIDENCE)
+  evidence         a transaction's `evidence` list is exactly the evidence its assertions cite
+                   and its AttachEvidence operations attach, and each must be retained (seeded,
+                   or added by an earlier commit) or be added by an AddEvidence of the same
+                   transaction (see ADDING EVIDENCE)
   content hashes   ekr hash <file | ->
 
 RESOLVE BEFORE YOU CREATE: ekr resolve
@@ -209,6 +210,9 @@ ADDING EVIDENCE
   (evidence-unsupported-source) and extracted_by the host operator (propose refuses otherwise,
   as ekr.kernel.ProposalAttribution). The commit stores the payload; explain --documents
   prints it.
+  Evidence for an assertion the store already holds is attached with AttachEvidence
+  (`ekr operations AttachEvidence`) rather than by superseding the assertion: the assertion is
+  unchanged, and explain lists the attachment from the revision that made it on.
 
 ADDING EVIDENCE TO A SEED
   Evidence the seed's own assertions cite enters with the seed, before `ekr seed`. To add a new
@@ -284,6 +288,8 @@ pub enum OperationKind {
     WidenEdgeType,
     /// `!AddAlias`.
     AddAlias,
+    /// `!AttachEvidence`.
+    AttachEvidence,
 }
 
 impl OperationKind {
@@ -307,6 +313,7 @@ impl OperationKind {
             GraphOperation::AddEvidence(_) => Self::AddEvidence,
             GraphOperation::WidenEdgeType(_) => Self::WidenEdgeType,
             GraphOperation::AddAlias(_) => Self::AddAlias,
+            GraphOperation::AttachEvidence(_) => Self::AttachEvidence,
         }
     }
 
@@ -327,6 +334,7 @@ impl OperationKind {
             Self::AddEvidence => "AddEvidence",
             Self::WidenEdgeType => "WidenEdgeType",
             Self::AddAlias => "AddAlias",
+            Self::AttachEvidence => "AttachEvidence",
         }
     }
 
@@ -344,7 +352,8 @@ impl OperationKind {
             | Self::Invoke
             | Self::SupersedeAssertion
             | Self::AddEvidence
-            | Self::AddAlias => Applied::Always,
+            | Self::AddAlias
+            | Self::AttachEvidence => Applied::Always,
             Self::DefineNodeType
             | Self::DefineEdgeType
             | Self::ModifyProperty
@@ -567,7 +576,8 @@ impl OperationKind {
                              one byte more). Put a larger statement in the seed with
                              ekr seed --evidence <file>, or split it into several entries.
   An AddAssertion in the same or a later transaction may cite the id; list it in
-  transaction.evidence only when an assertion of that transaction cites it.",
+  transaction.evidence only when an assertion of that transaction cites it or an
+  AttachEvidence of it attaches it.",
                 "- !AddEvidence
   evidence:
     id: 00000000-0000-4000-8000-000000000403
@@ -609,6 +619,23 @@ impl OperationKind {
                 "- !AddAlias
   node: 00000000-0000-4000-8000-000000000303
   alias: Acme Corporation",
+            ),
+            Self::AttachEvidence => (
+                "attach evidence to an assertion the store holds, leaving the assertion unchanged",
+                "  assertion  AssertionId  an accepted, active assertion: ekr snapshot (unresolved-assertion
+                         if the store holds none, an assertion of the same transaction included;
+                         assertion-not-active if retracted or superseded, or if the same
+                         transaction retracts or supersedes it)
+  evidence   EvidenceId   retained, or added by an AddEvidence of the same transaction
+                         (unresolved-evidence otherwise); not one the assertion cites or has
+                         attached, nor attached to it twice (evidence-already-attached)
+  List the evidence id in transaction.evidence. The attachment is a record of its own: the
+  assertion's claim, valid time, lifecycle and evidence stay as they are. ekr explain lists
+  it, with the revision that attached it, from that revision on; a supersession does not
+  carry it to the replacement. This example uses the evidence from the AddEvidence example.",
+                "- !AttachEvidence
+  assertion: 00000000-0000-4000-8000-000000000511
+  evidence: 00000000-0000-4000-8000-000000000403",
             ),
         }
     }

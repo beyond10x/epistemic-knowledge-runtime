@@ -54,6 +54,7 @@ fn graph() -> CanonicalGraph {
         PropertyDefinition::new(title(), "title", ValueType::String),
     );
     let mut graph = CanonicalGraph {
+        attachments: Default::default(),
         root: GraphRoot {
             id: root(),
             space: Space::Canonical,

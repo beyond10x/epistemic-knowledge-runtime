@@ -393,6 +393,7 @@ fn empty_graph() -> CanonicalGraph {
         PropertyDefinition::new(POOL.properties[0], "title", ValueType::String),
     );
     CanonicalGraph {
+        attachments: Default::default(),
         root: GraphRoot {
             id: POOL.roots[0],
             space: Space::Canonical,
@@ -548,7 +549,8 @@ fn operation_carries_a_float(operation: &GraphOperation) -> bool {
         | GraphOperation::WidenEdgeType(_)
         | GraphOperation::AddAlias(_)
         | GraphOperation::MergeEntity(_)
-        | GraphOperation::AddEvidence(_) => false,
+        | GraphOperation::AddEvidence(_)
+        | GraphOperation::AttachEvidence(_) => false,
     }
 }
 
@@ -629,6 +631,7 @@ fn counted_graph(nodes: &[HeldNode], edges: &[HeldEdge]) -> CanonicalGraph {
         declared
     };
     let mut graph = CanonicalGraph {
+        attachments: Default::default(),
         root: GraphRoot {
             id: c.root,
             space: Space::Canonical,

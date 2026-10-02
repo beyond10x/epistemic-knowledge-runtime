@@ -1383,6 +1383,8 @@ types:
   # counts those citing at least one evidence record that entered after the seed, through an
   # ekr.kernel AddEvidence operation: evidence for one source item, where a seed's evidence is
   # whatever corpus the seed carried. It is 0 in a store whose evidence all came with its seed.
+  # Evidence attached to an assertion after it was added (an ekr.graph.EvidenceAttachment) counts
+  # in both as cited evidence does (story:evidence-attaches-to-a-held-assertion).
   # The two shares are of `active`, omitted when `active` is 0.
   - name: ekr.views.AssertionQuality
     kind: struct

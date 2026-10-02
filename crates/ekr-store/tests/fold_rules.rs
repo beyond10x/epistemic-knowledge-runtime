@@ -110,6 +110,7 @@ fn seed_graph(ontology: &Ontology) -> CanonicalGraph {
     };
 
     CanonicalGraph {
+        attachments: Default::default(),
         root: GraphRoot {
             id: root_id,
             space: Space::Canonical,

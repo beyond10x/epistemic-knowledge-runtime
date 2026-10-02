@@ -45,6 +45,7 @@ use ekr_ontology::Ontology;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::assertion::Assertion;
+use crate::attachment::{AttachedEvidence, Attachments};
 use crate::edge::Edge;
 use crate::evidence::Evidence;
 use crate::node::Node;
@@ -452,9 +453,21 @@ pub struct CanonicalGraph {
     pub assertions: BTreeMap<AssertionId, Assertion>,
     /// The retained evidence its assertions rest on, by id.
     pub evidence: BTreeMap<EvidenceId, Evidence>,
+    /// The evidence attached to its assertions after they were added, by assertion id
+    /// (`story:evidence-attaches-to-a-held-assertion`): records of their own, so an assertion
+    /// keeps its bytes when evidence is attached to it. Empty in a graph no `AttachEvidence` has
+    /// reached, and the knowledge root then encodes exactly what it encoded before the field
+    /// existed (`ekr_store::knowledge_root`).
+    pub attachments: Attachments,
 }
 
 impl CanonicalGraph {
+    /// What was attached to `assertion` after it was added, in evidence-id order: none for an
+    /// assertion with no attachment, or one this graph does not hold.
+    pub fn attached(&self, assertion: AssertionId) -> impl Iterator<Item = &AttachedEvidence> {
+        self.attachments.get(&assertion).into_iter().flatten()
+    }
+
     /// What a canonical reference points at, from the map this state keeps its kind in, or `None`
     /// if this state does not hold it.
     ///

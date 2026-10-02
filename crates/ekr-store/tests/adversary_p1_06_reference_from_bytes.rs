@@ -41,6 +41,7 @@ fn dangling(ontology: &Ontology) -> GraphDocument {
     let source = NodeId::mint();
     let edge = Edge::<Value>::new(EdgeId::mint(), root_id, type_id, source, NodeId::mint());
     GraphDocument {
+        attachments: Default::default(),
         root: GraphRoot {
             id: root_id,
             space: Space::Canonical,

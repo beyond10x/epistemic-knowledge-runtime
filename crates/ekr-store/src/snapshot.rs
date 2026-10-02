@@ -1,7 +1,7 @@
 //! Serializable graph data. Only the kernel admits a document as canonical state.
 //! The store delegates every seed replay to its injected authority.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use ekr_core::{
@@ -9,8 +9,8 @@ use ekr_core::{
     SchemaVersionId,
 };
 use ekr_graph::{
-    Assertion, CanonicalGraph, CanonicalValue, Edge, Evidence, GraphRoot, InadmissibleValue, Node,
-    Object, Space, Subject,
+    Assertion, AttachedEvidence, Attachments, CanonicalGraph, CanonicalValue, Edge, Evidence,
+    GraphRoot, InadmissibleValue, Node, Object, Space, Subject,
 };
 use ekr_ontology::Value;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -38,6 +38,11 @@ pub struct GraphDocument {
     /// Not generic and not widened: [`Evidence`] carries no value at all, so there is no transient
     /// instantiation of it and nothing for the crossing to refuse.
     pub evidence: BTreeMap<EvidenceId, Evidence>,
+    /// The evidence attached to its assertions after they were added, by assertion id
+    /// (`story:evidence-attaches-to-a-held-assertion`). Omitted from the document when empty, so
+    /// a graph without attachments is written as the bytes it was written as before the field
+    /// existed. An attachment carries no value, so it has no transient instantiation either.
+    pub attachments: Attachments,
 }
 
 // The remote derive preserves the useful in-memory graph shape while requiring a complete,
@@ -55,6 +60,28 @@ struct GraphFields {
     assertions: BTreeMap<AssertionId, Assertion<Value>>,
     #[serde(deserialize_with = "ekr_core::decode::unique_map")]
     evidence: BTreeMap<EvidenceId, Evidence>,
+    #[serde(
+        default,
+        skip_serializing_if = "BTreeMap::is_empty",
+        deserialize_with = "unique_attachments"
+    )]
+    attachments: Attachments,
+}
+
+// Keep the map and each nested set strict without changing their serialized shape.
+fn unique_attachments<'de, D: Deserializer<'de>>(input: D) -> Result<Attachments, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(transparent)]
+    struct Records(
+        #[serde(deserialize_with = "ekr_core::decode::unique_set")] BTreeSet<AttachedEvidence>,
+    );
+
+    ekr_core::decode::unique_map::<_, AssertionId, Records>(input).map(|entries| {
+        entries
+            .into_iter()
+            .map(|(id, records)| (id, records.0))
+            .collect()
+    })
 }
 
 #[derive(Serialize, Deserialize)]
@@ -125,6 +152,7 @@ impl GraphDocument {
                 .map(|(id, assertion)| (*id, widen_assertion(assertion)))
                 .collect(),
             evidence: graph.evidence.clone(),
+            attachments: graph.attachments.clone(),
         }
     }
 

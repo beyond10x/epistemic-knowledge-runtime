@@ -286,6 +286,7 @@ fn kinds(result: &ExplanationResult) -> Vec<&'static str> {
             ExplanationLink::Commit(_) => "Commit",
             ExplanationLink::Lifecycle(_) => "Lifecycle",
             ExplanationLink::Evidence(_) => "Evidence",
+            ExplanationLink::Attachment(_) => "Attachment",
         })
         .collect()
 }

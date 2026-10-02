@@ -1,0 +1,45 @@
+# story:evidence-attaches-to-a-held-assertion, acceptance 2, the unknown assertion.
+#
+# The target has committed revision 1 before the first act. The fixture
+# `attach-evidence-unknown-assertion.yaml` attaches the seed's evidence 0402 to assertion 0599,
+# which no revision holds. Evidence attaches only to an assertion canonical state holds, looked up
+# by its id, so validation rejects it with exactly one issue, which the Reference validator raises
+# under the name unresolved-assertion.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: an-attachment-to-an-assertion-no-revision-holds-is-rejected-by-name
+summary: Evidence attached to an assertion no revision holds is rejected with one issue, unresolved-assertion, raised by Reference.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: attachment
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 1
+    outcome: rejected
+    events:
+      - event: ekr.kernel.TransactionRejected
+        payload:
+          issues: 1
+
+assert:
+  - view: ekr.kernel.ValidationIssues
+    contains:
+      transaction_id: {$instance: proposal}
+      validator: Reference
+      code: unresolved-assertion

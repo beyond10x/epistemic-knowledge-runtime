@@ -19,9 +19,9 @@ use ekr_graph::{
 };
 use ekr_kernel::{
     Agent, AuthorityStateV1, BootstrapContext, CommitCommandResult, EdgeDraft, EdgeWidening,
-    EvidenceAddition, GraphOperation, GraphTransaction, NodeDraft, PropertyModification,
-    PropertyMutation, Retraction, Runtime, SeedDocument, Supersession, ValidationCommandResult,
-    ValidationProfileV1,
+    EvidenceAddition, EvidenceAttachment, GraphOperation, GraphTransaction, NodeDraft,
+    PropertyModification, PropertyMutation, Retraction, Runtime, SeedDocument, Supersession,
+    ValidationCommandResult, ValidationProfileV1,
 };
 use ekr_ontology::{Cardinality, EdgeType, NodeType, PropertyDefinition, Value, ValueType};
 use serde::Serialize;
@@ -730,6 +730,29 @@ pub fn commit_later_quality(runtime: &Runtime) {
     );
 }
 
+/// Commits one more transaction onto a built [`Fixture::Quality`] store, as revision 4: X2, an
+/// item statement added after the seed, attached to a3, which cites only the seed's E1
+/// (`story:evidence-attaches-to-a-held-assertion`). a3 is unchanged; it is item-evidenced from
+/// revision 4 on.
+pub fn commit_attachment_quality(runtime: &Runtime) {
+    let mut writer = Writer {
+        runtime,
+        clock: CLOCK_START_MS + 2_000_000,
+        transactions: TRANSACTIONS + 0x4000,
+    };
+    let x2 = Q_EVIDENCE + 0x12;
+    writer.commit(
+        vec![
+            added_statement(x2),
+            GraphOperation::AttachEvidence(EvidenceAttachment {
+                assertion: id(Q_ASSERTIONS + 3),
+                evidence: id(x2),
+            }),
+        ],
+        None,
+    );
+}
+
 /// One `ocel` node: its offset from `O_NODES`, its type, its name and its property values.
 type OcelNode = (u64, u64, &'static str, Vec<(u64, Vec<Value>)>);
 
@@ -1105,6 +1128,9 @@ impl Writer<'_> {
             .iter()
             .filter_map(|operation| match operation {
                 GraphOperation::AddAssertion(assertion) => Some(assertion.evidence.clone()),
+                GraphOperation::AttachEvidence(attachment) => {
+                    Some(BTreeSet::from([attachment.evidence]))
+                }
                 _ => None,
             })
             .flatten()

@@ -22,6 +22,7 @@ fn input() -> (SeedDocument, BootstrapContext) {
                 edge_types: Vec::new(),
             },
             graph: GraphDocument {
+                attachments: Default::default(),
                 root: GraphRoot {
                     id: GraphRootId::mint(),
                     space: Space::Canonical,

@@ -233,13 +233,14 @@ let seeded = session.request(&Request::new(["seed", "-"]).with_stdin(seed.to_yam
 `TransactionBuilder::new(proposer)` starts a transaction under a minted id, and
 `TransactionBuilder::push` appends an operation. Every payload type converts into its
 `Operation` (`NodeDraft` into `!CreateNode`, `EvidenceAddition` into `!AddEvidence`,
-`AliasAddition` into `!AddAlias`, …), so a push reads `.push(draft.into())`. `!DeleteEdge` carries
-only an `EdgeId`, which has no such conversion: push `Operation::DeleteEdge(edge_id)`. The
-proposer is the host's `context.operator`.
+`AliasAddition` into `!AddAlias`, `EvidenceAttachment` into `!AttachEvidence`, …), so a
+push reads `.push(draft.into())`. `!DeleteEdge` carries only an `EdgeId`, which has no such
+conversion: push `Operation::DeleteEdge(edge_id)`. The proposer is the host's `context.operator`.
 
 `TransactionBuilder::build` fills in what the kernel checks against the operations: the `evidence`
-list is exactly the set the `!AddAssertion`s cite, and a schema change names a minted
-`schema_version` (`TransactionBuilder::with_schema_version` sets a given one). It refuses:
+list is exactly the set the `!AddAssertion`s cite and the `!AttachEvidence`s attach, and a schema
+change names a minted `schema_version` (`TransactionBuilder::with_schema_version` sets a given
+one). It refuses:
 
 | refusal | when |
 |---|---|

@@ -54,6 +54,7 @@
 //!
 //! let (root_id, schema, decision) = (GraphRootId::mint(), SchemaVersionId::mint(), TypeId::mint());
 //! let graph = CanonicalGraph {
+//!     attachments: Default::default(),
 //!     root: GraphRoot {
 //!         id: root_id,
 //!         space: Space::Canonical,
@@ -138,8 +139,8 @@ pub use ekr_store::StoreError as PersistenceError;
 #[doc(hidden)]
 pub use ekr_store::{read_work, stream_reads, ReadWork, StreamReads};
 pub use explain::{
-    ExplainedCommit, ExplainedLifecycle, ExplainedProposal, ExplainedSeed, ExplainedValidation,
-    ExplanationLink, ExplanationResult, ProjectionError, SnapshotResult,
+    ExplainedAttachment, ExplainedCommit, ExplainedLifecycle, ExplainedProposal, ExplainedSeed,
+    ExplainedValidation, ExplanationLink, ExplanationResult, ProjectionError, SnapshotResult,
 };
 pub use issue::{ValidationIssue, ValidatorName};
 pub use migrate::{MigratedOccurrence, StoreMigrationV1};
@@ -153,9 +154,9 @@ pub use replay::{TransactionRecord, TransactionState};
 pub use runtime::Runtime;
 pub use seed::{BootstrapContext, SeedDocument, SeedError, SeedLimits, SEED_LIMITS};
 pub use transaction::{
-    AliasAddition, EdgeDraft, EdgeWidening, EntityMerge, EvidenceAddition, GraphOperation,
-    GraphTransaction, NodeDraft, PropertyModification, PropertyMutation, Retraction, Supersession,
-    ValidatedTransaction,
+    AliasAddition, EdgeDraft, EdgeWidening, EntityMerge, EvidenceAddition, EvidenceAttachment,
+    GraphOperation, GraphTransaction, NodeDraft, PropertyModification, PropertyMutation,
+    Retraction, Supersession, ValidatedTransaction,
 };
 pub use validate::{
     Authorization, Cardinality, OntologyConstraint, Pipeline, Provenance, Reference, Structural,

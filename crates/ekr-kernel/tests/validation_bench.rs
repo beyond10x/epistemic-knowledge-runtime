@@ -300,6 +300,7 @@ fn held_assertion(
 /// Canonical state after `BATCHES` batches at batch scale `scale`.
 fn graph(scale: u64) -> CanonicalGraph {
     let mut graph = CanonicalGraph {
+        attachments: Default::default(),
         root: GraphRoot {
             id: root(),
             space: Space::Canonical,

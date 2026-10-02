@@ -193,6 +193,34 @@ impl Canonical for AliasAddition {
     }
 }
 
+/// Evidence attached to an assertion canonical state holds: the payload of
+/// [`GraphOperation::AttachEvidence`], and `ekr.kernel.EvidenceAttachmentProjection`
+/// (`story:evidence-attaches-to-a-held-assertion`, design § 103).
+///
+/// The assertion is not changed: commit records an [`ekr_graph::AttachedEvidence`] of the evidence
+/// under the assertion's id in the graph's [`attachments`](ekr_graph::CanonicalGraph::attachments),
+/// at the revision the commit produces. The evidence id is part of what the transaction rests on,
+/// so it is in the transaction's [`evidence`](GraphTransaction::evidence).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
+#[serde(deny_unknown_fields)]
+pub struct EvidenceAttachment {
+    /// The assertion: one canonical state holds, accepted and active, and that the same
+    /// transaction neither retracts nor supersedes.
+    pub assertion: AssertionId,
+    /// The evidence: retained by canonical state, or added by an `AddEvidence` of the same
+    /// transaction; not one the assertion cites or has attached.
+    pub evidence: EvidenceId,
+}
+
+impl Canonical for EvidenceAttachment {
+    /// The two fields in declaration order.
+    fn encode(&self, out: &mut Encoder) {
+        self.assertion.encode(out);
+        self.evidence.encode(out);
+    }
+}
+
 /// A property added to, or redeclared on, a type the ontology declares: the payload of
 /// [`GraphOperation::ModifyProperty`], and `ekr.ontology.PropertyModification`.
 ///
@@ -446,10 +474,10 @@ impl Canonical for Supersession {
 }
 
 /// One change a transaction proposes: design § 19, plus `Invoke` from amendment 87,
-/// `SupersedeAssertion` from amendment 88, `AddEvidence`, `WidenEdgeType` (amendment 101) and
-/// `AddAlias` (`story:node-gains-an-alias`).
+/// `SupersedeAssertion` from amendment 88, `AddEvidence`, `WidenEdgeType` (amendment 101),
+/// `AddAlias` (`story:node-gains-an-alias`) and `AttachEvidence` (amendment 103).
 ///
-/// Fifteen variants, which are the fifteen `ekr.kernel.OperationKind` names of
+/// Sixteen variants, which are the sixteen `ekr.kernel.OperationKind` names of
 /// `systems/ekr/domains/kernel.yaml`, in that order. The order is the encoding's contract: the
 /// variant number is what separates two operations carrying the same payload shape, and moving a
 /// number moves every `validation_hash` that contains the variant.
@@ -524,6 +552,10 @@ pub enum GraphOperation<V: ValueSpace = Value> {
     /// Give a node that exists one more alias, which the next head's typed references resolve by.
     #[cfg_attr(feature = "schema", schemars(rename = "!AddAlias"))]
     AddAlias(AliasAddition),
+    /// Attach evidence to an assertion canonical state holds, which the assertion keeps as a
+    /// record of its own rather than as an edit.
+    #[cfg_attr(feature = "schema", schemars(rename = "!AttachEvidence"))]
+    AttachEvidence(EvidenceAttachment),
 }
 
 /// What an agent proposes: design § 19, and `ekr.kernel.GraphTransaction`.
@@ -567,8 +599,9 @@ pub struct GraphTransaction<V: ValueSpace = Value> {
     /// stored transaction can say what it rested on without re-reading every operation. A declared
     /// value nothing compares to the operations is an address over a number the proposer chose, so
     /// [`Structural`](crate::Structural) holds it equal to the evidence the transaction's
-    /// assertions cite. The domain's `operation_count` is the same shape: equally derivable from
-    /// the operations, equally declared, and equally checked.
+    /// assertions cite and its `AttachEvidence` operations attach. The domain's `operation_count`
+    /// is the same shape: equally derivable from the operations, equally declared, and equally
+    /// checked.
     #[cfg_attr(feature = "schema", schemars(with = "Vec<EvidenceId>"))]
     pub evidence: BTreeSet<EvidenceId>,
     /// The schema version a schema-changing transaction produces, minted by
@@ -755,6 +788,10 @@ impl<V: ValueSpace + Canonical> Canonical for GraphOperation<V> {
                 out.variant(14);
                 addition.encode(out);
             }
+            Self::AttachEvidence(attachment) => {
+                out.variant(15);
+                attachment.encode(out);
+            }
         }
     }
 }
@@ -882,6 +919,7 @@ fn canonical_operation(
         GraphOperation::ModifyProperty(declared) => GraphOperation::ModifyProperty(declared),
         GraphOperation::WidenEdgeType(widening) => GraphOperation::WidenEdgeType(widening),
         GraphOperation::AddAlias(addition) => GraphOperation::AddAlias(addition),
+        GraphOperation::AttachEvidence(attachment) => GraphOperation::AttachEvidence(attachment),
         GraphOperation::MergeEntity(merge) => GraphOperation::MergeEntity(merge),
         GraphOperation::Invoke {
             node,

@@ -126,6 +126,7 @@ pub fn seed() -> SeedDocument {
         format: "ekr-seed/2".into(),
         ontology: ontology(),
         graph: GraphDocument {
+            attachments: Default::default(),
             root: GraphRoot {
                 id: root,
                 space: Space::Canonical,
