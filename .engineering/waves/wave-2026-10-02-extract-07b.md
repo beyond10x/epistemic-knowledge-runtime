@@ -7,8 +7,8 @@ units; it does not restart their work. All running committed code is Rust with c
 
 Base: `4832d892e7586f6cc7980fa6f99634e3c9b71356`, remote main and tag 0.0.26.
 The published release and correctness run 36969172579 were read on resume; that run succeeded
-on exactly this commit. The correct-07 artifacts still say active and are reconciled from that
-evidence before dependent work starts.
+on exactly this commit. The correct-07 artifacts were reconciled to implemented from that
+evidence before dependent work started.
 
 Integration: branch `wave/extract-07b`, managed id `ekr-extract-07b`.
 All EKR worktree paths below are under `<state>/worktree/trees/b10x/epistemic-knowledge-runtime/`.
@@ -17,10 +17,10 @@ Build directories are under `<home>/.cache/b10x-target/`; scratch roots under
 
 | Unit | Artifacts | Branch / managed id | Build directory | Scratch | Stage |
 |---|---|---|---|---|---|
-| A | story:evidence-attaches-to-a-held-assertion | impl/evidence-attachment / ekr-x7-a | ekr-x7b-a | a | recovered source 157b89a6; reconciling main |
-| W | task:validate-cost-flat-with-store-size | impl/validate-cost-flat / ekr-x7-w | ekr-x7b-w | w | main reconciled at 099821581; regression work |
-| consumer | K: story:sdk-store-checks; O: task:ocel-export-prints-its-counts and task:ocel-times-events-by-a-named-property; Q: task:quality-counts-seed-evidence-and-constrained-types; N: task:code-names-matches-whole-words; F: task:fact-quality-states-the-empty-interval | impl/x7b-consumer / ekr-x7b-consumer | ekr-x7b-consumer | consumer | serial changes; F before K, Q after attachment integration; spec/test preparation while A/W build |
-| coordinator | integration, planning, conformance synthesis | wave/extract-07b / ekr-extract-07b | ekr-extract-07b | coordinator | opening |
+| A | story:evidence-attaches-to-a-held-assertion | impl/evidence-attachment / ekr-x7-a | ekr-x7b-a | a | source recovered and main reconciled; package validation before adversary |
+| W | task:validate-cost-flat-with-store-size | impl/validate-cost-flat / ekr-x7-w | ekr-x7b-w | w | main reconciled at 099821581; replacement and withdrawal regressions corrected; default-size measurement pending |
+| consumer | K: story:sdk-store-checks; O: task:ocel-export-prints-its-counts and task:ocel-times-events-by-a-named-property; Q: task:quality-counts-seed-evidence-and-constrained-types; N: task:code-names-matches-whole-words; F: task:fact-quality-states-the-empty-interval | impl/x7b-consumer / ekr-x7b-consumer | ekr-x7b-consumer | consumer | F committed at 9bd16f130; K implementation after compile-red; O specification/tests; Q follows A |
+| coordinator | integration, planning, conformance synthesis | wave/extract-07b / ekr-extract-07b | ekr-extract-07b | coordinator | kernel synthesis refreshed in A tree; source review in progress |
 
 No unit writes the planning store. Each implementation receives a file brief and is followed by
 an independent adversary using the skill's role procedure. Codex dispatches generic collaboration
