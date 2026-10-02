@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-02T11:30:39Z",
+  "actor": "agent:codex-ekr-x7b",
+  "artifact": "story:sdk-store-checks",
+  "kind": "story",
+  "revision": 8,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:adversary-extract-07b-fk-pass-1",
+    "reference": "9bf163c65ff06a7a29bfa04f5c628744b96c80a6",
+    "review": "review-result:adversary-extract-07b-fk-pass-1",
+    "outcome": "no-op"
+  }
+}
