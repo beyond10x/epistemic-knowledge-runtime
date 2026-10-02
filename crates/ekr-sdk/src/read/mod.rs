@@ -267,7 +267,14 @@ impl<T: Transport> Reader<T> {
 
     /// Sends `argv` and reads the exit-0 document as `V`.
     fn read<V: DeserializeOwned>(&mut self, argv: Argv) -> Result<V, ReadError> {
-        let request = Request::new(argv.0);
+        self.read_request(Request::new(argv.0))
+    }
+
+    /// The same typed reply handling for calls carrying stdin.
+    pub(crate) fn read_request<V: DeserializeOwned>(
+        &mut self,
+        request: Request,
+    ) -> Result<V, ReadError> {
         let verb = request.verb().to_owned();
         let reply = self.transport.request(&request)?;
         match reply.answer() {
@@ -499,7 +506,7 @@ impl<T: Transport> Iterator for ExpandPages<'_, T> {
 /// `options.timeout`.
 #[derive(Debug)]
 pub struct OneShotReader {
-    reader: Reader<one_shot::OneShot>,
+    pub(crate) reader: Reader<one_shot::OneShot>,
 }
 
 impl OneShotReader {
