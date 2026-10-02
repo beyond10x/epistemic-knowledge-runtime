@@ -2,13 +2,16 @@
 format: aep.planning-md/3
 id: task:every-yaml-reader-is-bounded
 kind: task
-status: draft
+status: active
 title: Every YAML reader that takes outside input is bounded
 relations:
 - decomposes: epic:p6-maintenance-observability
 - serves: vision:o2
 - derived_from: task:seed-document-bounds-alias-expansion
-revision: 2
+revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-02T18:02:03Z", actor: "agent:codex-ekr-next-three-root", revision: 3}
+- {from: "proposed", to: "active", at: "2026-10-02T18:02:03Z", actor: "agent:codex-ekr-next-three-root", revision: 4}
 ---
 ## What is wrong
 

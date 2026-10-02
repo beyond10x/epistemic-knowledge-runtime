@@ -2,12 +2,14 @@
 format: aep.planning-md/3
 id: release-plan:next-three-waves-2026-10-02
 kind: release-plan
-status: draft
+status: active
 title: Input safety, historical paging and historical ontology after the released baseline
 relations:
 - supersedes: release-plan:next-waves-2026-10-01
 - serves: vision:o5
-revision: 1
+revision: 2
+transitions:
+- {from: "draft", to: "active", at: "2026-10-02T18:02:02Z", actor: "agent:codex-ekr-next-three-root", revision: 2}
 ---
 ## Baseline and authorization
 

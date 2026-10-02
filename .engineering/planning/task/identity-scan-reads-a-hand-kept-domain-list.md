@@ -2,12 +2,15 @@
 format: aep.planning-md/3
 id: task:identity-scan-reads-a-hand-kept-domain-list
 kind: task
-status: draft
+status: active
 title: The id-type scan reads a hand-kept list of domain files
 relations:
 - serves: vision:o5
 - decomposes: epic:p2-observation-layer
-revision: 2
+revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-02T18:02:03Z", actor: "agent:codex-ekr-next-three-root", revision: 3}
+- {from: "proposed", to: "active", at: "2026-10-02T18:02:03Z", actor: "agent:codex-ekr-next-three-root", revision: 4}
 ---
 ## Defect
 
