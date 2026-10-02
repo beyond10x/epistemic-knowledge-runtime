@@ -12,6 +12,323 @@ naming:
   display: Integrate
 
 types:
+  - name: ekr.integrate.IntegrationBlockerSnapshot
+    kind: struct
+    fields:
+    - name: blocker_id
+      type: ekr.integrate.IntegrationBlockerId
+    - name: document_digest
+      type: ekr.kernel.ContentHash
+    - name: item
+      type: String
+    - name: kind
+      type: ekr.integrate.IntegrationBlockerKind
+    - name: declaration
+      type: String
+    - name: reason
+      type: String
+    - name: basis_digest
+      type: ekr.kernel.ContentHash
+  - name: ekr.integrate.ProcessingReceiptSnapshot
+    kind: struct
+    fields:
+    - name: receipt_id
+      type: ekr.integrate.ProcessingReceiptId
+    - name: mapping_digest
+      type: Optional<ekr.kernel.ContentHash>
+    - name: document_digest
+      type: ekr.kernel.ContentHash
+    - name: item
+      type: String
+    - name: disposition
+      type: ekr.integrate.ProcessingDisposition
+    - name: transaction_id
+      type: Optional<ekr.kernel.TransactionId>
+    - name: assertions
+      type: List<ekr.graph.AssertionId>
+    - name: basis_digest
+      type: ekr.kernel.ContentHash
+  - name: ekr.integrate.ProposalReviewSnapshot
+    kind: struct
+    fields:
+    - name: review_id
+      type: ekr.integrate.ProposalReviewId
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: proposal_digest
+      type: ekr.kernel.ContentHash
+    - name: basis
+      type: ekr.kernel.ReviewBasis
+    - name: decision
+      type: ekr.integrate.ReviewDecision
+    - name: operator
+      type: ekr.kernel.TrustedOperatorIdentity
+    - name: evidence_id
+      type: ekr.graph.EvidenceId
+    - name: recorded_at
+      type: Timestamp
+  - name: ekr.integrate.ApplicationReceiptSnapshot
+    kind: struct
+    fields:
+    - name: receipt_id
+      type: ekr.integrate.ApplicationReceiptId
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: review_id
+      type: ekr.integrate.ProposalReviewId
+    - name: progress
+      type: ekr.integrate.ApplicationProgress
+    - name: schema_transaction
+      type: ekr.kernel.TransactionId
+    - name: schema_revision
+      type: ekr.kernel.RevisionNumber
+    - name: processing_receipts
+      type: List<ekr.integrate.ProcessingReceiptId>
+    - name: remaining_items
+      type: List<String>
+    - name: stop_reason
+      type: Optional<String>
+  # The hashed input carries no digest of itself; the retained reference adds that digest.
+  - name: ekr.integrate.InterpretationCoordinate
+    kind: struct
+    fields:
+      - {name: interpretation_id, type: ekr.integrate.InterpretationId}
+      - {name: version, type: Integer}
+  - name: ekr.integrate.IncubationOutcome
+    kind: enum
+    variants: [Retained, RetainedWithBlockers, AlreadyRetained]
+  - name: ekr.integrate.IntegrationItemReceipt
+    kind: struct
+    fields:
+      - {name: source, type: ekr.integrate.InterpretationVersion}
+      - {name: item, type: String}
+      - {name: mapping_digest, type: ekr.kernel.ContentHash}
+      - {name: disposition, type: ekr.integrate.ProcessingDisposition}
+      - {name: transaction_id, type: Optional<ekr.kernel.TransactionId>}
+      - {name: assertions, type: List<ekr.graph.AssertionId>}
+      - {name: blockers, type: List<ekr.integrate.IntegrationBlockerId>}
+      - {name: reason, type: Optional<String>}
+  - name: ekr.integrate.ApplicationReport
+    kind: struct
+    fields:
+      - {name: receipt_id, type: ekr.integrate.ApplicationReceiptId}
+      - {name: progress, type: ekr.integrate.ApplicationProgress}
+      - {name: schema_transaction, type: ekr.kernel.TransactionId}
+      - {name: schema_revision, type: ekr.kernel.RevisionNumber}
+      - {name: items, type: List<ekr.integrate.IntegrationItemReceipt>}
+      - {name: remaining_items, type: List<String>}
+      - {name: stop_reason, type: Optional<String>}
+      - {name: already_complete, type: Boolean}
+  # Knowledge inbox and evidence-led schema learning, design § 105.
+  - name: ekr.integrate.InterpretationId
+    kind: newtype
+    of: Uuid
+  - name: ekr.integrate.IntegrationBlockerId
+    kind: newtype
+    of: Uuid
+  - name: ekr.integrate.ProcessingReceiptId
+    kind: newtype
+    of: Uuid
+  - name: ekr.integrate.SchemaProposalId
+    kind: newtype
+    of: Uuid
+  - name: ekr.integrate.ProposalReviewId
+    kind: newtype
+    of: Uuid
+  - name: ekr.integrate.ApplicationReceiptId
+    kind: newtype
+    of: Uuid
+  - name: ekr.integrate.MappingRecordId
+    kind: newtype
+    of: Uuid
+  - name: ekr.integrate.GapGroupId
+    kind: newtype
+    of: Uuid
+  - name: ekr.integrate.IntegrationBlockerKind
+    kind: enum
+    variants:
+    - UnknownType
+    - UnknownProperty
+    - UnknownRelation
+    - UnresolvedReference
+    - ValueMismatch
+    - Contradiction
+    - RejectedInterpretation
+  - name: ekr.integrate.ProcessingDisposition
+    kind: enum
+    variants:
+    - Parked
+    - Integrated
+    - Rejected
+    - AlreadyIntegrated
+  - name: ekr.integrate.ReviewDecision
+    kind: enum
+    variants:
+    - Approved
+    - Rejected
+  - name: ekr.integrate.ApplicationProgress
+    kind: enum
+    variants:
+    - SchemaCommitted
+    - FactsInProgress
+    - Complete
+    - Partial
+  - name: ekr.integrate.InterpretationVersion
+    kind: struct
+    fields:
+    - name: interpretation_id
+      type: ekr.integrate.InterpretationId
+    - name: version
+      type: Integer
+    - name: document_digest
+      type: ekr.kernel.ContentHash
+  - name: ekr.integrate.InterpretationDocument
+    kind: struct
+    fields:
+    - name: version
+      type: ekr.integrate.InterpretationCoordinate
+    - name: root_id
+      type: ekr.graph.GraphRootId
+    - name: observations
+      type: List<ekr.graph.ObservationId>
+    - name: local_schema
+      type: ekr.integrate.OntologySpec
+    - name: entities
+      type: List<ekr.integrate.ExtractedReference>
+    - name: facts
+      type: List<ekr.integrate.ExtractedFact>
+    - name: evidence
+      type: List<ekr.kernel.EvidenceAdditionProjection>
+  - name: ekr.integrate.IncubationImportReceipt
+    kind: struct
+    fields:
+    - {name: outcome, type: ekr.integrate.IncubationOutcome}
+    - name: version
+      type: ekr.integrate.InterpretationVersion
+    - name: already_retained
+      type: Boolean
+    - name: blockers
+      type: List<ekr.integrate.IntegrationBlockerId>
+  - name: ekr.integrate.OptionalPropertyAddition
+    kind: struct
+    fields:
+    - name: owner_type
+      type: String
+    - name: property
+      type: ekr.integrate.PropertySpec
+  - name: ekr.integrate.AdditiveSchemaOperation
+    kind: union
+    tag: kind
+    variants:
+      DefineType: ekr.integrate.NodeTypeSpec
+      DefineRelation: ekr.integrate.EdgeTypeSpec
+      AddOptionalProperty: ekr.integrate.OptionalPropertyAddition
+  - name: ekr.integrate.DeclaredSourceField
+    kind: struct
+    fields:
+    - name: declaration
+      type: String
+    - name: field
+      type: String
+  - name: ekr.integrate.DeclaredSourceRelation
+    kind: struct
+    fields:
+    - name: declaration
+      type: String
+    - name: relation
+      type: String
+  - name: ekr.integrate.MappingValue
+    kind: union
+    tag: kind
+    variants:
+      CopyField: ekr.integrate.DeclaredSourceField
+      CopyRelation: ekr.integrate.DeclaredSourceRelation
+      Constant: ekr.graph.TypedValue
+  - name: ekr.integrate.KnowledgeMapping
+    kind: struct
+    fields:
+    - name: source_item
+      type: String
+    - name: source_type
+      type: String
+    - name: target_type
+      type: String
+    - name: target_member
+      type: String
+    - name: value
+      type: ekr.integrate.MappingValue
+  - name: ekr.integrate.ProposalSource
+    kind: struct
+    fields:
+    - name: version
+      type: ekr.integrate.InterpretationVersion
+    - name: items
+      type: List<String>
+  - name: ekr.integrate.SchemaProposalDocument
+    kind: struct
+    fields:
+    - {name: observations, type: List<ekr.graph.ObservationId>}
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: base_schema
+      type: ekr.ontology.SchemaVersionId
+    - name: sources
+      type: List<ekr.integrate.ProposalSource>
+    - name: evidence
+      type: List<ekr.graph.EvidenceId>
+    - name: additions
+      type: List<ekr.integrate.AdditiveSchemaOperation>
+    - name: mappings
+      type: List<ekr.integrate.KnowledgeMapping>
+    - name: corrections
+      type: List<ekr.kernel.ClaimCorrection>
+    - name: explanation
+      type: String
+  - name: ekr.integrate.GapGroup
+    kind: struct
+    fields:
+    - name: group_id
+      type: ekr.integrate.GapGroupId
+    - name: kind
+      type: ekr.integrate.IntegrationBlockerKind
+    - name: declaration
+      type: String
+    - name: blockers
+      type: List<ekr.integrate.IntegrationBlockerId>
+    - name: observations
+      type: List<ekr.graph.ObservationId>
+    - name: sources
+      type: List<ekr.integrate.InterpretationVersion>
+  - name: ekr.integrate.SchemaLearningRequest
+    kind: struct
+    fields:
+    - name: base_schema
+      type: ekr.ontology.SchemaVersionId
+    - name: groups
+      type: List<ekr.integrate.GapGroup>
+    - name: evidence
+      type: List<ekr.graph.EvidenceId>
+  - name: ekr.integrate.SchemaLearningResult
+    kind: struct
+    fields:
+    - name: proposals
+      type: List<ekr.integrate.SchemaProposalDocument>
+    - name: unresolved_groups
+      type: List<ekr.integrate.GapGroupId>
+  - name: ekr.integrate.MappingPreview
+    kind: struct
+    fields:
+    - name: source
+      type: ekr.integrate.InterpretationVersion
+    - name: item
+      type: String
+    - name: mapping
+      type: ekr.integrate.KnowledgeMapping
+    - name: blockers
+      type: List<String>
+    - name: corrections
+      type: List<ekr.kernel.ClaimCorrection>
+
   - name: ekr.integrate.MergeId
     kind: newtype
     of: Uuid
@@ -89,8 +406,7 @@ types:
   - name: ekr.integrate.ExtractionFormat
     kind: enum
     variants:
-      - ekr.extraction-document/1
-
+      - {name: EkrExtractionDocument1, wire: ekr.extraction-document/1}
   # A value type by name, as `ekr.ontology.ValueTypeProjection` is by id: `allowed_types` names
   # the node types a NodeRef may point at. Exactly the one parameter its kind takes is present; the
   # document writes it as `parameters` exactly as a value type writes its own
@@ -374,6 +690,375 @@ types:
         type: Optional<String>
 
 entities:
+  - name: ekr.integrate.ProposalObservation
+    identity:
+      name: binding_id
+      type: Uuid
+    fields:
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: observation_id
+      type: ekr.graph.ObservationId
+    relations:
+    - name: proposal
+      kind: references
+      target: ekr.integrate.SchemaProposal
+      cardinality: one
+      via: proposal_id
+    - name: observation
+      kind: references
+      target: ekr.observe.RetainedObservation
+      cardinality: one
+      via: observation_id
+    lifecycle:
+      initial: Recorded
+      states:
+      - Recorded
+      terminal:
+      - Recorded
+  # Canonical provenance is independent of the source's live incubation root.
+  # Each row is one provenance link; a fact with several observations/evidence items has several rows.
+  - name: ekr.integrate.CanonicalDerivation
+    identity: {name: derivation_id, type: Uuid}
+    fields:
+      - {name: assertion_id, type: ekr.graph.AssertionId}
+      - {name: mapping_id, type: ekr.integrate.MappingRecordId}
+      - {name: observation_id, type: ekr.graph.ObservationId}
+      - {name: evidence_id, type: ekr.graph.EvidenceId}
+    relations:
+      - {name: assertion, kind: references, target: ekr.graph.Assertion, cardinality: one, via: assertion_id}
+      - {name: mapping, kind: references, target: ekr.integrate.MappingRecord, cardinality: one, via: mapping_id}
+      - {name: observation, kind: references, target: ekr.observe.RetainedObservation, cardinality: one, via: observation_id}
+      - {name: evidence, kind: references, target: ekr.graph.Evidence, cardinality: one, via: evidence_id}
+    lifecycle: {initial: Recorded, states: [Recorded], terminal: [Recorded]}
+  # Knowledge inbox and evidence-led schema learning, design § 105.
+  - name: ekr.integrate.Interpretation
+    identity:
+      name: document_digest
+      type: ekr.kernel.ContentHash
+    fields:
+    - name: interpretation_id
+      type: ekr.integrate.InterpretationId
+    - name: version
+      type: Integer
+    - name: root_id
+      type: ekr.graph.GraphRootId
+    - name: document
+      type: ekr.integrate.InterpretationDocument
+    # Immutable typed interpretation version. Local schema and facts stay in
+    # a TransientGraph, with a GraphRoot whose space is Transient; they do not create
+    # canonical declarations.
+    relations:
+    - name: root
+      kind: references
+      target: ekr.graph.GraphRoot
+      cardinality: one
+      via: root_id
+    - name: bytes
+      kind: references
+      target: ekr.store.StoredObject
+      cardinality: one
+      via: document_digest
+    lifecycle:
+      initial: Recorded
+      states:
+      - Recorded
+      terminal:
+      - Recorded
+  - name: ekr.integrate.InterpretationObservation
+    identity:
+      name: link_id
+      type: Uuid
+    fields:
+    - name: document_digest
+      type: ekr.kernel.ContentHash
+    - name: observation_id
+      type: ekr.graph.ObservationId
+    # 'A durable reference, not ownership: rejecting an interpretation or retiring
+    # a root never withdraws an observation.'
+    relations:
+    - name: interpretation
+      kind: references
+      target: ekr.integrate.Interpretation
+      cardinality: one
+      via: document_digest
+    - name: observation
+      kind: references
+      target: ekr.observe.RetainedObservation
+      cardinality: one
+      via: observation_id
+    lifecycle:
+      initial: Recorded
+      states:
+      - Recorded
+      terminal:
+      - Recorded
+  - name: ekr.integrate.IntegrationBlocker
+    identity:
+      name: blocker_id
+      type: ekr.integrate.IntegrationBlockerId
+    fields:
+    - name: document_digest
+      type: ekr.kernel.ContentHash
+    - name: item
+      type: String
+    - name: kind
+      type: ekr.integrate.IntegrationBlockerKind
+    - name: declaration
+      type: String
+    - name: reason
+      type: String
+    - name: basis_digest
+      type: ekr.kernel.ContentHash
+    # Immutable finding for an exact interpretation version and source item;
+    # resolution is projected from later processing receipts, never deletion of the
+    # finding.
+    relations:
+    - name: interpretation
+      kind: references
+      target: ekr.integrate.Interpretation
+      cardinality: one
+      via: document_digest
+    lifecycle:
+      initial: Recorded
+      states:
+      - Recorded
+      terminal:
+      - Recorded
+  - name: ekr.integrate.ProcessingReceipt
+    identity:
+      name: receipt_id
+      type: ekr.integrate.ProcessingReceiptId
+    fields:
+    - {name: mapping_digest, type: Optional<ekr.kernel.ContentHash>}
+    - name: document_digest
+      type: ekr.kernel.ContentHash
+    - name: item
+      type: String
+    - name: disposition
+      type: ekr.integrate.ProcessingDisposition
+    - name: transaction_id
+      type: Optional<ekr.kernel.TransactionId>
+    - name: assertions
+      type: List<ekr.graph.AssertionId>
+    - name: basis_digest
+      type: ekr.kernel.ContentHash
+    # Append-only receipt. A completed canonical integration is indexed by immutable
+    # document digest, source item and mapping digest; retry reconciles committed transactions
+    # before another proposal.
+    relations:
+    - name: interpretation
+      kind: references
+      target: ekr.integrate.Interpretation
+      cardinality: one
+      via: document_digest
+    lifecycle:
+      initial: Recorded
+      states:
+      - Recorded
+      terminal:
+      - Recorded
+  - name: ekr.integrate.SchemaProposal
+    identity:
+      name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    fields:
+    - name: proposal_digest
+      type: ekr.kernel.ContentHash
+    - name: base_schema
+      type: ekr.ontology.SchemaVersionId
+    - name: document
+      type: ekr.integrate.SchemaProposalDocument
+    # Immutable consumer-agent proposal. Its digest covers every addition, source
+    # version, mapping, selected correction and supporting evidence. Submission does
+    # not change canonical knowledge.
+    relations:
+    - name: base_schema
+      kind: references
+      target: ekr.ontology.SchemaVersion
+      cardinality: one
+      via: base_schema
+    - name: bytes
+      kind: references
+      target: ekr.store.StoredObject
+      cardinality: one
+      via: proposal_digest
+    lifecycle:
+      initial: Recorded
+      states:
+      - Recorded
+      terminal:
+      - Recorded
+  - name: ekr.integrate.ProposalSourceBinding
+    identity:
+      name: binding_id
+      type: Uuid
+    fields:
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: document_digest
+      type: ekr.kernel.ContentHash
+    relations:
+    - name: proposal
+      kind: references
+      target: ekr.integrate.SchemaProposal
+      cardinality: one
+      via: proposal_id
+    - name: interpretation
+      kind: references
+      target: ekr.integrate.Interpretation
+      cardinality: one
+      via: document_digest
+    lifecycle:
+      initial: Recorded
+      states:
+      - Recorded
+      terminal:
+      - Recorded
+  - name: ekr.integrate.ProposalEvidence
+    identity:
+      name: binding_id
+      type: Uuid
+    fields:
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: evidence_id
+      type: ekr.graph.EvidenceId
+    relations:
+    - name: proposal
+      kind: references
+      target: ekr.integrate.SchemaProposal
+      cardinality: one
+      via: proposal_id
+    - name: evidence
+      kind: references
+      target: ekr.graph.Evidence
+      cardinality: one
+      via: evidence_id
+    lifecycle:
+      initial: Recorded
+      states:
+      - Recorded
+      terminal:
+      - Recorded
+  - name: ekr.integrate.ProposalReview
+    identity:
+      name: review_id
+      type: ekr.integrate.ProposalReviewId
+    fields:
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: proposal_digest
+      type: ekr.kernel.ContentHash
+    - name: basis
+      type: ekr.kernel.ReviewBasis
+    - name: decision
+      type: ekr.integrate.ReviewDecision
+    - name: operator
+      type: ekr.kernel.TrustedOperatorIdentity
+    - name: evidence_id
+      type: ekr.graph.EvidenceId
+    - name: recorded_at
+      type: Timestamp
+    # An immutable decision authenticated by the CLI/SDK host, never by a Boolean
+    # or actor supplied inside agent content. Approval records exact proposal and reviewed
+    # evidence; rejection preserves all sources.
+    relations:
+    - name: proposal
+      kind: references
+      target: ekr.integrate.SchemaProposal
+      cardinality: one
+      via: proposal_id
+    - name: human_evidence
+      kind: references
+      target: ekr.graph.Evidence
+      cardinality: one
+      via: evidence_id
+    lifecycle:
+      initial: Recorded
+      states:
+      - Recorded
+      terminal:
+      - Recorded
+  - name: ekr.integrate.MappingRecord
+    identity:
+      name: mapping_id
+      type: ekr.integrate.MappingRecordId
+    fields:
+    - name: proposal_digest
+      type: ekr.kernel.ContentHash
+    - name: mapping_digest
+      type: ekr.kernel.ContentHash
+    - name: source_document_digest
+      type: ekr.kernel.ContentHash
+    - name: mapping
+      type: ekr.integrate.KnowledgeMapping
+    - name: evidence
+      type: List<ekr.graph.EvidenceId>
+    # Retained admissible immutable provenance independent of any live TransientGraph.
+    # Canonical derivations cite this record and retained observations; no reference
+    # to a live root is required.
+    relations:
+    - {name: proposal_bytes, kind: references, target: ekr.store.StoredObject, cardinality: one, via: proposal_digest}
+    - {name: source_bytes, kind: references, target: ekr.store.StoredObject, cardinality: one, via: source_document_digest}
+    - name: bytes
+      kind: references
+      target: ekr.store.StoredObject
+      cardinality: one
+      via: mapping_digest
+    lifecycle:
+      initial: Recorded
+      states:
+      - Recorded
+      terminal:
+      - Recorded
+  - name: ekr.integrate.ApplicationReceipt
+    identity:
+      name: receipt_id
+      type: ekr.integrate.ApplicationReceiptId
+    fields:
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: review_id
+      type: ekr.integrate.ProposalReviewId
+    - name: progress
+      type: ekr.integrate.ApplicationProgress
+    - name: schema_transaction
+      type: ekr.kernel.TransactionId
+    - name: schema_revision
+      type: ekr.kernel.RevisionNumber
+    - name: processing_receipts
+      type: List<ekr.integrate.ProcessingReceiptId>
+    - name: remaining_items
+      type: List<String>
+    - name: stop_reason
+      type: Optional<String>
+    # Append-only partial progress after schema commit. Facts are ordinary validated
+    # transactions and each source item is resumable without duplication; blocked and
+    # newly disputed facts remain visible.
+    relations:
+    - name: proposal
+      kind: references
+      target: ekr.integrate.SchemaProposal
+      cardinality: one
+      via: proposal_id
+    - name: review
+      kind: references
+      target: ekr.integrate.ProposalReview
+      cardinality: one
+      via: review_id
+    - name: schema_transaction
+      kind: references
+      target: ekr.kernel.GraphTransaction
+      cardinality: one
+      via: schema_transaction
+    lifecycle:
+      initial: Recorded
+      states:
+      - Recorded
+      terminal:
+      - Recorded
+
   # Design § 46 Merge: two or more nodes found to be one canonical entity. Declared as an identity
   # only; every relation is undecided.
   #
@@ -412,6 +1097,21 @@ entities:
       terminal: [Recorded]
 
 actors:
+  # Knowledge inbox and evidence-led schema learning, design § 105.
+  - name: ekr.integrate.KnowledgeProposer
+    may:
+    - ekr.integrate.ImportInterpretation
+    - ekr.integrate.ListInterpretations
+    - ekr.integrate.ShowInterpretation
+    - ekr.integrate.DiscoverSchemaGaps
+    - ekr.integrate.SubmitSchemaProposal
+    - ekr.integrate.ShowSchemaProposal
+    - ekr.integrate.ApplySchemaProposal
+  - name: ekr.integrate.HumanReviewer
+    may:
+    - ekr.integrate.ApproveSchemaProposal
+    - ekr.integrate.RejectSchemaProposal
+
   # The host operator, through `ekr apply-extraction`: every transaction the command proposes is
   # proposed as the operator and validated as the host's validator, as `ekr propose` is.
   - name: ekr.integrate.Applier
@@ -421,6 +1121,16 @@ actors:
       display: Extraction applier
 
 errors:
+  # Knowledge inbox and evidence-led schema learning, design § 105.
+  - name: ekr.integrate.KnowledgeRefused
+    summary: A named deterministic refusal; no unreported write occurred. Partial application
+      is a typed report, never this refusal.
+    fields:
+    - name: code
+      type: String
+    - name: reason
+      type: String
+
   # The reader refused the document against the ontology of the store's head, by the first code
   # in document order (ekr.integrate.ExtractionRefusalCode). `name` is what the refused part names.
   - name: ekr.integrate.ExtractionRefused
@@ -432,6 +1142,265 @@ errors:
         type: String
 
 commands:
+  # Knowledge inbox and evidence-led schema learning, design § 105.
+  - name: ekr.integrate.ImportInterpretation
+    naming:
+      wire: incubate-import
+    input:
+    - name: document
+      type: ekr.integrate.InterpretationDocument
+    - name: payload
+      type: Bytes
+    response:
+    - name: receipt
+      type: ekr.integrate.IncubationImportReceipt
+    outcomes:
+    - name: answered
+      emits:
+      - ekr.integrate.ImportInterpretationResult
+      payload:
+        ekr.integrate.ImportInterpretationResult:
+          receipt:
+            generated: true
+      summary: Retain immutable document bytes and local declarations, bind a Transient
+        GraphRoot, and report blockers. Retain exact document bytes by content digest; materialize the TransientGraph for inspection without serializing or canonically hashing it. Supplied observation bytes must already be independently
+        retained. Repeated exact import returns the same version and no duplicate blockers.
+    - name: refused
+      external: The typed document must match its bytes and digest; its root must be
+        Transient, every observation retained, every evidence source admissible, and
+        an existing version immutable. Local declaration/reference integrity is checked independently
+        of canonical ontology; a canonical vocabulary mismatch is a durable blocker, not an import refusal.
+      error: ekr.integrate.KnowledgeRefused
+  - name: ekr.integrate.ListInterpretations
+    naming:
+      wire: incubate-list
+    input: []
+    response:
+    - name: interpretations
+      type: List<ekr.integrate.InterpretationVersion>
+    outcomes:
+    - name: answered
+      emits:
+      - ekr.integrate.ListInterpretationsResult
+      payload:
+        ekr.integrate.ListInterpretationsResult:
+          interpretations:
+            generated: true
+      summary: Read retained interpretation versions in stable identity/version order
+        without canonical mutation.
+  - name: ekr.integrate.ShowInterpretation
+    naming:
+      wire: incubate-show
+    input:
+    - name: version
+      type: ekr.integrate.InterpretationVersion
+    response:
+    - name: document
+      type: ekr.integrate.InterpretationDocument
+    - name: blockers
+      type: List<ekr.integrate.IntegrationBlockerSnapshot>
+    - name: receipts
+      type: List<ekr.integrate.ProcessingReceiptSnapshot>
+    outcomes:
+    - name: answered
+      emits:
+      - ekr.integrate.ShowInterpretationResult
+      payload:
+        ekr.integrate.ShowInterpretationResult:
+          document:
+            generated: true
+          blockers:
+            generated: true
+          receipts:
+            generated: true
+      summary: Read immutable local schema, facts, source references and processing
+        history after reopen.
+    - name: refused
+      external: An unknown version or changed document digest is refused.
+      error: ekr.integrate.KnowledgeRefused
+  - name: ekr.integrate.DiscoverSchemaGaps
+    naming:
+      wire: schema-proposal-discover
+    input: []
+    response:
+    - name: request
+      type: ekr.integrate.SchemaLearningRequest
+    outcomes:
+    - name: answered
+      emits:
+      - ekr.integrate.DiscoverSchemaGapsResult
+      payload:
+        ekr.integrate.DiscoverSchemaGapsResult:
+          request:
+            generated: true
+      summary: Deterministically group recurring integration blockers by kind and declared
+        source vocabulary. Return a typed request for a consumer-supplied agent; do
+        not start a model provider or scheduler.
+  - name: ekr.integrate.SubmitSchemaProposal
+    naming:
+      wire: schema-proposal-submit
+    input:
+    - name: proposal
+      type: ekr.integrate.SchemaProposalDocument
+    - name: payload
+      type: Bytes
+    response:
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: proposal_digest
+      type: ekr.kernel.ContentHash
+    - name: preview
+      type: List<ekr.integrate.MappingPreview>
+    outcomes:
+    - name: answered
+      emits:
+      - ekr.integrate.SubmitSchemaProposalResult
+      payload:
+        ekr.integrate.SubmitSchemaProposalResult:
+          proposal_id:
+            generated: true
+          proposal_digest:
+            generated: true
+          preview:
+            generated: true
+      summary: Retain the exact proposal and a mapping preview without changing ontology
+        or claims. Retained observations and immutable source documents are sufficient support;
+        canonical evidence ids are optional additional citations before application.
+    - name: refused
+      external: Refuse mutable or missing sources/evidence, nonadditive changes, required
+        property additions, undeclared selectors, mismatched typed constants and enum
+        exhaustion inferred from observed values.
+      error: ekr.integrate.KnowledgeRefused
+  - name: ekr.integrate.ShowSchemaProposal
+    naming:
+      wire: schema-proposal-show
+    input:
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    response:
+    - name: proposal
+      type: ekr.integrate.SchemaProposalDocument
+    - name: proposal_digest
+      type: ekr.kernel.ContentHash
+    - name: preview
+      type: List<ekr.integrate.MappingPreview>
+    - name: reviews
+      type: List<ekr.integrate.ProposalReviewSnapshot>
+    - name: receipts
+      type: List<ekr.integrate.ApplicationReceiptSnapshot>
+    outcomes:
+    - name: answered
+      emits:
+      - ekr.integrate.ShowSchemaProposalResult
+      payload:
+        ekr.integrate.ShowSchemaProposalResult:
+          proposal:
+            generated: true
+          proposal_digest:
+            generated: true
+          preview:
+            generated: true
+          reviews:
+            generated: true
+          receipts:
+            generated: true
+      summary: Show proposed additions, supporting observations, exact mappings and
+        review/application history through CLI, SDK and the read-only viewer.
+    - name: refused
+      external: An unknown proposal is refused.
+      error: ekr.integrate.KnowledgeRefused
+  - name: ekr.integrate.ApproveSchemaProposal
+    naming:
+      wire: schema-proposal-approve
+    input:
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: proposal_digest
+      type: ekr.kernel.ContentHash
+    - name: basis
+      type: ekr.kernel.ReviewBasis
+    - name: statement
+      type: Bytes
+    response:
+    - name: review_id
+      type: ekr.integrate.ProposalReviewId
+    outcomes:
+    - name: answered
+      emits:
+      - ekr.integrate.ApproveSchemaProposalResult
+      payload:
+        ekr.integrate.ApproveSchemaProposalResult:
+          review_id:
+            generated: true
+      summary: Record the host-authenticated human decision and retain its statement
+        as evidence; approval includes additions, mappings and selected corrections.
+    - name: refused
+      external: The host must authenticate a trusted human operator, and exact proposal,
+        reviewed evidence and intended effects must match. Agent-supplied content cannot
+        grant approval.
+      error: ekr.integrate.KnowledgeRefused
+  - name: ekr.integrate.RejectSchemaProposal
+    naming:
+      wire: schema-proposal-reject
+    input:
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: proposal_digest
+      type: ekr.kernel.ContentHash
+    - name: basis
+      type: ekr.kernel.ReviewBasis
+    - name: statement
+      type: Bytes
+    response:
+    - name: review_id
+      type: ekr.integrate.ProposalReviewId
+    outcomes:
+    - name: answered
+      emits:
+      - ekr.integrate.RejectSchemaProposalResult
+      payload:
+        ekr.integrate.RejectSchemaProposalResult:
+          review_id:
+            generated: true
+      summary: Record the host-authenticated human decision and retain its statement
+        as evidence; approval includes additions, mappings and selected corrections.
+    - name: refused
+      external: The host must authenticate a trusted human operator, and exact proposal,
+        reviewed evidence and intended effects must match. Agent-supplied content cannot
+        grant approval.
+      error: ekr.integrate.KnowledgeRefused
+  - name: ekr.integrate.ApplySchemaProposal
+    naming:
+      wire: schema-proposal-apply
+    input:
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: review_id
+      type: ekr.integrate.ProposalReviewId
+    - name: proposal_digest
+      type: ekr.kernel.ContentHash
+    response:
+    - name: receipt
+      type: ekr.integrate.ApplicationReport
+    outcomes:
+    - name: answered
+      emits:
+      - ekr.integrate.ApplySchemaProposalResult
+      payload:
+        ekr.integrate.ApplySchemaProposalResult:
+          receipt:
+            generated: true
+      summary: Revalidate the exact approved additions/mappings/corrections and latest effective
+        review before each canonical write; a later rejection stops application/resume and reports
+        confirmed partial progress. Commit schema with evidence first, then selected facts and corrections by ordinary
+        validated transactions. Return durable partial progress on interruption; reconcile
+        receipts and resume without duplicates.
+    - name: refused
+      external: Before mutation require the referenced review to match proposal_id and exact proposal digest, to be Approved, and to be the latest trusted human decision for that proposal. Refuse changed digest/evidence/options/effects
+        or incompatible base schema. A later failure after any commit produces a partial
+        receipt, not a refusal.
+      error: ekr.integrate.KnowledgeRefused
+
   # Design § 24 and § 63, story:extraction-verb-shares-the-sdk-path. `ekr apply-extraction` runs
   # the SDK's apply routine (ekr_sdk::extraction::apply) in process, over the session's own
   # dispatch: the document's missing ontology as one schema change, every named thing resolved as
@@ -468,6 +1437,60 @@ commands:
         summary: Nothing was proposed or written; the refusal names the first refused part in document order.
 
 events:
+  # Knowledge inbox and evidence-led schema learning, design § 105.
+  - name: ekr.integrate.ImportInterpretationResult
+    fields:
+    - name: receipt
+      type: ekr.integrate.IncubationImportReceipt
+  - name: ekr.integrate.ListInterpretationsResult
+    fields:
+    - name: interpretations
+      type: List<ekr.integrate.InterpretationVersion>
+  - name: ekr.integrate.ShowInterpretationResult
+    fields:
+    - name: document
+      type: ekr.integrate.InterpretationDocument
+    - name: blockers
+      type: List<ekr.integrate.IntegrationBlockerSnapshot>
+    - name: receipts
+      type: List<ekr.integrate.ProcessingReceiptSnapshot>
+  - name: ekr.integrate.DiscoverSchemaGapsResult
+    fields:
+    - name: request
+      type: ekr.integrate.SchemaLearningRequest
+  - name: ekr.integrate.SubmitSchemaProposalResult
+    fields:
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: proposal_digest
+      type: ekr.kernel.ContentHash
+    - name: preview
+      type: List<ekr.integrate.MappingPreview>
+  - name: ekr.integrate.ShowSchemaProposalResult
+    fields:
+    - name: proposal
+      type: ekr.integrate.SchemaProposalDocument
+    - name: proposal_digest
+      type: ekr.kernel.ContentHash
+    - name: preview
+      type: List<ekr.integrate.MappingPreview>
+    - name: reviews
+      type: List<ekr.integrate.ProposalReviewSnapshot>
+    - name: receipts
+      type: List<ekr.integrate.ApplicationReceiptSnapshot>
+  - name: ekr.integrate.ApproveSchemaProposalResult
+    fields:
+    - name: review_id
+      type: ekr.integrate.ProposalReviewId
+  - name: ekr.integrate.RejectSchemaProposalResult
+    fields:
+    - name: review_id
+      type: ekr.integrate.ProposalReviewId
+  - name: ekr.integrate.ApplySchemaProposalResult
+    fields:
+    - name: receipt
+      type: ekr.integrate.ApplicationReport
+
   # What one application did, counted over the report it printed.
   - name: ekr.integrate.ExtractionApplied
     fields:
@@ -479,3 +1502,204 @@ events:
         type: Integer
       - name: held
         type: Integer
+
+views:
+  - name: ekr.integrate.ProposalObservationRecords
+    source: ekr.integrate.ProposalObservation
+    consistency: read_your_writes
+    fields:
+    - name: binding_id
+      type: Uuid
+    - name: state
+      type: ekr.integrate.ProposalObservation.State
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: observation_id
+      type: ekr.graph.ObservationId
+  - name: ekr.integrate.CanonicalDerivationRecords
+    source: ekr.integrate.CanonicalDerivation
+    consistency: read_your_writes
+    fields:
+    - name: derivation_id
+      type: Uuid
+    - name: state
+      type: ekr.integrate.CanonicalDerivation.State
+    - name: assertion_id
+      type: ekr.graph.AssertionId
+    - name: mapping_id
+      type: ekr.integrate.MappingRecordId
+    - name: observation_id
+      type: ekr.graph.ObservationId
+    - name: evidence_id
+      type: ekr.graph.EvidenceId
+  - name: ekr.integrate.InterpretationRecords
+    source: ekr.integrate.Interpretation
+    consistency: read_your_writes
+    fields:
+    - name: document_digest
+      type: ekr.kernel.ContentHash
+    - name: state
+      type: ekr.integrate.Interpretation.State
+    - name: interpretation_id
+      type: ekr.integrate.InterpretationId
+    - name: version
+      type: Integer
+    - name: root_id
+      type: ekr.graph.GraphRootId
+    - name: document
+      type: ekr.integrate.InterpretationDocument
+  - name: ekr.integrate.InterpretationObservationRecords
+    source: ekr.integrate.InterpretationObservation
+    consistency: read_your_writes
+    fields:
+    - name: link_id
+      type: Uuid
+    - name: state
+      type: ekr.integrate.InterpretationObservation.State
+    - name: document_digest
+      type: ekr.kernel.ContentHash
+    - name: observation_id
+      type: ekr.graph.ObservationId
+  - name: ekr.integrate.IntegrationBlockerRecords
+    source: ekr.integrate.IntegrationBlocker
+    consistency: read_your_writes
+    fields:
+    - name: blocker_id
+      type: ekr.integrate.IntegrationBlockerId
+    - name: state
+      type: ekr.integrate.IntegrationBlocker.State
+    - name: document_digest
+      type: ekr.kernel.ContentHash
+    - name: item
+      type: String
+    - name: kind
+      type: ekr.integrate.IntegrationBlockerKind
+    - name: declaration
+      type: String
+    - name: reason
+      type: String
+    - name: basis_digest
+      type: ekr.kernel.ContentHash
+  - name: ekr.integrate.ProcessingReceiptRecords
+    source: ekr.integrate.ProcessingReceipt
+    consistency: read_your_writes
+    fields:
+    - {name: mapping_digest, type: Optional<ekr.kernel.ContentHash>}
+    - name: receipt_id
+      type: ekr.integrate.ProcessingReceiptId
+    - name: state
+      type: ekr.integrate.ProcessingReceipt.State
+    - name: document_digest
+      type: ekr.kernel.ContentHash
+    - name: item
+      type: String
+    - name: disposition
+      type: ekr.integrate.ProcessingDisposition
+    - name: transaction_id
+      type: Optional<ekr.kernel.TransactionId>
+    - name: assertions
+      type: List<ekr.graph.AssertionId>
+    - name: basis_digest
+      type: ekr.kernel.ContentHash
+  - name: ekr.integrate.SchemaProposalRecords
+    source: ekr.integrate.SchemaProposal
+    consistency: read_your_writes
+    fields:
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: state
+      type: ekr.integrate.SchemaProposal.State
+    - name: proposal_digest
+      type: ekr.kernel.ContentHash
+    - name: base_schema
+      type: ekr.ontology.SchemaVersionId
+    - name: document
+      type: ekr.integrate.SchemaProposalDocument
+  - name: ekr.integrate.ProposalSourceBindingRecords
+    source: ekr.integrate.ProposalSourceBinding
+    consistency: read_your_writes
+    fields:
+    - name: binding_id
+      type: Uuid
+    - name: state
+      type: ekr.integrate.ProposalSourceBinding.State
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: document_digest
+      type: ekr.kernel.ContentHash
+  - name: ekr.integrate.ProposalEvidenceRecords
+    source: ekr.integrate.ProposalEvidence
+    consistency: read_your_writes
+    fields:
+    - name: binding_id
+      type: Uuid
+    - name: state
+      type: ekr.integrate.ProposalEvidence.State
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: evidence_id
+      type: ekr.graph.EvidenceId
+  - name: ekr.integrate.ProposalReviewRecords
+    source: ekr.integrate.ProposalReview
+    consistency: read_your_writes
+    fields:
+    - name: review_id
+      type: ekr.integrate.ProposalReviewId
+    - name: state
+      type: ekr.integrate.ProposalReview.State
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: proposal_digest
+      type: ekr.kernel.ContentHash
+    - name: basis
+      type: ekr.kernel.ReviewBasis
+    - name: decision
+      type: ekr.integrate.ReviewDecision
+    - name: operator
+      type: ekr.kernel.TrustedOperatorIdentity
+    - name: evidence_id
+      type: ekr.graph.EvidenceId
+    - name: recorded_at
+      type: Timestamp
+  - name: ekr.integrate.MappingRecordRecords
+    source: ekr.integrate.MappingRecord
+    consistency: read_your_writes
+    fields:
+    - name: mapping_id
+      type: ekr.integrate.MappingRecordId
+    - name: state
+      type: ekr.integrate.MappingRecord.State
+    - name: proposal_digest
+      type: ekr.kernel.ContentHash
+    - name: mapping_digest
+      type: ekr.kernel.ContentHash
+    - name: source_document_digest
+      type: ekr.kernel.ContentHash
+    - name: mapping
+      type: ekr.integrate.KnowledgeMapping
+    - name: evidence
+      type: List<ekr.graph.EvidenceId>
+  - name: ekr.integrate.ApplicationReceiptRecords
+    source: ekr.integrate.ApplicationReceipt
+    consistency: read_your_writes
+    fields:
+    - name: receipt_id
+      type: ekr.integrate.ApplicationReceiptId
+    - name: state
+      type: ekr.integrate.ApplicationReceipt.State
+    - name: proposal_id
+      type: ekr.integrate.SchemaProposalId
+    - name: review_id
+      type: ekr.integrate.ProposalReviewId
+    - name: progress
+      type: ekr.integrate.ApplicationProgress
+    - name: schema_transaction
+      type: ekr.kernel.TransactionId
+    - name: schema_revision
+      type: ekr.kernel.RevisionNumber
+    - name: processing_receipts
+      type: List<ekr.integrate.ProcessingReceiptId>
+    - name: remaining_items
+      type: List<String>
+    - name: stop_reason
+      type: Optional<String>

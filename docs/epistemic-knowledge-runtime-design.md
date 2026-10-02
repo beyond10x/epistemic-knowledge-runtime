@@ -5297,3 +5297,166 @@ The default gate counts work. The ignored release benchmark in
 limits at its unchanged default SQLite sizes, alongside its existing aggregate checks. Exact
 measurements, load and unresolved results are recorded on the task. A counted improvement or a
 passing aggregate statistic alone does not establish that timing acceptance.
+
+# 105. Knowledge inbox and evidence-led schema learning (2026-10-03)
+
+This amendment records the operator's approved delivery scope. The contracts in `systems/ekr`
+precede implementation; a validated declaration is not evidence that a provider executes it.
+The knowledge inbox is delivered first, followed by reviewed schema learning. CLI and typed SDK
+operations write through the kernel and store abstraction. The existing Rust-rendered viewer
+only reads inbox and proposal projections. Browser and MCP writes are outside this amendment.
+
+## 105.1 Supplied knowledge survives failed interpretation
+
+`RetainedObservation` is an append-only admission through `ekr-store`, independent of canonical
+revisions. Its existing `ObservationIdempotencyKey` binds source identity, source-native id and
+content hash. An exact retry returns the original observation identity and `AlreadyRetained`;
+a reused identity with different content is refused before mutation. Admission publishes source
+metadata and verified bytes atomically on both File and SQLite. Cited bytes receive Provenance
+retention. This decides `decision-blocker:observation-retention-path` for supplied observations;
+it does not decide polling, source-unit granularity, checkpoint cardinality or reclamation.
+`observe list/show` can inspect source metadata and exact bytes after reopening even when no
+interpretation was accepted, or no interpretation was submitted.
+
+Incubation reuses `GraphRoot` and the existing in-memory `TransientGraph`. A retained
+`Interpretation` is an immutable typed document version, including local schema declarations,
+references, facts and supporting observations. Its exact input bytes are addressed by content
+hash; the transient graph is materialized from them for inspection and is neither serialized as
+canonical state nor given a canonical graph hash. An `InterpretationCoordinate` inside those
+bytes carries only an interpretation id and version number. The receipt adds their byte digest
+to form `InterpretationVersion`: no document contains a digest of its own complete bytes.
+Changing a document requires another version; a repeated exact version adds nothing.
+
+Local declarations and references are checked independently of the canonical ontology. Unknown
+canonical types, properties or relations become durable integration blockers, not a reason to
+discard otherwise well-formed local knowledge. A malformed interpretation may be rejected while
+all previously admitted observations remain inspectable. Interpretations reference observations;
+neither the root nor its documents own those observations. Processing receipts preserve each
+attempt's disposition. Pollers, live connectors and unattended scheduling remain excluded.
+
+## 105.2 Contradictions and human answers
+
+After the authority transition below, differing active claim values under a declared `One`
+property or relation conflict only when their valid-time intervals overlap. Equal values,
+disjoint intervals and `Many` declarations do not conflict. Missing interval bounds remain
+unbounded according to existing bitemporal semantics. Detection is deterministic; general
+semantic contradiction detection is deferred. Every competing claim receives `Disputed` with
+its actual active competitors. The claims remain available for inspection and explanation, but
+settled-knowledge projections exclude disputed assertions.
+
+A dispute finding and its membership are retained for answer history. The active disputes and
+attention items are recomputed from current assertion state, blockers, processing receipts,
+proposals and reviews. Resolving a finding removes its active question, not its history. No
+second queue database is introduced. After any affected correction the kernel recomputes both
+sides' assessment and removes obsolete competitor references. The typed attention projection
+presents the competing claims, source observations, evidence and a clarification question.
+
+An answer may choose a supported claim, retract an incorrect claim, correct effective time, or
+record unresolved uncertainty. A temporal correction is a new validated correction/supersession,
+never an in-place rewrite of historical assertion bytes. The host authenticates a trusted human
+operator and records that identity alongside the retained human statement. Neither an agent's
+actor field nor its assertion that approval exists establishes human authority. A choice is
+still evidence the kernel validates, not an exemption from provenance or ontology rules.
+
+`ReviewBasis` binds reviewed evidence, available options and intended effects, with the observed
+revision retained for explanation. Before applying an answer the kernel rechecks those three
+bases against current state. An unrelated commit alone does not require a second human answer;
+changed evidence, options or intended effects does. Answer receipts distinguish resolved,
+partially resolved, unresolved and already-applied effects and name the resulting transaction
+and retained statement. UI reads and CLI/SDK reads use the same projections.
+
+## 105.3 Evidence-led additive schema proposals
+
+The runtime groups recurring integration blockers deterministically and exposes a typed
+`SchemaLearningRequest`. A consumer-supplied agent may return `SchemaLearningResult`; the
+runtime embeds no model provider and starts no scheduler. Proposals contain the base schema,
+immutable source interpretation versions, supporting evidence, proposed additions, explicit
+mappings and any selected claim corrections. Retained observations and source document versions can support submission without canonical
+Observation evidence admission; canonical evidence ids are optional additional citations. This
+keeps discovery/submission available after retention alone. Submission and mapping preview change no
+canonical ontology or facts. The existing `ekr schema` document-schema command keeps its meaning.
+
+The permitted operations add node types, relations and optional properties. Existing required
+properties, constraints or facts cannot be silently rewritten. Observed values never establish
+that an enum is exhaustive. Mappings select declared source fields or relations and copy typed
+values or explicit typed constants. There is no arbitrary expression/transformation language.
+The kernel validates every source selector, destination and constant against the immutable local
+schema and proposed resulting canonical schema. Names in a proposal resolve to minted or existing
+identities by the ordinary ontology admission path; names do not become persistent identities.
+
+Approval records the exact proposal digest, reviewed evidence/options/effects and the trusted
+operator identity. It covers additions, mappings and every selected correction. Rejection leaves
+the proposal and supporting observations retained. Changed content requires a new proposal and
+review; changed current state requires revalidation, with renewed review when it changes the
+reviewed basis. An agent can submit a proposal but cannot grant itself approval. The latest trusted
+human decision in durable append order, rather than timestamp order, governs future writes: application matches its proposal id, exact digest,
+Approved decision and reviewed basis. A later rejection stops application or resume before the
+next write and reports any already committed partial progress. Committed history stays retained;
+a renewed approval is required before further integration.
+
+Application commits the schema first with its supporting evidence. Selected parked facts then
+enter through ordinary propose/validate/commit transactions. Partial progress after any commit
+is an `ApplicationReport`, not a refusal claiming nothing happened. Its append-only receipts
+identify the schema transaction, each source item, mapping digest, committed assertions,
+remaining items and stop reason. Reopening and retrying reconcile those receipts with committed
+transactions before proposing more work. Already completed items add no duplicate assertion or
+transaction; unmapped and newly conflicting facts remain visible in attention.
+
+Every canonical derivation cites retained admissible evidence and immutable `MappingRecord`
+bytes. A `CanonicalDerivation` row is one provenance link; several supporting observations or
+evidence items produce several rows. It never needs a live incubation root. Source document
+bytes cited by mapping records remain retained independently of root lifecycle. Proposal, source
+document and mapping bytes each have an explicit StoredObject reference. Canonical derivation
+admission and replay require verified Provenance-or-stronger retention for all three. Schema
+evidence is an ordinary transaction relationship, not a facility available only to proposals: schema
+history exposes supporting evidence for directly submitted schema transactions too.
+
+## 105.4 Versioned authority upgrade
+
+Existing stores upgrade explicitly through `upgrade preview/apply`. Preview verifies the exact
+head, simulates contradictions under the requested target profile and lists already-validated
+pending transactions that need revalidation. `preview_digest` hashes a canonical encoding of
+all preview fields except `preview_digest` itself, so its basis is not self-referential.
+Application authenticates the operator, verifies that exact preview and its head again, and
+atomically records `ekr.authority-transition/1`. A stale preview is refused before any mutation.
+Unknown target profiles and unsupported transitions are refused, not approximated. The transition
+retains the exact target validation-profile bytes, verifies their digest against both
+`target_profile_digest` and `to.profile_digest`, and pins their StoredObject. Cold and full replay
+reconstruct the supported profile from those immutable bytes, without depending on current host
+configuration.
+
+The authority transition preserves the original seed anchor, historical document bytes,
+revision hashes and replay rules. Replay selects the old authority until the recorded boundary
+and the new authority after it; full replay observes the same boundary as an ordinary reopen.
+Previously validated pending transactions cannot commit using receipts under the old authority.
+They must be revalidated under the new authority. This is a bounded additive authority upgrade,
+not the deferred general destructive migration facility.
+
+## 105.5 Executable obligations and completion evidence
+
+ESS declares typed command inputs and results, immutable records, ownership/reference relations
+and complete immediate record views. Cross-record idempotency, interval overlap, cryptographic
+byte binding, authenticated host context, multi-record atomic publication and replay authority
+selection are explicit external validator obligations. ESS predicate/lifecycle synthesis does
+not prove them, and generated success event fields do not establish that persistence happened.
+Those rules must be implemented through the generated behavior contracts and exercised against
+both real providers, with reopen and full replay. A provider refusal must leave no unreported
+write; interruption after a confirmed schema/fact commit must report resumable partial progress.
+
+The named acceptance obligations are `observation_retry_is_idempotent`,
+`rejected_interpretation_retains_its_sources`, `unmapped_knowledge_survives_reopen`,
+`overlapping_single_value_claims_become_disputed`,
+`equal_disjoint_and_many_claims_do_not_conflict`,
+`human_resolution_preserves_evidence_and_history`, `changed_answer_basis_requires_review`,
+`upgrade_preserves_historical_rules_and_hashes`, `schema_proposal_requires_exact_human_approval`,
+`schema_change_exposes_supporting_evidence`, `interrupted_integration_resumes_without_duplicates`
+and `canonical_derivation_has_no_transient_dependency`. Ownership and project-health end-to-end
+demonstrations, exact generated-contract drift, crash recovery, typed SDK/CLI examples, viewer
+inspection and the full repository gate are also required. AEP stores the actual reports and
+specification digests; no declaration or validation result alone marks these obligations done.
+
+The preexisting 22 dotted/slashed enum labels now declare separate Rust-safe names and unchanged
+wire labels. Recursive by-value optional layouts in `ValueSpec` and `ValueTypeProjection` remain
+a generator prerequisite until a verified ESS release represents them. Runtime models must be
+generated from the contracts; no silent manual transcription is authorized by this amendment.
+The verified generator release and regeneration checks are part of implementation delivery.

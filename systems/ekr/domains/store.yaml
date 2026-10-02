@@ -179,10 +179,9 @@ types:
   - name: ekr.store.PublicationPreparationFormatV1
     kind: enum
     variants:
-      - ekr.publication-preparation/1
-      - ekr.publication-preparation/2
-      - ekr.publication-preparation/3
-
+      - {name: EkrPublicationPreparation1, wire: ekr.publication-preparation/1}
+      - {name: EkrPublicationPreparation2, wire: ekr.publication-preparation/2}
+      - {name: EkrPublicationPreparation3, wire: ekr.publication-preparation/3}
   - name: ekr.store.PublicationPreparationV1
     kind: struct
     fields:
