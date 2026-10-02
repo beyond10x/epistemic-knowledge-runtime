@@ -130,6 +130,8 @@ pub(crate) struct Revision {
     /// Every graph of one revision is the same graph, so the index holds for whichever copy a state
     /// holds; it is released with the graph, and a graph rebuilt later builds it again.
     pub(crate) asserted_edges: AssertedEdgesCell,
+    /// Mutable lookup scratch shared along a lineage; every use checks exact revision and roots.
+    pub(crate) alias_holders: Arc<std::sync::Mutex<crate::validate::AliasCache>>,
 }
 impl Revision {
     pub(crate) fn replayed(admitted: AdmittedRevision) -> Self {
@@ -143,12 +145,14 @@ impl Revision {
             ontology: Arc::new(admitted.graph.ontology.clone()),
             graph: Some(Arc::new(admitted.graph)),
             asserted_edges: AssertedEdgesCell::default(),
+            alias_holders: Default::default(),
         }
     }
     /// Releases this revision's graph and the index kept with it.
     fn release_graph(&mut self) {
         self.graph = None;
         self.asserted_edges = AssertedEdgesCell::default();
+        self.alias_holders = Default::default();
     }
     /// The graph at this revision, or [`GRAPH_NOT_HELD`].
     pub(crate) fn graph(&self) -> Result<&ekr_graph::CanonicalGraph, StoreError> {
@@ -543,10 +547,15 @@ pub(crate) fn validate(
     } else {
         Pipeline::deterministic(validator)
     };
+    let mut aliases = prior
+        .alias_holders
+        .lock()
+        .map_err(|_| refuse("replay-cache-poisoned"))?;
     Ok(pipeline.validate_kept(
         &GraphSnapshot::of(graph),
         document.transaction(),
         &prior.asserted_edges,
+        aliases.at(prior.revision_id, prior.root, graph),
     ))
 }
 
@@ -1184,6 +1193,16 @@ impl KernelAuthority {
                         Arc::new(graph.ontology.clone())
                     };
                     let graph_root = prior.graph_root;
+                    let alias_holders = Arc::clone(&prior.alias_holders);
+                    alias_holders
+                        .lock()
+                        .map_err(|_| refuse("replay-cache-poisoned"))?
+                        .advance(
+                            (prior.revision_id, prior.root),
+                            (revision_id, root),
+                            &graph,
+                            validated.transaction(),
+                        );
                     let superseded = prior.root.revision;
                     if self.anchor.validation_profile.keeps_identities() {
                         state.held.hold(number, validated.transaction());
@@ -1201,6 +1220,7 @@ impl KernelAuthority {
                             ontology,
                             graph: Some(Arc::new(graph)),
                             asserted_edges: AssertedEdgesCell::default(),
+                            alias_holders,
                         },
                     );
                     state.release(superseded, |number| kept(number, occurrence.version));
@@ -1351,7 +1371,7 @@ mod tests {
                 type_id,
                 canonical_name: format!("subject {n}"),
                 properties: BTreeMap::new(),
-                aliases: Vec::new(),
+                aliases: vec![format!("subject {n}")],
             })],
             evidence: BTreeSet::new(),
             schema_version: None,
@@ -1537,6 +1557,37 @@ mod tests {
                 "file={file_provider}: prior document buffers copied"
             );
         }
+    }
+
+    #[test]
+    fn warm_alias_checks_visit_no_unchanged_nodes() {
+        let mut visits = Vec::new();
+        for size in [4, 16] {
+            let directory = tempfile::tempdir().unwrap();
+            let kernel = sqlite(directory.path(), false);
+            let seed = seed();
+            kernel
+                .seed(seed.clone(), || Timestamp::from_millis(10))
+                .unwrap();
+            for n in 1..=size {
+                commit(&kernel, &seed, n);
+            }
+            let before = crate::validate::ALIAS_NODES_VISITED.with(std::cell::Cell::get);
+            let (_, result) = validated(
+                &kernel,
+                &seed,
+                size + 1,
+                seed.ontology.node_types[0].id,
+                size,
+            );
+            assert!(matches!(result, ValidationCommandResult::Validated(_)));
+            visits.push(crate::validate::ALIAS_NODES_VISITED.with(std::cell::Cell::get) - before);
+        }
+        assert_eq!(
+            visits,
+            [0, 0],
+            "unchanged canonical nodes scanned for aliases"
+        );
     }
 
     /// Seeds and commits six revisions through one handle, then validates one transaction against

@@ -28,6 +28,9 @@ use std::sync::{
     Arc,
 };
 
+#[path = "../tests/fixtures/replay_authority.rs"]
+mod replay_authority;
+
 /// The file provider, with every call into it counted, and its log feed refused while
 /// `refuse_feed` is set.
 struct Counting {
@@ -595,26 +598,6 @@ fn a_feed_the_handle_cannot_read_has_every_held_object_read_again() {
 /// has not changed. An unavailable feed requires the complete payload set on every attempt.
 #[test]
 fn replay_without_a_readable_feed_keeps_the_complete_payload_set() {
-    struct NeedsEvidence(ContentHash);
-    impl CommitAuthority for NeedsEvidence {
-        fn required_objects(
-            &self,
-            _: &RetainedHistory,
-        ) -> Result<BTreeSet<ContentHash>, StoreError> {
-            Ok(BTreeSet::from([self.0]))
-        }
-        fn replay_objects(&self, _: &RetainedHistory) -> Result<BTreeSet<ContentHash>, StoreError> {
-            Ok(BTreeSet::new())
-        }
-        fn replay(
-            &self,
-            _: &RetainedHistory,
-            _: Option<&Ontology>,
-            _: Option<RevisionNumber>,
-        ) -> Result<Option<AdmittedRevision>, StoreError> {
-            Ok(None)
-        }
-    }
     let directory = tempfile::tempdir().unwrap();
     written(directory.path(), 1);
     let evidence = FileStore::file(directory.path(), "ekr", None)
@@ -627,7 +610,7 @@ fn replay_without_a_readable_feed_keeps_the_complete_payload_set() {
         .unwrap()
         .content_hash;
     let (store, _) = counted(directory.path());
-    let store = store.under(NeedsEvidence(evidence));
+    let store = store.under(replay_authority::NeedsEvidence(evidence));
     let replay = || {
         store
             .replayed(|history| store.authority()?.verify(history, None, None))

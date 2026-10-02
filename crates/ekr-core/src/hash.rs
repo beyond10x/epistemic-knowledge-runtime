@@ -27,9 +27,9 @@
 use std::fmt;
 use std::str::FromStr;
 
+use ring::digest::{Context, SHA256};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use sha2::{Digest, Sha256};
 
 use crate::canonical::Canonical;
 
@@ -58,10 +58,16 @@ impl ContentHash {
     /// The digest of a domain label followed by bytes: the payload domain's one hashing path, and
     /// what [`ContentHash::of`] computes for the value domain without holding the bytes.
     fn under_domain(domain: &[u8], bytes: &[u8]) -> Self {
-        let mut hasher = Sha256::new();
+        let mut hasher = Context::new(&SHA256);
         hasher.update(domain);
         hasher.update(bytes);
-        Self(hasher.finalize().into())
+        Self(
+            hasher
+                .finish()
+                .as_ref()
+                .try_into()
+                .expect("SHA-256 is 32 bytes"),
+        )
     }
 
     /// The address of a raw payload — bytes from outside the runtime, under

@@ -193,9 +193,14 @@ impl Check for SchemaStructural {
 ///
 /// Transactions only: the seed routes its nodes through this validator with no aliases, because a
 /// seed may give two nodes one alias.
-fn aliases(graph: &GraphSnapshot<'_>, tx: &GraphTransaction, issues: &mut Vec<ValidationIssue>) {
+fn aliases(
+    graph: &GraphSnapshot<'_>,
+    tx: &GraphTransaction,
+    candidate: &Candidate<'_>,
+    issues: &mut Vec<ValidationIssue>,
+) {
     let added = added_aliases(graph, tx);
-    let holders = alias_holders(graph, tx, &added);
+    let holders = alias_holders(graph, tx, &added, candidate.aliases);
     let mut taken = BTreeSet::new();
     for operation in &tx.operations {
         let GraphOperation::CreateNode(draft) = operation else {
@@ -349,10 +354,13 @@ fn added_aliases<'tx>(
 /// looking each alias up by scanning every node cost the batch's aliases times the graph's
 /// nodes. The first holder a pass in id order meets is the lowest id, which is the node that scan
 /// found.
+/// A command with a lookup bound to this verified revision asks it for those same minimum ids;
+/// the standalone validator retains the graph scan as its independent path.
 fn alias_holders<'tx>(
     graph: &GraphSnapshot<'_>,
     tx: &'tx GraphTransaction,
     added: &[(NodeId, &'tx str, Option<TypeId>)],
+    indexed: Option<&super::aliases::AliasHolders>,
 ) -> BTreeMap<TypeId, BTreeMap<&'tx str, Option<NodeId>>> {
     let mut holders: BTreeMap<TypeId, BTreeMap<&str, Option<NodeId>>> = BTreeMap::new();
     for operation in &tx.operations {
@@ -373,8 +381,18 @@ fn alias_holders<'tx>(
     if holders.is_empty() {
         return holders;
     }
+    if let Some(indexed) = indexed {
+        for (type_id, wanted) in &mut holders {
+            for (alias, holder) in wanted {
+                *holder = indexed.get(*type_id, alias);
+            }
+        }
+        return holders;
+    }
     let state = graph.graph();
     for node in state.nodes.values() {
+        #[cfg(test)]
+        ALIAS_NODES_VISITED.with(|count| count.set(count.get() + 1));
         if node.root_id != state.root.id {
             continue;
         }
@@ -388,6 +406,11 @@ fn alias_holders<'tx>(
         }
     }
     holders
+}
+
+#[cfg(test)]
+thread_local! {
+    pub(crate) static ALIAS_NODES_VISITED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 /// The version field and the schema-only rule (wave p5-01, decisions 1 and 3).
@@ -919,7 +942,7 @@ fn check(
         }
     }
 
-    aliases(graph, tx, &mut issues);
+    aliases(graph, tx, candidate, &mut issues);
     schema_shape(tx, admits_schema, &mut issues);
 
     if cited != tx.evidence {

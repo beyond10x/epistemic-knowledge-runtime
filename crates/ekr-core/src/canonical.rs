@@ -45,7 +45,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use sha2::{Digest, Sha256};
+use ring::digest::{Context, SHA256};
 
 use crate::hash::ContentHash;
 use crate::identity::RevisionNumber;
@@ -112,7 +112,7 @@ pub struct Encoder {
     bytes: Vec<u8>,
     /// Where the bytes go on an encoder that hashes as it writes: the digest of its domain and of
     /// every byte written before `bytes`. `None` on a buffering encoder, which keeps them all.
-    digest: Option<Sha256>,
+    digest: Option<Context>,
 }
 
 /// The same text for every encoder: what one holds is not part of it, because the hashing encoder
@@ -133,7 +133,7 @@ impl Encoder {
     /// An empty encoder that hashes [`ContentHash::VALUE_DOMAIN`] and then every byte written
     /// into it, holding at most a window of them.
     pub(crate) fn hashing_values() -> Self {
-        let mut digest = Sha256::new();
+        let mut digest = Context::new(&SHA256);
         digest.update(ContentHash::VALUE_DOMAIN);
         Self {
             bytes: Vec::new(),
@@ -146,12 +146,16 @@ impl Encoder {
     /// bytes to be addressed, which are the bytes a buffering encoder would hold too.
     pub(crate) fn value_digest(self) -> [u8; 32] {
         let mut digest = self.digest.unwrap_or_else(|| {
-            let mut digest = Sha256::new();
+            let mut digest = Context::new(&SHA256);
             digest.update(ContentHash::VALUE_DOMAIN);
             digest
         });
         digest.update(&self.bytes);
-        digest.finalize().into()
+        digest
+            .finish()
+            .as_ref()
+            .try_into()
+            .expect("SHA-256 is 32 bytes")
     }
 
     /// Refuses on the hashing encoder, which no longer holds what it hashed: a partial answer
