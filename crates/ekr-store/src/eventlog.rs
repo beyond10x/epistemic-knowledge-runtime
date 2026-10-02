@@ -574,15 +574,18 @@ impl<S: EventStore> EventlogStore<S> {
         let Some(at_path) = &self.at_path else {
             return Ok(());
         };
-        at_path.check(|| {
-            let page = self
-                .runtime()
-                .block_on(self.store.read_feed(&self.tenant, 0, 1))?;
+        at_path.check(|position| {
+            let page = self.runtime().block_on(self.store.read_feed(
+                &self.tenant,
+                position.saturating_sub(1),
+                1,
+            ))?;
             Ok(page
                 .events
                 .into_iter()
                 .next()
-                .map(|event| (event.global_seq, event.event_id)))
+                .filter(|event| event.global_seq == position)
+                .map(|event| event.event_id))
         })
     }
     /// `opened`, recording the database file at `path` it opened and checking it once.

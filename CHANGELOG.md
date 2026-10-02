@@ -55,10 +55,10 @@ transaction documents are bounded before they load; tests no longer fail under l
   replaced database. The store now checks the file before every read and write (one `stat`
   while it is unchanged; its log's first and newest events, read from the file alone, when it
   has changed) and refuses a replaced one as `store-replaced` (`StoreError::Replaced`). Only
-  another device or inode, or a header that reads while no checkpoint runs and differs, counts: a
-  header read that fails because a checkpoint is writing the file proves nothing; through a
-  symlinked store path, the checkpoint is read beside the file the link names, where SQLite keeps
-  it, so a checkpointing writer beside such a store is not taken for a replacement. The three
+  another device or inode, or an event in the file that this store's log does not hold, counts:
+  a read that fails or mixes two versions while a checkpoint writes the file proves nothing. The
+  check opens no store file outside SQLite, so it never releases the writer's lock on the
+  `-shm`, which let another process truncate it and the writer die of SIGBUS. The three
   hosts open the store at the path again and answer from it. Copy a database over a live store
   only with its `-wal` and `-shm` files: SQLite writes the replaced database's WAL into the file
   at the path when the replaced connection closes.

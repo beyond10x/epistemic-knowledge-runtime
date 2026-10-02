@@ -361,3 +361,80 @@ fn a_database_copied_over_a_symlinked_store_is_refused_as_replaced() {
         "the write through the link answered {wrote:?}"
     );
 }
+
+/// The environment variable that turns [`another_process_takes_the_shm_exclusively`] into the
+/// child its parent case starts: the `-shm` path to try.
+const SHM_CHILD: &str = "EKR_C7S_SHM_CHILD";
+
+/// Child half of the case below, a no-op unless [`SHM_CHILD`] names a `-shm`: tries, without
+/// waiting, the exclusive record lock SQLite's `unixLockSharedMemory` takes on the `-shm` before it
+/// truncates it, over the whole file, and prints whether it was granted.
+#[test]
+fn another_process_takes_the_shm_exclusively() {
+    let Some(shm) = std::env::var_os(SHM_CHILD) else {
+        return;
+    };
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&shm)
+        .expect("the -shm opens");
+    match rustix::fs::fcntl_lock(&file, rustix::fs::FlockOperation::NonBlockingLockExclusive) {
+        Ok(()) => println!("SHM-LOCK granted"),
+        Err(error) => println!("SHM-LOCK refused {error}"),
+    }
+}
+
+/// `wave/correct-07` CI: `ekr seed`, racing `ekr head`, died of SIGBUS. POSIX record locks belong
+/// to the process and the file, and closing any descriptor of the file releases all of them: the
+/// replacement check read the `-shm` with `std::fs` inside the writer's process, so its close
+/// dropped the writer connection's `DMS` lock; another process then took the `-shm` exclusively
+/// and truncated it under the writer's mapping, and the writer's next access faulted.
+///
+/// Deterministic, no timing: a writer handle writes, the database file changes under it (a
+/// checkpoint), and the writer and a second handle in the same process both run the check, which
+/// reads the file. Then another process asks for the `-shm` exclusively, without waiting: it must
+/// be refused, because the writer's connection still holds its lock — and the writer writes again.
+#[cfg(unix)]
+#[test]
+fn no_replacement_check_releases_the_writer_process_lock_on_the_shm() {
+    let directory = TempDir::new().unwrap();
+    let path = directory.path().join("state.db");
+    let writer = sqlite(&path);
+    seeded(&writer, "locks");
+    proposed(&writer, 1, 4096);
+    writer.history().unwrap();
+    {
+        let checkpointer = rusqlite::Connection::open(&path).unwrap();
+        let _: (i64, i64, i64) = checkpointer
+            .query_row("PRAGMA wal_checkpoint(PASSIVE)", [], |row| {
+                Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+            })
+            .unwrap();
+    }
+    writer.history().unwrap();
+    let second = sqlite(&path);
+    second.history().unwrap();
+    drop(second);
+    writer.history().unwrap();
+
+    let mut shm = path.as_os_str().to_owned();
+    shm.push("-shm");
+    let child = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "another_process_takes_the_shm_exclusively",
+            "--nocapture",
+        ])
+        .env(SHM_CHILD, &shm)
+        .output()
+        .unwrap();
+    let said = String::from_utf8_lossy(&child.stdout);
+    assert!(child.status.success(), "the child failed: {said}");
+    assert!(
+        said.contains("SHM-LOCK refused"),
+        "another process took the -shm exclusively while the writer's connection holds it: {said}"
+    );
+    proposed(&writer, 2, 4096);
+    assert_eq!(writer.history().unwrap().occurrences.len(), 3);
+}

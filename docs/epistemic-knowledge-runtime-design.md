@@ -5058,16 +5058,22 @@ handle refused them.
 ## 102.1 The rule
 
 A live handle never answers from bytes a fresh handle would refuse. A SQLite database file
-replaced in place — another device and inode at the path, or a log header that is not the one the
-handle opened (the first event, read from the file alone, against the handle's own connection; and
-the newest event the handle saw in the file, which must stay at its place) — is refused before
+replaced in place — another device and inode at the path, or a file that holds an event this
+handle's log does not hold at that position (the tenant's first and newest events, read from the
+file alone, asked of the handle's own connection) — is refused before
 every read and write as `store-replaced` (`StoreError::Replaced`), and the session, MCP and view
 hosts open the store again on it, as on a diverged File history. A read of an unchanged file costs
-one `stat`. Only positive evidence counts: another device or inode, or a header read successfully
-while no checkpoint ran across the read (the WAL index's checkpoint record unchanged and idle)
-that differs from the recorded one. A checkpoint half-way through writing the file makes a read
-fail as malformed while the `stat` holds still; such a read, retried a bounded number of times,
-proves nothing (adversary pass c7-s, `crates/ekr-store/tests/adversary_c7_s.rs`). Any operation that withdraws retained bytes appends an event to the object's stream,
+one `stat`. Only positive evidence counts: another device or inode, or an event the file holds
+that this log does not, found by two reads. A checkpoint half-way through writing the file makes
+a read fail as malformed, or mix two versions of the same database, while the `stat` holds still;
+every event such a read shows is this log's, so it proves nothing, and an erring read, retried a
+bounded number of times, proves nothing either (adversary pass c7-s,
+`crates/ekr-store/tests/adversary_c7_s.rs`). No file of a store is opened outside SQLite in a
+process holding a SQLite connection on it: closing any descriptor of a file releases every POSIX
+record lock the process holds on it, so reading the `-shm` with `std::fs` dropped the writer's
+lock on it, and another process could truncate the `-shm` under the writer's mapping (SIGBUS in
+`ekr seed`, wave correct-07 CI). Any operation that withdraws retained bytes appends an event to
+the object's stream,
 so a holding handle sees it when it looks through the log, and an object's stream is judged before
 its bytes, so the holding handle refuses it as a fresh one does. Nothing in the runtime withdraws
 bytes in place.
@@ -5075,7 +5081,8 @@ bytes in place.
 ## 102.2 What is not seen
 
 A redaction or deletion made through a provider directly, without that event; a backup of the same
-store restored over its file while the handle had seen no event the backup lacks; and the replaced
+store restored over its file, whose first and newest events this log holds; a database whose file
+holds no event yet copied over the store; and the replaced
 database's WAL, which SQLite writes into the file at the path when the replaced connection closes.
 The last needs a provider that can close a connection without checkpointing; eventlog has none at
 the pinned revision.

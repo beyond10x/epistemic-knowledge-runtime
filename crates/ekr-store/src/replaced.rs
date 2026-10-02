@@ -5,48 +5,46 @@
 //! and inode — is not seen by the handle's connection: SQLite in WAL mode keeps its page cache
 //! while the WAL index has not moved, so the connection goes on answering the database it opened.
 //! The eventlog SQLite provider has no check of its own for this, so the store makes one, beside
-//! the connection and without it:
+//! the connection and without it.
 //!
-//! * the **file identity**: the device and inode at the path must be those the handle opened;
-//! * the **log header**: the log's first event, and the newest event this handle has seen in the
-//!   database file, read from the file alone (`immutable=1`: no lock, no WAL, no `-shm`). The first
-//!   event must be the one the handle's own connection reads, and once seen must stay; the newest
-//!   must stay at its place and never move back. A checkpoint only ever moves the file forward
-//!   through committed history, so neither changes while the file is the database the handle
-//!   opened.
+//! Only positive evidence proves a replacement:
 //!
-//! The header is read only when the file's `stat` (identity, size, modification and change time)
-//! differs from the one it last matched at, so a read of an unchanged store costs one `stat`.
+//! * the **file identity**: the device and inode at the path are not those the handle opened;
+//! * a **foreign event**: the database file, read alone (`immutable=1`: no lock, no WAL, no
+//!   `-shm`), holds as its first or its newest event for the tenant one that this handle's own log
+//!   does not hold at that position — asked of the handle's own connection, once per event — and
+//!   a second, independent read of the file shows a foreign event again.
 //!
-//! Only positive evidence proves a replacement: another device or inode, or a header that reads
-//! successfully, **settled**, and differs from the one recorded. A checkpoint writes the database
-//! file page by page, and a file read meanwhile can read as malformed, or as a mix of two
-//! versions, while its `stat` holds still (file times are coarse). A read is therefore settled
-//! only when no checkpoint ran across it: the WAL index's checkpoint record (`nBackfill` and
-//! `nBackfillAttempted` in the `-shm` file, SQLite's documented WAL-index format) is the same
-//! before and after the read and shows none in progress, and the file's `stat` is the same too. A
-//! read that errs or is not settled is taken again, a bounded number of times ([`ATTEMPTS`]),
-//! counted and never timed; one still unsettled after them proves nothing, the check passes
-//! without recording the `stat`, and the next entry checks again. A read error never concludes
-//! `store-replaced`: a database that is really damaged is refused by the read that follows, under
-//! its own code.
+//! The file is read only when its `stat` (identity, size, modification and change time) differs
+//! from the one the check last passed at, so a read of an unchanged store costs one `stat`.
 //!
-//! Whatever settled header disagrees is [`StoreError::Replaced`], `store-replaced`, and nothing is
-//! answered from the handle; a store opened at the path again reads what is there, or is refused
-//! the same way.
+//! A checkpoint writes the database file page by page, and a file read meanwhile can read as
+//! malformed, or as a mix of two versions, while its `stat` holds still (file times are coarse).
+//! Every page of such a mix is a page of this handle's own database, so every event it shows is
+//! one this log holds at that position: a mix proves nothing, and neither does a read error. A read
+//! that errs is taken again, a bounded number of times ([`ATTEMPTS`]), counted and never timed;
+//! one still unreadable after them proves nothing, the check passes without recording the `stat`,
+//! and the next entry checks again. A database that is really damaged is refused by the read that
+//! follows, under its own code.
 //!
-//! A plain read-only connection would read a consistent snapshot, but through the WAL beside the
-//! file: over a database copied onto a store whose WAL still holds frames, it reads the replaced
-//! database's pages, and the replacement it is meant to find is hidden. The file alone is read.
+//! **No file of the store is opened outside SQLite.** POSIX record locks belong to the process
+//! and the file, and closing any descriptor of the file releases every one of them: an `open` and
+//! `close` of the `-shm` (or the database) in a process holding a SQLite connection on the store
+//! drops that connection's `DMS` lock on the `-shm`, another process then takes it exclusively and
+//! truncates the `-shm` the connection has mapped, and the connection's next access faults with
+//! SIGBUS (`crates/ekr-store/tests/adversary_c7_s.rs`,
+//! `no_replacement_check_releases_the_writer_process_lock_on_the_shm`). Only `stat`
+//! and SQLite connections touch these files; SQLite defers the close of a descriptor while its own
+//! connections in the process hold locks on the file.
 //!
-//! Not seen: a backup of this same store restored over it, holding no event older than the newest
-//! one this handle has seen in the file, has the same header, and passes.
+//! Not seen, and recorded in `systems/ekr/domains/store.yaml`: a backup of this same store
+//! restored over its file, whose first and newest events this log holds at their positions; and
+//! a database whose file holds no event yet (all of it still in its own WAL) copied over the store.
 use crate::StoreError;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-/// The provider's first event for this handle's tenant, or the file's: its log position and
-/// provider event id.
+/// An event as the file or the log holds it: its log position and provider event id.
 pub(super) type Event = (u64, String);
 
 /// One SQLite handle's record of the database it opened.
@@ -57,12 +55,12 @@ pub(super) struct AtPath {
     seen: Mutex<Seen>,
 }
 
-/// What the handle last saw of the file. `stamp` is `None` until the header has been read once.
+/// What the check last passed at: the file's `stat`, and the events of the file it has found this
+/// log to hold.
 #[derive(Default)]
 struct Seen {
     stamp: Option<Stamp>,
-    first: Option<Event>,
-    newest: Option<Event>,
+    ours: Vec<Event>,
 }
 
 /// A file's `stat`: identity, length, and modification and change time to the nanosecond.
@@ -108,48 +106,9 @@ fn stamp(path: &Path) -> std::io::Result<Stamp> {
     })
 }
 
-/// How many times the header is read before an unsettled or unreadable file is left to the next
-/// check: a count, never a duration.
+/// How many times the file is read before an unreadable file is left to the next check: a count,
+/// never a duration.
 pub(super) const ATTEMPTS: usize = 64;
-
-/// The WAL index's checkpoint record: `nBackfill` and `nBackfillAttempted` (`-shm` offsets 96 and
-/// 128, native byte order). A checkpoint sets the second before it writes the database file and
-/// the first, to the same frame, after; they differ while one is in progress. `None` without a
-/// `-shm` file, where no connection holds the WAL open and nothing checkpoints. SQLite keeps the
-/// `-shm` of a symlinked database beside the file the link names, so the path is resolved first;
-/// beside the link there is none, and a checkpoint in progress would read as none in progress.
-fn checkpoint_record(database: &Path) -> Option<(u32, u32)> {
-    let index = std::fs::read(super::read_only::sidecar(
-        &super::read_only::resolved(database),
-        "-shm",
-    ))
-    .ok()?;
-    let word = |at: usize| -> Option<u32> {
-        Some(u32::from_ne_bytes(index.get(at..at + 4)?.try_into().ok()?))
-    };
-    Some((word(96)?, word(128)?))
-}
-
-/// The file's `stat` and its checkpoint record, when no checkpoint is in progress.
-fn quiet(database: &Path) -> Option<(Stamp, Option<(u32, u32)>)> {
-    let record = checkpoint_record(database);
-    if record.is_some_and(|(backfilled, attempted)| backfilled != attempted) {
-        return None;
-    }
-    Some((stamp(database).ok()?, record))
-}
-
-/// What the database file alone says.
-enum Header {
-    /// It holds no `ekr` events for the tenant yet: everything is still in the WAL.
-    Empty,
-    /// Its first and newest events for the tenant, and the event now at `at`'s position.
-    Events {
-        first: Event,
-        newest: Event,
-        at: Option<String>,
-    },
-}
 
 impl AtPath {
     /// The record of the database at `path` as it is now.
@@ -163,12 +122,12 @@ impl AtPath {
         })
     }
 
-    /// Refuses as [`StoreError::Replaced`] when the database at the path is no longer the one this
-    /// handle opened. `provider_first` is the first event of the tenant's log as the handle's own
-    /// connection reads it; it is asked once, the first time the file shows an event.
+    /// Refuses as [`StoreError::Replaced`] when the database at the path is positively not the one
+    /// this handle opened. `held_at` answers, through the handle's own connection, the provider
+    /// event id this log holds at a position, if any.
     pub(super) fn check(
         &self,
-        provider_first: impl FnOnce() -> Result<Option<Event>, StoreError>,
+        held_at: impl Fn(u64) -> Result<Option<String>, StoreError>,
     ) -> Result<(), StoreError> {
         let mut seen = self
             .seen
@@ -184,69 +143,68 @@ impl AtPath {
         if seen.stamp.as_ref() == Some(&now) {
             return Ok(());
         }
-        let at = seen.newest.as_ref().map(|(position, _)| *position);
-        // Unsettled or unreadable after every attempt: no evidence either way. Nothing is recorded,
-        // so the next entry checks again; a damaged database is refused by the read that follows.
-        let Some((header, steady)) = self.settled_header(at) else {
+        // Unreadable after every attempt: no evidence either way. Nothing is recorded, so the next
+        // entry checks again; a damaged database is refused by the read that follows.
+        let Some(events) = self.readable_events() else {
             return Ok(());
         };
-        match header {
-            Header::Empty if seen.first.is_some() => {
-                return Err(replaced(
-                    &self.path,
-                    "the file holds none of the events this handle saw in it",
-                ))
-            }
-            Header::Empty => {}
-            Header::Events { first, newest, at } => {
-                if let Some(held) = &seen.first {
-                    if *held != first {
-                        return Err(replaced(&self.path, "the log's first event is another"));
-                    }
-                } else if provider_first()?.as_ref() != Some(&first) {
+        if let Some(foreign) = self.foreign(&seen, &events, &held_at)? {
+            // A second, independent read must show a foreign event too.
+            let again = self.readable_events();
+            if let Some(again) = again {
+                if self.foreign(&seen, &again, &held_at)?.is_some() {
                     return Err(replaced(
                         &self.path,
-                        "the file's first event is not the one this handle's log begins with",
+                        &format!(
+                            "the file holds event {} ({}) at a position where this handle's log \
+                             holds another",
+                            foreign.0, foreign.1
+                        ),
                     ));
                 }
-                if let Some((position, id)) = &seen.newest {
-                    if newest.0 < *position || at.as_ref() != Some(id) {
-                        return Err(replaced(
-                            &self.path,
-                            "the newest event this handle saw in the file is no longer there",
-                        ));
-                    }
-                }
-                seen.first = Some(first);
-                seen.newest = Some(newest);
             }
+            return Ok(());
         }
-        seen.stamp = Some(steady);
+        // The events just found to be this log's; a file showing none keeps those already found.
+        if !events.is_empty() {
+            seen.ours = events;
+        }
+        seen.stamp = Some(now);
         Ok(())
     }
 
-    /// The first header that reads successfully and settled — no checkpoint in progress before
-    /// it, and the file's `stat` and checkpoint record the same after it as before — with that
-    /// `stat`; `None` when none of [`ATTEMPTS`] reads is. A read that errs is one that did not
-    /// settle.
-    fn settled_header(&self, at: Option<u64>) -> Option<(Header, Stamp)> {
-        for _ in 0..ATTEMPTS {
-            let Some(before) = quiet(&self.path) else {
-                continue;
-            };
-            let header = self.header(at);
-            if quiet(&self.path).as_ref() != Some(&before) {
+    /// The first of `events` that this log does not hold at its position, if any. An event at a
+    /// position where this check already found the log to hold another is foreign without asking
+    /// the log again — a log holds one event at a position — so a connection that can no longer
+    /// read what it opened is not asked; any other is asked of the log.
+    fn foreign(
+        &self,
+        seen: &Seen,
+        events: &[Event],
+        held_at: &impl Fn(u64) -> Result<Option<String>, StoreError>,
+    ) -> Result<Option<Event>, StoreError> {
+        for event in events {
+            if seen.ours.contains(event) {
                 continue;
             }
-            if let Ok(header) = header {
-                return Some((header, before.0));
+            if seen.ours.iter().any(|ours| ours.0 == event.0) {
+                return Ok(Some(event.clone()));
+            }
+            if held_at(event.0)?.as_ref() != Some(&event.1) {
+                return Ok(Some(event.clone()));
             }
         }
-        None
+        Ok(None)
     }
 
-    /// The database file's header, read from the file alone.
-    fn header(&self, at: Option<u64>) -> Result<Header, rusqlite::Error> {
+    /// The tenant's first and newest events as the database file alone holds them — none while
+    /// everything is still in the WAL — from the first of [`ATTEMPTS`] reads that does not err.
+    fn readable_events(&self) -> Option<Vec<Event>> {
+        (0..ATTEMPTS).find_map(|_| self.file_events().ok())
+    }
+
+    /// The database file's first and newest events for the tenant, read from the file alone.
+    fn file_events(&self) -> Result<Vec<Event>, rusqlite::Error> {
         let connection = rusqlite::Connection::open_with_flags(
             super::read_only::uri(&self.path, true)?,
             rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY
@@ -259,35 +217,23 @@ impl AtPath {
             |row| row.get(0),
         )?;
         if !owned {
-            return Ok(Header::Empty);
+            return Ok(Vec::new());
         }
-        let event = |order: &str| -> Result<Option<Event>, rusqlite::Error> {
+        let mut events = Vec::with_capacity(2);
+        for order in ["ASC", "DESC"] {
             let mut statement = connection.prepare(&format!(
                 "SELECT global_seq, event_id FROM {EVENTS} WHERE tenant_id = ?1 \
                  ORDER BY global_seq {order} LIMIT 1"
             ))?;
             let mut rows = statement.query([&self.tenant])?;
-            rows.next()?
-                .map(|row| Ok((row.get::<_, i64>(0)?.unsigned_abs(), row.get(1)?)))
-                .transpose()
-        };
-        let (Some(first), Some(newest)) = (event("ASC")?, event("DESC")?) else {
-            return Ok(Header::Empty);
-        };
-        let at = match at {
-            None => None,
-            Some(position) => {
-                let mut statement = connection.prepare(&format!(
-                    "SELECT event_id FROM {EVENTS} WHERE tenant_id = ?1 AND global_seq = ?2"
-                ))?;
-                let mut rows = statement.query(rusqlite::params![
-                    &self.tenant,
-                    i64::try_from(position).unwrap_or(i64::MAX)
-                ])?;
-                rows.next()?.map(|row| row.get(0)).transpose()?
+            if let Some(row) = rows.next()? {
+                let event: Event = (row.get::<_, i64>(0)?.unsigned_abs(), row.get(1)?);
+                if !events.contains(&event) {
+                    events.push(event);
+                }
             }
-        };
-        Ok(Header::Events { first, newest, at })
+        }
+        Ok(events)
     }
 }
 
@@ -296,61 +242,4 @@ const EVENTS: &str = "ekr_events";
 
 fn replaced(path: &Path, why: &str) -> StoreError {
     StoreError::Replaced(format!("{}: {why}", path.display()))
-}
-
-#[cfg(all(test, unix))]
-mod through_a_symlink {
-    use super::{checkpoint_record, quiet};
-
-    /// SQLite keeps a symlinked database's `-shm` beside the file the link names. The checkpoint
-    /// record is read there: beside the link there is none, and a checkpoint in progress would
-    /// read as none in progress.
-    #[test]
-    fn the_checkpoint_record_is_read_beside_the_file_a_symlink_names() {
-        let directory = tempfile::TempDir::new().unwrap();
-        let target = directory.path().join("state.db");
-        let link = directory.path().join("linked.db");
-        std::os::unix::fs::symlink(&target, &link).unwrap();
-        let connection = rusqlite::Connection::open(&link).unwrap();
-        connection
-            .pragma_update(None, "journal_mode", "wal")
-            .unwrap();
-        connection
-            .execute_batch("CREATE TABLE t (x); INSERT INTO t VALUES (1);")
-            .unwrap();
-        let mut shm = target.as_os_str().to_owned();
-        shm.push("-shm");
-        assert!(
-            std::path::Path::new(&shm).exists(),
-            "precondition: the -shm is beside the file the link names"
-        );
-        let through_target = checkpoint_record(&target);
-        assert!(
-            through_target.is_some(),
-            "precondition: a checkpoint record"
-        );
-        assert_eq!(checkpoint_record(&link), through_target);
-    }
-
-    /// A checkpoint in progress (`nBackfill` behind `nBackfillAttempted`) beside the file a
-    /// symlink names is seen through the link, and the file is not taken as quiet.
-    #[test]
-    fn a_checkpoint_in_progress_beside_a_symlinked_file_is_not_quiet() {
-        let directory = tempfile::TempDir::new().unwrap();
-        let target = directory.path().join("state.db");
-        let link = directory.path().join("linked.db");
-        std::fs::write(&target, b"").unwrap();
-        std::os::unix::fs::symlink(&target, &link).unwrap();
-        let mut index = vec![0_u8; 136];
-        index[96..100].copy_from_slice(&3_u32.to_ne_bytes());
-        index[128..132].copy_from_slice(&7_u32.to_ne_bytes());
-        let mut shm = target.as_os_str().to_owned();
-        shm.push("-shm");
-        std::fs::write(&shm, &index).unwrap();
-        assert_eq!(checkpoint_record(&link), Some((3, 7)));
-        assert!(
-            quiet(&link).is_none(),
-            "a checkpoint in progress read as quiet"
-        );
-    }
 }
