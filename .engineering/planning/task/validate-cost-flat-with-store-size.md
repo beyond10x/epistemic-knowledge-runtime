@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 17
+revision: 18
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -265,3 +265,28 @@ Source and raw evidence: combined commit 58f53523b, retained
 The new explicit per-verb assertions correctly fail this run. No samples were removed and no
 threshold was changed. Profile analysis continues before selecting the next counted correction;
 the task remains active and this result does not authorize a release.
+
+## Bounded graph-reuse experiment
+
+The coordinator reviewed the next prefix/checkpoint correction and requested position-only
+mutation coverage beside event-content tampering. The implementor reports a green counted
+prefix-hash case and obsolete-checkpoint lifetime case. These target validation; they do not
+establish that commit timing meets acceptance.
+
+The latest full-size profile still attributes material commit growth to graph cloning and root
+hashing. A temporary Rust allocation probe reported no allocation reduction from BTreeMap
+clone_from, so that approach is not accepted as a correction. Public CanonicalGraph owns its maps
+and records; changing those public types or the canonical hash format is outside this correction.
+
+The coordinator authorized a bounded private graph-reuse experiment in the kernel application
+and replay-cache surface. A counted test must first expose copies of unchanged graph records.
+Only an exclusively owned retired graph may be taken; an external reader or retained checkpoint
+must prevent extraction. Reuse requires exact root/revision lineage and verified intervening
+append-only operations, with the existing clone path for every unsupported operation, missing
+buffer or mismatched history. Historical reads, retry/conflict, restart and failed publication
+must preserve current behavior and immutable snapshots. No acceptance limit or release boundary
+changes. The prefix/checkpoint correction is committed separately before this experiment.
+
+Sources: retained combined4 profile and the implementor's allocation-probe report in W scratch;
+coordinator source review and dispatch. Full combined correctness and the unchanged default-size
+measurement remain required before the task can be implemented.
