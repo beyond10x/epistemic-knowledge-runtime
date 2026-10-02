@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:p6-maintenance-observability
 - serves: vision:o2
 - derived_from: task:seed-document-bounds-alias-expansion
-revision: 4
+revision: 5
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-02T18:02:03Z", actor: "agent:codex-ekr-next-three-root", revision: 3}
 - {from: "proposed", to: "active", at: "2026-10-02T18:02:03Z", actor: "agent:codex-ekr-next-three-root", revision: 4}
@@ -67,3 +67,16 @@ refused before full loading. The source guard detects a newly added unclassified
 decode, and explicitly permits embedded and already-bounded decodes. Existing extraction,
 seed and transaction-document limits and refusals stay covered. These regression cases
 assert surviving behavior after the fix, rather than constructing a now-unrepresentable value.
+
+## Specified named cases
+
+The ontology ESS domain now declares input, depth, expanded-node and expanded-text bounds matching
+the existing seed reader's limits. Named acceptance cases are
+ontology_yaml_refuses_input_bytes_before_decoding,
+ontology_yaml_refuses_excessive_container_depth,
+ontology_yaml_bounds_expanded_alias_nodes_and_text,
+ontology_yaml_preserves_bounded_aliases_and_existing_refusals, and
+ontology_yaml_stops_loading_at_the_depth_cut. The ingress inventory and its counterexamples live
+in crates/ekr-ontology/tests/yaml_ingress.rs. These are planned, unexecuted cases at this specification
+commit; later test-result evidence determines implementation. The specification was propagated
+identically to both input-wave unit trees before implementation.
