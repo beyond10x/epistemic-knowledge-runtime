@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 10
+revision: 11
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -110,3 +110,24 @@ error: test failed, to rerun pass `-p ekr-kernel --lib`
 ```
 
 The next correction shares individual internal records while preserving the public full-transaction snapshot API and its unchanged-read sharing. Session settle must read only the states it needs, so constructing that public snapshot does not simply move the copying into another part of validate/commit. This expands the implementation surface to replay state, runtime state access and CLI session settle; O also edits session responses, in a separate region. No wire format or canonical root encoding changes. Re-measure before claiming completion.
+
+## Second full-size measurement (2026-10-02)
+
+The second full-size SQLite run covers f9d910a3b, using unchanged sizes 20000/10000/80000 and
+unchanged first/last full-transaction windows. The run remains red. Exact measured lines:
+
+```text
+Sqlite first 15 medians            propose    676.6 ms  validate     57.9 ms  commit    673.6 ms  total   1408.2 ms
+Sqlite last 15 medians             propose    753.5 ms  validate    115.1 ms  commit    994.9 ms  total   1863.5 ms
+Sqlite median ratios: validate 1.986x; commit 1.477x; load 11.71 18.76 17.85 4/6321 874580
+MEASUREMENT_EXIT=101
+```
+
+Raw scaling.log, scaling.perf.data and profile analysis remain under <cache>/ekr-extract-07b/w/records.
+The implementor reports that record-copy samples vanished; validation still scales with candidate
+and alias scans and old-graph destruction. Commit samples grow in knowledge/evidence root hashing,
+checkpoint work and graph copying. These are profile-derived hypotheses for further counted probes,
+not a green acceptance claim. Current SHA-256 canonical roots must remain byte-identical.
+The coordinator continues correction within the user's full extract-07b scope; no bound is relaxed
+and no release is claimed. Temporary Rust throughput probes may measure alternative hash execution
+before any production dependency choice; no dependency change has been accepted on that basis yet.
