@@ -7,7 +7,7 @@ title: ekr quality counts seed evidence and constrained types
 relations:
 - decomposes: epic:consumer-sdk
 - serves: vision:o5
-revision: 4
+revision: 5
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-02T10:34:31Z", actor: "agent:codex-ekr-x7b", revision: 3}
 - {from: "proposed", to: "active", at: "2026-10-02T10:34:31Z", actor: "agent:codex-ekr-x7b", revision: 4}
@@ -51,3 +51,10 @@ The consumer group shares views.yaml, CLI dispatch, typed SDK exports and docume
 its artifacts are implemented serially in one managed consumer unit. Generated conformance
 suites and planning writes belong to the coordinator. New SDK modules are inferred.
 Typed task scope is unavailable: AEP 0.64.0 restricts the scope field to stories.
+
+## Resume decisions (2026-10-02)
+
+Count active assertions with retained seed evidence, including evidence attached after creation.
+Count constrained declaring node and edge types, once per type with at least one directly declared
+constrained property, matching the existing declaration-based property count. Preserve all old
+counts and basis-point units. Documentation converts a share by division by 10000.

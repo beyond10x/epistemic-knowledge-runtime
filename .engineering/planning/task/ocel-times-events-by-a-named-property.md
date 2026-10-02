@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:consumer-sdk
 - serves: vision:o5
 - informed_by: task:ocel-export-prints-its-counts
-revision: 4
+revision: 5
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-02T10:34:31Z", actor: "agent:codex-ekr-x7b", revision: 3}
 - {from: "proposed", to: "active", at: "2026-10-02T10:34:31Z", actor: "agent:codex-ekr-x7b", revision: 4}
@@ -51,3 +51,11 @@ The consumer group shares views.yaml, CLI dispatch, typed SDK exports and docume
 its artifacts are implemented serially in one managed consumer unit. Generated conformance
 suites and planning writes belong to the coordinator. New SDK modules are inferred.
 Typed task scope is unavailable: AEP 0.64.0 restricts the scope field to stories.
+
+## Resume decisions (2026-10-02)
+
+The date-valued property is Timestamp, resolved against the requested revision and including
+inherited properties. Names are case-sensitive; ambiguous type/property names and conflicting
+mappings are named refusals, while repeated identical mappings may deduplicate. Split a selector
+at its last dot. A missing timestamp leaves the node undated; multiple distinct timestamps refuse
+ambiguity rather than silently choosing one. The authored scenarios must exercise these rules.
