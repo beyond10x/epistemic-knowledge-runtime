@@ -1165,6 +1165,55 @@ fn a_running_server_answers_from_a_store_replaced_by_rename() {
     }
 }
 
+/// `task:sqlite-store-replaced-in-place`: a SQLite database copied over the server's store file —
+/// `cp` over it, which keeps its device and inode, so the identity check passes — is refused by
+/// the held runtime as `store-replaced`, and the server opens the store at the path again and
+/// answers the next call from it, never from the database it opened.
+#[test]
+fn a_running_server_answers_from_a_sqlite_database_copied_over_its_file() {
+    let world = World::seeded("sqlite");
+    world.commit("create.yaml");
+    let mut server = world.server();
+    let head = |server: &mut Server| -> Value {
+        serde_json::from_str(&server.document("head", json!({}))).unwrap()
+    };
+    assert_eq!(head(&mut server)["head"], 1);
+    server.document("describe_node", json!({"node": GLOBEX}));
+
+    let replacement = World::seeded("sqlite");
+    replacement.file(
+        "initech.yaml",
+        &create(
+            INITECH_TRANSACTION,
+            ORGANIZATION,
+            &[(INITECH.to_owned(), "Initech".to_owned())],
+        ),
+    );
+    replacement.commit("initech.yaml");
+    let identity = |path: &std::path::Path| {
+        use std::os::unix::fs::MetadataExt as _;
+        let metadata = std::fs::metadata(path).unwrap();
+        (metadata.dev(), metadata.ino())
+    };
+    let before = identity(&world.store());
+    std::fs::copy(replacement.store(), world.store()).unwrap();
+    assert_eq!(
+        identity(&world.store()),
+        before,
+        "precondition: the same device and inode"
+    );
+
+    assert_eq!(
+        server.document("describe_node", json!({"node": INITECH})),
+        utf8(world.index(None).describe(node(INITECH)).unwrap().bytes),
+        "a node of the database now at the path"
+    );
+    let gone = server.refusal("describe_node", json!({"node": GLOBEX}));
+    assert_eq!(gone["refusal"], "ekr.views.NodeNotFound");
+    assert_eq!(head(&mut server)["head"], 1);
+    server.close();
+}
+
 // 5b -------------------------------------------------------------------------------------------
 
 /// A running `ekr view --port 0` over the same store, for comparing a tool with its endpoint.

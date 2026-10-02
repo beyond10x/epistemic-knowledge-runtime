@@ -578,6 +578,79 @@ fn a_file_store_that_diverged_is_refused_as_a_typed_divergence() {
     );
 }
 
+/// A SQLite database overwritten in place under a live handle — `cp` over the file, which keeps
+/// its device and inode — by a different history, as long as the old one or longer. The live
+/// connection would go on answering the database it opened, so the handle refuses its next read,
+/// a single-object read and a write alike as [`StoreError::Replaced`] (`store-replaced`), and a
+/// handle opened at the path while the replaced database's WAL is still beside it refuses it too,
+/// or answers the database copied there. Nothing answers from the history the handle observed
+/// (`task:sqlite-store-replaced-in-place`).
+#[test]
+fn a_sqlite_store_overwritten_in_place_is_refused_as_replaced() {
+    for later in [1, 2] {
+        let held_dir = TempDir::new().unwrap();
+        let other_dir = TempDir::new().unwrap();
+        let reader = sqlite(held_dir.path());
+        let held = written(&reader, "overwritten", 1);
+        let observed: Vec<_> = reader
+            .history()
+            .unwrap()
+            .occurrences
+            .iter()
+            .map(|occurrence| occurrence.event.event_id)
+            .collect();
+        written(&sqlite(other_dir.path()), "overwriting", later);
+        let path = held_dir.path().join("state.db");
+        let inode = |path: &Path| {
+            use std::os::unix::fs::MetadataExt as _;
+            let metadata = std::fs::metadata(path).unwrap();
+            (metadata.dev(), metadata.ino())
+        };
+        let before = inode(&path);
+        std::fs::copy(other_dir.path().join("state.db"), &path).unwrap();
+        assert_eq!(inode(&path), before, "precondition: overwritten in place");
+        let fresh: Vec<_> = sqlite(other_dir.path())
+            .history()
+            .unwrap()
+            .occurrences
+            .iter()
+            .map(|occurrence| occurrence.event.event_id)
+            .collect();
+        assert_ne!(fresh, observed, "precondition: a different history");
+
+        let history = reader.history().map(|history| history.occurrences.len());
+        assert!(
+            matches!(history, Err(StoreError::Replaced(_))),
+            "{later} later: the overwritten handle's history read answered {history:?} \
+             (observed before: {observed:?})"
+        );
+        let got = reader.get(&ContentHash::of_bytes(&held[0]));
+        assert!(
+            matches!(got, Err(StoreError::Replaced(_))),
+            "{later} later: the overwritten handle's object read answered {got:?}"
+        );
+        let wrote = reader.publish(&proposal(2, payload("after the overwrite")));
+        assert!(
+            matches!(wrote, Err(StoreError::Replaced(_))),
+            "{later} later: the overwritten handle's write answered {wrote:?}"
+        );
+        match SqliteStore::sqlite(&path, TENANT, None).map(|store| store.under(Touch)) {
+            Err(StoreError::Replaced(_)) => {}
+            Ok(opened) => {
+                let read: Vec<_> = opened
+                    .history()
+                    .unwrap()
+                    .occurrences
+                    .iter()
+                    .map(|occurrence| occurrence.event.event_id)
+                    .collect();
+                assert_eq!(read, fresh, "{later} later: a handle opened at the path");
+            }
+            Err(other) => panic!("{later} later: a handle opened at the path: {other:?}"),
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------------------------
 // Measurement: two consecutive history reads on one handle over a large store. Ignored; run with
 // `cargo test -p ekr-store --test history_cache -- --ignored --nocapture`.

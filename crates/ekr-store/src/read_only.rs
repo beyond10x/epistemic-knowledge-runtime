@@ -376,7 +376,7 @@ const IMMUTABLE_ATTEMPTS: usize = 8;
 
 /// `database` as a SQLite URI filename, read-only and, when asked, immutable. Every byte that is
 /// not unreserved is percent-encoded, so no path can add a query parameter of its own.
-fn uri(database: &Path, immutable: bool) -> Result<String, rusqlite::Error> {
+pub(super) fn uri(database: &Path, immutable: bool) -> Result<String, rusqlite::Error> {
     let absolute = std::path::absolute(database)
         .map_err(|error| rusqlite::Error::InvalidPath(PathBuf::from(error.to_string())))?;
     let text = absolute

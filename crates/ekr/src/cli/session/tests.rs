@@ -72,6 +72,47 @@ fn a_session_follows_a_file_store_replaced_inside_its_directory() {
     assert_eq!(reader_work().reopens, 1);
 }
 
+/// A SQLite database overwritten in place — `cp` over the file, which keeps its device and inode —
+/// is never answered from the store the session opened: the held runtime refuses it as
+/// `store-replaced`, and the session reopens the store once and answers from the database now at
+/// the path, a store verb and a views verb alike (`task:sqlite-store-replaced-in-place`).
+#[test]
+fn a_session_never_answers_from_a_sqlite_store_overwritten_in_place() {
+    let clock = || Timestamp::from_millis(0);
+    for argv in [&["head"][..], &["overview"]] {
+        let directory = tempfile::tempdir().expect("a temporary directory");
+        let store = seeded(directory.path(), Backend::Sqlite, "store");
+        let path = store.store.clone();
+        let (mut session, mut watch) = session(store);
+        let revision = |answer: &serde_json::Value| {
+            answer
+                .get("revision")
+                .or_else(|| answer["meta"].get("revision"))
+                .cloned()
+        };
+        let first = respond(&line(argv), &mut session, &mut watch, &clock).expect("answers");
+        assert_eq!(revision(&first), Some(0.into()), "{argv:?}");
+        let next = seeded_with_a_commit(directory.path(), Backend::Sqlite, "next");
+        let before = identity(&path);
+        std::fs::copy(&next.store, &path).expect("copying the database over the store");
+        assert_eq!(
+            identity(&path),
+            before,
+            "precondition: the same device and inode"
+        );
+        let _ = reader_work();
+        match respond(&line(argv), &mut session, &mut watch, &clock) {
+            Ok(answer) => assert_eq!(
+                revision(&answer),
+                Some(1.into()),
+                "{argv:?}: answered {answer}, not from the store now at the path"
+            ),
+            Err(failure) => panic!("{argv:?}: the session did not follow the store: {failure}"),
+        }
+        assert_eq!(reader_work().reopens, 1, "{argv:?}: one reopen");
+    }
+}
+
 /// Every `.rs` file under `directory`.
 fn sources(directory: &std::path::Path, found: &mut Vec<std::path::PathBuf>) {
     for entry in std::fs::read_dir(directory).expect("a source directory") {
