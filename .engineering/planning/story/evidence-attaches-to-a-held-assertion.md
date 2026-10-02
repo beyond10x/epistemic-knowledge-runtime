@@ -11,6 +11,14 @@ relations:
 scope:
 - confidence: inferred
   path: CHANGELOG.md
+- confidence: cited
+  path: crates/ekr-core/src/identity.rs
+- confidence: cited
+  path: crates/ekr-core/src/lib.rs
+- confidence: cited
+  path: crates/ekr-core/tests/identity_serde.rs
+- confidence: cited
+  path: crates/ekr-core/tests/rename_stability.rs
 - confidence: inferred
   path: crates/ekr-graph/src/canonical.rs
 - confidence: cited
@@ -77,7 +85,7 @@ scope:
   path: systems/ekr/domains/kernel.yaml
 - confidence: cited
   path: systems/ekr/domains/views.yaml
-revision: 41
+revision: 43
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T09:59:45Z", actor: "human:timo", revision: 38}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:06Z", actor: "human:timo", revision: 39}
@@ -200,3 +208,17 @@ belongs to the released store replacement checks. The earlier scope's planned se
 historical. Current release notes and overview now cite section 103. The recovered attachment
 release note was also moved out of the 0.0.25 history into Unreleased, where extract-07b belongs.
 These are documentation corrections; no runtime acceptance or historical design amendment changed.
+
+## Integrated identity carrier
+
+The combined gate's every_ess_id_type_exists_in_the_crate case found that the accepted ESS
+AttachmentId declaration lacked its core UUID carrier. The core identity macro now declares and
+reexports AttachmentId, alongside SupportId; existing serde, arbitrary-bit roundtrip and mint
+uniqueness coverage includes it. The macro's documented count is updated to match its invocations.
+Runtime attachments continue to use assertion/evidence pair keys; this adds no minted runtime
+attachment field, graph bytes or canonical-root change.
+
+The story's machine-readable scope now includes the core carrier and its existing contract suites.
+Focused workspace identity_serde, rename_stability and public_surface tests pass, with raw output
+retained in coordinator attachment-identity-corrected.log. The global identity and public-surface
+guards are unchanged. Full combined correctness still follows the final W correction.

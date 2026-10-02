@@ -79,7 +79,7 @@ fn is_canonical_uuid_text(text: &str) -> bool {
 
 /// Declares one id newtype over `u128`, minted as UUIDv7.
 ///
-/// Seventeen types share this shape; writing it seventeen times is seventeen chances to write it
+/// Eighteen types share this shape; writing it eighteen times is eighteen chances to write it
 /// differently. `$doc` is the type's own rustdoc and names the ESS declaration it carries.
 macro_rules! id_newtype {
     ($(#[doc = $doc:expr])+ $name:ident) => {
@@ -262,6 +262,13 @@ id_newtype! {
     /// The support an assertion rests on: `ekr.graph.SupportId` of
     /// `systems/ekr/domains/graph.yaml`.
     SupportId
+}
+
+id_newtype! {
+    /// The ESS identity of an evidence attachment: `ekr.graph.AttachmentId` of
+    /// `systems/ekr/domains/graph.yaml`. Runtime attachment records are keyed by their assertion
+    /// and evidence and do not mint this projection identity.
+    AttachmentId
 }
 
 id_newtype! {
