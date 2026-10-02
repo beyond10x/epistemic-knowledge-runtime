@@ -669,3 +669,148 @@ fn a_thousand_attachments_against_seventy_thousand_assertions_commit() {
         );
     }
 }
+
+/// A public graph document must not silently collapse repeated attachment records.
+#[test]
+fn adversary_duplicate_attachment_members_are_refused_by_the_graph_decoder() {
+    let directory = tempfile::tempdir().unwrap();
+    let kernel = open(directory.path(), false, profiles()[2].1.clone());
+    kernel
+        .seed(SeedDocument::from_yaml(SEED).unwrap(), || {
+            Timestamp::from_millis(10)
+        })
+        .unwrap();
+    let (held, add) = claim(ALICE, 100, id(SOURCE));
+    committed(&kernel, &transaction(vec![add], &[id(SOURCE)]), 20);
+    committed(
+        &kernel,
+        &transaction(vec![attach(held, id(OTHER))], &[id(OTHER)]),
+        30,
+    );
+    let document = ekr_store::GraphDocument::of(&kernel.snapshot().unwrap());
+    let bytes = document.to_bytes().unwrap();
+    assert_eq!(
+        ekr_store::GraphDocument::from_bytes(&bytes).unwrap(),
+        document
+    );
+    let mut wire: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let entries = wire["graph"]["attachments"][held.to_string()]
+        .as_array_mut()
+        .unwrap();
+    assert_eq!(entries.len(), 1);
+    entries.push(entries[0].clone());
+    let refusal = ekr_store::GraphDocument::from_bytes(&serde_json::to_vec(&wire).unwrap())
+        .expect_err("duplicate attachment must not silently become one record");
+    assert!(refusal.to_string().contains("duplicate"), "{refusal}");
+}
+
+/// The documented explanation selects only this assertion's attachments, even when their
+/// transaction attaches different evidence to another assertion and a checkpoint is restored.
+#[test]
+fn adversary_checkpoint_explanations_do_not_import_peer_attachments() {
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let authority = profiles()[2].1.clone();
+        let kernel = open(directory.path(), file, authority.clone());
+        kernel
+            .seed(SeedDocument::from_yaml(SEED).unwrap(), || {
+                Timestamp::from_millis(10)
+            })
+            .unwrap();
+        let (alice, add_alice) = claim(ALICE, 100, id(SOURCE));
+        let (bob, add_bob) = claim(BOB, 100, id(SOURCE));
+        committed(
+            &kernel,
+            &transaction(vec![add_alice, add_bob], &[id(SOURCE)]),
+            20,
+        );
+        let (alice_evidence, add_alice_evidence) = message("Alice's exact evidence");
+        let (bob_evidence, add_bob_evidence) = message("Bob's exact evidence");
+        committed(
+            &kernel,
+            &transaction(
+                vec![
+                    attach(alice, alice_evidence),
+                    add_bob_evidence,
+                    attach(bob, bob_evidence),
+                    add_alice_evidence,
+                ],
+                &[alice_evidence, bob_evidence],
+            ),
+            30,
+        );
+        let head = kernel.head().unwrap().unwrap();
+        kernel.retain_checkpoint_at_rest();
+        drop(kernel);
+        for full in [false, true] {
+            let mut reopened = open(directory.path(), file, authority.clone());
+            reopened.set_full_replay(full);
+            assert_eq!(reopened.head().unwrap().unwrap(), head);
+            for (assertion, own) in [(alice, alice_evidence), (bob, bob_evidence)] {
+                let (evidence, attachments) = explained(&reopened, None, assertion);
+                assert_eq!(
+                    evidence.into_iter().collect::<BTreeSet<_>>(),
+                    BTreeSet::from([id(SOURCE), own])
+                );
+                assert_eq!(attachments, [(assertion, own, RevisionNumber::new(2))]);
+                assert_eq!(
+                    explained(&reopened, Some(RevisionNumber::new(1)), assertion),
+                    (vec![id(SOURCE)], vec![])
+                );
+            }
+        }
+    }
+}
+
+/// Validation cannot attach evidence after a competing retraction commits.
+#[test]
+fn adversary_a_validated_attachment_loses_to_a_committed_retraction() {
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let kernel = open(directory.path(), file, profiles()[2].1.clone());
+        kernel
+            .seed(SeedDocument::from_yaml(SEED).unwrap(), || {
+                Timestamp::from_millis(10)
+            })
+            .unwrap();
+        let (held, add) = claim(ALICE, 100, id(SOURCE));
+        committed(&kernel, &transaction(vec![add], &[id(SOURCE)]), 20);
+        let pending = transaction(vec![attach(held, id(OTHER))], &[id(OTHER)]);
+        kernel
+            .propose(&encode(&pending), context().operator, || {
+                Timestamp::from_millis(30)
+            })
+            .unwrap();
+        assert!(matches!(
+            kernel
+                .validate(pending.id, RevisionNumber::new(1), || {
+                    Timestamp::from_millis(31)
+                })
+                .unwrap(),
+            ValidationCommandResult::Validated(_)
+        ));
+        committed(
+            &kernel,
+            &transaction(
+                vec![GraphOperation::RetractAssertion(Retraction {
+                    assertion: held,
+                    reason: ekr_graph::RetractionReason::new("withdrawn before attachment"),
+                })],
+                &[],
+            ),
+            40,
+        );
+        let head = kernel.head().unwrap().unwrap();
+        let result = kernel
+            .commit(pending.id, context().operator, || {
+                Timestamp::from_millis(50)
+            })
+            .unwrap();
+        assert!(
+            matches!(result, CommitCommandResult::Stale(_)),
+            "{result:?}"
+        );
+        assert_eq!(kernel.head().unwrap().unwrap(), head);
+        assert!(kernel.snapshot().unwrap().attachments.is_empty());
+    }
+}
