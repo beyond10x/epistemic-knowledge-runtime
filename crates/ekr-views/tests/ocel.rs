@@ -336,6 +336,12 @@ fn a_named_inherited_timestamp_controls_events_at_the_requested_revision() {
             )
             .unwrap();
             assert_eq!(answer.bytes, twice.bytes);
+            let index =
+                ekr_views::Index::load(&runtime, Some(RevisionNumber::new(revision))).unwrap();
+            let projected =
+                ekr_views::ocel_with_event_time(&index, &[], &[selector.to_owned()]).unwrap();
+            assert_eq!(projected.bytes, answer.bytes);
+            assert_eq!(projected.summary, answer.summary);
             assert_eq!(
                 ekr_views::export_ocel_with_event_time(
                     &runtime,

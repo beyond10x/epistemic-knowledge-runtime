@@ -115,3 +115,16 @@ step floor falls. Kernel and integration suites were regenerated for the common 
 digest; their selected inventories remain unchanged. Pinned specification, freshness and planning
 checks pass. Raw output is retained in coordinator consumer-conformance.log and
 consumer-integration-plan-spec.log. This remains unit/integration evidence, not the final wave gate.
+
+Consumer and F/K–O/N review trees were subsequently finished and removed through exact-id
+managed GC. Each had remote ancestor proof through the published integration branch;
+coordinator scratch retains consumer-review-gc-dry.json and consumer-review-gc-apply.json.
+Their disposable build directories were removed after their build slots were released, and their
+small reports and logs remain retained. W and the coordinator keep their separate build slots.
+
+The combined public-surface guard found new exported types and methods without explicit uses in
+its source inventory. Coverage now exercises SDK wire serialization and deserialization against
+real CLI replies, operation evidence manifests, attachment ordering and historical isolation, and
+the pure named-timestamp OCEL projection against the runtime export. The guard itself is unchanged.
+The corrected public-surface and story-contract checks pass; CLI documentation and agent checks
+also pass. This is focused evidence, with the full combined gate still required after W lands.

@@ -64,6 +64,34 @@ struct Fixture {
     retracted: AssertionId,
 }
 
+#[test]
+fn attached_evidence_is_ordered_and_scoped_without_changing_assertions_or_older_graphs() {
+    let mut world = fixture();
+    let before = world.graph.clone();
+    let first = ekr_graph::AttachedEvidence {
+        evidence: CanonicalRef::new(EvidenceId::mint()),
+        revision: RevisionNumber::new(4),
+    };
+    let second = ekr_graph::AttachedEvidence {
+        evidence: CanonicalRef::new(EvidenceId::mint()),
+        revision: RevisionNumber::new(5),
+    };
+    let mut ordered = [first, second];
+    ordered.sort();
+    let attachments: ekr_graph::Attachments = [(world.bob, [second, first].into_iter().collect())]
+        .into_iter()
+        .collect();
+    world.graph.attachments = attachments;
+    assert_eq!(
+        world.graph.attached(world.bob).copied().collect::<Vec<_>>(),
+        ordered
+    );
+    assert_eq!(world.graph.attached(world.alice).count(), 0);
+    assert_eq!(world.graph.attached(AssertionId::mint()).count(), 0);
+    assert_eq!(before.attached(world.bob).count(), 0);
+    assert_eq!(world.graph.assertions, before.assertions);
+}
+
 fn fixture() -> Fixture {
     let root_id = GraphRootId::mint();
     let (person, organisation, ceo_of) = (TypeId::mint(), TypeId::mint(), TypeId::mint());

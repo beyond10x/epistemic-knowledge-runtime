@@ -18,6 +18,14 @@ use ekr_sdk::session::{Backend, ProcessSession, SessionOptions, StoreConfig};
 use ekr_sdk::transport::{Request, Transport};
 use serde_json::Value;
 
+fn assert_wire<T>(typed: &T, raw: &Value)
+where
+    T: serde::Serialize + serde::de::DeserializeOwned + PartialEq + std::fmt::Debug,
+{
+    assert_eq!(serde_json::to_value(typed).unwrap(), *raw);
+    assert_eq!(&serde_json::from_value::<T>(raw.clone()).unwrap(), typed);
+}
+
 fn binary_path() -> &'static Path {
     static PATH: OnceLock<PathBuf> = OnceLock::new();
     PATH.get_or_init(|| {
@@ -144,7 +152,11 @@ impl World {
 
 #[test]
 fn typed_ocel_preserves_document_and_engine_counts_in_both_transports() {
-    use ekr_sdk::read::OcelQuery;
+    use ekr_sdk::read::{
+        OcelCounts, OcelDocument, OcelEvent, OcelEventAttribute, OcelExport, OcelLog, OcelMeta,
+        OcelName, OcelNames, OcelObject, OcelObjectAttribute, OcelQuery, OcelRelationship,
+        OcelType, OcelTypeAttribute,
+    };
     for backend in [Backend::File, Backend::Sqlite] {
         let world = World::with_timestamps(backend, true);
         let mut session = world.session();
@@ -158,7 +170,7 @@ fn typed_ocel_preserves_document_and_engine_counts_in_both_transports() {
             events: vec![],
             event_time: vec!["Person.happened_at".to_owned()],
         };
-        let typed = Reader::new(&mut session).ocel(&query).unwrap();
+        let typed: OcelExport = Reader::new(&mut session).ocel(&query).unwrap();
         assert_eq!(typed, one.ocel(&query).unwrap());
         assert_eq!(
             (
@@ -181,10 +193,36 @@ fn typed_ocel_preserves_document_and_engine_counts_in_both_transports() {
                 "Person.happened_at",
             ]))
             .unwrap();
-        assert_eq!(
-            serde_json::to_value(&typed.document).unwrap(),
-            reply.document.unwrap()
+        let raw = reply.document.unwrap();
+        assert_wire::<OcelDocument>(&typed.document, &raw);
+        assert_wire::<OcelMeta>(&typed.document.meta, &raw["meta"]);
+        assert_wire::<OcelNames>(&typed.document.names, &raw["names"]);
+        assert_wire::<Vec<OcelName>>(
+            &typed.document.names.node_types,
+            &raw["names"]["node_types"],
         );
+        assert_wire::<OcelLog>(&typed.document.ocel, &raw["ocel"]);
+        let log = &typed.document.ocel;
+        assert_wire::<Vec<OcelType>>(&log.event_types, &raw["ocel"]["eventTypes"]);
+        assert_wire::<Vec<OcelTypeAttribute>>(
+            &log.event_types[0].attributes,
+            &raw["ocel"]["eventTypes"][0]["attributes"],
+        );
+        assert_wire::<Vec<OcelEvent>>(&log.events, &raw["ocel"]["events"]);
+        assert_wire::<Vec<OcelEventAttribute>>(
+            &log.events[0].attributes,
+            &raw["ocel"]["events"][0]["attributes"],
+        );
+        assert_wire::<Vec<OcelRelationship>>(
+            &log.events[0].relationships,
+            &raw["ocel"]["events"][0]["relationships"],
+        );
+        assert_wire::<Vec<OcelObject>>(&log.objects, &raw["ocel"]["objects"]);
+        assert_wire::<Vec<OcelObjectAttribute>>(
+            &log.objects[0].attributes,
+            &raw["ocel"]["objects"][0]["attributes"],
+        );
+        assert_wire::<OcelCounts>(&typed.counts, &serde_json::from_str(&reply.stderr).unwrap());
         assert_eq!(
             serde_json::to_string(&typed.counts).unwrap() + "\n",
             reply.stderr
@@ -244,11 +282,20 @@ fn sample_and_report_roundtrip_the_verbs_on_both_providers_and_transports() {
             ]))
             .unwrap();
             assert_eq!(serde_json::to_value(&sample).unwrap(), raw);
+            assert_wire::<ekr_sdk::checks::FactSampleMeta>(&sample.meta, &raw["meta"]);
+            for (item, raw_item) in sample.items.iter().zip(raw["items"].as_array().unwrap()) {
+                assert_wire::<Vec<ekr_sdk::checks::SampledEvidence>>(
+                    &item.evidence,
+                    &raw_item["evidence"],
+                );
+            }
             let mut judge = Fixed {
                 seen: Vec::new(),
                 fail: false,
             };
-            let judged = judge_sample(&sample, NonZeroUsize::new(2).unwrap(), &mut judge).unwrap();
+            let judged =
+                ekr_sdk::checks::judge_sample(&sample, NonZeroUsize::new(2).unwrap(), &mut judge)
+                    .unwrap();
             let report = Reader::new(&mut session)
                 .report_judged(&judged, None)
                 .unwrap();
@@ -259,10 +306,9 @@ fn sample_and_report_roundtrip_the_verbs_on_both_providers_and_transports() {
                         .with_stdin(serde_json::to_string(&judged).unwrap()),
                 )
                 .unwrap();
-            assert_eq!(
-                serde_json::to_value(&report).unwrap(),
-                raw.document.unwrap()
-            );
+            let raw_report = raw.document.unwrap();
+            assert_eq!(serde_json::to_value(&report).unwrap(), raw_report);
+            assert_wire::<ekr_sdk::checks::FactQualityMeta>(&report.meta, &raw_report["meta"]);
             assert_eq!(
                 judge.seen,
                 sample

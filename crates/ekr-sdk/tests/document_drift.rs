@@ -340,6 +340,12 @@ fn the_transaction_builder_derives_the_evidence_manifest_and_refuses_what_every_
         .expect("a data transaction builds");
     let transaction: &Transaction = &document.transaction;
     assert_eq!(transaction.id, id);
+    assert_eq!(transaction.operations[0].rests_on(), vec![cited]);
+    assert_eq!(
+        transaction.operations[1].rests_on(),
+        Vec::<EvidenceId>::new()
+    );
+    assert_eq!(transaction.operations[2].rests_on(), vec![attached]);
     assert_eq!(
         transaction.evidence,
         [cited, attached].into(),
