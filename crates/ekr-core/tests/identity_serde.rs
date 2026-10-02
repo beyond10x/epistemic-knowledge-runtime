@@ -18,6 +18,9 @@ use proptest::prelude::*;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+#[path = "support/identity_types.rs"]
+mod identity_types;
+
 /// The contract every minted id type keeps, stated once.
 fn assert_id_contract<T>(minted: T)
 where
@@ -90,26 +93,7 @@ macro_rules! id_cases {
     };
 }
 
-id_cases! {
-    agent_id => AgentId,
-    transaction_id => TransactionId,
-    revision_id => RevisionId,
-    issue_id => IssueId,
-    type_id => TypeId,
-    property_id => PropertyId,
-    schema_version_id => SchemaVersionId,
-    graph_root_id => GraphRootId,
-    node_id => NodeId,
-    edge_id => EdgeId,
-    assertion_id => AssertionId,
-    support_id => SupportId,
-    attachment_id => AttachmentId,
-    evidence_id => EvidenceId,
-    observation_id => ObservationId,
-    event_id => EventId,
-    merge_id => MergeId,
-    split_id => SplitId,
-}
+identity_types::identity_types!(id_cases);
 
 fn workspace_root() -> PathBuf {
     std::path::PathBuf::from(
@@ -126,12 +110,9 @@ fn workspace_root() -> PathBuf {
 /// Read from the document as `serde_yaml_ng` parses it, so each key is found wherever it sits in
 /// its mapping: the line scan this replaced saw a declaration only when `name:` came first
 /// (adversary pass 1, wave p1-14).
-fn ess_uuid_newtypes(domain_file: &str) -> Vec<String> {
-    let path = workspace_root()
-        .join("systems/ekr/domains")
-        .join(domain_file);
-    let text = std::fs::read_to_string(&path)
-        .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
+fn ess_uuid_newtypes(path: &Path) -> Vec<String> {
+    let text =
+        std::fs::read_to_string(path).unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
 
     let document: serde_yaml_ng::Value = serde_yaml_ng::from_str(&text)
         .unwrap_or_else(|e| panic!("parsing {}: {e}", path.display()));
@@ -144,7 +125,10 @@ fn ess_uuid_newtypes(domain_file: &str) -> Vec<String> {
             let field = |key: &str| declared.get(key).and_then(serde_yaml_ng::Value::as_str);
             if field("kind") == Some("newtype") && field("of") == Some("Uuid") {
                 let name = field("name").unwrap_or_else(|| {
-                    panic!("a Uuid newtype in {domain_file} has no name: {declared:?}")
+                    panic!(
+                        "a Uuid newtype in {} has no name: {declared:?}",
+                        path.display()
+                    )
                 });
                 found.push(
                     name.rsplit('.')
@@ -160,18 +144,20 @@ fn ess_uuid_newtypes(domain_file: &str) -> Vec<String> {
 
 #[test]
 fn every_ess_id_type_exists_in_the_crate() {
-    // Every domain of the runtime. `store.yaml` declares no id newtype since `ekr.store.SnapshotId`
-    // was removed in wave p1-14; it is scanned so that an id declared there must be carried here too.
-    let mut declared: Vec<String> = [
-        "kernel.yaml",
-        "ontology.yaml",
-        "graph.yaml",
-        "store.yaml",
-        "integrate.yaml",
-    ]
-    .into_iter()
-    .flat_map(ess_uuid_newtypes)
-    .collect();
+    let domains = workspace_root().join("systems/ekr/domains");
+    let mut paths: Vec<_> = std::fs::read_dir(&domains)
+        .unwrap_or_else(|error| panic!("listing {}: {error}", domains.display()))
+        .map(|entry| entry.expect("a domain directory entry is readable").path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "yaml")
+        })
+        .collect();
+    paths.sort();
+    let mut declared: Vec<String> = paths
+        .iter()
+        .flat_map(|path| ess_uuid_newtypes(path))
+        .collect();
     declared.sort();
 
     let mut enumerated: Vec<String> = ENUMERATED.iter().map(|n| (*n).to_owned()).collect();
@@ -185,6 +171,70 @@ fn every_ess_id_type_exists_in_the_crate() {
         enumerated, declared,
         "the id types this suite enumerates and the ESS declarations must be the same set"
     );
+}
+
+/// Exercise the actual inventory guard in a separate process, with a fixture workspace supplied
+/// through Cargo's runtime path. A new domain must be found without editing a filename list.
+#[test]
+fn an_unknown_domain_filename_with_a_missing_identity_fails_the_actual_scan() {
+    let fixture = std::env::temp_dir().join(format!("ekr-identity-scan-{}", uuid::Uuid::now_v7()));
+    let domains = fixture.join("systems/ekr/domains");
+    std::fs::create_dir_all(&domains).unwrap();
+    let manifest = fixture.join("crates/ekr-core");
+    std::fs::create_dir_all(&manifest).unwrap();
+    for entry in std::fs::read_dir(workspace_root().join("systems/ekr/domains")).unwrap() {
+        let path = entry.unwrap().path();
+        if path
+            .extension()
+            .is_some_and(|extension| extension == "yaml")
+        {
+            std::fs::copy(&path, domains.join(path.file_name().unwrap())).unwrap();
+        }
+    }
+    let scan = || {
+        std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "every_ess_id_type_exists_in_the_crate",
+                "--nocapture",
+            ])
+            .env("CARGO_MANIFEST_DIR", &manifest)
+            .output()
+            .unwrap()
+    };
+    let control = scan();
+    assert!(
+        control.status.success(),
+        "the unchanged domains must pass: {}{}",
+        String::from_utf8_lossy(&control.stdout),
+        String::from_utf8_lossy(&control.stderr)
+    );
+    std::fs::write(
+        domains.join("a-new-domain-never-listed-before.yaml"),
+        "types:\n  - {of: Uuid, name: ekr.fixture.MissingId, kind: newtype}\n",
+    )
+    .unwrap();
+    let missing = scan();
+    let output = format!(
+        "{}{}",
+        String::from_utf8_lossy(&missing.stdout),
+        String::from_utf8_lossy(&missing.stderr)
+    );
+    assert!(
+        !missing.status.success() && output.contains("MissingId"),
+        "the actual scanner must refuse and name an unimplemented identity from a new domain: {output}"
+    );
+    std::fs::remove_dir_all(fixture).unwrap();
+}
+
+#[test]
+fn existing_observe_identities_have_typed_contract_cases() {
+    for declared in ess_uuid_newtypes(&workspace_root().join("systems/ekr/domains/observe.yaml")) {
+        assert!(
+            ENUMERATED.contains(&declared.as_str()),
+            "existing observe identity {declared} has no typed serde/mint contract case"
+        );
+    }
 }
 
 /// Adversary, wave p2p3p4-01 unit I: the `id_newtype!` rustdoc states how many types share the

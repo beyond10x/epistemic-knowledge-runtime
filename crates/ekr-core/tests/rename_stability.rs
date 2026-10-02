@@ -19,6 +19,9 @@
 use ekr_core::identity::*;
 use proptest::prelude::*;
 
+#[path = "support/identity_types.rs"]
+mod identity_types;
+
 /// A thing with a stable id and a human-readable name — the two halves the invariant is about.
 ///
 /// `ekr-graph`'s `Node` reduced to what the acceptance names. It is a fixture, not a draft of
@@ -100,7 +103,7 @@ fn a_burst_of_mints_is_all_distinct() {
 #[test]
 fn no_id_type_mints_a_constant() {
     macro_rules! assert_mints_distinct {
-        ($($type:ident),+ $(,)?) => {
+        ($($module:ident => $type:ident),+ $(,)?) => {
             $(
                 assert_ne!(
                     $type::mint(),
@@ -111,24 +114,5 @@ fn no_id_type_mints_a_constant() {
         };
     }
 
-    assert_mints_distinct!(
-        AgentId,
-        TransactionId,
-        RevisionId,
-        IssueId,
-        TypeId,
-        PropertyId,
-        SchemaVersionId,
-        GraphRootId,
-        NodeId,
-        EdgeId,
-        AssertionId,
-        SupportId,
-        AttachmentId,
-        EvidenceId,
-        ObservationId,
-        EventId,
-        MergeId,
-        SplitId,
-    );
+    identity_types::identity_types!(assert_mints_distinct);
 }
