@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 11
+revision: 12
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -131,3 +131,57 @@ not a green acceptance claim. Current SHA-256 canonical roots must remain byte-i
 The coordinator continues correction within the user's full extract-07b scope; no bound is relaxed
 and no release is claimed. Temporary Rust throughput probes may measure alternative hash execution
 before any production dependency choice; no dependency change has been accepted on that basis yet.
+
+## Review trend after two attacks (2026-10-02)
+
+Both adversary passes found no new behavioral failure and both carry the same unresolved
+performance acceptance. The second message records the newer measured ratios, so its signature
+is different: the CLI's new/resolved lists below do not mean the acceptance has been met.
+The earlier and latest default-size runs both exceed the unchanged bound. W remains active.
+The reviewer has finished two attacks; subsequent corrections are checked against retained cases
+and reviewed by the coordinator without opening a third attack. Completion still requires a green
+full-size measurement and the combined gate. Exact machine comparison:
+
+```json
+{
+  "artifact": "task:validate-cost-flat-with-store-size",
+  "reviews": 4,
+  "from": "review-result:next-waves-1001-acceptance-r1",
+  "from_reviewer": "unattributed",
+  "to": "review-result:next-waves-1001-acceptance-r2",
+  "to_reviewer": "unattributed",
+  "carried": [],
+  "new": [
+    {
+      "file": ".engineering/planning/task/validate-cost-flat-with-store-size.md",
+      "line": 47,
+      "category": "acceptance",
+      "severity": "blocker",
+      "verdict": "needs-revision",
+      "origin": "introduced",
+      "message": "the new counting-test bullet names no bound and no counted quantity (whatever the profile names), so nobody can tell pass from fail until the Build profile runs"
+    }
+  ],
+  "resolved": [
+    {
+      "file": ".engineering/planning/story/commit-cost-flat-with-store-size.md",
+      "line": 54,
+      "category": "acceptance",
+      "severity": "blocker",
+      "verdict": "needs-revision",
+      "origin": "introduced",
+      "message": "the revision note names only a statistic change, not that the acceptance dropped the title's validate-specific flatness for an aggregate bound that passes while validate alone grows 3.28x, with no edge holding the story on task:validate-cost-flat-with-store-size"
+    },
+    {
+      "file": ".engineering/planning/task/validate-cost-flat-with-store-size.md",
+      "line": 37,
+      "category": "acceptance",
+      "severity": "blocker",
+      "verdict": "needs-revision",
+      "origin": "introduced",
+      "message": "the acceptance was rewritten to an independent 1.2x bound with no revision note, and the Build section still asks for a profile on an idle machine"
+    }
+  ]
+}
+
+```
