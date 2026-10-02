@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:p6-maintenance-observability
 - serves: vision:o2
 - derived_from: task:seed-document-bounds-alias-expansion
-revision: 6
+revision: 7
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-02T18:02:03Z", actor: "agent:codex-ekr-next-three-root", revision: 3}
 - {from: "proposed", to: "active", at: "2026-10-02T18:02:03Z", actor: "agent:codex-ekr-next-three-root", revision: 4}
@@ -107,3 +107,23 @@ alias-budget algorithm moved rather than being duplicated. Core identity exports
 so the anticipated core/lib.rs overlap with unit I did not occur. Extraction already used the
 bounded core facade and needs regression execution, not an extra reader implementation.
 Embedded code-name domains remain trusted compile-time inputs. The ESS comment is coordinator-owned.
+
+## Corrected shared-loader inventory
+
+Adversary pass one is recorded verbatim as review-result:adversary-input-08-yaml-pass-1. Root
+verified its reach: a newly added ordinary shared-loader call escaped the source inventory;
+no existing unsafe production caller was demonstrated. Tests were retained and committed before
+correction. The implementor's saved correction was recovered after a host usage limit, with its
+stopped state inspected and a separate root lease. No other lease was cleared.
+
+Correction candidate bc41079b2956acc206d83efe9acf23afa62be8e5 changes only the inventory test file
+relative to the committed adversary cases. Shared imports and reader uses now have explicit
+caller classifications; extra calls using an already classified import are counted. The root
+added a leading-underscore alias counterexample, observed it red and corrected that scanner edge.
+This remains a conservative lexical inventory, not Rust control-flow proof. Original adversary
+assertions and production source are unchanged.
+
+Verification source: <cache>/ekr-next-three/input-08/yaml/correction-1/public-report.md and its
+raw logs. The report records the recovered package run, then final changed-target, clippy and
+format checks. VERIFIED for the pass-one finding: the same original counterexample now passes.
+The final allowed adversary pass and the combined gate still determine unit admission.
