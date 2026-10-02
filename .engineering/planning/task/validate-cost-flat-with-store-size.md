@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 14
+revision: 15
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -205,3 +205,24 @@ target. Full combined correctness and default-size timing remain pending; this t
 Evidence: unit report.md, core-sha-backend.log, store-kernel-indexed.log,
 story-contract-indexed-final.log, clippy-indexed.log and hash-probe-interleaved.log under the
 retained W scratch; coordinator w-merge-check.log and w-merge-spec.log.
+
+## Third default-size measurement
+
+The indexed validation and accelerated SHA-256 correction was measured at the unchanged default
+SQLite sizes and windows. The older aggregate harness passed, but this task remains red: commit
+meets its independent bound and validation does not. Exact measured output:
+
+```text
+Sqlite first 15 medians            propose   1260.5 ms  validate     96.6 ms  commit   1294.9 ms  total   2652.0 ms
+Sqlite last 15 medians             propose   1261.4 ms  validate    167.1 ms  commit   1461.3 ms  total   2889.8 ms
+Sqlite median ratios: validate 1.730x; commit 1.128x; load 35.31 41.29 45.89 6/6859 2416714
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 696.52s
+MEASUREMENT_EXIT=0
+```
+
+The complete log and raw perf capture remain under <cache>/ekr-extract-07b/w/indexed.
+Severe wall-clock outliers occurred under host contention and are retained in the log; no samples
+or windows were removed or changed. The next correction follows the new first/last-window profile.
+This is the existing acceptance finding after the completed adversary budget, not a third attack.
+The combined correctness gate is also still running. No implemented status or release claim follows
+from the aggregate harness exit code.
