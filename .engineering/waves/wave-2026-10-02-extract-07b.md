@@ -17,10 +17,11 @@ Build directories are under `<home>/.cache/b10x-target/`; scratch roots under
 
 | Unit | Artifacts | Branch / managed id | Build directory | Scratch | Stage |
 |---|---|---|---|---|---|
-| A | story:evidence-attaches-to-a-held-assertion | impl/evidence-attachment / ekr-x7-a | ekr-x7b-a | a | source recovered and main reconciled; package validation before adversary |
-| W | task:validate-cost-flat-with-store-size | impl/validate-cost-flat / ekr-x7-w | ekr-x7b-w | w | main reconciled at 099821581; replacement and withdrawal regressions corrected; default-size measurement pending |
+| A | story:evidence-attaches-to-a-held-assertion | impl/evidence-attachment / ekr-x7-a | ekr-x7b-a | a | integrated at 0283e993e after decoder correction and second adversary pass |
+| W | task:validate-cost-flat-with-store-size | impl/validate-cost-flat / ekr-x7-w | ekr-x7b-w | w | default-size measurement missed both bounds; fresh profile and counted clone regression guide correction |
 | consumer | K: story:sdk-store-checks; O: task:ocel-export-prints-its-counts and task:ocel-times-events-by-a-named-property; Q: task:quality-counts-seed-evidence-and-constrained-types; N: task:code-names-matches-whole-words; F: task:fact-quality-states-the-empty-interval | impl/x7b-consumer / ekr-x7b-consumer | ekr-x7b-consumer | consumer | F committed at 9bd16f130; K implementation after compile-red; O specification/tests; Q follows A |
-| coordinator | integration, planning, conformance synthesis | wave/extract-07b / ekr-extract-07b | ekr-extract-07b | coordinator | kernel synthesis refreshed in A tree; source review in progress |
+| F/K adversary | empty interval and judged SDK sample | review/x7b-fk / ekr-x7b-review-fk | ekr-x7b-review-fk | review-fk | clean isolated review from 4360a9f1c; tests only |
+| coordinator | integration, planning, conformance synthesis | wave/extract-07b / ekr-extract-07b | ekr-extract-07b | coordinator | A integrated; remaining units implementing/reviewing |
 
 No unit writes the planning store. Each implementation receives a file brief and is followed by
 an independent adversary using the skill's role procedure. Codex dispatches generic collaboration
@@ -79,4 +80,13 @@ claim: each requires its own acceptance evidence and the combined gate.
 
 ## Adversary passes
 
-Pending.
+- A pass 1: `review-result:adversary-extract-07b-a-pass-1`; duplicate attachment records
+  silently collapsed during graph decoding. Fixed in bf48f7060, then pass 2
+  `review-result:adversary-extract-07b-a-pass-2` found no residue, including equivalent decoded
+  spellings. Both outcomes are recorded. The story remains active until the combined gate.
+- W pass 1: `review-result:adversary-extract-07b-w-pass-1`; two added replay attacks passed,
+  but the implementor's full-size SQLite run missed the per-verb acceptance bounds. The task stays
+  active. Work continues from the fresh profile, including internal record sharing and selected
+  state reads in session `settle`. That session change is disjoint from O's response/stderr edits;
+  integration must preserve both.
+- F/K adversary in progress in its isolated tree; O/N/Q follow after consumer handoff.

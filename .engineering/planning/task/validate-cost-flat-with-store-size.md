@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 9
+revision: 10
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -71,3 +71,42 @@ and differential refusal tests before closing this task.
 
 Reconcile with released main first: replay_history must use the current entered() guard,
 and skipping evidence must not hide an appended withdrawal event or a replaced SQLite store.
+
+## Default-size measurement and next correction (2026-10-02)
+
+The resumed runtime at a8f087094 was measured with the default fact sizes on SQLite in release mode. The ignored benchmark exited 101. Verbatim per-verb medians and ratios from scaling.log:
+
+```text
+Sqlite first 15 medians            propose    645.5 ms  validate     76.0 ms  commit    648.5 ms  total   1370.0 ms
+Sqlite last 15 medians             propose    923.1 ms  validate    182.7 ms  commit   1208.1 ms  total   2313.9 ms
+Sqlite median ratios: validate 2.404x; commit 1.863x; load 14.50 13.53 14.69 8/6629 90184
+```
+
+These miss this task's bound. The counted retained-object test still passes, and two independent replay attacks pass; neither substitutes for measured acceptance. See review-result:adversary-extract-07b-w-pass-1. The task remains active.
+
+The new frame-pointer capture is retained with its harness log. The implementor's profile attributes substantial validation work to copying retained transaction records through ReplayState::transactions_mut. A new counted test was written and failed before the correction:
+
+```text
+running 1 test
+test replay::tests::validating_one_transaction_does_not_copy_prior_document_buffers ... FAILED
+
+failures:
+
+---- replay::tests::validating_one_transaction_does_not_copy_prior_document_buffers stdout ----
+
+thread 'replay::tests::validating_one_transaction_does_not_copy_prior_document_buffers' (143448) panicked at crates/ekr-kernel/src/replay.rs:1492:13:
+assertion `left == right` failed: file=false: prior document buffers copied
+  left: [4, 16]
+ right: [0, 0]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    replay::tests::validating_one_transaction_does_not_copy_prior_document_buffers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.42s
+
+error: test failed, to rerun pass `-p ekr-kernel --lib`
+```
+
+The next correction shares individual internal records while preserving the public full-transaction snapshot API and its unchanged-read sharing. Session settle must read only the states it needs, so constructing that public snapshot does not simply move the copying into another part of validate/commit. This expands the implementation surface to replay state, runtime state access and CLI session settle; O also edits session responses, in a separate region. No wire format or canonical root encoding changes. Re-measure before claiming completion.
