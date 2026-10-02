@@ -44,6 +44,9 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   prevent its extraction, and unsupported operations or mismatched histories use the existing
   clone path. Closing the runtime releases the buffer. Canonical encodings and retained formats
   are unchanged (design § 104).
+- **Checkpoint output avoids copying complete graph record maps.** The store exposes
+  `GraphDocument::serialize_graph` for borrowed output in the existing document format; checkpoint
+  decoding is unchanged. Hash text formatting also avoids repeated writes of individual bytes.
 - **An empty judged sample has an explicit empty interval**: `rate` is null and the Wilson bounds
   are 0 and 1. Nonempty report bytes are unchanged.
 - **Duplicate evidence attachments in a stored graph are refused**, including different JSON

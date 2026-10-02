@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 21
+revision: 22
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -379,3 +379,35 @@ The next bounded correction targets hash text formatting and borrowed checkpoint
 preserving the current decoder, complete serialized bytes and canonical hashes. The native
 encoding-inlining probe showed no reliable improvement and is not being applied. Final acceptance
 still requires a green default-size measurement and a combined gate on the final source.
+
+## Formatting and borrowed checkpoint correction integrated (2026-10-02)
+
+Source correction 64fd489199956dad0b7dd0a626565c13624d80f8 and the combined wave evidence
+are integrated at 79789de3b1a3ee654b5262d08c8904e88e275524. The coordinator reviewed the
+source and retained tests. This is a bounded formatting/serialization correction, not a new
+hash scheme or checkpoint cadence.
+
+`ContentHash` formats a complete stack hex buffer with one writer call. The retained test
+`formatting_a_hash_emits_one_complete_hex_string` failed on the prior implementation, and
+`hash_display_preserves_text_flags_and_propagates_writer_errors` keeps the existing spelling,
+formatter behavior and refusal behavior. The store's additive `GraphDocument::serialize_graph`
+borrows the graph's record maps; canonical values retain their existing per-value conversion.
+It reuses the existing graph format and explicitly handles every CanonicalGraph field.
+
+The kernel's private checkpoint carrier borrows only while writing. Its default owned decoder
+and admission remain unchanged. `borrowed_graph_matches_owned_bytes_for_every_value_and_retained_record_field`
+compares complete owned and borrowed JSON/YAML, including attachments, lifecycle and temporal
+fields; `borrowed_graph_returns_the_serializer_write_error` preserves failures. The coordinator
+identified that serde struct names are observable even when JSON agrees. The new
+`borrowed_graph_preserves_serde_envelope_and_graph_struct_names` reproduced that mismatch before
+explicit renames corrected it. The real writer's
+`checkpoint_writer_matches_the_complete_owned_document_bytes` compares complete checkpoint
+bytes across the seed and successive commits, including identity retention.
+
+The implementor's report section 13 and retained logs under `<cache>/ekr-extract-07b/w/`
+record the native allocation probe, rejected inline-hint probe, formatting red/green,
+serialization byte/name/error tests, focused checkpoint/replay/evidence tests, public-surface
+and story guards, formatting and touched-crate clippy. Those checks passed. The scratch allocation
+probe shows fewer record-copy allocations while preserving complete JSON bytes; it does not
+claim that all allocation disappears or that timing acceptance is green. The next measurement
+must use the exact combined revision and the unchanged default SQLite workload and bounds.
