@@ -1386,6 +1386,8 @@ types:
   # Evidence attached to an assertion after it was added (an ekr.graph.EvidenceAttachment) counts
   # in both as cited evidence does (story:evidence-attaches-to-a-held-assertion).
   # The two shares are of `active`, omitted when `active` is 0.
+  # `with_seed_evidence` counts active assertions citing or attached to at least one seed
+  # evidence record whose bytes remain retained. An assertion can count in both seed and item.
   - name: ekr.views.AssertionQuality
     kind: struct
     fields:
@@ -1394,6 +1396,8 @@ types:
       - name: with_evidence
         type: Integer
       - name: with_item_evidence
+        type: Integer
+      - name: with_seed_evidence
         type: Integer
       - name: with_evidence_share
         type: Optional<ekr.views.BasisPoints>
@@ -1405,12 +1409,16 @@ types:
   # and one a type inherits counts once, at its declarer. `constrained` counts those declaring at
   # least one constraint (design § 11.2 `constraints`). The share is of `declared`, omitted when
   # `declared` is 0.
+  # `constrained_types` counts declaring node and edge types with at least one directly
+  # declared constrained property. Several properties count one owner; inherited ones add none.
   - name: ekr.views.PropertyQuality
     kind: struct
     fields:
       - name: declared
         type: Integer
       - name: constrained
+        type: Integer
+      - name: constrained_types
         type: Integer
       - name: constrained_share
         type: Optional<ekr.views.BasisPoints>
@@ -2535,8 +2543,10 @@ commands:
             active_assertions: {generated: true}
             with_evidence: {generated: true}
             with_item_evidence: {generated: true}
+            with_seed_evidence: {generated: true}
             properties: {generated: true}
             constrained_properties: {generated: true}
+            constrained_types: {generated: true}
             shared_names: {generated: true}
             sharing_nodes: {generated: true}
             quality_hash: {generated: true}
@@ -3020,9 +3030,13 @@ events:
         type: Integer
       - name: with_item_evidence
         type: Integer
+      - name: with_seed_evidence
+        type: Integer
       - name: properties
         type: Integer
       - name: constrained_properties
+        type: Integer
+      - name: constrained_types
         type: Integer
       - name: shared_names
         type: Integer

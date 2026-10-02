@@ -22,6 +22,48 @@ use support::fixtures::{self, Fixture, Provider, Q_ITEM, Q_ITEMS, Q_OTHER, Q_OTH
 
 const PROVIDERS: [Provider; 2] = [Provider::File, Provider::Sqlite];
 
+#[test]
+fn retained_seed_attachments_count_once_and_declaring_types_do_not_count_inheritance() {
+    for provider in PROVIDERS {
+        let work = tempfile::tempdir().unwrap();
+        let runtime = fixtures::open(work.path(), provider);
+        Fixture::QualitySeedAttachment.build(&runtime);
+        assert_eq!(
+            read(&runtime, Some(3)).1["assertions"]["with_seed_evidence"],
+            2
+        );
+        let (_, head, summary) = read(&runtime, Some(4));
+        assert_eq!(head["assertions"]["with_seed_evidence"], 3);
+        assert_eq!(summary.with_seed_evidence, 3);
+        assert_eq!(head["assertions"]["with_item_evidence"], 3);
+        let seed = [
+            fixtures::id(fixtures::Q_EVIDENCE),
+            fixtures::id(fixtures::Q_EVIDENCE + 1),
+        ]
+        .into_iter()
+        .collect();
+        let mut loaded = ekr_views::load(&runtime, None).unwrap();
+        loaded.retained.clear();
+        assert_eq!(
+            ekr_views::quality(&loaded, &seed)
+                .unwrap()
+                .summary
+                .with_seed_evidence,
+            0
+        );
+
+        let constraints = tempfile::tempdir().unwrap();
+        let runtime = fixtures::open(constraints.path(), provider);
+        Fixture::QualityConstraints.build(&runtime);
+        let (_, document, summary) = read(&runtime, None);
+        assert_eq!(
+            document["properties"],
+            json!({"declared":3,"constrained":3,"constrained_types":2,"constrained_share":10000})
+        );
+        assert_eq!(summary.constrained_types, 2);
+    }
+}
+
 fn uuid(n: u64) -> String {
     format!("00000000-0000-4000-8000-{n:012x}")
 }
@@ -66,24 +108,25 @@ fn later_shared() -> Vec<Value> {
     names
 }
 
-fn assertions(active: u64, with_item_evidence: u64) -> Value {
+fn assertions(active: u64, with_item_evidence: u64, with_seed_evidence: u64) -> Value {
     json!({
         "active": active,
         "with_evidence": active,
         "with_item_evidence": with_item_evidence,
+        "with_seed_evidence": with_seed_evidence,
         "with_evidence_share": 10_000,
         "with_item_evidence_share": with_item_evidence * 10_000 / active,
     })
 }
 
 fn properties() -> Value {
-    json!({"declared": 5, "constrained": 2, "constrained_share": 4_000})
+    json!({"declared": 5, "constrained": 2, "constrained_types": 2, "constrained_share": 4_000})
 }
 
 fn expected(revision: u64, active: u64, item: u64, names: Vec<Value>, nodes: u64) -> Value {
     json!({
         "meta": {"format": "ekr.store-quality/1", "revision": revision},
-        "assertions": assertions(active, item),
+        "assertions": assertions(active, item, [3, 4, 3, 2][revision as usize]),
         "properties": properties(),
         "shared_names": names,
         "sharing_nodes": nodes,
@@ -110,8 +153,10 @@ fn every_figure_of_every_revision_equals_the_fixtures_count_on_both_providers() 
                     active_assertions: want["assertions"]["active"].as_u64().unwrap(),
                     with_evidence: want["assertions"]["with_evidence"].as_u64().unwrap(),
                     with_item_evidence: want["assertions"]["with_item_evidence"].as_u64().unwrap(),
+                    with_seed_evidence: want["assertions"]["with_seed_evidence"].as_u64().unwrap(),
                     properties: 5,
                     constrained_properties: 2,
+                    constrained_types: 2,
                     shared_names: want["shared_names"].as_array().unwrap().len() as u64,
                     sharing_nodes: want["sharing_nodes"].as_u64().unwrap(),
                     quality_hash: hex::encode(Sha256::digest(&bytes)),
@@ -132,9 +177,9 @@ fn the_document_of_revision_zero_is_exactly_the_formats_bytes() {
     let want = format!(
         concat!(
             r#"{{"meta":{{"format":"ekr.store-quality/1","revision":0}},"#,
-            r#""assertions":{{"active":3,"with_evidence":3,"with_item_evidence":0,"#,
+            r#""assertions":{{"active":3,"with_evidence":3,"with_item_evidence":0,"with_seed_evidence":3,"#,
             r#""with_evidence_share":10000,"with_item_evidence_share":0}},"#,
-            r#""properties":{{"declared":5,"constrained":2,"constrained_share":4000}},"#,
+            r#""properties":{{"declared":5,"constrained":2,"constrained_types":2,"constrained_share":4000}},"#,
             r#""shared_names":["#,
             r#"{{"type":"{item}","name":"A. Lovelace","nodes":["{i1}","{i3}"]}},"#,
             r#"{{"type":"{item}","name":"Ada","nodes":["{i1}","{i2}"]}},"#,

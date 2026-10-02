@@ -63,8 +63,9 @@ WORKFLOW
      ekr snapshot [--at N] [--valid-at YYYY-MM-DD]  read the result back
      ekr explain <assertion_id> [--documents]      why an assertion is what it is
      ekr quality [--revision N]                    the store's quality beyond its size:
-                                                   evidenced assertions, constrained
-                                                   properties, names shared within a type
+                                                   evidenced assertions (seed and item),
+                                                   constrained properties and declaring types,
+                                                   names shared within a type
      ekr ocel [--revision N] [--events <type>...]  one revision as an OCEL 2.0 event log
                                                    (its `ocel` member), types and attributes by
                                                    id, `names` naming them; event types the

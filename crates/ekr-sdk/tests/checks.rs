@@ -305,7 +305,7 @@ impl Judge for Fixed {
         Ok(facts
             .iter()
             .map(|fact| {
-                let verdict = if self.seen.len() % 3 == 0 {
+                let verdict = if self.seen.len().is_multiple_of(3) {
                     Verdict::Fail
                 } else {
                     Verdict::Pass

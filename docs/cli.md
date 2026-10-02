@@ -503,7 +503,8 @@ ekr quality --revision 1
     "with_evidence": 4,
     "with_evidence_share": 10000,
     "with_item_evidence": 1,
-    "with_item_evidence_share": 2500
+    "with_item_evidence_share": 2500,
+    "with_seed_evidence": 3
   },
   "meta": {
     "format": "ekr.store-quality/1",
@@ -512,6 +513,7 @@ ekr quality --revision 1
   "properties": {
     "constrained": 0,
     "constrained_share": 0,
+    "constrained_types": 0,
     "declared": 1
   },
   "shared_names": [
@@ -534,12 +536,16 @@ ekr quality --revision 1
 | `assertions.with_evidence` | of those, the ones citing at least one evidence entry the store holds with its bytes. Every assertion the kernel admits cites evidence, so this equals `active` in a store `ekr` wrote |
 | `assertions.with_item_evidence` | of those, the ones citing at least one evidence entry added after the seed by an `AddEvidence` ([Evidence after the seed](#evidence-after-the-seed)): the figure counts when evidence entered, not how finely it was cut: a seed that carries one evidence entry per assertion still reports `0` here |
 | `properties.declared` | the property declarations of the revision's schema: each property each node type and edge type declares itself |
+| `assertions.with_seed_evidence` | active assertions citing or attached to at least one seed evidence entry whose bytes remain retained; seed and item counts can overlap, and several citations or attachments count one assertion |
 | `properties.constrained` | of those, the ones declaring at least one entry in `constraints` |
+| `properties.constrained_types` | node and edge types directly declaring at least one constrained property; multiple such properties count one type, and inheritance adds no declaring type |
 | `shared_names` | every name — a canonical name or an alias, compared exactly as text — that two or more nodes of one type hold: the `type`, the `name` and the `nodes`, by id. Ordered by type id, then name; the empty name is never listed |
 | `sharing_nodes` | the distinct nodes `shared_names` lists |
 
 A `_share` is basis points: 10000 times the count divided by its whole, rounded down, so `10000` is
-all of it; it is left out when the whole is `0`. The document is printed as every verb prints its
+all of it; divide by `10000` for a proportion (for example, `2500 / 10000 = 0.25`). It is left out
+when the whole is `0`. Counts come from retained store history and never require a corpus file.
+The document is printed as every verb prints its
 JSON, keys in alphabetical order; `ekr session` answers it as `"stdout"`. A store never seeded is
 refused as `ekr.views.NotSeeded` and a revision it does not hold as `ekr.views.RevisionNotFound`,
 exit 2, as the `ekr.views` reads refuse them.

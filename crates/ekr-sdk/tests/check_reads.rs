@@ -553,7 +553,7 @@ fn each_check_read_is_the_verbs_document_through_a_session_and_one_shot_on_both_
 
 // ---- every conformance fixture document ---------------------------------------------------------
 
-const FIXTURES: [&str; 12] = [
+const FIXTURES: [&str; 14] = [
     "seed-only",
     "seeded-evidence",
     "edge-assertion",
@@ -566,6 +566,8 @@ const FIXTURES: [&str; 12] = [
     "subjects",
     "changes",
     "quality",
+    "quality-seed-attachment",
+    "quality-constraints",
 ];
 
 /// A source quoting every name `loaded` holds, one literal a line: every type's and property's

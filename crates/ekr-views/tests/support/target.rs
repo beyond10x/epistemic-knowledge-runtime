@@ -404,8 +404,10 @@ fn store_quality_reported(summary: &StoreQualityReported) -> Result<ObservedEven
         ("active_assertions", summary.active_assertions),
         ("with_evidence", summary.with_evidence),
         ("with_item_evidence", summary.with_item_evidence),
+        ("with_seed_evidence", summary.with_seed_evidence),
         ("properties", summary.properties),
         ("constrained_properties", summary.constrained_properties),
+        ("constrained_types", summary.constrained_types),
         ("shared_names", summary.shared_names),
         ("sharing_nodes", summary.sharing_nodes),
     ])?;

@@ -51,6 +51,8 @@ pub struct AssertionQuality {
     pub with_evidence: u64,
     /// Of those, the ones citing evidence an `AddEvidence` added after the seed.
     pub with_item_evidence: u64,
+    /// Active assertions citing or attached to retained evidence admitted in the seed.
+    pub with_seed_evidence: u64,
     /// `with_evidence` in basis points of `active`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub with_evidence_share: Option<u64>,
@@ -66,6 +68,8 @@ pub struct PropertyQuality {
     pub declared: u64,
     /// Of those, the ones declaring a constraint.
     pub constrained: u64,
+    /// Node and edge types directly declaring at least one constrained property.
+    pub constrained_types: u64,
     /// `constrained` in basis points of `declared`; `None` when `declared` is 0.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub constrained_share: Option<u64>,

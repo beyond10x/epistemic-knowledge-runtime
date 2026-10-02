@@ -335,8 +335,8 @@ pub enum Command {
     },
     /// Print the store's quality at one revision as the `ekr.store-quality/1` document
     /// (`ekr.views.ReportStoreQuality`): active assertions with evidence and with evidence added
-    /// after the seed, property declarations under a constraint, and names two or more nodes of
-    /// one type share.
+    /// after the seed or retained from it, property declarations under a constraint and their
+    /// declaring types, and names two or more nodes of one type share.
     ///
     /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST); it reads only. A
     /// share is basis points (10000 is all). Two reads of one revision print the same bytes.

@@ -337,6 +337,10 @@ pub enum Fixture {
     /// two constrained property declarations, names shared within a type, a retraction and a
     /// supersession ([`build_quality`]).
     Quality,
+    /// Quality's item-only assertion gains two seed attachments at revision 4.
+    QualitySeedAttachment,
+    /// Several constrained properties, an inheriting node type and a constrained edge type.
+    QualityConstraints,
     /// Events, objects and the edges between them over two revisions after the seed: a step
     /// whose time moves at revision 1 and stays at 2, when the fact moving it is retracted
     /// ([`build_ocel`]).
@@ -371,6 +375,8 @@ impl Fixture {
             "subjects" => Self::Subjects,
             "changes" => Self::Changes,
             "quality" => Self::Quality,
+            "quality-seed-attachment" => Self::QualitySeedAttachment,
+            "quality-constraints" => Self::QualityConstraints,
             "ocel" => Self::Ocel,
             "ocel-named-time" => Self::NamedEventTime,
             "schema-changes" => Self::SchemaChanges,
@@ -466,6 +472,46 @@ impl Fixture {
                 writer.commit(retraction(CHANGED_NODE_CLAIM), None);
             }
             Self::Quality => build_quality(&mut writer),
+            Self::QualitySeedAttachment => {
+                build_quality(&mut writer);
+                writer.commit(
+                    [Q_EVIDENCE, Q_EVIDENCE + 1]
+                        .into_iter()
+                        .map(|evidence| {
+                            GraphOperation::AttachEvidence(EvidenceAttachment {
+                                assertion: id(Q_ASSERTIONS + 4),
+                                evidence: id(evidence),
+                            })
+                        })
+                        .collect(),
+                    None,
+                );
+            }
+            Self::QualityConstraints => {
+                let mut document = empty_seed();
+                let mut parent = NodeType::new(id(0xfb_0010), "Parent");
+                for number in [0xfb_0020, 0xfb_0021] {
+                    let mut property = PropertyDefinition::new(
+                        id(number),
+                        format!("p{number}"),
+                        ValueType::String,
+                    );
+                    property.constraints.push("matches [A-Z]+".into());
+                    parent.properties.insert(property.id, property);
+                }
+                let mut child = NodeType::new(id(0xfb_0011), "Child");
+                child.parents.insert(parent.id);
+                let mut edge = EdgeType::new(id(0xfb_0012), "Relation");
+                edge.source_types.insert(parent.id);
+                edge.target_types.insert(parent.id);
+                let mut property =
+                    PropertyDefinition::new(id(0xfb_0022), "label", ValueType::String);
+                property.constraints.push("matches [A-Z]+".into());
+                edge.properties.insert(property.id, property);
+                document.ontology.node_types.extend([parent, child]);
+                document.ontology.edge_types.push(edge);
+                writer.seed(document);
+            }
             Self::Ocel => build_ocel(&mut writer),
             Self::NamedEventTime => build_named_event_time(&mut writer),
             Self::SchemaChanges => build_schema_changes(&mut writer),

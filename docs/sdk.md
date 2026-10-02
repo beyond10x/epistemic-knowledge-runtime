@@ -637,7 +637,10 @@ first page's `meta.revision` as `at`.
 The last three are the store checks ([`ekr quality`](cli.md#ekr-quality),
 [`ekr rejections`](cli.md#ekr-rejections), [`ekr code-names`](cli.md#ekr-code-names)).
 `quality(revision)` reads the head when `revision` is `None`; a share is `None` when its whole is
-0. `rejections(from, to)` selects the basis revisions `from` to `to`, both included, and a `None`
+0. `assertions.with_seed_evidence` counts active assertions citing or attached to retained seed
+evidence, and `properties.constrained_types` counts node and edge types directly declaring a
+constrained property. Shares remain integer basis points; divide by 10000 for a proportion.
+`rejections(from, to)` selects the basis revisions `from` to `to`, both included, and a `None`
 bound is unbounded. `code_names(files, at)` takes the source paths as strings; `ekr` reads a
 relative one from its working directory (`SessionOptions::current_dir`), and each finding's `file`
 is the path as given. A finding is not an error: test `meta.findings` to fail on one. A match's
