@@ -18,10 +18,10 @@ Build directories are under `<home>/.cache/b10x-target/`; scratch roots under
 | Unit | Artifacts | Branch / managed id | Build directory | Scratch | Stage |
 |---|---|---|---|---|---|
 | A | story:evidence-attaches-to-a-held-assertion | impl/evidence-attachment / ekr-x7-a | ekr-x7b-a | a | integrated at 0283e993e after decoder correction and second adversary pass |
-| W | task:validate-cost-flat-with-store-size | impl/validate-cost-flat / ekr-x7-w | ekr-x7b-w | w | default-size measurement missed both bounds; fresh profile and counted clone regression guide correction |
-| consumer | K: story:sdk-store-checks; O: task:ocel-export-prints-its-counts and task:ocel-times-events-by-a-named-property; Q: task:quality-counts-seed-evidence-and-constrained-types; N: task:code-names-matches-whole-words; F: task:fact-quality-states-the-empty-interval | impl/x7b-consumer / ekr-x7b-consumer | ekr-x7b-consumer | consumer | F committed at 9bd16f130; K implementation after compile-red; O specification/tests; Q follows A |
-| F/K adversary | empty interval and judged SDK sample | review/x7b-fk / ekr-x7b-review-fk | ekr-x7b-review-fk | review-fk | clean isolated review from 4360a9f1c; tests only |
-| coordinator | integration, planning, conformance synthesis | wave/extract-07b / ekr-extract-07b | ekr-extract-07b | coordinator | A integrated; remaining units implementing/reviewing |
+| W | task:validate-cost-flat-with-store-size | impl/validate-cost-flat / ekr-x7-w | ekr-x7b-w | w | combined 58f53523b misses both independent timing bounds; profile analysis continues |
+| consumer | K: story:sdk-store-checks; O: task:ocel-export-prints-its-counts and task:ocel-times-events-by-a-named-property; Q: task:quality-counts-seed-evidence-and-constrained-types; N: task:code-names-matches-whole-words; F: task:fact-quality-states-the-empty-interval | impl/x7b-consumer / ekr-x7b-consumer | ekr-x7b-consumer | consumer | integrated through d30befbbe with selector corrections and retained adversary cases; managed tree retired |
+| F/K adversary | empty interval and judged SDK sample | review/x7b-fk / ekr-x7b-review-fk | ekr-x7b-review-fk | review-fk | F/K and subsequent O/N reviews integrated; managed tree retired |
+| coordinator | integration, planning, conformance synthesis | wave/extract-07b / ekr-extract-07b | ekr-extract-07b | coordinator | all units integrated; combined correctness reconciliation and W acceptance remain |
 
 No unit writes the planning store. Each implementation receives a file brief and is followed by
 an independent adversary using the skill's role procedure. Codex dispatches generic collaboration
@@ -137,3 +137,27 @@ The existing adversary case executes the printed preparation and requires the at
 validate, retaining its unresolved-reference assertions for every operation. Its transaction
 helper now parses a complete envelope and refuses parse errors instead of silently losing the
 evidence manifest. Sequential examples and documentation checks are rerun with this correction.
+
+## Combined-gate reconciliation
+
+The existing SQLite inode-reuse case failed on the machine's tmpfs temporary directory. A probe
+using the exact same compiled binary passes when its temporary directory is on the cache's ext4
+filesystem; coordinator inode-filesystem-exact-binary.log retains both observations. Subsequent
+combined gates use that temporary directory. The case and its assertion are unchanged.
+
+The core identity inventory found the declared AttachmentId lacked its projection carrier. Core
+now exports it through the same id macro as the other declared identities, with serde and
+rename-stability coverage. Runtime attachments remain keyed by assertion/evidence pairs; no wire
+identity or mint kind was added. Its Canonical implementation changes rustc's incidental help list
+in the transient-state membrane diagnostic. The coordinator compared the forbidden expressions,
+error codes and primary messages before a narrow refresh and verified the membrane again with
+overwrite disabled. The rejection cases remain intact.
+
+The later SDK run found the empty-properties quality expectation missing the newly declared
+constrained_types field. Its exact expected document now includes zero and checks the typed value;
+omitted constrained_share and byte round-trip assertions remain intact on both providers.
+
+W's confirmed-publication retirement and unchanged edge-index sharing are integrated at 58f53523b.
+The default-size benchmark now enforces each independent timing bound directly, preserving its
+aggregate checks. Its latest measurement remains red; the task records exact output and continues
+from the retained profile. No artifact is closed on the unit gates or the earlier aggregate pass.

@@ -7,7 +7,7 @@ title: ekr quality counts seed evidence and constrained types
 relations:
 - decomposes: epic:consumer-sdk
 - serves: vision:o5
-revision: 5
+revision: 6
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-02T10:34:31Z", actor: "agent:codex-ekr-x7b", revision: 3}
 - {from: "proposed", to: "active", at: "2026-10-02T10:34:31Z", actor: "agent:codex-ekr-x7b", revision: 4}
@@ -58,3 +58,13 @@ Count active assertions with retained seed evidence, including evidence attached
 Count constrained declaring node and edge types, once per type with at least one directly declared
 constrained property, matching the existing declaration-based property count. Preserve all old
 counts and basis-point units. Documentation converts a share by division by 10000.
+
+## Existing SDK empty-properties contract
+
+The combined workspace run found an older SDK adversary's exact properties document expectation
+omitted the newly specified constrained_types field. The fixture still declares no properties,
+so the expected field is zero. The correction retains exact document equality, the omitted
+constrained_share assertion and the typed/session/one-shot byte round trip on both providers;
+it also checks the new typed count explicitly. The case is
+`a_store_declaring_no_property_reads_without_constrained_share` in adversary_check_reads.
+No runtime behavior or refusal was changed for this correction. The combined gate remains required.

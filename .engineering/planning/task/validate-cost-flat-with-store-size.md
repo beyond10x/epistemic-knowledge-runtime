@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 15
+revision: 19
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -226,3 +226,88 @@ or windows were removed or changed. The next correction follows the new first/la
 This is the existing acceptance finding after the completed adversary budget, not a third attack.
 The combined correctness gate is also still running. No implemented status or release claim follows
 from the aggregate harness exit code.
+
+## Confirmed publication and unchanged edge index
+
+The coordinator reviewed the correction in 033f519ae and its combined integration in 58f53523b.
+After a confirmed publication, the replay cache retires only the predecessor whose covered
+position and prefix digest match that exact occurrence. Held public readers keep their immutable
+state. An unchanged assertion-edge index is shared across revisions; an edge assertion invalidates
+it, including when validation alternates between historical and current bases. AttachEvidence is
+explicitly classified as preserving assertion subjects.
+
+The counted cases `confirmed_commit_releases_the_previous_head_before_the_next_command` and
+`node_only_commits_share_the_unchanged_assertion_edge_index` retain their pre-correction failures.
+`retirement_requires_the_confirmed_occurrence_and_matching_prefix` checks mismatched confirmation
+and unrelated cached prefixes. The retained adversary cases, old-basis behavior and edge-index
+invalidation checks remain in the default suite. No third adversary attack was opened.
+
+The default-size SQLite benchmark now directly enforces this task's independent validate and
+commit limits as well as the existing aggregate limits. Its sizes, transaction windows and bounds
+are unchanged. A passing aggregate statistic alone can no longer be mistaken for this acceptance.
+The combined correctness gate and full-size measurement remain required before implementation
+status; unit test results do not discharge either obligation.
+
+## Fourth default-size measurement
+
+The combined source was measured with every consumer and attachment change present. Both
+independent bounds remain unmet; the unchanged aggregate checks also fail. Exact raw output:
+
+```text
+Sqlite first 15 medians            propose    571.9 ms  validate     50.0 ms  commit    589.0 ms  total   1211.0 ms
+Sqlite last 15 medians             propose   1020.0 ms  validate    107.9 ms  commit   1245.7 ms  total   2373.6 ms
+Sqlite median ratios: validate 2.158x; commit 2.115x; load 18.92 17.12 19.36 2/6807 3299835
+MEASUREMENT_EXIT=101
+```
+
+Source and raw evidence: combined commit 58f53523b, retained
+<cache>/ekr-extract-07b/w/combined4/scaling.log and scaling.perf.data.
+The new explicit per-verb assertions correctly fail this run. No samples were removed and no
+threshold was changed. Profile analysis continues before selecting the next counted correction;
+the task remains active and this result does not authorize a release.
+
+## Bounded graph-reuse experiment
+
+The coordinator reviewed the next prefix/checkpoint correction and requested position-only
+mutation coverage beside event-content tampering. The implementor reports a green counted
+prefix-hash case and obsolete-checkpoint lifetime case. These target validation; they do not
+establish that commit timing meets acceptance.
+
+The latest full-size profile still attributes material commit growth to graph cloning and root
+hashing. A temporary Rust allocation probe reported no allocation reduction from BTreeMap
+clone_from, so that approach is not accepted as a correction. Public CanonicalGraph owns its maps
+and records; changing those public types or the canonical hash format is outside this correction.
+
+The coordinator authorized a bounded private graph-reuse experiment in the kernel application
+and replay-cache surface. A counted test must first expose copies of unchanged graph records.
+Only an exclusively owned retired graph may be taken; an external reader or retained checkpoint
+must prevent extraction. Reuse requires exact root/revision lineage and verified intervening
+append-only operations, with the existing clone path for every unsupported operation, missing
+buffer or mismatched history. Historical reads, retry/conflict, restart and failed publication
+must preserve current behavior and immutable snapshots. No acceptance limit or release boundary
+changes. The prefix/checkpoint correction is committed separately before this experiment.
+
+Sources: retained combined4 profile and the implementor's allocation-probe report in W scratch;
+coordinator source review and dispatch. Full combined correctness and the unchanged default-size
+measurement remain required before the task can be implemented.
+
+## Verified prefix and checkpoint correction integrated
+
+The verified-prefix and superseded-checkpoint correction is integrated from 723cf92cc. The memo
+compares every canonical event and stream position before reusing a digest; it does not replace
+retained-object checks or admit replay state. Tests compare its result with the original hash
+function after content and position changes at either end and in the middle, shortened and empty
+histories, native-provider identity changes and later mutation while an old digest vector is held.
+The checkpoint correction preserves explicit historical keep guards and public held snapshots.
+
+The coordinator reviewed both changes and the position-only case added during that review.
+The implementor reports a green full kernel/store suite and clippy; raw results are retained as
+store-kernel-prefix.log and clippy-prefix.log in W scratch, beside the initial counted failures.
+The ignored benchmark additionally records each actual proposal input length, after timing the
+request. Its timing windows, thresholds and generated operations are unchanged.
+
+Separately, the integration's SDK/store/views/tooling tests and format, all-target clippy,
+documentation, vendor, pinned specification, freshness and planning checks passed before this
+merge. Logs: coordinator remaining-consumer-store-check.log and combined-nontest-check.log.
+This is accumulated correction evidence, not a completed final combined gate. Graph reuse and
+unchanged default-size timing acceptance are still open.
