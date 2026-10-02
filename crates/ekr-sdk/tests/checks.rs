@@ -904,3 +904,67 @@ fn adversary_word_mode_handles_overlapping_punctuation_names_and_scalar_columns(
         assert_eq!(encoded, world.command(&["code-names", files[0]]));
     }
 }
+
+#[test]
+fn adversary_ocel_selectors_preserve_equals_spaces_and_punctuation_as_data() {
+    use ekr_sdk::read::OcelQuery;
+    let mut defects = Vec::new();
+    for backend in [Backend::File, Backend::Sqlite] {
+        for name in ["=Alert.Kind", "Alert with spaces", "--Alert=two Kind"] {
+            let world = adversary_seeded_world(backend, |document| {
+                adversary_timestamp_property(document, name, &[2000]);
+            });
+            for named_time in [true, false] {
+                let selector = if named_time {
+                    format!("{name}.at")
+                } else {
+                    name.to_owned()
+                };
+                let option = if named_time { "event-time" } else { "events" };
+                let flag = format!("--{option}={selector}");
+                let raw = world.command(&["ocel", &flag]);
+                let control: Value = serde_json::from_slice(&raw).unwrap();
+                assert!(
+                    !control["ocel"]["events"].as_array().unwrap().is_empty(),
+                    "the admitted name is selectable by the actual verb"
+                );
+                let query = if named_time {
+                    OcelQuery {
+                        event_time: vec![selector.clone(), selector],
+                        ..OcelQuery::default()
+                    }
+                } else {
+                    OcelQuery {
+                        events: vec![selector.clone(), selector],
+                        ..OcelQuery::default()
+                    }
+                };
+                let mut session = world.session();
+                let mut one = OneShotReader::new(
+                    &world.binary,
+                    world.config.clone(),
+                    SessionOptions::default(),
+                );
+                for (transport, result) in [
+                    ("session", Reader::new(&mut session).ocel(&query)),
+                    ("one-shot", one.ocel(&query)),
+                ] {
+                    match result {
+                        Ok(export) => {
+                            assert_eq!(serde_json::to_value(export.document).unwrap(), control)
+                        }
+                        Err(error) => defects.push(format!(
+                            "{} {transport} {option} {name:?}: {error}",
+                            backend.as_str()
+                        )),
+                    }
+                }
+                assert_eq!(session.request(&Request::new(["head"])).unwrap().stderr, "");
+            }
+        }
+    }
+    assert!(
+        defects.is_empty(),
+        "OCEL names must survive SDK argv encoding in both modes: {defects:?}"
+    );
+}
