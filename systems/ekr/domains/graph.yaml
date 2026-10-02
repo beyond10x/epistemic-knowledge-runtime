@@ -586,7 +586,7 @@ entities:
       terminal: [Linked]
 
   # Evidence attached to an assertion canonical state already holds, by a later commit
-  # (story:evidence-attaches-to-a-held-assertion, design § 102). It is its own record and not an
+  # (story:evidence-attaches-to-a-held-assertion, design § 103). It is its own record and not an
   # edit of the assertion: the assertion's subject, predicate, object, valid time, lifecycle and
   # the evidence it was added with (its Support) stay as they were, so its address in the
   # knowledge root does not move. What creates one: an ekr.kernel AttachEvidence operation of a

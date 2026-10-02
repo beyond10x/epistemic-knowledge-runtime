@@ -46,7 +46,7 @@ types:
   # is index 14 (story:node-gains-an-alias): data, not a schema change, applied under every
   # validation profile; it appends one alias to a node that exists
   # (ekr.kernel.AliasAdditionProjection). AttachEvidence is index 15
-  # (story:evidence-attaches-to-a-held-assertion, design § 102): data, applied under every
+  # (story:evidence-attaches-to-a-held-assertion, design § 103): data, applied under every
   # validation profile; it attaches evidence canonical state retains, or an AddEvidence of the
   # same transaction adds, to an accepted and active assertion canonical state holds, as an
   # ekr.graph.EvidenceAttachment (ekr.kernel.EvidenceAttachmentProjection).

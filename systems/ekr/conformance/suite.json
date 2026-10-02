@@ -121,7 +121,7 @@
     "counts": {
       "authored": 19,
       "generated": 36,
-      "outside": 46,
+      "outside": 48,
       "refused": 0
     },
     "generated": [
@@ -164,6 +164,32 @@
     ],
     "knowledge": "complete_inventory",
     "outside": [
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.integrate.ApplyExtraction"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.integrate.ExtractionApplied"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.integrate.ApplyExtraction/outcome/applied"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.integrate.ApplyExtraction"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.integrate.ApplyExtraction/outcome/refused"
+      },
       {
         "needs": [
           {
@@ -733,8 +759,8 @@
   },
   "provenance": {
     "component": "ekr-kernel",
-    "contract_digest": "af74a9c4d8bd980b7dffdeae3865c976bb1a09b12a135840e92c724f71b7c906",
-    "spec_digest": "9d26eba40635f1e0642cf9e2637f8084f19b34f42a03077a860e9c43a9d1d03a",
+    "contract_digest": "2e49cadd7221346d4522c33edc1d119af41a6522028f060aef741f6a59d83f45",
+    "spec_digest": "c53964f94bcb3667a560036dc036b4ca9eb1be1e6c4394af9c0a0bd98ecfc9a9",
     "specification_version": "v1",
     "suite_version": "ess-conformance/13",
     "system": "ekr"
@@ -803,6 +829,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "validated"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -1117,6 +1147,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -1290,6 +1324,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "validated"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -2615,6 +2653,10 @@
           "view": "ekr.kernel.Transactions"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -2771,6 +2813,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "validated"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -3049,6 +3095,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -3196,6 +3246,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -3321,6 +3375,10 @@
         {
           "error": "ekr.kernel.TransactionNotFound",
           "step": "expect_error"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
@@ -3452,6 +3510,10 @@
             "command": "ekr.kernel.Propose",
             "outcome": "proposed"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -3897,6 +3959,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -4011,6 +4077,10 @@
             "command": "ekr.kernel.Explain",
             "outcome": "explained"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -4150,6 +4220,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.RevisionCommitted",
           "step": "expect_no_event"
         },
@@ -4260,6 +4334,10 @@
             "command": "ekr.kernel.Explain",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -4395,6 +4473,10 @@
         {
           "error": "ekr.kernel.AssertionNotFound",
           "step": "expect_error"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
@@ -5525,6 +5607,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -5924,6 +6010,10 @@
         {
           "error": "ekr.kernel.TransactionStateConflict",
           "step": "expect_error"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
@@ -6798,6 +6888,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -7186,6 +7280,10 @@
         {
           "error": "ekr.kernel.TransactionStateConflict",
           "step": "expect_error"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
@@ -7734,6 +7832,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -8142,6 +8244,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -8292,6 +8398,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "wrong-state"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -8678,6 +8788,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -8849,6 +8963,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "validated"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -9163,6 +9281,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -9334,6 +9456,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "rejected"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -9569,6 +9695,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -9751,6 +9881,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "validated"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -10029,6 +10163,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -10204,6 +10342,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "validated"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -10439,6 +10581,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -10586,6 +10732,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -10720,6 +10870,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -10838,6 +10992,10 @@
             "command": "ekr.kernel.Propose",
             "outcome": "misattributed"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -10973,6 +11131,10 @@
         {
           "error": "ekr.kernel.ProposalAttribution",
           "step": "expect_error"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
@@ -11113,6 +11275,10 @@
             "command": "ekr.kernel.Propose",
             "outcome": "proposed"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -11317,6 +11483,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -11466,6 +11636,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -11600,6 +11774,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -11714,6 +11892,10 @@
             "command": "ekr.kernel.Seed",
             "outcome": "invalid-seed"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -11851,6 +12033,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -11976,6 +12162,10 @@
             "command": "ekr.kernel.Seed",
             "outcome": "seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -12601,6 +12791,10 @@
           "view": "ekr.kernel.Revisions"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -12735,6 +12929,10 @@
             "command": "ekr.kernel.Seed",
             "outcome": "seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -12952,6 +13150,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -13093,6 +13295,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -13231,6 +13437,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -13349,6 +13559,10 @@
             "command": "ekr.kernel.Snapshot",
             "outcome": "taken"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -13487,6 +13701,10 @@
             }
           },
           "step": "expect_event"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
@@ -13630,6 +13848,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "rejected"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -13865,6 +14087,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -14012,6 +14238,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -14150,6 +14380,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -14264,6 +14498,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "transaction-not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -14396,6 +14634,10 @@
         {
           "error": "ekr.kernel.TransactionNotFound",
           "step": "expect_error"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
@@ -14543,6 +14785,10 @@
             "command": "ekr.kernel.Validate",
             "outcome": "validated"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -14776,6 +15022,10 @@
             }
           },
           "step": "expect_event"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",

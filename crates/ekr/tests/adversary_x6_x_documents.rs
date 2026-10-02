@@ -18,7 +18,9 @@ const T_ALICE: &str = "00000000-0000-4000-8000-000000000601";
 const T_BOB: &str = "00000000-0000-4000-8000-000000000602";
 
 fn fixture(name: &str) -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
+    let manifest = std::env::var("CARGO_MANIFEST_DIR")
+        .expect("cargo sets CARGO_MANIFEST_DIR for a test process at run time");
+    Path::new(&manifest)
         .join("tests/fixtures/retraction")
         .join(name)
 }

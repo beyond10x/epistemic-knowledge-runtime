@@ -168,18 +168,23 @@ fn a_depth_bound_stops_the_loader_at_the_first_container_past_it() {
     let mut documents = Documents::from_str_within_depth("a: [[1]]\n", 3).unwrap();
     documents.next_document().unwrap().check().unwrap();
 
-    let deep = format!("{}{}", "[".repeat(1 << 20), "]".repeat(1 << 20));
-    let started = std::time::Instant::now();
-    let mut documents = Documents::from_str_within_depth(&deep, 3).unwrap();
-    let document = documents.next_document().unwrap();
-    assert!(document.check().is_err());
-    assert_eq!(document.event_count(), 4);
-    assert!(matches!(
-        document.event(3).unwrap(),
-        Some(Event::SequenceStart(None))
-    ));
-    assert!(documents.next_document().is_none());
-    assert!(started.elapsed() < std::time::Duration::from_secs(5));
+    // The work is counted, not timed: a nesting of 2^20 and one a single level past the bound
+    // load the same four events and stop with the same error at the same mark, so nothing past
+    // the bound is loaded however much follows it, and the parser is gone once it stops.
+    let stopped = |depth: usize| {
+        let nested = format!("{}{}", "[".repeat(depth), "]".repeat(depth));
+        let mut documents = Documents::from_str_within_depth(&nested, 3).unwrap();
+        let document = documents.next_document().unwrap();
+        let error = document.check().unwrap_err().to_string();
+        assert_eq!(document.event_count(), 4, "depth {depth}");
+        assert!(matches!(
+            document.event(3).unwrap(),
+            Some(Event::SequenceStart(None))
+        ));
+        assert!(documents.next_document().is_none(), "depth {depth}");
+        error
+    };
+    assert_eq!(stopped(1 << 20), stopped(4));
 
     let mut documents = Documents::from_str("[[1]]\n").unwrap();
     documents.next_document().unwrap().check().unwrap();

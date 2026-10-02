@@ -483,6 +483,40 @@ impl Ontology {
             .map(|property| property.id)
     }
 
+    /// Whether the node type named `node_type` is abstract or another node type descends from it:
+    /// a typed reference to it is one `ekr resolve` refuses (`reference-type-has-subtypes`).
+    pub(crate) fn has_subtypes(&self, node_type: &str) -> bool {
+        let Some(entry) = self.node_types.get(node_type) else {
+            return false;
+        };
+        entry.abstract_type
+            || self
+                .node_types
+                .values()
+                .any(|other| other.id != entry.id && self.descends(other, entry.id))
+    }
+
+    /// Whether `entry` has `ancestor` among its ancestors.
+    fn descends(&self, entry: &NodeEntry, ancestor: TypeId) -> bool {
+        let mut seen = BTreeSet::new();
+        let mut open: Vec<TypeId> = entry.parents.iter().copied().collect();
+        while let Some(parent) = open.pop() {
+            if parent == ancestor {
+                return true;
+            }
+            if seen.insert(parent) {
+                if let Some(next) = self
+                    .node_names
+                    .get(&parent)
+                    .and_then(|name| self.node_types.get(name))
+                {
+                    open.extend(next.parents.iter().copied());
+                }
+            }
+        }
+        false
+    }
+
     /// The declaration of `name` on `node_type` or its nearest declaring ancestor, breadth first.
     fn inherited(&self, node_type: &str, name: &str) -> Option<&PropertyDefinition> {
         let mut seen = BTreeSet::new();

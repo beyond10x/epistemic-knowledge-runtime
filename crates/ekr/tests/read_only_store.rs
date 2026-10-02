@@ -254,7 +254,8 @@ fn read_verbs_answer_on_a_read_only_store_with_the_writable_bytes_on_both_provid
 }
 
 /// Acceptance 2: `ekr propose` on a read-only store is refused by name, exit 2, and prints no
-/// result; so are the other verbs that write, `validate`, `commit` and `seed`. Nothing changes.
+/// result; so are the other verbs that write, `validate`, `commit`, `seed` and `apply-extraction`.
+/// Nothing changes.
 #[test]
 fn write_verbs_on_a_read_only_store_are_refused_by_name_with_exit_2() {
     let transaction = "00000000-0000-4000-8000-000000000601";
@@ -264,11 +265,12 @@ fn write_verbs_on_a_read_only_store_are_refused_by_name_with_exit_2() {
         let guard = world.read_only();
         let propose = fixture("propose-alice.yaml").display().to_string();
         let seed = fixture("seed.yaml").display().to_string();
-        let verbs: [&[&str]; 4] = [
+        let verbs: [&[&str]; 5] = [
             &["propose", &propose],
             &["validate", transaction, "--against", "0"],
             &["commit", transaction],
             &["seed", &seed],
+            &["apply-extraction", &propose],
         ];
         for verb in verbs {
             let output = world.run(verb);
@@ -325,7 +327,11 @@ fn every_verb_the_page_says_writes_is_refused_and_every_one_that_reads_answers_a
             _ => {}
         }
     }
-    assert_eq!(writes, ["seed", "propose", "validate", "commit"], "{table}");
+    assert_eq!(
+        writes,
+        ["seed", "propose", "validate", "commit", "apply-extraction"],
+        "{table}"
+    );
     for backend in BACKENDS {
         let world = World::seeded(backend);
         let source = world.source();

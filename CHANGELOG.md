@@ -4,6 +4,100 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.26] — 2026-10-02
+
+A store that took evidence after its seed migrates; the extraction verb applies a document once and
+whole; a replaced SQLite store is refused and reopened; divergence is a typed error; seed and
+transaction documents are bounded before they load; tests no longer fail under load.
+
+### Added
+
+- **`ekr apply-extraction` applies an extraction document** (`docs/cli.md`, `ekr apply-extraction`).
+  The engine's reader checks the document against the store's head and refuses it by code, exit 2,
+  writing nothing; otherwise the document's missing ontology commits as one schema change, every
+  named thing is resolved and created where the store holds none, and every fact becomes an
+  assertion with the evidence it cites. Every write is a `propose`, `validate` and `commit` as the
+  host operator, run in this process. It prints the `ekr.integrate.ExtractionReport`: `committed`,
+  `rejected`, `ambiguous`, `held` and `stopped`. Named things of one type that share an alias are
+  one node whatever order the document lists them in; a fact the store already asserts is held,
+  so applying a document twice adds nothing, and a claim an operator retracted or superseded is
+  not asserted again from the evidence it cited (`held`, with its reason); once something has
+  committed it reports where it stopped, with every commit, instead of faulting. The SDK runs the same routine, `ekr_sdk::extraction::apply`, over
+  any transport, and its mirror `ekr_sdk::document::ExtractionDocument` refuses what the reader
+  refuses while decoding, by the reader's codes, through the same bounded loader
+  (`ekr_core::decode::observe_yaml`). The reader also refuses a named thing whose type is abstract
+  or has a subtype once the document's ontology is applied, as `reference-type-has-subtypes`; a
+  subtype redeclaring a property an ancestor declares otherwise, as `extraction-property-conflict`;
+  and an evidence item whose source is not a `!HumanStatement`, as
+  `extraction-evidence-kind-unsupported`.
+  `ekr.integrate.ApplyExtraction` is accepted by the `ekr-integrate` component, which publishes
+  `ekr.integrate.ExtractionApplied`; `ekr::conformance::IntegrateTarget` answers its suite.
+
+### Fixed
+
+- **A read-only open of a SQLite store that another process is writing no longer fails with
+  `unable to open database file`.** A writer leaves its `-wal` without its `-shm` for a moment as
+  it opens and as it closes, and a read-only connection, which may not create a `-shm`, reported
+  `SQLITE_CANTOPEN` (extended code 14) then. Where the read-only open could write the store's
+  directory, SQLite could also leave an empty `-wal` behind it, after which every later read-only
+  open of that store failed the same way. The open now reads a store whose `-wal` is absent or
+  empty from the database file alone, and reads a store whose `-wal` holds data but has no `-shm`
+  again, up to 12 times with pauses of at most 527 ms in all, before reporting the error with
+  SQLite's extended code. What a read-only open can leave at the store's path is stated exactly
+  (`docs/cli.md`): where the process may write the directory and a writer closes during the
+  open, SQLite itself can create an empty `-wal`, which holds nothing.
+- **A read-only open through a symlinked SQLite database path no longer misses commits still in
+  the writer's `-wal`.** It looked for the `-wal` beside the link, found none, and read the
+  database file alone; it now looks beside the file the link names, as SQLite does.
+- **A SQLite store replaced in place is no longer answered from the database the reader
+  opened.** A database copied over the store file of a live `ekr session`, `ekr mcp` or
+  `ekr view` keeps the file's device and inode, and its connection went on answering the
+  replaced database. The store now checks the file before every read and write (one `stat`
+  while it is unchanged; its log's first and newest events, read from the file alone, when it
+  has changed) and refuses a replaced one as `store-replaced` (`StoreError::Replaced`). Only
+  another device or inode, or an event in the file that this store's log does not hold, counts:
+  a read that fails or mixes two versions while a checkpoint writes the file proves nothing. The
+  check opens no store file outside SQLite, so it never releases the writer's lock on the
+  `-shm`, which let another process truncate it and the writer die of SIGBUS. The three
+  hosts open the store at the path again and answer from it. Copy a database over a live store
+  only with its `-wal` and `-shm` files: SQLite writes the replaced database's WAL into the file
+  at the path when the replaced connection closes.
+- **A held object withdrawn by its stream is refused as a fresh handle refuses it.** An object's
+  stream is now judged before its bytes, so a handle holding a non-canonical object whose stream
+  gained an event it does not read refuses it with the refusal a fresh handle gives, not another;
+  an object read by `get` is checked as a history load checks it. The store domain records that
+  any operation withdrawing retained bytes appends an event to the object's stream, and a guard
+  lists every provider withdrawal in the sources.
+
+- **`ekr migrate` migrates a store that took evidence after its seed.** It refused any store
+  holding a committed `!AddEvidence` with `ekr: a stored document could not be read:
+  required-object-missing`, exit 1, on both providers, because it published each commit without
+  the evidence payloads the commit had brought, and replaying that commit reads them. Each commit
+  is now published with those payloads, with the `stored_at` the source holds them at; a payload
+  the source held below Provenance before its commit is stored at that class first and raised by
+  the commit, as in the source. These payloads are no longer listed in the report's
+  `carried_objects`. Every added evidence entry and its bytes are in the migrated store, and
+  `ekr explain` of an assertion citing one answers as it did in the source.
+- **`ekr seed` bounds its document's size, nesting and alias expansion.** It read a seed document
+  of any size, and YAML aliases could make one decode to far more than it held: forty doubling
+  aliases are 2^40 values. A seed document is now held to `ekr_kernel::SEED_LIMITS` before it is
+  decoded, each refused as `ekr.kernel.InvalidSeed`, exit 2, before any store is created:
+  `seed-too-large` past 16777216 bytes, of which `ekr seed` reads no more than the cap and one
+  byte; `seed-too-deep` past 64 nested containers; `seed-alias-expansion` past 33554432 values,
+  keys and containers or 16777216 bytes of text, each alias counted as everything it repeats
+  (`docs/cli.md`, `ekr seed`). Every earlier seed refusal keeps its code. The YAML loader stops
+  at the first container past the depth, so a deep nesting is refused at once.
+- **A transaction document nested past its depth is refused before it is loaded.** The loader's
+  scan is quadratic in flow nesting, and `ekr propose` checked depth only after loading the whole
+  document. The loader now stops at the first container past the format's depth of 32; the
+  refusal is unchanged, `transaction document limit: container_depth`.
+
+## [0.0.25] — 2026-10-01
+
+A long import costs less as the store grows; the SDK resolver no longer answers a stale node; the
+extraction document, fact quality from a judged sample, explain by reference, one event-type rule
+and per-type property definitions in the projection.
+
 ### Added
 
 - **Evidence attaches to an assertion the store already holds** (`docs/cli.md`, Evidence
@@ -103,6 +197,15 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
   an event type or stop it being one. `/roles` is now derived in `ekr-views`
   (`ekr_views::Index::view_roles_document`, with `Index::event_types` the one rule), specified in
   `systems/ekr/domains/views.yaml`.
+- **A diverged history is a typed store error** (`ekr-store`, `StoreError::Diverged`). The File
+  provider's refusal of a history that is no longer the one a handle observed — a store replaced
+  under the same device and inode — was `StoreError::Backend`; it is now `StoreError::Diverged`,
+  with the same text, and `ekr-views` carries it as `ProjectError::Diverged`. `ekr session`,
+  `ekr mcp` and `ekr view` reopen the store on that variant instead of on the provider's message,
+  so a reworded provider message no longer turns the reopen off. A session reopens only for a
+  fault that came from the store: a request that fails for its own reason, such as a document
+  that cannot be read, prints its own failure while the store at the path is diverged. What each
+  prints is otherwise unchanged.
 
 ### Fixed
 

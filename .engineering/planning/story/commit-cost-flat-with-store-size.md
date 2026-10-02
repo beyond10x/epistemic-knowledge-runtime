@@ -2,8 +2,8 @@
 format: aep.planning-md/3
 id: story:commit-cost-flat-with-store-size
 kind: story
-status: active
-title: Commit and validate cost stays flat as the store grows
+status: implemented
+title: A transaction no longer re-reads every evidence stream as the store grows
 relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
@@ -16,10 +16,11 @@ scope:
   path: crates/ekr-store/tests/eventlog_object_memo.rs
 - confidence: inferred
   path: crates/ekr/tests/commit_scaling.rs
-revision: 8
+revision: 12
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-30T15:36:16Z", actor: "human:timo", revision: 7}
 - {from: "proposed", to: "active", at: "2026-09-30T18:15:39Z", actor: "human:timo", revision: 8}
+- {from: "active", to: "implemented", at: "2026-10-01T18:18:10Z", actor: "human:timo", revision: 10, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}}
 ---
 ## Context
 
@@ -50,13 +51,28 @@ history (compare `task:rebuilt-revision-reuses-retained-verdicts`).
 
 ## Acceptance
 
-- The same 2,000-operation data transaction costs at most 1.5× as much in the 80,000-fact delta as in
-  the 10,000-fact delta over the same base store, on the SQLite and file providers, measured by a
-  committed Rust harness on an idle machine.
-- In a sequence of AddEvidence transactions in the 80,000-fact delta, the last costs at most 1.5× the
-  first.
+Revised by the coordinator on 2026-10-01 (store audit; `review-result:adversary-extract-06-c-pass-1`;
+`review-result:next-waves-1001-acceptance-r1`). Two changes. First, the bound is on whole
+transactions, not on validate alone: validate still grows 3.2× inside the large delta, and that half
+of the original title moved to `task:validate-cost-flat-with-store-size` with its own 1.2× bound;
+this story was retitled to what it built and moved to implemented on the whole-transaction bound.
+Second, the statistic:
+"an idle machine" is not available here (every recorded run was at load 13–43), and a ratio of
+three transactions at each end swings with load. The statistic is fixed and the load is recorded.
+
+- Counted, in the default gate: a second history load in one handle reads no object stream of a
+  held Provenance object whose stream has not moved, on both providers
+  (`crates/ekr-store/tests/eventlog_object_memo.rs`).
+- Timed, by `crates/ekr-sdk/tests/commit_scaling.rs` at its default sizes (20,000-fact base;
+  10,000- and 80,000-fact deltas; release build): over the median of 15 transactions at each end,
+  the large delta costs at most 1.5× the small, and the last 15 at most 1.5× the first 15, on SQLite
+  and file; the load average is printed beside the numbers.
 - Refusals and roots byte-identical before and after (the kernel differentials and conformance
   suites pass).
+
+Measured for 0.0.25 (`274924cb`, load 30–43): SQLite 1.40× and 1.43×, file 1.45× and 1.38× over the
+15-transaction medians. The validate growth inside the large delta (277 → 891 ms) is
+`task:validate-cost-flat-with-store-size`, which has its own bound.
 
 ## Probe result (2026-09-30)
 

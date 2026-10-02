@@ -576,3 +576,88 @@ fn the_judgements_document_reads_and_writes_its_format_and_refuses_anything_else
         );
     }
 }
+
+/// The sample's public pieces, each held to what the draw and the report do with it: the draw is
+/// the Active assertions ranked by [`ekr_views::draw_key`], the size bound is
+/// [`ekr_views::SampleRequest::MAX_SIZE`], both documents carry their format constant, a report
+/// with no stated confidence is the one at [`ekr_views::DEFAULT_CONFIDENCE`], its numbers are
+/// [`ekr_views::wilson_interval`] at [`ekr_views::wilson_z`], and a document that is not a
+/// judged sample is refused as [`ekr_views::JudgementsMalformed`].
+#[test]
+fn the_draw_key_bounds_formats_and_interval_functions_are_what_the_draw_and_report_use() {
+    let (_work, runtime) = built(Provider::File, Fixture::Quality);
+    let loaded = ekr_views::load(&runtime, Some(RevisionNumber::new(1))).expect("loaded");
+    for assertion in loaded.graph.assertions.values() {
+        assert_eq!(
+            ekr_views::draw_key(7, assertion.id),
+            hex::encode(Sha256::digest(
+                format!("ekr.fact-sample/1:7:{}", assertion.id).as_bytes()
+            ))
+        );
+    }
+    let mut ranked: Vec<(String, String)> = loaded
+        .graph
+        .assertions
+        .values()
+        .filter(|assertion| matches!(assertion.lifecycle, AssertionLifecycle::Active))
+        .map(|assertion| {
+            (
+                ekr_views::draw_key(7, assertion.id),
+                assertion.id.to_string(),
+            )
+        })
+        .collect();
+    ranked.sort();
+    let (_, document, _) = draw(&runtime, Some(1), &request(7, 3, None));
+    assert_eq!(
+        drawn_ids(&document),
+        ranked
+            .into_iter()
+            .take(3)
+            .map(|(_, id)| id)
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(document["meta"]["format"], ekr_views::SAMPLE_FORMAT);
+
+    let largest = ekr_views::SampleRequest::MAX_SIZE;
+    assert_eq!(largest, 1000);
+    assert!(SampleRequest::new(1, largest, None).is_ok());
+    assert_eq!(
+        SampleRequest::new(1, largest + 1, None),
+        Err(LimitExceeded {
+            parameter: "size",
+            requested: largest + 1,
+            minimum: 1,
+            maximum: Some(largest),
+        })
+    );
+
+    assert_eq!(ekr_views::DEFAULT_CONFIDENCE, 9_500);
+    let unstated = report_fact_quality(&of(8, 2), None).unwrap();
+    let stated = report_fact_quality(&of(8, 2), Some(ekr_views::DEFAULT_CONFIDENCE)).unwrap();
+    assert_eq!(unstated, stated);
+    let report: Value = serde_json::from_slice(&unstated.bytes).unwrap();
+    assert_eq!(report["meta"]["format"], ekr_views::FACT_QUALITY_FORMAT);
+    let z = ekr_views::wilson_z(9_500);
+    assert_eq!(report["meta"]["z"].as_f64(), Some(z));
+    let (rate, lower, upper) = ekr_views::wilson_interval(8, 10, z);
+    assert_eq!(report["rate"].as_f64(), Some(rate));
+    assert_eq!(report["lower"].as_f64(), Some(lower));
+    assert_eq!(report["upper"].as_f64(), Some(upper));
+    assert_eq!(rate, 0.8);
+    let (closed_lower, closed_upper) = closed_form(8, 10, z);
+    close(lower, closed_lower, "8/10 lower");
+    close(upper, closed_upper, "8/10 upper");
+    assert_eq!(ekr_views::wilson_interval(0, 4, z).1, 0.0, "none passed");
+    assert_eq!(ekr_views::wilson_interval(4, 4, z).2, 1.0, "all passed");
+
+    let refused: ekr_views::JudgementsMalformed =
+        FactJudgements::from_json(br#"{"format":"ekr.fact-judgements/2","judgements":[]}"#)
+            .expect_err("another format");
+    assert!(
+        refused
+            .to_string()
+            .starts_with(&format!("not an {JUDGEMENTS_FORMAT} document: ")),
+        "{refused}"
+    );
+}

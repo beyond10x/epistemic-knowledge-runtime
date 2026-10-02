@@ -1,0 +1,14 @@
+{
+  "at": "2026-10-01T10:14:37Z",
+  "actor": "human:timo",
+  "artifact": "story:commit-cost-flat-with-store-size",
+  "kind": "story",
+  "revision": 8,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "impl/commit-cost-flat 274924cb",
+    "review": "review-result:adversary-extract-06-c-pass-1",
+    "outcome": "fixed"
+  }
+}

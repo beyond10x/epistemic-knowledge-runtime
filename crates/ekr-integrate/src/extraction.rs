@@ -38,9 +38,17 @@
 //! * `extraction-type-undeclared` — a node type or edge type that neither the document's ontology
 //!   nor the store declares, named by a parent, an edge type's end, a `NodeRef`, a named thing, a
 //!   fact's subject or object, or a relation;
+//! * `extraction-property-conflict` — a property a node type of the document declares that one of
+//!   its ancestors already declares with another value type, cardinality, requiredness or
+//!   constraints: the property is the ancestor's, and no schema operation lets a subtype change
+//!   it, so declare it alike or change it on the ancestor;
 //! * `extraction-value-type-empty` — an `Enum` with no variant or a `NodeRef` to no node type;
 //! * `reference-without-identity` — a named thing, or a fact's subject or object, with no alias
 //!   but the empty string;
+//! * `reference-type-has-subtypes` — a named thing, or a fact's subject or object, whose node type
+//!   is abstract or has a subtype once the document's ontology is applied: a typed reference to it
+//!   would match no one type of node, so `ekr resolve` refuses it, and the whole document is
+//!   refused before anything is written;
 //! * `extraction-property-undeclared` — a property fact's property that neither declares on the
 //!   subject's type or any of its ancestors;
 //! * `extraction-value-mismatch` — a property fact's value its property's type does not hold (any
@@ -50,6 +58,8 @@
 //! * `fact-without-evidence` — a fact citing no evidence item;
 //! * `fact-evidence-unlisted` — a fact citing an id no evidence item of the document carries;
 //! * `duplicate-identity` — two evidence items under one id;
+//! * `extraction-evidence-kind-unsupported` — an evidence item whose source is not a
+//!   `!HumanStatement`, the one source the kernel admits as evidence today;
 //! * `evidence-payload-mismatch` — an evidence item whose payload does not hash to its entry.
 //!
 //! Nothing here writes: AGENTS.md invariant 1.
@@ -58,7 +68,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use ekr_core::{ContentHash, EvidenceId, TypeId};
-use ekr_graph::Evidence;
+use ekr_graph::{Evidence, EvidenceSource};
 use ekr_ontology::{Cardinality, Ontology, Value, ValueType};
 use serde::{Deserialize, Serialize};
 
@@ -320,12 +330,18 @@ pub enum ExtractionRefusalCode {
     /// A node or edge type no declaration of the document or the store gives.
     #[serde(rename = "extraction-type-undeclared")]
     ExtractionTypeUndeclared,
+    /// A property a subtype declares that an ancestor declares otherwise.
+    #[serde(rename = "extraction-property-conflict")]
+    ExtractionPropertyConflict,
     /// An `Enum` with no variant or a `NodeRef` to no node type.
     #[serde(rename = "extraction-value-type-empty")]
     ExtractionValueTypeEmpty,
     /// A reference with no alias but the empty string.
     #[serde(rename = "reference-without-identity")]
     ReferenceWithoutIdentity,
+    /// A reference to a node type that is abstract or has a subtype.
+    #[serde(rename = "reference-type-has-subtypes")]
+    ReferenceTypeHasSubtypes,
     /// A property the subject's type and its ancestors do not declare.
     #[serde(rename = "extraction-property-undeclared")]
     ExtractionPropertyUndeclared,
@@ -344,6 +360,9 @@ pub enum ExtractionRefusalCode {
     /// Two evidence items under one id.
     #[serde(rename = "duplicate-identity")]
     DuplicateIdentity,
+    /// An evidence item from a source the kernel does not admit.
+    #[serde(rename = "extraction-evidence-kind-unsupported")]
+    ExtractionEvidenceKindUnsupported,
     /// An evidence payload that does not hash to its entry's `content_hash`.
     #[serde(rename = "evidence-payload-mismatch")]
     EvidencePayloadMismatch,
@@ -351,7 +370,7 @@ pub enum ExtractionRefusalCode {
 
 impl ExtractionRefusalCode {
     /// Every code, in the order the domain declares them.
-    pub const ALL: [Self; 16] = [
+    pub const ALL: [Self; 19] = [
         Self::ExtractionDocumentTooLarge,
         Self::ExtractionDocumentTooDeep,
         Self::ExtractionYamlAlias,
@@ -359,14 +378,17 @@ impl ExtractionRefusalCode {
         Self::ExtractionNameDuplicate,
         Self::ExtractionTypeConflict,
         Self::ExtractionTypeUndeclared,
+        Self::ExtractionPropertyConflict,
         Self::ExtractionValueTypeEmpty,
         Self::ReferenceWithoutIdentity,
+        Self::ReferenceTypeHasSubtypes,
         Self::ExtractionPropertyUndeclared,
         Self::ExtractionValueMismatch,
         Self::ExtractionRelationEnds,
         Self::FactWithoutEvidence,
         Self::FactEvidenceUnlisted,
         Self::DuplicateIdentity,
+        Self::ExtractionEvidenceKindUnsupported,
         Self::EvidencePayloadMismatch,
     ];
 
@@ -381,14 +403,17 @@ impl ExtractionRefusalCode {
             Self::ExtractionNameDuplicate => "extraction-name-duplicate",
             Self::ExtractionTypeConflict => "extraction-type-conflict",
             Self::ExtractionTypeUndeclared => "extraction-type-undeclared",
+            Self::ExtractionPropertyConflict => "extraction-property-conflict",
             Self::ExtractionValueTypeEmpty => "extraction-value-type-empty",
             Self::ReferenceWithoutIdentity => "reference-without-identity",
+            Self::ReferenceTypeHasSubtypes => "reference-type-has-subtypes",
             Self::ExtractionPropertyUndeclared => "extraction-property-undeclared",
             Self::ExtractionValueMismatch => "extraction-value-mismatch",
             Self::ExtractionRelationEnds => "extraction-relation-ends",
             Self::FactWithoutEvidence => "fact-without-evidence",
             Self::FactEvidenceUnlisted => "fact-evidence-unlisted",
             Self::DuplicateIdentity => "duplicate-identity",
+            Self::ExtractionEvidenceKindUnsupported => "extraction-evidence-kind-unsupported",
             Self::EvidencePayloadMismatch => "evidence-payload-mismatch",
         }
     }
@@ -410,9 +435,16 @@ impl ExtractionRefusalCode {
             Self::ExtractionTypeUndeclared => {
                 "no node type or edge type of the document's ontology or the store's is named"
             }
+            Self::ExtractionPropertyConflict => {
+                "an ancestor declares this property otherwise; declare it alike or change it there:"
+            }
             Self::ExtractionValueTypeEmpty => "an Enum with no variant or a NodeRef to no type:",
             Self::ReferenceWithoutIdentity => {
                 "the reference holds no alias but the empty string, so nothing identifies it:"
+            }
+            Self::ReferenceTypeHasSubtypes => {
+                "the type is abstract or has a subtype, so a reference to it is not resolved; name \
+                 the concrete type:"
             }
             Self::ExtractionPropertyUndeclared => {
                 "the subject's type and its ancestors declare no property"
@@ -426,6 +458,10 @@ impl ExtractionRefusalCode {
                 "cites an evidence id the document's evidence does not hold:"
             }
             Self::DuplicateIdentity => "two evidence items carry the id",
+            Self::ExtractionEvidenceKindUnsupported => {
+                "the evidence item's source is not a !HumanStatement, the one source the kernel \
+                 admits:"
+            }
             Self::EvidencePayloadMismatch => {
                 "the payload's bytes do not hash to the content_hash of the evidence item"
             }
@@ -511,48 +547,15 @@ impl ExtractionDocument {
     /// # Errors
     /// [`ExtractionError::Document`].
     pub fn from_yaml(text: &str) -> Result<Self, ExtractionError> {
-        use serde_yaml_ng::observation::{Documents, Event};
-
-        let refused = |code, name: &dyn fmt::Display| {
-            ExtractionError::Document(refusal(code, name.to_string()))
-        };
-        let malformed = |error: &dyn fmt::Display| {
-            refused(ExtractionRefusalCode::ExtractionDocumentMalformed, error)
-        };
-        if text.len() > EXTRACTION_INPUT_BYTES {
-            return Err(refused(
-                ExtractionRefusalCode::ExtractionDocumentTooLarge,
-                &format_args!("{} bytes, at most {EXTRACTION_INPUT_BYTES}", text.len()),
-            ));
-        }
-        let mut documents =
-            Documents::from_str_within_depth(text, EXTRACTION_DEPTH).map_err(|e| malformed(&e))?;
-        while let Some(document) = documents.next_document() {
-            let mut depth = 0usize;
-            for at in 0..document.event_count() {
-                match document.event(at).map_err(|e| malformed(&e))? {
-                    Some(Event::Alias { .. }) => {
-                        return Err(refused(
-                            ExtractionRefusalCode::ExtractionYamlAlias,
-                            &format_args!("event {at}"),
-                        ))
-                    }
-                    Some(Event::MappingStart(_) | Event::SequenceStart(_)) => {
-                        depth += 1;
-                        if depth > EXTRACTION_DEPTH {
-                            return Err(refused(
-                                ExtractionRefusalCode::ExtractionDocumentTooDeep,
-                                &format_args!("nested more than {EXTRACTION_DEPTH} deep"),
-                            ));
-                        }
-                    }
-                    Some(Event::MappingEnd | Event::SequenceEnd) => depth = depth.saturating_sub(1),
-                    _ => {}
-                }
-            }
-            document.check().map_err(|e| malformed(&e))?;
-        }
-        serde_yaml_ng::from_str(text).map_err(|e| malformed(&e))
+        let refused = |code, name: String| ExtractionError::Document(refusal(code, name));
+        ekr_core::decode::observe_yaml(text, EXTRACTION_INPUT_BYTES, EXTRACTION_DEPTH)
+            .map_err(|bound| refused(observed(&bound), bound.to_string()))?;
+        serde_yaml_ng::from_str(text).map_err(|e| {
+            refused(
+                ExtractionRefusalCode::ExtractionDocumentMalformed,
+                e.to_string(),
+            )
+        })
     }
 
     /// Checks the document against itself and `store`'s ontology, in document order.
@@ -582,6 +585,23 @@ impl ExtractionDocument {
                 let parents: BTreeSet<String> = spec.parents.iter().cloned().collect();
                 if parents != store_type.parents || spec.abstract_type != store_type.abstract_type {
                     return Err(refusal(Code::ExtractionTypeConflict, spec.name.as_str()));
+                }
+            }
+            for property in &spec.properties {
+                let own = held
+                    .nodes
+                    .get(&spec.name)
+                    .is_some_and(|entry| entry.shapes.contains_key(&property.name));
+                let inherited = names
+                    .lineage(&spec.name)
+                    .into_iter()
+                    .skip(1)
+                    .find_map(|ancestor| names.nodes.get(ancestor)?.shapes.get(&property.name));
+                if !own && inherited.is_some_and(|shape| *shape != Shape::of_spec(property)) {
+                    return Err(refusal(
+                        Code::ExtractionPropertyConflict,
+                        format!("{}.{}", spec.name, property.name),
+                    ));
                 }
             }
             spec.parents
@@ -625,7 +645,14 @@ impl ExtractionDocument {
             if reference.aliases.iter().all(String::is_empty) {
                 return Err(refusal(Code::ReferenceWithoutIdentity, at));
             }
-            node_type(&reference.node_type)
+            node_type(&reference.node_type)?;
+            if names.has_subtypes(&reference.node_type) {
+                return Err(refusal(
+                    Code::ReferenceTypeHasSubtypes,
+                    format!("{at}: {}", reference.node_type),
+                ));
+            }
+            Ok(())
         };
         for (at, entity) in self.entities.iter().enumerate() {
             reference(format!("entities[{at}]"), entity)?;
@@ -692,11 +719,28 @@ impl ExtractionDocument {
             if !ids.insert(id) {
                 return Err(refusal(Code::DuplicateIdentity, id.to_string()));
             }
+            if !matches!(item.evidence.source, EvidenceSource::HumanStatement { .. }) {
+                return Err(refusal(
+                    Code::ExtractionEvidenceKindUnsupported,
+                    id.to_string(),
+                ));
+            }
             if ContentHash::of_bytes(&item.payload) != item.evidence.content_hash {
                 return Err(refusal(Code::EvidencePayloadMismatch, id.to_string()));
             }
         }
         Ok(())
+    }
+}
+
+/// The reader's code for what the bounded observation refused.
+const fn observed(bound: &ekr_core::decode::YamlRefusal) -> ExtractionRefusalCode {
+    use ekr_core::decode::YamlRefusal;
+    match bound {
+        YamlRefusal::TooLarge { .. } => ExtractionRefusalCode::ExtractionDocumentTooLarge,
+        YamlRefusal::TooDeep { .. } => ExtractionRefusalCode::ExtractionDocumentTooDeep,
+        YamlRefusal::Alias { .. } => ExtractionRefusalCode::ExtractionYamlAlias,
+        YamlRefusal::Malformed(_) => ExtractionRefusalCode::ExtractionDocumentMalformed,
     }
 }
 
@@ -783,6 +827,29 @@ struct NodeEntry {
     parents: BTreeSet<String>,
     abstract_type: bool,
     properties: BTreeMap<String, ValueSpec>,
+    /// Its own properties' whole declarations, as a schema change compares them.
+    shapes: BTreeMap<String, Shape>,
+}
+
+/// A property's declaration as `Ontology::ensure` compares two: its value type, cardinality and
+/// requiredness, and whether it carries constraints, which a document cannot declare.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Shape {
+    value: ValueSpec,
+    cardinality: Cardinality,
+    required: bool,
+    constrained: bool,
+}
+
+impl Shape {
+    fn of_spec(property: &PropertySpec) -> Self {
+        Self {
+            value: property.value.clone(),
+            cardinality: property.cardinality,
+            required: property.required,
+            constrained: false,
+        }
+    }
 }
 
 /// An edge type by name: its ends by node type name and its cardinality.
@@ -826,6 +893,19 @@ impl Names {
                             (property.name.clone(), by_name(&property.value_type, &named))
                         })
                         .collect(),
+                    shapes: declared
+                        .properties
+                        .values()
+                        .map(|property| {
+                            let shape = Shape {
+                                value: by_name(&property.value_type, &named),
+                                cardinality: property.cardinality,
+                                required: property.required,
+                                constrained: !property.constraints.is_empty(),
+                            };
+                            (property.name.clone(), shape)
+                        })
+                        .collect(),
                 };
                 (declared.name.clone(), entry)
             })
@@ -857,11 +937,15 @@ impl Names {
                     parents: declared.parents.iter().cloned().collect(),
                     abstract_type: declared.abstract_type,
                     properties: BTreeMap::new(),
+                    shapes: BTreeMap::new(),
                 });
             for property in &declared.properties {
                 entry
                     .properties
                     .insert(property.name.clone(), property.value.clone());
+                entry
+                    .shapes
+                    .insert(property.name.clone(), Shape::of_spec(property));
             }
         }
         for declared in &spec.edge_types {
@@ -901,6 +985,18 @@ impl Names {
         self.lineage(node_type)
             .into_iter()
             .find_map(|name| self.nodes.get(name)?.properties.get(property))
+    }
+
+    /// Whether `node_type` is abstract or another node type descends from it: a typed reference
+    /// to it is one `ekr resolve` refuses (`reference-type-has-subtypes`).
+    fn has_subtypes(&self, node_type: &str) -> bool {
+        self.nodes
+            .get(node_type)
+            .is_some_and(|entry| entry.abstract_type)
+            || self
+                .nodes
+                .keys()
+                .any(|other| other != node_type && self.conforms(other, node_type))
     }
 
     /// Whether `node_type` is `ancestor` or a descendant of it.

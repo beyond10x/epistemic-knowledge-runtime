@@ -1,5 +1,5 @@
 //! The structural checks of an `AttachEvidence` (`story:evidence-attaches-to-a-held-assertion`,
-//! design § 102.2): the assertion stays current, and the evidence is new to it.
+//! design § 103.2): the assertion stays current, and the evidence is new to it.
 //!
 //! Each attachment's assertion is looked up by id. These checks do not join the retraction and
 //! supersession check of `lifecycle.rs`, which copies every claim of the graph, so a transaction

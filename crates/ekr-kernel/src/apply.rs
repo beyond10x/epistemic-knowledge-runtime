@@ -240,7 +240,7 @@ fn applied_graph(
                 graph.assertions.insert(assertion.id, assertion);
             }
             // Recorded beside the assertion, which is not changed; validation held it current and
-            // the evidence new to it (design § 102.3).
+            // the evidence new to it (design § 103.3).
             GraphOperation::AttachEvidence(attachment) => {
                 if !graph.assertions.contains_key(&attachment.assertion) {
                     return Err(StoreError::Document("admitted-assertion-missing".into()));

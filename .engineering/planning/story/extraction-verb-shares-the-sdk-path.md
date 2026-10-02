@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:extraction-verb-shares-the-sdk-path
 kind: story
-status: proposed
+status: implemented
 title: The engine's extraction verb runs on the SDK in-process
 relations:
 - depends_on: story:sdk-resolve-and-batch
@@ -43,9 +43,11 @@ scope:
   path: systems/ekr/conformance/suite.json
 - confidence: inferred
   path: systems/ekr/domains/integrate.yaml
-revision: 8
+revision: 12
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-30T12:26:22Z", actor: "human:timo", revision: 8}
+- {from: "proposed", to: "active", at: "2026-10-01T11:10:05Z", actor: "human:timo", revision: 10, decided_on: {"recorded":{"review_outcome":1}}}
+- {from: "active", to: "implemented", at: "2026-10-02T10:29:24Z", actor: "agent:codex-ekr-x7b", revision: 12, decided_on: {"recorded":{"test_result":1,"review_outcome":5}}}
 ---
 ## Context
 
@@ -63,6 +65,13 @@ model: a consumer runs its extractor in its own sandbox and hands the engine the
 (consumer input, 2026-09-29). Applying that document through the SDK over a child session stays
 supported beside the verb.
 
+The SDK's mirror of the extraction document must read the shape unit D published in wave
+extract-06 (`848698b7`): a value type is written as `ValueType` writes it, an Enum as
+`parameters: {variants: [..]}` and a NodeRef as `parameters: {allowed_types: [..]}`. The SDK's
+`ValueSpec` is still the tuple form (`NodeRef(Vec<String>)`), so its serde form changes or an adapter
+reads the document's form; a round-trip test holds the SDK mirror to `ekr example
+ekr.extraction-document/1`.
+
 ## Surface (inferred)
 
 `crates/ekr/src/cli/session.rs`, a new `crates/ekr/src/cli/<extraction verb>.rs`.
@@ -73,6 +82,17 @@ supported beside the verb.
   stores: same names, types, counts and evidence bytes, ids ignored.
 - The verb's write requests are only propose, validate and commit.
 - The verb spawns no child process: a test with an empty `PATH` applies a fixture.
+- Applying one document a second time adds no assertion, node or evidence entry, and its report
+  says so (`review-result:adversary-extract-07-v-pass-1`, `extraction.rs:325`).
+- The nodes a document creates do not depend on the order it lists named things that share aliases
+  (same review, `extraction.rs:209`).
+- A document the engine's reader accepts never ends in a fault after part of it committed: the
+  report names what committed and what was refused, in an outcome the domain declares
+  (same review, `cli/extraction.rs:61`).
+- The SDK mirror refuses every document the engine's reader refuses (aliases, non-string aliases,
+  the 8 MiB cap, the depth bound, two evidence items under one id), each with the reader's code.
+- `ApplyExtraction` is exercised by a conformance scenario and its `ExtractionApplied` event is
+  emitted, or the domain stops declaring them.
 
 ## Scope
 

@@ -8,6 +8,8 @@ relations:
 - serves: vision:o5
 - decomposes: epic:read-and-storage-cost
 - depends_on: story:explain-reads-an-index
+- depends_on: task:migrate-reads-a-current-store
+- depends_on: task:sqlite-store-replaced-in-place
 scope:
 - confidence: inferred
   path: crates/ekr-kernel/src/checkpoint.rs

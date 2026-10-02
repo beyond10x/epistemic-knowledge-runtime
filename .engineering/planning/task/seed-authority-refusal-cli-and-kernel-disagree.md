@@ -7,6 +7,7 @@ title: The CLI and the kernel refuse a seed under another host authority differe
 relations:
 - derived_from: story:store-open-semantics
 - serves: vision:o5
+- decomposes: epic:p6-maintenance-observability
 revision: 1
 ---
 ## Context

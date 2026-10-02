@@ -2,11 +2,13 @@
 format: aep.planning-md/3
 id: release-plan:next-waves-2026-09-30
 kind: release-plan
-status: draft
+status: superseded
 title: Waves extract-06 and extract-07 after 0.0.24
 relations:
 - serves: vision:o5
-revision: 4
+revision: 6
+transitions:
+- {from: "draft", to: "superseded", at: "2026-10-01T18:19:21Z", actor: "human:timo", revision: 6, decided_on: {"recorded":{"review_outcome":1}}}
 ---
 ## Where this starts
 
@@ -18,7 +20,7 @@ the new `epic:read-and-storage-cost`, two done tasks archived, orphan edges adde
 request filed as `epic:type-packs` with `decision-blocker:property-sensitivity-home`, the constraint
 language filed as `decision-blocker:constraint-language`.
 
-## The next two waves (13 items)
+## The next waves
 
 Selection rule: ready (dependencies implemented, no open blocker), and serving the two consumer needs
 the store shows: a consumer's import through the SDK, and the operator's viewer and org-replay use.
@@ -48,26 +50,37 @@ edits and regenerates the suites once, as in checks-01. The three items added on
 and `read/one_shot.rs` (the two SDK tasks), which no other extract-06 item edits; both SDK tasks add
 to `CHANGELOG.md`.
 
-### Wave extract-07 (0.0.26)
+### Wave extract-07 (0.0.26, 6 items; revised 2026-10-01)
 
 | item | why now |
 |---|---|
 | `story:extraction-verb-shares-the-sdk-path` | the engine's extraction verb over the SDK's apply path; needs extract-06's document |
 | `story:sdk-store-checks` (the judged sample) | the SDK call for extract-06's fact-quality read |
-| `story:preparation-blobs-are-reclaimed` | the store at 1× is about 522 MB, half of it preparations (audit) ; after explain-index, since both change `replay.rs`, `explain.rs` and `kernel.yaml` |
+| `story:evidence-attaches-to-a-held-assertion` | added 2026-10-01: about 67,500 of a consumer's 69,900 assertions cite a whole file; the only route today is one supersession per fact |
 | `task:divergence-is-a-typed-store-error` | long-running readers detect divergence by matching a provider's message text |
-| `task:seed-document-bounds-alias-expansion` | `ekr seed` has no bound on YAML alias expansion or nesting |
+| `task:seed-document-bounds-alias-expansion` | `ekr seed` has no bound on YAML alias expansion; the seed and transaction readers load before checking depth (extract-06 added a bounded loader) |
+| `task:rendering-cost-test-passes-under-load` | added 2026-10-01: a timing test failed the gate under load |
 
-Collisions: `crates/ekr/src/cli/session.rs` is edited by `story:extraction-verb-shares-the-sdk-path`
-(`respond`, `admit`) and `task:divergence-is-a-typed-store-error` (the divergence match and reopen,
-`:622`); `crates/ekr-store/src/eventlog.rs` by `task:divergence-is-a-typed-store-error` (the typed
-error) and `story:preparation-blobs-are-reclaimed` (the reclaim hook, `:1361`–`:1378`);
-`crates/ekr/src/conformance.rs` by the extraction verb and the blob reclaim; the verb registry by the
-extraction verb and `story:sdk-store-checks`' SDK side only; `crates/ekr-sdk/src/lib.rs` by both, each
-adding one `pub mod` line (`extraction`, `checks`) to the list at `:7`–`:16`. Different functions in
-each file; the
-coordinator merges them and regenerates the suites once. `story:preparation-blobs-are-reclaimed`
-depends on `story:explain-reads-an-index` (extract-06), which it follows.
+Collisions: `docs/cli.md` for the extraction verb, evidence attachment and the seed bounds;
+`crates/ekr/src/cli/agent.rs`, `tests/agent_cli.rs` and the kernel conformance manifest and suites
+for the extraction verb and evidence attachment; `crates/ekr/src/cli/session.rs` for the extraction
+verb (`respond`, `admit`) and the divergence task (`:622`); `crates/ekr-sdk/src/lib.rs` for the
+extraction verb and `story:sdk-store-checks`, one `pub mod` line each. Different sections in each
+file; the coordinator merges them and regenerates the suites once.
+
+`story:preparation-blobs-are-reclaimed` moved to extract-08: it shares `explain.rs`, `kernel.yaml`,
+`log.rs` and the design document with evidence attachment, and `eventlog.rs` with the divergence
+task and the store-open task.
+
+### Wave extract-08 (0.0.27, planned)
+
+| item | why |
+|---|---|
+| `story:preparation-blobs-are-reclaimed` | the store at 1× is about 522 MB, half of it preparations |
+| `task:store-open-verifies-blobs-once` | a one-shot read spends about 4.6 s opening the store, 60% of it re-hashing blobs |
+| `task:eventlog-statements-prepared-once` | once `beyond10x/eventlog` ships `prepare_cached`; 49.8% of a consumer's import profile |
+
+Both stories touch `crates/ekr-store/src/eventlog.rs`; they are the wave's two storage units.
 
 ### Coordinator decisions recorded here
 

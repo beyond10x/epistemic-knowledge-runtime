@@ -49,18 +49,110 @@ pub struct SeedDocument {
     pub evidence_payloads: BTreeMap<ContentHash, Arc<Vec<u8>>>,
 }
 
+/// Inclusive limits an `ekr-seed/2` document is held to before it is decoded.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SeedLimits {
+    /// Raw input bytes, including comments and whitespace.
+    pub input_bytes: usize,
+    /// Nested containers, aliases expanded in place; the root is one.
+    pub depth: usize,
+    /// Values, keys and containers, each alias counted as the nodes it repeats.
+    pub expanded_nodes: u64,
+    /// Decoded scalar and key bytes, each alias counted as the text it repeats.
+    pub expanded_text_bytes: u64,
+}
+
+/// The limits of every seed document. An alias may not make a document decode to more than a
+/// document of the byte cap could hold written out.
+pub const SEED_LIMITS: SeedLimits = SeedLimits {
+    input_bytes: 16_777_216,
+    depth: 64,
+    expanded_nodes: 33_554_432,
+    expanded_text_bytes: 16_777_216,
+};
+
 impl SeedDocument {
-    /// Reads the versioned YAML input without discarding unknown semantic fields.
+    /// Reads the exact bytes of a seed document: [`SEED_LIMITS`]'s byte cap first, then UTF-8,
+    /// then [`Self::from_yaml`]. A reader that stops at `input_bytes + 1` bytes loses nothing.
     ///
     /// # Errors
-    /// Malformed input or an unsupported format.
+    /// `seed-too-large`, `seed-decode` for bytes that are not UTF-8, and [`Self::from_yaml`]'s.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, SeedError> {
+        within_size(bytes.len())?;
+        let text = std::str::from_utf8(bytes)
+            .map_err(|_| SeedError::Invalid("seed-decode: the document is not UTF-8".to_owned()))?;
+        Self::from_yaml(text)
+    }
+
+    /// Reads the versioned YAML input without discarding unknown semantic fields, after holding it
+    /// to [`SEED_LIMITS`] on the kernel's bounded loader.
+    ///
+    /// # Errors
+    /// `seed-too-large`, `seed-too-deep` or `seed-alias-expansion` past a limit, then malformed
+    /// input or an unsupported format.
     pub fn from_yaml(yaml: &str) -> Result<Self, SeedError> {
-        let document: Self = serde_yaml_ng::from_str(yaml)
-            .map_err(|error| SeedError::Invalid(format!("seed-decode: {error}")))?;
+        within_limits(yaml)?;
+        let document: Self = serde_yaml_ng::from_str(yaml).map_err(decode)?;
         document.check_version()?;
         Ok(document)
     }
+}
 
+fn decode(error: impl std::fmt::Display) -> SeedError {
+    SeedError::Invalid(format!("seed-decode: {error}"))
+}
+
+fn within_size(bytes: usize) -> Result<(), SeedError> {
+    let cap = SEED_LIMITS.input_bytes;
+    if bytes > cap {
+        return Err(SeedError::Invalid(format!(
+            "seed-too-large: the document is over {cap} bytes"
+        )));
+    }
+    Ok(())
+}
+
+/// Holds `yaml` to [`SEED_LIMITS`] before the full load: the byte cap, then every document on the
+/// bounded loader, which stops at the first container past the depth, walked for its expansion.
+/// A document the loader could not read is left to the decoder, which reports it as before.
+fn within_limits(yaml: &str) -> Result<(), SeedError> {
+    use crate::yaml::{self, Expansion, Past, Tally};
+
+    within_size(yaml.len())?;
+    let limits = Expansion {
+        depth: SEED_LIMITS.depth,
+        nodes: SEED_LIMITS.expanded_nodes,
+        text_bytes: SEED_LIMITS.expanded_text_bytes,
+    };
+    let mut documents = yaml::load(yaml, limits.depth).map_err(decode)?;
+    let mut tally = Tally::default();
+    while let Some(document) = yaml::next(&mut documents) {
+        yaml::expand(&document, limits, &mut tally).map_err(|past| match past {
+            Past::Depth => SeedError::Invalid(format!(
+                "seed-too-deep: the document nests more than {} containers deep",
+                limits.depth
+            )),
+            Past::Nodes(nodes) => SeedError::Invalid(format!(
+                "seed-alias-expansion: aliases expand the document past {} values and keys \
+                 (at least {nodes})",
+                limits.nodes
+            )),
+            Past::Text(bytes) => SeedError::Invalid(format!(
+                "seed-alias-expansion: aliases expand the document past {} bytes of text \
+                 (at least {bytes})",
+                limits.text_bytes
+            )),
+            Past::Recursive => decode("an alias repeats the node it is inside"),
+            Past::Malformed(error) => decode(error),
+        })?;
+        if document.check().is_err() {
+            break;
+        }
+    }
+    Ok(())
+}
+
+impl SeedDocument {
     fn check_version(&self) -> Result<(), SeedError> {
         check_version(&self.format)
     }
@@ -651,7 +743,7 @@ fn admitted(
     if document.root.parent.is_some() || document.revision != RevisionNumber::SEED {
         return invalid("seed-root-lineage");
     }
-    // An attachment is made by a commit, at a revision after the seed (design § 102.3).
+    // An attachment is made by a commit, at a revision after the seed (design § 103.3).
     if !document.attachments.is_empty() {
         return invalid("seed-attachments");
     }
@@ -1015,5 +1107,43 @@ mod shared_payloads {
         let mut named = SeedPayloads::Named(names.clone());
         named.share_retained(&history);
         assert_eq!(named, SeedPayloads::Named(names));
+    }
+}
+
+#[cfg(test)]
+mod bounded_load {
+    use super::{SeedDocument, SeedError, SEED_LIMITS};
+    use crate::yaml::loaded;
+
+    /// A seed nested past the depth is refused before the full load: the bounded loader reads up
+    /// to the first container past the limit and the parser never sees the rest, so the events
+    /// buffered are counted by the limit, not by the input.
+    #[test]
+    fn a_seed_nested_past_the_depth_is_refused_at_the_first_container_past_it() {
+        let tail = 20_000;
+        let open = SEED_LIMITS.depth + tail;
+        let text = format!(
+            "format: ekr-seed/2\nontology: {}{}\n",
+            "[".repeat(open),
+            "]".repeat(open)
+        );
+        loaded::take();
+        let refused = SeedDocument::from_yaml(&text).unwrap_err();
+        let events = loaded::take();
+        assert!(
+            matches!(&refused, SeedError::Invalid(reason) if reason.starts_with("seed-too-deep")),
+            "{refused}"
+        );
+        // The root map, two keys and a value, then containers up to and including the first one
+        // past the limit.
+        assert!(
+            events > SEED_LIMITS.depth,
+            "the bounded loader ran: {events} events"
+        );
+        assert!(
+            events <= SEED_LIMITS.depth + 4,
+            "the loader read {events} events of a document with {} containers",
+            open + 1
+        );
     }
 }

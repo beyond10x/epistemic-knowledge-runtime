@@ -60,7 +60,7 @@
 //! `operation_count`, which is equally derivable and equally declared. Evidence an `AddEvidence`
 //! brings is in it exactly when an assertion of the transaction cites it: the set says what the
 //! transaction rests on, not what it adds. Evidence an `AttachEvidence` attaches is in it too, since
-//! the assertion now rests on it (design § 102.1).
+//! the assertion now rests on it (design § 103.1).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -892,7 +892,7 @@ fn check(
             // Whether both do exist is `Ontology::evolve`'s question, under profile v2.
             GraphOperation::WidenEdgeType(_) => (None, None),
             // Names an assertion and evidence and creates neither; what it attaches is part of
-            // what the transaction rests on, so the evidence is in the manifest (design § 102.1).
+            // what the transaction rests on, so the evidence is in the manifest (design § 103.1).
             GraphOperation::AttachEvidence(attachment) => {
                 cited.insert(attachment.evidence);
                 attached = true;

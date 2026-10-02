@@ -183,7 +183,7 @@ impl Check for Reference {
                 GraphOperation::AddAlias(addition) => known.node(tx, addition.node, &mut issues),
                 // The assertion is looked up in canonical state alone: evidence attaches to an
                 // assertion a committed revision holds, and one the same transaction adds would
-                // cite the evidence instead (design § 102.2).
+                // cite the evidence instead (design § 103.2).
                 GraphOperation::AttachEvidence(attachment) => {
                     let (assertion, evidence) = (attachment.assertion, attachment.evidence);
                     if !known.state.assertions.contains_key(&assertion) {

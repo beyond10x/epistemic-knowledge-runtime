@@ -195,7 +195,7 @@ impl Canonical for AliasAddition {
 
 /// Evidence attached to an assertion canonical state holds: the payload of
 /// [`GraphOperation::AttachEvidence`], and `ekr.kernel.EvidenceAttachmentProjection`
-/// (`story:evidence-attaches-to-a-held-assertion`, design § 102).
+/// (`story:evidence-attaches-to-a-held-assertion`, design § 103).
 ///
 /// The assertion is not changed: commit records an [`ekr_graph::AttachedEvidence`] of the evidence
 /// under the assertion's id in the graph's [`attachments`](ekr_graph::CanonicalGraph::attachments),
@@ -475,7 +475,7 @@ impl Canonical for Supersession {
 
 /// One change a transaction proposes: design § 19, plus `Invoke` from amendment 87,
 /// `SupersedeAssertion` from amendment 88, `AddEvidence`, `WidenEdgeType` (amendment 101),
-/// `AddAlias` (`story:node-gains-an-alias`) and `AttachEvidence` (amendment 102).
+/// `AddAlias` (`story:node-gains-an-alias`) and `AttachEvidence` (amendment 103).
 ///
 /// Sixteen variants, which are the sixteen `ekr.kernel.OperationKind` names of
 /// `systems/ekr/domains/kernel.yaml`, in that order. The order is the encoding's contract: the

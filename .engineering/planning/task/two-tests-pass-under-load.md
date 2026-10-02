@@ -6,6 +6,7 @@ status: implemented
 title: Two tests pass under machine load
 relations:
 - serves: vision:o5
+- decomposes: epic:p6-maintenance-observability
 revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-30T08:12:45Z", actor: "human:timo", revision: 2}

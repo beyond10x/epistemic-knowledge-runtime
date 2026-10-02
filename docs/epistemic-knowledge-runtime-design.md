@@ -4911,9 +4911,12 @@ again with its original event identity, revision identity, actors and times, thr
 destination's kernel authority (`RevisionLog::publish`): a proposal record byte for byte; a
 validation receipt, rejection, commit receipt or stale record derived again against the
 destination's replay of what precedes it, by the functions replay checks it with, since each names
-the seed envelope or an earlier root or record. Every other object the source holds is carried with
-its class, retention raises and `stored_at`; a legacy inline object becomes schema-2 metadata and a
-blob. The destination is replayed in full and compared with the source — every revision's identity,
+the seed envelope or an earlier root or record. A commit is published with the payload of each
+`AddEvidence` it holds, as the source's commit was, because replay of the commit reads it: at the
+source's `stored_at`, and where the source held it below Provenance before the commit, stored first
+at that class so the commit raises it to Provenance as in the source. These payloads are not carried
+objects. Every other object the source holds is carried with its class, retention raises and
+`stored_at`; a legacy inline object becomes schema-2 metadata and a blob. The destination is replayed in full and compared with the source — every revision's identity,
 time and knowledge, evidence, ontology and authority roots, the head graph, the evidence, the seed's
 payloads and every transaction's state — and a disagreement refuses
 `migrate-verification-disagrees`. The report, `ekr.store-migration/1`, maps each occurrence's source
@@ -5037,7 +5040,67 @@ scenarios `an-edge-type-widened-to-a-new-target-type-takes-edges-to-it`,
 `a-widening-that-adds-no-type-is-rejected-by-name` on both providers, and
 `crates/ekr/tests/docs_cli.rs`, which runs `docs/cli.md` § Evolve the schema, step 4, as written.
 
-# 102. Evidence Attached to a Held Assertion
+---
+
+# 102. Held Bytes and a Replaced Store
+
+*Added 2026-10-02 by `task:sqlite-store-replaced-in-place` and
+`task:held-bytes-notice-deleted-blobs` (wave correct-07, unit S). Extends §§ 37, 57 and 98. It moves no retained encoding and no root;
+the rule is written once, in `systems/ekr/domains/store.yaml` (held bytes and a replaced store).*
+
+**What was measured.** A store handle keeps the objects it verified (§ 98) and its SQLite
+connection keeps its page cache. A database copied over the file of a live handle, keeping its
+device and inode, was answered from the history the handle opened, by the store and through
+`ekr session`; a seed payload whose blob was deleted on disk, and a held evidence payload whose
+event was redacted in place on SQLite, were answered by the handle that held them while a fresh
+handle refused them.
+
+## 102.1 The rule
+
+A live handle never answers from bytes a fresh handle would refuse. A SQLite database file
+replaced in place — another device and inode at the path, or a file that holds an event this
+handle's log does not hold at that position (the tenant's first and newest events, read from the
+file alone, asked of the handle's own connection) — is refused before
+every read and write as `store-replaced` (`StoreError::Replaced`), and the session, MCP and view
+hosts open the store again on it, as on a diverged File history. A read of an unchanged file costs
+one `stat`. Only positive evidence counts: another device or inode, or an event the file holds
+that this log does not, found by two reads. A checkpoint half-way through writing the file makes
+a read fail as malformed, or mix two versions of the same database, while the `stat` holds still;
+every event such a read shows is this log's, so it proves nothing, and an erring read, retried a
+bounded number of times, proves nothing either (adversary pass c7-s,
+`crates/ekr-store/tests/adversary_c7_s.rs`). No file of a store is opened outside SQLite in a
+process holding a SQLite connection on it: closing any descriptor of a file releases every POSIX
+record lock the process holds on it, so reading the `-shm` with `std::fs` dropped the writer's
+lock on it, and another process could truncate the `-shm` under the writer's mapping (SIGBUS in
+`ekr seed`, wave correct-07 CI). Any operation that withdraws retained bytes appends an event to
+the object's stream,
+so a holding handle sees it when it looks through the log, and an object's stream is judged before
+its bytes, so the holding handle refuses it as a fresh one does. Nothing in the runtime withdraws
+bytes in place.
+
+## 102.2 What is not seen
+
+A redaction or deletion made through a provider directly, without that event; a backup of the same
+store restored over its file, whose first and newest events this log holds; a database whose file
+holds no event yet copied over the store; and the replaced
+database's WAL, which SQLite writes into the file at the path when the replaced connection closes.
+The last needs a provider that can close a connection without checkpointing; eventlog has none at
+the pinned revision.
+
+Executed by `crates/ekr-store/tests/history_cache.rs`
+(`a_sqlite_store_overwritten_in_place_is_refused_as_replaced`),
+`crates/ekr/src/cli/session/tests.rs`
+(`a_session_never_answers_from_a_sqlite_store_overwritten_in_place`), `crates/ekr/tests/mcp.rs`
+and `crates/ekr/tests/view_cli.rs` (`…_copied_over_its_file`),
+`crates/ekr-store/tests/adversary_x6_c.rs` and
+`crates/ekr-kernel/tests/adversary_perf01_r_shared_reads.rs`
+(a recorded redaction and a recorded withdrawal answered as a fresh handle answers them), and
+`crates/ekr-store/tests/eventlog_object_memo.rs`, whose guard lists every provider withdrawal in
+the workspace's sources.
+
+---
+
+# 103. Evidence Attached to a Held Assertion
 
 *Added 2026-10-01 by `story:evidence-attaches-to-a-held-assertion` (wave extract-07). Extends §§ 13,
 16, 19, 21 and 62. It adds one operation and one collection of canonical state; it moves no retained
@@ -5050,7 +5113,7 @@ only route was an `AddAssertion` citing the message and a `SupersedeAssertion` o
 new assertion and one history entry per fact that had not changed. Design § 44 lists "seek additional
 evidence" among what the contradiction subsystem can do, with no operation behind it.
 
-## 102.1 The operation
+## 103.1 The operation
 
 `AttachEvidence` is `ekr.kernel.OperationKind` index 15, after `AddAlias` (14). Its payload is
 `{assertion, evidence}` (`ekr.kernel.EvidenceAttachmentProjection`), encoded as those two ids in that
@@ -5065,7 +5128,7 @@ evidence the transaction's assertions cite **and** its attachments attach. The m
 transaction is refused with the words it was refused with before, because replay compares every
 retained rejection's message with what the ruleset says now.
 
-## 102.2 What validation refuses
+## 103.2 What validation refuses
 
 The checks look the assertion up by id in the snapshot. They do not join the retraction and
 supersession check, which copies every claim of the graph (`validate/lifecycle.rs`), so a
@@ -5082,7 +5145,7 @@ transaction of a thousand attachments pays a thousand lookups and not the graph'
 `unresolved-assertion` and `unresolved-evidence` are the codes an unknown id already earned; the two
 new codes name the two refusals no earlier operation could reach.
 
-## 102.3 The record, and the knowledge root
+## 103.3 The record, and the knowledge root
 
 An attachment is its own record, `ekr.graph.EvidenceAttachment`: which assertion, which evidence,
 which revision. It is not an edit of the assertion. The assertion's subject, predicate, object,
@@ -5116,7 +5179,7 @@ checkpoint, opens under this kernel from its checkpoint and again with a full re
 head, and every revision's knowledge root, evidence root and graph document hash is the one the base
 recorded.
 
-## 102.4 Explain, supersession and quality
+## 103.4 Explain, supersession and quality
 
 `ekr explain` lists, after an assertion's lifecycle links, one `Attachment` link per attachment the
 captured revision holds — `assertion_id`, `evidence_id`, `revision` and the attaching commit by
@@ -5136,7 +5199,7 @@ explanation, at any revision from the attachment on, still does.
 and in `assertions.with_item_evidence`: an assertion that cites only seeded evidence and has
 message evidence attached later is item-evidenced.
 
-## 102.5 Result, and what is not changed
+## 103.5 Result, and what is not changed
 
 A transaction of `AddEvidence` and `AttachEvidence` commits on both providers under every profile;
 the assertion is byte-identical before and after; `ekr explain` at the new revision lists both

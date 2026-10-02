@@ -1,0 +1,34 @@
+{
+  "format": "ekr.conformance-baseline/1",
+  "suite": "systems/ekr/conformance/integrate-suite.json",
+  "suite_version": "ess-conformance/5",
+  "component": "ekr-integrate",
+  "providers": [
+    "file",
+    "sqlite"
+  ],
+  "total": 2,
+  "answered_floor": 2,
+  "unavailable_ceiling": 0,
+  "quarantine": [],
+  "scenarios": [
+    "ekr.integrate.ApplyExtraction/outcome/applied",
+    "ekr.integrate.ApplyExtraction/outcome/refused"
+  ],
+  "authored": {},
+  "step_floors": {
+    "ekr.integrate.ApplyExtraction/outcome/applied": {
+      "execute_command": 1,
+      "expect_event": 1,
+      "expect_no_event": 24,
+      "expect_outcome": 1
+    },
+    "ekr.integrate.ApplyExtraction/outcome/refused": {
+      "configure_external_outcome": 1,
+      "execute_command": 1,
+      "expect_error": 1,
+      "expect_no_event": 25,
+      "expect_outcome": 1
+    }
+  }
+}

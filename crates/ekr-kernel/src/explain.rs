@@ -318,7 +318,7 @@ impl VerifiedRead {
     /// stable id order, each once. Per assertion: the assertion, its origin (Seed, or Proposal,
     /// Validation and Commit), then its lifecycle changes through the captured revision in
     /// revision order, then the evidence attached to it through the captured revision, in
-    /// evidence-id order, each with its commit (design § 102.4). The chain ends in the union, by
+    /// evidence-id order, each with its commit (design § 103.4). The chain ends in the union, by
     /// [`EvidenceId`], of each selected assertion's evidence, the evidence attached to it, and
     /// the complete evidence sets of the included ordinary origin and lifecycle transactions, each
     /// payload verified at its content address. HumanStatement

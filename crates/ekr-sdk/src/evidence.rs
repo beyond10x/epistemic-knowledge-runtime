@@ -181,4 +181,21 @@ impl EvidenceSet {
     pub(crate) fn extend_committed(&mut self, attached: BTreeSet<EvidenceId>) {
         self.committed.extend(attached);
     }
+
+    /// Hold an entry built elsewhere — an extraction document's evidence item — under its own
+    /// id, so an assertion citing that id introduces it. Returns the id.
+    pub(crate) fn hold(&mut self, addition: EvidenceAddition) -> EvidenceId {
+        let id = addition.evidence.id;
+        let EvidenceSource::HumanStatement { identity } = &addition.evidence.source;
+        if let Some(identity) = identity {
+            let key = (
+                identity.clone(),
+                addition.evidence.observed_at,
+                addition.evidence.content_hash,
+            );
+            self.ids.entry(key).or_insert(id);
+        }
+        self.entries.insert(id, addition);
+        id
+    }
 }

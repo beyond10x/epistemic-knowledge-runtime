@@ -4,11 +4,12 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use ekr_core::{ContentHash, Timestamp};
-use ekr_kernel::{Runtime, SeedDocument, SeedError, SeedResultV1};
+use ekr_kernel::{Runtime, SeedDocument, SeedResultV1, SEED_LIMITS};
 
 use crate::exit::Failure;
 
-/// Reads the document, parses it with the kernel's own seed parser, adds each `--evidence` file's
+/// Reads the document, no more of it than the seed byte cap and one byte, parses it with the
+/// kernel's own seed parser, which refuses a document over the cap, adds each `--evidence` file's
 /// bytes to `evidence_payloads` under their content hash, then seeds. A retained exact retry
 /// returns the original result; the kernel samples `now` only for a new seed. `open` sees the
 /// completed document, so a store is created only for a seed the kernel admits.
@@ -20,12 +21,12 @@ pub(super) fn run(
     now: &dyn Fn() -> Timestamp,
 ) -> Result<SeedResultV1, Failure> {
     let mut bytes = Vec::new();
+    let cap = u64::try_from(SEED_LIMITS.input_bytes).unwrap_or(u64::MAX);
     super::input::open(document, stdin)?
+        .take(cap.saturating_add(1))
         .read_to_end(&mut bytes)
         .map_err(|error| Failure::fault(format!("reading {}: {error}", document.display())))?;
-    let text = String::from_utf8(bytes)
-        .map_err(|_| SeedError::Invalid("seed-decode: the document is not UTF-8".to_owned()))?;
-    let mut seed = SeedDocument::from_yaml(&text)?;
+    let mut seed = SeedDocument::from_bytes(&bytes)?;
     for file in evidence {
         let payload = std::fs::read(file)
             .map_err(|error| Failure::fault(format!("reading {}: {error}", file.display())))?;

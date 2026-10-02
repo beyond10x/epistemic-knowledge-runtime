@@ -63,7 +63,8 @@ parents, the SQLite provider creates the database file but not its directory. `g
 
 A store this process may read but not write — on a read-only mount, or owned by another user —
 still answers every verb that only reads it. Such a verb opens the store read-only, writes nothing
-at the store's path — no lock file, no journal file, no replay checkpoint — and prints the same bytes it
+at the store's path — no lock file, no journal file, no replay checkpoint; SQLite's one exception is
+below — and prints the same bytes it
 prints on a writable store. A verb that writes is refused `store-read-only` (exit 2,
 [Common refusals](#common-refusals)) before it opens anything.
 
@@ -74,11 +75,15 @@ prints on a writable store. A verb that writes is refused `store-read-only` (exi
   `ekr view` and `ekr mcp` also remove it when sent SIGTERM, SIGINT or SIGHUP, and then exit with
   128 plus the signal's number. A copy left by a process that was killed outright is removed by the
   next read-only open in the same temporary directory.
-- **A SQLite database** is read into memory through a read-only connection, and no `-wal` or `-shm`
-  file is created beside it. With no `-wal` there, it is read `immutable=1`: SQLite takes no lock,
-  so the read does not exclude a writer; the database's size and modification time are compared
-  before and after, and a read that saw them change is taken again. With a `-wal` there, it is
-  read through SQLite's own locks, and a `-wal` whose `-shm` is gone is not read.
+- **A SQLite database** is read into memory through a read-only connection, and no `-shm` file is
+  created beside it. With no `-wal` there, or an empty one, it is read `immutable=1`: SQLite takes
+  no lock, so the read does not exclude a writer; the size and modification time of the database
+  and its `-wal` are compared before and after, and a read that saw them change is taken again.
+  With a `-wal` holding data, it is read through SQLite's own locks; a `-wal` whose `-shm` is gone
+  is read again up to 12 times, about half a second in all, and then refused. The `-wal` and `-shm`
+  are those beside the file a symlinked database path names. One file can appear: where this
+  process may write the database's directory and a writer closes during the read, SQLite itself
+  can create an empty `-wal` there, which holds nothing and which the next writer uses.
 - **A long-lived reader** — `ekr session`, `ekr view`, `ekr mcp` — checks the store's files before
   each request that reads it (a file store's `events.jsonl`, `manifest.json` and `blobs`; a SQLite
   database and its `-wal`), and when they have changed since it read them, it reads the store
@@ -149,6 +154,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr snapshot` | reads | `--at <revision>`, `--valid-at <ms or YYYY-MM-DD>` | the whole graph at one revision |
 | `ekr explain` | reads | an assertion id; `--documents` | the `ekr.explanation/2` document: the assertion, where it came from, what later changed it, and its evidence, each record by hash; with `--documents`, the whole records too |
 | `ekr resolve` | reads | a `typed-reference` file, or `-`; `--at <revision>` | the resolution: `kind` is `Resolved` (with `node_id`), `ProposeNew` (with `type_id` and `aliases`) or `Ambiguous` (with `candidates`) |
+| `ekr apply-extraction` | writes | an `ekr.extraction-document/1` file, or `-` | the `ekr.integrate.ExtractionReport`: `committed` transactions, `rejected` parts of the document with their issues, `ambiguous` named things, `held` facts the store already asserts, and `stopped` |
 | `ekr head` | reads | none | the head `revision` and its `root` |
 | `ekr transactions` | reads | `--state <State>` | every retained transaction: id, state, proposer |
 | `ekr rejections` | reads | `--from <revision>`, `--to <revision>` | the `ekr.rejections/1` document: each rejected transaction with its validation issues, by the revision it was validated against |
@@ -196,6 +202,22 @@ an uncited pasted payload. A file that cannot be read exits 1 before any store i
 ekr hash corpus/a.md                              # -> content_hash for the evidence entry
 ekr seed seed.yaml --evidence corpus/a.md --evidence corpus/b.md
 ```
+
+The document is held to four limits before it is decoded, each refused as
+`ekr.kernel.InvalidSeed`, exit 2, before any store is created. `ekr seed` reads no more of the
+document than the byte cap and one byte, from a file or from stdin.
+
+| refusal | limit |
+|---|---|
+| `seed-too-large` | at most 16777216 bytes (16 MiB), comments and whitespace included |
+| `seed-too-deep` | nesting at most 64 deep, the root mapping being 1, an alias counted at the depth it is repeated at |
+| `seed-alias-expansion` | at most 33554432 values, keys and containers and 16777216 bytes of text, each alias counted as everything it repeats |
+
+The expansion limits are what a document of the byte cap could hold written out, so an alias can
+save writing but cannot make a seed decode to more than that. Text is counted in decoded bytes, so
+escapes that decode to more bytes than they take to write (`\L` and `\P` decode two bytes to three)
+count at their decoded size and can reach the text limit without any alias. Pass large evidence
+payloads as `--evidence` files, which do not count toward these limits.
 
 ### `ekr propose`
 
@@ -307,6 +329,61 @@ all (counted everywhere, inside quoted aliases too) or more than 64 block indent
 line (the more-indented lines of a `|` or `>` block scalar are text and do not count); this is
 checked before the YAML is loaded. A revision that does not exist is refused as `ekr.kernel.RevisionNotFound`,
 exit 2, as for `ekr snapshot --at`.
+
+### `ekr apply-extraction`
+
+Applies an [extraction document](#extraction-documents-ekrextraction-document1) to the store, as
+the host operator, and prints what it did. It starts no agent and no process: the consumer runs
+its extractor and hands the engine the document it wrote.
+
+First the engine's reader checks the document against the ontology of the store's head. A document
+it refuses is refused by the reader's code (exit 2, `ekr: <code>: <reason>`, the codes in
+[Extraction documents](#extraction-documents-ekrextraction-document1)) and nothing is written.
+Then, in order:
+
+1. the document's `ontology`, as far as the store lacks it, is committed as one schema change
+   (`DefineNodeType`, `DefineEdgeType`, `ModifyProperty`, `WidenEdgeType`). Under a validation
+   profile that fixes the schema it is rejected, and nothing more is applied;
+2. every named thing — each entity, then each fact's subject and object — is resolved as
+   [`ekr resolve`](#ekr-resolve) resolves a typed reference of its type. Named things of one node
+   type that share an alias, directly or through another, are one thing whatever order the
+   document lists them in, resolved once with every alias of all of them. One the store holds is
+   used; one it does not hold is created, a node of its type carrying those aliases and named by the
+   least, in byte order, of its members' first aliases (a single named thing's first alias); one
+   the store answers with several nodes is ambiguous, nothing is chosen, and no fact about it is
+   applied;
+3. every other fact is one `!AddAssertion`: a `!Property` fact with its value, a `!Relation` fact
+   with the object node. Each evidence item a fact cites is added by `!AddEvidence` with the first
+   assertion citing it, unless the store already holds its id. An item no fact cites is not added.
+   A rejected transaction is split and submitted again, down to the one fact validation refuses.
+   A fact is held, not asserted, when an assertion making its claim — the same subject,
+   predicate, object and valid time — cites every evidence item the fact cites: one the store
+   holds active, one an earlier fact of the document made, or one the store holds retracted or
+   superseded, which asserting it again from the same evidence would undo (a superseded
+   assertion's valid time ends where its replacement starts; the fact's reaches that far). So
+   applying the same document a second time adds no node, evidence entry or assertion, and its
+   report lists every fact under `held`. A fact citing evidence no such assertion cited is
+   asserted.
+
+Every write goes through `propose`, `validate` and `commit`, the same requests a consumer sends
+running the SDK's `ekr_sdk::extraction::apply` over an `ekr session`: the verb runs that routine,
+over the session's own dispatch in this process. A session does not serve the verb itself
+(`session-verb-refused`).
+
+It prints the `ekr.integrate.ExtractionReport`:
+
+| key | holds |
+|---|---|
+| `committed` | each transaction committed, in order, as `transaction_id` and `revision`: the schema change, the new nodes, the facts |
+| `rejected` | each part of the document not applied: `item` (`ontology`, `entities[<index>]`, `facts[<index>]`, or `facts[<index>].subject` / `.object` where a named thing first appears), and either `transaction_id` with the validators' `issues` (`validator`, `code`, `message`) or `refusal`, why no validator answered — a refusal of `ekr propose`, or a named thing the fact rests on that was not created |
+| `ambiguous` | each named thing the store answers with more than one node: `reference`, its node type and every alias of the named things that share one, the name first, and `candidates`, the nodes in id order |
+| `held` | each fact not asserted, as `item` (`facts[<index>]`) and `reason`: `asserted` (the store holds the claim active), `repeated` (an earlier fact of the document asserted it), `retracted` or `superseded` (an operator retracted or superseded the claim, and the fact brings no evidence it did not cite) |
+| `stopped` | `null` when applying went to the end of the document; otherwise why it stopped once something had committed — a request that got no answer it could act on. `committed` then lists every transaction committed until then, those of the batch that stopped included |
+
+Exit 0 means the document was read and tried, whatever `rejected` holds. Once something has
+committed the verb does not fault: if a request then gets no answer it can act on, it prints the
+report with what committed until then and `stopped` saying why. A fault before anything committed
+is exit 1, with nothing written.
 
 ### `ekr head`
 
@@ -849,9 +926,12 @@ with `store-replaced`, naming the path and why it does not open, and is never an
 replaced store; each later request tries again. A file store replaced under the same device and
 inode — deleted and created again, or its files replaced inside the directory — passes that
 comparison, but the reader's next read finds the history there diverged from the one it holds;
-it then opens the store at the path once and answers the request from it. `ekr view` answers
+it then opens the store at the path once and answers the request from it. A SQLite database copied
+over the file in place, which keeps its device and inode too, is refused by the reader as
+`store-replaced` — its log, read from the file, is not the one the reader opened — and is followed
+the same way. `ekr view` answers
 `store-replaced` 503 with `{"refusal": "store-replaced", …}`; `GET /` reads no store and is
-served throughout. Move a SQLite database together with its `-wal` and `-shm` files.
+served throughout. Move or copy a SQLite database together with its `-wal` and `-shm` files.
 
 The query of `/overview`, `/expand`, `/node/<id>`, `/search`, `/timeline` and `/changes` is
 `name=value` pairs joined by `&`, each name one the path takes and at most once, each value
@@ -1065,7 +1145,7 @@ answered with `"exit": 2`, `"stdout": null` and `ekr: <refusal>: <reason>` as `"
 | `session-request-malformed` | 2 | the line is not a JSON object with `argv`, a list of strings, and at most `stdin`, a string; an empty line included | send `{"argv": [...]}` on one line |
 | `session-request-too-large` | 2 | the line is longer than 25231360 bytes, its newline excluded: three times the 8388608-byte `ekr.transaction-document/2` cap, the most JSON escaping can make of it, and 65536 bytes for `argv` and the framing. The session holds no more of the line than that; it reads the rest up to the newline, drops it and serves the next line | send the document as a file (`["propose", "doc.yaml"]`), or a smaller one |
 | `session-verb-unknown` | 2 | `argv` is empty, or its first word is neither a verb of `ekr` nor one of the `ekr.views` reads below | a verb from the list above |
-| `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `migrate`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, write a second store, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
+| `session-verb-refused` | 2 | the verb is `seed` in a session started without `--create`, or `view`, `session`, `mcp`, `migrate`, `apply-extraction`, `guide`, `operations` or `example`, or the request asks for help — the `help` verb (`["help"]`, `["help", "head"]`), `--help` or `--version`: these create a store, serve until interrupted or until their own input ends, nest, write a second store, run the verbs a session serves, or print text | run it as its own `ekr` process; for `seed`, or start the session as `ekr session --create` |
 | `session-option-refused` | 2 | the request sets `--host`, `--store`, `--backend` or `--full-replay` | the session's store is fixed when it starts; start another session for another store |
 
 A session opens its store as a verb that reads does, so on a store this process may not write it
@@ -1130,6 +1210,11 @@ store now there. While it holds such a transaction, each store verb also reads t
 transactions once to see whether it is still open; a session holding none reads nothing more.
 At the end of its input a session writes its replay checkpoint only into the store it holds, and
 only while that store is still the one at the path.
+
+Stop every session, `ekr mcp` and `ekr view` that holds a SQLite store before copying another
+database over it, for example when restoring a backup. A host that held the replaced store refuses
+and reopens as above, but when it closes its old connection SQLite can write that connection's
+write-ahead log into the file now at the path (`task:replaced-store-close-keeps-the-restored-file`).
 
 ### `ekr mcp`
 
@@ -1745,8 +1830,7 @@ one extraction document: the types it needs, the named things it found, the fact
 them and the evidence each fact rests on. The consumer runs its extractor, its agent and its
 sandbox; the engine starts none of them. `ekr example ekr.extraction-document/1` prints a complete
 document for a store seeded from the example seed, and `ekr schema ekr.extraction-document/1` its
-JSON Schema. No verb applies a document yet; until one does, record what it says with `ekr
-propose`, `ekr validate` and `ekr commit`.
+JSON Schema. [`ekr apply-extraction`](#ekr-apply-extraction) applies one to a store.
 
 Types, properties and relations are named, never identified: the document is written before the
 ids of the types it adds exist, and a name maps to the id the store holds for it.
@@ -1823,14 +1907,17 @@ Against the ontology of the store it is read for it refuses, naming the first in
 | `extraction-name-duplicate` | a node type, an edge type, a property of one type, an `Enum` variant or a `NodeRef` type the document declares twice |
 | `extraction-type-conflict` | a type the store holds, redeclared with other `parents` or another `abstract_type` (a node type) or another `cardinality` (an edge type): no schema operation changes those |
 | `extraction-type-undeclared` | a node type or edge type neither the document's `ontology` nor the store declares, named by a parent, an edge type's end, a `NodeRef`, a named thing, a fact's subject or object, or a relation |
+| `extraction-property-conflict` | a node type of the document declaring a property, named `Type.property`, that one of its ancestors already declares with another value type, cardinality, `required` or constraints: the property is the ancestor's and no schema operation lets a subtype change it. Declare it alike, or change it on the ancestor |
 | `extraction-value-type-empty` | an `Enum` with no variant or a `NodeRef` to no node type |
 | `reference-without-identity` | a named thing, or a fact's subject or object, with no alias but the empty string |
+| `reference-type-has-subtypes` | a named thing, or a fact's subject or object, whose node type is abstract or has a subtype once the document's `ontology` is applied: `ekr resolve` refuses a reference to such a type, so the document is refused before anything is written. Name the concrete type |
 | `extraction-property-undeclared` | a `!Property` fact's property, named `Type.property`, that the subject's type and its ancestors do not declare in the document or the store |
 | `extraction-value-mismatch` | a `!Property` fact's value its property's type does not hold: another kind, an `Enum` variant it does not list, a `Record` without exactly its fields, or any `Float`, which is never committed |
 | `extraction-relation-ends` | a `!Relation` whose subject is not of a source type of its edge type, or whose object is not of a target type, a subtype counting as its parent |
 | `fact-without-evidence` | a fact, named `facts[<index>]`, whose `evidence` is empty or absent |
 | `fact-evidence-unlisted` | a fact citing an id no item of the document's `evidence` carries |
 | `duplicate-identity` | two evidence items under one id |
+| `extraction-evidence-kind-unsupported` | an evidence item whose `source` is not a `!HumanStatement`, the one source the kernel admits as evidence today |
 | `evidence-payload-mismatch` | an evidence item whose `payload` does not hash to its `content_hash` (`ekr hash` prints the right one) |
 
 ## Worked example: a library catalogue
@@ -2728,6 +2815,9 @@ validation profile v2. The worked example itself produces `inadmissible-value` a
 
 | refusal | where | exit | what it means | what to fix |
 |---|---|---|---|---|
+| `seed-too-large` | seed | 2 | the document is over 16777216 bytes ([`ekr seed`](#ekr-seed)); it was read no further than that and one byte | pass evidence payloads as `--evidence` files |
+| `seed-too-deep` | seed | 2 | the document nests deeper than 64 containers, an alias counted where it is repeated | nest less deeply; an alias nests the node it repeats where it stands |
+| `seed-alias-expansion` | seed | 2 | YAML aliases make the document decode to more than 33554432 values and keys or 16777216 bytes of text | write fewer repetitions, or pass repeated payloads as `--evidence` files |
 | `seed-decode` | seed | 2 | the YAML does not have the expected shape: an unknown or missing field, a wrong type, a duplicate key, an empty property value list | the field and line it names |
 | `seed-ontology` | seed | 2 | the ontology does not cohere | the rule it names ([the ontology section](#the-ontology-section)) |
 | `seed-ontology-lineage` | seed | 2 | the ontology's `version` is not a first version: `number` is not `0` or `parent` is not `null` | `number: 0`, `parent: null` |

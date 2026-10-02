@@ -10,7 +10,8 @@
   "documents": {
     "seed_document": "seed.yaml",
     "seed_document-1": "seed-different.yaml",
-    "transaction_document": "propose-node.yaml"
+    "transaction_document": "propose-node.yaml",
+    "extraction_document": "extraction.yaml"
   },
   "scenarios": {
     "ekr.kernel.Seed/outcome/invalid-seed": {
@@ -132,5 +133,8 @@
   },
   "proposals": {
     "00000000-0000-4000-8000-523a4c729a79": "proposed-for-missing-revision.yaml"
+  },
+  "extraction": {
+    "refusing_seed": "seed-subtyped.yaml"
   }
 }

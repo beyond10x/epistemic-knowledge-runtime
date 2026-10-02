@@ -22,7 +22,7 @@ pub fn knowledge_roots_hashed() -> u64 {
 /// Value-domain address of complete node, edge and assertion collections, in that order, and of
 /// the attachment collection after them when it holds one.
 ///
-/// The attachments (`story:evidence-attaches-to-a-held-assertion`, design § 102.3) are written as a
+/// The attachments (`story:evidence-attaches-to-a-held-assertion`, design § 103.3) are written as a
 /// tagged `Some` and only when there are any, the shape `GraphTransaction::schema_version` takes:
 /// a graph with none encodes to exactly the bytes it encoded to before the collection existed, so
 /// no root a store records moves, and the `Some` tag cannot be read as anything else.

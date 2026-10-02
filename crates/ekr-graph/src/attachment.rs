@@ -1,5 +1,5 @@
 //! Evidence attached to an assertion after the assertion was added: `ekr.graph.EvidenceAttachment`
-//! (`story:evidence-attaches-to-a-held-assertion`, design § 102).
+//! (`story:evidence-attaches-to-a-held-assertion`, design § 103).
 //!
 //! An assertion cites the evidence it was added with, and that set is part of the assertion's
 //! own encoding. Evidence found later — the exact message a claim rests on, where the claim first

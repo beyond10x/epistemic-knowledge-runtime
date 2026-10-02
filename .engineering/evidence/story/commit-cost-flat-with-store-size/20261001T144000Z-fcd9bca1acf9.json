@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-01T14:40:00Z",
+  "actor": "human:timo",
+  "artifact": "story:commit-cost-flat-with-store-size",
+  "kind": "story",
+  "revision": 9,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "commit_scaling.rs default sizes at 274924cb, release, load 30-43: SQLite 1.40x and 1.43x, file 1.45x and 1.38x over 15-transaction medians; CI on PR #57 and main e92f7341 success",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/36881585050"
+  }
+}

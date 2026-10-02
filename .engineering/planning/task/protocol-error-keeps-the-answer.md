@@ -2,15 +2,16 @@
 format: aep.planning-md/3
 id: task:protocol-error-keeps-the-answer
 kind: task
-status: active
+status: implemented
 title: A protocol error keeps the start of the answer it could not read
 relations:
 - decomposes: epic:consumer-sdk
 - serves: vision:o5
-revision: 3
+revision: 4
 transitions:
 - {from: "draft", to: "proposed", at: "2026-09-30T18:15:38Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-09-30T18:15:39Z", actor: "human:timo", revision: 3}
+- {from: "active", to: "implemented", at: "2026-10-01T18:09:54Z", actor: "human:timo", revision: 4, decided_on: {"recorded":{"test_result":1,"review_outcome":1}}}
 ---
 ## What is wrong
 

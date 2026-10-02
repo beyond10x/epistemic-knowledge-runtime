@@ -18,6 +18,7 @@ ekr-graph.workspace = true
 ekr-integrate = { workspace = true, features = ["schema"] }
 ekr-kernel = { workspace = true, features = ["schema"] }
 ekr-ontology.workspace = true
+ekr-sdk.workspace = true
 ekr-views.workspace = true
 ess-conformance.workspace = true
 ess-primitives.workspace = true

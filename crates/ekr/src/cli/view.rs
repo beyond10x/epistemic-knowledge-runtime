@@ -101,7 +101,7 @@ use ekr_views::{
 };
 use serde::Serialize;
 
-use super::session::{diverged, Checked, Held, Replaced, STORE_REPLACED};
+use super::session::{Checked, Held, Replaced, STORE_REPLACED};
 use super::Store;
 use crate::exit::Failure;
 
@@ -711,7 +711,7 @@ fn answer(held: &mut Held, memory: &mut Memory, port: u16, asked: &Asked) -> Ans
         return route_answer(None, memory, route, query);
     }
     let first = route_answer(Some(held.current()), memory, route, query);
-    if !answered_diverged(&first) {
+    if !answered_diverged(&first, held) {
         return first;
     }
     // The held history diverged from the store at the path: one replaced under the same device
@@ -720,12 +720,11 @@ fn answer(held: &mut Held, memory: &mut Memory, port: u16, asked: &Asked) -> Ans
     route_answer(Some(held.current()), memory, route, query)
 }
 
-/// Whether an answer is a 500 carrying the provider's refusal of a diverged history.
-fn answered_diverged(answered: &Answered) -> bool {
+/// Whether an answer is a 500 from a held runtime whose store refuses its history as diverged, or
+/// refuses to answer from a SQLite database replaced in place ([`Held::reopens`]).
+fn answered_diverged(answered: &Answered, held: &Held) -> bool {
     match answered {
-        Answered::Whole(reply) => {
-            reply.status == 500 && diverged(&String::from_utf8_lossy(&reply.body))
-        }
+        Answered::Whole(reply) => reply.status == 500 && held.reopens(),
         Answered::Stream(_) => false,
     }
 }
@@ -888,7 +887,10 @@ pub(super) fn project_refusal(error: &ProjectError) -> Option<&'static str> {
     match error {
         ProjectError::RevisionNotFound { .. } => Some("ekr.views.RevisionNotFound"),
         ProjectError::NotSeeded { .. } => Some("ekr.views.NotSeeded"),
-        ProjectError::Read(_) | ProjectError::Inconsistent(_) => None,
+        ProjectError::Read(_)
+        | ProjectError::Diverged(_)
+        | ProjectError::Replaced(_)
+        | ProjectError::Inconsistent(_) => None,
     }
 }
 

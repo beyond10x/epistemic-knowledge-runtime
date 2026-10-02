@@ -1128,3 +1128,145 @@ fn the_versioned_minimal_yaml_fixture_initializes_both_real_providers() {
         assert!(runtime.snapshot().unwrap().nodes.is_empty());
     }
 }
+
+/// The minimal `ekr-seed/2` fixture's text.
+fn minimal_seed_text() -> String {
+    let path = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+        .join("tests/fixtures/seed-minimal-v2.yaml");
+    std::fs::read_to_string(path).unwrap()
+}
+
+/// The reason a refused seed gives, which starts with its code.
+fn seed_refusal(text: &str) -> String {
+    match SeedDocument::from_yaml(text) {
+        Err(ekr_kernel::SeedError::Invalid(reason)) => reason,
+        other => panic!("expected a named seed refusal, got {other:?}"),
+    }
+}
+
+/// `n` levels of a doubling alias chain, each level two aliases of the one before: 2^n leaves
+/// written in a few bytes per level.
+fn alias_bomb(levels: usize) -> String {
+    let mut lines = String::from("laughs:\n  l0: &l0 [ha, ha]\n");
+    for level in 1..=levels {
+        let previous = level - 1;
+        lines.push_str(&format!(
+            "  l{level}: &l{level} [*l{previous}, *l{previous}]\n"
+        ));
+    }
+    lines
+}
+
+/// Asserts: a seed whose aliases expand past `SEED_LIMITS` is refused as `seed-alias-expansion`
+/// from its counts, without being expanded, wherever in the document the aliases are.
+#[test]
+fn a_seed_alias_bomb_is_refused_as_seed_alias_expansion() {
+    let seed = minimal_seed_text();
+    // 2^40 leaves, far past both expansion limits.
+    let bomb = format!("{seed}{}", alias_bomb(40));
+    let reason = seed_refusal(&bomb);
+    assert!(reason.starts_with("seed-alias-expansion: "), "{reason}");
+    // Inside values the decoder reads and would build: one 1,000-byte evidence payload repeated
+    // under 40,000 keys decodes to 40,000,000 bytes from a document of under 3 MB.
+    let mut payloads = format!("  {:064x}: &payload [{}]\n", 0, ["1"; 1_000].join(", "));
+    for key in 1..=40_000_u32 {
+        payloads.push_str(&format!("  {key:064x}: *payload\n"));
+    }
+    let inside = seed.replace(
+        "evidence_payloads: {}\n",
+        &format!("evidence_payloads:\n{payloads}"),
+    );
+    assert!(inside.len() < ekr_kernel::SEED_LIMITS.input_bytes);
+    let reason = seed_refusal(&inside);
+    assert!(reason.starts_with("seed-alias-expansion: "), "{reason}");
+}
+
+/// Asserts: aliases inside `SEED_LIMITS` still decode, so the limit bounds aliases rather than
+/// banning them.
+#[test]
+fn a_seed_whose_aliases_stay_inside_the_limits_decodes() {
+    let seed = minimal_seed_text();
+    let aliased = seed
+        .replacen(
+            "    id: 00000000-0000-4000-8000-000000000001\n",
+            "    id: &schema 00000000-0000-4000-8000-000000000001\n",
+            1,
+        )
+        .replace(
+            "      schema_version_id: 00000000-0000-4000-8000-000000000001\n",
+            "      schema_version_id: *schema\n",
+        );
+    assert_ne!(aliased, seed, "the fixture carries both lines");
+    assert_eq!(
+        SeedDocument::from_yaml(&aliased).unwrap(),
+        SeedDocument::from_yaml(&seed).unwrap()
+    );
+}
+
+/// Asserts: a seed over `SEED_LIMITS.input_bytes` is refused as `seed-too-large` naming the cap,
+/// and one at the cap is not refused for its size.
+#[test]
+fn a_seed_over_the_size_cap_is_refused_as_seed_too_large() {
+    let seed = minimal_seed_text();
+    let cap = ekr_kernel::SEED_LIMITS.input_bytes;
+    let padded = |total: usize| {
+        let mut text = seed.clone();
+        text.push('#');
+        text.push_str(&" ".repeat(total - text.len() - 1));
+        text.push('\n');
+        assert_eq!(text.len(), total);
+        text
+    };
+    let reason = seed_refusal(&padded(cap + 1));
+    assert!(reason.starts_with("seed-too-large: "), "{reason}");
+    assert!(reason.contains(&cap.to_string()), "{reason}");
+    let bytes = padded(cap + 1).into_bytes();
+    assert!(matches!(
+        SeedDocument::from_bytes(&bytes),
+        Err(ekr_kernel::SeedError::Invalid(reason)) if reason.starts_with("seed-too-large: ")
+    ));
+    // Over the cap and not UTF-8 at its last byte: the size is refused before the encoding.
+    let mut cut = padded(cap + 2).into_bytes();
+    cut[cap + 1] = 0xC3;
+    assert!(matches!(
+        SeedDocument::from_bytes(&cut),
+        Err(ekr_kernel::SeedError::Invalid(reason)) if reason.starts_with("seed-too-large: ")
+    ));
+    assert_eq!(
+        SeedDocument::from_yaml(&padded(cap)).unwrap(),
+        SeedDocument::from_yaml(&seed).unwrap()
+    );
+}
+
+/// Asserts: a seed nested past `SEED_LIMITS.depth`, written out or through an alias, is refused
+/// as `seed-too-deep`; one exactly at the depth is not refused for its depth.
+#[test]
+fn a_seed_nested_past_the_depth_is_refused_as_seed_too_deep() {
+    let seed = minimal_seed_text();
+    let depth = ekr_kernel::SEED_LIMITS.depth;
+    // The root mapping is one; `deep:`'s value opens the rest.
+    let nested = |containers: usize| {
+        format!(
+            "{seed}deep: {}{}\n",
+            "[".repeat(containers),
+            "]".repeat(containers)
+        )
+    };
+    let reason = seed_refusal(&nested(depth));
+    assert!(reason.starts_with("seed-too-deep: "), "{reason}");
+    assert!(reason.contains(&depth.to_string()), "{reason}");
+    // At the depth the seed reaches the decoder, which refuses the unknown field as before.
+    let reason = seed_refusal(&nested(depth - 1));
+    assert!(reason.starts_with("seed-decode: "), "{reason}");
+    // An anchor shallow enough on its own, repeated deeper than the limit allows.
+    let half = depth / 2;
+    let through_alias = format!(
+        "{seed}shallow: &deep {}{}\ndeep: {}*deep{}\n",
+        "[".repeat(half),
+        "]".repeat(half),
+        "[".repeat(half),
+        "]".repeat(half)
+    );
+    let reason = seed_refusal(&through_alias);
+    assert!(reason.starts_with("seed-too-deep: "), "{reason}");
+}
