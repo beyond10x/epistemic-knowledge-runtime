@@ -8,7 +8,7 @@ relations:
 - decomposes: epic:read-and-storage-cost
 - serves: vision:o5
 - derived_from: story:commit-cost-flat-with-store-size
-revision: 13
+revision: 14
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T11:10:07Z", actor: "human:timo", revision: 2}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:08Z", actor: "human:timo", revision: 3}
@@ -180,3 +180,28 @@ explicitly; it changes no finding or outcome:
 }
 
 ```
+
+## Indexed validation and hash correction
+
+The coordinator accepted the measured SHA-256 backend change after reading the temporary Rust
+throughput probe, independent digest comparison and compatibility tests. Core uses ring internally;
+sha2 remains a dev oracle. Domain labels, canonical bytes, digest width and streamed buffering
+are unchanged. This supersedes the earlier pending dependency decision, without changing any
+acceptance threshold or authorizing a dependency release.
+
+The correction also borrows existing node types and keeps a private alias lookup bound to exact
+revision identity and roots. A historical or divergent read rebuilds it. The coordinator reviewed
+the minimum-holder semantics, revision checks, peer/historical differential and public snapshot
+isolation. The counted tests retain their initial red results and now avoid copies or visits to
+unchanged nodes. Store authority test scaffolding moved to a test fixture after the ownership
+inventory refused its source location; the inventory remains intact.
+
+Source and retained adversary cases are integrated. The merge preserves the attachment module,
+adds AttachEvidence to the alias cache's exhaustive no-change arm, and initializes attachments
+in the new candidate fixture. All previously generated scenarios and their floors are retained.
+Pinned specification and synthesis freshness pass, and the entire workspace checks with every
+target. Full combined correctness and default-size timing remain pending; this task stays active.
+
+Evidence: unit report.md, core-sha-backend.log, store-kernel-indexed.log,
+story-contract-indexed-final.log, clippy-indexed.log and hash-probe-interleaved.log under the
+retained W scratch; coordinator w-merge-check.log and w-merge-spec.log.
