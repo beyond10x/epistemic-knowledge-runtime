@@ -1,7 +1,7 @@
 # Wave extract-07b — resume the consumer extraction path
 
 Skill: aep:implementing 0.19.1, wave mode. Coordinator: Codex.
-Status: opening. The operator explicitly requested continuation toward 0.0.27 on 2026-10-02.
+Status: implementing. The operator explicitly requested continuation toward 0.0.27 on 2026-10-02.
 This resumes the accepted `release-plan:next-waves-2026-10-01` and the retained extract-07
 units; it does not restart their work. All running committed code is Rust with clap derive.
 
@@ -17,13 +17,9 @@ Build directories are under `<home>/.cache/b10x-target/`; scratch roots under
 
 | Unit | Artifacts | Branch / managed id | Build directory | Scratch | Stage |
 |---|---|---|---|---|---|
-| A | story:evidence-attaches-to-a-held-assertion | impl/evidence-attachment / ekr-x7-a | ekr-x7b-a | a | recovery audit complete; WIP 68ef2ecf |
-| W | task:validate-cost-flat-with-store-size | impl/validate-cost-flat / ekr-x7-w | ekr-x7b-w | w | recovery audit; WIP 39b37674 |
-| K | story:sdk-store-checks | impl/x7b-sdk-checks / ekr-x7b-k | ekr-x7b-k | k | scope audit |
-| O | task:ocel-export-prints-its-counts; task:ocel-times-events-by-a-named-property | impl/x7b-ocel / ekr-x7b-o | ekr-x7b-o | o | scope audit |
-| Q | task:quality-counts-seed-evidence-and-constrained-types | impl/x7b-quality / ekr-x7b-q | ekr-x7b-q | q | follows A |
-| N | task:code-names-matches-whole-words | impl/x7b-code-names / ekr-x7b-n | ekr-x7b-n | n | scope audit |
-| F | task:fact-quality-states-the-empty-interval | impl/x7b-empty-interval / ekr-x7b-f | ekr-x7b-f | f | before K |
+| A | story:evidence-attaches-to-a-held-assertion | impl/evidence-attachment / ekr-x7-a | ekr-x7b-a | a | recovered source 157b89a6; reconciling main |
+| W | task:validate-cost-flat-with-store-size | impl/validate-cost-flat / ekr-x7-w | ekr-x7b-w | w | main reconciled at 099821581; regression work |
+| consumer | K: story:sdk-store-checks; O: task:ocel-export-prints-its-counts and task:ocel-times-events-by-a-named-property; Q: task:quality-counts-seed-evidence-and-constrained-types; N: task:code-names-matches-whole-words; F: task:fact-quality-states-the-empty-interval | impl/x7b-consumer / ekr-x7b-consumer | ekr-x7b-consumer | consumer | serial changes; F before K, Q after attachment integration; spec/test preparation while A/W build |
 | coordinator | integration, planning, conformance synthesis | wave/extract-07b / ekr-extract-07b | ekr-extract-07b | coordinator | opening |
 
 No unit writes the planning store. Each implementation receives a file brief and is followed by
@@ -43,7 +39,8 @@ No model override is requested; agents inherit the coordinator's model.
 - A and W reconcile with released main before implementation. Keep their published WIP commits;
   no forced reset, stash or branch deletion.
 - A's quality evidence logic precedes Q. F's empty interval contract precedes K's SDK report.
-  O and N share CLI dispatch/SDK read surfaces and are serialized if their scoped symbols overlap.
+  O and N share CLI dispatch/SDK read surfaces. The consumer artifacts use one worktree and run
+  serially rather than treating their shared files as independent.
 - Type packs, storage-08, new dependency releases and the open decision blockers remain deferred.
 - Source publication ends at this repository's checks/release artifacts. Documentation delivery
   is asynchronous; no consumer promotion or Website work is included.
@@ -54,7 +51,10 @@ The initial `aep plan artifact waves --kind story --status active --format json`
 together and the already-shipped extraction verb separately. Its collisions were A versus that
 verb on `cli/agent.rs`, `tests/agent_cli.rs`, conformance manifest/suite/provenance/baseline and
 `docs/cli.md`; no unassessed stories or cycles were reported. The shipped item's status must be
-corrected before the final scheduling snapshot. Task scopes are recorded before their dispatch.
+corrected before the final scheduling snapshot. Task prose scopes are recorded before dispatch.
+AEP 0.64.0 refused typed task scope: `scope` is a field of `story`, and a task inherits its story's
+surface. These existing tasks decompose an epic, so there is no typed task-wave scheduling claim.
+Their inspected overlap is handled by serialization. K's typed story scope was updated by the CLI.
 
 The primary checkout's pre-existing untracked `.agents/` is left alone. All changes use the clean
 managed integration checkout. The two old unit trees are retained intentionally for this recovery.

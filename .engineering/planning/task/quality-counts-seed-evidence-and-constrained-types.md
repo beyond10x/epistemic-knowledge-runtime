@@ -2,12 +2,15 @@
 format: aep.planning-md/3
 id: task:quality-counts-seed-evidence-and-constrained-types
 kind: task
-status: draft
+status: active
 title: ekr quality counts seed evidence and constrained types
 relations:
 - decomposes: epic:consumer-sdk
 - serves: vision:o5
-revision: 1
+revision: 4
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-02T10:34:31Z", actor: "agent:codex-ekr-x7b", revision: 3}
+- {from: "proposed", to: "active", at: "2026-10-02T10:34:31Z", actor: "agent:codex-ekr-x7b", revision: 4}
 ---
 ## What is wrong
 
@@ -35,3 +38,16 @@ every number differed from its own:
 - `ekr.store-quality/1` carries both new counts, specified in `views.yaml` first, on both providers
   and through the SDK's typed read.
 - The views fixtures' existing counts are unchanged.
+
+## Resume scope (2026-10-02)
+
+Read-only story-scoper inspected main 4832d892. Primary paths, cited unless explicitly new:
+
+- `crates/ekr-views/src/quality.rs`
+- `crates/ekr-sdk/src/read/checks.rs`
+- `systems/ekr/domains/views.yaml`
+
+The consumer group shares views.yaml, CLI dispatch, typed SDK exports and documentation;
+its artifacts are implemented serially in one managed consumer unit. Generated conformance
+suites and planning writes belong to the coordinator. New SDK modules are inferred.
+Typed task scope is unavailable: AEP 0.64.0 restricts the scope field to stories.
