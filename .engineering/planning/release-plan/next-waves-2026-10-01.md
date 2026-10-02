@@ -2,14 +2,15 @@
 format: aep.planning-md/3
 id: release-plan:next-waves-2026-10-01
 kind: release-plan
-status: active
+status: superseded
 title: Waves correct-07, extract-07b and storage-08 after 0.0.25
 relations:
 - serves: vision:o5
 - supersedes: release-plan:next-waves-2026-09-30
-revision: 5
+revision: 6
 transitions:
 - {from: "draft", to: "active", at: "2026-10-01T18:42:14Z", actor: "human:timo", revision: 4, decided_on: {"recorded":{"review_outcome":3}}}
+- {from: "active", to: "superseded", at: "2026-10-02T18:02:02Z", actor: "agent:codex-ekr-next-three-root", revision: 6, decided_on: {"recorded":{"approval":1,"review_outcome":3}}}
 ---
 ## Where this starts
 

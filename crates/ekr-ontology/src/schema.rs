@@ -77,6 +77,78 @@ pub struct Ontology {
     edge_types: BTreeMap<TypeId, EdgeType>,
 }
 
+const YAML_INPUT_BYTES: usize = 16_777_216;
+const YAML_EXPANSION: ekr_core::decode::yaml::Expansion = ekr_core::decode::yaml::Expansion {
+    depth: 64,
+    nodes: 33_554_432,
+    text_bytes: 16_777_216,
+};
+
+/// Holds caller YAML to the ontology contract before serde materializes any typed value.
+fn yaml_within_limits(text: &str) -> Result<(), OntologyError> {
+    use ekr_core::decode::yaml::{self, Past, Tally};
+
+    let syntax = |error: &dyn fmt::Display| OntologyError::Syntax(error.to_string());
+    if text.len() > YAML_INPUT_BYTES {
+        return Err(OntologyError::Syntax(format!(
+            "ontology-too-large: {} bytes, at most {YAML_INPUT_BYTES}",
+            text.len()
+        )));
+    }
+    let mut documents = yaml::load(text, YAML_EXPANSION.depth).map_err(|e| syntax(&e))?;
+    let mut tally = Tally::default();
+    while let Some(document) = documents.next_document() {
+        #[cfg(test)]
+        YAML_BUFFERED_EVENTS.with(|count| count.set(count.get() + document.event_count()));
+        yaml::expand(&document, YAML_EXPANSION, &mut tally).map_err(|past| match past {
+            Past::Depth => OntologyError::Syntax(format!(
+                "ontology-too-deep: nested more than {} containers deep",
+                YAML_EXPANSION.depth
+            )),
+            Past::Nodes(nodes) => OntologyError::Syntax(format!(
+                "ontology-alias-expansion: nodes {nodes}, at most {}",
+                YAML_EXPANSION.nodes
+            )),
+            Past::Text(bytes) => OntologyError::Syntax(format!(
+                "ontology-alias-expansion: text {bytes} bytes, at most {}",
+                YAML_EXPANSION.text_bytes
+            )),
+            Past::Recursive => syntax(&"an alias repeats the node it is inside"),
+            Past::Malformed(error) => syntax(&error),
+        })?;
+        document.check().map_err(|e| syntax(&e))?;
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+thread_local! {
+    static YAML_BUFFERED_EVENTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+mod bounded_yaml {
+    use super::{Ontology, OntologyError, YAML_BUFFERED_EVENTS, YAML_EXPANSION};
+
+    #[test]
+    fn ontology_yaml_stops_loading_at_the_depth_cut() {
+        for depth in [YAML_EXPANSION.depth + 1, YAML_EXPANSION.depth + 20_000] {
+            let text = format!("{}x{}", "[".repeat(depth), "]".repeat(depth));
+            YAML_BUFFERED_EVENTS.with(|count| count.set(0));
+            let error = Ontology::from_yaml(&text).unwrap_err();
+            let loaded = YAML_BUFFERED_EVENTS.with(|count| count.replace(0));
+            assert!(
+                matches!(error, OntologyError::Syntax(reason) if reason.starts_with("ontology-too-deep"))
+            );
+            assert_eq!(
+                loaded,
+                YAML_EXPANSION.depth + 1,
+                "the loader must stop at the first excessive container, for {depth} input containers"
+            );
+        }
+    }
+}
+
 impl Ontology {
     /// All declarations in stable identity order, retaining unused declarations and version data.
     #[must_use]
@@ -306,13 +378,17 @@ impl Ontology {
         Ok(())
     }
 
-    /// Loads a schema document written as YAML.
+    /// Loads a schema document written as YAML, observing resource bounds before decoding.
+    ///
+    /// Inclusive limits: 16 MiB input, 64 nested containers, 33,554,432 expanded nodes and
+    /// 16 MiB expanded scalar/key text. Bounded aliases remain supported.
     ///
     /// # Errors
     ///
-    /// [`OntologyError::Syntax`] if the text is not a schema document, and everything
+    /// [`OntologyError::Syntax`] if the text exceeds these bounds or is not a schema document, and everything
     /// [`Ontology::load`] refuses otherwise.
     pub fn from_yaml(text: &str) -> Result<Self, OntologyError> {
+        yaml_within_limits(text)?;
         let document: OntologyDocument =
             serde_yaml_ng::from_str(text).map_err(|e| OntologyError::Syntax(e.to_string()))?;
         Self::load(document)

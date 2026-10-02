@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-02T21:12:11Z",
+  "actor": "agent:codex-ekr-next-three-root",
+  "artifact": "task:identity-scan-reads-a-hand-kept-domain-list",
+  "kind": "task",
+  "revision": 7,
+  "change": {
+    "change": "evidence",
+    "kind": "verification",
+    "source": "VERIFIED: coordinator inspected retained focused red/green logs, final adversary records and combined source checks",
+    "reference": ".engineering/waves/wave-2026-10-02-input-08.md; 401a56d43e4b617a078a0dda7b384c4f7a1ef908"
+  }
+}
