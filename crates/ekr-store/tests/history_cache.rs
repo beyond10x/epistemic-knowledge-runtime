@@ -132,6 +132,46 @@ fn an_incomplete_replay_hint_falls_back_to_the_complete_history() {
     });
 }
 
+/// A speculative hint that asks for nonexistent bytes must fall back just as an underspecified
+/// hint does. The caller must see the complete history's successful answer, repeatedly.
+#[test]
+fn adversary_a_spurious_missing_replay_object_cannot_refuse_a_valid_history() {
+    struct Extra;
+    impl CommitAuthority for Extra {
+        fn required_objects(
+            &self,
+            _: &RetainedHistory,
+        ) -> Result<BTreeSet<ContentHash>, StoreError> {
+            Ok(BTreeSet::new())
+        }
+        fn replay_objects(&self, _: &RetainedHistory) -> Result<BTreeSet<ContentHash>, StoreError> {
+            Ok(BTreeSet::from([ContentHash::of_bytes(
+                b"not retained and not needed",
+            )]))
+        }
+        fn replay(
+            &self,
+            history: &RetainedHistory,
+            ontology: Option<&Ontology>,
+            revision: Option<RevisionNumber>,
+        ) -> Result<Option<AdmittedRevision>, StoreError> {
+            Touch.replay(history, ontology, revision)
+        }
+    }
+    fn exercise<S: RevisionLog + ObjectStore + Initialize>(store: S) {
+        written(&store, "extra hint", 2);
+        let expected = store.history().unwrap().occurrences;
+        assert_eq!(expected.len(), 3);
+        for _ in 0..3 {
+            assert_eq!(store.replay_history().unwrap().occurrences, expected);
+        }
+    }
+    let directory = TempDir::new().unwrap();
+    exercise(sqlite(directory.path()).under(Extra));
+    let directory = TempDir::new().unwrap();
+    exercise(file(directory.path()).under(Extra));
+}
+
 /// Distinctive bytes, short enough that SQLite keeps them contiguous on one page.
 fn payload(label: &str) -> Vec<u8> {
     format!("history-cache {label} {} ", EventId::mint())

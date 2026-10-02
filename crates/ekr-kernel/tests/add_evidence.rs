@@ -711,3 +711,62 @@ fn cached_commands_refuse_withdrawn_evidence_as_complete_history_does() {
         }
     }
 }
+
+/// A checkpoint-backed command handle must recover an old validation basis introduced by a
+/// different handle, including evidence the checkpoint replay ordinarily leaves unloaded.
+#[test]
+fn adversary_peer_validation_at_an_old_basis_matches_full_replay() {
+    for file in [false, true] {
+        let directory = tempfile::tempdir().unwrap();
+        let seed = seeded();
+        let writer = open(directory.path(), file);
+        writer.seed(seed.document.clone(), at(10)).unwrap();
+        let mut first_evidence = None;
+        for n in 0..6 {
+            let bytes = format!("old basis evidence {n}").into_bytes();
+            let evidence = human_evidence(EvidenceId::mint(), &bytes);
+            first_evidence.get_or_insert(evidence.id);
+            committed(
+                &writer,
+                &transaction(vec![
+                    add_evidence(evidence.clone(), &bytes),
+                    GraphOperation::AddAssertion(Box::new(assertion(&seed, evidence.id, "held"))),
+                ]),
+                20 + 10 * n,
+            );
+        }
+        writer.retain_checkpoint_at_rest();
+        drop(writer);
+        let held = open(directory.path(), file);
+        let before = held.transactions().unwrap();
+        assert_eq!(before.len(), 6);
+        let peer = open(directory.path(), file);
+        let tx = transaction(vec![GraphOperation::AddAssertion(Box::new(assertion(
+            &seed,
+            first_evidence.unwrap(),
+            "validated at old revision",
+        )))]);
+        peer.propose(&encode(&tx), context().operator, at(100))
+            .unwrap();
+        assert!(matches!(
+            peer.validate(tx.id, RevisionNumber::new(1), at(101))
+                .unwrap(),
+            ValidationCommandResult::Validated(_)
+        ));
+        let mut full = open(directory.path(), file);
+        full.set_full_replay(true);
+        let expected = full.transactions().unwrap();
+        assert_eq!(expected.len(), 7);
+        assert_eq!(held.transactions().unwrap(), expected);
+        let result = held.commit(tx.id, context().operator, at(102)).unwrap();
+        let CommitCommandResult::Stale(stale) = result else {
+            panic!("old-basis validation committed")
+        };
+        assert_eq!(
+            stale.expected_basis.previous_root.revision,
+            RevisionNumber::new(1)
+        );
+        assert_eq!(stale.observed_root.revision, RevisionNumber::new(6));
+        assert_eq!(held.transactions().unwrap(), full.transactions().unwrap());
+    }
+}
