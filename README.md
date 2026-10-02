@@ -1,5 +1,8 @@
 # Epistemic Knowledge Runtime
 
+[Public documentation](https://beyond10x.github.io/epistemic-knowledge-runtime/) ·
+[CLI reference](docs/cli.md) · [Rust SDK](docs/sdk.md)
+
 A knowledge store that keeps what it knows typed, evidence-backed and revisable. You declare a
 schema — node types, edge types, typed properties, lifecycles — and record knowledge against it as
 assertions, each citing the evidence it rests on and the time it is true. Every change is a

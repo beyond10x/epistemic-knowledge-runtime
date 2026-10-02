@@ -1338,8 +1338,25 @@ fn the_readme_first_run_runs_as_written_on_both_providers() {
         .into_iter()
         .find(|block| block.info.first().is_some_and(|w| w == "console"))
         .expect("README.md § First run has a console block");
-    let commands: Vec<&str> = block
-        .body
+    run_first_example(&block.body);
+}
+
+#[test]
+fn the_public_site_first_run_runs_as_written_on_both_providers() {
+    let html = read("website/index.html");
+    let commands = html
+        .split_once("<code id=\"quickstart-commands\">")
+        .expect("the public page marks its runnable example")
+        .1
+        .split_once("</code>")
+        .expect("the example has a closing code element")
+        .0
+        .replace("&gt;", ">");
+    run_first_example(&commands);
+}
+
+fn run_first_example(body: &str) {
+    let commands: Vec<&str> = body
         .lines()
         .map(|line| line.split(" #").next().unwrap().trim())
         .filter(|line| !line.is_empty())
@@ -1372,7 +1389,7 @@ fn the_readme_first_run_runs_as_written_on_both_providers() {
             };
             let words: Vec<&str> = command
                 .strip_prefix("ekr ")
-                .unwrap_or_else(|| panic!("README first run: {command:?} is not an ekr command"))
+                .unwrap_or_else(|| panic!("first run: {command:?} is not an ekr command"))
                 .split_whitespace()
                 .collect();
             let output = ekr()

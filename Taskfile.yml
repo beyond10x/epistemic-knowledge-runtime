@@ -12,6 +12,17 @@ tasks:
       - task: spec-check
       - task: conform-fresh
       - task: plan-check
+      - task: site-check
+
+  site-check:
+    desc: Validate the public project's document, anchors and asset routes
+    cmds:
+      - cargo run --locked -p xtask --bin ekr-docs -- check
+
+  site-build:
+    desc: Build the static public site with exact source provenance
+    cmds:
+      - cargo run --locked -p xtask --bin ekr-docs -- build --out website/build --commit "$(git rev-parse HEAD)"
 
   fmt-check:
     desc: rustfmt, check only

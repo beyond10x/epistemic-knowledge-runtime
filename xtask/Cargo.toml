@@ -1,5 +1,6 @@
 [package]
 name = "xtask"
+default-run = "xtask"
 description = "Repository tasks that are not the product"
 version.workspace = true
 edition.workspace = true
