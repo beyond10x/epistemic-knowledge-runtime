@@ -358,7 +358,6 @@ fn build(
     order: &[usize],
     alias_orders: &[Vec<usize>],
 ) -> CanonicalGraph {
-    attachments: Default::default(),
     let t = types();
     graph(order.iter().map(|&index| {
         let (is_person, aliases) = &shape[index];

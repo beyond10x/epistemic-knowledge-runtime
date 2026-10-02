@@ -229,7 +229,10 @@ fn explained(
     kernel: &Runtime,
     at: Option<RevisionNumber>,
     assertion: AssertionId,
-) -> (Vec<EvidenceId>, Vec<(AssertionId, EvidenceId, RevisionNumber)>) {
+) -> (
+    Vec<EvidenceId>,
+    Vec<(AssertionId, EvidenceId, RevisionNumber)>,
+) {
     let explanation = kernel.read(at).unwrap().explain(assertion).unwrap();
     let mut evidence = Vec::new();
     let mut attachments = Vec::new();
@@ -238,7 +241,11 @@ fn explained(
             ExplanationLink::Evidence(entry) => evidence.push(entry.id),
             ExplanationLink::Attachment(attached) => {
                 assert_eq!(attached.commit.result.revision, attached.revision);
-                attachments.push((attached.assertion_id, attached.evidence_id, attached.revision));
+                attachments.push((
+                    attached.assertion_id,
+                    attached.evidence_id,
+                    attached.revision,
+                ));
             }
             _ => {}
         }
@@ -310,13 +317,13 @@ fn evidence_added_and_attached_in_one_transaction_commits_and_explain_lists_it_f
                 BTreeSet::from([id(SOURCE), exact]),
                 "{at}: the new revision explains both entries"
             );
-            assert_eq!(
-                attachments,
-                [(held, exact, RevisionNumber::new(2))],
-                "{at}"
-            );
+            assert_eq!(attachments, [(held, exact, RevisionNumber::new(2))], "{at}");
             let (evidence, attachments) = explained(&kernel, Some(RevisionNumber::new(1)), held);
-            assert_eq!(evidence, [id(SOURCE)], "{at}: the revision before lists the original");
+            assert_eq!(
+                evidence,
+                [id(SOURCE)],
+                "{at}: the revision before lists the original"
+            );
             assert!(attachments.is_empty(), "{at}");
 
             let recorded = roots(&kernel);
@@ -324,9 +331,8 @@ fn evidence_added_and_attached_in_one_transaction_commits_and_explain_lists_it_f
                 recorded[1].knowledge_root, recorded[2].knowledge_root,
                 "{at}: the attachment moves the knowledge root"
             );
-            assert_eq!(
-                recorded[1].evidence_root == recorded[2].evidence_root,
-                false,
+            assert_ne!(
+                recorded[1].evidence_root, recorded[2].evidence_root,
                 "{at}: the added entry moves the evidence root"
             );
             let records = kernel.transactions().unwrap();
@@ -341,6 +347,26 @@ fn evidence_added_and_attached_in_one_transaction_commits_and_explain_lists_it_f
                 [(held, exact, RevisionNumber::new(2))],
                 "{at}"
             );
+
+            let migrated_directory = tempfile::tempdir().unwrap();
+            let migrated = open(migrated_directory.path(), file, authority.clone());
+            reopened.migrate_into(&migrated).unwrap();
+            assert_eq!(migrated.snapshot().unwrap(), after, "{at}: migrated graph");
+            for revision in [RevisionNumber::new(1), RevisionNumber::new(2)] {
+                assert_eq!(
+                    explained(&migrated, Some(revision), held),
+                    explained(&reopened, Some(revision), held),
+                    "{at}: migrated historical explanation {revision}"
+                );
+            }
+            for (before, after) in recorded.iter().zip(roots(&migrated)) {
+                assert_eq!(before.knowledge_root, after.knowledge_root, "{at}");
+                assert_eq!(before.evidence_root, after.evidence_root, "{at}");
+            }
+            drop(migrated);
+            let mut migrated = open(migrated_directory.path(), file, authority.clone());
+            migrated.set_full_replay(true);
+            assert_eq!(migrated.snapshot().unwrap(), after, "{at}: migrated replay");
         }
     }
 }
@@ -404,7 +430,8 @@ fn each_attachment_refusal_is_named_and_moves_nothing() {
             let (later, add_later) = claim(ALICE, 1_800_000_000_000, id(SOURCE));
             let structural = |code: &str| vec![(ValidatorName::Structural, code.to_owned())];
             let reference = |code: &str| vec![(ValidatorName::Reference, code.to_owned())];
-            let cases: Vec<(&str, GraphTransaction, Vec<(ValidatorName, String)>)> = vec![
+            type RefusalCase = (&'static str, GraphTransaction, Vec<(ValidatorName, String)>);
+            let cases: Vec<RefusalCase> = vec![
                 (
                     "an assertion no revision holds",
                     transaction(vec![attach(AssertionId::mint(), id(OTHER))], &[id(OTHER)]),
@@ -564,7 +591,13 @@ fn a_thousand_attachments_against_seventy_thousand_assertions_commit() {
     const ATTACHMENTS: usize = 1_000;
     let mut seed = SeedDocument::from_yaml(SEED).unwrap();
     let root = seed.graph.root.id;
-    let subject = |n: usize| -> NodeId { if n % 2 == 0 { id(ALICE) } else { id(BOB) } };
+    let subject = |n: usize| -> NodeId {
+        if n.is_multiple_of(2) {
+            id(ALICE)
+        } else {
+            id(BOB)
+        }
+    };
     let mut held = Vec::with_capacity(ASSERTIONS);
     for n in 0..ASSERTIONS {
         let (assertion, operation) = claim(
@@ -590,7 +623,10 @@ fn a_thousand_attachments_against_seventy_thousand_assertions_commit() {
         kernel
             .seed(seed.clone(), || Timestamp::from_millis(10))
             .unwrap();
-        println!("{provider}: seeded {ASSERTIONS} assertions in {:?}", started.elapsed());
+        println!(
+            "{provider}: seeded {ASSERTIONS} assertions in {:?}",
+            started.elapsed()
+        );
 
         let mut operations = Vec::with_capacity(2 * ATTACHMENTS);
         let mut evidence = Vec::with_capacity(ATTACHMENTS);

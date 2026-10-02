@@ -62,9 +62,8 @@ pub use seed::{
 };
 pub use transaction::{
     AliasAddition, EdgeWidening, EntityMerge, EvidenceAddition, EvidenceAttachment, Invocation,
-    Operation,
-    OperationKind, PropertyModification, PropertyMutation, Retraction, Supersession, Transaction,
-    TransactionBuilder, TransactionDocument, TRANSACTION_FORMAT,
+    Operation, OperationKind, PropertyModification, PropertyMutation, Retraction, Supersession,
+    Transaction, TransactionBuilder, TransactionDocument, TRANSACTION_FORMAT,
 };
 pub use value::{
     Cardinality, EdgeType, Lifecycle, NodeType, OperationDefinition, PropertyDefinition,

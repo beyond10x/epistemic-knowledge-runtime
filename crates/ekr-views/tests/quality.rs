@@ -249,7 +249,10 @@ fn attached_evidence_counts_in_both_evidence_figures() {
         assert_eq!(head["assertions"]["active"], 4, "{provider:?}");
         assert_eq!(head["assertions"]["with_item_evidence"], 4, "{provider:?}");
         let (_, before, _) = read(&runtime, Some(3));
-        assert_eq!(before["assertions"]["with_item_evidence"], 3, "{provider:?}");
+        assert_eq!(
+            before["assertions"]["with_item_evidence"], 3,
+            "{provider:?}"
+        );
     }
 
     let (_work, runtime) = built(Provider::Sqlite);

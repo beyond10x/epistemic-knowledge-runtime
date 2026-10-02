@@ -20,9 +20,8 @@ use ekr_graph::{
 use ekr_kernel::{
     Agent, AuthorityStateV1, BootstrapContext, CommitCommandResult, EdgeDraft, EdgeWidening,
     EvidenceAddition, EvidenceAttachment, GraphOperation, GraphTransaction, NodeDraft,
-    PropertyModification,
-    PropertyMutation, Retraction, Runtime, SeedDocument, Supersession, ValidationCommandResult,
-    ValidationProfileV1,
+    PropertyModification, PropertyMutation, Retraction, Runtime, SeedDocument, Supersession,
+    ValidationCommandResult, ValidationProfileV1,
 };
 use ekr_ontology::{Cardinality, EdgeType, NodeType, PropertyDefinition, Value, ValueType};
 use serde::Serialize;

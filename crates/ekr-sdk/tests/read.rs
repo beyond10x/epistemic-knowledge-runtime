@@ -29,18 +29,19 @@ use ekr_core::{AssertionId, EdgeId, EvidenceId, NodeId, RevisionNumber, Timestam
 use ekr_sdk::binary::EkrBinary;
 use ekr_sdk::read::{
     Bucket, ChangeKind, Changes, ChangesMeta, DetailMeta, DetailNode, ExpandPages, ExpandQuery,
-    ExplainedAttachment, ExplainedEvidence, Explanation, ExplanationLink, GraphChange, Head, ListedTransaction,
-    MatchField, MatchTier, MatchesMeta, ModifiedProperty, NamedType, NodeDetail, NodeMatch,
-    NodeMatches, NodeSummary, OneShotReader, Ontology, OntologyCardinality, OntologyEdgeType,
-    OntologyNodeType, OntologyProperty, OntologyValueType, Overview, OverviewMeta,
-    OverviewRevision, OverviewRoles, OverviewSchema, OverviewTimeline, ReadError, Reader,
-    RecordedTime, ReferencingAssertion, Root, SchemaMember, SchemaVersionChange, Since, Slice,
-    SliceEdge, SliceMeta, SliceNode, Snapshot, SnapshotAssertion, SnapshotAttachment, SnapshotEdge, SnapshotEvidence,
-    SnapshotGraph, SnapshotGraphDocument, SnapshotNode, SnapshotPredicate, SnapshotRoot,
-    SnapshotSubject, Timeline, TimelineBucket, TimelineCell, TimelineEvent, TimelineMeta,
-    TimelineQuery, TimelineRow, TimelineRowType, TimelineStep, TransactionState, Transactions,
-    TypeCount, TypeTiming, ValidTime, ViewAssertion, ViewAssessment, ViewEdge, ViewEdgeType,
-    ViewLifecycle, ViewNodeType, ViewOntology, ViewProperty, ViewValue, WidenedEnd,
+    ExplainedAttachment, ExplainedEvidence, Explanation, ExplanationLink, GraphChange, Head,
+    ListedTransaction, MatchField, MatchTier, MatchesMeta, ModifiedProperty, NamedType, NodeDetail,
+    NodeMatch, NodeMatches, NodeSummary, OneShotReader, Ontology, OntologyCardinality,
+    OntologyEdgeType, OntologyNodeType, OntologyProperty, OntologyValueType, Overview,
+    OverviewMeta, OverviewRevision, OverviewRoles, OverviewSchema, OverviewTimeline, ReadError,
+    Reader, RecordedTime, ReferencingAssertion, Root, SchemaMember, SchemaVersionChange, Since,
+    Slice, SliceEdge, SliceMeta, SliceNode, Snapshot, SnapshotAssertion, SnapshotAttachment,
+    SnapshotEdge, SnapshotEvidence, SnapshotGraph, SnapshotGraphDocument, SnapshotNode,
+    SnapshotPredicate, SnapshotRoot, SnapshotSubject, Timeline, TimelineBucket, TimelineCell,
+    TimelineEvent, TimelineMeta, TimelineQuery, TimelineRow, TimelineRowType, TimelineStep,
+    TransactionState, Transactions, TypeCount, TypeTiming, ValidTime, ViewAssertion,
+    ViewAssessment, ViewEdge, ViewEdgeType, ViewLifecycle, ViewNodeType, ViewOntology,
+    ViewProperty, ViewValue, WidenedEnd,
 };
 use ekr_sdk::session::{Backend, ProcessSession, SessionOptions, StoreConfig};
 use ekr_sdk::transport::{RecordingTransport, Request, Transport};
@@ -1197,8 +1198,14 @@ fn an_attachment_reads_as_a_typed_link_and_a_snapshot_field() {
     );
     let mut session = world.seeded();
     ok(&mut session, &["propose", "attach.yaml"]);
-    assert_eq!(ok(&mut session, &["validate", ATTACHING])["kind"], "Validated");
-    assert_eq!(ok(&mut session, &["commit", ATTACHING])["kind"], "Committed");
+    assert_eq!(
+        ok(&mut session, &["validate", ATTACHING])["kind"],
+        "Validated"
+    );
+    assert_eq!(
+        ok(&mut session, &["commit", ATTACHING])["kind"],
+        "Committed"
+    );
     let assertion: AssertionId = SEEDED_ASSERTION.parse().unwrap();
     let evidence: EvidenceId = OTHER_EVIDENCE.parse().unwrap();
     let mut reader = Reader::new(&mut session);

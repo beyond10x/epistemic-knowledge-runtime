@@ -5177,7 +5177,9 @@ at a revision the seed precedes.
 written by the kernel at the wave's base (`30703729`), with a seed and six commits and a replay
 checkpoint, opens under this kernel from its checkpoint and again with a full replay, at the same
 head, and every revision's knowledge root, evidence root and graph document hash is the one the base
-recorded.
+recorded. Migrating that store to the File provider and reopening it preserves those same values.
+The attachment acceptance also migrates stores containing attachments on both providers and checks
+their historical explanations again after a full replay.
 
 ## 103.4 Explain, supersession and quality
 
@@ -5218,7 +5220,9 @@ message), `crates/ekr-kernel/tests/attachment_base_store.rs` (the base store's r
 `evidence-added-and-attached-to-a-held-assertion-commits`,
 `an-attachment-to-an-assertion-no-revision-holds-is-rejected-by-name`,
 `an-attachment-of-evidence-no-revision-holds-is-rejected-by-name`,
-`an-attachment-to-a-retracted-assertion-is-rejected-by-name` and
+`an-attachment-to-a-retracted-assertion-is-rejected-by-name`,
+`an-attachment-to-a-superseded-assertion-is-rejected-by-name`,
+`evidence-already-attached-is-rejected-by-name` and
 `evidence-an-assertion-already-cites-is-rejected-by-name` on both providers, and
 `crates/ekr/tests/docs_cli.rs`, which holds `docs/cli.md`'s operation table and refusals to the
 binary.

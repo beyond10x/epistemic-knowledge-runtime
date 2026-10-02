@@ -154,11 +154,11 @@ pub mod value;
 mod schema;
 
 pub use aliases::AliasIndex;
-pub use attachment::{AttachedEvidence, Attachments};
 pub use assertion::{
     Assertion, AssertionLifecycle, Assessment, InvertedRange, Object, Predicate, RetractionReason,
     Subject, TemporalRange, TransactionTime,
 };
+pub use attachment::{AttachedEvidence, Attachments};
 pub use canonical::{
     CanonicalDependency, CanonicalGraph, CanonicalRef, CanonicalTarget, ValueSpace,
 };

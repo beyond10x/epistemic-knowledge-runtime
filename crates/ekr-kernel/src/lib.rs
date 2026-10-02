@@ -140,8 +140,7 @@ pub use ekr_store::StoreError as PersistenceError;
 pub use ekr_store::{read_work, stream_reads, ReadWork, StreamReads};
 pub use explain::{
     ExplainedAttachment, ExplainedCommit, ExplainedLifecycle, ExplainedProposal, ExplainedSeed,
-    ExplainedValidation,
-    ExplanationLink, ExplanationResult, ProjectionError, SnapshotResult,
+    ExplainedValidation, ExplanationLink, ExplanationResult, ProjectionError, SnapshotResult,
 };
 pub use issue::{ValidationIssue, ValidatorName};
 pub use migrate::{MigratedOccurrence, StoreMigrationV1};
@@ -156,9 +155,8 @@ pub use runtime::Runtime;
 pub use seed::{BootstrapContext, SeedDocument, SeedError, SeedLimits, SEED_LIMITS};
 pub use transaction::{
     AliasAddition, EdgeDraft, EdgeWidening, EntityMerge, EvidenceAddition, EvidenceAttachment,
-    GraphOperation,
-    GraphTransaction, NodeDraft, PropertyModification, PropertyMutation, Retraction, Supersession,
-    ValidatedTransaction,
+    GraphOperation, GraphTransaction, NodeDraft, PropertyModification, PropertyMutation,
+    Retraction, Supersession, ValidatedTransaction,
 };
 pub use validate::{
     Authorization, Cardinality, OntologyConstraint, Pipeline, Provenance, Reference, Structural,

@@ -94,6 +94,14 @@
     "ekr.kernel/authored/evidence-an-assertion-already-cites-is-rejected-by-name": {
       "attachment": "attach-evidence-cited.yaml"
     },
+    "ekr.kernel/authored/evidence-already-attached-is-rejected-by-name": {
+      "first-attachment": "attach-evidence.yaml",
+      "attachment": "attach-evidence-held.yaml"
+    },
+    "ekr.kernel/authored/an-attachment-to-a-superseded-assertion-is-rejected-by-name": {
+      "supersession": "supersede-revision-1-assertion.yaml",
+      "attachment": "attach-evidence-superseded.yaml"
+    },
     "ekr.kernel/authored/rejections-list-every-planted-issue-by-its-basis-revision": {
       "planted_early": "rejections-two-issues.yaml",
       "planted_late": "propose-rejected.yaml"

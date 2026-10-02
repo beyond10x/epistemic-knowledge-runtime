@@ -632,9 +632,9 @@ impl OperationKind {
   List the evidence id in transaction.evidence. The attachment is a record of its own: the
   assertion's claim, valid time, lifecycle and evidence stay as they are. ekr explain lists
   it, with the revision that attached it, from that revision on; a supersession does not
-  carry it to the replacement.",
+  carry it to the replacement. This example uses the evidence from the AddEvidence example.",
                 "- !AttachEvidence
-  assertion: 00000000-0000-4000-8000-85f861a70a8d
+  assertion: 00000000-0000-4000-8000-000000000511
   evidence: 00000000-0000-4000-8000-000000000403",
             ),
         }

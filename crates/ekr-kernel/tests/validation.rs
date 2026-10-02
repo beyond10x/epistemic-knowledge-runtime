@@ -23,15 +23,14 @@ use ekr_core::{
     RevisionNumber, SchemaVersionId, Timestamp, TransactionId, TypeId,
 };
 use ekr_graph::{
-    AttachedEvidence, Assertion, Assessment, CanonicalGraph, CanonicalRef, CanonicalValue, Confidence, Edge,
-    Evidence, EvidenceSource, GraphRoot, GraphSnapshot, Node, Object, Predicate, RetractionReason,
-    Space, Subject, TemporalRange, TransactionTime,
+    Assertion, Assessment, AttachedEvidence, CanonicalGraph, CanonicalRef, CanonicalValue,
+    Confidence, Edge, Evidence, EvidenceSource, GraphRoot, GraphSnapshot, Node, Object, Predicate,
+    RetractionReason, Space, Subject, TemporalRange, TransactionTime,
 };
 use ekr_kernel::{
     Authorization, Cardinality as CardinalityValidator, EdgeDraft, EntityMerge, EvidenceAttachment,
-    GraphOperation,
-    GraphTransaction, NodeDraft, OntologyConstraint, Pipeline, PropertyMutation, Provenance,
-    Reference, Structural, Types, ValidationIssue, Validator, ValidatorName,
+    GraphOperation, GraphTransaction, NodeDraft, OntologyConstraint, Pipeline, PropertyMutation,
+    Provenance, Reference, Structural, Types, ValidationIssue, Validator, ValidatorName,
 };
 use ekr_ontology::{
     Cardinality, EdgeType, Lifecycle, NodeType, Ontology, OntologyDocument, OperationDefinition,
@@ -925,9 +924,10 @@ fn an_added_alias_is_held_to_the_rules_a_created_nodes_aliases_are_held_to() {
 fn an_attachment_is_refused_by_name_for_each_way_it_can_be_wrong() {
     let mut world = World::new();
     let (held, retained) = (world.held_assertion, world.retained_evidence);
+    let retained_entry = world.graph.evidence[&retained].clone();
     let entry = |id: EvidenceId| Evidence {
         id,
-        ..world.graph.evidence[&retained].clone()
+        ..retained_entry.clone()
     };
     let (other, attached) = (EvidenceId::mint(), EvidenceId::mint());
     world.graph.evidence.insert(other, entry(other));
@@ -1092,7 +1092,10 @@ fn an_attachment_is_refused_by_name_for_each_way_it_can_be_wrong() {
         )
     );
     assert_eq!(
-        pinned(&refuse(&world, vec![attach(held, other), attach(held, other)])),
+        pinned(&refuse(
+            &world,
+            vec![attach(held, other), attach(held, other)]
+        )),
         one(
             ValidatorName::Structural,
             "evidence-already-attached",

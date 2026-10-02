@@ -696,7 +696,9 @@ fn each_injected_kernel_defect_fails_exactly_its_named_scenarios() {
                 "ekr.kernel/authored/an-attachment-to-an-assertion-no-revision-holds-is-rejected-by-name",
                 "ekr.kernel/authored/an-attachment-of-evidence-no-revision-holds-is-rejected-by-name",
                 "ekr.kernel/authored/an-attachment-to-a-retracted-assertion-is-rejected-by-name",
+                "ekr.kernel/authored/an-attachment-to-a-superseded-assertion-is-rejected-by-name",
                 "ekr.kernel/authored/evidence-an-assertion-already-cites-is-rejected-by-name",
+                "ekr.kernel/authored/evidence-already-attached-is-rejected-by-name",
             ],
         ),
         (

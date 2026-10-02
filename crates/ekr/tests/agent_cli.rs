@@ -1224,6 +1224,7 @@ fn cited(example: &str) -> Vec<String> {
         GraphOperation::AddAssertion(assertion) => {
             assertion.evidence.iter().map(ToString::to_string).collect()
         }
+        GraphOperation::AttachEvidence(attachment) => vec![attachment.evidence.to_string()],
         _ => Vec::new(),
     }
 }

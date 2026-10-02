@@ -457,6 +457,11 @@ fn block_at(text: &str, open: usize) -> String {
 /// carrier checks, not proof that the CLI's ESS transport projections have executed.
 /// The graph envelope belongs to the store codec; inspect that precise current owner.
 const PROJECTIONS: &[(&str, &[&str])] = &[
+    ("ekr.graph.AttachedEvidenceRecord", &["AttachedEvidence"]),
+    (
+        "ekr.graph.EvidenceAttachment",
+        &["CanonicalGraph", "AttachedEvidence"],
+    ),
     ("ekr.graph.AssessmentProjection", &["Assessment"]),
     (
         "ekr.graph.AssertionLifecycleProjection",
@@ -503,6 +508,21 @@ const PROJECTIONS: &[(&str, &[&str])] = &[
 /// exempting a field from verification. Enum kinds are also checked against each
 /// declared arm above. No entry can match a field on an unrelated type.
 const FUSIONS: &[(&str, &str, &str, &[&str])] = &[
+    (
+        "ekr.graph.EvidenceAttachment",
+        "assertion_id",
+        "CanonicalGraph",
+        &[
+            "pub attachments: Attachments",
+            "fn attached(&self, assertion: AssertionId)",
+        ],
+    ),
+    (
+        "ekr.graph.EvidenceAttachment",
+        "evidence_id",
+        "AttachedEvidence",
+        &["pub evidence: CanonicalRef<Evidence>"],
+    ),
     (
         "ekr.graph.AssessmentProjection",
         "kind",

@@ -3,7 +3,8 @@ use crate::replay::Revision;
 use crate::{GraphOperation, ValidatedTransaction};
 use ekr_core::{AgentId, ContentHash, Timestamp};
 use ekr_graph::{
-    AssertionLifecycle, Assessment, AttachedEvidence, CanonicalGraph, CanonicalRef, Edge, Node, Root, TransactionTime,
+    AssertionLifecycle, Assessment, AttachedEvidence, CanonicalGraph, CanonicalRef, Edge, Node,
+    Root, TransactionTime,
 };
 use ekr_store::{evidence_root, knowledge_root, StoreError};
 use std::cell::RefCell;

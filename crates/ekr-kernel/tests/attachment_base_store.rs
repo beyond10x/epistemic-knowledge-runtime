@@ -25,12 +25,12 @@ use ekr_kernel::{
 };
 use ekr_store::{evidence_root, knowledge_root, GraphDocument};
 
-const BASE_SQLITE_STORE: &[u8] =
-    include_bytes!("fixtures/base-30703729-v3-no-attachments.sqlite");
+const BASE_SQLITE_STORE: &[u8] = include_bytes!("fixtures/base-30703729-v3-no-attachments.sqlite");
 
 /// For each revision of the base store, in order: its knowledge root, its evidence root and the
 /// content hash of its graph's `ekr.graph-document/2` bytes, as the base kernel wrote them.
-const BASE_ROOTS: [(&str, &str, &str); 7] = include!("fixtures/base-30703729-v3-no-attachments.roots");
+const BASE_ROOTS: [(&str, &str, &str); 7] =
+    include!("fixtures/base-30703729-v3-no-attachments.roots");
 
 fn context() -> BootstrapContext {
     BootstrapContext {
@@ -282,12 +282,18 @@ fn a_store_written_before_attachments_keeps_every_recorded_root_and_graph_docume
         );
         assert_eq!(roots(&kernel), expected, "full replay {full}");
         assert!(
-            kernel
-                .snapshot()
-                .unwrap()
-                .attachments
-                .is_empty(),
+            kernel.snapshot().unwrap().attachments.is_empty(),
             "a store written before attachments holds none"
         );
+        let destination_directory = tempfile::tempdir().unwrap();
+        let destination = Runtime::file(destination_directory.path(), "test", context(), v3())
+            .expect("the File destination opens");
+        kernel.migrate_into(&destination).unwrap();
+        assert_eq!(roots(&destination), expected, "File migration, full {full}");
+        drop(destination);
+        let mut destination =
+            Runtime::file(destination_directory.path(), "test", context(), v3()).unwrap();
+        destination.set_full_replay(full);
+        assert_eq!(roots(&destination), expected, "File reopen, full {full}");
     }
 }

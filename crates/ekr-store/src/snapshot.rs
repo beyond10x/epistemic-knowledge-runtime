@@ -9,8 +9,8 @@ use ekr_core::{
     SchemaVersionId,
 };
 use ekr_graph::{
-    Assertion, Attachments, CanonicalGraph, CanonicalValue, Edge, Evidence, GraphRoot, InadmissibleValue, Node,
-    Object, Space, Subject,
+    Assertion, Attachments, CanonicalGraph, CanonicalValue, Edge, Evidence, GraphRoot,
+    InadmissibleValue, Node, Object, Space, Subject,
 };
 use ekr_ontology::Value;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};

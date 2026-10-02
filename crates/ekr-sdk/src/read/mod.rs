@@ -45,11 +45,11 @@ pub use checks::{
     StoreQuality,
 };
 pub use kernel::{
-    ExplainedAttachment, ExplainedEvidence, Explanation, ExplanationLink, Head, ListedTransaction, NamedType, Ontology,
-    OntologyCardinality, OntologyEdgeType, OntologyNodeType, OntologyProperty, OntologyValueType,
-    RecordedTime, Root, Snapshot, SnapshotAssertion, SnapshotAttachment, SnapshotEdge, SnapshotEvidence, SnapshotGraph,
-    SnapshotGraphDocument, SnapshotNode, SnapshotPredicate, SnapshotRoot, SnapshotSubject,
-    TransactionState, Transactions, ValidTime,
+    ExplainedAttachment, ExplainedEvidence, Explanation, ExplanationLink, Head, ListedTransaction,
+    NamedType, Ontology, OntologyCardinality, OntologyEdgeType, OntologyNodeType, OntologyProperty,
+    OntologyValueType, RecordedTime, Root, Snapshot, SnapshotAssertion, SnapshotAttachment,
+    SnapshotEdge, SnapshotEvidence, SnapshotGraph, SnapshotGraphDocument, SnapshotNode,
+    SnapshotPredicate, SnapshotRoot, SnapshotSubject, TransactionState, Transactions, ValidTime,
 };
 pub use views::{
     ChangeKind, Changes, ChangesMeta, DetailMeta, DetailNode, GraphChange, MatchField, MatchTier,
