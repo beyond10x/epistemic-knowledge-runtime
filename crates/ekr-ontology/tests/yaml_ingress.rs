@@ -1,7 +1,7 @@
 //! Every YAML entry point is classified, including imports that could hide a new reader.
 //! This guard is an inventory, not a proof of control flow; behavior cases hold each input bound.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 type Inventory = BTreeMap<(String, String), usize>;
@@ -96,6 +96,7 @@ fn tokens(text: &str) -> Vec<String> {
 
 fn references(path: &str, text: &str, inventory: &mut Inventory) {
     let tokens = tokens(text);
+    shared_references(path, &tokens, inventory);
     for (at, token) in tokens.iter().enumerate() {
         if token != "serde_yaml_ng" && token != "Documents" {
             continue;
@@ -139,6 +140,195 @@ fn references(path: &str, text: &str, inventory: &mut Inventory) {
     }
 }
 
+/// Flatten ordinary Rust use trees, including groups, self, aliases and glob imports. This is
+/// lexical bookkeeping, not name/type resolution: ambiguous local aliases are conservatively
+/// inventoried and every new import of a shared module itself needs classification.
+fn use_paths(tokens: &[String], prefix: &[String], out: &mut Vec<(Vec<String>, String)>) {
+    let mut at = 0;
+    while at < tokens.len() {
+        let mut path = prefix.to_vec();
+        while at < tokens.len() && !matches!(tokens[at].as_str(), "{" | "}" | "," | "as") {
+            if tokens[at] != ":" && tokens[at] != "self" {
+                path.push(tokens[at].clone());
+            }
+            at += 1;
+        }
+        if tokens.get(at).map(String::as_str) == Some("{") {
+            let begin = at + 1;
+            let mut depth = 1;
+            at += 1;
+            while at < tokens.len() && depth > 0 {
+                match tokens[at].as_str() {
+                    "{" => depth += 1,
+                    "}" => depth -= 1,
+                    _ => {}
+                }
+                at += 1;
+            }
+            use_paths(&tokens[begin..at - 1], &path, out);
+        } else {
+            let mut name = path.last().cloned().unwrap_or_default();
+            if tokens.get(at).map(String::as_str) == Some("as") {
+                name = tokens.get(at + 1).cloned().unwrap_or_default();
+                at += 2;
+            }
+            if !name.is_empty() {
+                out.push((path, name));
+            }
+        }
+        if tokens.get(at).map(String::as_str) == Some(",") {
+            at += 1;
+        } else {
+            break;
+        }
+    }
+}
+
+type Aliases = BTreeMap<String, BTreeSet<Vec<String>>>;
+
+fn expand_alias(path: &[String], aliases: &Aliases) -> BTreeSet<Vec<String>> {
+    let mut pending = vec![(path.to_vec(), 0)];
+    let mut found = BTreeSet::new();
+    // Keep every possible local binding: an unrelated import in a different lexical scope
+    // cannot conceal a YAML alias. This intentionally errs toward classification, without
+    // claiming compiler-equivalent scope resolution. Finite depth also bounds cyclic imports.
+    while let Some((path, depth)) = pending.pop() {
+        if !found.insert(path.clone()) || depth >= aliases.len() {
+            continue;
+        }
+        if let Some(prefixes) = path.first().and_then(|name| aliases.get(name)) {
+            for prefix in prefixes {
+                pending.push((
+                    prefix.iter().chain(&path[1..]).cloned().collect(),
+                    depth + 1,
+                ));
+            }
+        }
+    }
+    found
+}
+
+fn shared_module(path: &[String]) -> bool {
+    !path.iter().any(|part| part == "serde_yaml_ng")
+        && (path.iter().any(|part| part == "yaml")
+            || (path.iter().any(|part| part == "decode")
+                && path
+                    .last()
+                    .is_some_and(|part| part == "observe_yaml" || part == "*")))
+}
+
+fn shared_references(file: &str, tokens: &[String], inventory: &mut Inventory) {
+    let mut imports = Vec::new();
+    let mut imported = vec![false; tokens.len()];
+    let mut aliases = Aliases::new();
+    if file.ends_with("ekr-core/src/decode/yaml.rs") {
+        aliases.insert(
+            "load".into(),
+            BTreeSet::from([vec![
+                "crate".into(),
+                "decode".into(),
+                "yaml".into(),
+                "load".into(),
+            ]]),
+        );
+    }
+    for (start, _) in tokens
+        .iter()
+        .enumerate()
+        .filter(|(_, token)| *token == "use")
+    {
+        let end = start
+            + tokens[start..]
+                .iter()
+                .position(|token| token == ";")
+                .unwrap_or(tokens.len() - start);
+        imported[start..end].fill(true);
+        let mut paths = Vec::new();
+        use_paths(&tokens[start + 1..end], &[], &mut paths);
+        for (path, name) in &paths {
+            if name != "*" {
+                aliases
+                    .entry(name.clone())
+                    .or_default()
+                    .insert(path.clone());
+            }
+        }
+        imports.push((start, end, paths));
+    }
+    // Globs expose the module's reader names; resolving the parent first also covers an aliased
+    // module followed by `use tape::*`. No unrelated methods named `load` are inventoried.
+    for (_, _, paths) in &imports {
+        for (path, name) in paths {
+            if name == "*" {
+                for parent in expand_alias(&path[..path.len() - 1], &aliases) {
+                    let names: &[&str] = match parent.last().map(String::as_str) {
+                        Some("yaml") => &["load", "next"],
+                        Some("decode") => &["yaml", "observe_yaml"],
+                        Some("ekr_core") => &["decode"],
+                        _ => &[],
+                    };
+                    for name in names {
+                        let mut value = parent.clone();
+                        value.push((*name).into());
+                        aliases.entry((*name).into()).or_default().insert(value);
+                    }
+                }
+            }
+        }
+    }
+    for (start, end, paths) in &imports {
+        if paths.iter().any(|(path, _)| {
+            expand_alias(path, &aliases)
+                .iter()
+                .any(|path| shared_module(path))
+        }) {
+            *inventory
+                .entry((
+                    file.into(),
+                    format!("shared import {}", tokens[start + 1..*end].join(" ")),
+                ))
+                .or_default() += 1;
+        }
+    }
+    let mut at = 0;
+    while at < tokens.len() {
+        if imported[at]
+            || !(tokens[at].as_bytes()[0].is_ascii_alphabetic() || tokens[at].starts_with('_'))
+        {
+            at += 1;
+            continue;
+        }
+        let start = at;
+        let mut path = vec![tokens[at].clone()];
+        at += 1;
+        while tokens.get(at).map(String::as_str) == Some(":")
+            && tokens.get(at + 1).map(String::as_str) == Some(":")
+        {
+            let Some(next) = tokens.get(at + 2).filter(|token| {
+                token.as_bytes()[0].is_ascii_alphabetic() || token.starts_with('_')
+            }) else {
+                break;
+            };
+            path.push(next.clone());
+            at += 3;
+        }
+        let reader = expand_alias(&path, &aliases).iter().any(|expanded| {
+            shared_module(expanded)
+                && expanded
+                    .last()
+                    .is_some_and(|name| matches!(name.as_str(), "load" | "next" | "observe_yaml"))
+        });
+        if reader && tokens.get(start.wrapping_sub(1)).map(String::as_str) != Some("fn") {
+            *inventory
+                .entry((
+                    file.into(),
+                    format!("shared reader {}", tokens[start..at].join(" ")),
+                ))
+                .or_default() += 1;
+        }
+    }
+}
+
 fn sources(root: &Path, dir: &Path, inventory: &mut Inventory) {
     for entry in std::fs::read_dir(dir).unwrap() {
         let path = entry.unwrap().path();
@@ -161,7 +351,10 @@ fn classified() -> Inventory {
         // Alias-refusing input facade: extraction and SDK extraction callers set byte/depth caps.
         (
             "crates/ekr-core/src/decode.rs",
-            &[("serde_yaml_ng : : observation : : Event", 1)],
+            &[
+                ("serde_yaml_ng : : observation : : Event", 1),
+                ("shared reader yaml : : load", 1),
+            ],
         ),
         // Kernel seed and transaction callers cap bytes before loading; bounded tape precedes
         // typed deserialization. shape.rs expands transaction aliases under its own budgets.
@@ -174,6 +367,8 @@ fn classified() -> Inventory {
                 ),
                 ("serde_yaml_ng : : Error", 1),
                 ("Documents : : from_str_within_depth", 1),
+                // The module's test-only walk uses its own load function with tiny budgets.
+                ("shared reader load", 1),
             ],
         ),
         (
@@ -181,17 +376,29 @@ fn classified() -> Inventory {
             &[(
                 "serde_yaml_ng : : observation : : { Document , Documents }",
                 1,
+            ), (
+                "shared import ekr_core : : decode : : yaml : : { expand , load , Expansion , Past , Tally }",
+                1,
             )],
         ),
         (
             "crates/ekr-kernel/src/seed.rs",
-            &[("serde_yaml_ng : : from_str", 1)],
+            &[
+                ("serde_yaml_ng : : from_str", 1),
+                ("shared import crate : : yaml : : { self , Expansion , Past , Tally }", 1),
+                ("shared reader yaml : : load", 1),
+                ("shared reader yaml : : next", 1),
+                // Test-only event telemetry around the same bounded reader.
+                ("shared import crate : : yaml : : loaded", 1),
+            ],
         ),
         (
             "crates/ekr-kernel/src/document.rs",
             &[
                 ("serde_yaml_ng : : Deserializer : : from_str", 1),
                 ("serde_yaml_ng : : Error", 1),
+                // Test-only depth-cut event telemetry.
+                ("shared import crate : : yaml : : loaded", 1),
             ],
         ),
         (
@@ -199,16 +406,26 @@ fn classified() -> Inventory {
             &[(
                 "serde_yaml_ng : : { observation : : { Document , Event , Tag } , Error , }",
                 1,
-            )],
+            ),
+                ("shared reader crate : : yaml : : load", 1),
+                ("shared reader crate : : yaml : : next", 2),
+            ],
         ),
         // Caller input: Ontology::from_yaml observes bytes, depth and expanded alias work first.
         (
             "crates/ekr-ontology/src/schema.rs",
-            &[("serde_yaml_ng : : from_str", 1)],
+            &[
+                ("serde_yaml_ng : : from_str", 1),
+                ("shared import ekr_core : : decode : : yaml : : { self , Past , Tally }", 1),
+                ("shared reader yaml : : load", 1),
+            ],
         ),
         (
             "crates/ekr-integrate/src/extraction.rs",
-            &[("serde_yaml_ng : : from_str", 1)],
+            &[
+                ("serde_yaml_ng : : from_str", 1),
+                ("shared reader ekr_core : : decode : : observe_yaml", 1),
+            ],
         ),
         // SDK extraction observes caller input before typed decoding or unsupported_source's
         // diagnostic-only Value decode. Transaction limits only decode SDK-generated to_yaml.
@@ -218,6 +435,8 @@ fn classified() -> Inventory {
                 ("serde_yaml_ng : : from_str", 2),
                 ("serde_yaml_ng : : Value", 1),
                 ("serde_yaml_ng : : Value : : Tagged", 1),
+                ("shared import ekr_core : : decode : : { observe_yaml , YamlRefusal }", 1),
+                ("shared reader observe_yaml", 1),
             ],
         ),
         (
@@ -229,7 +448,11 @@ fn classified() -> Inventory {
         ),
         (
             "crates/ekr-sdk/src/document/mod.rs",
-            &[("serde_yaml_ng : : Error", 1)],
+            &[
+                ("serde_yaml_ng : : Error", 1),
+                // Writer reexport only; a module import is classified even when it only writes.
+                ("shared import yaml : : to_yaml", 1),
+            ],
         ),
         (
             "crates/ekr-sdk/src/document/yaml.rs",
@@ -361,4 +584,84 @@ fn adversary_input08_the_new_shared_loader_is_an_ingress_too() {
         references("crates/new-reader/src/lib.rs", source, &mut found);
         assert_ne!(found, classified(), "new unclassified shared-loader ingress escaped: {source}");
     }
+}
+
+#[test]
+fn shared_yaml_calls_remain_counted_after_their_import_is_classified() {
+    let mut missed = Vec::new();
+    for (imports, call) in [
+        ("", "ekr_core::decode::yaml::load(s, limit)"),
+        ("", "crate::yaml::load(s, limit)"),
+        ("", "crate::yaml::next(&mut documents)"),
+        ("", "ekr_core::decode::observe_yaml(s, bytes, depth)"),
+        ("use ekr_core::decode::yaml;", "yaml::load(s, limit)"),
+        (
+            "use ekr_core::decode::yaml as tape;",
+            "tape::load(s, limit)",
+        ),
+        ("use ekr_core::decode::yaml::load;", "load(s, limit)"),
+        (
+            "use ekr_core::decode::yaml::load as read;",
+            "read(s, limit)",
+        ),
+        (
+            "use ekr_core::decode::yaml::load as _read;",
+            "_read(s, limit)",
+        ),
+        (
+            "use ekr_core::decode as bounded;",
+            "bounded::yaml::load(s, limit)",
+        ),
+        (
+            "use ekr_core as core;",
+            "core::decode::yaml::load(s, limit)",
+        ),
+        (
+            "use ekr_core::{decode::{yaml::{self as tape, load as read}}};",
+            "read(s, limit)",
+        ),
+        (
+            "use ekr_core::{decode::{yaml::{self as tape, load as read}}};",
+            "tape::load(s, limit)",
+        ),
+        (
+            "pub use ekr_core::decode::yaml::load as read;",
+            "read(s, limit)",
+        ),
+        (
+            "pub(crate) use ekr_core::decode::yaml::{self as tape, load as read};",
+            "tape::load(s, limit)",
+        ),
+        ("use ekr_core::decode::yaml::*;", "load(s, limit)"),
+        ("use ekr_core::decode::*;", "observe_yaml(s, bytes, depth)"),
+        (
+            "use ekr_core::decode::{observe_yaml as observe};",
+            "observe(s, bytes, depth)",
+        ),
+        (
+            "use ekr_core::decode::yaml as tape; use tape::load as read;",
+            "read(s, limit)",
+        ),
+        (
+            "use ekr_core::decode::yaml::load as read; mod other { use crate::unrelated as read; }",
+            "read(s, limit)",
+        ),
+    ] {
+        let mut admitted = Inventory::new();
+        references("crates/new-reader/src/lib.rs", imports, &mut admitted);
+        let mut with_call = Inventory::new();
+        references(
+            "crates/new-reader/src/lib.rs",
+            &format!("{imports} fn read_input() {{ {call}; }}"),
+            &mut with_call,
+        );
+        if admitted == with_call {
+            missed.push(format!("{imports} {call}"));
+        }
+    }
+    assert!(
+        missed.is_empty(),
+        "shared reader calls escaped:\n{}",
+        missed.join("\n")
+    );
 }
