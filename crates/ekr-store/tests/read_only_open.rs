@@ -405,3 +405,33 @@ fn a_read_only_open_creates_no_shm_beside_a_wal_that_has_none() {
     );
     std::fs::set_permissions(&database, std::fs::Permissions::from_mode(0o644)).unwrap();
 }
+
+/// A `-wal` of zero bytes and no `-shm` beside a WAL database whose writer closed: what SQLite's
+/// own read-only connection leaves when a writer's close unlinks the `-wal` between the open's
+/// look for it and SQLite's (it opens the `-wal` with `O_CREAT` where the directory is writable),
+/// and what a writer's open holds before it creates its `-shm`. An empty `-wal` holds no frame, so
+/// the database file is the whole committed state: the open reads it, and creates nothing.
+#[test]
+fn a_sqlite_store_beside_an_empty_wal_is_read_from_the_database_alone() {
+    let world = World::new(Provider::Sqlite);
+    world.create().put(HELD).unwrap();
+    let wal = world.directory.join("state.db-wal");
+    assert!(
+        std::fs::symlink_metadata(&wal).is_err(),
+        "a closed writer leaves no -wal"
+    );
+    std::fs::File::create_new(&wal).unwrap();
+    let names = world.names();
+    let store = SqliteStore::sqlite_read_only(&world.path(), "ekr", ontology())
+        .unwrap_or_else(|error| panic!("read-only open beside an empty -wal: {error:?}"));
+    assert_eq!(
+        store.get(&ContentHash::of_bytes(HELD)).unwrap().as_deref(),
+        Some(HELD)
+    );
+    drop(store);
+    assert_eq!(
+        world.names(),
+        names,
+        "the read created nothing beside the database"
+    );
+}

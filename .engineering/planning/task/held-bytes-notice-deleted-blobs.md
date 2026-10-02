@@ -2,12 +2,15 @@
 format: aep.planning-md/3
 id: task:held-bytes-notice-deleted-blobs
 kind: task
-status: draft
+status: active
 title: Decide whether a live store handle notices a retained blob deleted under it
 relations:
 - serves: vision:o2
 - decomposes: epic:p6-maintenance-observability
-revision: 2
+revision: 6
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-01T18:42:14Z", actor: "human:timo", revision: 5, decided_on: {"recorded":{"review_outcome":2}}}
+- {from: "proposed", to: "active", at: "2026-10-01T19:15:31Z", actor: "human:timo", revision: 6, decided_on: {"recorded":{"review_outcome":2}}}
 ---
 ## Context
 
@@ -41,3 +44,7 @@ if the answer is "notice".
 
 - The decision is written in `systems/ekr/domains/store.yaml` and design § 100 or a new section.
 - The two pinned cases pass or are replaced by cases asserting the decided behaviour, on both providers.
+
+## Decision
+
+The decision this task needs is recorded once, in `task:sqlite-store-replaced-in-place` § Decision (2026-10-01): a live handle never answers from bytes a fresh handle would refuse, and any operation that withdraws retained bytes appends an event to the object's stream. Both tasks are implemented together as unit S of wave correct-07 (`release-plan:next-waves-2026-10-01`).

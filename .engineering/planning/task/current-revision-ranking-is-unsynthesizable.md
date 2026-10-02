@@ -7,6 +7,7 @@ title: CurrentRevision ranking cannot be synthesized while Seed alone creates a 
 relations:
 - serves: vision:o2
 - derived_from: story:ess-conformance-kernel
+- decomposes: epic:p6-maintenance-observability
 revision: 1
 ---
 ## What is wrong

@@ -2,13 +2,17 @@
 format: aep.planning-md/3
 id: task:sqlite-store-replaced-in-place
 kind: task
-status: draft
+status: active
 title: A SQLite store replaced in place is not answered from its old state
 relations:
 - decomposes: epic:p6-maintenance-observability
 - serves: vision:o2
 - derived_from: task:divergence-is-a-typed-store-error
-revision: 2
+- informed_by: task:held-bytes-notice-deleted-blobs
+revision: 5
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-01T18:42:14Z", actor: "human:timo", revision: 4}
+- {from: "proposed", to: "active", at: "2026-10-01T19:15:31Z", actor: "human:timo", revision: 5}
 ---
 ## What is wrong
 
@@ -34,3 +38,20 @@ to open a store whose file identity changed). Implement it, with the provider ch
 
 - The two pinned cases pass, or are replaced by cases asserting the decided behaviour.
 - No live handle answers from a SQLite file that is no longer at its path.
+
+## Decision
+
+Coordinator decision, 2026-10-01 (store audit), for this task and `task:held-bytes-notice-deleted-blobs`
+together, to be written into `systems/ekr/domains/store.yaml` in one section:
+
+- A live handle never answers from bytes a fresh handle would refuse.
+- A store file replaced in place (its file identity or its log header no longer what the handle
+  opened) is refused by name, `store-replaced`, and the session, MCP and view hosts reopen on it,
+  as they do on `StoreError::Diverged`.
+- Any operation that withdraws retained bytes (redaction, deletion, retention lowering) appends an
+  event to the object's stream, so a holding handle sees it through the memo's stream check;
+  nothing redacts in place without that event.
+- The two pinned SQLite cases (`~/.cache/ekr-x7-g-keep/sqlite-overwritten-in-place-cases.patch`) are
+  committed into the repository as ignored tests carrying this task's id before the fix starts.
+
+The operator can override this; until then it is the rule the fix implements.

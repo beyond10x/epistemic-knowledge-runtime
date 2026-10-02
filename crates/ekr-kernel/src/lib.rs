@@ -118,6 +118,7 @@ pub mod schema;
 pub mod seed;
 pub mod transaction;
 pub mod validate;
+mod yaml;
 
 #[doc(hidden)]
 pub use apply::{decided_graph_held, graphs_applied};
@@ -131,6 +132,11 @@ pub use document::{
 };
 /// Typed persistence failures exposed without granting the caller storage or writer access.
 pub use ekr_store::StoreError as PersistenceError;
+/// The store's per-thread read counters, test instrumentation as [`graphs_applied`] is: they let a
+/// crate above the kernel count the provider reads one of its calls makes, which no clock under
+/// load can (`AGENTS.md`). They read counts; they reach no store.
+#[doc(hidden)]
+pub use ekr_store::{read_work, stream_reads, ReadWork, StreamReads};
 pub use explain::{
     ExplainedCommit, ExplainedLifecycle, ExplainedProposal, ExplainedSeed, ExplainedValidation,
     ExplanationLink, ExplanationResult, ProjectionError, SnapshotResult,
@@ -145,7 +151,7 @@ pub use records::{
 };
 pub use replay::{TransactionRecord, TransactionState};
 pub use runtime::Runtime;
-pub use seed::{BootstrapContext, SeedDocument, SeedError};
+pub use seed::{BootstrapContext, SeedDocument, SeedError, SeedLimits, SEED_LIMITS};
 pub use transaction::{
     AliasAddition, EdgeDraft, EdgeWidening, EntityMerge, EvidenceAddition, GraphOperation,
     GraphTransaction, NodeDraft, PropertyModification, PropertyMutation, Retraction, Supersession,

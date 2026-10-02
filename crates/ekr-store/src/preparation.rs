@@ -1163,7 +1163,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         &self,
         key: &PublicationCommandKey,
     ) -> Result<Option<PublicationPreparationV1>, StoreError> {
-        ensure_sync_context()?;
+        self.entered()?;
         let events = self.read_all(&self.preparation_stream(key)?, MAX_READ_LIMIT)?;
         let mut previous = None;
         let mut selected = None;
@@ -1259,7 +1259,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         decision: &Publication,
         previous: Option<&PublicationPreparationV1>,
     ) -> Result<PublicationPreparationV1, StoreError> {
-        ensure_sync_context()?;
+        self.entered()?;
         let held = self.read_preparation(key)?;
         if let Some(held) = held.as_ref() {
             if held.input_hash != input_hash {
@@ -1355,7 +1355,7 @@ impl<S: AtomicBlobEventStore> EventlogStore<S> {
         &self,
         prepared: &PublicationPreparationV1,
     ) -> Result<Appended, StoreError> {
-        ensure_sync_context()?;
+        self.entered()?;
         let elected = self
             .read_preparation(&prepared.command_key)?
             .ok_or_else(|| StoreError::Document("preparation-not-elected".into()))?;

@@ -2,11 +2,13 @@
 format: aep.planning-md/3
 id: release-plan:next-waves-2026-09-30
 kind: release-plan
-status: draft
+status: superseded
 title: Waves extract-06 and extract-07 after 0.0.24
 relations:
 - serves: vision:o5
-revision: 5
+revision: 6
+transitions:
+- {from: "draft", to: "superseded", at: "2026-10-01T18:19:21Z", actor: "human:timo", revision: 6, decided_on: {"recorded":{"review_outcome":1}}}
 ---
 ## Where this starts
 

@@ -1042,6 +1042,40 @@ fn trigger(page: &str, name: &str) -> Option<Vec<Ran>> {
             "    abstract_type: true\n",
             "    abstract_type: true\n    colour: red\n",
         ),
+        "seed-too-large" => {
+            let cap = ekr_kernel::SEED_LIMITS.input_bytes;
+            let lab = Lab::new(page);
+            let mut padded = lab.read("seed.yaml");
+            padded.push('#');
+            padded.push_str(&" ".repeat(cap.saturating_sub(padded.len())));
+            padded.push('\n');
+            std::fs::write(lab.directory.path().join("edited.yaml"), padded).unwrap();
+            vec![ran(&lab, "host.json", &["seed", "edited.yaml"])]
+        }
+        "seed-too-deep" => {
+            let open = ekr_kernel::SEED_LIMITS.depth;
+            seed_edit(
+                "    abstract_type: true\n",
+                &format!(
+                    "    abstract_type: true\n    deep: {}{}\n",
+                    "[".repeat(open),
+                    "]".repeat(open)
+                ),
+            )
+        }
+        "seed-alias-expansion" => {
+            let mut laughs = String::from("    laughs: {l0: &l0 [ha, ha]");
+            for level in 1..=40 {
+                let previous = level - 1;
+                laughs.push_str(&format!(
+                    ", l{level}: &l{level} [*l{previous}, *l{previous}]"
+                ));
+            }
+            seed_edit(
+                "    abstract_type: true\n",
+                &format!("    abstract_type: true\n{laughs}}}\n"),
+            )
+        }
         "seed-ontology" => seed_edit("        to: out_of_print", "        to: pulped"),
         "seed-ontology-lineage" => seed_edit("    number: 0\n", "    number: 1\n"),
         "seed-space" => seed_edit("      space: Canonical\n", "      space: Transient\n"),
@@ -2039,7 +2073,7 @@ fn no_text_a_reader_meets_says_only_the_p1_profile_is_accepted() {
     );
 }
 
-/// `README.md` is true of the latest release, 0.0.25: its status table is headed by it, lists schema
+/// `README.md` is true of the latest release, 0.0.26: its status table is headed by it, lists schema
 /// evolution under validation profile v2 as working and links the page's § Evolve the schema, and
 /// keeps `MergeEntity` and a v1 store's fixed schema as not in it. Schema evolution is no longer
 /// called a later phase or unreleased. A stale header is matched with its closing ` |`, so
@@ -2070,7 +2104,7 @@ fn readme_says_the_schema_evolves_under_profile_v2() {
         .lines()
         .find(|line| line.starts_with("| works in "))
         .expect("README.md has a status table");
-    assert!(header.starts_with("| works in 0.0.25 |"), "{header}");
+    assert!(header.starts_with("| works in 0.0.26 |"), "{header}");
     let prefixed = format!("\n{readme}");
     let released = section(&prefixed, "## Status");
     let table: String = released
@@ -2088,7 +2122,7 @@ fn readme_says_the_schema_evolves_under_profile_v2() {
     ] {
         assert!(
             table.contains(needle),
-            "the 0.0.25 table lacks {needle:?}: {table}"
+            "the 0.0.26 table lacks {needle:?}: {table}"
         );
     }
     // The link lands: the page has that heading.

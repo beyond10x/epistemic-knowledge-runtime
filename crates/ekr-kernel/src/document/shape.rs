@@ -3,7 +3,7 @@ use std::{cell::RefCell, collections::BTreeSet};
 
 use serde::de::Error as _;
 use serde_yaml_ng::{
-    observation::{Document, Documents, Event, Tag},
+    observation::{Document, Event, Tag},
     Error,
 };
 
@@ -47,10 +47,12 @@ enum Role {
 }
 
 pub(super) fn read(text: &str, budget: &RefCell<Budget>) -> Result<Shape, Error> {
-    let mut documents = Documents::from_str(text)?;
-    let document = documents
-        .next_document()
-        .ok_or_else(|| Error::custom("expected one document"))?;
+    // The loader stops at the first container past the profile's depth, which the walk below
+    // refuses as `container_depth` without the rest of the input being read.
+    let depth = budget.borrow().limits.depth;
+    let mut documents = crate::yaml::load(text, depth)?;
+    let document =
+        crate::yaml::next(&mut documents).ok_or_else(|| Error::custom("expected one document"))?;
     let mut traversal = Traversal {
         document: &document,
         budget,
@@ -62,8 +64,9 @@ pub(super) fn read(text: &str, budget: &RefCell<Budget>) -> Result<Shape, Error>
         return Err(Error::custom("unconsumed document events"));
     }
     // Check termination, including a second empty document. Loading remains
-    // eager under the raw input cap; alias expansion is only this bounded walk.
-    if documents.next_document().is_some() {
+    // eager under the raw input cap and the depth bound; alias expansion is only
+    // this bounded walk.
+    if crate::yaml::next(&mut documents).is_some() {
         return Err(budget.borrow_mut().refuse(DocumentLimit::Documents));
     }
     Ok(shape)

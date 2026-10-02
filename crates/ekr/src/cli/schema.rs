@@ -49,9 +49,13 @@ fn extraction_document() -> schemars::Schema {
              its property's type does not hold (`extraction-value-mismatch`), a relation between \
              node types its edge type does not connect (`extraction-relation-ends`), a fact \
              citing an evidence id no evidence item of the document carries \
-             (`fact-evidence-unlisted`), two evidence items under one id (`duplicate-identity`) \
-             and a payload that does not hash to its entry's content_hash \
-             (`evidence-payload-mismatch`). A fact citing no evidence, an empty or repeated Enum \
+             (`fact-evidence-unlisted`), two evidence items under one id (`duplicate-identity`), \
+             a payload that does not hash to its entry's content_hash \
+             (`evidence-payload-mismatch`), an evidence item whose source is not a human \
+             statement (`extraction-evidence-kind-unsupported`), a property a document type \
+             redeclares differently from an ancestor (`extraction-property-conflict`) and a \
+             reference to a node type that has subtypes (`reference-type-has-subtypes`). A fact \
+             citing no evidence, an empty or repeated Enum \
              variant list and an empty or repeated NodeRef type list are refused by both, by the \
              reader as `fact-without-evidence`, `extraction-value-type-empty` and \
              `extraction-name-duplicate`.",

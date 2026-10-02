@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-01T14:40:00Z",
+  "actor": "human:timo",
+  "artifact": "story:fact-quality-by-judged-sample",
+  "kind": "story",
+  "revision": 10,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Repository correctness run on PR #57 head 9dc54589, success; main e92f7341 run 36881585050, success",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/36879074666"
+  }
+}

@@ -303,7 +303,7 @@ fn limit_exceeded(error: LimitExceeded) -> Failure {
 fn project(error: ProjectError) -> Failure {
     match project_refusal(&error) {
         Some(name) => Failure::refused(name, error),
-        None => Failure::fault(error),
+        None => Failure::unread(error),
     }
 }
 

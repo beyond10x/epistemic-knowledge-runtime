@@ -243,6 +243,7 @@ fn guide_prints_the_workflow_roles_exit_codes_and_where_ids_come_from() {
         "ekr example",
         "ekr transactions",
         "ekr rejections",
+        "ekr apply-extraction",
         "EKR_HOST",
         // Correction round 1: what the kernel does not apply, how bytes print, relations,
         // acceptance, and how to read what is valid now.
@@ -719,6 +720,16 @@ fn every_verbs_help_names_its_input_format_and_points_at_the_examples() {
         ("commit", &["ekr propose", "ekr validate", store]),
         ("snapshot", &["ekr head", "YYYY-MM-DD", store]),
         ("explain", &["ekr snapshot", store]),
+        (
+            "apply-extraction",
+            &[
+                "ekr.extraction-document/1",
+                "ekr example ekr.extraction-document/1",
+                "ekr.integrate.ExtractionReport",
+                "ekr propose",
+                store,
+            ],
+        ),
         ("guide", &["workflow"]),
         ("operations", &["ekr.transaction-document/2", "CreateNode"]),
         (

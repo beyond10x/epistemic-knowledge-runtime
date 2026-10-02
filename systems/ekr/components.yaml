@@ -80,8 +80,14 @@ components:
   - component: ekr-integrate
     summary: >-
       Entity resolution of typed references against canonical nodes, and the merge and split
-      lineage. Holds no writer of its own; a resolution proposes, and every change arrives as a
-      committed transaction.
+      lineage, and applying an extraction document. Holds no writer of its own; a resolution or an
+      application proposes, and every change arrives as a committed transaction.
     owns:
       domains:
         - ekr.integrate
+    accepts:
+      commands:
+        - ekr.integrate.ApplyExtraction
+    publishes:
+      events:
+        - ekr.integrate.ExtractionApplied

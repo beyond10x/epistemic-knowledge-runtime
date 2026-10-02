@@ -187,7 +187,7 @@
     "counts": {
       "authored": 30,
       "generated": 46,
-      "outside": 36,
+      "outside": 38,
       "refused": 0
     },
     "generated": [
@@ -240,6 +240,32 @@
     ],
     "knowledge": "complete_inventory",
     "outside": [
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.integrate.ApplyExtraction"
+          },
+          {
+            "kind": "event",
+            "name": "ekr.integrate.ExtractionApplied"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.integrate.ApplyExtraction/outcome/applied"
+      },
+      {
+        "needs": [
+          {
+            "kind": "command",
+            "name": "ekr.integrate.ApplyExtraction"
+          }
+        ],
+        "origin": "generated",
+        "reason": "other_component",
+        "scenario": "ekr.integrate.ApplyExtraction/outcome/refused"
+      },
       {
         "needs": [
           {
@@ -1191,8 +1217,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "af74a9c4d8bd980b7dffdeae3865c976bb1a09b12a135840e92c724f71b7c906",
-    "spec_digest": "9d26eba40635f1e0642cf9e2637f8084f19b34f42a03077a860e9c43a9d1d03a",
+    "contract_digest": "2e49cadd7221346d4522c33edc1d119af41a6522028f060aef741f6a59d83f45",
+    "spec_digest": "c53964f94bcb3667a560036dc036b4ca9eb1be1e6c4394af9c0a0bd98ecfc9a9",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -1227,6 +1253,10 @@
             "command": "ekr.views.ChangesSince",
             "outcome": "limit-exceeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -1377,6 +1407,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -1507,6 +1541,10 @@
             "command": "ekr.views.ChangesSince",
             "outcome": "listed"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -1713,6 +1751,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -1876,6 +1918,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -2030,6 +2076,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -2156,6 +2206,10 @@
             "command": "ekr.views.ChangesSince",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -2313,6 +2367,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -2439,6 +2497,10 @@
             "command": "ekr.views.ChangesSince",
             "outcome": "since-malformed"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -2589,6 +2651,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -2715,6 +2781,10 @@
             "command": "ekr.views.DescribeNode",
             "outcome": "described"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -2882,6 +2952,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -3000,6 +3074,10 @@
             "command": "ekr.views.DescribeNode",
             "outcome": "node-not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -3145,6 +3223,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -3267,6 +3349,10 @@
             "command": "ekr.views.DescribeNode",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -3412,6 +3498,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -3534,6 +3624,10 @@
             "command": "ekr.views.DescribeNode",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -3679,6 +3773,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -3809,6 +3907,10 @@
             "command": "ekr.views.DrawFactSample",
             "outcome": "drawn"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -3990,6 +4092,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -4108,6 +4214,10 @@
             "command": "ekr.views.DrawFactSample",
             "outcome": "limit-exceeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -4254,6 +4364,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -4376,6 +4490,10 @@
             "command": "ekr.views.DrawFactSample",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -4529,6 +4647,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -4651,6 +4773,10 @@
             "command": "ekr.views.DrawFactSample",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -4804,6 +4930,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -4934,6 +5064,10 @@
             "command": "ekr.views.ExpandNeighbourhood",
             "outcome": "expanded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -5129,6 +5263,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -5251,6 +5389,10 @@
             "command": "ekr.views.ExpandNeighbourhood",
             "outcome": "limit-exceeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -5405,6 +5547,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -5531,6 +5677,10 @@
             "command": "ekr.views.ExpandNeighbourhood",
             "outcome": "node-not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -5692,6 +5842,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -5818,6 +5972,10 @@
             "command": "ekr.views.ExpandNeighbourhood",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -5979,6 +6137,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -6105,6 +6267,10 @@
             "command": "ekr.views.ExpandNeighbourhood",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -6266,6 +6432,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -6384,6 +6554,10 @@
             "command": "ekr.views.ExportOcel",
             "outcome": "event-type-not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -6529,6 +6703,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -6651,6 +6829,10 @@
             "command": "ekr.views.ExportOcel",
             "outcome": "exported"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -6839,6 +7021,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -6953,6 +7139,10 @@
             "command": "ekr.views.ExportOcel",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -7098,6 +7288,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -7216,6 +7410,10 @@
             "command": "ekr.views.ExportOcel",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -7361,6 +7559,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -7487,6 +7689,10 @@
             "command": "ekr.views.FindCodeNames",
             "outcome": "found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -7681,6 +7887,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -7799,6 +8009,10 @@
             "command": "ekr.views.FindCodeNames",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -7942,6 +8156,10 @@
         {
           "error": "ekr.views.RevisionNotFound",
           "step": "expect_error"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",
@@ -8069,6 +8287,10 @@
         },
         {
           "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
           "name": "ekr.kernel.Explained"
         },
         {
@@ -8211,6 +8433,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -8329,6 +8555,10 @@
             "command": "ekr.views.ProjectGraph",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -8470,6 +8700,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -8588,6 +8822,10 @@
             "command": "ekr.views.ProjectGraph",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -8729,6 +8967,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -8851,6 +9093,10 @@
             "command": "ekr.views.ProjectGraph",
             "outcome": "projected"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -9043,6 +9289,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -9157,6 +9407,10 @@
             "command": "ekr.views.ProjectOverview",
             "outcome": "limit-exceeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -9295,6 +9549,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -9413,6 +9671,10 @@
             "command": "ekr.views.ProjectOverview",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -9558,6 +9820,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -9676,6 +9942,10 @@
             "command": "ekr.views.ProjectOverview",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -9821,6 +10091,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -9947,6 +10221,10 @@
             "command": "ekr.views.ProjectOverview",
             "outcome": "overviewed"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -10188,6 +10466,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -10314,6 +10596,10 @@
             "command": "ekr.views.ProjectTimeline",
             "outcome": "limit-exceeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -10468,6 +10754,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -10598,6 +10888,10 @@
             "command": "ekr.views.ProjectTimeline",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -10759,6 +11053,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -10889,6 +11187,10 @@
             "command": "ekr.views.ProjectTimeline",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -11050,6 +11352,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -11184,6 +11490,10 @@
             "command": "ekr.views.ProjectTimeline",
             "outcome": "timelined"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -11401,6 +11711,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -11531,6 +11845,10 @@
             "command": "ekr.views.ReportFactQuality",
             "outcome": "judged-twice"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -11681,6 +11999,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -11815,6 +12137,10 @@
             "command": "ekr.views.ReportFactQuality",
             "outcome": "limit-exceeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -11958,6 +12284,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -12096,6 +12426,10 @@
             "command": "ekr.views.ReportFactQuality",
             "outcome": "reported"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -12272,6 +12606,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -12386,6 +12724,10 @@
             "command": "ekr.views.ReportStoreQuality",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -12527,6 +12869,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -12645,6 +12991,10 @@
             "command": "ekr.views.ReportStoreQuality",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -12786,6 +13136,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -12908,6 +13262,10 @@
             "command": "ekr.views.ReportStoreQuality",
             "outcome": "reported"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -13076,6 +13434,10 @@
           "step": "expect_event"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -13190,6 +13552,10 @@
             "command": "ekr.views.SearchNodes",
             "outcome": "limit-exceeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -13332,6 +13698,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -13450,6 +13820,10 @@
             "command": "ekr.views.SearchNodes",
             "outcome": "not-found"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -13599,6 +13973,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -13717,6 +14095,10 @@
             "command": "ekr.views.SearchNodes",
             "outcome": "not-seeded"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -13866,6 +14248,10 @@
           "step": "expect_error"
         },
         {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
           "event": "ekr.kernel.Explained",
           "step": "expect_no_event"
         },
@@ -13992,6 +14378,10 @@
             "command": "ekr.views.SearchNodes",
             "outcome": "searched"
           }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
         },
         {
           "kind": "event",
@@ -14162,6 +14552,10 @@
             }
           },
           "step": "expect_event"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
         },
         {
           "event": "ekr.kernel.Explained",

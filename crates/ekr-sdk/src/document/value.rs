@@ -76,8 +76,8 @@ pub enum Value {
     Enum(String),
     /// A sequence of values.
     List(Vec<Value>),
-    /// Named fields.
-    Record(BTreeMap<String, Value>),
+    /// Named fields, each written once.
+    Record(#[serde(deserialize_with = "ekr_core::decode::unique_map")] BTreeMap<String, Value>),
 }
 
 /// A property of a node type or an edge type.

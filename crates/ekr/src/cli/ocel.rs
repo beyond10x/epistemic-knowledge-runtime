@@ -25,7 +25,7 @@ pub(super) fn run(
             }
             OcelError::Project(error) => match project_refusal(&error) {
                 Some(name) => Failure::refused(name, error),
-                None => Failure::fault(error),
+                None => Failure::unread(error),
             },
         })?;
     serde_json::from_slice(&answer.bytes).map_err(Failure::fault)

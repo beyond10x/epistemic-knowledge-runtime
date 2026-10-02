@@ -8,8 +8,10 @@
 //! identity, actors and times: a proposal record byte for byte, and a record that names the seed
 //! envelope, a prior root or a prior record derived again for the destination's lineage by the
 //! same functions replay checks it with. Each is published through the destination's kernel
-//! authority. Every other object the source holds is carried with its class, retention raises and
-//! `stored_at`, a legacy `ObjectStored`/schema-1 one as schema-2 metadata and a blob. The
+//! authority; a commit goes out with the payload of each `AddEvidence` it holds, at the source's
+//! `stored_at` and first class, so those payloads are not carried objects. Every other object the
+//! source holds is carried with its class, retention raises and `stored_at`, a legacy
+//! `ObjectStored`/schema-1 one as schema-2 metadata and a blob. The
 //! destination is then replayed in full and compared with the source; the report says which
 //! record replaced which, and is retained in the destination.
 use std::collections::{BTreeMap, BTreeSet};
@@ -254,8 +256,45 @@ impl<S: RevisionLog + ObjectStore + Inventory> Commit<S> {
                 };
                 let bytes = history.content(event.record_hash, StorageClass::Canonical)?;
                 let (event, bytes) = destination.migrated_decision(&state, event, bytes)?;
+                let mut objects = BTreeMap::from([(event.record_hash, record(bytes))]);
+                // A commit published the payload of each `AddEvidence` it brought with its
+                // receipt, at Provenance, and replay of the commit reads it there: it is published
+                // with it here too, with the `stored_at` the source first stored it with. A payload
+                // the source held below Provenance before the commit is stored first at that
+                // class, so the commit raises it as it did in the source.
+                if let RevisionPayload::RevisionCommitted { transaction_id, .. } = event.payload {
+                    let tx = state
+                        .transactions
+                        .get(&transaction_id)
+                        .ok_or(StoreError::ProposalMissing { transaction_id })?;
+                    let document = state.document(&tx.proposal)?;
+                    for hash in crate::commands::added_payloads(document.transaction()).into_keys()
+                    {
+                        let source = inventory
+                            .objects
+                            .get(&hash)
+                            .ok_or_else(|| migration("migrate-payload-missing", hash))?;
+                        let stored_at = source.object.metadata.stored_at;
+                        let mut class = source.stored_as;
+                        if class.retention_rank() < StorageClass::Provenance.retention_rank() {
+                            if !held.objects.contains_key(&hash) {
+                                let _ = destination.store.put(
+                                    class,
+                                    &source.object.bytes,
+                                    stored_at,
+                                )?;
+                            }
+                            class = StorageClass::Provenance;
+                        }
+                        objects.entry(hash).or_insert_with(|| PublicationObject {
+                            storage_class: class,
+                            stored_at,
+                            bytes: source.object.bytes.to_vec(),
+                        });
+                    }
+                }
                 Publication {
-                    objects: BTreeMap::from([(event.record_hash, record(bytes))]),
+                    objects,
                     event,
                     expected_version: position as u64,
                 }

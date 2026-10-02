@@ -51,7 +51,7 @@ pub(super) fn run(
             ExplanationLink::Evidence(evidence) => {
                 let bytes = runtime
                     .content(&evidence.content_hash)
-                    .map_err(Failure::fault)?
+                    .map_err(Failure::store)?
                     .ok_or_else(|| {
                         Failure::fault(format!(
                             "evidence {} payload {} is not retained",

@@ -3,6 +3,13 @@
 //! lock on `writer.lock`; the SQLite provider serializes the database through a `mode=ro`
 //! connection inside one read transaction. Either way every open must succeed — no torn copy —
 //! and must hold every object whose write returned before the open began.
+//!
+//! Under load the SQLite case once failed with `SQLITE_CANTOPEN` (extended code 14): the writer
+//! had a `-wal` beside the database without its `-shm`, which a `readonly_shm` connection cannot
+//! create. The open reads such a store again a bounded number of times (`read_only.rs`,
+//! `Attempt::ShmAbsent`); a failure here prints the full `StoreError`, SQLite's extended code
+//! included, and a writer that fails ends the race with its own error rather than leaving the
+//! reader opening forever.
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
@@ -36,16 +43,26 @@ fn race<R>(
     let acknowledged = AtomicUsize::new(0);
     let done = AtomicBool::new(false);
     let mut opens = 0;
+    /// Sets `done` when the writer ends, by returning or by panicking.
+    struct Finished<'a>(&'a AtomicBool);
+    impl Drop for Finished<'_> {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::SeqCst);
+        }
+    }
     std::thread::scope(|scope| {
-        scope.spawn(|| {
+        let writer = scope.spawn(|| {
+            let _finished = Finished(&done);
             let mut write = write();
             for n in 0..WRITES {
                 write(n);
                 acknowledged.store(n + 1, Ordering::SeqCst);
             }
-            done.store(true, Ordering::SeqCst);
         });
         while !done.load(Ordering::SeqCst) || opens == 0 {
+            if writer.is_finished() && acknowledged.load(Ordering::SeqCst) < WRITES {
+                break;
+            }
             let before = acknowledged.load(Ordering::SeqCst);
             let reader = open().unwrap_or_else(|error| {
                 panic!("read-only open {opens} with {before} writes acknowledged: {error:?}")

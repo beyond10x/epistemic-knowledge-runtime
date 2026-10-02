@@ -64,6 +64,10 @@ use serde::Deserialize;
 
 use crate::host::CliHostConfigurationV1;
 
+mod integrate;
+
+pub use integrate::IntegrateTarget;
+
 /// The native provider a [`KernelTarget`] opens, exactly as `ekr --backend` selects it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Provider {
@@ -100,6 +104,18 @@ struct Manifest {
     #[serde(default)]
     setups: BTreeMap<String, ScenarioSetup>,
     proposals: BTreeMap<TransactionId, String>,
+    /// What [`IntegrateTarget`] stages beyond the documents: the seed under which the reader
+    /// refuses the extraction document.
+    #[serde(default)]
+    extraction: Option<ExtractionFixtures>,
+}
+
+/// The fixtures of `ekr.integrate.ApplyExtraction`'s scenarios.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ExtractionFixtures {
+    /// A seed whose ontology the staged `extraction_document` is refused against.
+    refusing_seed: String,
 }
 
 #[derive(Deserialize)]
@@ -355,9 +371,7 @@ impl KernelTarget {
     /// first, then the handler.
     /// A document read failure is a fault, exactly as `ekr seed` reports one, never `InvalidSeed`.
     fn seed_from(&self, runtime: &Runtime, bytes: Vec<u8>) -> Result<SeedResultV1, SeedError> {
-        let text = String::from_utf8(bytes)
-            .map_err(|_| SeedError::Invalid("seed-decode: the document is not UTF-8".to_owned()))?;
-        let document = SeedDocument::from_yaml(&text)?;
+        let document = SeedDocument::from_bytes(&bytes)?;
         Runtime::admit_seed(&document, self.host().context)?;
         runtime.seed(document, || self.tick())
     }
