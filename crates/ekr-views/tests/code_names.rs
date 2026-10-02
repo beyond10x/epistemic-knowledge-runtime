@@ -241,6 +241,53 @@ const near = [\"subject\", \"alpha \", \"Alpha\", \"alpha-alias\"];
 ";
 
 #[test]
+fn whole_words_include_comments_and_identifiers_but_exclude_longer_unicode_words() {
+    for provider in [Provider::File, Provider::Sqlite] {
+        let (_work, runtime) = built(provider);
+        let sources = [source("code.rs", "// Subject\nlet alpha = links;\nlongSubject Subject_suffix éSubject Subjecté\n`Subject`\n")];
+        let old = ekr_views::find_code_names(&runtime, None, &sources).unwrap();
+        let default = ekr_views::find_code_names_with_mode(
+            &runtime,
+            None,
+            &sources,
+            ekr_views::CodeNameMode::Literals,
+        )
+        .unwrap();
+        assert_eq!(old.bytes, default.bytes);
+        let words = ekr_views::find_code_names_with_mode(
+            &runtime,
+            None,
+            &sources,
+            ekr_views::CodeNameMode::Words,
+        )
+        .unwrap();
+        let report = document(&words.bytes);
+        assert_eq!(report["meta"]["mode"], "Words");
+        let found: Vec<_> = report["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| {
+                (
+                    item["line"].as_u64().unwrap(),
+                    item["column"].as_u64().unwrap(),
+                    item["literal"].as_str().unwrap(),
+                )
+            })
+            .collect();
+        assert_eq!(
+            found,
+            [
+                (1, 4, "Subject"),
+                (2, 5, "alpha"),
+                (2, 13, "links"),
+                (4, 2, "Subject")
+            ]
+        );
+    }
+}
+
+#[test]
 fn every_planted_name_is_found_with_its_file_and_line_and_runtime_words_are_flagged() {
     for provider in [Provider::File, Provider::Sqlite] {
         let (_work, runtime) = built(provider);

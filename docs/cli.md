@@ -429,6 +429,14 @@ as for `ekr snapshot --at`.
 ontology: it reports every literal in the given source files that equals one of the store's names,
 at the head or as of revision `N`. It reads the files and the store and writes nothing.
 
+`ekr code-names --words <file>...` also finds names used as bare identifiers or in comments.
+A match is exact and case-sensitive, with neither adjacent character a Unicode alphanumeric
+character or underscore; `ZORBED_BY` matches while `ZORBED_BY_suffix` does not. Names may contain
+spaces and punctuation. In this mode `column` points to the first matched character (counted
+in Unicode scalar values), `meta.mode` is `Words`, and the existing `literals` count counts
+candidate name occurrences before exemptions. Without `--words`, the literal scan and its
+document bytes remain unchanged, and `meta.mode` is absent.
+
 - **A literal** is the text between two quotes of the same character — `"`, `'` or a backtick — on
   one line, with `\` escaping the character after it. Each line is scanned twice and a literal either
   scan finds counts once: one pass over all three characters at once consumes whole literals, so
@@ -495,7 +503,8 @@ ekr quality --revision 1
     "with_evidence": 4,
     "with_evidence_share": 10000,
     "with_item_evidence": 1,
-    "with_item_evidence_share": 2500
+    "with_item_evidence_share": 2500,
+    "with_seed_evidence": 3
   },
   "meta": {
     "format": "ekr.store-quality/1",
@@ -504,6 +513,7 @@ ekr quality --revision 1
   "properties": {
     "constrained": 0,
     "constrained_share": 0,
+    "constrained_types": 0,
     "declared": 1
   },
   "shared_names": [
@@ -526,12 +536,16 @@ ekr quality --revision 1
 | `assertions.with_evidence` | of those, the ones citing at least one evidence entry the store holds with its bytes. Every assertion the kernel admits cites evidence, so this equals `active` in a store `ekr` wrote |
 | `assertions.with_item_evidence` | of those, the ones citing at least one evidence entry added after the seed by an `AddEvidence` ([Evidence after the seed](#evidence-after-the-seed)): the figure counts when evidence entered, not how finely it was cut: a seed that carries one evidence entry per assertion still reports `0` here |
 | `properties.declared` | the property declarations of the revision's schema: each property each node type and edge type declares itself |
+| `assertions.with_seed_evidence` | active assertions citing or attached to at least one seed evidence entry whose bytes remain retained; seed and item counts can overlap, and several citations or attachments count one assertion |
 | `properties.constrained` | of those, the ones declaring at least one entry in `constraints` |
+| `properties.constrained_types` | node and edge types directly declaring at least one constrained property; multiple such properties count one type, and inheritance adds no declaring type |
 | `shared_names` | every name — a canonical name or an alias, compared exactly as text — that two or more nodes of one type hold: the `type`, the `name` and the `nodes`, by id. Ordered by type id, then name; the empty name is never listed |
 | `sharing_nodes` | the distinct nodes `shared_names` lists |
 
 A `_share` is basis points: 10000 times the count divided by its whole, rounded down, so `10000` is
-all of it; it is left out when the whole is `0`. The document is printed as every verb prints its
+all of it; divide by `10000` for a proportion (for example, `2500 / 10000 = 0.25`). It is left out
+when the whole is `0`. Counts come from retained store history and never require a corpus file.
+The document is printed as every verb prints its
 JSON, keys in alphabetical order; `ekr session` answers it as `"stdout"`. A store never seeded is
 refused as `ekr.views.NotSeeded` and a revision it does not hold as `ekr.views.RevisionNotFound`,
 exit 2, as the `ekr.views` reads refuse them.
@@ -548,7 +562,25 @@ member is what an OCEL 2.0 reader reads; write it to a file of its own, for exam
 ```console
 ekr ocel --revision 0
 ekr ocel --events Person
+ekr ocel --event-time Alert.fired_at --event-time Incident.reported_at
 ```
+
+On success stderr contains exactly one compact JSON line with the engine's `OcelExported`
+summary: `revision`, `event_types`, `object_types`, `events`, `objects`,
+`event_object_relationships`, `object_object_relationships`, `edges_between_events`,
+`undated_events`, `edges_of_undated_events`, `parallel_edges_merged`,
+`attribute_values_out_of_range` and `ocel_hash`. The hash covers the compact engine document,
+before CLI pretty printing. A session carries the same line in that request's `stderr` member.
+
+Repeat `--event-time TypeName.propertyName` to select event types and the `Timestamp` property
+that supplies each event's time. Selectors split at the last dot, so type names may contain dots;
+property names containing dots cannot be selected by this spelling. Names resolve in the
+requested revision, including inherited properties. Only selected types become events, and a
+node missing that property is omitted and counted in `undated_events`. A node with several
+distinct timestamps, an ambiguous name, an absent or non-Timestamp property, or two different
+properties selected for one type is refused as `ekr.views.EventTimeInvalid`; repeated identical
+selectors deduplicate. `--events` and `--event-time` cannot be combined. Without `--event-time`,
+the existing default and `--events` document bytes are unchanged.
 
 The event types are EKR's one event-type rule, the same types the overview marks as events
 (`roles.types[].event` of `ekr.graph-overview/1`), the timeline walks to and `GET /roles` marks

@@ -183,10 +183,11 @@ fn document(revision: u64, active: u64, item: u64, shared: Value, sharing: u64) 
             "active": active,
             "with_evidence": active,
             "with_item_evidence": item,
+            "with_seed_evidence": 3,
             "with_evidence_share": 10_000,
             "with_item_evidence_share": item * 10_000 / active,
         },
-        "properties": {"declared": 1, "constrained": 0, "constrained_share": 0},
+        "properties": {"declared": 1, "constrained": 0, "constrained_types": 0, "constrained_share": 0},
         "shared_names": shared,
         "sharing_nodes": sharing,
     })

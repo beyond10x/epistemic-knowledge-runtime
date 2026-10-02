@@ -138,3 +138,33 @@ timeline:
         head: 0
     no_events:
       - ekr.views.CodeNamesFound
+
+  - at: 2027-01-15T16:05:00Z
+    command: ekr.views.FindCodeNames
+    actor: ekr.views.Reader
+    input:
+      store: edge-assertion
+      at: 0
+      mode: Words
+      sources:
+        - path: code.rs
+          text: |
+            // Subject
+            let alpha = links;
+            longSubject Subject_suffix éSubject Subjecté
+            `Subject`
+    outcome: found
+    events:
+      - event: ekr.views.CodeNamesFound
+        payload:
+          revision: 0
+          files: 1
+          literals: 4
+          exempt: 0
+          findings: 4
+          runtime_word_findings: 1
+          node_types: 2
+          edge_types: 1
+          canonical_names: 1
+          first_file: code.rs
+          first_line: 1

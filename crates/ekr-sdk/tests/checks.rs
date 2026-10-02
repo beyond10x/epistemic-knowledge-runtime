@@ -62,6 +62,10 @@ struct World {
 
 impl World {
     fn new(backend: Backend) -> Self {
+        Self::with_timestamps(backend, false)
+    }
+
+    fn with_timestamps(backend: Backend, dated: bool) -> Self {
         let directory = tempfile::tempdir().unwrap();
         let config = StoreConfig {
             host: directory.path().join("host.json"),
@@ -79,7 +83,37 @@ impl World {
         )
         .unwrap();
         let seed = world._directory.path().join("seed.yaml");
-        std::fs::write(&seed, world.command(&["example", "ekr-seed/2"])).unwrap();
+        let mut document =
+            ekr_kernel::SeedDocument::from_bytes(&world.command(&["example", "ekr-seed/2"]))
+                .unwrap();
+        if dated {
+            let property = ekr_ontology::PropertyDefinition::new(
+                fixtures::id(0xfa_9000),
+                "happened_at",
+                ekr_ontology::ValueType::Timestamp,
+            );
+            document
+                .ontology
+                .node_types
+                .iter_mut()
+                .find(|kind| kind.name == "Person")
+                .unwrap()
+                .properties
+                .insert(property.id, property.clone());
+            document
+                .graph
+                .nodes
+                .get_mut(&"00000000-0000-4000-8000-000000000301".parse().unwrap())
+                .unwrap()
+                .properties
+                .insert(
+                    property.id,
+                    vec![ekr_ontology::Value::Timestamp(
+                        ekr_core::Timestamp::from_millis(2000),
+                    )],
+                );
+        }
+        std::fs::write(&seed, serde_yaml_ng::to_string(&document).unwrap()).unwrap();
         world.command(&["seed", seed.to_str().unwrap()]);
         world
     }
@@ -105,6 +139,76 @@ impl World {
 
     fn session(&self) -> ProcessSession {
         ProcessSession::start(&self.binary, self.config.clone(), SessionOptions::default()).unwrap()
+    }
+}
+
+#[test]
+fn typed_ocel_preserves_document_and_engine_counts_in_both_transports() {
+    use ekr_sdk::read::OcelQuery;
+    for backend in [Backend::File, Backend::Sqlite] {
+        let world = World::with_timestamps(backend, true);
+        let mut session = world.session();
+        let mut one = OneShotReader::new(
+            &world.binary,
+            world.config.clone(),
+            SessionOptions::default(),
+        );
+        let query = OcelQuery {
+            revision: Some(0),
+            events: vec![],
+            event_time: vec!["Person.happened_at".to_owned()],
+        };
+        let typed = Reader::new(&mut session).ocel(&query).unwrap();
+        assert_eq!(typed, one.ocel(&query).unwrap());
+        assert_eq!(
+            (
+                typed.counts.events,
+                typed.counts.objects,
+                typed.counts.undated_events
+            ),
+            (1, 1, 1)
+        );
+        assert_eq!(
+            typed.document.ocel.events[0].time,
+            "1970-01-01T00:00:02.000Z"
+        );
+        let reply = session
+            .request(&Request::new([
+                "ocel",
+                "--revision",
+                "0",
+                "--event-time",
+                "Person.happened_at",
+            ]))
+            .unwrap();
+        assert_eq!(
+            serde_json::to_value(&typed.document).unwrap(),
+            reply.document.unwrap()
+        );
+        assert_eq!(
+            serde_json::to_string(&typed.counts).unwrap() + "\n",
+            reply.stderr
+        );
+        assert!(session
+            .request(&Request::new(["head"]))
+            .unwrap()
+            .stderr
+            .is_empty());
+        for selector in ["Person.absent", "Organization.legal_name"] {
+            let invalid = OcelQuery {
+                event_time: vec![selector.to_owned()],
+                ..OcelQuery::default()
+            };
+            assert!(matches!(one.ocel(&invalid), Err(ReadError::Refused { .. })));
+        }
+        let conflict = OcelQuery {
+            events: vec!["Person".to_owned()],
+            ..query
+        };
+        assert!(matches!(
+            Reader::new(&mut session).ocel(&conflict),
+            Err(ReadError::Usage { .. })
+        ));
     }
 }
 
@@ -201,7 +305,7 @@ impl Judge for Fixed {
         Ok(facts
             .iter()
             .map(|fact| {
-                let verdict = if self.seen.len() % 3 == 0 {
+                let verdict = if self.seen.len().is_multiple_of(3) {
                     Verdict::Fail
                 } else {
                     Verdict::Pass
@@ -588,4 +692,279 @@ fn adversary_named_refusals_leave_the_session_usable_and_empty_draws_are_real() 
         assert!(empty.items.is_empty());
         assert_eq!(reader.draw_sample(0, 1000, None, None).unwrap(), sample);
     }
+}
+
+fn adversary_seeded_world(
+    backend: Backend,
+    change: impl FnOnce(&mut ekr_kernel::SeedDocument),
+) -> World {
+    let directory = tempfile::tempdir().unwrap();
+    let world = World {
+        config: StoreConfig {
+            host: directory.path().join("host.json"),
+            store: directory.path().join("store"),
+            backend,
+        },
+        _directory: directory,
+        binary: EkrBinary::open(binary_path()).unwrap(),
+    };
+    std::fs::write(
+        &world.config.host,
+        world.command(&["example", "ekr.cli-host/1"]),
+    )
+    .unwrap();
+    let mut document =
+        ekr_kernel::SeedDocument::from_bytes(&world.command(&["example", "ekr-seed/2"])).unwrap();
+    change(&mut document);
+    let path = world._directory.path().join("adversary-seed.yaml");
+    std::fs::write(&path, serde_yaml_ng::to_string(&document).unwrap()).unwrap();
+    world.command(&["seed", path.to_str().unwrap()]);
+    world
+}
+
+fn adversary_timestamp_property(
+    document: &mut ekr_kernel::SeedDocument,
+    name: &str,
+    values: &[i64],
+) {
+    let mut property = ekr_ontology::PropertyDefinition::new(
+        fixtures::id(0xbe_0020),
+        "at",
+        ekr_ontology::ValueType::Timestamp,
+    );
+    property.cardinality = ekr_ontology::Cardinality::Many;
+    let kind = document
+        .ontology
+        .node_types
+        .iter_mut()
+        .find(|kind| kind.name == "Person")
+        .unwrap();
+    kind.name = name.to_owned();
+    kind.properties.insert(property.id, property.clone());
+    document
+        .graph
+        .nodes
+        .get_mut(&"00000000-0000-4000-8000-000000000301".parse().unwrap())
+        .unwrap()
+        .properties
+        .insert(
+            property.id,
+            values
+                .iter()
+                .map(|value| {
+                    ekr_ontology::Value::Timestamp(ekr_core::Timestamp::from_millis(*value))
+                })
+                .collect(),
+        );
+}
+
+#[test]
+fn adversary_sdk_event_time_treats_a_leading_dash_in_a_type_name_as_data() {
+    use ekr_sdk::read::OcelQuery;
+    let mut defects = Vec::new();
+    for backend in [Backend::File, Backend::Sqlite] {
+        let world = adversary_seeded_world(backend, |document| {
+            adversary_timestamp_property(document, "-Alert.Kind", &[2000])
+        });
+        let raw = world.command(&["ocel", "--event-time=-Alert.Kind.at"]);
+        let control: Value = serde_json::from_slice(&raw).unwrap();
+        assert_eq!(
+            control["ocel"]["events"][0]["time"], "1970-01-01T00:00:02.000Z",
+            "the admitted name is selectable by the actual verb"
+        );
+        let query = OcelQuery {
+            event_time: vec!["-Alert.Kind.at".to_owned()],
+            ..OcelQuery::default()
+        };
+        let mut session = world.session();
+        let mut one = OneShotReader::new(
+            &world.binary,
+            world.config.clone(),
+            SessionOptions::default(),
+        );
+        for (transport, result) in [
+            ("session", Reader::new(&mut session).ocel(&query)),
+            ("one-shot", one.ocel(&query)),
+        ] {
+            match result {
+                Ok(export) => assert_eq!(serde_json::to_value(export.document).unwrap(), control),
+                Err(error) => defects.push(format!("{} {transport}: {error}", backend.as_str())),
+            }
+        }
+    }
+    assert!(
+        defects.is_empty(),
+        "valid selector names must survive SDK argv encoding: {defects:?}"
+    );
+}
+
+#[test]
+fn adversary_named_times_deduplicate_equal_values_and_count_unwritable_instants() {
+    use ekr_sdk::read::OcelQuery;
+    for backend in [Backend::File, Backend::Sqlite] {
+        for (values, expected) in [
+            (vec![2000, 2000], Some("1970-01-01T00:00:02.000Z")),
+            (vec![-62_167_219_200_000], Some("0000-01-01T00:00:00.000Z")),
+            (vec![253_402_300_799_999], Some("9999-12-31T23:59:59.999Z")),
+            (vec![i64::MIN], None),
+            (vec![i64::MAX], None),
+        ] {
+            let world = adversary_seeded_world(backend, |document| {
+                adversary_timestamp_property(document, "Person", &values)
+            });
+            let query = OcelQuery {
+                event_time: vec!["Person.at".to_owned(), "Person.at".to_owned()],
+                ..OcelQuery::default()
+            };
+            let mut session = world.session();
+            let export = Reader::new(&mut session).ocel(&query).unwrap();
+            let mut one = OneShotReader::new(
+                &world.binary,
+                world.config.clone(),
+                SessionOptions::default(),
+            );
+            assert_eq!(one.ocel(&query).unwrap(), export);
+            assert_eq!(export.counts.objects, 1);
+            if let Some(time) = expected {
+                assert_eq!((export.counts.events, export.counts.undated_events), (1, 1));
+                assert_eq!(export.document.ocel.events[0].time, time);
+            } else {
+                assert_eq!((export.counts.events, export.counts.undated_events), (0, 2));
+                assert!(export.document.ocel.events.is_empty());
+            }
+        }
+    }
+}
+
+#[test]
+fn adversary_word_mode_handles_overlapping_punctuation_names_and_scalar_columns() {
+    use ekr_sdk::read::CodeNameMode;
+    for backend in [Backend::File, Backend::Sqlite] {
+        let world = adversary_seeded_world(backend, |document| {
+            document
+                .graph
+                .nodes
+                .get_mut(&"00000000-0000-4000-8000-000000000301".parse().unwrap())
+                .unwrap()
+                .aliases = ["-", "--", "A-B", "éclair", "ZORBED_BY"]
+                .into_iter()
+                .map(str::to_owned)
+                .collect();
+        });
+        let path = world._directory.path().join("punctuation.rs");
+        std::fs::write(&path, "😀 -- A-B éclair ZORBED_BY\néZORBED_BY ZORBED_BY_ ZORBED_BYé éclair2 _éclair aéclair\n\u{301}ZORBED_BY\n'A-B' `éclair`\n").unwrap();
+        let files = [path.to_str().unwrap()];
+        let mut session = world.session();
+        let words = Reader::new(&mut session)
+            .code_names_with_mode(files, None, CodeNameMode::Words)
+            .unwrap();
+        let actual: Vec<_> = serde_json::to_value(&words).unwrap()["findings"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|finding| {
+                (
+                    finding["line"].as_u64().unwrap(),
+                    finding["column"].as_u64().unwrap(),
+                    finding["literal"].as_str().unwrap().to_owned(),
+                )
+            })
+            .collect();
+        let expected: Vec<_> = [
+            (1, 3, "-"),
+            (1, 3, "--"),
+            (1, 4, "-"),
+            (1, 6, "A-B"),
+            (1, 10, "éclair"),
+            (1, 17, "ZORBED_BY"),
+            (3, 2, "ZORBED_BY"),
+            (4, 2, "A-B"),
+            (4, 8, "éclair"),
+        ]
+        .into_iter()
+        .map(|(line, column, name)| (line, column, name.to_owned()))
+        .collect();
+        assert_eq!(actual, expected);
+        assert_eq!(words.meta.findings, 9);
+        let mut one = OneShotReader::new(
+            &world.binary,
+            world.config.clone(),
+            SessionOptions::default(),
+        );
+        assert_eq!(
+            one.code_names_with_mode(files, None, CodeNameMode::Words)
+                .unwrap(),
+            words
+        );
+        let literal = Reader::new(&mut session).code_names(files, None).unwrap();
+        assert_eq!((literal.meta.findings, literal.meta.mode), (2, None));
+        let mut encoded =
+            serde_json::to_vec_pretty(&serde_json::to_value(literal).unwrap()).unwrap();
+        encoded.push(b'\n');
+        assert_eq!(encoded, world.command(&["code-names", files[0]]));
+    }
+}
+
+#[test]
+fn adversary_ocel_selectors_preserve_equals_spaces_and_punctuation_as_data() {
+    use ekr_sdk::read::OcelQuery;
+    let mut defects = Vec::new();
+    for backend in [Backend::File, Backend::Sqlite] {
+        for name in ["=Alert.Kind", "Alert with spaces", "--Alert=two Kind"] {
+            let world = adversary_seeded_world(backend, |document| {
+                adversary_timestamp_property(document, name, &[2000]);
+            });
+            for named_time in [true, false] {
+                let selector = if named_time {
+                    format!("{name}.at")
+                } else {
+                    name.to_owned()
+                };
+                let option = if named_time { "event-time" } else { "events" };
+                let flag = format!("--{option}={selector}");
+                let raw = world.command(&["ocel", &flag]);
+                let control: Value = serde_json::from_slice(&raw).unwrap();
+                assert!(
+                    !control["ocel"]["events"].as_array().unwrap().is_empty(),
+                    "the admitted name is selectable by the actual verb"
+                );
+                let query = if named_time {
+                    OcelQuery {
+                        event_time: vec![selector.clone(), selector],
+                        ..OcelQuery::default()
+                    }
+                } else {
+                    OcelQuery {
+                        events: vec![selector.clone(), selector],
+                        ..OcelQuery::default()
+                    }
+                };
+                let mut session = world.session();
+                let mut one = OneShotReader::new(
+                    &world.binary,
+                    world.config.clone(),
+                    SessionOptions::default(),
+                );
+                for (transport, result) in [
+                    ("session", Reader::new(&mut session).ocel(&query)),
+                    ("one-shot", one.ocel(&query)),
+                ] {
+                    match result {
+                        Ok(export) => {
+                            assert_eq!(serde_json::to_value(export.document).unwrap(), control)
+                        }
+                        Err(error) => defects.push(format!(
+                            "{} {transport} {option} {name:?}: {error}",
+                            backend.as_str()
+                        )),
+                    }
+                }
+                assert_eq!(session.request(&Request::new(["head"])).unwrap().stderr, "");
+            }
+        }
+    }
+    assert!(
+        defects.is_empty(),
+        "OCEL names must survive SDK argv encoding in both modes: {defects:?}"
+    );
 }

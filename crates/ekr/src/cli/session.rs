@@ -170,10 +170,10 @@ pub fn serve(
             ))
         };
         let answer = match answered {
-            Ok(stdout) => Answer {
+            Ok((stdout, stderr)) => Answer {
                 exit: 0,
                 stdout,
-                stderr: String::new(),
+                stderr,
             },
             Err(failure) => Answer {
                 exit: failure.code(),
@@ -252,7 +252,7 @@ fn respond(
     session: &mut Session,
     watch: &mut Watch,
     now: &dyn Fn() -> Timestamp,
-) -> Result<Stdout, Failure> {
+) -> Result<(Stdout, String), Failure> {
     let request: Request = serde_json::from_slice(line).map_err(|error| {
         Failure::refused(
             MALFORMED,
@@ -268,13 +268,14 @@ fn answer(
     session: &mut Session,
     watch: &mut Watch,
     now: &dyn Fn() -> Timestamp,
-) -> Result<Stdout, Failure> {
+) -> Result<(Stdout, String), Failure> {
     let cli = match parse(&request.argv) {
         Ok(cli) => cli,
         // Not a one-shot verb: one of the `ekr.views` reads, or no verb at all.
         Err(unknown) if unknown.name() == Some(UNKNOWN) => {
             return match views::parse(&request.argv) {
-                Some(views) => read_views(&views?, session, watch).map(Stdout::Document),
+                Some(views) => read_views(&views?, session, watch)
+                    .map(|document| (Stdout::Document(document), String::new())),
                 None => Err(unknown),
             };
         }
@@ -337,7 +338,11 @@ fn answer(
     let document = match printed {
         super::Printed::Document(document) => document,
         // Only `fact-quality` prints raw, and it proposes, validates and commits nothing.
-        super::Printed::Raw(document) => return Ok(Stdout::Raw(document)),
+        super::Printed::Raw(document) => return Ok((Stdout::Raw(document), String::new())),
+        // OCEL reads only: diagnostics belong to this request, never global process stderr.
+        super::Printed::DocumentWithStderr { document, stderr } => {
+            return Ok((Stdout::Document(document), stderr))
+        }
         super::Printed::Text(_) => {
             return Err(Failure::fault("the verb printed text, not a JSON document"))
         }
@@ -359,7 +364,7 @@ fn answer(
         }
         Tracked::Validates(_) | Tracked::Commits(_) | Tracked::Nothing => {}
     }
-    Ok(Stdout::Document(document))
+    Ok((Stdout::Document(document), String::new()))
 }
 
 /// A views verb ([`views`]) against the session's store: refused as [`admit`] refuses a global
@@ -821,10 +826,10 @@ impl ekr_sdk::transport::Transport for InProcess<'_> {
         };
         Ok(
             match answer(&request, &mut self.session, &mut self.watch, self.now) {
-                Ok(Stdout::Document(Value::Null)) => reply(0, None, String::new()),
-                Ok(Stdout::Document(document)) => reply(0, Some(document), String::new()),
-                Ok(Stdout::Raw(document)) => {
-                    reply(0, serde_json::from_str(document.get()).ok(), String::new())
+                Ok((Stdout::Document(Value::Null), stderr)) => reply(0, None, stderr),
+                Ok((Stdout::Document(document), stderr)) => reply(0, Some(document), stderr),
+                Ok((Stdout::Raw(document), stderr)) => {
+                    reply(0, serde_json::from_str(document.get()).ok(), stderr)
                 }
                 Err(failure) => reply(i32::from(failure.code()), None, stderr(&failure)),
             },
@@ -839,3 +844,6 @@ pub(super) mod fixture;
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod ocel_tests;

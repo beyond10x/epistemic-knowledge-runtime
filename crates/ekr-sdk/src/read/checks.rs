@@ -51,6 +51,8 @@ pub struct AssertionQuality {
     pub with_evidence: u64,
     /// Of those, the ones citing evidence an `AddEvidence` added after the seed.
     pub with_item_evidence: u64,
+    /// Active assertions citing or attached to retained evidence admitted in the seed.
+    pub with_seed_evidence: u64,
     /// `with_evidence` in basis points of `active`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub with_evidence_share: Option<u64>,
@@ -66,6 +68,8 @@ pub struct PropertyQuality {
     pub declared: u64,
     /// Of those, the ones declaring a constraint.
     pub constrained: u64,
+    /// Node and edge types directly declaring at least one constrained property.
+    pub constrained_types: u64,
     /// `constrained` in basis points of `declared`; `None` when `declared` is 0.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub constrained_share: Option<u64>,
@@ -133,6 +137,16 @@ pub struct RejectionIssue {
 
 // ---- ekr.code-names/1 -------------------------------------------------------------------------
 
+/// Source occurrences considered by `code-names`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CodeNameMode {
+    /// Quoted literals (the default).
+    #[default]
+    Literals,
+    /// Whole names bounded by non-alphanumeric, non-underscore characters.
+    Words,
+}
+
 /// `ekr code-names`: the `ekr.code-names/1` document, every literal in the files read that
 /// equals one of the store's names.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -160,6 +174,9 @@ pub struct CodeNamesMeta {
     pub findings: u64,
     /// The findings flagged `runtime_word`.
     pub runtime_word_findings: u64,
+    /// `Words` for whole-word scanning; absent for the default literal mode.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<CodeNameMode>,
 }
 
 /// One literal equal to a store name.
@@ -250,7 +267,28 @@ impl<T: Transport> Reader<T> {
         I: IntoIterator<Item = S>,
         S: Into<String>,
     {
-        let mut argv = Argv::new("code-names").flag("at", at).arg("--");
+        self.code_names_with_mode(files, at, CodeNameMode::Literals)
+    }
+
+    /// [`Self::code_names`] with an explicit occurrence mode.
+    ///
+    /// # Errors
+    /// [`ReadError`], as for [`Self::code_names`].
+    pub fn code_names_with_mode<I, S>(
+        &mut self,
+        files: I,
+        at: Option<u64>,
+        mode: CodeNameMode,
+    ) -> Result<CodeNames, ReadError>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let mut argv = Argv::new("code-names").flag("at", at);
+        if mode == CodeNameMode::Words {
+            argv = argv.arg("--words");
+        }
+        argv = argv.arg("--");
         for file in files {
             argv = argv.arg(file.into());
         }
@@ -259,6 +297,23 @@ impl<T: Transport> Reader<T> {
 }
 
 impl OneShotReader {
+    /// [`Reader::code_names_with_mode`], one-shot.
+    ///
+    /// # Errors
+    /// [`ReadError`].
+    pub fn code_names_with_mode<I, S>(
+        &mut self,
+        files: I,
+        at: Option<u64>,
+        mode: CodeNameMode,
+    ) -> Result<CodeNames, ReadError>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.reader.code_names_with_mode(files, at, mode)
+    }
+
     /// [`Reader::quality`], one-shot.
     ///
     /// # Errors

@@ -329,11 +329,14 @@ pub enum Command {
         /// The committed revision whose names to read; the newest (`ekr head`) when absent.
         #[arg(long)]
         at: Option<u64>,
+        /// Match whole words everywhere in each source, including comments and identifiers.
+        #[arg(long)]
+        words: bool,
     },
     /// Print the store's quality at one revision as the `ekr.store-quality/1` document
     /// (`ekr.views.ReportStoreQuality`): active assertions with evidence and with evidence added
-    /// after the seed, property declarations under a constraint, and names two or more nodes of
-    /// one type share.
+    /// after the seed or retained from it, property declarations under a constraint and their
+    /// declaring types, and names two or more nodes of one type share.
     ///
     /// A store verb, under the `ekr.cli-host/1` host (--host or EKR_HOST); it reads only. A
     /// share is basis points (10000 is all). Two reads of one revision print the same bytes.
@@ -362,6 +365,10 @@ pub enum Command {
         /// name no node type holds is refused as `ekr.views.EventTypeNotFound` (exit 2).
         #[arg(long, value_name = "TYPE_NAME", num_args = 1..)]
         events: Vec<String>,
+        /// Event types and their Timestamp properties, as TypeName.propertyName (split at the
+        /// last dot); repeat for each type. Inherited properties are accepted.
+        #[arg(long, value_name = "TYPE.PROPERTY", conflicts_with = "events")]
+        event_time: Vec<String>,
     },
     /// Print a reproducible sample of the store's facts at one revision, each with the bytes of the
     /// evidence it cites, for a judge: the `ekr.fact-sample/1` document
@@ -610,6 +617,11 @@ pub fn execute(
 enum Printed {
     /// One JSON document, printed pretty with a newline.
     Document(serde_json::Value),
+    /// One document accompanied by request-owned success diagnostics.
+    DocumentWithStderr {
+        document: serde_json::Value,
+        stderr: String,
+    },
     /// Text, printed as it is: `guide`, `operations`, `example`, and `view`'s end.
     Text(String),
     /// One JSON document whose exact bytes the library wrote, printed as they are with a newline,
@@ -622,6 +634,13 @@ impl Printed {
     /// The exact bytes the verb writes to stdout.
     fn text(self) -> Result<String, Failure> {
         match self {
+            Self::DocumentWithStderr { document, stderr } => {
+                use std::io::Write as _;
+                std::io::stderr()
+                    .write_all(stderr.as_bytes())
+                    .map_err(Failure::fault)?;
+                Self::Document(document).text()
+            }
             Self::Document(document) => {
                 let mut text = serde_json::to_string_pretty(&document).map_err(Failure::fault)?;
                 text.push('\n');
@@ -822,19 +841,24 @@ fn dispatch(
             let runtime = source.resolve("ontology")?.open()?;
             render(&ontology::run(&runtime, at)?)
         }
-        Command::CodeNames { files, at } => {
+        Command::CodeNames { files, at, words } => {
             let store = source.resolve("code-names")?;
             let sources = code_names::read(&files)?;
             let runtime = store.open()?;
-            code_names::run(&runtime, at, &sources).map(Printed::Document)
+            code_names::run(&runtime, at, &sources, words).map(Printed::Document)
         }
         Command::Quality { revision } => {
             let runtime = source.resolve("quality")?.open()?;
             quality::run(&runtime, revision).map(Printed::Document)
         }
-        Command::Ocel { revision, events } => {
+        Command::Ocel {
+            revision,
+            events,
+            event_time,
+        } => {
             let runtime = source.resolve("ocel")?.open()?;
-            ocel::run(&runtime, revision, &events).map(Printed::Document)
+            let (document, stderr) = ocel::run(&runtime, revision, &events, &event_time)?;
+            Ok(Printed::DocumentWithStderr { document, stderr })
         }
         Command::Sample {
             seed,

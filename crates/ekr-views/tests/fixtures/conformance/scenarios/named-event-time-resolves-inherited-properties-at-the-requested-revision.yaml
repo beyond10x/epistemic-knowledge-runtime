@@ -1,0 +1,129 @@
+type: ess-scenario/1
+domain: ekr.views
+scenario: named-event-time-resolves-inherited-properties-at-the-requested-revision
+summary: An inherited Timestamp supplies event time, missing values are counted, and historical names and ambiguous timestamp values are checked at the requested revision.
+timeline:
+  - at: 2027-01-17T10:00:00Z
+    command: ekr.views.ExportOcel
+    actor: ekr.views.Reader
+    input:
+      store: ocel-named-time
+      at: 0
+      events: []
+      event_time: [Child.Kind.at]
+    outcome: exported
+    events:
+      - event: ekr.views.OcelExported
+        payload:
+          revision: 0
+          event_types: 1
+          object_types: 4
+          events: 1
+          objects: 1
+          undated_events: 1
+  - at: 2027-01-17T10:01:00Z
+    command: ekr.views.ExportOcel
+    actor: ekr.views.Reader
+    input:
+      store: ocel-named-time
+      at: 1
+      events: []
+      event_time: [Child.Kind.happened_at, Child.Kind.happened_at]
+    outcome: exported
+    events:
+      - event: ekr.views.OcelExported
+        payload:
+          revision: 1
+          events: 1
+          objects: 1
+          undated_events: 1
+  - at: 2027-01-17T10:02:00Z
+    command: ekr.views.ExportOcel
+    actor: ekr.views.Reader
+    input:
+      store: ocel-named-time
+      at: 1
+      events: []
+      event_time: [Child.Kind.at]
+    outcome: event-time-invalid
+    error:
+      name: ekr.views.EventTimeInvalid
+      fields:
+        selector: Child.Kind.at
+        revision: 1
+    no_events: [ekr.views.OcelExported]
+  - at: 2027-01-17T10:03:00Z
+    command: ekr.views.ExportOcel
+    actor: ekr.views.Reader
+    input:
+      store: ocel-named-time
+      at: 2
+      events: []
+      event_time: [Child.Kind.happened_at]
+    outcome: event-time-invalid
+    error:
+      name: ekr.views.EventTimeInvalid
+      fields:
+        selector: Child.Kind.happened_at
+        revision: 2
+    no_events: [ekr.views.OcelExported]
+  - at: 2027-01-17T10:04:00Z
+    command: ekr.views.ExportOcel
+    actor: ekr.views.Reader
+    input:
+      store: ocel-named-time
+      at: 0
+      events: []
+      event_time: [Child.Kind.label]
+    outcome: event-time-invalid
+    error:
+      name: ekr.views.EventTimeInvalid
+      fields:
+        selector: Child.Kind.label
+        revision: 0
+    no_events: [ekr.views.OcelExported]
+  - at: 2027-01-17T10:05:00Z
+    command: ekr.views.ExportOcel
+    actor: ekr.views.Reader
+    input:
+      store: ocel-named-time
+      at: 0
+      events: []
+      event_time: [same.at]
+    outcome: event-time-invalid
+    error:
+      name: ekr.views.EventTimeInvalid
+      fields:
+        selector: same.at
+        revision: 0
+    no_events: [ekr.views.OcelExported]
+  - at: 2027-01-17T10:06:00Z
+    command: ekr.views.ExportOcel
+    actor: ekr.views.Reader
+    input:
+      store: ocel-named-time
+      at: 0
+      events: []
+      event_time: [Child.Kind.at, Child.Kind.earlier_at]
+    outcome: event-time-invalid
+    error:
+      name: ekr.views.EventTimeInvalid
+      fields:
+        selector: Child.Kind.earlier_at
+        revision: 0
+    no_events: [ekr.views.OcelExported]
+  - at: 2027-01-17T10:07:00Z
+    command: ekr.views.ExportOcel
+    actor: ekr.views.Reader
+    input:
+      store: ocel-named-time
+      at: 0
+      events: []
+      event_time: [Child.Kind.ambiguous]
+    outcome: event-time-invalid
+    error:
+      name: ekr.views.EventTimeInvalid
+      fields:
+        selector: Child.Kind.ambiguous
+        revision: 0
+    no_events: [ekr.views.OcelExported]

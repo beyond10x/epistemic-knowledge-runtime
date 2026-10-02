@@ -17,16 +17,26 @@ pub(super) fn run(
     runtime: &Runtime,
     revision: Option<u64>,
     events: &[String],
-) -> Result<Value, Failure> {
-    let answer = ekr_views::export_ocel(runtime, revision.map(RevisionNumber::new), events)
-        .map_err(|error| match error {
-            OcelError::EventTypeNotFound { .. } => {
-                Failure::refused("ekr.views.EventTypeNotFound", error)
-            }
-            OcelError::Project(error) => match project_refusal(&error) {
-                Some(name) => Failure::refused(name, error),
-                None => Failure::unread(error),
-            },
-        })?;
-    serde_json::from_slice(&answer.bytes).map_err(Failure::fault)
+    event_time: &[String],
+) -> Result<(Value, String), Failure> {
+    let answer = ekr_views::export_ocel_with_event_time(
+        runtime,
+        revision.map(RevisionNumber::new),
+        events,
+        event_time,
+    )
+    .map_err(|error| match error {
+        OcelError::EventTypeNotFound { .. } => {
+            Failure::refused("ekr.views.EventTypeNotFound", error)
+        }
+        OcelError::EventTimeInvalid { .. } => Failure::refused("ekr.views.EventTimeInvalid", error),
+        OcelError::Project(error) => match project_refusal(&error) {
+            Some(name) => Failure::refused(name, error),
+            None => Failure::unread(error),
+        },
+    })?;
+    let document = serde_json::from_slice(&answer.bytes).map_err(Failure::fault)?;
+    let mut stderr = serde_json::to_string(&answer.summary).map_err(Failure::fault)?;
+    stderr.push('\n');
+    Ok((document, stderr))
 }

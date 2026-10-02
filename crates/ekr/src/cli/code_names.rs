@@ -36,9 +36,16 @@ pub(super) fn run(
     runtime: &Runtime,
     at: Option<u64>,
     sources: &[SourceText],
+    words: bool,
 ) -> Result<serde_json::Value, Failure> {
-    let answer = ekr_views::find_code_names(runtime, at.map(RevisionNumber::new), sources)
-        .map_err(|error| match project_refusal(&error) {
+    let mode = if words {
+        ekr_views::CodeNameMode::Words
+    } else {
+        ekr_views::CodeNameMode::Literals
+    };
+    let answer =
+        ekr_views::find_code_names_with_mode(runtime, at.map(RevisionNumber::new), sources, mode)
+            .map_err(|error| match project_refusal(&error) {
             Some(name) => Failure::refused(name, error),
             None => Failure::unread(error),
         })?;

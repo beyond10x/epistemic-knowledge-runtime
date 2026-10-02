@@ -63,19 +63,23 @@ WORKFLOW
      ekr snapshot [--at N] [--valid-at YYYY-MM-DD]  read the result back
      ekr explain <assertion_id> [--documents]      why an assertion is what it is
      ekr quality [--revision N]                    the store's quality beyond its size:
-                                                   evidenced assertions, constrained
-                                                   properties, names shared within a type
+                                                   evidenced assertions (seed and item),
+                                                   constrained properties and declaring types,
+                                                   names shared within a type
      ekr ocel [--revision N] [--events <type>...]  one revision as an OCEL 2.0 event log
                                                    (its `ocel` member), types and attributes by
                                                    id, `names` naming them; event types the
-                                                   viewer's unless --events names them
+                                                   viewer's unless --events names them;
+                                                   --event-time Type.property selects timestamps,
+                                                   counts are one JSON line on stderr
      ekr view [--port N]                           a read-only viewer on 127.0.0.1, until interrupted
      ekr mcp                                       read-only MCP tools over stdio for an agent's
                                                    client: overview, search, describe_node,
                                                    expand, timeline, explain, resolve
      ekr code-names <file>... [--at N]             which store names your code quotes as literals:
                                                    file, line and kind; exit 0, the count is
-                                                   meta.findings
+                                                   meta.findings; --words includes bare words
+                                                   in identifiers and comments
      ekr sample --seed S --size N [--type <id>] [--revision N]
                                                    a reproducible sample of facts, each with its
                                                    evidence bytes, for you to judge
