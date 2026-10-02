@@ -305,9 +305,11 @@ impl EventlogStore<SqliteEventStore> {
             Self::sqlite_existing(path, tenant, ontology)
         }
     }
-    /// Opens an already provisioned SQLite store read-only, writing nothing at its path: its
-    /// database is read through a read-only connection into an image held in memory
-    /// (`read_only.rs` says how), every write through the store is refused as
+    /// Opens an already provisioned SQLite store read-only: its database is read through a
+    /// read-only connection into an image held in memory (`read_only.rs` says how). It writes
+    /// nothing at its path, with one exception SQLite makes: a writer that closes during the open
+    /// can leave SQLite to create an empty `-wal` beside the database where this process may write
+    /// the directory (`read_only.rs` says when). Every write through the store is refused as
     /// [`StoreError::ReadOnly`] and no replay checkpoint is written.
     /// # Errors
     /// Runtime-context refusal, invalid tenant, [`StoreError::NoStore`] or provider failure.
