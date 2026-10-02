@@ -253,6 +253,7 @@ mod tests {
                 nodes: BTreeMap::new(),
                 edges: BTreeMap::new(),
                 assertions: BTreeMap::new(),
+                attachments: BTreeMap::new(),
                 evidence: BTreeMap::new(),
             };
             for at in 0..size {

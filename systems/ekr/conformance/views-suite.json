@@ -28,6 +28,7 @@
       "ekr.views/authored/an-unknown-seed-is-refused-by-name",
       "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound",
       "ekr.views/authored/code-names-reports-each-planted-name-and-no-id-or-vocabulary",
+      "ekr.views/authored/named-event-time-resolves-inherited-properties-at-the-requested-revision",
       "ekr.views/authored/seeded-evidence-is-projected-as-retained",
       "ekr.views/authored/the-edge-limit-cuts-a-page-between-a-node-and-its-edges",
       "ekr.views/authored/the-overview-derives-roles-and-timeline-from-valid-time"
@@ -44,7 +45,7 @@
         "scenario": "ekr.views/authored/a-cursor-pages-the-changes-to-their-end"
       },
       "a-fact-quality-report-is-the-wilson-interval-of-the-judged-sample.yaml": {
-        "digest": "sha256:19b2604310838934b9046d94b95493345c0417747c018f4bc0eecf36194d4de7",
+        "digest": "sha256:6b3d82dabca81934bc98f8d51ea48637eb7ec1d059e989e97a9e05b001d3b19c",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-fact-quality-report-is-the-wilson-interval-of-the-judged-sample"
       },
@@ -69,7 +70,7 @@
         "scenario": "ekr.views/authored/a-property-a-subtype-redeclares-is-projected-for-each-type"
       },
       "a-quality-report-counts-evidence-constraints-and-shared-names.yaml": {
-        "digest": "sha256:63adb6d17e9872c8d85e029fa2ac88aa5a6d685e093e07758d9912fd536753af",
+        "digest": "sha256:984caec19ec913bb7b4de9c037301cf1c869dd24e6aed7e058983b665d6ee56d",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/a-quality-report-counts-evidence-constraints-and-shared-names"
       },
@@ -164,9 +165,14 @@
         "scenario": "ekr.views/authored/changes-refuse-a-malformed-since-and-each-bound"
       },
       "code-names-reports-each-planted-name-and-no-id-or-vocabulary.yaml": {
-        "digest": "sha256:176a2065bf27c8ddc666f5f9c3352516023110f977e02403fcf4282d3ceb56ee",
+        "digest": "sha256:7945670923222b2be7dd69635a43c6a2c6d60941d61bc7424cf06397e7792517",
         "disposition": "accepted",
         "scenario": "ekr.views/authored/code-names-reports-each-planted-name-and-no-id-or-vocabulary"
+      },
+      "named-event-time-resolves-inherited-properties-at-the-requested-revision.yaml": {
+        "digest": "sha256:788981ed7ea7d7b4e13cc0aa2488c80ae3a5d178b1977c0539d0f0e482f8867c",
+        "disposition": "accepted",
+        "scenario": "ekr.views/authored/named-event-time-resolves-inherited-properties-at-the-requested-revision"
       },
       "seeded-evidence-is-projected-as-retained.yaml": {
         "digest": "sha256:5abf4850b88699b2a07dcb8f401978ab313ca6ac37342fda7a3bc278fd80a793",
@@ -185,8 +191,8 @@
       }
     },
     "counts": {
-      "authored": 30,
-      "generated": 46,
+      "authored": 31,
+      "generated": 47,
       "outside": 38,
       "refused": 0
     },
@@ -209,6 +215,7 @@
       "ekr.views.ExpandNeighbourhood/outcome/node-not-found",
       "ekr.views.ExpandNeighbourhood/outcome/not-found",
       "ekr.views.ExpandNeighbourhood/outcome/not-seeded",
+      "ekr.views.ExportOcel/outcome/event-time-invalid",
       "ekr.views.ExportOcel/outcome/event-type-not-found",
       "ekr.views.ExportOcel/outcome/exported",
       "ekr.views.ExportOcel/outcome/not-found",
@@ -1217,8 +1224,8 @@
   },
   "provenance": {
     "component": "ekr-views",
-    "contract_digest": "2e49cadd7221346d4522c33edc1d119af41a6522028f060aef741f6a59d83f45",
-    "spec_digest": "c53964f94bcb3667a560036dc036b4ca9eb1be1e6c4394af9c0a0bd98ecfc9a9",
+    "contract_digest": "027875da702fedb13519361868b505f09a56eda1f5a87ae9cbe7cf25877f84c6",
+    "spec_digest": "84d423523534a173ee036937b2501923d5955aaf742d9fbe987e4288dbda679d",
     "specification_version": "v1",
     "suite_version": "ess-conformance/5",
     "system": "ekr"
@@ -6533,6 +6540,281 @@
         }
       ]
     },
+    "ekr.views.ExportOcel/outcome/event-time-invalid": {
+      "purpose": "`ekr.views.ExportOcel` answers `event-time-invalid` for the cause it declares as external, injected",
+      "source": [
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ExportOcel"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ExportOcel",
+            "outcome": "event-time-invalid"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.integrate.ExtractionApplied"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Explained"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.RevisionCommitted"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.Seeded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionProposed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionRejected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionStale"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.TransactionValidated"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.CheckpointWritten"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectRetentionRaised"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.ObjectStored"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.store.PublicationPrepared"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.ChangesListed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.CodeNamesFound"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.FactSampleDrawn"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphOverviewed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.GraphProjected"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NeighbourhoodExpanded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodeDescribed"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.NodesSearched"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.StoreQualityReported"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.SubjectsTimelined"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.EventTimeInvalid"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "force": {
+            "command": "ekr.views.ExportOcel",
+            "outcome": "event-time-invalid"
+          },
+          "step": "configure_external_outcome"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ExportOcel",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "event_time": {
+              "kind": "literal",
+              "value": []
+            },
+            "events": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "store"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ExportOcel",
+            "outcome": "event-time-invalid"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.EventTimeInvalid",
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.integrate.ExtractionApplied",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Explained",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.RevisionCommitted",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.Seeded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionProposed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionRejected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionStale",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.kernel.TransactionValidated",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.CheckpointWritten",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectRetentionRaised",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.ObjectStored",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.store.PublicationPrepared",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.ChangesListed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.FactSampleDrawn",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphOverviewed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.GraphProjected",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NeighbourhoodExpanded",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodeDescribed",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.NodesSearched",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "step": "expect_no_event"
+        },
+        {
+          "event": "ekr.views.SubjectsTimelined",
+          "step": "expect_no_event"
+        }
+      ]
+    },
     "ekr.views.ExportOcel/outcome/event-type-not-found": {
       "purpose": "`ekr.views.ExportOcel` answers `event-type-not-found` for the cause it declares as external, injected",
       "source": [
@@ -6679,6 +6961,10 @@
             "at": {
               "kind": "literal",
               "value": 1.0
+            },
+            "event_time": {
+              "kind": "literal",
+              "value": []
             },
             "events": {
               "kind": "literal",
@@ -6943,6 +7229,10 @@
             "at": {
               "kind": "literal",
               "value": 1.0
+            },
+            "event_time": {
+              "kind": "literal",
+              "value": []
             },
             "events": {
               "kind": "literal",
@@ -7265,6 +7555,10 @@
               "kind": "literal",
               "value": 1.0
             },
+            "event_time": {
+              "kind": "literal",
+              "value": []
+            },
             "events": {
               "kind": "literal",
               "value": []
@@ -7536,6 +7830,10 @@
               "kind": "literal",
               "value": 1.0
             },
+            "event_time": {
+              "kind": "literal",
+              "value": []
+            },
             "events": {
               "kind": "literal",
               "value": []
@@ -7673,6 +7971,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.CodeNameMode"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.SourceText"
         },
         {
@@ -7803,6 +8105,10 @@
             "at": {
               "kind": "literal",
               "value": 1.0
+            },
+            "mode": {
+              "kind": "literal",
+              "value": "Literals"
             },
             "sources": {
               "kind": "literal",
@@ -7993,6 +8299,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.CodeNameMode"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.SourceText"
         },
         {
@@ -8135,6 +8445,10 @@
               "kind": "literal",
               "value": 1.0
             },
+            "mode": {
+              "kind": "literal",
+              "value": "Literals"
+            },
             "sources": {
               "kind": "literal",
               "value": []
@@ -8265,6 +8579,10 @@
         {
           "kind": "type",
           "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.CodeNameMode"
         },
         {
           "kind": "type",
@@ -8409,6 +8727,10 @@
             "at": {
               "kind": "literal",
               "value": 1.0
+            },
+            "mode": {
+              "kind": "literal",
+              "value": "Literals"
             },
             "sources": {
               "kind": "literal",
@@ -12585,8 +12907,7 @@
             },
             "lower_bp": {
               "holds": "primitive",
-              "kind": "integer",
-              "optional": true
+              "kind": "integer"
             },
             "passed": {
               "holds": "primitive",
@@ -12599,8 +12920,7 @@
             },
             "upper_bp": {
               "holds": "primitive",
-              "kind": "integer",
-              "optional": true
+              "kind": "integer"
             }
           },
           "step": "expect_event"
@@ -13402,6 +13722,10 @@
               "holds": "primitive",
               "kind": "integer"
             },
+            "constrained_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
             "properties": {
               "holds": "primitive",
               "kind": "integer"
@@ -13427,6 +13751,10 @@
               "kind": "integer"
             },
             "with_item_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "with_seed_evidence": {
               "holds": "primitive",
               "kind": "integer"
             }
@@ -15647,6 +15975,79 @@
           "input": {
             "confidence": {
               "kind": "literal",
+              "value": null
+            },
+            "judgements": {
+              "kind": "literal",
+              "value": []
+            },
+            "sample": {
+              "kind": "literal",
+              "value": null
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ReportFactQuality",
+            "outcome": "reported"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.FactQualityReported",
+          "payload": {
+            "confidence": 9500.0,
+            "failed": 0.0,
+            "judged": 0.0,
+            "lower_bp": 0.0,
+            "passed": 0.0,
+            "upper_bp": 10000.0
+          },
+          "shape": {
+            "confidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "fact_quality_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "failed": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "judged": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "lower_bp": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "passed": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "rate_bp": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "upper_bp": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ReportFactQuality",
+          "input": {
+            "confidence": {
+              "kind": "literal",
               "value": 9500.0
             },
             "judgements": {
@@ -15738,8 +16139,7 @@
             },
             "lower_bp": {
               "holds": "primitive",
-              "kind": "integer",
-              "optional": true
+              "kind": "integer"
             },
             "passed": {
               "holds": "primitive",
@@ -15752,8 +16152,7 @@
             },
             "upper_bp": {
               "holds": "primitive",
-              "kind": "integer",
-              "optional": true
+              "kind": "integer"
             }
           },
           "step": "expect_event"
@@ -15855,8 +16254,7 @@
             },
             "lower_bp": {
               "holds": "primitive",
-              "kind": "integer",
-              "optional": true
+              "kind": "integer"
             },
             "passed": {
               "holds": "primitive",
@@ -15869,8 +16267,7 @@
             },
             "upper_bp": {
               "holds": "primitive",
-              "kind": "integer",
-              "optional": true
+              "kind": "integer"
             }
           },
           "step": "expect_event"
@@ -15972,8 +16369,7 @@
             },
             "lower_bp": {
               "holds": "primitive",
-              "kind": "integer",
-              "optional": true
+              "kind": "integer"
             },
             "passed": {
               "holds": "primitive",
@@ -15986,8 +16382,7 @@
             },
             "upper_bp": {
               "holds": "primitive",
-              "kind": "integer",
-              "optional": true
+              "kind": "integer"
             }
           },
           "step": "expect_event"
@@ -16061,8 +16456,7 @@
             },
             "lower_bp": {
               "holds": "primitive",
-              "kind": "integer",
-              "optional": true
+              "kind": "integer"
             },
             "passed": {
               "holds": "primitive",
@@ -16075,8 +16469,7 @@
             },
             "upper_bp": {
               "holds": "primitive",
-              "kind": "integer",
-              "optional": true
+              "kind": "integer"
             }
           },
           "step": "expect_event"
@@ -16150,8 +16543,7 @@
             },
             "lower_bp": {
               "holds": "primitive",
-              "kind": "integer",
-              "optional": true
+              "kind": "integer"
             },
             "passed": {
               "holds": "primitive",
@@ -16164,8 +16556,7 @@
             },
             "upper_bp": {
               "holds": "primitive",
-              "kind": "integer",
-              "optional": true
+              "kind": "integer"
             }
           },
           "step": "expect_event"
@@ -18624,12 +19015,14 @@
           "payload": {
             "active_assertions": 3.0,
             "constrained_properties": 2.0,
+            "constrained_types": 2.0,
             "properties": 5.0,
             "revision": 0.0,
             "shared_names": 4.0,
             "sharing_nodes": 6.0,
             "with_evidence": 3.0,
-            "with_item_evidence": 0.0
+            "with_item_evidence": 0.0,
+            "with_seed_evidence": 3.0
           },
           "shape": {
             "active_assertions": {
@@ -18637,6 +19030,10 @@
               "kind": "integer"
             },
             "constrained_properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "constrained_types": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -18665,6 +19062,10 @@
               "kind": "integer"
             },
             "with_item_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "with_seed_evidence": {
               "holds": "primitive",
               "kind": "integer"
             }
@@ -18698,12 +19099,14 @@
           "payload": {
             "active_assertions": 5.0,
             "constrained_properties": 2.0,
+            "constrained_types": 2.0,
             "properties": 5.0,
             "revision": 1.0,
             "shared_names": 5.0,
             "sharing_nodes": 8.0,
             "with_evidence": 5.0,
-            "with_item_evidence": 2.0
+            "with_item_evidence": 2.0,
+            "with_seed_evidence": 4.0
           },
           "shape": {
             "active_assertions": {
@@ -18711,6 +19114,10 @@
               "kind": "integer"
             },
             "constrained_properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "constrained_types": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -18739,6 +19146,10 @@
               "kind": "integer"
             },
             "with_item_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "with_seed_evidence": {
               "holds": "primitive",
               "kind": "integer"
             }
@@ -18772,12 +19183,14 @@
           "payload": {
             "active_assertions": 4.0,
             "constrained_properties": 2.0,
+            "constrained_types": 2.0,
             "properties": 5.0,
             "revision": 3.0,
             "shared_names": 5.0,
             "sharing_nodes": 8.0,
             "with_evidence": 4.0,
-            "with_item_evidence": 3.0
+            "with_item_evidence": 3.0,
+            "with_seed_evidence": 2.0
           },
           "shape": {
             "active_assertions": {
@@ -18785,6 +19198,10 @@
               "kind": "integer"
             },
             "constrained_properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "constrained_types": {
               "holds": "primitive",
               "kind": "integer"
             },
@@ -18813,6 +19230,170 @@
               "kind": "integer"
             },
             "with_item_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "with_seed_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ReportStoreQuality",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 4.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "quality-seed-attachment"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ReportStoreQuality",
+            "outcome": "reported"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "payload": {
+            "active_assertions": 4.0,
+            "constrained_types": 2.0,
+            "revision": 4.0,
+            "with_evidence": 4.0,
+            "with_item_evidence": 3.0,
+            "with_seed_evidence": 3.0
+          },
+          "shape": {
+            "active_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "constrained_properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "constrained_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "quality_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "shared_names": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "sharing_nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "with_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "with_item_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "with_seed_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ReportStoreQuality",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "store": {
+              "kind": "literal",
+              "value": "quality-constraints"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ReportStoreQuality",
+            "outcome": "reported"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.StoreQualityReported",
+          "payload": {
+            "active_assertions": 0.0,
+            "constrained_properties": 3.0,
+            "constrained_types": 2.0,
+            "properties": 3.0,
+            "revision": 0.0,
+            "with_seed_evidence": 0.0
+          },
+          "shape": {
+            "active_assertions": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "constrained_properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "constrained_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "quality_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "shared_names": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "sharing_nodes": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "with_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "with_item_evidence": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "with_seed_evidence": {
               "holds": "primitive",
               "kind": "integer"
             }
@@ -26442,6 +27023,10 @@
         },
         {
           "kind": "type",
+          "name": "ekr.views.CodeNameMode"
+        },
+        {
+          "kind": "type",
           "name": "ekr.views.SourceText"
         },
         {
@@ -26841,6 +27426,631 @@
         },
         {
           "event": "ekr.views.CodeNamesFound",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.FindCodeNames",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "mode": {
+              "kind": "literal",
+              "value": "Words"
+            },
+            "sources": {
+              "kind": "literal",
+              "value": [
+                {
+                  "path": "code.rs",
+                  "text": "// Subject\nlet alpha = links;\nlongSubject Subject_suffix éSubject Subjecté\n`Subject`\n"
+                }
+              ]
+            },
+            "store": {
+              "kind": "literal",
+              "value": "edge-assertion"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.FindCodeNames",
+            "outcome": "found"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.CodeNamesFound",
+          "payload": {
+            "canonical_names": 1.0,
+            "edge_types": 1.0,
+            "exempt": 0.0,
+            "files": 1.0,
+            "findings": 4.0,
+            "first_file": "code.rs",
+            "first_line": 1.0,
+            "literals": 4.0,
+            "node_types": 2.0,
+            "revision": 0.0,
+            "runtime_word_findings": 1.0
+          },
+          "shape": {
+            "aliases": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "canonical_names": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "code_names_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "edge_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "exempt": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "files": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "findings": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "first_file": {
+              "holds": "primitive",
+              "kind": "string",
+              "optional": true
+            },
+            "first_line": {
+              "holds": "primitive",
+              "kind": "integer",
+              "optional": true
+            },
+            "literals": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "node_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "properties": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "runtime_word_findings": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        }
+      ]
+    },
+    "ekr.views/authored/named-event-time-resolves-inherited-properties-at-the-requested-revision": {
+      "purpose": "An inherited Timestamp supplies event time, missing values are counted, and historical names and ambiguous timestamp values are checked at the requested revision.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.views"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.StoreLocation"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.views.ExportOcel"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ExportOcel",
+            "outcome": "event-time-invalid"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.views.ExportOcel",
+            "outcome": "exported"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.views.OcelExported"
+        },
+        {
+          "kind": "error",
+          "name": "ekr.views.EventTimeInvalid"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.views.Reader"
+        }
+      ],
+      "steps": [
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ExportOcel",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "event_time": {
+              "kind": "literal",
+              "value": [
+                "Child.Kind.at"
+              ]
+            },
+            "events": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "ocel-named-time"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ExportOcel",
+            "outcome": "exported"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "payload": {
+            "event_types": 1.0,
+            "events": 1.0,
+            "object_types": 4.0,
+            "objects": 1.0,
+            "revision": 0.0,
+            "undated_events": 1.0
+          },
+          "shape": {
+            "attribute_values_out_of_range": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges_between_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges_of_undated_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_object_relationships": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "object_object_relationships": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "object_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "objects": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "ocel_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "parallel_edges_merged": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "undated_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ExportOcel",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "event_time": {
+              "kind": "literal",
+              "value": [
+                "Child.Kind.happened_at",
+                "Child.Kind.happened_at"
+              ]
+            },
+            "events": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "ocel-named-time"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ExportOcel",
+            "outcome": "exported"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "payload": {
+            "events": 1.0,
+            "objects": 1.0,
+            "revision": 1.0,
+            "undated_events": 1.0
+          },
+          "shape": {
+            "attribute_values_out_of_range": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges_between_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "edges_of_undated_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_object_relationships": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "event_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "events": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "object_object_relationships": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "object_types": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "objects": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "ocel_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "parallel_edges_merged": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "undated_events": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ExportOcel",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 1.0
+            },
+            "event_time": {
+              "kind": "literal",
+              "value": [
+                "Child.Kind.at"
+              ]
+            },
+            "events": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "ocel-named-time"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ExportOcel",
+            "outcome": "event-time-invalid"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.EventTimeInvalid",
+          "fields": {
+            "revision": 1.0,
+            "selector": "Child.Kind.at"
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ExportOcel",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 2.0
+            },
+            "event_time": {
+              "kind": "literal",
+              "value": [
+                "Child.Kind.happened_at"
+              ]
+            },
+            "events": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "ocel-named-time"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ExportOcel",
+            "outcome": "event-time-invalid"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.EventTimeInvalid",
+          "fields": {
+            "revision": 2.0,
+            "selector": "Child.Kind.happened_at"
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ExportOcel",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "event_time": {
+              "kind": "literal",
+              "value": [
+                "Child.Kind.label"
+              ]
+            },
+            "events": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "ocel-named-time"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ExportOcel",
+            "outcome": "event-time-invalid"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.EventTimeInvalid",
+          "fields": {
+            "revision": 0.0,
+            "selector": "Child.Kind.label"
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ExportOcel",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "event_time": {
+              "kind": "literal",
+              "value": [
+                "same.at"
+              ]
+            },
+            "events": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "ocel-named-time"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ExportOcel",
+            "outcome": "event-time-invalid"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.EventTimeInvalid",
+          "fields": {
+            "revision": 0.0,
+            "selector": "same.at"
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ExportOcel",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "event_time": {
+              "kind": "literal",
+              "value": [
+                "Child.Kind.at",
+                "Child.Kind.earlier_at"
+              ]
+            },
+            "events": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "ocel-named-time"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ExportOcel",
+            "outcome": "event-time-invalid"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.EventTimeInvalid",
+          "fields": {
+            "revision": 0.0,
+            "selector": "Child.Kind.earlier_at"
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.OcelExported",
+          "step": "expect_no_event"
+        },
+        {
+          "actor": "ekr.views.Reader",
+          "command": "ekr.views.ExportOcel",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            },
+            "event_time": {
+              "kind": "literal",
+              "value": [
+                "Child.Kind.ambiguous"
+              ]
+            },
+            "events": {
+              "kind": "literal",
+              "value": []
+            },
+            "store": {
+              "kind": "literal",
+              "value": "ocel-named-time"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.views.ExportOcel",
+            "outcome": "event-time-invalid"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "error": "ekr.views.EventTimeInvalid",
+          "fields": {
+            "revision": 0.0,
+            "selector": "Child.Kind.ambiguous"
+          },
+          "step": "expect_error"
+        },
+        {
+          "event": "ekr.views.OcelExported",
           "step": "expect_no_event"
         }
       ]

@@ -142,6 +142,7 @@ impl Check for Cardinality {
                 | GraphOperation::ModifyProperty(_)
                 | GraphOperation::WidenEdgeType(_)
                 | GraphOperation::AddAlias(_)
+                | GraphOperation::AttachEvidence(_)
                 | GraphOperation::AddEvidence(_) => {}
             }
         }

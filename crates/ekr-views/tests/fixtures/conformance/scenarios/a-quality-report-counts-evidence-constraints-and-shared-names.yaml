@@ -42,8 +42,10 @@ timeline:
           active_assertions: 3
           with_evidence: 3
           with_item_evidence: 0
+          with_seed_evidence: 3
           properties: 5
           constrained_properties: 2
+          constrained_types: 2
           shared_names: 4
           sharing_nodes: 6
 
@@ -61,8 +63,10 @@ timeline:
           active_assertions: 5
           with_evidence: 5
           with_item_evidence: 2
+          with_seed_evidence: 4
           properties: 5
           constrained_properties: 2
+          constrained_types: 2
           shared_names: 5
           sharing_nodes: 8
 
@@ -80,7 +84,39 @@ timeline:
           active_assertions: 4
           with_evidence: 4
           with_item_evidence: 3
+          with_seed_evidence: 2
           properties: 5
           constrained_properties: 2
+          constrained_types: 2
           shared_names: 5
           sharing_nodes: 8
+
+  - at: 2027-01-15T13:03:00Z
+    command: ekr.views.ReportStoreQuality
+    actor: ekr.views.Reader
+    input: {store: quality-seed-attachment, at: 4}
+    outcome: reported
+    events:
+      - event: ekr.views.StoreQualityReported
+        payload:
+          revision: 4
+          active_assertions: 4
+          with_evidence: 4
+          with_item_evidence: 3
+          with_seed_evidence: 3
+          constrained_types: 2
+
+  - at: 2027-01-15T13:04:00Z
+    command: ekr.views.ReportStoreQuality
+    actor: ekr.views.Reader
+    input: {store: quality-constraints, at: 0}
+    outcome: reported
+    events:
+      - event: ekr.views.StoreQualityReported
+        payload:
+          revision: 0
+          active_assertions: 0
+          with_seed_evidence: 0
+          properties: 3
+          constrained_properties: 3
+          constrained_types: 2

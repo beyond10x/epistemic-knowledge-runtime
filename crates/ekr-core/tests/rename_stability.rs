@@ -124,6 +124,7 @@ fn no_id_type_mints_a_constant() {
         EdgeId,
         AssertionId,
         SupportId,
+        AttachmentId,
         EvidenceId,
         ObservationId,
         EventId,

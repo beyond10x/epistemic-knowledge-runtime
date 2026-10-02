@@ -300,6 +300,23 @@ fn a_drawn_sample_judged_by_the_caller_is_reported_with_its_wilson_interval() {
 }
 
 #[test]
+fn no_judgements_print_the_vacuous_interval_one_shot_and_in_each_session() {
+    let document = judged(&[]);
+    let output = fact_quality(&["-"], &document);
+    assert_eq!(output.status.code(), Some(0));
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report.get("rate"), Some(&Value::Null));
+    assert_eq!(report["lower"], 0.0);
+    assert_eq!(report["upper"], 1.0);
+    for backend in BACKENDS {
+        let world = World::seeded(backend);
+        let answers = world.session(&[json!({"argv": ["fact-quality", "-"], "stdin": document})]);
+        assert_eq!(answers[0]["exit"], 0, "{backend}: {}", answers[0]);
+        assert_eq!(answers[0]["stdout"], report, "{backend}");
+    }
+}
+
+#[test]
 fn fact_quality_refuses_by_name_and_a_malformed_document_is_a_fault() {
     let a = "00000000-0000-4000-8000-000000000510";
     let b = "00000000-0000-4000-8000-000000000511";

@@ -30,6 +30,7 @@
 //! by the validator whose question it actually is.
 
 mod aliases;
+mod attachment;
 pub mod authorization;
 mod candidate;
 pub mod cardinality;

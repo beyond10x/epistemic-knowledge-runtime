@@ -59,7 +59,8 @@
 //! held equal to the evidence the transaction's assertions cite — the same shape as the domain's
 //! `operation_count`, which is equally derivable and equally declared. Evidence an `AddEvidence`
 //! brings is in it exactly when an assertion of the transaction cites it: the set says what the
-//! transaction rests on, not what it adds.
+//! transaction rests on, not what it adds. Evidence an `AttachEvidence` attaches is in it too, since
+//! the assertion now rests on it (design § 103.1).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -93,7 +94,8 @@ const ALIAS_ALREADY_EXISTS: &str = "alias-already-exists";
 /// An `AddAlias` of the empty alias, which identifies nothing.
 const EMPTY_ALIAS: &str = "empty-alias";
 
-/// A transaction whose declared evidence is not the evidence its assertions cite.
+/// A transaction whose declared evidence is not the evidence its assertions cite and its
+/// attachments attach.
 const EVIDENCE_SET_MISMATCH: &str = "evidence-set-mismatch";
 
 /// A merge naming one node as both the record absorbed and the record that survives.
@@ -833,6 +835,7 @@ fn check(
     let mut types = BTreeSet::new();
     let mut evidence: BTreeSet<EvidenceId> = BTreeSet::new();
     let mut cited: BTreeSet<EvidenceId> = BTreeSet::new();
+    let mut attached = false;
     let declared = |type_id: TypeId| {
         state.ontology.node_type(type_id).is_some() || state.ontology.edge_type(type_id).is_some()
     };
@@ -911,6 +914,13 @@ fn check(
             // Brings none either: it adds node types to the ends of an edge type that exists.
             // Whether both do exist is `Ontology::evolve`'s question, under profile v2.
             GraphOperation::WidenEdgeType(_) => (None, None),
+            // Names an assertion and evidence and creates neither; what it attaches is part of
+            // what the transaction rests on, so the evidence is in the manifest (design § 103.1).
+            GraphOperation::AttachEvidence(attachment) => {
+                cited.insert(attachment.evidence);
+                attached = true;
+                (None, None)
+            }
             // Name an identity and create none: each is refused by `Reference` if what it
             // names is not there.
             GraphOperation::UpdateProperty(_)
@@ -945,14 +955,21 @@ fn check(
     aliases(graph, tx, candidate, &mut issues);
     schema_shape(tx, admits_schema, &mut issues);
 
+    // A transaction that attaches nothing is refused in the words it always was: replay compares
+    // every retained rejection's message with what this ruleset says now.
+    let cite = if attached {
+        "its assertions cite or its attachments attach"
+    } else {
+        "its assertions cite"
+    };
     if cited != tx.evidence {
         issues.push(issue(
             tx,
             ValidatorName::Structural,
             EVIDENCE_SET_MISMATCH,
             format!(
-                "the transaction declares it rests on {:?} and its assertions cite {:?}; the \
-                 declared set is what `evidence_hash` addresses and is held to the operations",
+                "the transaction declares it rests on {:?} and {cite} {:?}; the declared set is \
+                 what `evidence_hash` addresses and is held to the operations",
                 tx.evidence
                     .iter()
                     .map(ToString::to_string)
@@ -1031,5 +1048,6 @@ fn check(
     }
 
     issues.extend(super::lifecycle::check(graph, tx));
+    issues.extend(super::attachment::check(graph, tx));
     finish(issues)
 }

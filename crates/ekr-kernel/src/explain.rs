@@ -134,6 +134,20 @@ pub struct ExplainedLifecycle {
     pub commit: ExplainedCommit,
 }
 
+/// `ekr.kernel.ExplainedAttachment`: evidence attached to an explained assertion after it was
+/// added, with the commit that attached it (`story:evidence-attaches-to-a-held-assertion`).
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct ExplainedAttachment {
+    /// The assertion the evidence is attached to.
+    pub assertion_id: AssertionId,
+    /// The evidence attached; it is one of the chain's Evidence links.
+    pub evidence_id: EvidenceId,
+    /// The revision the attaching commit produced.
+    pub revision: RevisionNumber,
+    /// The attaching commit, by reference.
+    pub commit: ExplainedCommit,
+}
+
 /// `ekr.kernel.ExplanationLink`, tagged by `kind`.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(tag = "kind")]
@@ -150,6 +164,8 @@ pub enum ExplanationLink {
     Commit(ExplainedCommit),
     /// A later committed lifecycle change, through the captured revision.
     Lifecycle(ExplainedLifecycle),
+    /// Evidence attached to it after it was added, through the captured revision.
+    Attachment(ExplainedAttachment),
     /// Supporting evidence whose retained payload was verified at its content address.
     Evidence(Evidence),
 }
@@ -301,9 +317,11 @@ impl VerifiedRead {
     /// Starts with the requested assertion, then every replacement a supersession selects, in
     /// stable id order, each once. Per assertion: the assertion, its origin (Seed, or Proposal,
     /// Validation and Commit), then its lifecycle changes through the captured revision in
-    /// revision order. The chain ends in the union, by [`EvidenceId`], of each selected
-    /// assertion's evidence and the complete evidence sets of the included ordinary origin and
-    /// lifecycle transactions, each payload verified at its content address. HumanStatement
+    /// revision order, then the evidence attached to it through the captured revision, in
+    /// evidence-id order, each with its commit (design § 103.4). The chain ends in the union, by
+    /// [`EvidenceId`], of each selected assertion's evidence, the evidence attached to it, and
+    /// the complete evidence sets of the included ordinary origin and lifecycle transactions, each
+    /// payload verified at its content address. HumanStatement
     /// evidence terminates; any other source refuses rather than fabricating a further step.
     ///
     /// The chain is looked up, not found by reading every committed document. Replay records in
@@ -462,6 +480,32 @@ impl VerifiedRead {
                 }
             }
             require(assertion.lifecycle == current, "lifecycle-disagrees")?;
+
+            // Each attachment the captured graph holds for this assertion, by the revision that
+            // made it: that commit's document must attach exactly this evidence to it. Only the
+            // attached id joins the chain's evidence, not the attaching commit's whole set.
+            for attached in self.graph.attached(id) {
+                let evidence = attached.evidence.id();
+                let Some(change) = index.get(&attached.revision) else {
+                    return unverified("attachment-disagrees");
+                };
+                let committed = transaction(change)?;
+                require(
+                    committed.operations.iter().any(|op| {
+                        matches!(op, GraphOperation::AttachEvidence(a)
+                            if a.assertion == id && a.evidence == evidence)
+                    }),
+                    "attachment-disagrees",
+                )?;
+                let (_, record_hash) = self.verify(change)?;
+                links.push(ExplanationLink::Attachment(ExplainedAttachment {
+                    assertion_id: id,
+                    evidence_id: evidence,
+                    revision: change.revision,
+                    commit: change.explained(record_hash),
+                }));
+                support.insert(evidence);
+            }
         }
         for id in support {
             let Some(evidence) = self.graph.evidence.get(&id) else {

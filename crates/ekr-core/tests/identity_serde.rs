@@ -103,6 +103,7 @@ id_cases! {
     edge_id => EdgeId,
     assertion_id => AssertionId,
     support_id => SupportId,
+    attachment_id => AttachmentId,
     evidence_id => EvidenceId,
     observation_id => ObservationId,
     event_id => EventId,

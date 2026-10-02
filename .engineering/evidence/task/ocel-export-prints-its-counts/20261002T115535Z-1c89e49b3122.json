@@ -1,0 +1,15 @@
+{
+  "at": "2026-10-02T11:55:35Z",
+  "actor": "agent:codex-ekr-x7b",
+  "artifact": "task:ocel-export-prints-its-counts",
+  "kind": "task",
+  "revision": 5,
+  "change": {
+    "change": "evidence",
+    "kind": "review_outcome",
+    "source": "review-result:adversary-extract-07b-on-pass-1",
+    "reference": "ba27141b34c5ced39ae90198e4bc1776b05ff656",
+    "review": "review-result:adversary-extract-07b-on-pass-1",
+    "outcome": "no-op"
+  }
+}

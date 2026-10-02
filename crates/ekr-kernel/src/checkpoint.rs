@@ -589,6 +589,7 @@ fn restored(
     require(document.revision == head, "checkpoint-graph-revision")?;
     let narrowed = |error: ekr_store::MembraneError| refuse(&format!("checkpoint-graph: {error}"));
     let graph = CanonicalGraph {
+        attachments: document.attachments,
         root: document.root,
         revision: document.revision,
         ontology: (*schema_at(head)?.1).clone(),

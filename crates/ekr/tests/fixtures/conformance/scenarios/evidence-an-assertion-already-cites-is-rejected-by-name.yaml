@@ -1,0 +1,45 @@
+# story:evidence-attaches-to-a-held-assertion, acceptance 2, the evidence already cited.
+#
+# The target has committed revision 1 before the first act: assertion 85f861a70a8d, citing the
+# seed's evidence 0401. The fixture `attach-evidence-cited.yaml` attaches 0401 to it. An
+# assertion rests on a piece of evidence once, cited or attached, so validation rejects it with
+# exactly one issue, which the Structural validator raises under the name
+# evidence-already-attached.
+type: ess-scenario/1
+domain: ekr.kernel
+scenario: evidence-an-assertion-already-cites-is-rejected-by-name
+summary: Evidence attached to an assertion that already cites it is rejected with one issue, evidence-already-attached, raised by Structural.
+
+arrange:
+  - instance: proposal
+    entity: ekr.kernel.GraphTransaction
+
+timeline:
+  - at: 2027-01-15T08:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input:
+      transaction_document: attachment
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+    capture: {instance: proposal, event: ekr.kernel.TransactionProposed, field: transaction_id}
+
+  - at: 2027-01-15T08:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input:
+      transaction_id: {$instance: proposal}
+      against: 1
+    outcome: rejected
+    events:
+      - event: ekr.kernel.TransactionRejected
+        payload:
+          issues: 1
+
+assert:
+  - view: ekr.kernel.ValidationIssues
+    contains:
+      transaction_id: {$instance: proposal}
+      validator: Structural
+      code: evidence-already-attached

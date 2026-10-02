@@ -51,6 +51,7 @@ fn ontology() -> Ontology {
 /// A seed with no content. The case is about what advances the lineage, not about what is in it.
 fn graph(ontology: &Ontology) -> CanonicalGraph {
     CanonicalGraph {
+        attachments: Default::default(),
         root: GraphRoot {
             id: GraphRootId::mint(),
             space: Space::Canonical,

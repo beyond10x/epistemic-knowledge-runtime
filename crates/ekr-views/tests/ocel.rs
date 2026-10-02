@@ -302,6 +302,90 @@ fn hex(bytes: &[u8]) -> String {
 }
 
 #[test]
+fn a_named_inherited_timestamp_controls_events_at_the_requested_revision() {
+    for provider in PROVIDERS {
+        let work = tempfile::tempdir().unwrap();
+        let runtime = fixtures::open(work.path(), provider);
+        Fixture::NamedEventTime.build(&runtime);
+        for (revision, selector) in [(0, "Child.Kind.at"), (1, "Child.Kind.happened_at")] {
+            let answer = ekr_views::export_ocel_with_event_time(
+                &runtime,
+                Some(RevisionNumber::new(revision)),
+                &[],
+                &[selector.to_owned()],
+            )
+            .unwrap();
+            let document: Value = serde_json::from_slice(&answer.bytes).unwrap();
+            assert_eq!(
+                document["ocel"]["events"][0]["time"],
+                "1970-01-01T00:00:02.000Z"
+            );
+            assert_eq!(
+                (
+                    answer.summary.events,
+                    answer.summary.objects,
+                    answer.summary.undated_events
+                ),
+                (1, 1, 1)
+            );
+            let twice = ekr_views::export_ocel_with_event_time(
+                &runtime,
+                Some(RevisionNumber::new(revision)),
+                &[],
+                &[selector.to_owned(), selector.to_owned()],
+            )
+            .unwrap();
+            assert_eq!(answer.bytes, twice.bytes);
+            let index =
+                ekr_views::Index::load(&runtime, Some(RevisionNumber::new(revision))).unwrap();
+            let projected =
+                ekr_views::ocel_with_event_time(&index, &[], &[selector.to_owned()]).unwrap();
+            assert_eq!(projected.bytes, answer.bytes);
+            assert_eq!(projected.summary, answer.summary);
+            assert_eq!(
+                ekr_views::export_ocel_with_event_time(
+                    &runtime,
+                    Some(RevisionNumber::new(revision)),
+                    &[],
+                    &[]
+                )
+                .unwrap()
+                .bytes,
+                ekr_views::export_ocel(&runtime, Some(RevisionNumber::new(revision)), &[])
+                    .unwrap()
+                    .bytes
+            );
+        }
+        for (revision, selectors) in [
+            (0, vec!["Child.Kind.label"]),
+            (0, vec!["Child.Kind.absent"]),
+            (0, vec!["Child.Kind.ambiguous"]),
+            (0, vec!["same.at"]),
+            (0, vec!["Unknown.at"]),
+            (0, vec!["malformed"]),
+            (0, vec!["Child.Kind.at", "Child.Kind.earlier_at"]),
+            (1, vec!["Child.Kind.at"]),
+            (2, vec!["Child.Kind.happened_at"]),
+        ] {
+            let error = ekr_views::export_ocel_with_event_time(
+                &runtime,
+                Some(RevisionNumber::new(revision)),
+                &[],
+                &selectors
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>(),
+            )
+            .unwrap_err();
+            assert!(
+                matches!(error, OcelError::EventTimeInvalid { .. }),
+                "{selectors:?}: {error}"
+            );
+        }
+    }
+}
+
+#[test]
 fn by_the_overviews_rule_each_revision_exports_the_fixtures_log_and_the_heads_bytes_are_pinned() {
     for provider in PROVIDERS {
         let name = provider.name();

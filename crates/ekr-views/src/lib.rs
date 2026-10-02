@@ -71,11 +71,15 @@ pub use changes::{
     ChangesError, ChangesListed, ChangesRequest, SinceKind, SinceMalformed, CHANGES_FORMAT,
 };
 pub use code_names::{
-    code_names, find_code_names, literals, runtime_vocabulary, CodeNamesFound, Literal, SourceText,
-    CODE_NAMES_FORMAT, EMBEDDED_DOMAINS,
+    code_names, code_names_with_mode, find_code_names, find_code_names_with_mode, literals,
+    runtime_vocabulary, CodeNameMode, CodeNamesFound, Literal, SourceText, CODE_NAMES_FORMAT,
+    EMBEDDED_DOMAINS,
 };
 pub use index::{Index, IndexCache};
-pub use ocel::{export_ocel, ocel, OcelError, OcelExported, OCEL_FORMAT};
+pub use ocel::{
+    export_ocel, export_ocel_with_event_time, ocel, ocel_with_event_time, OcelError, OcelExported,
+    OCEL_FORMAT,
+};
 pub use quality::{quality, report_quality, StoreQualityReported, QUALITY_FORMAT};
 pub use query::{
     Answer, ExpandRequest, GraphOverviewed, LimitExceeded, NeighbourhoodExpanded, NodeDescribed,

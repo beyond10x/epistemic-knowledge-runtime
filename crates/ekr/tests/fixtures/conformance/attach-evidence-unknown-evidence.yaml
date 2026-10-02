@@ -1,0 +1,10 @@
+format: ekr.transaction-document/2
+transaction:
+  id: 00000000-0000-4000-8000-0000000007a3
+  proposer: 00000000-0000-4000-8000-000000000101
+  operations:
+  - !AttachEvidence
+    assertion: 00000000-0000-4000-8000-85f861a70a8d
+    evidence: 00000000-0000-4000-8000-000000000499
+  evidence:
+  - 00000000-0000-4000-8000-000000000499
