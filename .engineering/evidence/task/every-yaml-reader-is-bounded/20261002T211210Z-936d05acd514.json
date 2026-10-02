@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-02T21:12:10Z",
+  "actor": "agent:codex-ekr-next-three-root",
+  "artifact": "task:every-yaml-reader-is-bounded",
+  "kind": "task",
+  "revision": 9,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Combined source gate at 5ab56194 plus affected checks after current-main merge; every captured step exits zero",
+    "reference": "<cache>/ekr-next-three/coordinator/input-08-gate and input-08-supplement; 401a56d43e4b617a078a0dda7b384c4f7a1ef908"
+  }
+}

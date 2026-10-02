@@ -7,7 +7,7 @@ title: Input safety, historical paging and historical ontology after the release
 relations:
 - supersedes: release-plan:next-waves-2026-10-01
 - serves: vision:o5
-revision: 4
+revision: 5
 transitions:
 - {from: "draft", to: "active", at: "2026-10-02T18:02:02Z", actor: "agent:codex-ekr-next-three-root", revision: 2}
 ---
@@ -177,23 +177,21 @@ recorded in each wave page before dispatch.
 
 The operator asked to find the next checkpoint where a release can be cut. The nearest coherent
 checkpoint is input-08 integrated into main: bounded ontology YAML plus dynamic ESS identity
-coverage. Proposed next patch: 0.0.28, following the released baseline cited above. This is a
-checkpoint recommendation, not authorization to tag, and no version has been changed.
+coverage. Proposed patch: 0.0.28, following the released baseline. No version or tag has changed.
 
-History paging and historical ontology reads are separate later waves; neither is required to
-release the input fixes. Their ordering and admission checks remain in this plan. The operator
-was asked whether to pause after this checkpoint or continue the remaining waves; the answer
-is pending at this record. No later wave has been dispatched merely to fill the release scope.
+The coordinator asked an optional pause-versus-continue question, received no answer, and stated
+its assumption to stop at this checkpoint. History paging and historical ontology reads stay
+planned and undispatched; neither is a dependency of these input fixes. Resume them only after
+reconciling this checkpoint and the operator's next instruction.
 
-Remaining checkpoint conditions: finish the saved YAML guard correction after its implementor
-hit a host usage limit; record the final allowed adversary pass; merge both exact reviewed units;
-pass the combined task-check steps and required source CI; integrate and verify the exact main
-commit. Identity implementation and its adversary are already recorded; YAML's original package
-and consumer checks are green, but those do not replace the correction and combined checks.
-A release additionally needs its own version/tag procedure, required release checks and artifacts.
-Do not report released from a candidate branch, a passing focused test or a queued workflow.
+Both exact reviewed units are integrated in the candidate. The recovered YAML inventory
+correction passed its final allowed adversary; the focused baseline/treatment claims are
+VERIFIED and both tasks are implemented. Combined local gates and affected checks after the
+current-main documentation merge passed; evidence is recorded in the wave page and task bodies.
+Remaining checkpoint conditions are required source CI, exact main integration verification and
+managed-tree cleanup. A release still requires its separate version/tag procedure and successful
+release checks and artifacts. W's unmet performance acceptance stays active and unchanged.
 
-The interrupted implementor left a test-file-only correction and an inventory-green.log under
-<cache>/ekr-next-three/input-08/yaml/correction-1. Root inspected that exact source and log and
-acquired its own lease to resume the remaining checks. The stopped worker's lease was not cleared.
-The earlier unmet W performance acceptance remains active and is not a claim of this checkpoint.
+Current source candidate before these planning-only closing edits: 401a56d43e4b617a078a0dda7b384c4f7a1ef908.
+The shared Cargo target is retained because its prior missing-marker cleanup refusal remains;
+no alternative deletion or marker fabrication is authorized by this checkpoint.
