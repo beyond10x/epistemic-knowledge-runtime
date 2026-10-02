@@ -28,8 +28,8 @@ pub struct VerifiedRevision {
 /// One verified read boundary, with enough retained input for explanation without another read.
 /// Only the kernel constructs it; owning the capture grants no persistence authority.
 ///
-/// The graph and the transaction records are the verified state's own, shared rather than
-/// copied: a read of an unchanged head costs no copy of either. Changing one through
+/// The graph and the transaction snapshot are shared by reads of the same verified state:
+/// a repeated read of an unchanged head costs no copy of either. Changing one through
 /// [`Arc::make_mut`] changes this capture's copy, never the verified state.
 pub struct VerifiedRead {
     /// Admitted graph at the chosen boundary.
@@ -244,7 +244,7 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             seed_input,
             context: envelope.context,
             authority: envelope.authority.clone(),
-            transactions: Arc::clone(&state.transactions),
+            transactions: state.transaction_records(),
             revisions: state
                 .revisions
                 .iter()

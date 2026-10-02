@@ -73,7 +73,10 @@ impl TransactionRecord {
 pub(crate) struct ReplayState {
     pub(crate) seed: SeedResultV1,
     pub(crate) revisions: BTreeMap<RevisionNumber, Revision>,
-    pub(crate) transactions: Arc<BTreeMap<TransactionId, TransactionRecord>>,
+    pub(crate) transactions: Arc<BTreeMap<TransactionId, Arc<TransactionRecord>>>,
+    /// The public owned-record snapshot, materialized only when a reader asks for it and shared
+    /// by subsequent reads. Commands update individual shared records without copying old input.
+    pub(crate) transaction_snapshot: OnceLock<Arc<BTreeMap<TransactionId, TransactionRecord>>>,
     pub(crate) version: u64,
     /// The prefix digest of the occurrences this state covers, when replay computed it.
     pub(crate) digest: Option<ContentHash>,
@@ -199,9 +202,31 @@ impl ReplayState {
             }
         }
     }
-    /// The retained records to change, copied first only if another state still shares them.
-    pub(crate) fn transactions_mut(&mut self) -> &mut BTreeMap<TransactionId, TransactionRecord> {
+    /// The retained record index to change. Copying the index shares each unchanged record.
+    pub(crate) fn transactions_mut(
+        &mut self,
+    ) -> &mut BTreeMap<TransactionId, Arc<TransactionRecord>> {
+        self.transaction_snapshot.take();
         Arc::make_mut(&mut self.transactions)
+    }
+    /// Changes only the selected record, leaving every prior state's records immutable.
+    fn transaction_mut(&mut self, id: TransactionId) -> &mut TransactionRecord {
+        Arc::make_mut(
+            self.transactions_mut()
+                .get_mut(&id)
+                .expect("verified transaction"),
+        )
+    }
+    /// The unchanged public record-map shape, shared for every read of this verified state.
+    pub(crate) fn transaction_records(&self) -> Arc<BTreeMap<TransactionId, TransactionRecord>> {
+        Arc::clone(self.transaction_snapshot.get_or_init(|| {
+            Arc::new(
+                self.transactions
+                    .iter()
+                    .map(|(id, record)| (*id, (**record).clone()))
+                    .collect(),
+            )
+        }))
     }
     /// The retained proposal's parsed document, or a fresh parse of its verified bytes.
     pub(crate) fn document(
@@ -873,6 +898,7 @@ impl KernelAuthority {
                 seed: seed_result,
                 revisions: BTreeMap::from([(RevisionNumber::SEED, Revision::replayed(seed))]),
                 transactions: Arc::default(),
+                transaction_snapshot: OnceLock::new(),
                 documents: BTreeMap::new(),
                 validated: BTreeMap::new(),
                 version: first.version,
@@ -941,7 +967,7 @@ impl KernelAuthority {
                     state.documents.insert(transaction_id, Arc::new(document));
                     state.transactions_mut().insert(
                         transaction_id,
-                        TransactionRecord {
+                        Arc::new(TransactionRecord {
                             proposal: record,
                             proposal_record_hash: event.record_hash,
                             validation: None,
@@ -949,7 +975,7 @@ impl KernelAuthority {
                             rejection: None,
                             committed: None,
                             stale: None,
-                        },
+                        }),
                     );
                 }
                 RevisionPayload::TransactionValidated {
@@ -993,10 +1019,7 @@ impl KernelAuthority {
                     state.validated.insert(transaction_id, validated);
                     state.note_basis(occurrence.version, against);
                     state.release(against, |number| kept(number, occurrence.version));
-                    let tx = state
-                        .transactions_mut()
-                        .get_mut(&transaction_id)
-                        .expect("verified transaction");
+                    let tx = state.transaction_mut(transaction_id);
                     tx.validation = Some(record);
                     tx.validation_record_hash = Some(event.record_hash);
                 }
@@ -1050,11 +1073,7 @@ impl KernelAuthority {
                     let basis = record.requested_basis.previous_root.revision;
                     state.note_basis(occurrence.version, basis);
                     state.release(basis, |number| kept(number, occurrence.version));
-                    state
-                        .transactions_mut()
-                        .get_mut(&transaction_id)
-                        .expect("verified transaction")
-                        .rejection = Some(record);
+                    state.transaction_mut(transaction_id).rejection = Some(record);
                     state.documents.remove(&transaction_id);
                 }
                 RevisionPayload::RevisionCommitted {
@@ -1187,11 +1206,7 @@ impl KernelAuthority {
                     state.release(superseded, |number| kept(number, occurrence.version));
                     state.validated.remove(&transaction_id);
                     state.documents.remove(&transaction_id);
-                    state
-                        .transactions_mut()
-                        .get_mut(&transaction_id)
-                        .expect("verified transaction")
-                        .committed = Some(record);
+                    state.transaction_mut(transaction_id).committed = Some(record);
                 }
                 RevisionPayload::TransactionStale {
                     transaction_id,
@@ -1223,11 +1238,7 @@ impl KernelAuthority {
                             && record.stale_at >= validation.validated_at,
                         "stale-record-disagrees",
                     )?;
-                    state
-                        .transactions_mut()
-                        .get_mut(&transaction_id)
-                        .expect("verified transaction")
-                        .stale = Some(record);
+                    state.transaction_mut(transaction_id).stale = Some(record);
                     state.validated.remove(&transaction_id);
                     state.documents.remove(&transaction_id);
                 }
@@ -1457,6 +1468,75 @@ mod tests {
         holds_the_head_graph(&file(directory.path(), false), "file");
         let directory = tempfile::tempdir().unwrap();
         holds_the_head_graph(&sqlite(directory.path(), false), "sqlite");
+    }
+
+    #[test]
+    fn validating_one_transaction_does_not_copy_prior_document_buffers() {
+        fn copied<S: RevisionLog + ObjectStore + Initialize>(
+            kernel: &Commit<S>,
+            count: u64,
+        ) -> usize {
+            let seed = seed();
+            kernel
+                .seed(seed.clone(), || Timestamp::from_millis(10))
+                .unwrap();
+            for n in 1..=count {
+                commit(kernel, &seed, n);
+            }
+            let before = kernel.read_state().unwrap();
+            let (id, bytes) = document(&seed, count + 1, seed.ontology.node_types[0].id);
+            kernel
+                .propose(&bytes, context().operator, || at(count + 1, 0))
+                .unwrap();
+            assert_eq!(
+                kernel.transaction_states([id]).unwrap()[&id],
+                super::TransactionState::Proposed
+            );
+            let verdict = kernel
+                .validate(id, RevisionNumber::new(count), || at(count + 1, 1))
+                .unwrap();
+            assert!(matches!(verdict, ValidationCommandResult::Validated(_)));
+            assert_eq!(
+                kernel.transaction_states([id]).unwrap()[&id],
+                super::TransactionState::Validated
+            );
+            let after = kernel.read_state().unwrap();
+            assert!(
+                after.transaction_snapshot.get().is_none(),
+                "selected state reads materialized all retained transaction records"
+            );
+            assert_eq!(
+                after.transactions.get(&id).unwrap().state(),
+                super::TransactionState::Validated
+            );
+            before
+                .transactions
+                .iter()
+                .filter(|(id, record)| {
+                    let later = after.transactions.get(id).unwrap();
+                    assert_eq!(*record, later);
+                    record.proposal.document_bytes.as_ptr()
+                        != later.proposal.document_bytes.as_ptr()
+                })
+                .count()
+        }
+        for file_provider in [false, true] {
+            let mut counts = Vec::new();
+            for size in [4, 16] {
+                let directory = tempfile::tempdir().unwrap();
+                let count = if file_provider {
+                    copied(&file(directory.path(), false), size)
+                } else {
+                    copied(&sqlite(directory.path(), false), size)
+                };
+                counts.push(count);
+            }
+            assert_eq!(
+                counts,
+                [0, 0],
+                "file={file_provider}: prior document buffers copied"
+            );
+        }
     }
 
     /// Seeds and commits six revisions through one handle, then validates one transaction against

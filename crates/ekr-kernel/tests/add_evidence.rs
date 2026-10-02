@@ -685,6 +685,10 @@ fn cached_commands_refuse_withdrawn_evidence_as_complete_history_does() {
                         .map(|_| ())
                         .map_err(|e| e.to_string()),
                     runtime
+                        .transaction_states([tx.id])
+                        .map(|_| ())
+                        .map_err(|e| e.to_string()),
+                    runtime
                         .propose(&encode(&transaction(vec![])), context().operator, at(40))
                         .map(|_| ())
                         .map_err(|e| e.to_string()),
@@ -697,9 +701,15 @@ fn cached_commands_refuse_withdrawn_evidence_as_complete_history_does() {
                         .map(|_| ())
                         .map_err(|e| e.to_string()),
                 ];
-                for (verb, answer) in ["transactions", "propose", "validate historical", "commit"]
-                    .into_iter()
-                    .zip(answers)
+                for (verb, answer) in [
+                    "transactions",
+                    "transaction states",
+                    "propose",
+                    "validate historical",
+                    "commit",
+                ]
+                .into_iter()
+                .zip(answers)
                 {
                     assert_eq!(
                         answer,

@@ -38,6 +38,7 @@ fn target(state: &ReplayState, id: TransactionId) -> Result<&TransactionRecord, 
     state
         .transactions
         .get(&id)
+        .map(AsRef::as_ref)
         .ok_or(CommitError::TransactionNotFound { transaction_id: id })
 }
 fn require_state(tx: &TransactionRecord, expected: TransactionState) -> Result<(), CommitError> {
@@ -223,14 +224,33 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
         };
         Ok((history, state.ok_or(CommitError::NotSeeded)?))
     }
-    /// Captures all actual retained transaction records, including terminal decisions: the
-    /// records the verified state holds, shared rather than copied.
+    /// Captures all actual retained transaction records, including terminal decisions. The
+    /// first read materializes the snapshot; further reads of that verified state share it.
     /// # Errors
     /// Missing initialization or invalid required history.
     pub fn transactions(
         &self,
     ) -> Result<std::sync::Arc<BTreeMap<TransactionId, TransactionRecord>>, CommitError> {
-        Ok(std::sync::Arc::clone(&self.read_state()?.transactions))
+        Ok(self.read_state()?.transaction_records())
+    }
+    /// Reads the actual lifecycle states of the requested retained transactions at one verified
+    /// boundary, without copying their documents. Unknown ids are absent from the result.
+    /// # Errors
+    /// Missing initialization or invalid required history, including when no ids are requested.
+    pub fn transaction_states(
+        &self,
+        ids: impl IntoIterator<Item = TransactionId>,
+    ) -> Result<BTreeMap<TransactionId, TransactionState>, CommitError> {
+        let state = self.read_state()?;
+        Ok(ids
+            .into_iter()
+            .filter_map(|id| {
+                state
+                    .transactions
+                    .get(&id)
+                    .map(|record| (id, record.state()))
+            })
+            .collect())
     }
     /// Retains exact input bytes under a trusted registered submitter.
     /// # Errors
