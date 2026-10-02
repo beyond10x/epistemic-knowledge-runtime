@@ -77,7 +77,7 @@ scope:
   path: systems/ekr/domains/kernel.yaml
 - confidence: cited
   path: systems/ekr/domains/views.yaml
-revision: 40
+revision: 41
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-01T09:59:45Z", actor: "human:timo", revision: 38}
 - {from: "proposed", to: "active", at: "2026-10-01T11:10:06Z", actor: "human:timo", revision: 39}
@@ -192,3 +192,11 @@ file: seeded 70000 assertions in 23.600420943s
 file: 1000 AddEvidence + 1000 AttachEvidence (627176 bytes) against 70000 assertions: propose 3.496460526s, validate 34.732145ms, commit 2.760908659s, total 6.29210133s
 
 ```
+
+## Release documentation reconciliation (2026-10-02)
+
+Released-main reconciliation placed the attachment amendment in design section 103; section 102
+belongs to the released store replacement checks. The earlier scope's planned section number is
+historical. Current release notes and overview now cite section 103. The recovered attachment
+release note was also moved out of the 0.0.25 history into Unreleased, where extract-07b belongs.
+These are documentation corrections; no runtime acceptance or historical design amendment changed.
