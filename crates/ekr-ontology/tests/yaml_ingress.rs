@@ -342,3 +342,23 @@ fn the_yaml_inventory_rejects_new_readers_and_import_aliases() {
         "prose must not classify executable code: {ignored:?}"
     );
 }
+
+#[test]
+fn adversary_input08_the_new_shared_loader_is_an_ingress_too() {
+    // This is an ordinary invocation of the public loader introduced by this unit, not a
+    // disguised dependency. The caller supplies its own depth and receives the loaded tape.
+    let input = format!("{}x{}", "[".repeat(65), "]".repeat(65));
+    let mut loaded = ekr_core::decode::yaml::load(&input, usize::MAX).unwrap();
+    let document = loaded.next_document().unwrap();
+    document.check().unwrap();
+    assert_eq!(document.event_count(), 131);
+
+    for source in [
+        "fn read(s: &str) { let mut d = ekr_core::decode::yaml::load(s, usize::MAX).unwrap(); d.next_document(); }",
+        "use ekr_core::decode::yaml; fn read(s: &str) { yaml::load(s, usize::MAX).unwrap().next_document(); }",
+    ] {
+        let mut found = classified();
+        references("crates/new-reader/src/lib.rs", source, &mut found);
+        assert_ne!(found, classified(), "new unclassified shared-loader ingress escaped: {source}");
+    }
+}

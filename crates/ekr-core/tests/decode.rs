@@ -8,6 +8,63 @@ use ekr_core::{
 use serde::{Deserialize, Deserializer};
 
 #[test]
+fn adversary_input08_alias_accounting_counts_utf8_and_keys_at_inclusive_bounds() {
+    use ekr_core::decode::yaml::{self, Expansion, Past, Tally};
+    // Root map and four scalar occurrences: two keys, one anchored value, one alias.
+    // UTF-8 byte lengths are 2 + 4 + 1 + 4 = 11, not four characters.
+    let mut documents = yaml::load("{é: &v '😀', b: *v}", 1).unwrap();
+    let document = documents.next_document().unwrap();
+    document.check().unwrap();
+    let exact = Expansion {
+        depth: 1,
+        nodes: 5,
+        text_bytes: 11,
+    };
+    yaml::expand(&document, exact, &mut Tally::default()).unwrap();
+    assert!(matches!(
+        yaml::expand(
+            &document,
+            Expansion {
+                text_bytes: 10,
+                ..exact
+            },
+            &mut Tally::default()
+        ),
+        Err(Past::Text(11))
+    ));
+    assert!(matches!(
+        yaml::expand(
+            &document,
+            Expansion { nodes: 4, ..exact },
+            &mut Tally::default()
+        ),
+        Err(Past::Nodes(5))
+    ));
+}
+
+#[test]
+fn adversary_input08_an_alias_at_a_deeper_site_counts_its_whole_height() {
+    use ekr_core::decode::yaml::{self, Expansion, Past, Tally};
+    let mut documents = yaml::load("[&a [[x]], [[*a]]]", 5).unwrap();
+    let document = documents.next_document().unwrap();
+    document.check().unwrap();
+    let exact = Expansion {
+        depth: 5,
+        nodes: 9,
+        text_bytes: 2,
+    };
+    yaml::expand(&document, exact, &mut Tally::default()).unwrap();
+    assert!(matches!(
+        yaml::expand(
+            &document,
+            Expansion { depth: 4, ..exact },
+            &mut Tally::default()
+        ),
+        Err(Past::Depth)
+    ));
+}
+
+#[test]
 fn shared_yaml_observation_bounds_loading_and_counts_aliases_across_documents() {
     use ekr_core::decode::yaml::{self, Expansion, Past, Tally};
     let limits = Expansion {

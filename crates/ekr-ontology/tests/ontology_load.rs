@@ -682,3 +682,37 @@ fn ontology_yaml_preserves_bounded_aliases_and_existing_refusals() {
         );
     }
 }
+
+#[test]
+fn adversary_input08_aliases_preserve_nonempty_ontology_and_semantic_refusals() {
+    let (document, _) = document_with(ValueType::String);
+    let yaml = serde_yaml_ng::to_string(&document).unwrap();
+    let aliased = yaml
+        .replacen("name: Subject", "name: &word Subject", 1)
+        .replacen("name: Other", "name: *word", 1);
+    assert!(aliased.contains("&word") && aliased.contains("*word"));
+    let mut expected = document.clone();
+    expected.node_types[1].name = "Subject".into();
+    assert_eq!(
+        Ontology::from_yaml(&aliased).expect("bounded aliases remain a valid ontology"),
+        Ontology::load(expected).unwrap()
+    );
+
+    let duplicate = yaml.replacen(
+        &format!("id: {}", document.node_types[1].id),
+        &format!("id: {}", document.node_types[0].id),
+        1,
+    );
+    let mut invalid = document;
+    invalid.node_types[1].id = invalid.node_types[0].id;
+    assert_eq!(
+        Ontology::from_yaml(&duplicate).expect_err("duplicate identity remains refused"),
+        Ontology::load(invalid).unwrap_err()
+    );
+}
+
+#[test]
+fn adversary_input08_an_alias_can_exceed_depth_without_deep_source_nesting() {
+    let text = format!("a: &a {}x{}\nb: [*a]\n", "[".repeat(63), "]".repeat(63));
+    ontology_resource_refusal(&text, "ontology-too-deep");
+}
