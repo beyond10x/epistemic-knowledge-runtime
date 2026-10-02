@@ -4,6 +4,12 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.26] — 2026-10-02
+
+A store that took evidence after its seed migrates; the extraction verb applies a document once and
+whole; a replaced SQLite store is refused and reopened; divergence is a typed error; seed and
+transaction documents are bounded before they load; tests no longer fail under load.
+
 ### Added
 
 - **`ekr apply-extraction` applies an extraction document** (`docs/cli.md`, `ekr apply-extraction`).

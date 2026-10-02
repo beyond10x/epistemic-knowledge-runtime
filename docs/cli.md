@@ -1208,6 +1208,11 @@ transactions once to see whether it is still open; a session holding none reads 
 At the end of its input a session writes its replay checkpoint only into the store it holds, and
 only while that store is still the one at the path.
 
+Stop every session, `ekr mcp` and `ekr view` that holds a SQLite store before copying another
+database over it, for example when restoring a backup. A host that held the replaced store refuses
+and reopens as above, but when it closes its old connection SQLite can write that connection's
+write-ahead log into the file now at the path (`task:replaced-store-close-keeps-the-restored-file`).
+
 ### `ekr mcp`
 
 Serves the store's canonical state to an agent as read-only [MCP](https://modelcontextprotocol.io)
