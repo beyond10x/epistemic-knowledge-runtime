@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-02T21:57:41Z",
+  "actor": "agent:codex-ekr-features",
+  "artifact": "task:public-site-differentiators",
+  "kind": "task",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "PR 62, exact candidate 1d0db584a65595f6fe0e52ae04d304c1f6dc7b10: full task check in Repository correctness passed; security 37068137550 and documentation build 37068141207 passed. Bot merge 502a160630521b7203b3e167b395dcfbf8ba2634 has the identical tree dd9b1cfbcd8a993e8df9745e6e0ef91981446656.",
+    "reference": "https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/37068141302"
+  }
+}

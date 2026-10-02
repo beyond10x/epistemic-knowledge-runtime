@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-02T22:00:11Z",
+  "actor": "agent:codex-ekr-features",
+  "artifact": "task:public-site-differentiators",
+  "kind": "task",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "deployment_result",
+    "source": "Published by Documentation site run 37069941578 after source build 37069803602. Live HTML/CSS exactly match merge 502a160630521b7203b3e167b395dcfbf8ba2634. Both provenance files name that commit; shared publisher fb4024ef7846729e5456591b9070db3d48c87e64, artifact SHA256 1172e69d371b1abf046221ee7304fb0316bec631568f9eb43fac7c1bbe7daf88.",
+    "reference": "https://beyond10x.github.io/epistemic-knowledge-runtime/"
+  }
+}
