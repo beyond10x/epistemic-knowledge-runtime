@@ -11,6 +11,8 @@ scope:
 - confidence: inferred
   path: crates/ekr/src/cli/agent_help.rs
 - confidence: cited
+  path: crates/ekr/src/cli/http.rs
+- confidence: cited
   path: crates/ekr/src/cli/mod.rs
 - confidence: cited
   path: crates/ekr/src/cli/search_page.rs
@@ -28,7 +30,7 @@ scope:
   path: crates/ekr/tests/view_page.rs
 - confidence: cited
   path: docs/cli.md
-revision: 5
+revision: 6
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T09:01:36Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T09:01:37Z", actor: "agent:codex", revision: 5}

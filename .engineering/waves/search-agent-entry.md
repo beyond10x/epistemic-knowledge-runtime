@@ -27,7 +27,11 @@ the `aep:adversary` role procedure. This host uses general collaboration agents 
 native plugin role types; that dispatch adaptation is explicit.
 
 Coordinator: managed `ekr-search-agents`, branch `agent/search-agents`.
-Unit: assigned after the opening record is committed; it must use its own managed tree.
+Unit: managed `ekr-search-agents-unit`, branch `agent/search-agents-unit`, based on opening
+commit `7e71751e2`; tested static checkpoint `798b7d5fc776143390da5e4f0a6114bef86cc800`,
+not pushed or integrated. Unit lease ended and its build target is idle.
+Review: managed `ekr-search-agents-review` at that checkpoint, running the adversary role
+against the static half only. Its scratch and any build output are isolated from the unit.
 Build and scratch paths are recorded in the private coordinator handoff; builds never share
 a target concurrently. Current machine free space is near the build floor, so no full build
 starts until adequate task-owned disposable space has been recovered.
@@ -50,11 +54,28 @@ Require meaningful real-browser typing, stale-response, composition, focus, clea
 no-script fallback checks; static help must work when the store is unavailable. Verify
 escaping, URL validation, authority/method rejection and an exact CSP script policy if used.
 The coordinator runs the complete repository gate, preserving each step's own exit and
-reported skips, before integration and source-release claims. No tests have run for this
-new story yet. Private deployment and consumer acceptance remain separate.
+reported skips, before integration and source-release claims. Focused static-guidance tests
+have passed; the full gate and live-typing acceptance remain outstanding. Private deployment
+and consumer acceptance remain separate.
 
 ## Current stage
 
-Scoped and accepted for implementation. Static Rust guidance may start; browser-language
-decision, implementation, adversarial review, full gate, source release and managed cleanup
-remain outstanding.
+The static Rust half has been authored in seven files. The released baseline failed all
+three new real HTTP/CLI probes, as expected: missing-store guidance, discoverable connection
+link, and explicit endpoint options. The first candidate build was interrupted: compilation
+began above the 10 GiB free-space floor, then unrelated disk activity reduced capacity; its
+exact process group was terminated, exit 143, with no survivors. No test case executed in
+that attempt. This is incomplete validation, not a product failure or a green result.
+
+After capacity was recovered, the resumed search-page target passed 16 tests, zero failures,
+zero ignores, exit 0. This includes configured metadata surviving a real store replacement
+and guide tool names checked against the actual MCP tool list. The unchanged three-case
+HTTP/CLI probe passed against the candidate, exit 0; this verifies the static-guidance claim
+against its failing released baseline. Formatting and changed-file text scans passed.
+
+Current candidate patch SHA-256: `53121522f000294f700560bf5b23305f7f5e7f0d9ea81d607ad8a67594769952`.
+Candidate executable SHA-256: `ff550d7740bbb60e4174321a00fbd280721759d5310ded48288a46aa4e6d44de`.
+The small report, baseline/treatment outputs and complete patch remain in task-owned scratch.
+No JavaScript was authored. Browser-language decision, capacity for remaining compatibility
+and lint checks, independent adversarial review, full gate, source release and managed cleanup
+remain outstanding. This is a partial review checkpoint, not a completed story or release.

@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T09:32:01Z",
+  "actor": "agent:search-agents-coordinator",
+  "artifact": "story:live-search-agent-entry",
+  "kind": "story",
+  "revision": 6,
+  "change": {
+    "change": "evidence",
+    "kind": "verification",
+    "source": "Static guidance only: identical real HTTP/CLI probe; released baseline 0 passed / 3 failed, candidate 3 passed / 0 failed, candidate exit 0. Live typing remains unimplemented.",
+    "reference": "local:ekr-search-agents-unit/red.log,green-probe.log"
+  }
+}
