@@ -1,0 +1,325 @@
+{
+  "suite": {
+    "suite_version": "ess-conformance/19",
+    "system": "ekr",
+    "specification_version": "v1",
+    "spec_digest": "7edcefdeed5694edaa4ba44768d7a681da14fe2bb22dac6ba7c2b980c4d7f5eb",
+    "contract_digest": "1156942f269e6e4ef491bc151de186bdd43b08754f822f8d88caa825382dcd7b"
+  },
+  "implementation": {
+    "name": "EKR native Runtime File, no-op=true",
+    "version": "0.0.27"
+  },
+  "started_at": 1791045242283,
+  "completed_at": 1791045242291,
+  "status": "failed",
+  "scenarios": [
+    {
+      "scenario": "ekr.kernel/authored/schema-change-exposes-supporting-evidence",
+      "purpose": "An SDK-built schema transaction cites retained and inline evidence; reopened full replay exposes exact citations and preserves earlier history.",
+      "status": "failed",
+      "checks": [
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.Propose/proposed",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.TransactionProposed",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/schema-change-exposes-supporting-evidence",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.TransactionProposed"
+              }
+            ],
+            "input": "ekr.kernel.Propose(transaction_document = \"schema-evidence.yaml\")",
+            "expected": [
+              "event ekr.kernel.TransactionProposed published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.Validate/validated",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.TransactionValidated",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/schema-change-exposes-supporting-evidence",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.TransactionValidated"
+              }
+            ],
+            "input": "ekr.kernel.Validate(against = 1.0, transaction_id = \"00000000-0000-4000-8000-000000000701\")",
+            "expected": [
+              "event ekr.kernel.TransactionValidated published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.Commit/committed",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.RevisionCommitted",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/schema-change-exposes-supporting-evidence",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.RevisionCommitted"
+              }
+            ],
+            "input": "ekr.kernel.Commit(transaction_id = \"00000000-0000-4000-8000-000000000701\")",
+            "expected": [
+              "event ekr.kernel.RevisionCommitted published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.views.ProjectGraph/projected",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.views.GraphProjected",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/schema-change-exposes-supporting-evidence",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.views.GraphProjected"
+              }
+            ],
+            "input": "ekr.views.ProjectGraph(store = \"schema-store\")",
+            "expected": [
+              "event ekr.views.GraphProjected published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.views.ProjectGraph/projected",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.views.GraphProjected",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/schema-change-exposes-supporting-evidence",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.views.GraphProjected"
+              }
+            ],
+            "input": "ekr.views.ProjectGraph(at = 1.0, store = \"schema-store\")",
+            "expected": [
+              "event ekr.views.GraphProjected published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.views.ProjectGraph/projected",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.views.GraphProjected",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/schema-change-exposes-supporting-evidence",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.views.GraphProjected"
+              }
+            ],
+            "input": "ekr.views.ProjectGraph(at = 0.0, store = \"schema-store\")",
+            "expected": [
+              "event ekr.views.GraphProjected published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-OUTCOME",
+          "about": "outcome ekr.kernel.Snapshot/taken",
+          "status": "passed"
+        },
+        {
+          "code": "ESS-CF-EVENT",
+          "about": "event ekr.kernel.SnapshotTaken",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-EVENT",
+            "scenario": "ekr.kernel/authored/schema-change-exposes-supporting-evidence",
+            "source": [
+              {
+                "kind": "event",
+                "name": "ekr.kernel.SnapshotTaken"
+              }
+            ],
+            "input": "ekr.kernel.Snapshot(at = 0.0)",
+            "expected": [
+              "event ekr.kernel.SnapshotTaken published"
+            ],
+            "observed": [
+              "the command published no events"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.RetainedEvidence",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/schema-change-exposes-supporting-evidence",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.RetainedEvidence"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.RetainedEvidence holds a row where evidence_id = \"00000000-0000-4000-8000-000000000500\", extracted_by = \"00000000-0000-4000-8000-000000000003\""
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.RetainedEvidence",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/schema-change-exposes-supporting-evidence",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.RetainedEvidence"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.RetainedEvidence holds a row where evidence_id = \"00000000-0000-4000-8000-000000000703\", extracted_by = \"00000000-0000-4000-8000-000000000003\""
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/schema-change-exposes-supporting-evidence",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.Revisions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.Revisions holds a row where knowledge_root = \"c3a81c576f86bfee8a4d89cda169e330eda315d1dd35e120beef54b80ffe1527\", number = 0.0"
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/schema-change-exposes-supporting-evidence",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.Revisions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.Revisions holds a row where number = 2.0, transaction_id = \"00000000-0000-4000-8000-000000000701\""
+            ],
+            "observed": [
+              "the view holds no rows"
+            ]
+          }
+        },
+        {
+          "code": "ESS-CF-VIEW",
+          "about": "view ekr.kernel.Revisions",
+          "status": "failed",
+          "diagnostic": {
+            "code": "ESS-CF-VIEW",
+            "scenario": "ekr.kernel/authored/schema-change-exposes-supporting-evidence",
+            "source": [
+              {
+                "kind": "view",
+                "name": "ekr.kernel.Revisions"
+              }
+            ],
+            "input": null,
+            "expected": [
+              "ekr.kernel.Revisions holds exactly 3 row(s)"
+            ],
+            "observed": [
+              "it holds 0 row(s): the view holds no rows"
+            ]
+          }
+        }
+      ],
+      "duration_ms": 6
+    }
+  ]
+}

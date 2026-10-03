@@ -2156,6 +2156,7 @@ commands:
             retracted_assertions: {generated: true}
             retained_evidence: {generated: true}
             projection_hash: {generated: true}
+            supporting_evidence: {generated: true}
         summary: One ekr.graph-projection/1 document of the requested revision, byte-identical to every other render of that revision.
       # External because what decides it is the store's head, which is not command input, and the
       # projection is no entity whose field a guard could read; ESS's `when:` sees input only. The
@@ -2838,6 +2839,11 @@ events:
         type: Integer
       - name: projection_hash
         type: ekr.kernel.ContentHash
+      # The same generated entries carried by projection.schema, including an empty
+      # list before cited schema transactions. The authored schema-change-exposes-
+      # supporting-evidence scenario observes the actual result after full replay.
+      - name: supporting_evidence
+        type: List<ekr.views.SchemaEvidenceEntry>
 
   # What one overview returned, every field a function of the document. `nodes`, `edges`,
   # `assertions` and `evidence` are its meta counts; `node_types` and `edge_types` the lengths of

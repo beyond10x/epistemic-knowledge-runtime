@@ -5819,3 +5819,12 @@ profile. The native knowledge/1 regression now commits an ordinary assertion bef
 then checks that both current and historical explanations still identify knowledge/1 after normal
 and full replay. Checkpoints preceding any upgrade start with no extra boundaries; checkpoints
 covering upgrades still require authority replay. No persisted profile, record or root changes.
+
+The authored ESS scenario `schema-change-exposes-supporting-evidence` now drives an SDK-built
+schema proposal through ordinary validation and commit. `GraphProjected` exposes the exact
+generated schema citation entries from its rendered document, making loss of those entries
+observable independently of aggregate counts. The scenario checks literal retained and inline
+evidence identities, earlier revisions and the original root after reopening with full replay on
+both providers. An inert target and a production mutation that drops citations both fail this
+scenario; restored code passes. The broader component inventory and full integrated gate remain
+separate requirements.

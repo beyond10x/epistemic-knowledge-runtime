@@ -1,0 +1,601 @@
+   Compiling ekr-views v0.0.27 (<unit>/crates/ekr-views)
+   Compiling ekr v0.0.27 (<unit>/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 7.57s
+     Running tests/conformance_knowledge.rs (<build>/target/debug/deps/conformance_knowledge-108d0b472817d569)
+
+running 1 test
+File schema no-op=false: {
+  "completed_at": 1791045239580,
+  "conformance_status": "failed",
+  "counts": {
+    "error": 0,
+    "failed": 1,
+    "passed": 0,
+    "skipped": 0,
+    "total": 1,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 1,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:f4e88a2e8085486716a04c3eb0a176b66234cf48c71191904fdc7f4e36633859",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "failed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime File, no-op=false 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [
+      "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+    ],
+    "passed": [],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "7edcefdeed5694edaa4ba44768d7a681da14fe2bb22dac6ba7c2b980c4d7f5eb",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:de87934ec77144064eb3d59df9cadf4cfe17c8cf6db2c9707868732b55f27fbb",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+Sqlite schema no-op=false: {
+  "completed_at": 1791045239786,
+  "conformance_status": "failed",
+  "counts": {
+    "error": 0,
+    "failed": 1,
+    "passed": 0,
+    "skipped": 0,
+    "total": 1,
+    "unsupported": 0
+  },
+  "coverage": {
+    "counts": {
+      "authored": 1,
+      "generated": 0,
+      "outside": 116,
+      "refused": 0
+    },
+    "knowledge": "complete_inventory",
+    "refused": [],
+    "selection": {
+      "filter": {
+        "ids": [
+          "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+        ],
+        "kind": "explicit",
+        "parent": {
+          "digest": "sha256:f4e88a2e8085486716a04c3eb0a176b66234cf48c71191904fdc7f4e36633859",
+          "digest_profile": "sha256-json-bytes/1",
+          "version": "ess-conformance/19"
+        }
+      },
+      "origins": "generated_and_authored",
+      "scope": {
+        "kind": "system"
+      }
+    }
+  },
+  "execution_status": "failed",
+  "format": "ess-conformance-report/2",
+  "implementation": "EKR native Runtime Sqlite, no-op=false 0.0.27",
+  "outcomes": {
+    "error": [],
+    "failed": [
+      "ekr.kernel/authored/schema-change-exposes-supporting-evidence"
+    ],
+    "passed": [],
+    "skipped": [],
+    "unsupported": []
+  },
+  "policy": "complete-selection/1",
+  "producer_profile": "rust-scenario-status/1",
+  "spec_digest": "7edcefdeed5694edaa4ba44768d7a681da14fe2bb22dac6ba7c2b980c4d7f5eb",
+  "specification": "ekr/v1",
+  "suite": {
+    "digest": "sha256:de87934ec77144064eb3d59df9cadf4cfe17c8cf6db2c9707868732b55f27fbb",
+    "digest_profile": "sha256-json-bytes/1",
+    "version": "ess-conformance/19"
+  }
+}
+
+
+thread 'schema_change_exposes_supporting_evidence' (1780226) panicked at crates/ekr/tests/conformance_knowledge.rs:374:5:
+File: ConformanceReport {
+    suite: SuiteProvenance {
+        suite_version: SuiteFormat(
+            Version(
+                19,
+            ),
+        ),
+        system: "ekr",
+        specification_version: "v1",
+        spec_digest: SpecDigest(
+            "7edcefdeed5694edaa4ba44768d7a681da14fe2bb22dac6ba7c2b980c4d7f5eb",
+        ),
+        contract_digest: SpecDigest(
+            "1156942f269e6e4ef491bc151de186bdd43b08754f822f8d88caa825382dcd7b",
+        ),
+        component: None,
+    },
+    implementation: ImplementationIdentity {
+        name: "EKR native Runtime File, no-op=false",
+        version: "0.0.27",
+    },
+    started_at: Timestamp(
+        1791045239572,
+    ),
+    completed_at: Timestamp(
+        1791045239580,
+    ),
+    status: Failed,
+    scenarios: [
+        ScenarioResult {
+            scenario: Authored {
+                domain: DomainRef(
+                    QualifiedName(ekr.kernel),
+                ),
+                name: AuthoredName(
+                    "schema-change-exposes-supporting-evidence",
+                ),
+            },
+            purpose: "An SDK-built schema transaction cites retained and inline evidence; reopened full replay exposes exact citations and preserves earlier history.",
+            status: Failed,
+            checks: [
+                CheckResult {
+                    code: Outcome,
+                    about: "outcome ekr.kernel.Propose/proposed",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Event,
+                    about: "event ekr.kernel.TransactionProposed",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Payload,
+                    about: "payload of ekr.kernel.TransactionProposed",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Outcome,
+                    about: "outcome ekr.kernel.Validate/validated",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Event,
+                    about: "event ekr.kernel.TransactionValidated",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Payload,
+                    about: "payload of ekr.kernel.TransactionValidated",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Outcome,
+                    about: "outcome ekr.kernel.Commit/committed",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Event,
+                    about: "event ekr.kernel.RevisionCommitted",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Payload,
+                    about: "payload of ekr.kernel.RevisionCommitted",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Outcome,
+                    about: "outcome ekr.views.ProjectGraph/projected",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Event,
+                    about: "event ekr.views.GraphProjected",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Payload,
+                    about: "payload of ekr.views.GraphProjected",
+                    status: Failed,
+                    diagnostic: Some(
+                        Diagnostic {
+                            code: Payload,
+                            scenario: Authored {
+                                domain: DomainRef(
+                                    QualifiedName(ekr.kernel),
+                                ),
+                                name: AuthoredName(
+                                    "schema-change-exposes-supporting-evidence",
+                                ),
+                            },
+                            source: [
+                                Event {
+                                    name: EventRef(
+                                        QualifiedName(ekr.views.GraphProjected),
+                                    ),
+                                },
+                            ],
+                            input: Some(
+                                "ekr.views.ProjectGraph(store = \"schema-store\")",
+                            ),
+                            expected: [
+                                "ekr.views.GraphProjected.supporting_evidence = [{\"evidence\":[\"00000000-0000-4000-8000-000000000500\",\"00000000-0000-4000-8000-000000000703\"],\"revision\":2.0,\"schema_version\":\"00000000-0000-4000-8000-000000000700\",\"transaction_id\":\"00000000-0000-4000-8000-000000000701\"}]",
+                            ],
+                            observed: [
+                                "supporting_evidence = []",
+                            ],
+                        },
+                    ),
+                },
+                CheckResult {
+                    code: Outcome,
+                    about: "outcome ekr.views.ProjectGraph/projected",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Event,
+                    about: "event ekr.views.GraphProjected",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Payload,
+                    about: "payload of ekr.views.GraphProjected",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Outcome,
+                    about: "outcome ekr.views.ProjectGraph/projected",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Event,
+                    about: "event ekr.views.GraphProjected",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Payload,
+                    about: "payload of ekr.views.GraphProjected",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Outcome,
+                    about: "outcome ekr.kernel.Snapshot/taken",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Event,
+                    about: "event ekr.kernel.SnapshotTaken",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Payload,
+                    about: "payload of ekr.kernel.SnapshotTaken",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: View,
+                    about: "view ekr.kernel.RetainedEvidence",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: View,
+                    about: "view ekr.kernel.RetainedEvidence",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: View,
+                    about: "view ekr.kernel.Revisions",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: View,
+                    about: "view ekr.kernel.Revisions",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: View,
+                    about: "view ekr.kernel.Revisions",
+                    status: Passed,
+                    diagnostic: None,
+                },
+            ],
+            duration_ms: 6,
+        },
+    ],
+}
+Sqlite: ConformanceReport {
+    suite: SuiteProvenance {
+        suite_version: SuiteFormat(
+            Version(
+                19,
+            ),
+        ),
+        system: "ekr",
+        specification_version: "v1",
+        spec_digest: SpecDigest(
+            "7edcefdeed5694edaa4ba44768d7a681da14fe2bb22dac6ba7c2b980c4d7f5eb",
+        ),
+        contract_digest: SpecDigest(
+            "1156942f269e6e4ef491bc151de186bdd43b08754f822f8d88caa825382dcd7b",
+        ),
+        component: None,
+    },
+    implementation: ImplementationIdentity {
+        name: "EKR native Runtime Sqlite, no-op=false",
+        version: "0.0.27",
+    },
+    started_at: Timestamp(
+        1791045239778,
+    ),
+    completed_at: Timestamp(
+        1791045239786,
+    ),
+    status: Failed,
+    scenarios: [
+        ScenarioResult {
+            scenario: Authored {
+                domain: DomainRef(
+                    QualifiedName(ekr.kernel),
+                ),
+                name: AuthoredName(
+                    "schema-change-exposes-supporting-evidence",
+                ),
+            },
+            purpose: "An SDK-built schema transaction cites retained and inline evidence; reopened full replay exposes exact citations and preserves earlier history.",
+            status: Failed,
+            checks: [
+                CheckResult {
+                    code: Outcome,
+                    about: "outcome ekr.kernel.Propose/proposed",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Event,
+                    about: "event ekr.kernel.TransactionProposed",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Payload,
+                    about: "payload of ekr.kernel.TransactionProposed",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Outcome,
+                    about: "outcome ekr.kernel.Validate/validated",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Event,
+                    about: "event ekr.kernel.TransactionValidated",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Payload,
+                    about: "payload of ekr.kernel.TransactionValidated",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Outcome,
+                    about: "outcome ekr.kernel.Commit/committed",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Event,
+                    about: "event ekr.kernel.RevisionCommitted",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Payload,
+                    about: "payload of ekr.kernel.RevisionCommitted",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Outcome,
+                    about: "outcome ekr.views.ProjectGraph/projected",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Event,
+                    about: "event ekr.views.GraphProjected",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Payload,
+                    about: "payload of ekr.views.GraphProjected",
+                    status: Failed,
+                    diagnostic: Some(
+                        Diagnostic {
+                            code: Payload,
+                            scenario: Authored {
+                                domain: DomainRef(
+                                    QualifiedName(ekr.kernel),
+                                ),
+                                name: AuthoredName(
+                                    "schema-change-exposes-supporting-evidence",
+                                ),
+                            },
+                            source: [
+                                Event {
+                                    name: EventRef(
+                                        QualifiedName(ekr.views.GraphProjected),
+                                    ),
+                                },
+                            ],
+                            input: Some(
+                                "ekr.views.ProjectGraph(store = \"schema-store\")",
+                            ),
+                            expected: [
+                                "ekr.views.GraphProjected.supporting_evidence = [{\"evidence\":[\"00000000-0000-4000-8000-000000000500\",\"00000000-0000-4000-8000-000000000703\"],\"revision\":2.0,\"schema_version\":\"00000000-0000-4000-8000-000000000700\",\"transaction_id\":\"00000000-0000-4000-8000-000000000701\"}]",
+                            ],
+                            observed: [
+                                "supporting_evidence = []",
+                            ],
+                        },
+                    ),
+                },
+                CheckResult {
+                    code: Outcome,
+                    about: "outcome ekr.views.ProjectGraph/projected",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Event,
+                    about: "event ekr.views.GraphProjected",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Payload,
+                    about: "payload of ekr.views.GraphProjected",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Outcome,
+                    about: "outcome ekr.views.ProjectGraph/projected",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Event,
+                    about: "event ekr.views.GraphProjected",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Payload,
+                    about: "payload of ekr.views.GraphProjected",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Outcome,
+                    about: "outcome ekr.kernel.Snapshot/taken",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Event,
+                    about: "event ekr.kernel.SnapshotTaken",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: Payload,
+                    about: "payload of ekr.kernel.SnapshotTaken",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: View,
+                    about: "view ekr.kernel.RetainedEvidence",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: View,
+                    about: "view ekr.kernel.RetainedEvidence",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: View,
+                    about: "view ekr.kernel.Revisions",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: View,
+                    about: "view ekr.kernel.Revisions",
+                    status: Passed,
+                    diagnostic: None,
+                },
+                CheckResult {
+                    code: View,
+                    about: "view ekr.kernel.Revisions",
+                    status: Passed,
+                    diagnostic: None,
+                },
+            ],
+            duration_ms: 6,
+        },
+    ],
+}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test schema_change_exposes_supporting_evidence ... FAILED
+
+failures:
+
+failures:
+    schema_change_exposes_supporting_evidence
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.54s
+
+error: test failed, to rerun pass `-p ekr --test conformance_knowledge`

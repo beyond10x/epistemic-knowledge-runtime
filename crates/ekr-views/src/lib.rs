@@ -114,7 +114,7 @@ pub const FORMAT: &str = "ekr.graph-projection/1";
 /// What one render returned, counted over the document: `ekr.views.GraphProjected`.
 ///
 /// Every field is a function of the document's bytes, so this is as deterministic as they are.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct GraphProjected {
     /// `meta.revision`.
     pub revision: u64,
@@ -147,7 +147,11 @@ pub struct GraphProjected {
     pub retained_evidence: u64,
     /// The lowercase hex SHA-256 of the document's exact bytes.
     pub projection_hash: String,
+    /// Exact generated entries in `schema.supporting_evidence`.
+    pub supporting_evidence: Vec<SchemaEvidenceEntry>,
 }
+// Generated entries contain only integer revisions and string identities.
+impl Eq for GraphProjected {}
 
 /// One rendered projection.
 #[derive(Clone, Debug, PartialEq, Eq)]

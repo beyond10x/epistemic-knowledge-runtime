@@ -187,6 +187,39 @@ fn graph_projected(summary: &GraphProjected) -> Result<ObservedEvent, TargetErro
         "projection_hash",
         Node::Text(summary.projection_hash.clone()),
     ));
+    let entries = summary
+        .supporting_evidence
+        .iter()
+        .map(|entry| {
+            Ok(Node::Map(BTreeMap::from([
+                (
+                    "revision".into(),
+                    integer(entry.revision.0.as_u64().ok_or_else(|| {
+                        unavailable("projecting schema revision", "not unsigned")
+                    })?)?,
+                ),
+                (
+                    "schema_version".into(),
+                    Node::Text(entry.schema_version.0.clone()),
+                ),
+                (
+                    "transaction_id".into(),
+                    Node::Text(entry.transaction_id.0.clone()),
+                ),
+                (
+                    "evidence".into(),
+                    Node::Seq(
+                        entry
+                            .evidence
+                            .iter()
+                            .map(|id| Node::Text(id.0.clone()))
+                            .collect(),
+                    ),
+                ),
+            ])))
+        })
+        .collect::<Result<Vec<_>, TargetError>>()?;
+    fields.push(("supporting_evidence", Node::Seq(entries)));
     observed("ekr.views.GraphProjected", fields)
 }
 

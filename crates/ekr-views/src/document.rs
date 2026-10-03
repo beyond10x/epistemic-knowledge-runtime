@@ -588,6 +588,7 @@ pub(crate) fn render(loaded: &LoadedRevision) -> Result<Rendered, ProjectError> 
             .filter(|record| record.retained)
             .count() as u64,
         projection_hash: hex::encode(Sha256::digest(&bytes)),
+        supporting_evidence: document.schema.supporting_evidence.clone(),
     };
     Ok(Rendered { bytes, summary })
 }

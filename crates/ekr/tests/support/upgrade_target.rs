@@ -3,6 +3,8 @@
 mod answer;
 #[path = "upgrade_fixture.rs"]
 mod fixture;
+#[path = "schema_target.rs"]
+mod schema;
 use super::knowledge_target::{json_input, node, unavailable};
 use ekr::conformance::Provider;
 use ekr_core::{contract_data as wire, ContentHash, RevisionNumber, Timestamp};
@@ -24,6 +26,7 @@ pub struct UpgradeTarget {
     work: PathBuf,
     no_op: bool,
     answers: bool,
+    schema: bool,
     state: RefCell<Option<State>>,
     observed: RefCell<Vec<ObservedEvent>>,
 }
@@ -98,6 +101,7 @@ impl UpgradeTarget {
             work: work.into(),
             no_op,
             answers: false,
+            schema: false,
             state: RefCell::new(None),
             observed: RefCell::new(vec![]),
         }
@@ -105,6 +109,12 @@ impl UpgradeTarget {
     pub fn answers(provider: Provider, work: &Path, no_op: bool) -> Self {
         Self {
             answers: true,
+            ..Self::new(provider, work, no_op)
+        }
+    }
+    pub fn schema(provider: Provider, work: &Path, no_op: bool) -> Self {
+        Self {
+            schema: true,
             ..Self::new(provider, work, no_op)
         }
     }
@@ -243,6 +253,9 @@ impl ConformanceTarget for UpgradeTarget {
                 &scenario.scenario.to_string(),
             )?);
         }
+        if self.schema {
+            schema::prepare(&runtime, &human, &directory)?;
+        }
         supplied.retain(|name, _| {
             contract
                 .fields
@@ -286,6 +299,17 @@ impl ConformanceTarget for UpgradeTarget {
         request: SemanticCommandRequest,
     ) -> Result<SemanticCommandResult, TargetError> {
         let command = request.command.to_string();
+        if self.schema
+            && matches!(
+                command.as_str(),
+                "ekr.kernel.Propose"
+                    | "ekr.kernel.Validate"
+                    | "ekr.kernel.Commit"
+                    | "ekr.views.ProjectGraph"
+            )
+        {
+            return schema::execute(self, &request);
+        }
         let actor = match command.as_str() {
             "ekr.kernel.PreviewUpgrade" | "ekr.kernel.ListAttention" | "ekr.kernel.ListAnswers" => {
                 "ekr.kernel.KnowledgeReader"

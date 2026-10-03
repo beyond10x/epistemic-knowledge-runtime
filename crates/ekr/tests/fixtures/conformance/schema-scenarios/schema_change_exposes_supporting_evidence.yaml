@@ -1,0 +1,82 @@
+type: ess-scenario/3
+domain: ekr.kernel
+scenario: schema-change-exposes-supporting-evidence
+summary: An SDK-built schema transaction cites retained and inline evidence; reopened full replay exposes exact citations and preserves earlier history.
+fixtures:
+  original-knowledge-root: ekr.kernel.ContentHash
+timeline:
+  - at: 2026-10-03T00:00:00Z
+    command: ekr.kernel.Propose
+    actor: ekr.kernel.Proposer
+    input: {transaction_document: schema-evidence.yaml}
+    outcome: proposed
+    events:
+      - event: ekr.kernel.TransactionProposed
+        payload: {transaction_id: 00000000-0000-4000-8000-000000000701}
+  - at: 2026-10-03T00:00:01Z
+    command: ekr.kernel.Validate
+    actor: ekr.kernel.Validator
+    input: {transaction_id: 00000000-0000-4000-8000-000000000701, against: 1}
+    outcome: validated
+    events:
+      - event: ekr.kernel.TransactionValidated
+        payload: {transaction_id: 00000000-0000-4000-8000-000000000701, against: 1}
+  - at: 2026-10-03T00:00:02Z
+    command: ekr.kernel.Commit
+    actor: ekr.kernel.Committer
+    input: {transaction_id: 00000000-0000-4000-8000-000000000701}
+    outcome: committed
+    events:
+      - event: ekr.kernel.RevisionCommitted
+        payload: {transaction_id: 00000000-0000-4000-8000-000000000701, number: 2}
+  - at: 2026-10-03T00:00:03Z
+    command: ekr.views.ProjectGraph
+    actor: ekr.views.Reader
+    input: {store: schema-store}
+    outcome: projected
+    events:
+      - event: ekr.views.GraphProjected
+        payload:
+          revision: 2
+          supporting_evidence:
+            - revision: 2
+              schema_version: 00000000-0000-4000-8000-000000000700
+              transaction_id: 00000000-0000-4000-8000-000000000701
+              evidence:
+                - 00000000-0000-4000-8000-000000000500
+                - 00000000-0000-4000-8000-000000000703
+  - at: 2026-10-03T00:00:04Z
+    command: ekr.views.ProjectGraph
+    actor: ekr.views.Reader
+    input: {store: schema-store, at: 1}
+    outcome: projected
+    events:
+      - event: ekr.views.GraphProjected
+        payload: {revision: 1, supporting_evidence: []}
+  - at: 2026-10-03T00:00:05Z
+    command: ekr.views.ProjectGraph
+    actor: ekr.views.Reader
+    input: {store: schema-store, at: 0}
+    outcome: projected
+    events:
+      - event: ekr.views.GraphProjected
+        payload: {revision: 0, supporting_evidence: []}
+  - at: 2026-10-03T00:00:06Z
+    command: ekr.kernel.Snapshot
+    actor: ekr.kernel.Operator
+    input: {at: 0}
+    outcome: taken
+    events:
+      - event: ekr.kernel.SnapshotTaken
+        payload: {number: 0, knowledge_root: {$fixture: original-knowledge-root}}
+assert:
+  - view: ekr.kernel.RetainedEvidence
+    contains: {evidence_id: 00000000-0000-4000-8000-000000000500, extracted_by: 00000000-0000-4000-8000-000000000003}
+  - view: ekr.kernel.RetainedEvidence
+    contains: {evidence_id: 00000000-0000-4000-8000-000000000703, extracted_by: 00000000-0000-4000-8000-000000000003}
+  - view: ekr.kernel.Revisions
+    contains: {number: 0, knowledge_root: {$fixture: original-knowledge-root}}
+  - view: ekr.kernel.Revisions
+    contains: {number: 2, transaction_id: 00000000-0000-4000-8000-000000000701}
+  - view: ekr.kernel.Revisions
+    counts: {at_least: 3, at_most: 3}
