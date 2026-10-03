@@ -170,7 +170,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr mint` | none | an id kind | `{"id", "kind"}`: a fresh id |
 | `ekr hash` | none | a payload file, or `-` | the payload's `content_hash` and its `payload_yaml` |
 | `ekr schema` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2`, `ekr.cli-host/1`, `typed-reference` or `ekr.extraction-document/1` (aliases `transaction` for `/2`, `seed`, `host`, `extraction`) | the format's JSON Schema (draft 2020-12) |
-| `ekr view` | reads | `--port <port>` (`0` picks a free one), `--bind <IP>` (default `127.0.0.1`), repeatable `--allow-host <authority>` | `{"url": "http://127.0.0.1:<port>/"}` as one line for the default bind, then serves a read-only viewer until interrupted |
+| `ekr view` | reads | `--port <port>` (`0` picks a free one), `--bind <IP>` (default `127.0.0.1`), repeatable `--allow-host <authority>`, `--require-ready` | `{"url": "http://127.0.0.1:<port>/"}` as one line for the default bind, then serves a read-only viewer until interrupted |
 | `ekr session` | reads and writes | one JSON request per line on stdin, `{"argv": [...]}`, until it ends; `--create` also serves `seed` | one JSON answer per request, `{"exit", "stdout", "stderr"}`: what the verb exits with and prints |
 | `ekr mcp` | reads | JSON-RPC 2.0 messages, one per line on stdin, until it ends | one JSON-RPC response per request: read-only MCP tools over the store (below) |
 | `ekr mcp-http` | reads | `--port <port>`, `--bind <IP>`, repeatable `--allow-host <authority>` and `--allow-origin <origin>` | listener URL as one JSON line, then stateless Streamable HTTP at `/mcp` with the same nine read-only tools |
@@ -917,7 +917,10 @@ include the port when clients send it. Forwarded headers never grant authority. 
 this process may not write it opens read-only, as every verb that reads does, and reads again once
 its files change ([Configuration](#configuration)); SIGINT or SIGTERM removes its private copy.
 It prints one JSON line naming its bound address, such as `{"url": "http://127.0.0.1:<port>/"}`,
-then answers:
+then answers. By default, the URL is announced before lazy store admission, allowing liveness
+checks while the store is unavailable. `--require-ready` instead admits a seeded complete store
+before announcing; missing, unseeded, incomplete or unavailable stores exit without a URL. This
+option retains the admitted store for serving and is used by SDK viewer startup. Then it answers:
 
 | request | answer |
 |---|---|
@@ -969,14 +972,16 @@ and is served nothing, so a web page that reaches the port under another name th
 rebinding reads nothing. Every response carries `X-Content-Type-Options: nosniff`,
 `Cache-Control: no-store` and `Connection: close`, and none sets a cookie or allows another
 origin. Evidence text is
-never served as HTML. `ekr view` binds and announces before lazy store admission. A missing or
-unavailable store leaves health available and readiness at 503; the next store request retries
-admission. The listener never creates or writes a store. Existing hosted admission is reused
+never served as HTML. By default, `ekr view` binds and announces before lazy store admission.
+A missing or unavailable store leaves health available and readiness at 503; the next store request retries
+admission. The listener never creates a store or records canonical changes. File and SQLite
+providers may maintain operational files on writable stores; physically read-only stores remain
+unchanged under the read-only rules above. Existing hosted admission is reused
 between readiness requests; readiness does not rebuild the graph index.
 
 <a id="replaced-store"></a>**A store replaced at its path.** `ekr view`, `ekr mcp-http`, `ekr mcp` and
-`ekr session` keep the store open once admitted. The HTTP listeners admit it lazily; stdio
-readers open it at startup. Before each request that reads
+`ekr session` keep the store open once admitted. The HTTP listeners admit it lazily unless
+`view --require-ready` is set; stdio readers open it at startup. Before each request that reads
 the store, each compares what is at `--store` now with the store it opened — the device and
 inode of the file store's directory or of the SQLite database file, one `stat` of the path and no
 read of the store. When a host has replaced the store there, by renaming another one into place,

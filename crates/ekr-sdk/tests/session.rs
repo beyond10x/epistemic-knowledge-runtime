@@ -904,3 +904,69 @@ fn viewer_spawn_zero_returns_a_url_whose_head_answers() {
         "{refused:?}"
     );
 }
+
+#[test]
+fn viewer_requires_ready_only_from_binaries_that_support_it() {
+    let directory = tempfile::tempdir().unwrap();
+    let source = directory.path().join("viewer_stub.rs");
+    std::fs::write(
+        &source,
+        r#"use std::{env, fs};
+fn main() {
+    let root = env::current_exe().unwrap().parent().unwrap().to_owned();
+    let version = fs::read_to_string(root.join("version")).unwrap();
+    let args: Vec<String> = env::args().skip(1).collect();
+    if args == ["--version"] {
+        println!("ekr {version}");
+        return;
+    }
+    let expected = fs::read_to_string(root.join("require_ready")).unwrap() == "yes";
+    if args.iter().any(|arg| arg == "--require-ready") != expected {
+        eprintln!("viewer readiness argument differs from the binary's supported interface");
+        std::process::exit(2);
+    }
+    assert!(args.iter().any(|arg| arg == "view"));
+    fs::write(root.join("called"), "view").unwrap();
+    println!("{{\"url\":\"http://127.0.0.1:4242/\"}}");
+}
+"#,
+    )
+    .unwrap();
+    let executable = directory.path().join("viewer_stub");
+    let compiled = std::process::Command::new("rustc")
+        .args(["--edition=2021", "--crate-name", "viewer_stub"])
+        .arg(&source)
+        .arg("-o")
+        .arg(&executable)
+        .output()
+        .unwrap();
+    assert!(
+        compiled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&compiled.stderr)
+    );
+    let store = StoreConfig {
+        host: directory.path().join("host.json"),
+        store: directory.path().join("store"),
+        backend: Backend::File,
+    };
+    for (version, require_ready) in [
+        ("0.0.19", "no"),
+        ("0.0.27", "no"),
+        ("0.0.28", "yes"),
+        ("0.1.0", "yes"),
+    ] {
+        std::fs::write(directory.path().join("version"), version).unwrap();
+        std::fs::write(directory.path().join("require_ready"), require_ready).unwrap();
+        let binary = EkrBinary::open(&executable).unwrap();
+        let viewer = Viewer::spawn(&binary, &store, 0)
+            .unwrap_or_else(|error| panic!("ekr {version}: {error}"));
+        assert_eq!(viewer.url(), "http://127.0.0.1:4242/");
+        viewer.stop();
+        assert_eq!(
+            std::fs::read_to_string(directory.path().join("called")).unwrap(),
+            "view"
+        );
+        std::fs::remove_file(directory.path().join("called")).unwrap();
+    }
+}

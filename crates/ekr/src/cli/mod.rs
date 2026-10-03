@@ -443,6 +443,9 @@ pub enum Command {
         /// Exact admitted Host authority, repeatable; replaces the loopback defaults.
         #[arg(long)]
         allow_host: Vec<String>,
+        /// Admit a seeded complete store before announcing the URL; fail if it is unavailable.
+        #[arg(long)]
+        require_ready: bool,
     },
     /// Serve the JSON verbs over one opened store: one JSON request per line on stdin, one JSON
     /// answer per line on stdout, until end of input.
@@ -930,9 +933,10 @@ fn dispatch(
             port,
             bind,
             allow_host,
+            require_ready,
         } => {
             let store = source.configured("view")?;
-            view::run(&store, bind, port, allow_host).map(Printed::Text)
+            view::run(&store, bind, port, allow_host, require_ready).map(Printed::Text)
         }
         Command::McpHttp {
             port,

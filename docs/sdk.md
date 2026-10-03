@@ -744,7 +744,11 @@ minted id, must fix that value in its tests.
 ## The viewer
 
 `Viewer::spawn(&binary, &store, port)` runs `ekr view --port <port>` with the default session
-environment. It reads the `{"url": …}` line that the viewer prints first, and `url()` returns it.
+environment. With EKR 0.0.28 and newer, it also passes `--require-ready`: the viewer admits a
+seeded complete store before announcing its URL. Earlier binaries receive their original
+arguments and already open the store before announcing. It reads the `{"url": …}` line that
+the viewer prints first, and `url()` returns it. The SDK starts one viewer process and reuses
+that process's admitted store; it does not run a separate store probe.
 Port `0` lets the viewer choose a free port. `stop()`, or dropping the `Viewer`, kills the viewer.
 If the viewer exits or prints anything other than that line (for example because the store does
 not exist), `spawn` returns `ViewerError::NoUrl` with the viewer's stderr tail.
