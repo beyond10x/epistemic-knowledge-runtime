@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T11:03:30Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:resolve-knowledge-question",
+  "kind": "story",
+  "revision": 19,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "private answer admission and integrated checks at 42774ef45c18236b781aa2a9fa67bd1d0d49c26a",
+    "reference": ".engineering/reviews/knowledge-answer-admission-integrated/README.md"
+  }
+}

@@ -1,0 +1,2 @@
+    Finished `dev` profile [unoptimized] target(s) in 0.18s
+     Running `<answer-build>/target/debug/xtask fmt --check`

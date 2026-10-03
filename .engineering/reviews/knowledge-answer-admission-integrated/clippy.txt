@@ -1,0 +1,5 @@
+    Checking ekr-kernel v0.0.27 (<integration-tree>/crates/ekr-kernel)
+    Checking ekr-views v0.0.27 (<integration-tree>/crates/ekr-views)
+    Checking ekr v0.0.27 (<integration-tree>/crates/ekr)
+    Checking ekr-sdk v0.0.27 (<integration-tree>/crates/ekr-sdk)
+    Finished `dev` profile [unoptimized] target(s) in 1m 05s
