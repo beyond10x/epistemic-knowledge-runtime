@@ -26,7 +26,7 @@ scope:
   path: crates/ekr-store
 - confidence: inferred
   path: crates/ekr-views
-revision: 15
+revision: 16
 ---
 ## Outcome
 
@@ -85,3 +85,11 @@ This scope is implementation work authorized by the operator's original executio
 ## Runtime unit coordination
 
 The F generated prerequisite is committed at 8ec17507fd8c24175100bae9318d9a8b7196c2b7. Runtime units continue the accepted implementation scope: scope_retention owns store persistence and graph event codec in managed tree ekr-schema-application-store-20261003; author_contracts owns only the new kernel application_transaction module and its module-registration line in ekr-application-transaction-codec-20261003. The latter is a checked codec between existing canonical GraphTransaction and the generated CanonicalTransactionProjection, not a new model or admission path. Root retains all other kernel orchestration, replay, review material and cross-package constructor work. Both delegated trees start at the exact prerequisite commit. The durable wave page is .engineering/waves/knowledge-schema-proposals.md. One Cargo lane is handed off explicitly; source-only work proceeds independently. These are unfinished parts of F under the original execution authorization, not a story acceptance, successful full gate or publication.
+
+## Kernel prerequisite verification checkpoint
+
+The exact additive schema operation extractor is committed at 03dc4892bfa2b2dbda1d86bd49c99073f2673652. It preserves candidate allocations, refuses destructive changes and is called by the existing checked candidate builder. Independent source/log review approved its bounded scope. Curated red/green and regression evidence is in .engineering/reviews/knowledge-application-plan/.
+
+The next refactor extracts provider-free read capture, immutable document validation and review-material projection from the existing production paths. Existing regression output recorded 31 library, 14 knowledge-retention and 8 schema-review cases passed, with no failures or ignored cases. Kernel library clippy and exact changed-file formatting passed. Independent review approved the refactor with explicit preconditions: future replay must authenticate every captured input and historical boundary before invoking these helpers. This is mechanical preparation, with no new application authorization or publication claimed. Evidence is in .engineering/reviews/knowledge-application-captured-input/.
+
+The delegated generated transaction codec has focused and library tests green but remains integration-incomplete: strict clippy reports unused internal helpers until real F callers exist. The physical application unit is still implementing retention and atomic marker publication. None of these checkpoints meets full F acceptance, repairs the recursive generated fixture blocker or completes PR64.

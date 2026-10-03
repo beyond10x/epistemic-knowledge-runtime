@@ -243,16 +243,26 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
             .authority
             .reconstruct(&history, None, revision)?
             .ok_or(CommitError::NotSeeded)?;
-        let envelope = self
+        Ok(self
             .authority
-            .seed_envelope(&history, state.seed.seed_hash)?;
-        let seed_input = self
-            .authority
-            .seed_document(&history, state.seed.seed_hash, &envelope)?;
+            .capture_read(&history, &state, revision.is_none())?)
+    }
+}
+
+impl crate::KernelAuthority {
+    /// Capture an already admitted replay prefix without recursively reading a provider.
+    pub(crate) fn capture_read(
+        &self,
+        history: &ekr_store::RetainedHistory,
+        state: &crate::replay::ReplayState,
+        share_aliases: bool,
+    ) -> Result<VerifiedRead, ekr_store::StoreError> {
+        let envelope = self.seed_envelope(history, state.seed.seed_hash)?;
+        let seed_input = self.seed_document(history, state.seed.seed_hash, &envelope)?;
         let head = state.head();
         // Only the head read shares the one kept cell; a historical read indexes its own graph.
-        let aliases = match (revision, self.authority.cache.lock()) {
-            (None, Ok(mut cache)) => cache.alias_cell(head.revision_id, head.root),
+        let aliases = match (share_aliases, self.cache.lock()) {
+            (true, Ok(mut cache)) => cache.alias_cell(head.revision_id, head.root),
             _ => AliasCell::default(),
         };
         let graph = Arc::clone(
@@ -288,8 +298,8 @@ impl<S: RevisionLog + ObjectStore> Commit<S> {
                 .collect(),
             objects: history
                 .objects
-                .into_iter()
-                .map(|(hash, object)| (hash, object.bytes))
+                .iter()
+                .map(|(hash, object)| (*hash, Arc::clone(&object.bytes)))
                 .collect(),
             indexed: (graph, aliases),
         })

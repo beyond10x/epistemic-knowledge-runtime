@@ -30,63 +30,73 @@ fn empty_ontology(at: Timestamp) -> Result<ekr_ontology::Ontology, StoreError> {
     .map_err(error)
 }
 
+/// Validate immutable source content using captured observations; no live root is required.
+pub(crate) fn checked_document(
+    document: &EkrIntegrateInterpretationDocument,
+    at: Timestamp,
+    mut observation: impl FnMut(
+        ekr_core::ObservationId,
+    ) -> Result<EkrObserveRetainedObservationRead, StoreError>,
+) -> Result<ekr_integrate::ExtractionDocument, StoreError> {
+    coordinate(document)?;
+    let mut sources = BTreeSet::new();
+    for id in &document.observations {
+        let id: ekr_core::ObservationId = id.0.parse().map_err(error)?;
+        if !sources.insert(id) {
+            return Err(error("duplicate observation reference"));
+        }
+        observation(id)?;
+    }
+    let projection = project(document)?;
+    projection
+        .check_incubation(&empty_ontology(at)?)
+        .map_err(error)?;
+    for evidence in &projection.evidence {
+        if let ekr_graph::EvidenceSource::Observation(id) = evidence.evidence.source {
+            if !sources.contains(&id) {
+                return Err(error(
+                    "evidence observation is not declared by the document",
+                ));
+            }
+            let retained = observation(id)?;
+            if retained.observation.content_hash.0 != evidence.evidence.content_hash.to_hex()
+                || ekr_core::bytes::decode(&retained.payload).map_err(error)? != evidence.payload
+            {
+                return Err(error("evidence differs from its retained observation"));
+            }
+        }
+    }
+    // The older extraction checker checks references but canonical schema publication used
+    // to catch parent cycles. Incubation has no publication, so check them here as well.
+    for node in &projection.ontology.node_types {
+        let mut pending = node.parents.clone();
+        let mut seen = BTreeSet::new();
+        while let Some(name) = pending.pop() {
+            if name == node.name {
+                return Err(error("local node type inheritance cycle"));
+            }
+            if seen.insert(name.clone()) {
+                if let Some(parent) = projection
+                    .ontology
+                    .node_types
+                    .iter()
+                    .find(|n| n.name == name)
+                {
+                    pending.extend(parent.parents.clone());
+                }
+            }
+        }
+    }
+    Ok(projection)
+}
+
 impl<S: RevisionLog + ObjectStore + ObservationRetention + IncubationRetention> Commit<S> {
     fn checked_document(
         &self,
         document: &EkrIntegrateInterpretationDocument,
         at: Timestamp,
     ) -> Result<ekr_integrate::ExtractionDocument, StoreError> {
-        coordinate(document)?;
-        let mut sources = BTreeSet::new();
-        for id in &document.observations {
-            let id: ekr_core::ObservationId = id.0.parse().map_err(error)?;
-            if !sources.insert(id) {
-                return Err(error("duplicate observation reference"));
-            }
-            self.observation(id)?;
-        }
-        let projection = project(document)?;
-        projection
-            .check_incubation(&empty_ontology(at)?)
-            .map_err(error)?;
-        for evidence in &projection.evidence {
-            if let ekr_graph::EvidenceSource::Observation(id) = evidence.evidence.source {
-                if !sources.contains(&id) {
-                    return Err(error(
-                        "evidence observation is not declared by the document",
-                    ));
-                }
-                let retained = self.observation(id)?;
-                if retained.observation.content_hash.0 != evidence.evidence.content_hash.to_hex()
-                    || ekr_core::bytes::decode(&retained.payload).map_err(error)?
-                        != evidence.payload
-                {
-                    return Err(error("evidence differs from its retained observation"));
-                }
-            }
-        }
-        // The older extraction checker checks references but canonical schema publication used
-        // to catch parent cycles. Incubation has no publication, so check them here as well.
-        for node in &projection.ontology.node_types {
-            let mut pending = node.parents.clone();
-            let mut seen = BTreeSet::new();
-            while let Some(name) = pending.pop() {
-                if name == node.name {
-                    return Err(error("local node type inheritance cycle"));
-                }
-                if seen.insert(name.clone()) {
-                    if let Some(parent) = projection
-                        .ontology
-                        .node_types
-                        .iter()
-                        .find(|n| n.name == name)
-                    {
-                        pending.extend(parent.parents.clone());
-                    }
-                }
-            }
-        }
-        Ok(projection)
+        checked_document(document, at, |id| self.observation(id))
     }
 
     /// Retains exact document bytes, locally checked declarations and durable integration gaps.
