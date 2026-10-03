@@ -5364,3 +5364,52 @@ store. Such publication still needs a captured base, expected-head condition, al
 suffix validation/publication and exact retry behavior. Network read serving is also a separate
 boundary: explicit listeners and accepted authorities, bounded HTTP requests, read-only MCP,
 and an external authentication/routing owner. A provider release alone proves none of those.
+
+# 106. Hosted read transports and a search entry (2026-10-03)
+
+The hosted reader exposes existing admitted views; transport does not add canonical write
+authority. `ekr mcp` retains its stdio contract. `ekr mcp-http` is a separate stateless HTTP
+listener, and `ekr view` gains an explicit bind address. Loopback remains the default. A
+non-loopback listener requires explicit accepted HTTP authorities; forwarded headers never grant
+authority. A present MCP Origin must be explicitly accepted. Authentication and TLS termination
+belong to the deployment owner and are not inferred from Host or Origin admission.
+
+## 106.1 Bounded transport and store admission
+
+Connections, request heads and bodies, pending store work and network waits have finite bounds.
+Store work stays outside connection-reader threads. Queue saturation refuses additional work;
+expired queued requests do not later start store reads. `GET /healthz` bypasses the store queue
+and initial admission. `GET /readyz` succeeds only for an admitted seeded store, including revision
+zero; an absent, unavailable or incomplete store fails readiness. Binding precedes initial
+admission, and a later request may recover after the store becomes available. Readiness asks for
+the admitted head rather than building a graph index.
+
+MCP uses JSON POST responses and an empty accepted response for notifications. There is no SSE
+stream, server session identifier or session deletion. Unsupported methods and transport-policy
+refusals are determined before opening the store. After initialization, the client supplies one
+of the supported protocol revisions; an absent header is refused because the historical fallback
+revision is not supported. Initial store-admission failures and readiness failures use HTTP 503.
+Once admitted, tool failures keep the existing JSON-RPC/MCP error contract inside HTTP 200.
+
+`crates/ekr/tests/hosted_http.rs` exercises these claims in
+`external_binding_requires_and_enforces_explicit_authorities`,
+`mcp_http_rejects_ambiguous_framing_and_unapproved_hosts`,
+`mcp_http_protocol_statuses_versions_and_origins`,
+`unavailable_store_does_not_override_transport_refusals`,
+`health_stays_live_before_seed_and_readiness_recovers_after_seed`,
+`readiness_refuses_an_incomplete_copy_even_with_a_seed_and_checkpoint`,
+`http_and_stdio_mcp_return_identical_nine_tool_documents` and
+`http_readers_observe_external_commits_and_keep_historical_documents`.
+The wave records actual execution; this amendment alone is not a conformance report.
+
+## 106.2 Search without a graph-library dependency
+
+`/find` is an additional Rust-rendered HTML entry, with an ordinary GET form and bounded results
+from the existing name/alias index. It claims neither natural-language answering nor evidence
+full-text search. The graph page and JSON search API retain their routes and semantics. A result
+page names its served revision and pins detail and evidence links to that same revision.
+Untrusted query and stored text are escaped in their HTML contexts; generated URL parameters are
+encoded. Missing evidence text is never invented. The entry needs no script, external font or
+graph-library load. Historical and unavailable-store behavior, escaping and route compatibility
+are assigned to the named acceptance cases of `story:search-first-viewer-entry`; integrated
+execution remains pending while its standalone renderer is prepared.

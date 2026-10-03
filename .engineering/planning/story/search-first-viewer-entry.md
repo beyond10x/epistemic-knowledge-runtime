@@ -9,6 +9,8 @@ relations:
 - derived_from: task:hosted-postgres-copy-and-read-serving
 scope:
 - confidence: inferred
+  path: crates/ekr/src/cli/mod.rs
+- confidence: inferred
   path: crates/ekr/src/cli/search_page.rs
 - confidence: cited
   path: crates/ekr/src/cli/view.rs
@@ -16,7 +18,9 @@ scope:
   path: crates/ekr/tests/search_page.rs
 - confidence: cited
   path: docs/cli.md
-revision: 7
+- confidence: inferred
+  path: docs/epistemic-knowledge-runtime-design.md
+revision: 8
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T01:45:34Z", actor: "agent:codex", revision: 6}
 - {from: "proposed", to: "active", at: "2026-10-03T01:45:34Z", actor: "agent:codex", revision: 7}

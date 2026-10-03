@@ -32,9 +32,11 @@ scope:
   path: crates/ekr/tests/view_stream.rs
 - confidence: cited
   path: docs/cli.md
+- confidence: cited
+  path: docs/epistemic-knowledge-runtime-design.md
 - confidence: inferred
   path: systems/ekr/domains/views.yaml
-revision: 10
+revision: 11
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T01:14:16Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T01:27:02Z", actor: "agent:codex", revision: 9}
