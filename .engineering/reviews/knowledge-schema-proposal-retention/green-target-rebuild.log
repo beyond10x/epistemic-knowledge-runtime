@@ -1,0 +1,14 @@
+   Compiling ekr-store v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-schema-proposal-retention-20261003/crates/ekr-store)
+    Finished `test` profile [unoptimized] target(s) in 2.80s
+     Running tests/schema_proposal_retention.rs (<build-lane>/target/debug/deps/schema_proposal_retention-3164b14c633b5283)
+
+running 6 tests
+test changed_bytes_under_one_id_refuse_without_pinning_the_loser ... ok
+test malformed_mismatched_and_noncanonical_identity_inputs_publish_nothing ... ok
+test exact_retries_and_reopen_preserve_the_original_on_both_providers ... ok
+test concurrent_identical_retries_elect_one_retained_record ... ok
+test concurrent_changed_input_elects_one_and_refuses_the_other ... ok
+test retained_payload_is_pinned_and_never_downgrades_stronger_retention ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

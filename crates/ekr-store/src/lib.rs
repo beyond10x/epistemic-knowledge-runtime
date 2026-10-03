@@ -58,6 +58,7 @@ mod verified;
 pub use eventlog::remove_read_only_copies;
 pub use eventlog::IncubationRetention;
 pub use eventlog::ObservationRetention;
+pub use eventlog::SchemaProposalRetention;
 pub use eventlog::{
     EventlogStore, FileStore, InventoriedObject, Inventory, PublishedEvent, SqliteStore,
     StoreInventory,
