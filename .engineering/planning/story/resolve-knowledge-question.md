@@ -30,7 +30,7 @@ scope:
   path: generated
 - confidence: cited
   path: systems/ekr
-revision: 23
+revision: 24
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T10:06:10Z", actor: "agent:codex-ekr-knowledge", revision: 9, decided_on: {"recorded":{"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T10:06:10Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
@@ -132,3 +132,13 @@ Unit b55e33591e6b8ac70ab9f73d10621b006a2856d2 is integrated at c60270ce01c54a72a
 Unit tests passed 17 executions (2 answer cases, 5 recovery cases, 10 existing adversarial cases), zero failures/ignores. Targeted Clippy with warnings denied and actual xtask fmt --check passed. Source is byte-identical on integration, where both answer cases and the 16-cell native matrix passed again. Evidence: .engineering/reviews/knowledge-answer-native-recovery/ and .engineering/reviews/knowledge-answer-native-recovery-integrated/. No contracts changed; ESS source digest remains 16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146, contract digest b3aecc34f60f0ce8f8908536c64e38d6497f7a61baffe2b2c753efbc70236b8c.
 
 These witness process death during answer publication, not power loss, fsync failure, torn journal frames, or preparation-election interruption. Named C conformance and independent review remain outstanding. D-F, released ESS adoption, both end-to-end demonstrations and the full task check still gate PR64 completion. Next implement the named human-resolution and changed-answer-basis conformance scenarios against the real runtime.
+
+## Named answer conformance checkpoint
+
+Unit 5cf04058937e03bbbceee884012e16927475e622 is integrated at 8fa3c4c03c7a5a4e599915743b376351f7e03d04. Authored scenarios human_resolution_preserves_evidence_and_history and changed_answer_basis_requires_review now execute real signed answers and projections with reopen/full replay on both native providers. The first preserves the signed basis across an unrelated ordinary transaction. The second refuses a review predating newly committed competing evidence and then accepts independently renewed review. Positive assertions retain human identity, corrections, evidence, historical roots, settled claims and retracted competitors.
+
+Three consecutive local runs report 2 passed, zero failed/error/unsupported/skipped per provider; inert controls report 2 failed per provider. Disabling both material-basis checks makes the stale-review scenario fail; requiring exact revision equality makes the unrelated-change scenario fail. Disabling only one material check leaves the independent second check effective. Exact production bytes were restored before the three final runs. The complete knowledge-conformance target passed 9 Rust tests; targeted Clippy and actual xtask fmt --check passed. Integration source is byte-identical and both real scenarios plus inert controls passed their expected assertions again.
+
+Evidence: .engineering/reviews/knowledge-answer-conformance/ and .engineering/reviews/knowledge-answer-conformance-integrated/. The exact selection and full parent are in suite-input.json; the freshness gate includes the new generated suite. ESS source digest 16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146 and contract digest b3aecc34f60f0ce8f8908536c64e38d6497f7a61baffe2b2c753efbc70236b8c are unchanged. The synthesized suite has 118 scenarios, but this claim covers only the two selected authored answer scenarios.
+
+These are local reports, not independent review or the CI/full-gate result. ESS 0.52.0 is now publicly released (https://github.com/beyond10x/ess/releases/tag/0.52.0, published 2026-10-03T10:29:28Z); verify its assets and adopt the released generator, locks, regenerated suites and gate pins together next. C final acceptance, D-F, both demonstrations and full task check remain outstanding.

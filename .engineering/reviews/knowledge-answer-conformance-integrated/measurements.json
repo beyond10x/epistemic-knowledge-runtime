@@ -1,0 +1,52 @@
+{
+  "completed_at": "2026-10-03T13:49:11Z",
+  "unit_commit": "5cf04058937e03bbbceee884012e16927475e622",
+  "integration_commit": "8fa3c4c03c7a5a4e599915743b376351f7e03d04",
+  "source_comparison": "crates/generated/systems/docs/Cargo.toml/Cargo.lock/xtask/Taskfile.yml byte-identical",
+  "report_counts": [
+    {
+      "file": "answer-file-no-op.report.json",
+      "counts": {
+        "error": 0,
+        "failed": 2,
+        "passed": 0,
+        "skipped": 0,
+        "total": 2,
+        "unsupported": 0
+      }
+    },
+    {
+      "file": "answer-file-persisted.report.json",
+      "counts": {
+        "error": 0,
+        "failed": 0,
+        "passed": 2,
+        "skipped": 0,
+        "total": 2,
+        "unsupported": 0
+      }
+    },
+    {
+      "file": "answer-sqlite-no-op.report.json",
+      "counts": {
+        "error": 0,
+        "failed": 2,
+        "passed": 0,
+        "skipped": 0,
+        "total": 2,
+        "unsupported": 0
+      }
+    },
+    {
+      "file": "answer-sqlite-persisted.report.json",
+      "counts": {
+        "error": 0,
+        "failed": 0,
+        "passed": 2,
+        "skipped": 0,
+        "total": 2,
+        "unsupported": 0
+      }
+    }
+  ]
+}
