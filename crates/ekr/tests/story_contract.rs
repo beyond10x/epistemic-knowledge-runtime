@@ -134,6 +134,8 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
     (
         "ekr-core",
         &[
+            "ekr-contract-data",
+            "ekr-contracts",
             "uuid",
             "ring",
             "hex",

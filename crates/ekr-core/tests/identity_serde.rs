@@ -21,6 +21,19 @@ use serde::Serialize;
 #[path = "support/identity_types.rs"]
 mod identity_types;
 
+#[test]
+fn generated_document_identity_requires_checked_ingress_after_deserialization() {
+    use ekr_core::generated_identity::{Identity, InterpretationId};
+
+    let raw: InterpretationId = serde_json::from_str("\"not-an-id\"").unwrap();
+    assert!(InterpretationId::parse_identity(raw.identity_text()).is_err());
+    let minted = <InterpretationId as Identity>::mint();
+    let json = serde_json::to_string(&minted).unwrap();
+    let decoded: InterpretationId = serde_json::from_str(&json).unwrap();
+    let checked = InterpretationId::parse_identity(decoded.identity_text()).unwrap();
+    assert_eq!(checked.identity_text(), minted.identity_text());
+}
+
 /// The contract every minted id type keeps, stated once.
 fn assert_id_contract<T>(minted: T)
 where
@@ -305,7 +318,11 @@ fn every_ess_id_type_exists_in_the_crate() {
         .collect();
     declared.sort();
 
-    let mut enumerated: Vec<String> = ENUMERATED.iter().map(|n| (*n).to_owned()).collect();
+    let mut enumerated: Vec<String> = ENUMERATED
+        .iter()
+        .chain(ekr_core::generated_identity::NAMES.iter())
+        .map(|n| (*n).to_owned())
+        .collect();
     enumerated.sort();
 
     assert!(

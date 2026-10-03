@@ -9,6 +9,7 @@ tasks:
       - task: test
       - task: doc-check
       - task: vendor-check
+      - task: contracts-check
       - task: spec-check
       - task: conform-fresh
       - task: plan-check
@@ -27,7 +28,7 @@ tasks:
   fmt-check:
     desc: rustfmt, check only
     cmds:
-      - cargo fmt --all -- --check
+      - cargo run --locked -p xtask --bin xtask -- fmt --check
 
   clippy:
     desc: clippy over every target, warnings are errors
@@ -71,6 +72,11 @@ tasks:
     cmds:
       - cargo doc --manifest-path vendor/serde_yaml_ng/Cargo.toml --no-deps --locked --target-dir "${CARGO_TARGET_DIR:-target}/vendor-serde_yaml_ng"
 
+  contracts-check:
+    desc: Exact released ESS provenance, complete generated artifacts and synthesis compilation
+    cmds:
+      - cargo run --locked -p xtask --bin xtask -- contracts-check
+
   spec-check:
     desc: the runtime's own ESS contract validates
     preconditions:
@@ -113,4 +119,4 @@ tasks:
   fmt:
     desc: rustfmt, in place
     cmds:
-      - cargo fmt --all
+      - cargo run --locked -p xtask --bin xtask -- fmt

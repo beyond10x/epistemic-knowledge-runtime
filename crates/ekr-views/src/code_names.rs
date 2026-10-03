@@ -106,7 +106,14 @@ pub fn runtime_vocabulary() -> &'static BTreeSet<String> {
                 }
                 match declared.get("variants") {
                     Some(Value::Sequence(variants)) => {
-                        words.extend(variants.iter().filter_map(Value::as_str).map(str::to_owned))
+                        words.extend(variants.iter().map(|variant| {
+                            variant
+                                .as_str()
+                                .or_else(|| variant.get("wire").and_then(Value::as_str))
+                                .or_else(|| variant.get("name").and_then(Value::as_str))
+                                .expect("validated ESS enum variant")
+                                .to_owned()
+                        }))
                     }
                     Some(Value::Mapping(variants)) => {
                         words.extend(variants.keys().filter_map(Value::as_str).map(str::to_owned))

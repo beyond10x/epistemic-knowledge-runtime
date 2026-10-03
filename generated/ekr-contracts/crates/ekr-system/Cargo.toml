@@ -1,0 +1,20 @@
+# generated from ekr v1
+# model digest 6e6b51b6bd6e58fd549ea5d5d5562997e603f9e0012f19b9285bfadec393cabc
+# contract digest a0934f66cde7acd61a5a40778b7848f6896e36e413fcc19560b8f9a78863f051
+# do not edit: regenerate with `ess synthesize`
+
+[package]
+name = "ekr-system"
+description = "The `ekr` system, v1: its bindings and its one transport, generated."
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+ekr-types = { path = "../ekr-types" }
+ekr-graph = { path = "../ekr-graph" }
+ekr-integrate = { path = "../ekr-integrate" }
+ekr-kernel = { path = "../ekr-kernel" }
+ekr-observe = { path = "../ekr-observe" }
+ekr-ontology = { path = "../ekr-ontology" }
+ekr-store = { path = "../ekr-store" }
+ekr-views = { path = "../ekr-views" }

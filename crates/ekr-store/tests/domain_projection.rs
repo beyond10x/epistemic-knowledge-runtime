@@ -39,7 +39,14 @@ fn variants_of(type_name: &str) -> Vec<String> {
         .get("variants")
         .map_or(&[][..], Yaml::items)
         .iter()
-        .map(|variant| variant.as_str().expect("a variant is a name").to_owned())
+        .map(|variant| {
+            variant
+                .as_str()
+                .or_else(|| variant.get("wire").and_then(Yaml::as_str))
+                .or_else(|| variant.get("name").and_then(Yaml::as_str))
+                .expect("a variant declares a wire name")
+                .to_owned()
+        })
         .collect();
     assert!(
         !variants.is_empty(),
@@ -576,7 +583,14 @@ fn declared_types_and_entities(document: &Yaml) -> BTreeMap<String, BTreeSet<Str
                 .get("variants")
                 .map_or(&[][..], Yaml::items)
                 .iter()
-                .map(|variant| variant.as_str().expect("a variant is a name").to_owned())
+                .map(|variant| {
+                    variant
+                        .as_str()
+                        .or_else(|| variant.get("wire").and_then(Yaml::as_str))
+                        .or_else(|| variant.get("name").and_then(Yaml::as_str))
+                        .expect("a variant declares a wire name")
+                        .to_owned()
+                })
                 .collect();
             for field in declaration.get("fields").map_or(&[][..], Yaml::items) {
                 members.insert(
