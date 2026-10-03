@@ -2,15 +2,17 @@
 format: aep.planning-md/3
 id: decision-blocker:schema-evidence-fixture-secret-exceptions
 kind: decision-blocker
-status: open
+status: cleared
 title: Synthetic historical fixtures require a reviewed Gates exception
 relations:
 - blocks: story:schema-transaction-cites-evidence
 withholds: approval
-revision: 1
+revision: 3
+transitions:
+- {from: "open", to: "cleared", at: "2026-10-03T15:32:58Z", actor: "agent:codex-ekr-knowledge", revision: 3, decided_on: {"recorded":{"approval":1}}}
 ---
-The bot pre-commit hook refused the staged schema-evidence kernel checkpoint: common checks failed with 18 findings. Its pinned Gitleaks scanner identifies generic-api-key matches on synthetic native eventlog idempotency_key and key fields. These are generated deduplication identifiers in stores written by the previous kernel, not operator credentials. The exact native bytes are needed to verify historical replay; changing their encoding merely to avoid inspection is not authorized.
+The bot pre-commit hook refused the schema-evidence kernel checkpoint because its pinned scanner matched synthetic native eventlog idempotency_key and key fields as generic-api-key. These generated deduplication identifiers are not credentials. Preserving their native bytes is necessary for historical replay verification.
 
-An exact repository/file/line/content-digest exception proposal and the redacted scanner report are retained at <cache>/ekr-knowledge-prereq-20261003/schema-evidence/gitleaks-review. The immutable raw native fixtures and their old-writer provenance are retained separately. No policy, hook or scanner has been changed, and the refused commit did not publish.
+The operator explicitly answered "Approve exact fixture exceptions" to the question carrying the proposed repository/file/line/content-hash exceptions. The exact proposal and redacted scanner report remain at <cache>/ekr-knowledge-prereq-20261003/schema-evidence/gitleaks-review. The policy CLI applied that proposal in managed tree ekr-fixture-exceptions-20261003. A structural comparison verified the complete added set against the approved proposal and verified that no other policy fields or prior exceptions changed. Neither wildcard-line nor wildcard-content exceptions were authorized or added.
 
-An asynchronous operator question requests approval for those exact exceptions. Until answered, leave the source and fixtures recoverable in managed tree ekr-schema-evidence-20261003 and continue the independent SDK and presentation implementation. This blocks publication of the retained fixtures, not all implementation progress. Clear only after the operator's policy decision is recorded and the same hook admits the exact candidate; do not infer approval from elapsed time.
+Private gates-policy commit a74216535fa81038e25e9227a99bdea81e245582 was authored, committed and published by the bot; the local consumer policy was fast-forwarded to that published commit. The original EKR bot pre-commit hook then admitted the preserved candidate as kernel commit dded81ab56. The SDK regression test remains outside that checkpoint. The decision and hook admission clear this fixture blocker; SDK, presentation, independent review, conformance and the complete delivery gate remain unfinished.

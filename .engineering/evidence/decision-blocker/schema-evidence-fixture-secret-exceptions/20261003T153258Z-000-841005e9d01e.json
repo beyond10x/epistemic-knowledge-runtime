@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T15:32:58Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "decision-blocker:schema-evidence-fixture-secret-exceptions",
+  "kind": "decision-blocker",
+  "revision": 2,
+  "change": {
+    "change": "evidence",
+    "kind": "approval",
+    "source": "Operator reply: Approve exact fixture exceptions",
+    "reference": "gates-policy:a74216535fa81038e25e9227a99bdea81e245582"
+  }
+}
