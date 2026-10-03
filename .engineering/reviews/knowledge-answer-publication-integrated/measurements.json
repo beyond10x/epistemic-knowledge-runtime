@@ -1,0 +1,46 @@
+{
+  "unit": "a23d44e6c96d2462f25a8c2207b0affff696140d",
+  "integrated": "246b51138c7e081eeebe21d822c1aa4b01aa15bf",
+  "same_source_paths": [
+    "crates",
+    "generated",
+    "systems",
+    "docs",
+    "Cargo.toml",
+    "Cargo.lock",
+    "xtask",
+    "Taskfile.yml"
+  ],
+  "observed_at": "2026-10-03T11:58:33.520Z",
+  "rows": [
+    {
+      "status": "ok",
+      "passed": 29,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "status": "ok",
+      "passed": 18,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "status": "ok",
+      "passed": 12,
+      "failed": 0,
+      "ignored": 0
+    },
+    {
+      "status": "ok",
+      "passed": 14,
+      "failed": 0,
+      "ignored": 0
+    }
+  ],
+  "totals": {
+    "passed": 73,
+    "failed": 0,
+    "ignored": 0
+  }
+}

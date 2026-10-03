@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T11:58:33Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:resolve-knowledge-question",
+  "kind": "story",
+  "revision": 20,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Durable reviewed answer publication: file/SQLite publish, replay, exact retry, fresh-process recovery, record forgery, retained evidence, graph/store regression and integrated CLI checks; not completed C conformance or task check",
+    "reference": ".engineering/reviews/knowledge-answer-publication-integrated/README.md"
+  }
+}
