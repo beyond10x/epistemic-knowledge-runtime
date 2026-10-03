@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T12:30:23Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:resolve-knowledge-question",
+  "kind": "story",
+  "revision": 21,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Signed answer SDK/session/provider tests, CLI contracts, Clippy and format; source-identical integrated session run",
+    "reference": ".engineering/reviews/knowledge-answer-surface-integrated/measurements.json"
+  }
+}

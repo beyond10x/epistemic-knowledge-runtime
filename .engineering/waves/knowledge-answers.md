@@ -8,7 +8,7 @@ First slice: test and implement deterministic ordinary correction derivation usi
 
 Only one EKR build tree is active at a time. This unit sequentially reuses the task's private tmpfs build directory after the B/integration processes have terminated; compiler jobs remain one, incremental/debug outputs disabled. Raw evidence stays in the task-owned prerequisite cache outside disposable outputs. No persistent heavy build lane or other owner's cache is used.
 
-Stage: durable kernel answer publication and replay implemented; public delivery and C acceptance remain open. Full acceptance, independent review, both demonstrations, released ESS adoption and task check remain outstanding.
+Stage: durable kernel and public CLI/session/SDK answers and history implemented; explanation, viewer history and C acceptance remain open. Full acceptance, independent review, both demonstrations, released ESS adoption and task check remain outstanding.
 
 ## Signed-answer verification foundation
 
@@ -45,3 +45,11 @@ Measured unit results: graph/store {"passed":276,"failed":0,"ignored":3} and sel
 The integrated executable/specification source is byte-identical to the tested unit, and the actual integration CLI checks (agent_cli, docs_cli, public_surface, story_contract) passed {"passed":73,"failed":0,"ignored":0} across 4 result rows. The initial public-surface run found three unexercised new exports; direct checked-ID/version tests closed that gap before the green rerun. Workspace all-target Clippy and xtask fmt --check passed on the unit. Evidence is .engineering/reviews/knowledge-answer-publication/ and .engineering/reviews/knowledge-answer-publication-integrated/.
 
 This supersedes the earlier no-publication checkpoint; it is not completed C acceptance or independent review. Next connect Runtime/session/SDK and CLI answer/history operations, complete explanation provenance, named C conformance and native crash coverage. D–F, released-generator adoption, both demonstrations and full task check still gate PR64 readiness. No ordinary unsigned lifecycle rule was relaxed.
+
+## Public signed-answer transport checkpoint
+
+Unit 1fe6b449dbb645339fa09c678ec08b4c6d7e4599, integrated at dae49b3df6ec8c53c7a70212e8d131c86bbb830e, exposes Runtime, CLI/session and typed SDK answer submission and immutable history using the generated contracts. The CLI admits bounded JSON and delegates all approval and mutation to the signed kernel path; it does not sign decisions. A changed retry now surfaces as KnowledgeRefused rather than an operational fault, and generated review-basis decoding rejects negative revisions through the canonical codec.
+
+The SDK test commits evidenced competing claims, upgrades under independently provisioned trust, signs externally, resolves the question, rejects forgery/altered inputs, retries without sampling time, filters retained history and repeats after full replay on both file and SQLite. Bounded input and read-only subprocess/session cases pass. Unit results: 98 selected tests plus 2 real-session cases passed, zero failures/ignores; workspace all-target Clippy and xtask fmt --check passed. The integrated source matches the unit byte-for-byte, and both real-session cases passed on the integration tree. Reports: .engineering/reviews/knowledge-answer-surface/ and .engineering/reviews/knowledge-answer-surface-integrated/. Current ESS source digest remains f91b8100f4d52e92766331c01c931d876f7ec64be4fe1d83c6351f9d3f48420b, contract digest 873319d08748c75f4bb7d3d8f106756f1c677236ed294ead950d1eb8f1df8c48.
+
+This supersedes the earlier missing-public-transport checkpoint. It is root-local evidence, not independent review or completed C acceptance. Next complete explanation provenance and read-only viewer answer history, native crash coverage and named C conformance. D–F, released generator adoption, both end-to-end demonstrations and full task check remain required before PR64 completion.
