@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-exclude = ["vendor/serde_yaml_ng"]
+exclude = ["vendor/serde_yaml_ng", "crates/ekr-search-web"]
 members = [
     "crates/ekr",
     "crates/ekr-core",

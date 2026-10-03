@@ -6,6 +6,7 @@
 use std::path::Path;
 
 use clap::{Parser, Subcommand};
+mod search_web;
 
 /// Repository tasks that are not the product.
 #[derive(Parser)]
@@ -114,6 +115,12 @@ mod tests {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Rebuild the browser WASM twice from its pinned Rust source and lockfile.
+    SearchWeb {
+        /// Refuse differences from the checked artifact instead of updating it.
+        #[arg(long)]
+        check: bool,
+    },
     /// Report the workspace root and the members the manifest declares.
     Doctor,
 }
@@ -121,12 +128,23 @@ enum Command {
 fn main() -> std::process::ExitCode {
     let cli = Cli::parse();
     let result = match cli.command {
+        Command::SearchWeb { check } => std::env::current_dir()
+            .map_err(|e| e.to_string())
+            .and_then(|current| {
+                resolve_workspace(
+                    std::env::var_os("CARGO_MANIFEST_DIR")
+                        .as_deref()
+                        .map(Path::new),
+                    &current,
+                )
+            })
+            .and_then(|root| search_web::run(&root, check)),
         Command::Doctor => doctor(),
     };
     match result {
         Ok(()) => std::process::ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("xtask doctor: {error}");
+            eprintln!("xtask: {error}");
             std::process::ExitCode::FAILURE
         }
     }

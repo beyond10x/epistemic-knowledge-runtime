@@ -951,6 +951,28 @@ renders result cards with escaped text and fixed local links, with no evidence p
 Names and aliases are shortened to 256 characters for display; matching uses their full values.
 The graph remains at `/` and the JSON API remains at `/search`.
 
+With browser scripting enabled, the local Rust/WebAssembly client updates just the results and
+revision region while you type. It waits 180 ms after input, defers composed input until committed,
+and cancels superseded reads; a sequence check also rejects late completions. Focus and caret stay
+in the search field. Clearing the field or a failed read clears old results; failures retain the
+query and offer an explicit retry, with no background retry loop. Enter searches immediately.
+Without scripting, the same GET form continues to work. Both paths use the same Rust renderer,
+ranking, bounds and revision-pinned links.
+
+`/assets/search.js` and `/assets/search_bg.wasm` are local embedded assets. The module is generated
+by pinned wasm-bindgen tooling from Rust, with no authored JavaScript bootstrap or CDN. The search
+page permits same-origin scripts and reads plus the specific `wasm-unsafe-eval` CSP allowance;
+general `unsafe-eval` and inline scripts remain refused. Static assets pass the viewer's normal
+authority, method and body checks and work even when the store is unavailable.
+
+Installing a tagged CLI uses native Rust only: its build script generates the embedded bindings
+from the checked raw `crates/ekr/assets/search.wasm` artifact. Contributors changing the browser
+Rust need the pinned `rust-toolchain.toml` toolchain's `wasm32-unknown-unknown` target. Run
+`cargo xtask search-web` to regenerate, and `task search-web-check` to compare two independent
+source/build paths against the artifact, check for private build paths, test and lint the browser
+crate. Its separate lockfile and exact binding versions keep native installation independent of
+the browser compiler target; generated JavaScript remains in Cargo's output directory.
+
 The **Connect an agent** link opens `/agent-guide.md` by default. `--agent-guide-url` replaces
 that link with an operator-provided guide; the local guide remains available. `--mcp-url`
 advertises an explicit MCP Streamable HTTP endpoint in the local guide and `/llms.txt`.

@@ -54,6 +54,7 @@ pub(super) fn render(page: &Page<'_>) -> String {
         .unwrap();
     }
     html.push_str("<p class=\"hint\">Matches parts of names and aliases, including differences in letter case. Evidence text is not searched.</p></form>");
+    html.push_str("<div id=\"search-region\" aria-live=\"polite\" aria-busy=\"false\">");
     if let Some(revision) = page.revision {
         write!(html, "<nav aria-label=\"Store revision\"><span>Revision {revision}</span><a href=\"/#revision={revision}\">Explore graph</a>").unwrap();
         if page.requested_revision.is_some() {
@@ -108,7 +109,7 @@ pub(super) fn render(page: &Page<'_>) -> String {
             html.push_str("</ol>");
         }
     }
-    html.push_str("</section></main><footer>Knowledge carries evidence. Open a record to see what supports it.</footer></body></html>");
+    html.push_str("</section></div></main><footer>Knowledge carries evidence. Open a record to see what supports it.</footer></body></html>");
     html
 }
 
@@ -146,6 +147,7 @@ fn parameter(text: &str, limit: usize) -> String {
 
 const START: &str = r#"<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Search knowledge · EKR</title><link rel="describedby" href="/llms.txt">
+<script type="module" src="/assets/search.js"></script>
 <style>
 :root{color-scheme:light;--ink:#183532;--muted:#526560;--line:#dce4de;--paper:#fafbf8;--accent:#185f4b}
 *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:1rem/1.6 system-ui,sans-serif}a{color:var(--accent);text-underline-offset:.2em}a:hover{text-decoration-thickness:2px}header,main,footer{width:min(100% - 3rem,52rem);margin:auto}header{display:flex;gap:1rem;align-items:center;padding:2rem 0;color:var(--muted);font-size:.875rem}.brand{font-weight:800;letter-spacing:.08em;text-decoration:none}main{padding:3rem 0}h1{font-size:clamp(2.2rem,6vw,3.5rem);line-height:1.15;letter-spacing:-.045em;margin:0 0 1rem}h2{font-size:1.15rem}h3{font-size:1.25rem;margin:0;overflow-wrap:anywhere}.intro{font-size:1.15rem;color:var(--muted);margin:0 0 2rem}label{display:block;font-weight:650;margin-bottom:.6rem}.search-box{display:flex;gap:.6rem}input,button{font:inherit;border-radius:.65rem}input{min-width:0;flex:1;border:1px solid #9caf9f;padding:.9rem 1rem;background:white;color:var(--ink)}button{border:1px solid var(--accent);background:var(--accent);color:white;font-weight:650;padding:.9rem 1.4rem;cursor:pointer}:focus-visible{outline:3px solid #c58229;outline-offset:3px}.hint{font-size:.85rem;color:var(--muted);margin:.65rem 0}nav{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem 1rem;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:.9rem 0;margin:1.6rem 0;font-size:.85rem;color:var(--muted)}.results{list-style:none;padding:0}.result{padding:1.3rem 0;border-bottom:1px solid var(--line)}.alias{font-size:.9rem;margin:.4rem 0;overflow-wrap:anywhere}.evidence{display:inline-block;margin:.5rem 1rem 0 0;font-size:.85rem;overflow-wrap:anywhere}.empty{padding:2.2rem 0;max-width:40rem}.empty p{color:var(--muted)}footer{padding:1.5rem 0 2rem;border-top:1px solid var(--line);font-size:.8rem;color:var(--muted)}@media(max-width:480px){header,main,footer{width:calc(100% - 2rem)}main{padding:1.5rem 0}.search-box{flex-direction:column}button{width:100%}}

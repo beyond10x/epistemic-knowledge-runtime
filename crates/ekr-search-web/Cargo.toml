@@ -1,0 +1,27 @@
+[package]
+name = "ekr-search-web"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+# Kept separate so installing the native CLI never needs the wasm target.
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "=0.2.129"
+wasm-bindgen-futures = "=0.4.79"
+web-sys = { version = "=0.3.106", features = ["Window", "Document", "Element", "Node", "Event", "EventTarget", "HtmlInputElement", "HtmlFormElement", "InputEvent", "AbortController", "AbortSignal", "Request", "RequestInit", "RequestCredentials", "RequestMode", "Response", "DomParser", "SupportedType", "UrlSearchParams"] }
+
+[profile.release]
+opt-level = "s"
+debug = 0
+strip = "debuginfo"
+codegen-units = 1
+panic = "abort"
+
+[lints.rust]
+unsafe_code = "forbid"
