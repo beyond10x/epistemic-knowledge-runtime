@@ -11,11 +11,13 @@ relations:
 scope:
 - confidence: cited
   path: .github/workflows/correctness.yml
+- confidence: cited
+  path: AGENTS.md
 - confidence: inferred
   path: Cargo.toml
 - confidence: cited
   path: README.md
-- confidence: inferred
+- confidence: cited
   path: Taskfile.yml
 - confidence: inferred
   path: crates/ekr-core
@@ -37,7 +39,7 @@ scope:
   path: systems/ekr
 - confidence: inferred
   path: xtask
-revision: 19
+revision: 21
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T00:11:28Z", actor: "agent:codex-ekr-knowledge", revision: 13, decided_on: {"recorded":{"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T00:11:28Z", actor: "agent:codex-ekr-knowledge", revision: 14, decided_on: {"recorded":{"approval":1}}}
@@ -87,3 +89,7 @@ The sole release integrator confirmed publication of the full frozen source hist
 The sole ESS integrator reported PR398 merged at 27b1ef507 with all 15 checks green and the entire frozen 26bef8f840032beb76b7cecb2eb939470011cf45 history preserved. PR403 is closed as superseded. The integrator retains release/tag ownership and reports publisher corrections in PR404 must land before tagging; no 0.52 release is claimed here.
 
 The frozen ess-ekr-synthesis-publish-20261003 managed tree was finished and garbage-collected through the worktree CLI after confirming remote recovery and preserving raw evidence outside build outputs. Exact completed disposable directories accounted for 769302528 allocated bytes reclaimed (0.716 GiB); the earlier 18.3 GB inspection was stale. Live EKR caches and other owners' trees were untouched. Source changes remain recoverable on ESS main. EKR generator/release adoption remains active until the exact released artifact and final regeneration are verified.
+
+## AEP report-reader compatibility pin
+
+The actual ESS suite/13 reports exposed AEP 0.64's report ingestion limit. Published AEP 0.68.0 (tag commit 6d7a44d3607d2d9a6ffdf0a165993c546c43d0db, release published 2026-09-30) admits later ESS coverage-suite versions with original-byte and complete-parent checks; it leaves execution grammar to ESS. The x86_64 Linux archive was fetched from the official release and verified against both the release asset digest and SHA256SUMS: 02bf6a2c4bc9a3ffd717edfb365f665491005004f159774a8847d3cbd18c5e91. The extracted CLI reports aep 0.68.0 and validates the existing project/5 store without migration. Update the EKR local/CI tool pin and documentation together; retain the protocol source and artifact lifecycle. This closes a necessary evidence-reader prerequisite, not the held ESS publication decision.

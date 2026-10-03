@@ -1,0 +1,12 @@
+{
+  "at": "2026-10-03T04:51:02Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:show-disputed-knowledge",
+  "kind": "story",
+  "revision": 9,
+  "change": {
+    "change": "evidence",
+    "kind": "approval",
+    "source": "Operator requested implementation of the accepted A-F plan and explicitly resumed owned EKR work after releasing ESS build reservation; B follows integrated A runtime, with final acceptance dependencies preserved"
+  }
+}

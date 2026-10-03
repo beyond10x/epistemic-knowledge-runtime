@@ -1,0 +1,9 @@
+# Disputed knowledge and explicit authority upgrades
+
+Story: `story:show-disputed-knowledge`; AEP implementing skill 0.19.1. The operator's accepted A-F execution request and resume instruction authorize serialized development after A's integrated runtime checkpoint. Its final acceptance dependency remains open for released ESS adoption and the combined gate; no dependency is relabeled complete.
+
+One managed unit, `ekr-knowledge-disputes-20261003`, implements B. The coordinator runs implementor and later adversarial passes locally; those passes are not independent review. Worker execution allowances previously refused additional work, so no new worker is requested. Planning stays in the integration tree, and all shared specification/kernel/CLI/gate changes are serialized.
+
+Start with failing positive/exclusion cases for declared One claims. Then implement explicit trusted authority upgrade, preserve historical rules and bytes, revalidate old pending decisions, expose deterministic disputes and attention through CLI/SDK and GET-only viewer. Human proof uses the generated contracts and independently enrolled reviewer policy. No historical rewrite, implicit upgrade or self-approved agent content is allowed.
+
+Each build uses this unit's own target with two jobs, incremental compilation off and debug symbols disabled. Scratch and raw logs live in the existing task-owned cache. Do not compile other EKR units concurrently. Record actual provider/replay results, generated drift and full-gate evidence before final acceptance. ESS release refs, the held ess/21 branch and hosted PostgreSQL remain outside this unit.

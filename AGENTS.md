@@ -61,7 +61,7 @@ the binary and runs its worked example on both providers.
   not dropped without an ADR saying so.
 - `systems/ekr/` — the ESS domains, one per crate, added as the crates arrive. `ess specify validate`
   is part of `task check` once the first exists.
-- `.engineering/` — the planning store, a Git-native `aep.project/5` store (AEP 0.64.0): the
+- `.engineering/` — the planning store, a Git-native `aep.project/5` store (AEP 0.68.0): the
   Markdown documents under `planning/` are the authority, each carrying its own transitions, and
   each evidence record is one file; Git history holds the rest. It is governed through
   `aep plan artifact`. Never hand-edit it.

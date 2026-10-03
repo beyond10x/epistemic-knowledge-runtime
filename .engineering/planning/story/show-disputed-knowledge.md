@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:show-disputed-knowledge
 kind: story
-status: draft
+status: active
 title: B. Show disputed knowledge
 relations:
 - decomposes: epic:p4-operator-surface
@@ -22,7 +22,10 @@ scope:
   path: crates/ekr-store
 - confidence: inferred
   path: crates/ekr-views
-revision: 8
+revision: 11
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-03T04:51:02Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
+- {from: "proposed", to: "active", at: "2026-10-03T04:51:02Z", actor: "agent:codex-ekr-knowledge", revision: 11, decided_on: {"recorded":{"approval":1}}}
 ---
 ## Outcome
 
@@ -44,3 +47,8 @@ Contract source commit 07604bf1a5e6c19ef86b78846dc99a603f3d2bfb, spec_digest 29e
 
 The operator supplied and explicitly requested execution of the knowledge inbox/schema learning plan on 2026-10-03. This story scopes that accepted intent; its draft status does not imply implementation exists. Shared kernel, CLI, specification and gate edits are serialized.
 
+## Serialized development sequencing
+
+Story A's runtime and real conformance checkpoint is integrated at 7c54aa203eb3f778b31c2e64b0e3682ed8d96a4c; six generated handlers, independent retention, reopen/process-exit checks and all three selected scenarios on both providers are green. A's final delivery still depends on the held ESS publication decision and combined gate. Begin B development serially from that integrated runtime; keep depends_on and final acceptance requirements intact, and never label A complete from this sequencing decision. The operator's original execution request and subsequent instruction to resume owned work authorize this next implementation step. No worker shares kernel, CLI, specification or build output concurrently.
+
+First implementation slice: deterministic contradiction analysis over declared One property/relation claims, including inherited node properties, edge properties, half-open/empty valid ranges and active assessment state. Return the generated UpgradeContradiction shape; no new runtime model or wire envelope is handwritten. Tests establish the positive and exclusion cases before upgrade-preview or authority mutation consumes the analysis. Existing replay and profiles remain unchanged until the explicit authority-transition path and its tests exist. The exact source scope remains the story's recorded kernel/store/graph/CLI/SDK/view surfaces; publication remains the existing draft EKR PR.

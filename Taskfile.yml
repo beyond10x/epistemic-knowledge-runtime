@@ -113,8 +113,8 @@ tasks:
   plan-check:
     desc: the planning store validates
     preconditions:
-      - sh: test "$(aep --version)" = "aep 0.64.0"
-        msg: plan-check needs an aep on PATH whose --version is aep 0.64.0
+      - sh: test "$(aep --version)" = "aep 0.68.0"
+        msg: plan-check needs an aep on PATH whose --version is aep 0.68.0
     cmds:
       - aep plan artifact validate
 

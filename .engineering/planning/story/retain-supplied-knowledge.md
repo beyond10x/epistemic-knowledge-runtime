@@ -44,7 +44,7 @@ scope:
   path: generated
 - confidence: cited
   path: systems/ekr/domains/integrate.yaml
-revision: 22
+revision: 23
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T01:01:31Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T01:01:31Z", actor: "agent:codex-ekr-knowledge", revision: 11, decided_on: {"recorded":{"approval":1}}}
@@ -118,4 +118,4 @@ Final changed-crate Clippy, formatting and CLI/SDK surface checks pass. This is 
 
 ## Report ingestion compatibility
 
-The repository-pinned AEP 0.64 command `aep plan artifact evidence --from <report/2> --suite-input <original carrier>` refused the actual retained-knowledge report with `UnsupportedSuiteVersion at $suite.provenance.suite_version: coverage requires suite/5`. The suite is ess-conformance/13. No machine-ingested conformance acceptance is claimed or fabricated, no suite version is rewritten, and the story remains active. The actual reports and original complete-parent carrier remain committed for inspection and later compatible ingestion. Ordinary cargo-test execution evidence records only the observed test command and its report paths; it does not discharge the blocked ESS-report ingestion. Resolve compatible AEP report admission before final acceptance.
+Resolved by the verified published AEP 0.68.0 reader. The original AEP 0.64 attempt refused suite/13 with `UnsupportedSuiteVersion at $suite.provenance.suite_version: coverage requires suite/5`; no evidence or suite version was rewritten to bypass that refusal. After verifying the official 0.68.0 archive and updating the EKR local/CI pin, both file and SQLite report/2 documents were imported with their exact original suite-input carrier. The store now holds two ess_conformance_coverage_v1 records, each binding three passed authored scenarios, zero failures/errors/skips/unsupported, the full parent inventory, and specification digest 49c3f391cccaef430fcdc2ab9e53d395790cb0cd546b10e41292fad4183775fa. Selection still excludes the other 115 scenarios. No store migration was required. Final verified ESS generator adoption and the combined task check remain open; this report import does not complete story A.
