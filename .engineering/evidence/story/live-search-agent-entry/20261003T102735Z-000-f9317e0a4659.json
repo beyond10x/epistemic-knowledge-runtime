@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T10:27:35Z",
+  "actor": "agent:codex",
+  "artifact": "story:live-search-agent-entry",
+  "kind": "story",
+  "revision": 12,
+  "change": {
+    "change": "evidence",
+    "kind": "verification",
+    "source": "Disposable Rust/WASM proof: pinned wasm-bindgen 0.2.129 Deno-generated loader executed Rust start in actual Chromium under script-src self wasm-unsafe-eval; HTML/module/WASM requests all returned 200. No authored scripts. Native build-script generation, installation without WASM tools and independent artifact reproduction remain untested.",
+    "reference": "private wasm-smoke/report.md; raw wasm sha256 c5660a1d0b7086b57398303d14821613a3b9b0976e5dd4337bed21ad397135be"
+  }
+}

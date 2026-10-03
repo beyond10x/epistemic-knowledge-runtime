@@ -52,7 +52,7 @@ scope:
   path: docs/cli.md
 - confidence: inferred
   path: xtask/src
-revision: 12
+revision: 13
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T09:01:36Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T09:01:37Z", actor: "agent:codex", revision: 5}
@@ -102,3 +102,9 @@ The ordinary web binding target needs an authored initialization call. Pinned ge
 Existing search concepts and wire semantics are declared in systems/ekr/domains/views.yaml (SearchNodes/NodesSearched); the browser is a read-only adapter, not a new storage domain. Its behavior remains the named acceptance cases above. Actual DOM focus/caret, stale responses, composition, clear, failure and historical links require real-browser verification after implementation. Source scope below is inferred packaging work pending the smoke, not a claim that it exists.
 
 References: Cargo build-script OUT_DIR/native dependency contract, https://doc.rust-lang.org/cargo/reference/build-scripts.html; pinned generator source, https://github.com/wasm-bindgen/wasm-bindgen/blob/0.2.129/crates/cli-support/src/js/mod.rs; generated deployment modes, https://wasm-bindgen.github.io/wasm-bindgen/reference/deployment.html.
+
+## Browser packaging smoke result
+
+The disposable smoke passed: actual Chromium ran Rust's wasm-bindgen start function through the untouched pinned Deno-target generated loader. The module changed a DOM marker that was absent from the initial HTML; HTML, JavaScript module and processed WASM all returned 200 under default-src none, script-src self wasm-unsafe-eval, connect-src self, object-src none and base-uri none. No inline bootstrap, authored JavaScript or general unsafe-eval was used. All smoke processes ended. The retained private report is wasm-smoke/report.md, with commands, Rust source, lockfile, browser DOM and request log.
+
+Proceed with Rust browser implementation under the existing scope. This result proves the automatic browser loader only. Native build.rs generation through the cli-support API, native-only installation, reproducible artifact comparison and actual search interaction remain required gates; none is inferred from the loader smoke.
