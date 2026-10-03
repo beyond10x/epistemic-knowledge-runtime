@@ -158,3 +158,10 @@ The implementor owns the bounded correction in the existing unit tree. No other
 gate process remains. After the scoped correction passes, integrate it and run the
 complete gate on a newly frozen source. Remaining release-gate steps have not run;
 the story and candidate remain unpublished and incomplete.
+
+Correction `1a016ba0634e44a402aef3fd58285691c827d9aa` changes only the two methods
+to `pub(super)`. The failed guard and existing HTTP guidance cases now pass; the
+unit report records formatting, package Clippy and text scanning as green. Root
+reviewed the exact diff, and the worker released its unit lease and idle target.
+This correction is integrated here. Freeze this combined source for a fresh full
+gate; no previous partial result is a completed release gate.

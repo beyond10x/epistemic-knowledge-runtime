@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T11:45:01Z",
+  "actor": "agent:codex",
+  "artifact": "story:live-search-agent-entry",
+  "kind": "story",
+  "revision": 18,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Correction 1a016ba06: public_surface 12, adversary_agent_guidance 4, search_page 16 passed; no failures or ignores; fmt, package all-target Clippy and text scan exit 0",
+    "reference": "private-unit/live/visibility/report.md"
+  }
+}

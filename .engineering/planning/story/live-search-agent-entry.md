@@ -54,7 +54,7 @@ scope:
   path: docs/cli.md
 - confidence: inferred
   path: xtask/src
-revision: 17
+revision: 18
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T09:01:36Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T09:01:37Z", actor: "agent:codex", revision: 5}
@@ -128,3 +128,9 @@ Proceed to integration with the prepared source version and complete repository 
 The first integrated candidate 6b1b3e91ec9a7e476972e2d49047024af990d066 passed fmt-check, search-web-check and workspace/all-target Clippy. The coordinator guard lane then exited 101: public_surface::no_public_item_in_any_crate_is_untested reported ekr::guide and ekr::llms. Raw output is retained in the private release-gate attempt-1/pr-guards.log alongside each command exit. Remaining full-gate steps did not run.
 
 Both methods belong to the private cli::agent_help module and its pub(super) Config; their only product callers are in sibling cli::view. Existing real HTTP tests cover their output, but unrestricted pub declarations misstate their intended internal scope to the declaration guard. Correct the declarations to pub(super), matching Config and its callers. Do not exempt the items, weaken the guard, or add token-only test references. Rerun the failed guard and existing HTTP guidance tests, integrate the correction, then run the full gate on the corrected exact source. No release or deployment is claimed.
+
+## Integrated gate correction
+
+Correction 1a016ba0634e44a402aef3fd58285691c827d9aa changes only guide() and llms() visibility to pub(super), matching their existing private module and restricted Config type. The coordinator reviewed the exact two-line diff and unchanged callers. No behavior, guard, assertion or browser asset changed.
+
+The unit visibility/report.md and green.log record all 32 focused cases passing: public_surface 12, adversary_agent_guidance 4 and search_page 16; no failures or ignores. Formatting, package all-target Clippy with warnings denied and text scanning also exited zero. The worker ended its lease and handed back the idle sequential target. Integrate the correction and freeze the combined source for the complete gate; these focused results do not establish a release.
