@@ -217,7 +217,13 @@ const EXTERNAL: [(&str, &[&str], &[&str]); 6] = [
             "signal-hook",
             "time",
         ],
-        &["assert_cmd", "jsonschema", "tempfile"],
+        &[
+            "assert_cmd",
+            "base64",
+            "jsonschema",
+            "tempfile",
+            "tungstenite",
+        ],
     ),
 ];
 

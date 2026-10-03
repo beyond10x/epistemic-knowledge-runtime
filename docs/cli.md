@@ -170,7 +170,7 @@ other verb prints one JSON document. In JSON output a tagged value is an object 
 | `ekr mint` | none | an id kind | `{"id", "kind"}`: a fresh id |
 | `ekr hash` | none | a payload file, or `-` | the payload's `content_hash` and its `payload_yaml` |
 | `ekr schema` | none | `ekr.transaction-document/2`, `ekr.transaction-document/1`, `ekr-seed/2`, `ekr.cli-host/1`, `typed-reference` or `ekr.extraction-document/1` (aliases `transaction` for `/2`, `seed`, `host`, `extraction`) | the format's JSON Schema (draft 2020-12) |
-| `ekr view` | reads | `--port <port>` (`0` picks a free one), `--bind <IP>` (default `127.0.0.1`), repeatable `--allow-host <authority>`, `--require-ready` | `{"url": "http://127.0.0.1:<port>/"}` as one line for the default bind, then serves a read-only viewer until interrupted |
+| `ekr view` | reads | `--port <port>` (`0` picks a free one), `--bind <IP>` (default `127.0.0.1`), repeatable `--allow-host <authority>`, `--require-ready`, optional `--mcp-url <URL>` and `--agent-guide-url <URL>` | `{"url": "http://127.0.0.1:<port>/"}` as one line for the default bind, then serves a read-only viewer until interrupted |
 | `ekr session` | reads and writes | one JSON request per line on stdin, `{"argv": [...]}`, until it ends; `--create` also serves `seed` | one JSON answer per request, `{"exit", "stdout", "stderr"}`: what the verb exits with and prints |
 | `ekr mcp` | reads | JSON-RPC 2.0 messages, one per line on stdin, until it ends | one JSON-RPC response per request: read-only MCP tools over the store (below) |
 | `ekr mcp-http` | reads | `--port <port>`, `--bind <IP>`, repeatable `--allow-host <authority>` and `--allow-origin <origin>` | listener URL as one JSON line, then stateless Streamable HTTP at `/mcp` with the same nine read-only tools |
@@ -925,6 +925,8 @@ option retains the admitted store for serving and is used by SDK viewer startup.
 | request | answer |
 |---|---|
 | `GET /find[?q=<text>][&revision=N]` | an HTML search form and at most 20 matching nodes, using the same name/alias ranking as `/search`; no JavaScript or external assets required. An empty query shows the form; a missing revision returns 404 and an unavailable store returns 503, both with a useful HTML page |
+| `GET /agent-guide.md` | static Markdown connection and read-only tool guidance, including the explicitly configured MCP URL; no query parameters or store reads |
+| `GET /llms.txt` | a small Markdown agent entry following the llms.txt v2 convention, with guide and optional MCP links; no query parameters, store reads or knowledge exports |
 | `GET /` | the viewer page, built into the binary: the graph in 2D and 3D, a timeline with a heatmap and swimlanes, property history, the schema history, a command palette (Ctrl+K), navigation between committed revisions, a compact mode (the Compact button or the key C) that collapses both sidebars to a strip at their edges, with a tab at each edge of the graph collapsing one sidebar and each strip restoring its own, and the state in the URL after `#` (`compact=1`, `compact=left` or `compact=right` while collapsed). A window narrower than 970 px (the two sidebars, 290 + 360 px, and 320 px of graph) opens with both sidebars collapsed unless the address carries `compact`; there the page writes `compact=0` while both are shown, and a reload keeps it; back and forward to an address without `compact` show both. A new detail shown while the right sidebar is collapsed leaves it collapsed and marks its strip with a dot and a title naming what it shows (the detail the reader last saw, drawn again, marks nothing); the strip restores the sidebar showing it. Type chips take the keyboard: Enter or Space hides or shows a type, Shift+Enter or Shift+Space shows only that type (again: every type), and each chip's `aria-pressed` says whether its type is shown; the Compact button carries `aria-pressed`, and the tabs and strips are named in words |
 | `GET /head` | `{"format":"ekr.view-head/1","head":N}`, the store's newest committed revision as it stands at the request, `application/json`. No `ekr.views` document carries the head, so a render of a revision is the same bytes before and after any later commit; the page reads the head here. It takes no query (any is 400 `invalid-query`) |
 | `GET /healthz` | `{"healthy":true}`, process liveness with no store work, 200 |
@@ -945,9 +947,50 @@ case matches, and does not search evidence text or generate answers. Search text
 that revision; an explicit `revision` also stays on the form when searching again. Each result
 shows at most three retained evidence links from that node's assertion history at the displayed
 revision. These links do not imply that a historical assertion is currently accepted. The page
-renders escaped text and fixed local links, with no evidence previews or per-result payload reads.
+renders result cards with escaped text and fixed local links, with no evidence previews or per-result payload reads.
 Names and aliases are shortened to 256 characters for display; matching uses their full values.
 The graph remains at `/` and the JSON API remains at `/search`.
+
+With browser scripting enabled, the local Rust/WebAssembly client updates just the results and
+revision region while you type. It waits 180 ms after input, defers composed input until committed,
+and cancels superseded reads; a sequence check also rejects late completions. Focus and caret stay
+in the search field. Clearing the field or a failed read clears old results; failures retain the
+query and offer an explicit retry, with no background retry loop. Enter searches immediately.
+Without scripting, the same GET form continues to work. Both paths use the same Rust renderer,
+ranking, bounds and revision-pinned links.
+
+`/assets/search.js` and `/assets/search_bg.wasm` are local embedded assets. The module is generated
+by pinned wasm-bindgen tooling from Rust, with no authored JavaScript bootstrap or CDN. The search
+page permits same-origin scripts and reads plus the specific `wasm-unsafe-eval` CSP allowance;
+general `unsafe-eval` and inline scripts remain refused. Static assets pass the viewer's normal
+authority, method and body checks and work even when the store is unavailable.
+
+Installing a tagged CLI uses native Rust only: its build script generates the embedded bindings
+from the checked raw `crates/ekr/assets/search.wasm` artifact. Contributors changing the browser
+Rust need the pinned `rust-toolchain.toml` toolchain's `wasm32-unknown-unknown` target. Run
+`cargo xtask search-web` to regenerate, and `task search-web-check` to compare two independent
+source/build paths against the artifact, check for private build paths, test and lint the browser
+crate. Its separate lockfile and exact binding versions keep native installation independent of
+the browser compiler target; generated JavaScript remains in Cargo's output directory.
+
+The **Connect an agent** link opens `/agent-guide.md` by default. `--agent-guide-url` replaces
+that link with an operator-provided guide; the local guide remains available. `--mcp-url`
+advertises an explicit MCP Streamable HTTP endpoint in the local guide and `/llms.txt`.
+Neither option starts an MCP server, checks its availability or changes authentication,
+Host or Origin admission. Without `--mcp-url`, the guide says that the endpoint is not configured;
+it never assumes the viewer's origin also serves `/mcp`. Configure the remote server URL in
+a compatible MCP client and follow the operator's access instructions. The guide displays the
+URL as data, not a shell command.
+
+Both options accept absolute ASCII HTTP(S) URLs of at most 4,096 bytes with a valid authority,
+without embedded credentials, whitespace, control characters or malformed percent escapes.
+Use percent encoding for characters outside URI syntax. HTML links are escaped and Markdown
+link delimiters encoded. `/find` discovers `/llms.txt` with `rel="describedby"`; this is guidance,
+not a promise that every agent client discovers it automatically. Both Markdown resources
+remain available when the store is missing or unavailable, after the same Host, method and
+request-body checks as the viewer. They return `text/markdown; charset=utf-8`, `no-store` and
+`nosniff`, and contain no records, evidence payloads or inventories. Explicit `--require-ready`
+still requires a ready store before starting the listener.
 
 **A property two types define differently.** A type may redeclare a property it inherits with
 another name or value kind; a `ModifyProperty` on a child type does. The projection and the

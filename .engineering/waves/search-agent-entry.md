@@ -125,6 +125,20 @@ The following combined suite failed in the candidate's no-script browser harness
 a stale document node during form navigation. `review-result:live-browser-review-1`
 retains the observed failure and its scope: this is an introduced acceptance-harness
 race, not evidence of a user-visible product failure. The implementor is correcting
-document-lifecycle handling while preserving all assertions. Do not merge or release
+document-lifecycle handling while preserving all assertions. Do not publish or release
 until the correction and full gate are verified. Review scratch is assigned separately;
 the idle unit target is reused sequentially, never by concurrent builds.
+
+The corrected unit is `1203a043b252816ae094ba8c9bd602971a3980a8`. It retains the added
+tests and waits for the new document loader's load event before DOM inspection. The
+second review found no further issue in its bounded pass; all browser cases passed.
+`review-result:live-browser-review-2` records the result and the separately retained
+temporary-filesystem quota failure. The first finding is recorded as fixed.
+
+The coordinator now combines that reviewed source with the prepared release version.
+The complete gate must run on this combined tree before publication. Use the pinned
+specification/planning tools, required browser and a synthetic PostgreSQL fixture; keep
+fixture credentials and absolute execution paths only in private operational receipts.
+The unit target is handed to this gate sequentially, with no concurrent unit/review build.
+The default temporary filesystem is currently quota-limited; use the assigned short
+private temporary directory and record any filesystem-sensitive tests explicitly.

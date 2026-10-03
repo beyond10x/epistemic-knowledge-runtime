@@ -959,7 +959,14 @@ fn ekr_view_binding_is_explicit_and_defaults_to_loopback() {
         .collect();
     assert_eq!(
         own,
-        ["--port", "--bind", "--allow-host", "--require-ready"],
+        [
+            "--port",
+            "--bind",
+            "--allow-host",
+            "--require-ready",
+            "--mcp-url",
+            "--agent-guide-url",
+        ],
         "{help}"
     );
 }

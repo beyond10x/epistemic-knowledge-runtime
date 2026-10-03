@@ -121,7 +121,7 @@ const CACHE_LIMIT: usize = 8;
 const PAGE_POLICY: &str = "default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js https://cdn.jsdelivr.net/npm/graphology-library@0.8.0/dist/graphology-library.min.js https://cdn.jsdelivr.net/npm/sigma@3.0.3/dist/sigma.min.js https://cdn.jsdelivr.net/npm/3d-force-graph@1.80.0/dist/3d-force-graph.min.js; worker-src blob:; style-src 'unsafe-inline'; connect-src 'self'";
 /// Refuses framing, so another page cannot overlay the viewer.
 const FRAME_POLICY: &str = "; frame-ancestors 'none'";
-const SEARCH_POLICY: &str = "default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'";
+const SEARCH_POLICY: &str = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; object-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'";
 
 const HTML: &str = "text/html; charset=utf-8";
 const JSON: &str = "application/json";
@@ -158,6 +158,7 @@ enum Answered {
 /// Everything the store thread keeps between requests.
 #[derive(Debug)]
 struct Memory {
+    help: super::agent_help::Config,
     /// The index every endpoint of a revision answers from.
     indexes: IndexCache,
     /// `/projection` and `/roles`, rendered.
@@ -167,6 +168,7 @@ struct Memory {
 impl Default for Memory {
     fn default() -> Self {
         Self {
+            help: super::agent_help::Config::default(),
             indexes: IndexCache::new(IndexCache::DEFAULT_CAPACITY),
             rendered: Cache::default(),
         }
@@ -188,6 +190,7 @@ pub(super) fn run(
     port: u16,
     hosts: Vec<String>,
     require_ready: bool,
+    help: super::agent_help::Config,
 ) -> Result<String, Failure> {
     let (listener, authorities) = super::http::bind(bind, port, hosts)?;
     let mut held = if require_ready {
@@ -204,11 +207,15 @@ pub(super) fn run(
     // Preserve the viewer's admitted concurrent stream capacity while bounding pending work.
     let (jobs, store_thread) = super::http::queue(IN_FLIGHT_LIMIT);
     let connection_authorities = authorities.clone();
+    let connection_help = help.clone();
     std::thread::Builder::new()
         .name("ekr-view-accept".to_owned())
-        .spawn(move || accept(&listener, &jobs, &connection_authorities))
+        .spawn(move || accept(&listener, &jobs, &connection_authorities, &connection_help))
         .map_err(|_| Failure::fault("starting viewer accept thread failed"))?;
-    let mut memory = Memory::default();
+    let mut memory = Memory {
+        help,
+        ..Memory::default()
+    };
     for job in store_thread {
         if !super::http::alive(&job, Instant::now()) {
             continue;
@@ -219,7 +226,7 @@ pub(super) fn run(
         let answered = match held.as_mut() {
             Some(held) => answer_configured(held, &mut memory, &authorities, &job.request),
             None => Answered::Whole(if let Some(query) = find_query(&job.request.target) {
-                find(None, &mut memory.indexes, query).unwrap_or_else(|reply| reply)
+                find(None, &mut memory.indexes, &memory.help, query).unwrap_or_else(|reply| reply)
             } else {
                 Reply::text(503, "store is not admitted, seeded and available")
             }),
@@ -253,7 +260,12 @@ impl Drop for InFlight {
 
 /// Hands every accepted connection to a short-lived thread of its own, at most
 /// [`IN_FLIGHT_LIMIT`] at a time; one over the cap is answered 503 at once and closed, unread.
-fn accept(listener: &TcpListener, jobs: &SyncSender<Job>, authorities: &super::http::Authorities) {
+fn accept(
+    listener: &TcpListener,
+    jobs: &SyncSender<Job>,
+    authorities: &super::http::Authorities,
+    help: &super::agent_help::Config,
+) {
     let in_flight = Arc::new(AtomicUsize::new(0));
     for stream in listener.incoming() {
         match stream {
@@ -273,12 +285,13 @@ fn accept(listener: &TcpListener, jobs: &SyncSender<Job>, authorities: &super::h
                 };
                 let jobs = jobs.clone();
                 let authorities = authorities.clone();
+                let help = help.clone();
                 // A thread that cannot start drops the connection and the count with it.
                 let _ = std::thread::Builder::new()
                     .name("ekr-view-connection".to_owned())
                     .spawn(move || {
                         let _counted = counted;
-                        connection(stream, deadline, &jobs, &authorities);
+                        connection(stream, deadline, &jobs, &authorities, &help);
                     });
             }
             // Out of descriptors or a connection reset before accept: take the next one.
@@ -295,6 +308,7 @@ fn connection(
     deadline: Instant,
     jobs: &SyncSender<Job>,
     authorities: &super::http::Authorities,
+    help: &super::agent_help::Config,
 ) {
     if stream.set_write_timeout(Some(TIMEOUT)).is_err() {
         return;
@@ -315,7 +329,7 @@ fn connection(
     let answered = match head {
         Ok(asked) => {
             framing = asked.framing;
-            if let Some(reply) = immediate(&asked, authorities) {
+            if let Some(reply) = immediate(&asked, authorities, help) {
                 Answered::Whole(reply)
             } else {
                 let (reply_to, reply) = sync_channel(1);
@@ -747,7 +761,11 @@ fn answer(held: &mut Held, memory: &mut Memory, port: u16, asked: &Asked) -> Ans
     )
 }
 
-fn immediate(asked: &Asked, authorities: &super::http::Authorities) -> Option<Reply> {
+fn immediate(
+    asked: &Asked,
+    authorities: &super::http::Authorities,
+    help: &super::agent_help::Config,
+) -> Option<Reply> {
     if !authorities.accepts(&asked.hosts) {
         return Some(Reply::text(421, "misdirected-request: unapproved Host"));
     }
@@ -755,6 +773,41 @@ fn immediate(asked: &Asked, authorities: &super::http::Authorities) -> Option<Re
         .target
         .split_once('?')
         .map_or(asked.target.as_str(), |(path, _)| path);
+    if matches!(path, "/assets/search.js" | "/assets/search_bg.wasm") {
+        return Some(if asked.method != "GET" {
+            Reply::text(405, "only GET")
+        } else if asked.announces_body {
+            Reply::text(413, "request-body-refused")
+        } else if asked.target != path {
+            Reply::text(400, "browser assets take no query")
+        } else if path == "/assets/search.js" {
+            Reply::ok(
+                "text/javascript; charset=utf-8",
+                include_bytes!(concat!(env!("OUT_DIR"), "/search.js")).to_vec(),
+            )
+        } else {
+            Reply::ok(
+                "application/wasm",
+                include_bytes!(concat!(env!("OUT_DIR"), "/search_bg.wasm")).to_vec(),
+            )
+        });
+    }
+    if matches!(path, "/agent-guide.md" | "/llms.txt") {
+        return Some(if asked.method != "GET" {
+            Reply::text(405, "only GET")
+        } else if asked.announces_body {
+            Reply::text(413, "request-body-refused")
+        } else if asked.target != path {
+            Reply::text(400, "agent guidance takes no query")
+        } else {
+            let markdown = if path == "/agent-guide.md" {
+                help.guide()
+            } else {
+                help.llms()
+            };
+            Reply::ok("text/markdown; charset=utf-8", markdown.into_bytes())
+        });
+    }
     if path == "/find" {
         if asked.method != "GET" {
             return Some(Reply::text(405, "only GET"));
@@ -783,7 +836,7 @@ fn answer_configured(
     authorities: &super::http::Authorities,
     asked: &Asked,
 ) -> Answered {
-    if let Some(reply) = immediate(asked, authorities) {
+    if let Some(reply) = immediate(asked, authorities, &memory.help) {
         return Answered::Whole(reply);
     }
     let target = asked.target.as_str();
@@ -838,13 +891,15 @@ fn route_answer(
         None => return Answered::Whole(Reply::ok(HTML, PAGE.as_bytes().to_vec())),
         Some(Ok(Checked::Same(runtime))) => runtime,
         Some(Ok(Checked::Reopened(runtime))) => {
-            *memory = Memory::default();
+            memory.indexes = IndexCache::new(IndexCache::DEFAULT_CAPACITY);
+            memory.rendered = Cache::default();
             runtime
         }
         Some(Err(replaced)) => {
             if let Route::Find = route {
                 return Answered::Whole(
-                    find(None, &mut memory.indexes, query).unwrap_or_else(|reply| reply),
+                    find(None, &mut memory.indexes, &memory.help, query)
+                        .unwrap_or_else(|reply| reply),
                 );
             }
             return Answered::Whole(Reply::refusal(503, STORE_REPLACED, replaced.message));
@@ -852,9 +907,8 @@ fn route_answer(
     };
     let reply = match route {
         Route::Page => Reply::ok(HTML, PAGE.as_bytes().to_vec()),
-        Route::Find => {
-            find(Some(runtime), &mut memory.indexes, query).unwrap_or_else(|reply| reply)
-        }
+        Route::Find => find(Some(runtime), &mut memory.indexes, &memory.help, query)
+            .unwrap_or_else(|reply| reply),
         Route::Head => head(runtime, query),
         Route::Ready => {
             if !query.is_empty() {
@@ -1071,7 +1125,12 @@ fn find_query(target: &str) -> Option<&str> {
 }
 
 /// A plain GET search form; one existing index supplies ranking and evidence references.
-fn find(runtime: Option<&Runtime>, indexes: &mut IndexCache, query: &str) -> Result<Reply, Reply> {
+fn find(
+    runtime: Option<&Runtime>,
+    indexes: &mut IndexCache,
+    help: &super::agent_help::Config,
+    query: &str,
+) -> Result<Reply, Reply> {
     use super::search_page::{self, EvidenceLink, Page, SearchResult, State};
     let query = Query::parse(query, &["q", "revision"]).map_err(invalid_query)?;
     let text = query.get("q").unwrap_or("");
@@ -1084,6 +1143,7 @@ fn find(runtime: Option<&Runtime>, indexes: &mut IndexCache, query: &str) -> Res
         content_type: HTML,
         policy: Some(SEARCH_POLICY),
         body: search_page::render(&Page {
+            guide_url: &help.guide_url,
             query: text,
             revision,
             requested_revision: at.map(RevisionNumber::get),
@@ -1500,7 +1560,9 @@ fn rendered(
             },
         );
     }
-    let Memory { indexes, rendered } = memory;
+    let Memory {
+        indexes, rendered, ..
+    } = memory;
     match rendered.get_or_load(wanted, || load_answers(runtime, indexes, wanted)) {
         Ok(answers) => Reply::ok(JSON, pick(answers).clone()),
         Err(error) => refused(what, error),

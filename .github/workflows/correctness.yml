@@ -36,6 +36,7 @@ jobs:
         with:
           toolchain: 1.98.1
           components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
 
       - name: Install task runner
         env:
@@ -84,4 +85,7 @@ jobs:
         run: cargo fetch --locked
 
       - name: Run all repository checks
+        env:
+          EKR_REQUIRE_BROWSER: "1"
+          EKR_VIEW_BROWSER: /usr/bin/google-chrome
         run: task check

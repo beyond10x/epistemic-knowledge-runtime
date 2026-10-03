@@ -31,7 +31,7 @@ impl Authorities {
         matches!(hosts, [host] if self.0.contains(host))
     }
 }
-fn authority(value: &str) -> bool {
+pub(super) fn authority(value: &str) -> bool {
     if value.is_empty()
         || value.len() > 320
         || !value.is_ascii()
