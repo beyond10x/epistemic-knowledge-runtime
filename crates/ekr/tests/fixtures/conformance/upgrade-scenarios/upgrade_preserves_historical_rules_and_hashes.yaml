@@ -1,0 +1,120 @@
+{
+  "type": "ess-scenario/3",
+  "domain": "ekr.kernel",
+  "scenario": "upgrade-preserves-historical-rules-and-hashes",
+  "summary": "Apply an independently signed exact upgrade, reopen with full replay for every command and inspect persisted canonical and historical state.",
+  "fixtures": {
+    "upgrade-preview": "ekr.kernel.UpgradePreview",
+    "upgrade-proof": "ekr.kernel.SignedHumanDecision",
+    "target-version": "ekr.kernel.AuthorityVersion",
+    "original-knowledge-root": "ekr.kernel.ContentHash",
+    "original-evidence-root": "ekr.kernel.ContentHash",
+    "original-agent-root": "ekr.kernel.ContentHash"
+  },
+  "timeline": [
+    {
+      "at": "2026-10-03T00:00:00Z",
+      "command": "ekr.kernel.PreviewUpgrade",
+      "actor": "ekr.kernel.KnowledgeReader",
+      "input": {
+        "target": {
+          "$fixture": "target-version"
+        }
+      },
+      "outcome": "answered",
+      "events": [
+        {
+          "event": "ekr.kernel.PreviewUpgradeResult"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-03T00:00:01Z",
+      "command": "ekr.kernel.ApplyUpgrade",
+      "actor": "ekr.kernel.HumanOperator",
+      "input": {
+        "preview": {
+          "$fixture": "upgrade-preview"
+        },
+        "human_proof": {
+          "$fixture": "upgrade-proof"
+        },
+        "statement": "cmV2aWV3ZWQgZml4dHVyZSB1cGdyYWRl"
+      },
+      "outcome": "answered",
+      "events": [
+        {
+          "event": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "payload": {
+            "number": 1
+          }
+        }
+      ]
+    },
+    {
+      "at": "2026-10-03T00:00:02Z",
+      "command": "ekr.kernel.ListAttention",
+      "actor": "ekr.kernel.KnowledgeReader",
+      "input": {},
+      "outcome": "answered",
+      "events": [
+        {
+          "event": "ekr.kernel.ListAttentionResult"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-03T00:00:03Z",
+      "command": "ekr.kernel.Snapshot",
+      "actor": "ekr.kernel.Operator",
+      "input": {
+        "at": 0
+      },
+      "outcome": "taken",
+      "events": [
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "payload": {
+            "number": 0,
+            "knowledge_root": {
+              "$fixture": "original-knowledge-root"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "assert": [
+    {
+      "view": "ekr.kernel.Revisions",
+      "contains": {
+        "number": 0,
+        "knowledge_root": {
+          "$fixture": "original-knowledge-root"
+        },
+        "evidence_root": {
+          "$fixture": "original-evidence-root"
+        },
+        "agent_root": {
+          "$fixture": "original-agent-root"
+        }
+      }
+    },
+    {
+      "view": "ekr.kernel.Revisions",
+      "contains": {
+        "number": 1
+      }
+    },
+    {
+      "view": "ekr.kernel.Revisions",
+      "counts": {
+        "at_least": 2,
+        "at_most": 2
+      }
+    }
+  ]
+}

@@ -109,6 +109,8 @@ tasks:
       - cmp systems/ekr/conformance/integrate-suite.json "${CARGO_TARGET_DIR:-target}/ekr-conformance/fresh-integrate-suite.json"
       - ess conform synthesize --path systems/ekr --suite-format 5 --target ir --scenarios crates/ekr/tests/fixtures/conformance/knowledge-scenarios --out "$(realpath "${CARGO_TARGET_DIR:-target}")/ekr-conformance/fresh-knowledge-suite.json"
       - cmp crates/ekr/tests/fixtures/conformance/knowledge-suite.json "${CARGO_TARGET_DIR:-target}/ekr-conformance/fresh-knowledge-suite.json"
+      - ess conform synthesize --path systems/ekr --suite-format 5 --target ir --scenarios crates/ekr/tests/fixtures/conformance/upgrade-scenarios --out "$(realpath "${CARGO_TARGET_DIR:-target}")/ekr-conformance/fresh-upgrade-suite.json"
+      - cmp crates/ekr/tests/fixtures/conformance/upgrade-suite.json "${CARGO_TARGET_DIR:-target}/ekr-conformance/fresh-upgrade-suite.json"
 
   plan-check:
     desc: the planning store validates

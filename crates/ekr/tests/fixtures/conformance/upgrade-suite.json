@@ -1,25 +1,25 @@
 {
   "coverage": {
     "authored": [
-      "ekr.integrate/authored/rejected-interpretation-retains-its-sources",
-      "ekr.integrate/authored/unmapped-knowledge-survives-reopen",
-      "ekr.observe/authored/observation-retry-is-idempotent"
+      "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict",
+      "ekr.kernel/authored/overlapping-single-value-claims-become-disputed",
+      "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
     ],
     "authored_sources": {
-      "observation_retry_is_idempotent.yaml": {
-        "digest": "sha256:c771a38b0ff84bebc277befbb0fb547671ad8166a34bdf46b9e960169f2bbfb1",
+      "equal_disjoint_and_many_claims_do_not_conflict.yaml": {
+        "digest": "sha256:6503167dc3ad3e3506e315cfc93edd79fb1f5a7b8e1c69d03e882719553f0788",
         "disposition": "accepted",
-        "scenario": "ekr.observe/authored/observation-retry-is-idempotent"
+        "scenario": "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict"
       },
-      "rejected_interpretation_retains_its_sources.yaml": {
-        "digest": "sha256:df342a1654a79d975c98b9f688db2af852a902d949c0898151b2c70724b1fea9",
+      "overlapping_single_value_claims_become_disputed.yaml": {
+        "digest": "sha256:589d9c774fc5d6568733d9cf89d04cc0006627546f99b637a73d0bdf5d4e59e8",
         "disposition": "accepted",
-        "scenario": "ekr.integrate/authored/rejected-interpretation-retains-its-sources"
+        "scenario": "ekr.kernel/authored/overlapping-single-value-claims-become-disputed"
       },
-      "unmapped_knowledge_survives_reopen.yaml": {
-        "digest": "sha256:3bba7eda7b5761f1a8799c3c559914d7bf37a23b543922a379acbe99daab99cd",
+      "upgrade_preserves_historical_rules_and_hashes.yaml": {
+        "digest": "sha256:b74afbe2734a53e973c6b4b185995545c51d767a8d3b88ce7b996498dc005d05",
         "disposition": "accepted",
-        "scenario": "ekr.integrate/authored/unmapped-knowledge-survives-reopen"
+        "scenario": "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes"
       }
     },
     "counts": {
@@ -162,7 +162,7 @@
     "contract_digest": "b79e26b7335246ec2103e09912236dba575c2b8e1118ee2a0238152e64c2b4e6",
     "spec_digest": "147770d5ae58c39107c86a474a7d5a2a01b4a84701f3864bbd0d4874663d73ad",
     "specification_version": "v1",
-    "suite_version": "ess-conformance/13",
+    "suite_version": "ess-conformance/19",
     "system": "ekr"
   },
   "scenarios": {
@@ -8789,1091 +8789,6 @@
         {
           "event": "ekr.views.SubjectsTimelined",
           "step": "expect_no_event"
-        }
-      ]
-    },
-    "ekr.integrate/authored/rejected-interpretation-retains-its-sources": {
-      "purpose": "Run each command against a reopened native provider; compare retained bytes and typed records.",
-      "source": [
-        {
-          "kind": "domain",
-          "name": "ekr.integrate"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.AssertionId"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.CanonicalValueKind"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.EvidenceId"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.EvidenceKind"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.EvidenceRecord"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.EvidenceSourceProjection"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.GraphRootId"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.ObservationId"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.ObservationKind"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.ObservationRecord"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.TypedValue"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.EdgeTypeSpec"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.ExtractedFact"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.ExtractedReference"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.InterpretationCoordinate"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.InterpretationDocument"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.InterpretationId"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.InterpretationVersion"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.NodeTypeSpec"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.OntologySpec"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.PropertyFact"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.PropertySpec"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.RelationFact"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.ValueSpec"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.kernel.AgentId"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.kernel.ContentHash"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.kernel.EvidenceAdditionProjection"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.observe.ObservationIdempotencyKey"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.observe.ObservationImport"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.observe.ObservationImportReceipt"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.observe.ObservationRetentionOutcome"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.observe.RetainedObservationRead"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.ontology.Cardinality"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.ontology.ValueKind"
-        },
-        {
-          "kind": "command",
-          "name": "ekr.integrate.ImportInterpretation"
-        },
-        {
-          "kind": "command",
-          "name": "ekr.integrate.ListInterpretations"
-        },
-        {
-          "kind": "command",
-          "name": "ekr.observe.ImportObservation"
-        },
-        {
-          "kind": "command",
-          "name": "ekr.observe.ShowObservation"
-        },
-        {
-          "kind": "outcome",
-          "name": {
-            "command": "ekr.integrate.ImportInterpretation",
-            "outcome": "refused"
-          }
-        },
-        {
-          "kind": "outcome",
-          "name": {
-            "command": "ekr.integrate.ListInterpretations",
-            "outcome": "answered"
-          }
-        },
-        {
-          "kind": "outcome",
-          "name": {
-            "command": "ekr.observe.ImportObservation",
-            "outcome": "answered"
-          }
-        },
-        {
-          "kind": "outcome",
-          "name": {
-            "command": "ekr.observe.ShowObservation",
-            "outcome": "shown"
-          }
-        },
-        {
-          "kind": "event",
-          "name": "ekr.integrate.ListInterpretationsResult"
-        },
-        {
-          "kind": "event",
-          "name": "ekr.observe.ImportObservationResult"
-        },
-        {
-          "kind": "event",
-          "name": "ekr.observe.ObservationShown"
-        },
-        {
-          "kind": "actor",
-          "name": "ekr.integrate.KnowledgeProposer"
-        },
-        {
-          "kind": "actor",
-          "name": "ekr.observe.KnowledgeSupplier"
-        }
-      ],
-      "steps": [
-        {
-          "actor": "ekr.observe.KnowledgeSupplier",
-          "command": "ekr.observe.ImportObservation",
-          "input": {
-            "document": {
-              "kind": "literal",
-              "value": {
-                "key": {
-                  "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
-                  "source": "manual",
-                  "source_native_id": "health-1"
-                },
-                "observation": {
-                  "captured_at": "2026-10-03T00:00:00Z",
-                  "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
-                  "kind": "FeedItem",
-                  "observation_id": "4ad1617c-d649-82e8-acb7-a20dda7f190f",
-                  "source": "manual",
-                  "source_native_id": "health-1"
-                },
-                "payload": "UHJvamVjdCBoZWFsdGg6IGFtYmVyCg=="
-              }
-            }
-          },
-          "step": "execute_command"
-        },
-        {
-          "outcome": {
-            "command": "ekr.observe.ImportObservation",
-            "outcome": "answered"
-          },
-          "step": "expect_outcome"
-        },
-        {
-          "event": "ekr.observe.ImportObservationResult",
-          "shape": {
-            "receipt.already_retained": {
-              "holds": "primitive",
-              "kind": "boolean"
-            },
-            "receipt.content_hash": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "receipt.observation_id": {
-              "holds": "primitive",
-              "kind": "uuid"
-            },
-            "receipt.outcome": {
-              "holds": "enum",
-              "variants": [
-                "Retained",
-                "AlreadyRetained"
-              ]
-            }
-          },
-          "step": "expect_event"
-        },
-        {
-          "force": {
-            "command": "ekr.integrate.ImportInterpretation",
-            "outcome": "refused"
-          },
-          "step": "configure_external_outcome"
-        },
-        {
-          "actor": "ekr.integrate.KnowledgeProposer",
-          "command": "ekr.integrate.ImportInterpretation",
-          "input": {
-            "document": {
-              "kind": "literal",
-              "value": {
-                "entities": [
-                  {
-                    "aliases": [
-                      "fixture-project"
-                    ],
-                    "node_type": "Project"
-                  }
-                ],
-                "evidence": [
-                  {
-                    "evidence": {
-                      "confidence_bp": 7500.0,
-                      "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
-                      "extracted_by": "00000000-0000-4000-8000-000000000101",
-                      "id": "00000000-0000-4000-8000-000000000401",
-                      "observed_at": "2026-10-03T00:00:00Z",
-                      "source": {
-                        "kind": "Observation",
-                        "observation": "4ad1617c-d649-82e8-acb7-a20dda7f190f"
-                      }
-                    },
-                    "payload": "UHJvamVjdCBoZWFsdGg6IGFtYmVyCg=="
-                  }
-                ],
-                "facts": [
-                  {
-                    "kind": "Property",
-                    "value": {
-                      "evidence": [
-                        "00000000-0000-4000-8000-000000000401"
-                      ],
-                      "property": "health",
-                      "subject": {
-                        "aliases": [
-                          "fixture-project"
-                        ],
-                        "node_type": "Project"
-                      },
-                      "value": {
-                        "canonical_bytes": "DwAAAAAGAAAAAAAAAAVhbWJlcg==",
-                        "kind": "String"
-                      }
-                    }
-                  }
-                ],
-                "local_schema": {
-                  "edge_types": [],
-                  "node_types": [
-                    {
-                      "abstract_type": false,
-                      "name": "Project",
-                      "parents": [],
-                      "properties": []
-                    }
-                  ]
-                },
-                "observations": [
-                  "4ad1617c-d649-82e8-acb7-a20dda7f190f"
-                ],
-                "root_id": "00000000-0000-4000-8000-000000001002",
-                "version": {
-                  "interpretation_id": "00000000-0000-4000-8000-000000001001",
-                  "version": 1.0
-                }
-              }
-            },
-            "payload": {
-              "kind": "literal",
-              "value": "eyJlbnRpdGllcyI6W3siYWxpYXNlcyI6WyJmaXh0dXJlLXByb2plY3QiXSwibm9kZV90eXBlIjoiUHJvamVjdCJ9XSwiZXZpZGVuY2UiOlt7ImV2aWRlbmNlIjp7ImNvbmZpZGVuY2VfYnAiOjc1MDAsImNvbnRlbnRfaGFzaCI6IjlkMWRkYjdlMGFhY2QzZDRmODcxNmI5ODEyZjNmOThkMTYwNjRkMTlmODRmZTg5ZDg2NDczNWU4ZDVkNjFmZjQiLCJleHRyYWN0ZWRfYnkiOiIwMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAxMDEiLCJpZCI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDQwMSIsIm9ic2VydmVkX2F0IjoiMjAyNi0xMC0wM1QwMDowMDowMFoiLCJzb3VyY2UiOnsia2luZCI6Ik9ic2VydmF0aW9uIiwib2JzZXJ2YXRpb24iOiI0YWQxNjE3Yy1kNjQ5LTgyZTgtYWNiNy1hMjBkZGE3ZjE5MGYifX0sInBheWxvYWQiOiJVSEp2YW1WamRDQm9aV0ZzZEdnNklHRnRZbVZ5Q2c9PSJ9XSwiZmFjdHMiOlt7ImtpbmQiOiJQcm9wZXJ0eSIsInZhbHVlIjp7ImV2aWRlbmNlIjpbIjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDQwMSJdLCJwcm9wZXJ0eSI6ImhlYWx0aCIsInN1YmplY3QiOnsiYWxpYXNlcyI6WyJmaXh0dXJlLXByb2plY3QiXSwibm9kZV90eXBlIjoiUHJvamVjdCJ9LCJ2YWx1ZSI6eyJjYW5vbmljYWxfYnl0ZXMiOiJEd0FBQUFBR0FBQUFBQUFBQUFWaGJXSmxjZz09Iiwia2luZCI6IlN0cmluZyJ9fX1dLCJsb2NhbF9zY2hlbWEiOnsiZWRnZV90eXBlcyI6W10sIm5vZGVfdHlwZXMiOlt7ImFic3RyYWN0X3R5cGUiOmZhbHNlLCJuYW1lIjoiUHJvamVjdCIsInBhcmVudHMiOltdLCJwcm9wZXJ0aWVzIjpbXX1dfSwib2JzZXJ2YXRpb25zIjpbIjRhZDE2MTdjLWQ2NDktODJlOC1hY2I3LWEyMGRkYTdmMTkwZiJdLCJyb290X2lkIjoiMDAwMDAwMDAtMDAwMC00MDAwLTgwMDAtMDAwMDAwMDAxMDAyIiwidmVyc2lvbiI6eyJpbnRlcnByZXRhdGlvbl9pZCI6IjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMTAwMSIsInZlcnNpb24iOjF9fQ=="
-            }
-          },
-          "step": "execute_command"
-        },
-        {
-          "outcome": {
-            "command": "ekr.integrate.ImportInterpretation",
-            "outcome": "refused"
-          },
-          "step": "expect_outcome"
-        },
-        {
-          "actor": "ekr.observe.KnowledgeSupplier",
-          "command": "ekr.observe.ShowObservation",
-          "input": {
-            "observation_id": {
-              "kind": "literal",
-              "value": "4ad1617c-d649-82e8-acb7-a20dda7f190f"
-            }
-          },
-          "step": "execute_command"
-        },
-        {
-          "outcome": {
-            "command": "ekr.observe.ShowObservation",
-            "outcome": "shown"
-          },
-          "step": "expect_outcome"
-        },
-        {
-          "event": "ekr.observe.ObservationShown",
-          "payload": {
-            "retained": {
-              "key": {
-                "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
-                "source": "manual",
-                "source_native_id": "health-1"
-              },
-              "observation": {
-                "captured_at": "2026-10-03T00:00:00Z",
-                "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
-                "kind": "FeedItem",
-                "observation_id": "4ad1617c-d649-82e8-acb7-a20dda7f190f",
-                "source": "manual",
-                "source_native_id": "health-1"
-              },
-              "payload": "UHJvamVjdCBoZWFsdGg6IGFtYmVyCg=="
-            }
-          },
-          "shape": {
-            "retained.key.content_hash": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "retained.key.source": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "retained.key.source_native_id": {
-              "holds": "primitive",
-              "kind": "string",
-              "optional": true
-            },
-            "retained.observation.captured_at": {
-              "holds": "primitive",
-              "kind": "timestamp"
-            },
-            "retained.observation.content_hash": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "retained.observation.kind": {
-              "holds": "enum",
-              "variants": [
-                "Document",
-                "ApiResponse",
-                "DatabaseRecord",
-                "FeedItem",
-                "GraphFragment",
-                "MessageBatch",
-                "GitDiff",
-                "Blob"
-              ]
-            },
-            "retained.observation.observation_id": {
-              "holds": "primitive",
-              "kind": "uuid"
-            },
-            "retained.observation.source": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "retained.observation.source_native_id": {
-              "holds": "primitive",
-              "kind": "string",
-              "optional": true
-            },
-            "retained.payload": {
-              "holds": "primitive",
-              "kind": "bytes"
-            }
-          },
-          "step": "expect_event"
-        },
-        {
-          "actor": "ekr.integrate.KnowledgeProposer",
-          "command": "ekr.integrate.ListInterpretations",
-          "step": "execute_command"
-        },
-        {
-          "outcome": {
-            "command": "ekr.integrate.ListInterpretations",
-            "outcome": "answered"
-          },
-          "step": "expect_outcome"
-        },
-        {
-          "event": "ekr.integrate.ListInterpretationsResult",
-          "payload": {
-            "interpretations": []
-          },
-          "shape": {
-            "interpretations": {
-              "holds": "list"
-            }
-          },
-          "step": "expect_event"
-        }
-      ]
-    },
-    "ekr.integrate/authored/unmapped-knowledge-survives-reopen": {
-      "purpose": "Run each command against a reopened native provider; compare retained bytes and typed records.",
-      "source": [
-        {
-          "kind": "domain",
-          "name": "ekr.integrate"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.AssertionId"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.CanonicalValueKind"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.EvidenceId"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.EvidenceKind"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.EvidenceRecord"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.EvidenceSourceProjection"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.GraphRootId"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.ObservationId"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.ObservationKind"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.ObservationRecord"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.TypedValue"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.EdgeTypeSpec"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.ExtractedFact"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.ExtractedReference"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.IncubationImportReceipt"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.IncubationOutcome"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.IntegrationBlockerId"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.IntegrationBlockerKind"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.IntegrationBlockerSnapshot"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.InterpretationCoordinate"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.InterpretationDocument"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.InterpretationId"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.InterpretationVersion"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.NodeTypeSpec"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.OntologySpec"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.ProcessingDisposition"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.ProcessingReceiptId"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.ProcessingReceiptSnapshot"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.PropertyFact"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.PropertySpec"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.RelationFact"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.integrate.ValueSpec"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.kernel.AgentId"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.kernel.ContentHash"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.kernel.EvidenceAdditionProjection"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.kernel.TransactionId"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.observe.ObservationIdempotencyKey"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.observe.ObservationImport"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.observe.ObservationImportReceipt"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.observe.ObservationRetentionOutcome"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.ontology.Cardinality"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.ontology.ValueKind"
-        },
-        {
-          "kind": "command",
-          "name": "ekr.integrate.ImportInterpretation"
-        },
-        {
-          "kind": "command",
-          "name": "ekr.integrate.ListInterpretations"
-        },
-        {
-          "kind": "command",
-          "name": "ekr.integrate.ShowInterpretation"
-        },
-        {
-          "kind": "command",
-          "name": "ekr.observe.ImportObservation"
-        },
-        {
-          "kind": "outcome",
-          "name": {
-            "command": "ekr.integrate.ImportInterpretation",
-            "outcome": "answered"
-          }
-        },
-        {
-          "kind": "outcome",
-          "name": {
-            "command": "ekr.integrate.ListInterpretations",
-            "outcome": "answered"
-          }
-        },
-        {
-          "kind": "outcome",
-          "name": {
-            "command": "ekr.integrate.ShowInterpretation",
-            "outcome": "answered"
-          }
-        },
-        {
-          "kind": "outcome",
-          "name": {
-            "command": "ekr.observe.ImportObservation",
-            "outcome": "answered"
-          }
-        },
-        {
-          "kind": "event",
-          "name": "ekr.integrate.ImportInterpretationResult"
-        },
-        {
-          "kind": "event",
-          "name": "ekr.integrate.ListInterpretationsResult"
-        },
-        {
-          "kind": "event",
-          "name": "ekr.integrate.ShowInterpretationResult"
-        },
-        {
-          "kind": "event",
-          "name": "ekr.observe.ImportObservationResult"
-        },
-        {
-          "kind": "actor",
-          "name": "ekr.integrate.KnowledgeProposer"
-        },
-        {
-          "kind": "actor",
-          "name": "ekr.observe.KnowledgeSupplier"
-        }
-      ],
-      "steps": [
-        {
-          "actor": "ekr.observe.KnowledgeSupplier",
-          "command": "ekr.observe.ImportObservation",
-          "input": {
-            "document": {
-              "kind": "literal",
-              "value": {
-                "key": {
-                  "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
-                  "source": "manual",
-                  "source_native_id": "health-1"
-                },
-                "observation": {
-                  "captured_at": "2026-10-03T00:00:00Z",
-                  "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
-                  "kind": "FeedItem",
-                  "observation_id": "4ad1617c-d649-82e8-acb7-a20dda7f190f",
-                  "source": "manual",
-                  "source_native_id": "health-1"
-                },
-                "payload": "UHJvamVjdCBoZWFsdGg6IGFtYmVyCg=="
-              }
-            }
-          },
-          "step": "execute_command"
-        },
-        {
-          "outcome": {
-            "command": "ekr.observe.ImportObservation",
-            "outcome": "answered"
-          },
-          "step": "expect_outcome"
-        },
-        {
-          "event": "ekr.observe.ImportObservationResult",
-          "shape": {
-            "receipt.already_retained": {
-              "holds": "primitive",
-              "kind": "boolean"
-            },
-            "receipt.content_hash": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "receipt.observation_id": {
-              "holds": "primitive",
-              "kind": "uuid"
-            },
-            "receipt.outcome": {
-              "holds": "enum",
-              "variants": [
-                "Retained",
-                "AlreadyRetained"
-              ]
-            }
-          },
-          "step": "expect_event"
-        },
-        {
-          "actor": "ekr.integrate.KnowledgeProposer",
-          "command": "ekr.integrate.ImportInterpretation",
-          "input": {
-            "document": {
-              "kind": "literal",
-              "value": {
-                "entities": [
-                  {
-                    "aliases": [
-                      "fixture-project"
-                    ],
-                    "node_type": "Project"
-                  }
-                ],
-                "evidence": [
-                  {
-                    "evidence": {
-                      "confidence_bp": 7500.0,
-                      "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
-                      "extracted_by": "00000000-0000-4000-8000-000000000101",
-                      "id": "00000000-0000-4000-8000-000000000401",
-                      "observed_at": "2026-10-03T00:00:00Z",
-                      "source": {
-                        "kind": "Observation",
-                        "observation": "4ad1617c-d649-82e8-acb7-a20dda7f190f"
-                      }
-                    },
-                    "payload": "UHJvamVjdCBoZWFsdGg6IGFtYmVyCg=="
-                  }
-                ],
-                "facts": [
-                  {
-                    "kind": "Property",
-                    "value": {
-                      "evidence": [
-                        "00000000-0000-4000-8000-000000000401"
-                      ],
-                      "property": "health",
-                      "subject": {
-                        "aliases": [
-                          "fixture-project"
-                        ],
-                        "node_type": "Project"
-                      },
-                      "value": {
-                        "canonical_bytes": "DwAAAAAGAAAAAAAAAAVhbWJlcg==",
-                        "kind": "String"
-                      }
-                    }
-                  }
-                ],
-                "local_schema": {
-                  "edge_types": [],
-                  "node_types": [
-                    {
-                      "abstract_type": false,
-                      "name": "Project",
-                      "parents": [],
-                      "properties": [
-                        {
-                          "cardinality": "One",
-                          "name": "health",
-                          "required": false,
-                          "value": {
-                            "value_kind": "String"
-                          }
-                        }
-                      ]
-                    }
-                  ]
-                },
-                "observations": [
-                  "4ad1617c-d649-82e8-acb7-a20dda7f190f"
-                ],
-                "root_id": "00000000-0000-4000-8000-000000001002",
-                "version": {
-                  "interpretation_id": "00000000-0000-4000-8000-000000001001",
-                  "version": 1.0
-                }
-              }
-            },
-            "payload": {
-              "kind": "literal",
-              "value": "ewogICJlbnRpdGllcyI6IFsKICAgIHsKICAgICAgImFsaWFzZXMiOiBbCiAgICAgICAgImZpeHR1cmUtcHJvamVjdCIKICAgICAgXSwKICAgICAgIm5vZGVfdHlwZSI6ICJQcm9qZWN0IgogICAgfQogIF0sCiAgImV2aWRlbmNlIjogWwogICAgewogICAgICAiZXZpZGVuY2UiOiB7CiAgICAgICAgImNvbmZpZGVuY2VfYnAiOiA3NTAwLAogICAgICAgICJjb250ZW50X2hhc2giOiAiOWQxZGRiN2UwYWFjZDNkNGY4NzE2Yjk4MTJmM2Y5OGQxNjA2NGQxOWY4NGZlODlkODY0NzM1ZThkNWQ2MWZmNCIsCiAgICAgICAgImV4dHJhY3RlZF9ieSI6ICIwMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAxMDEiLAogICAgICAgICJpZCI6ICIwMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDA0MDEiLAogICAgICAgICJvYnNlcnZlZF9hdCI6ICIyMDI2LTEwLTAzVDAwOjAwOjAwWiIsCiAgICAgICAgInNvdXJjZSI6IHsKICAgICAgICAgICJraW5kIjogIk9ic2VydmF0aW9uIiwKICAgICAgICAgICJvYnNlcnZhdGlvbiI6ICI0YWQxNjE3Yy1kNjQ5LTgyZTgtYWNiNy1hMjBkZGE3ZjE5MGYiCiAgICAgICAgfQogICAgICB9LAogICAgICAicGF5bG9hZCI6ICJVSEp2YW1WamRDQm9aV0ZzZEdnNklHRnRZbVZ5Q2c9PSIKICAgIH0KICBdLAogICJmYWN0cyI6IFsKICAgIHsKICAgICAgImtpbmQiOiAiUHJvcGVydHkiLAogICAgICAidmFsdWUiOiB7CiAgICAgICAgImV2aWRlbmNlIjogWwogICAgICAgICAgIjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDQwMSIKICAgICAgICBdLAogICAgICAgICJwcm9wZXJ0eSI6ICJoZWFsdGgiLAogICAgICAgICJzdWJqZWN0IjogewogICAgICAgICAgImFsaWFzZXMiOiBbCiAgICAgICAgICAgICJmaXh0dXJlLXByb2plY3QiCiAgICAgICAgICBdLAogICAgICAgICAgIm5vZGVfdHlwZSI6ICJQcm9qZWN0IgogICAgICAgIH0sCiAgICAgICAgInZhbHVlIjogewogICAgICAgICAgImNhbm9uaWNhbF9ieXRlcyI6ICJEd0FBQUFBR0FBQUFBQUFBQUFWaGJXSmxjZz09IiwKICAgICAgICAgICJraW5kIjogIlN0cmluZyIKICAgICAgICB9CiAgICAgIH0KICAgIH0KICBdLAogICJsb2NhbF9zY2hlbWEiOiB7CiAgICAiZWRnZV90eXBlcyI6IFtdLAogICAgIm5vZGVfdHlwZXMiOiBbCiAgICAgIHsKICAgICAgICAiYWJzdHJhY3RfdHlwZSI6IGZhbHNlLAogICAgICAgICJuYW1lIjogIlByb2plY3QiLAogICAgICAgICJwYXJlbnRzIjogW10sCiAgICAgICAgInByb3BlcnRpZXMiOiBbCiAgICAgICAgICB7CiAgICAgICAgICAgICJjYXJkaW5hbGl0eSI6ICJPbmUiLAogICAgICAgICAgICAibmFtZSI6ICJoZWFsdGgiLAogICAgICAgICAgICAicmVxdWlyZWQiOiBmYWxzZSwKICAgICAgICAgICAgInZhbHVlIjogewogICAgICAgICAgICAgICJ2YWx1ZV9raW5kIjogIlN0cmluZyIKICAgICAgICAgICAgfQogICAgICAgICAgfQogICAgICAgIF0KICAgICAgfQogICAgXQogIH0sCiAgIm9ic2VydmF0aW9ucyI6IFsKICAgICI0YWQxNjE3Yy1kNjQ5LTgyZTgtYWNiNy1hMjBkZGE3ZjE5MGYiCiAgXSwKICAicm9vdF9pZCI6ICIwMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDEwMDIiLAogICJ2ZXJzaW9uIjogewogICAgImludGVycHJldGF0aW9uX2lkIjogIjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMTAwMSIsCiAgICAidmVyc2lvbiI6IDEKICB9Cn0="
-            }
-          },
-          "step": "execute_command"
-        },
-        {
-          "outcome": {
-            "command": "ekr.integrate.ImportInterpretation",
-            "outcome": "answered"
-          },
-          "step": "expect_outcome"
-        },
-        {
-          "event": "ekr.integrate.ImportInterpretationResult",
-          "shape": {
-            "receipt.already_retained": {
-              "holds": "primitive",
-              "kind": "boolean"
-            },
-            "receipt.blockers": {
-              "holds": "list"
-            },
-            "receipt.outcome": {
-              "holds": "enum",
-              "variants": [
-                "Retained",
-                "RetainedWithBlockers",
-                "AlreadyRetained"
-              ]
-            },
-            "receipt.version.document_digest": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "receipt.version.interpretation_id": {
-              "holds": "primitive",
-              "kind": "uuid"
-            },
-            "receipt.version.version": {
-              "holds": "primitive",
-              "kind": "integer"
-            }
-          },
-          "step": "expect_event"
-        },
-        {
-          "actor": "ekr.integrate.KnowledgeProposer",
-          "command": "ekr.integrate.ListInterpretations",
-          "step": "execute_command"
-        },
-        {
-          "outcome": {
-            "command": "ekr.integrate.ListInterpretations",
-            "outcome": "answered"
-          },
-          "step": "expect_outcome"
-        },
-        {
-          "event": "ekr.integrate.ListInterpretationsResult",
-          "payload": {
-            "interpretations": [
-              {
-                "document_digest": "76d74e0891f79ebe128fd2e60354f20da16b36594cd3e4813428d6e4c436d5d9",
-                "interpretation_id": "00000000-0000-4000-8000-000000001001",
-                "version": 1.0
-              }
-            ]
-          },
-          "shape": {
-            "interpretations": {
-              "holds": "list"
-            }
-          },
-          "step": "expect_event"
-        },
-        {
-          "actor": "ekr.integrate.KnowledgeProposer",
-          "command": "ekr.integrate.ShowInterpretation",
-          "input": {
-            "version": {
-              "kind": "literal",
-              "value": {
-                "document_digest": "76d74e0891f79ebe128fd2e60354f20da16b36594cd3e4813428d6e4c436d5d9",
-                "interpretation_id": "00000000-0000-4000-8000-000000001001",
-                "version": 1.0
-              }
-            }
-          },
-          "step": "execute_command"
-        },
-        {
-          "outcome": {
-            "command": "ekr.integrate.ShowInterpretation",
-            "outcome": "answered"
-          },
-          "step": "expect_outcome"
-        },
-        {
-          "event": "ekr.integrate.ShowInterpretationResult",
-          "payload": {
-            "document": {
-              "entities": [
-                {
-                  "aliases": [
-                    "fixture-project"
-                  ],
-                  "node_type": "Project"
-                }
-              ],
-              "evidence": [
-                {
-                  "evidence": {
-                    "confidence_bp": 7500.0,
-                    "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
-                    "extracted_by": "00000000-0000-4000-8000-000000000101",
-                    "id": "00000000-0000-4000-8000-000000000401",
-                    "observed_at": "2026-10-03T00:00:00Z",
-                    "source": {
-                      "kind": "Observation",
-                      "observation": "4ad1617c-d649-82e8-acb7-a20dda7f190f"
-                    }
-                  },
-                  "payload": "UHJvamVjdCBoZWFsdGg6IGFtYmVyCg=="
-                }
-              ],
-              "facts": [
-                {
-                  "kind": "Property",
-                  "value": {
-                    "evidence": [
-                      "00000000-0000-4000-8000-000000000401"
-                    ],
-                    "property": "health",
-                    "subject": {
-                      "aliases": [
-                        "fixture-project"
-                      ],
-                      "node_type": "Project"
-                    },
-                    "value": {
-                      "canonical_bytes": "DwAAAAAGAAAAAAAAAAVhbWJlcg==",
-                      "kind": "String"
-                    }
-                  }
-                }
-              ],
-              "local_schema": {
-                "edge_types": [],
-                "node_types": [
-                  {
-                    "abstract_type": false,
-                    "name": "Project",
-                    "parents": [],
-                    "properties": [
-                      {
-                        "cardinality": "One",
-                        "name": "health",
-                        "required": false,
-                        "value": {
-                          "value_kind": "String"
-                        }
-                      }
-                    ]
-                  }
-                ]
-              },
-              "observations": [
-                "4ad1617c-d649-82e8-acb7-a20dda7f190f"
-              ],
-              "root_id": "00000000-0000-4000-8000-000000001002",
-              "version": {
-                "interpretation_id": "00000000-0000-4000-8000-000000001001",
-                "version": 1.0
-              }
-            }
-          },
-          "shape": {
-            "blockers": {
-              "holds": "list"
-            },
-            "document.entities": {
-              "holds": "list"
-            },
-            "document.evidence": {
-              "holds": "list"
-            },
-            "document.facts": {
-              "holds": "list"
-            },
-            "document.local_schema.edge_types": {
-              "holds": "list"
-            },
-            "document.local_schema.node_types": {
-              "holds": "list"
-            },
-            "document.observations": {
-              "holds": "list"
-            },
-            "document.root_id": {
-              "holds": "primitive",
-              "kind": "uuid"
-            },
-            "document.version.interpretation_id": {
-              "holds": "primitive",
-              "kind": "uuid"
-            },
-            "document.version.version": {
-              "holds": "primitive",
-              "kind": "integer"
-            },
-            "receipts": {
-              "holds": "list"
-            }
-          },
-          "step": "expect_event"
         }
       ]
     },
@@ -32785,6 +31700,2952 @@
         }
       ]
     },
+    "ekr.kernel/authored/equal-disjoint-and-many-claims-do-not-conflict": {
+      "purpose": "Apply an independently signed exact upgrade, reopen with full replay for every command and inspect persisted canonical and historical state.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.kernel"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.AssertionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.AssertionLifecycleKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.AssertionLifecycleProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.AssessmentKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.AssessmentProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.CanonicalValueKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.EvidenceId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.GraphRootId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.ObjectKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.ObservationId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.PredicateKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.PredicateProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.SubjectKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.SubjectProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.TypedValue"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.IntegrationBlockerId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.SchemaProposalId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AgentId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ApplicationProfileV1"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AttentionAnswerTarget"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AttentionItem"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AttentionKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AttentionSubject"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AuthorityTransitionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AuthorityUpgradeTarget"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AuthorityVersion"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.DisputeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.EventId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.HumanDecisionAudience"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.HumanDecisionFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.HumanDecisionIntent"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.HumanDecisionTarget"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.IssueId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ReviewBasis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ReviewSignatureAlgorithm"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.Revision.State"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RulesetV1"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.SchemaReviewTarget"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.SignedHumanDecision"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TransactionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.UpgradeContradiction"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.UpgradePreview"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.ApplyUpgrade"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.ListAttention"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.PreviewUpgrade"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.ApplyUpgrade",
+            "outcome": "answered"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.ListAttention",
+            "outcome": "answered"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.PreviewUpgrade",
+            "outcome": "answered"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAttentionResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.PreviewUpgradeResult"
+        },
+        {
+          "kind": "view",
+          "name": "ekr.graph.Assertions"
+        },
+        {
+          "kind": "view",
+          "name": "ekr.graph.SettledAssertions"
+        },
+        {
+          "kind": "view",
+          "name": "ekr.kernel.Revisions"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.HumanOperator"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.KnowledgeReader"
+        }
+      ],
+      "steps": [
+        {
+          "fixtures": {
+            "declarations": {
+              "ekr.graph.AssertionId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.graph.PredicateKind": {
+                "kind": "enum",
+                "variants": [
+                  "Property",
+                  "Relation"
+                ]
+              },
+              "ekr.graph.PredicateProjection": {
+                "fields": [
+                  {
+                    "name": "kind",
+                    "type": "ekr.graph.PredicateKind"
+                  },
+                  {
+                    "name": "id",
+                    "type": "Uuid"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.graph.SubjectKind": {
+                "kind": "enum",
+                "variants": [
+                  "Node",
+                  "Edge",
+                  "Type"
+                ]
+              },
+              "ekr.graph.SubjectProjection": {
+                "fields": [
+                  {
+                    "name": "kind",
+                    "type": "ekr.graph.SubjectKind"
+                  },
+                  {
+                    "name": "id",
+                    "type": "Uuid"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.integrate.SchemaProposalId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.ApplicationProfileV1": {
+                "kind": "newtype",
+                "of": "String"
+              },
+              "ekr.kernel.AttentionAnswerTarget": {
+                "fields": [
+                  {
+                    "name": "dispute_id",
+                    "type": "ekr.kernel.DisputeId"
+                  },
+                  {
+                    "name": "basis",
+                    "type": "ekr.kernel.ReviewBasis"
+                  },
+                  {
+                    "name": "corrections_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.AuthorityUpgradeTarget": {
+                "fields": [
+                  {
+                    "name": "preview_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "reviewer_policy_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.AuthorityVersion": {
+                "fields": [
+                  {
+                    "name": "ruleset",
+                    "type": "ekr.kernel.RulesetV1"
+                  },
+                  {
+                    "name": "application",
+                    "type": "ekr.kernel.ApplicationProfileV1"
+                  },
+                  {
+                    "name": "profile_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.ContentHash": {
+                "kind": "newtype",
+                "of": "String"
+              },
+              "ekr.kernel.DisputeId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.HumanDecisionAudience": {
+                "fields": [
+                  {
+                    "name": "tenant",
+                    "type": "String"
+                  },
+                  {
+                    "name": "seed_anchor",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.HumanDecisionFormat": {
+                "kind": "enum",
+                "variants": [
+                  "HumanDecision1"
+                ]
+              },
+              "ekr.kernel.HumanDecisionIntent": {
+                "fields": [
+                  {
+                    "name": "format",
+                    "type": "ekr.kernel.HumanDecisionFormat"
+                  },
+                  {
+                    "name": "decision_id",
+                    "type": "Uuid"
+                  },
+                  {
+                    "name": "audience",
+                    "type": "ekr.kernel.HumanDecisionAudience"
+                  },
+                  {
+                    "name": "reviewer_policy_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "signer_key_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "target",
+                    "type": "ekr.kernel.HumanDecisionTarget"
+                  },
+                  {
+                    "name": "statement_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "expected_previous_decision",
+                    "type": "Optional<ekr.kernel.ContentHash>"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.HumanDecisionTarget": {
+                "kind": "union",
+                "tag": "kind",
+                "variants": {
+                  "AnswerAttention": "ekr.kernel.AttentionAnswerTarget",
+                  "ApproveSchemaProposal": "ekr.kernel.SchemaReviewTarget",
+                  "RejectSchemaProposal": "ekr.kernel.SchemaReviewTarget",
+                  "UpgradeAuthority": "ekr.kernel.AuthorityUpgradeTarget"
+                }
+              },
+              "ekr.kernel.ReviewBasis": {
+                "fields": [
+                  {
+                    "name": "observed_revision",
+                    "type": "ekr.kernel.RevisionNumber"
+                  },
+                  {
+                    "name": "evidence_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "options_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "effects_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.ReviewSignatureAlgorithm": {
+                "kind": "enum",
+                "variants": [
+                  "Ed25519"
+                ]
+              },
+              "ekr.kernel.RevisionNumber": {
+                "kind": "newtype",
+                "of": "Integer"
+              },
+              "ekr.kernel.RulesetV1": {
+                "kind": "newtype",
+                "of": "String"
+              },
+              "ekr.kernel.SchemaReviewTarget": {
+                "fields": [
+                  {
+                    "name": "proposal_id",
+                    "type": "ekr.integrate.SchemaProposalId"
+                  },
+                  {
+                    "name": "proposal_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "basis",
+                    "type": "ekr.kernel.ReviewBasis"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.SignedHumanDecision": {
+                "fields": [
+                  {
+                    "name": "intent",
+                    "type": "ekr.kernel.HumanDecisionIntent"
+                  },
+                  {
+                    "name": "algorithm",
+                    "type": "ekr.kernel.ReviewSignatureAlgorithm"
+                  },
+                  {
+                    "name": "signature",
+                    "type": "Bytes"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.TransactionId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.UpgradeContradiction": {
+                "fields": [
+                  {
+                    "name": "left",
+                    "type": "ekr.graph.AssertionId"
+                  },
+                  {
+                    "name": "right",
+                    "type": "ekr.graph.AssertionId"
+                  },
+                  {
+                    "name": "subject",
+                    "type": "ekr.graph.SubjectProjection"
+                  },
+                  {
+                    "name": "predicate",
+                    "type": "ekr.graph.PredicateProjection"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.UpgradePreview": {
+                "fields": [
+                  {
+                    "name": "stream_version",
+                    "type": "Integer"
+                  },
+                  {
+                    "name": "stream_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "reviewer_policy_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "head_revision",
+                    "type": "ekr.kernel.RevisionNumber"
+                  },
+                  {
+                    "name": "head_hash",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "from",
+                    "type": "ekr.kernel.AuthorityVersion"
+                  },
+                  {
+                    "name": "to",
+                    "type": "ekr.kernel.AuthorityVersion"
+                  },
+                  {
+                    "name": "preview_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "contradictions",
+                    "type": "List<ekr.kernel.UpgradeContradiction>"
+                  },
+                  {
+                    "name": "pending_revalidation",
+                    "type": "List<ekr.kernel.TransactionId>"
+                  }
+                ],
+                "kind": "struct"
+              }
+            },
+            "fields": [
+              {
+                "name": "target-version",
+                "type": "ekr.kernel.AuthorityVersion"
+              },
+              {
+                "name": "upgrade-preview",
+                "type": "ekr.kernel.UpgradePreview"
+              },
+              {
+                "name": "upgrade-proof",
+                "type": "ekr.kernel.SignedHumanDecision"
+              }
+            ]
+          },
+          "step": "resolve_fixtures"
+        },
+        {
+          "actor": "ekr.kernel.KnowledgeReader",
+          "command": "ekr.kernel.PreviewUpgrade",
+          "input": {
+            "target": {
+              "fixture": "target-version",
+              "kind": "fixture"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.PreviewUpgrade",
+            "outcome": "answered"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.PreviewUpgradeResult",
+          "shape": {
+            "preview.contradictions": {
+              "holds": "list"
+            },
+            "preview.from.application": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.from.profile_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.from.ruleset": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.head_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.head_revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "preview.pending_revalidation": {
+              "holds": "list"
+            },
+            "preview.preview_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.reviewer_policy_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.stream_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.stream_version": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "preview.to.application": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.to.profile_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.to.ruleset": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.kernel.HumanOperator",
+          "command": "ekr.kernel.ApplyUpgrade",
+          "input": {
+            "human_proof": {
+              "fixture": "upgrade-proof",
+              "kind": "fixture"
+            },
+            "preview": {
+              "fixture": "upgrade-preview",
+              "kind": "fixture"
+            },
+            "statement": {
+              "kind": "literal",
+              "value": "cmV2aWV3ZWQgZml4dHVyZSB1cGdyYWRl"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.ApplyUpgrade",
+            "outcome": "answered"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.ApplyUpgradeResult",
+          "shape": {
+            "transition_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "payload": {
+            "number": 1.0
+          },
+          "shape": {
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "knowledge_root": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "transition_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.kernel.KnowledgeReader",
+          "command": "ekr.kernel.ListAttention",
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.ListAttention",
+            "outcome": "answered"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.ListAttentionResult",
+          "payload": {
+            "items": []
+          },
+          "shape": {
+            "items": {
+              "holds": "list"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "assertion_id": {
+                "kind": "literal",
+                "value": "00000000-0000-4000-8000-000000000401"
+              },
+              "assessment": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Accepted",
+                  "validators": [
+                    "00000000-0000-4000-8000-000000000004"
+                  ]
+                }
+              },
+              "lifecycle": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Active"
+                }
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "assertion_id": {
+                "kind": "literal",
+                "value": "00000000-0000-4000-8000-000000000402"
+              },
+              "assessment": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Accepted",
+                  "validators": [
+                    "00000000-0000-4000-8000-000000000004"
+                  ]
+                }
+              },
+              "lifecycle": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Active"
+                }
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "assertion_id": {
+                "kind": "literal",
+                "value": "00000000-0000-4000-8000-000000000403"
+              },
+              "assessment": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Accepted",
+                  "validators": [
+                    "00000000-0000-4000-8000-000000000004"
+                  ]
+                }
+              },
+              "lifecycle": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Active"
+                }
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "assertion_id": {
+                "kind": "literal",
+                "value": "00000000-0000-4000-8000-000000000404"
+              },
+              "assessment": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Accepted",
+                  "validators": [
+                    "00000000-0000-4000-8000-000000000004"
+                  ]
+                }
+              },
+              "lifecycle": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Active"
+                }
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "assertion_id": {
+                "kind": "literal",
+                "value": "00000000-0000-4000-8000-000000000405"
+              },
+              "assessment": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Accepted",
+                  "validators": [
+                    "00000000-0000-4000-8000-000000000004"
+                  ]
+                }
+              },
+              "lifecycle": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Active"
+                }
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "assertion_id": {
+                "kind": "literal",
+                "value": "00000000-0000-4000-8000-000000000406"
+              },
+              "assessment": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Accepted",
+                  "validators": [
+                    "00000000-0000-4000-8000-000000000004"
+                  ]
+                }
+              },
+              "lifecycle": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Active"
+                }
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "assertion_id": {
+                "kind": "literal",
+                "value": "00000000-0000-4000-8000-000000000407"
+              },
+              "assessment": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Accepted",
+                  "validators": [
+                    "00000000-0000-4000-8000-000000000004"
+                  ]
+                }
+              },
+              "lifecycle": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Active"
+                }
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "assertion_id": {
+                "kind": "literal",
+                "value": "00000000-0000-4000-8000-000000000408"
+              },
+              "assessment": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Accepted",
+                  "validators": [
+                    "00000000-0000-4000-8000-000000000004"
+                  ]
+                }
+              },
+              "lifecycle": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Active"
+                }
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "assertion_id": {
+                "kind": "literal",
+                "value": "00000000-0000-4000-8000-000000000409"
+              },
+              "assessment": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Accepted",
+                  "validators": [
+                    "00000000-0000-4000-8000-000000000004"
+                  ]
+                }
+              },
+              "lifecycle": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Active"
+                }
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "assertion_id": {
+                "kind": "literal",
+                "value": "00000000-0000-4000-8000-000000000410"
+              },
+              "assessment": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Accepted",
+                  "validators": [
+                    "00000000-0000-4000-8000-000000000004"
+                  ]
+                }
+              },
+              "lifecycle": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Active"
+                }
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "assertion_id": {
+                "kind": "literal",
+                "value": "00000000-0000-4000-8000-000000000411"
+              },
+              "assessment": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Accepted",
+                  "validators": [
+                    "00000000-0000-4000-8000-000000000004"
+                  ]
+                }
+              },
+              "lifecycle": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Active"
+                }
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "assertion_id": {
+                "kind": "literal",
+                "value": "00000000-0000-4000-8000-000000000412"
+              },
+              "assessment": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Accepted",
+                  "validators": [
+                    "00000000-0000-4000-8000-000000000004"
+                  ]
+                }
+              },
+              "lifecycle": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Active"
+                }
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "expectation": {
+            "at_least": 12,
+            "at_most": 12,
+            "expect": "counts"
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.SettledAssertions"
+        },
+        {
+          "expectation": {
+            "at_least": 12,
+            "at_most": 12,
+            "expect": "counts"
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.SettledAssertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.kernel.Revisions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "number": {
+                "kind": "literal",
+                "value": 1.0
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.kernel.Revisions"
+        }
+      ]
+    },
+    "ekr.kernel/authored/overlapping-single-value-claims-become-disputed": {
+      "purpose": "Apply an independently signed exact upgrade, reopen with full replay for every command and inspect persisted canonical and historical state.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.kernel"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.AssertionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.AssertionLifecycleKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.AssertionLifecycleProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.AssessmentKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.AssessmentProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.CanonicalValueKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.EvidenceId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.GraphRootId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.ObjectKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.ObservationId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.PredicateKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.PredicateProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.SubjectKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.SubjectProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.TypedValue"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.IntegrationBlockerId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.SchemaProposalId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AgentId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ApplicationProfileV1"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AttentionAnswerTarget"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AttentionItem"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AttentionKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AttentionSubject"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AuthorityTransitionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AuthorityUpgradeTarget"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AuthorityVersion"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.DisputeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.EventId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.HumanDecisionAudience"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.HumanDecisionFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.HumanDecisionIntent"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.HumanDecisionTarget"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.IssueId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ReviewBasis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ReviewSignatureAlgorithm"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RulesetV1"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.SchemaReviewTarget"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.SignedHumanDecision"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TransactionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.UpgradeContradiction"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.UpgradePreview"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.ApplyUpgrade"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.ListAttention"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.PreviewUpgrade"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.ApplyUpgrade",
+            "outcome": "answered"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.ListAttention",
+            "outcome": "answered"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.PreviewUpgrade",
+            "outcome": "answered"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAttentionResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.PreviewUpgradeResult"
+        },
+        {
+          "kind": "view",
+          "name": "ekr.graph.Assertions"
+        },
+        {
+          "kind": "view",
+          "name": "ekr.graph.SettledAssertions"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.HumanOperator"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.KnowledgeReader"
+        }
+      ],
+      "steps": [
+        {
+          "fixtures": {
+            "declarations": {
+              "ekr.graph.AssertionId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.graph.PredicateKind": {
+                "kind": "enum",
+                "variants": [
+                  "Property",
+                  "Relation"
+                ]
+              },
+              "ekr.graph.PredicateProjection": {
+                "fields": [
+                  {
+                    "name": "kind",
+                    "type": "ekr.graph.PredicateKind"
+                  },
+                  {
+                    "name": "id",
+                    "type": "Uuid"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.graph.SubjectKind": {
+                "kind": "enum",
+                "variants": [
+                  "Node",
+                  "Edge",
+                  "Type"
+                ]
+              },
+              "ekr.graph.SubjectProjection": {
+                "fields": [
+                  {
+                    "name": "kind",
+                    "type": "ekr.graph.SubjectKind"
+                  },
+                  {
+                    "name": "id",
+                    "type": "Uuid"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.integrate.SchemaProposalId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.ApplicationProfileV1": {
+                "kind": "newtype",
+                "of": "String"
+              },
+              "ekr.kernel.AttentionAnswerTarget": {
+                "fields": [
+                  {
+                    "name": "dispute_id",
+                    "type": "ekr.kernel.DisputeId"
+                  },
+                  {
+                    "name": "basis",
+                    "type": "ekr.kernel.ReviewBasis"
+                  },
+                  {
+                    "name": "corrections_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.AuthorityUpgradeTarget": {
+                "fields": [
+                  {
+                    "name": "preview_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "reviewer_policy_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.AuthorityVersion": {
+                "fields": [
+                  {
+                    "name": "ruleset",
+                    "type": "ekr.kernel.RulesetV1"
+                  },
+                  {
+                    "name": "application",
+                    "type": "ekr.kernel.ApplicationProfileV1"
+                  },
+                  {
+                    "name": "profile_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.ContentHash": {
+                "kind": "newtype",
+                "of": "String"
+              },
+              "ekr.kernel.DisputeId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.HumanDecisionAudience": {
+                "fields": [
+                  {
+                    "name": "tenant",
+                    "type": "String"
+                  },
+                  {
+                    "name": "seed_anchor",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.HumanDecisionFormat": {
+                "kind": "enum",
+                "variants": [
+                  "HumanDecision1"
+                ]
+              },
+              "ekr.kernel.HumanDecisionIntent": {
+                "fields": [
+                  {
+                    "name": "format",
+                    "type": "ekr.kernel.HumanDecisionFormat"
+                  },
+                  {
+                    "name": "decision_id",
+                    "type": "Uuid"
+                  },
+                  {
+                    "name": "audience",
+                    "type": "ekr.kernel.HumanDecisionAudience"
+                  },
+                  {
+                    "name": "reviewer_policy_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "signer_key_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "target",
+                    "type": "ekr.kernel.HumanDecisionTarget"
+                  },
+                  {
+                    "name": "statement_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "expected_previous_decision",
+                    "type": "Optional<ekr.kernel.ContentHash>"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.HumanDecisionTarget": {
+                "kind": "union",
+                "tag": "kind",
+                "variants": {
+                  "AnswerAttention": "ekr.kernel.AttentionAnswerTarget",
+                  "ApproveSchemaProposal": "ekr.kernel.SchemaReviewTarget",
+                  "RejectSchemaProposal": "ekr.kernel.SchemaReviewTarget",
+                  "UpgradeAuthority": "ekr.kernel.AuthorityUpgradeTarget"
+                }
+              },
+              "ekr.kernel.ReviewBasis": {
+                "fields": [
+                  {
+                    "name": "observed_revision",
+                    "type": "ekr.kernel.RevisionNumber"
+                  },
+                  {
+                    "name": "evidence_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "options_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "effects_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.ReviewSignatureAlgorithm": {
+                "kind": "enum",
+                "variants": [
+                  "Ed25519"
+                ]
+              },
+              "ekr.kernel.RevisionNumber": {
+                "kind": "newtype",
+                "of": "Integer"
+              },
+              "ekr.kernel.RulesetV1": {
+                "kind": "newtype",
+                "of": "String"
+              },
+              "ekr.kernel.SchemaReviewTarget": {
+                "fields": [
+                  {
+                    "name": "proposal_id",
+                    "type": "ekr.integrate.SchemaProposalId"
+                  },
+                  {
+                    "name": "proposal_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "basis",
+                    "type": "ekr.kernel.ReviewBasis"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.SignedHumanDecision": {
+                "fields": [
+                  {
+                    "name": "intent",
+                    "type": "ekr.kernel.HumanDecisionIntent"
+                  },
+                  {
+                    "name": "algorithm",
+                    "type": "ekr.kernel.ReviewSignatureAlgorithm"
+                  },
+                  {
+                    "name": "signature",
+                    "type": "Bytes"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.TransactionId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.UpgradeContradiction": {
+                "fields": [
+                  {
+                    "name": "left",
+                    "type": "ekr.graph.AssertionId"
+                  },
+                  {
+                    "name": "right",
+                    "type": "ekr.graph.AssertionId"
+                  },
+                  {
+                    "name": "subject",
+                    "type": "ekr.graph.SubjectProjection"
+                  },
+                  {
+                    "name": "predicate",
+                    "type": "ekr.graph.PredicateProjection"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.UpgradePreview": {
+                "fields": [
+                  {
+                    "name": "stream_version",
+                    "type": "Integer"
+                  },
+                  {
+                    "name": "stream_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "reviewer_policy_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "head_revision",
+                    "type": "ekr.kernel.RevisionNumber"
+                  },
+                  {
+                    "name": "head_hash",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "from",
+                    "type": "ekr.kernel.AuthorityVersion"
+                  },
+                  {
+                    "name": "to",
+                    "type": "ekr.kernel.AuthorityVersion"
+                  },
+                  {
+                    "name": "preview_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "contradictions",
+                    "type": "List<ekr.kernel.UpgradeContradiction>"
+                  },
+                  {
+                    "name": "pending_revalidation",
+                    "type": "List<ekr.kernel.TransactionId>"
+                  }
+                ],
+                "kind": "struct"
+              }
+            },
+            "fields": [
+              {
+                "name": "target-version",
+                "type": "ekr.kernel.AuthorityVersion"
+              },
+              {
+                "name": "upgrade-preview",
+                "type": "ekr.kernel.UpgradePreview"
+              },
+              {
+                "name": "upgrade-proof",
+                "type": "ekr.kernel.SignedHumanDecision"
+              }
+            ]
+          },
+          "step": "resolve_fixtures"
+        },
+        {
+          "actor": "ekr.kernel.KnowledgeReader",
+          "command": "ekr.kernel.PreviewUpgrade",
+          "input": {
+            "target": {
+              "fixture": "target-version",
+              "kind": "fixture"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.PreviewUpgrade",
+            "outcome": "answered"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.PreviewUpgradeResult",
+          "shape": {
+            "preview.contradictions": {
+              "holds": "list"
+            },
+            "preview.from.application": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.from.profile_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.from.ruleset": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.head_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.head_revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "preview.pending_revalidation": {
+              "holds": "list"
+            },
+            "preview.preview_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.reviewer_policy_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.stream_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.stream_version": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "preview.to.application": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.to.profile_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.to.ruleset": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.kernel.HumanOperator",
+          "command": "ekr.kernel.ApplyUpgrade",
+          "input": {
+            "human_proof": {
+              "fixture": "upgrade-proof",
+              "kind": "fixture"
+            },
+            "preview": {
+              "fixture": "upgrade-preview",
+              "kind": "fixture"
+            },
+            "statement": {
+              "kind": "literal",
+              "value": "cmV2aWV3ZWQgZml4dHVyZSB1cGdyYWRl"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.ApplyUpgrade",
+            "outcome": "answered"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.ApplyUpgradeResult",
+          "shape": {
+            "transition_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "payload": {
+            "number": 1.0
+          },
+          "shape": {
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "knowledge_root": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "transition_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.kernel.KnowledgeReader",
+          "command": "ekr.kernel.ListAttention",
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.ListAttention",
+            "outcome": "answered"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.ListAttentionResult",
+          "shape": {
+            "items": {
+              "holds": "list"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "assertion_id": {
+                "kind": "literal",
+                "value": "00000000-0000-4000-8000-000000000401"
+              },
+              "assessment": {
+                "kind": "literal",
+                "value": {
+                  "competing_assertions": [
+                    "00000000-0000-4000-8000-000000000402"
+                  ],
+                  "kind": "Disputed"
+                }
+              },
+              "lifecycle": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Active"
+                }
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "assertion_id": {
+                "kind": "literal",
+                "value": "00000000-0000-4000-8000-000000000402"
+              },
+              "assessment": {
+                "kind": "literal",
+                "value": {
+                  "competing_assertions": [
+                    "00000000-0000-4000-8000-000000000401"
+                  ],
+                  "kind": "Disputed"
+                }
+              },
+              "lifecycle": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Active"
+                }
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "assertion_id": {
+                "kind": "literal",
+                "value": "00000000-0000-4000-8000-000000000403"
+              },
+              "assessment": {
+                "kind": "literal",
+                "value": {
+                  "competing_assertions": [
+                    "00000000-0000-4000-8000-000000000404"
+                  ],
+                  "kind": "Disputed"
+                }
+              },
+              "lifecycle": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Active"
+                }
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "assertion_id": {
+                "kind": "literal",
+                "value": "00000000-0000-4000-8000-000000000404"
+              },
+              "assessment": {
+                "kind": "literal",
+                "value": {
+                  "competing_assertions": [
+                    "00000000-0000-4000-8000-000000000403"
+                  ],
+                  "kind": "Disputed"
+                }
+              },
+              "lifecycle": {
+                "kind": "literal",
+                "value": {
+                  "kind": "Active"
+                }
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "expectation": {
+            "at_least": 4,
+            "at_most": 4,
+            "expect": "counts"
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.Assertions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.graph.SettledAssertions"
+        },
+        {
+          "expectation": {
+            "at_least": 0,
+            "at_most": 0,
+            "expect": "counts"
+          },
+          "step": "expect_view",
+          "view": "ekr.graph.SettledAssertions"
+        }
+      ]
+    },
+    "ekr.kernel/authored/upgrade-preserves-historical-rules-and-hashes": {
+      "purpose": "Apply an independently signed exact upgrade, reopen with full replay for every command and inspect persisted canonical and historical state.",
+      "source": [
+        {
+          "kind": "domain",
+          "name": "ekr.kernel"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.AssertionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.EvidenceId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.ObservationId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.PredicateKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.PredicateProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.SubjectKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.graph.SubjectProjection"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.IntegrationBlockerId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.integrate.SchemaProposalId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ApplicationProfileV1"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AttentionAnswerTarget"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AttentionItem"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AttentionKind"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AttentionSubject"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AuthorityTransitionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AuthorityUpgradeTarget"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.AuthorityVersion"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ContentHash"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.DisputeId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.EventId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.HumanDecisionAudience"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.HumanDecisionFormat"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.HumanDecisionIntent"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.HumanDecisionTarget"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ReviewBasis"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.ReviewSignatureAlgorithm"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.Revision.State"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.RulesetV1"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.SchemaReviewTarget"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.SignedHumanDecision"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TransactionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.UpgradeContradiction"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.UpgradePreview"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.ApplyUpgrade"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.ListAttention"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.PreviewUpgrade"
+        },
+        {
+          "kind": "command",
+          "name": "ekr.kernel.Snapshot"
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.ApplyUpgrade",
+            "outcome": "answered"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.ListAttention",
+            "outcome": "answered"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.PreviewUpgrade",
+            "outcome": "answered"
+          }
+        },
+        {
+          "kind": "outcome",
+          "name": {
+            "command": "ekr.kernel.Snapshot",
+            "outcome": "taken"
+          }
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.AuthorityUpgraded"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.ListAttentionResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.PreviewUpgradeResult"
+        },
+        {
+          "kind": "event",
+          "name": "ekr.kernel.SnapshotTaken"
+        },
+        {
+          "kind": "view",
+          "name": "ekr.kernel.Revisions"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.HumanOperator"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.KnowledgeReader"
+        },
+        {
+          "kind": "actor",
+          "name": "ekr.kernel.Operator"
+        }
+      ],
+      "steps": [
+        {
+          "fixtures": {
+            "declarations": {
+              "ekr.graph.AssertionId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.graph.PredicateKind": {
+                "kind": "enum",
+                "variants": [
+                  "Property",
+                  "Relation"
+                ]
+              },
+              "ekr.graph.PredicateProjection": {
+                "fields": [
+                  {
+                    "name": "kind",
+                    "type": "ekr.graph.PredicateKind"
+                  },
+                  {
+                    "name": "id",
+                    "type": "Uuid"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.graph.SubjectKind": {
+                "kind": "enum",
+                "variants": [
+                  "Node",
+                  "Edge",
+                  "Type"
+                ]
+              },
+              "ekr.graph.SubjectProjection": {
+                "fields": [
+                  {
+                    "name": "kind",
+                    "type": "ekr.graph.SubjectKind"
+                  },
+                  {
+                    "name": "id",
+                    "type": "Uuid"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.integrate.SchemaProposalId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.ApplicationProfileV1": {
+                "kind": "newtype",
+                "of": "String"
+              },
+              "ekr.kernel.AttentionAnswerTarget": {
+                "fields": [
+                  {
+                    "name": "dispute_id",
+                    "type": "ekr.kernel.DisputeId"
+                  },
+                  {
+                    "name": "basis",
+                    "type": "ekr.kernel.ReviewBasis"
+                  },
+                  {
+                    "name": "corrections_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.AuthorityUpgradeTarget": {
+                "fields": [
+                  {
+                    "name": "preview_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "reviewer_policy_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.AuthorityVersion": {
+                "fields": [
+                  {
+                    "name": "ruleset",
+                    "type": "ekr.kernel.RulesetV1"
+                  },
+                  {
+                    "name": "application",
+                    "type": "ekr.kernel.ApplicationProfileV1"
+                  },
+                  {
+                    "name": "profile_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.ContentHash": {
+                "kind": "newtype",
+                "of": "String"
+              },
+              "ekr.kernel.DisputeId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.HumanDecisionAudience": {
+                "fields": [
+                  {
+                    "name": "tenant",
+                    "type": "String"
+                  },
+                  {
+                    "name": "seed_anchor",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.HumanDecisionFormat": {
+                "kind": "enum",
+                "variants": [
+                  "HumanDecision1"
+                ]
+              },
+              "ekr.kernel.HumanDecisionIntent": {
+                "fields": [
+                  {
+                    "name": "format",
+                    "type": "ekr.kernel.HumanDecisionFormat"
+                  },
+                  {
+                    "name": "decision_id",
+                    "type": "Uuid"
+                  },
+                  {
+                    "name": "audience",
+                    "type": "ekr.kernel.HumanDecisionAudience"
+                  },
+                  {
+                    "name": "reviewer_policy_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "signer_key_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "target",
+                    "type": "ekr.kernel.HumanDecisionTarget"
+                  },
+                  {
+                    "name": "statement_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "expected_previous_decision",
+                    "type": "Optional<ekr.kernel.ContentHash>"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.HumanDecisionTarget": {
+                "kind": "union",
+                "tag": "kind",
+                "variants": {
+                  "AnswerAttention": "ekr.kernel.AttentionAnswerTarget",
+                  "ApproveSchemaProposal": "ekr.kernel.SchemaReviewTarget",
+                  "RejectSchemaProposal": "ekr.kernel.SchemaReviewTarget",
+                  "UpgradeAuthority": "ekr.kernel.AuthorityUpgradeTarget"
+                }
+              },
+              "ekr.kernel.ReviewBasis": {
+                "fields": [
+                  {
+                    "name": "observed_revision",
+                    "type": "ekr.kernel.RevisionNumber"
+                  },
+                  {
+                    "name": "evidence_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "options_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "effects_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.ReviewSignatureAlgorithm": {
+                "kind": "enum",
+                "variants": [
+                  "Ed25519"
+                ]
+              },
+              "ekr.kernel.RevisionNumber": {
+                "kind": "newtype",
+                "of": "Integer"
+              },
+              "ekr.kernel.RulesetV1": {
+                "kind": "newtype",
+                "of": "String"
+              },
+              "ekr.kernel.SchemaReviewTarget": {
+                "fields": [
+                  {
+                    "name": "proposal_id",
+                    "type": "ekr.integrate.SchemaProposalId"
+                  },
+                  {
+                    "name": "proposal_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "basis",
+                    "type": "ekr.kernel.ReviewBasis"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.SignedHumanDecision": {
+                "fields": [
+                  {
+                    "name": "intent",
+                    "type": "ekr.kernel.HumanDecisionIntent"
+                  },
+                  {
+                    "name": "algorithm",
+                    "type": "ekr.kernel.ReviewSignatureAlgorithm"
+                  },
+                  {
+                    "name": "signature",
+                    "type": "Bytes"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.TransactionId": {
+                "kind": "newtype",
+                "of": "Uuid"
+              },
+              "ekr.kernel.UpgradeContradiction": {
+                "fields": [
+                  {
+                    "name": "left",
+                    "type": "ekr.graph.AssertionId"
+                  },
+                  {
+                    "name": "right",
+                    "type": "ekr.graph.AssertionId"
+                  },
+                  {
+                    "name": "subject",
+                    "type": "ekr.graph.SubjectProjection"
+                  },
+                  {
+                    "name": "predicate",
+                    "type": "ekr.graph.PredicateProjection"
+                  }
+                ],
+                "kind": "struct"
+              },
+              "ekr.kernel.UpgradePreview": {
+                "fields": [
+                  {
+                    "name": "stream_version",
+                    "type": "Integer"
+                  },
+                  {
+                    "name": "stream_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "reviewer_policy_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "head_revision",
+                    "type": "ekr.kernel.RevisionNumber"
+                  },
+                  {
+                    "name": "head_hash",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "from",
+                    "type": "ekr.kernel.AuthorityVersion"
+                  },
+                  {
+                    "name": "to",
+                    "type": "ekr.kernel.AuthorityVersion"
+                  },
+                  {
+                    "name": "preview_digest",
+                    "type": "ekr.kernel.ContentHash"
+                  },
+                  {
+                    "name": "contradictions",
+                    "type": "List<ekr.kernel.UpgradeContradiction>"
+                  },
+                  {
+                    "name": "pending_revalidation",
+                    "type": "List<ekr.kernel.TransactionId>"
+                  }
+                ],
+                "kind": "struct"
+              }
+            },
+            "fields": [
+              {
+                "name": "original-agent-root",
+                "type": "ekr.kernel.ContentHash"
+              },
+              {
+                "name": "original-evidence-root",
+                "type": "ekr.kernel.ContentHash"
+              },
+              {
+                "name": "original-knowledge-root",
+                "type": "ekr.kernel.ContentHash"
+              },
+              {
+                "name": "target-version",
+                "type": "ekr.kernel.AuthorityVersion"
+              },
+              {
+                "name": "upgrade-preview",
+                "type": "ekr.kernel.UpgradePreview"
+              },
+              {
+                "name": "upgrade-proof",
+                "type": "ekr.kernel.SignedHumanDecision"
+              }
+            ]
+          },
+          "step": "resolve_fixtures"
+        },
+        {
+          "actor": "ekr.kernel.KnowledgeReader",
+          "command": "ekr.kernel.PreviewUpgrade",
+          "input": {
+            "target": {
+              "fixture": "target-version",
+              "kind": "fixture"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.PreviewUpgrade",
+            "outcome": "answered"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.PreviewUpgradeResult",
+          "shape": {
+            "preview.contradictions": {
+              "holds": "list"
+            },
+            "preview.from.application": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.from.profile_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.from.ruleset": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.head_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.head_revision": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "preview.pending_revalidation": {
+              "holds": "list"
+            },
+            "preview.preview_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.reviewer_policy_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.stream_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.stream_version": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "preview.to.application": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.to.profile_digest": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "preview.to.ruleset": {
+              "holds": "primitive",
+              "kind": "string"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.kernel.HumanOperator",
+          "command": "ekr.kernel.ApplyUpgrade",
+          "input": {
+            "human_proof": {
+              "fixture": "upgrade-proof",
+              "kind": "fixture"
+            },
+            "preview": {
+              "fixture": "upgrade-preview",
+              "kind": "fixture"
+            },
+            "statement": {
+              "kind": "literal",
+              "value": "cmV2aWV3ZWQgZml4dHVyZSB1cGdyYWRl"
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.ApplyUpgrade",
+            "outcome": "answered"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.ApplyUpgradeResult",
+          "shape": {
+            "transition_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "payload": {
+            "number": 1.0
+          },
+          "shape": {
+            "event_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "knowledge_root": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "number": {
+              "holds": "primitive",
+              "kind": "integer"
+            },
+            "record_hash": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "revision_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            },
+            "transition_id": {
+              "holds": "primitive",
+              "kind": "uuid"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.kernel.KnowledgeReader",
+          "command": "ekr.kernel.ListAttention",
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.ListAttention",
+            "outcome": "answered"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.ListAttentionResult",
+          "shape": {
+            "items": {
+              "holds": "list"
+            }
+          },
+          "step": "expect_event"
+        },
+        {
+          "actor": "ekr.kernel.Operator",
+          "command": "ekr.kernel.Snapshot",
+          "input": {
+            "at": {
+              "kind": "literal",
+              "value": 0.0
+            }
+          },
+          "step": "execute_command"
+        },
+        {
+          "outcome": {
+            "command": "ekr.kernel.Snapshot",
+            "outcome": "taken"
+          },
+          "step": "expect_outcome"
+        },
+        {
+          "event": "ekr.kernel.SnapshotTaken",
+          "payload": {
+            "knowledge_root": {
+              "fixture": "original-knowledge-root",
+              "kind": "fixture"
+            },
+            "number": {
+              "kind": "literal",
+              "value": 0.0
+            }
+          },
+          "shape": {
+            "knowledge_root": {
+              "holds": "primitive",
+              "kind": "string"
+            },
+            "number": {
+              "holds": "primitive",
+              "kind": "integer"
+            }
+          },
+          "step": "expect_event_values"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.kernel.Revisions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "agent_root": {
+                "fixture": "original-agent-root",
+                "kind": "fixture"
+              },
+              "evidence_root": {
+                "fixture": "original-evidence-root",
+                "kind": "fixture"
+              },
+              "knowledge_root": {
+                "fixture": "original-knowledge-root",
+                "kind": "fixture"
+              },
+              "number": {
+                "kind": "literal",
+                "value": 0.0
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.kernel.Revisions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.kernel.Revisions"
+        },
+        {
+          "expectation": {
+            "expect": "contains",
+            "fields": {
+              "number": {
+                "kind": "literal",
+                "value": 1.0
+              }
+            }
+          },
+          "step": "expect_view",
+          "view": "ekr.kernel.Revisions"
+        },
+        {
+          "step": "query_view",
+          "view": "ekr.kernel.Revisions"
+        },
+        {
+          "expectation": {
+            "at_least": 2,
+            "at_most": 2,
+            "expect": "counts"
+          },
+          "step": "expect_view",
+          "view": "ekr.kernel.Revisions"
+        }
+      ]
+    },
     "ekr.observe.ImportObservation/outcome/answered": {
       "purpose": "`ekr.observe.ImportObservation` answers `answered` for an input no other branch's guard claims",
       "source": [
@@ -34935,344 +36796,6 @@
         {
           "event": "ekr.views.SubjectsTimelined",
           "step": "expect_no_event"
-        }
-      ]
-    },
-    "ekr.observe/authored/observation-retry-is-idempotent": {
-      "purpose": "Run each command against a reopened native provider; compare retained bytes and typed records.",
-      "source": [
-        {
-          "kind": "domain",
-          "name": "ekr.observe"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.ObservationId"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.ObservationKind"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.graph.ObservationRecord"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.kernel.ContentHash"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.observe.ObservationIdempotencyKey"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.observe.ObservationImport"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.observe.ObservationImportReceipt"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.observe.ObservationRetentionOutcome"
-        },
-        {
-          "kind": "type",
-          "name": "ekr.observe.RetainedObservationRead"
-        },
-        {
-          "kind": "command",
-          "name": "ekr.observe.ImportObservation"
-        },
-        {
-          "kind": "command",
-          "name": "ekr.observe.ListObservations"
-        },
-        {
-          "kind": "command",
-          "name": "ekr.observe.ShowObservation"
-        },
-        {
-          "kind": "outcome",
-          "name": {
-            "command": "ekr.observe.ImportObservation",
-            "outcome": "answered"
-          }
-        },
-        {
-          "kind": "outcome",
-          "name": {
-            "command": "ekr.observe.ListObservations",
-            "outcome": "listed"
-          }
-        },
-        {
-          "kind": "outcome",
-          "name": {
-            "command": "ekr.observe.ShowObservation",
-            "outcome": "shown"
-          }
-        },
-        {
-          "kind": "event",
-          "name": "ekr.observe.ImportObservationResult"
-        },
-        {
-          "kind": "event",
-          "name": "ekr.observe.ObservationShown"
-        },
-        {
-          "kind": "event",
-          "name": "ekr.observe.ObservationsListed"
-        },
-        {
-          "kind": "actor",
-          "name": "ekr.observe.KnowledgeSupplier"
-        }
-      ],
-      "steps": [
-        {
-          "actor": "ekr.observe.KnowledgeSupplier",
-          "command": "ekr.observe.ImportObservation",
-          "input": {
-            "document": {
-              "kind": "literal",
-              "value": {
-                "key": {
-                  "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
-                  "source": "manual",
-                  "source_native_id": "health-1"
-                },
-                "observation": {
-                  "captured_at": "2026-10-03T00:00:00Z",
-                  "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
-                  "kind": "FeedItem",
-                  "observation_id": "4ad1617c-d649-82e8-acb7-a20dda7f190f",
-                  "source": "manual",
-                  "source_native_id": "health-1"
-                },
-                "payload": "UHJvamVjdCBoZWFsdGg6IGFtYmVyCg=="
-              }
-            }
-          },
-          "step": "execute_command"
-        },
-        {
-          "outcome": {
-            "command": "ekr.observe.ImportObservation",
-            "outcome": "answered"
-          },
-          "step": "expect_outcome"
-        },
-        {
-          "event": "ekr.observe.ImportObservationResult",
-          "shape": {
-            "receipt.already_retained": {
-              "holds": "primitive",
-              "kind": "boolean"
-            },
-            "receipt.content_hash": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "receipt.observation_id": {
-              "holds": "primitive",
-              "kind": "uuid"
-            },
-            "receipt.outcome": {
-              "holds": "enum",
-              "variants": [
-                "Retained",
-                "AlreadyRetained"
-              ]
-            }
-          },
-          "step": "expect_event"
-        },
-        {
-          "actor": "ekr.observe.KnowledgeSupplier",
-          "command": "ekr.observe.ImportObservation",
-          "input": {
-            "document": {
-              "kind": "literal",
-              "value": {
-                "key": {
-                  "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
-                  "source": "manual",
-                  "source_native_id": "health-1"
-                },
-                "observation": {
-                  "captured_at": "2026-10-03T00:00:00Z",
-                  "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
-                  "kind": "FeedItem",
-                  "observation_id": "4ad1617c-d649-82e8-acb7-a20dda7f190f",
-                  "source": "manual",
-                  "source_native_id": "health-1"
-                },
-                "payload": "UHJvamVjdCBoZWFsdGg6IGFtYmVyCg=="
-              }
-            }
-          },
-          "step": "execute_command"
-        },
-        {
-          "outcome": {
-            "command": "ekr.observe.ImportObservation",
-            "outcome": "answered"
-          },
-          "step": "expect_outcome"
-        },
-        {
-          "event": "ekr.observe.ImportObservationResult",
-          "shape": {
-            "receipt.already_retained": {
-              "holds": "primitive",
-              "kind": "boolean"
-            },
-            "receipt.content_hash": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "receipt.observation_id": {
-              "holds": "primitive",
-              "kind": "uuid"
-            },
-            "receipt.outcome": {
-              "holds": "enum",
-              "variants": [
-                "Retained",
-                "AlreadyRetained"
-              ]
-            }
-          },
-          "step": "expect_event"
-        },
-        {
-          "actor": "ekr.observe.KnowledgeSupplier",
-          "command": "ekr.observe.ListObservations",
-          "step": "execute_command"
-        },
-        {
-          "outcome": {
-            "command": "ekr.observe.ListObservations",
-            "outcome": "listed"
-          },
-          "step": "expect_outcome"
-        },
-        {
-          "event": "ekr.observe.ObservationsListed",
-          "payload": {
-            "observations": [
-              {
-                "captured_at": "2026-10-03T00:00:00Z",
-                "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
-                "kind": "FeedItem",
-                "observation_id": "4ad1617c-d649-82e8-acb7-a20dda7f190f",
-                "source": "manual",
-                "source_native_id": "health-1"
-              }
-            ]
-          },
-          "shape": {
-            "observations": {
-              "holds": "list"
-            }
-          },
-          "step": "expect_event"
-        },
-        {
-          "actor": "ekr.observe.KnowledgeSupplier",
-          "command": "ekr.observe.ShowObservation",
-          "input": {
-            "observation_id": {
-              "kind": "literal",
-              "value": "4ad1617c-d649-82e8-acb7-a20dda7f190f"
-            }
-          },
-          "step": "execute_command"
-        },
-        {
-          "outcome": {
-            "command": "ekr.observe.ShowObservation",
-            "outcome": "shown"
-          },
-          "step": "expect_outcome"
-        },
-        {
-          "event": "ekr.observe.ObservationShown",
-          "payload": {
-            "retained": {
-              "key": {
-                "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
-                "source": "manual",
-                "source_native_id": "health-1"
-              },
-              "observation": {
-                "captured_at": "2026-10-03T00:00:00Z",
-                "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
-                "kind": "FeedItem",
-                "observation_id": "4ad1617c-d649-82e8-acb7-a20dda7f190f",
-                "source": "manual",
-                "source_native_id": "health-1"
-              },
-              "payload": "UHJvamVjdCBoZWFsdGg6IGFtYmVyCg=="
-            }
-          },
-          "shape": {
-            "retained.key.content_hash": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "retained.key.source": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "retained.key.source_native_id": {
-              "holds": "primitive",
-              "kind": "string",
-              "optional": true
-            },
-            "retained.observation.captured_at": {
-              "holds": "primitive",
-              "kind": "timestamp"
-            },
-            "retained.observation.content_hash": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "retained.observation.kind": {
-              "holds": "enum",
-              "variants": [
-                "Document",
-                "ApiResponse",
-                "DatabaseRecord",
-                "FeedItem",
-                "GraphFragment",
-                "MessageBatch",
-                "GitDiff",
-                "Blob"
-              ]
-            },
-            "retained.observation.observation_id": {
-              "holds": "primitive",
-              "kind": "uuid"
-            },
-            "retained.observation.source": {
-              "holds": "primitive",
-              "kind": "string"
-            },
-            "retained.observation.source_native_id": {
-              "holds": "primitive",
-              "kind": "string",
-              "optional": true
-            },
-            "retained.payload": {
-              "holds": "primitive",
-              "kind": "bytes"
-            }
-          },
-          "step": "expect_event"
         }
       ]
     },

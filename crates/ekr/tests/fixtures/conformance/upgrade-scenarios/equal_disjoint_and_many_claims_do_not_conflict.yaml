@@ -1,0 +1,272 @@
+{
+  "type": "ess-scenario/3",
+  "domain": "ekr.kernel",
+  "scenario": "equal-disjoint-and-many-claims-do-not-conflict",
+  "summary": "Apply an independently signed exact upgrade, reopen with full replay for every command and inspect persisted canonical and historical state.",
+  "fixtures": {
+    "upgrade-preview": "ekr.kernel.UpgradePreview",
+    "upgrade-proof": "ekr.kernel.SignedHumanDecision",
+    "target-version": "ekr.kernel.AuthorityVersion"
+  },
+  "timeline": [
+    {
+      "at": "2026-10-03T00:00:00Z",
+      "command": "ekr.kernel.PreviewUpgrade",
+      "actor": "ekr.kernel.KnowledgeReader",
+      "input": {
+        "target": {
+          "$fixture": "target-version"
+        }
+      },
+      "outcome": "answered",
+      "events": [
+        {
+          "event": "ekr.kernel.PreviewUpgradeResult"
+        }
+      ]
+    },
+    {
+      "at": "2026-10-03T00:00:01Z",
+      "command": "ekr.kernel.ApplyUpgrade",
+      "actor": "ekr.kernel.HumanOperator",
+      "input": {
+        "preview": {
+          "$fixture": "upgrade-preview"
+        },
+        "human_proof": {
+          "$fixture": "upgrade-proof"
+        },
+        "statement": "cmV2aWV3ZWQgZml4dHVyZSB1cGdyYWRl"
+      },
+      "outcome": "answered",
+      "events": [
+        {
+          "event": "ekr.kernel.ApplyUpgradeResult"
+        },
+        {
+          "event": "ekr.kernel.AuthorityUpgraded",
+          "payload": {
+            "number": 1
+          }
+        }
+      ]
+    },
+    {
+      "at": "2026-10-03T00:00:02Z",
+      "command": "ekr.kernel.ListAttention",
+      "actor": "ekr.kernel.KnowledgeReader",
+      "input": {},
+      "outcome": "answered",
+      "events": [
+        {
+          "event": "ekr.kernel.ListAttentionResult",
+          "payload": {
+            "items": []
+          }
+        }
+      ]
+    }
+  ],
+  "assert": [
+    {
+      "view": "ekr.graph.Assertions",
+      "contains": {
+        "assertion_id": "00000000-0000-4000-8000-000000000401",
+        "assessment": {
+          "kind": "Accepted",
+          "validators": [
+            "00000000-0000-4000-8000-000000000004"
+          ]
+        },
+        "lifecycle": {
+          "kind": "Active"
+        }
+      }
+    },
+    {
+      "view": "ekr.graph.Assertions",
+      "contains": {
+        "assertion_id": "00000000-0000-4000-8000-000000000402",
+        "assessment": {
+          "kind": "Accepted",
+          "validators": [
+            "00000000-0000-4000-8000-000000000004"
+          ]
+        },
+        "lifecycle": {
+          "kind": "Active"
+        }
+      }
+    },
+    {
+      "view": "ekr.graph.Assertions",
+      "contains": {
+        "assertion_id": "00000000-0000-4000-8000-000000000403",
+        "assessment": {
+          "kind": "Accepted",
+          "validators": [
+            "00000000-0000-4000-8000-000000000004"
+          ]
+        },
+        "lifecycle": {
+          "kind": "Active"
+        }
+      }
+    },
+    {
+      "view": "ekr.graph.Assertions",
+      "contains": {
+        "assertion_id": "00000000-0000-4000-8000-000000000404",
+        "assessment": {
+          "kind": "Accepted",
+          "validators": [
+            "00000000-0000-4000-8000-000000000004"
+          ]
+        },
+        "lifecycle": {
+          "kind": "Active"
+        }
+      }
+    },
+    {
+      "view": "ekr.graph.Assertions",
+      "contains": {
+        "assertion_id": "00000000-0000-4000-8000-000000000405",
+        "assessment": {
+          "kind": "Accepted",
+          "validators": [
+            "00000000-0000-4000-8000-000000000004"
+          ]
+        },
+        "lifecycle": {
+          "kind": "Active"
+        }
+      }
+    },
+    {
+      "view": "ekr.graph.Assertions",
+      "contains": {
+        "assertion_id": "00000000-0000-4000-8000-000000000406",
+        "assessment": {
+          "kind": "Accepted",
+          "validators": [
+            "00000000-0000-4000-8000-000000000004"
+          ]
+        },
+        "lifecycle": {
+          "kind": "Active"
+        }
+      }
+    },
+    {
+      "view": "ekr.graph.Assertions",
+      "contains": {
+        "assertion_id": "00000000-0000-4000-8000-000000000407",
+        "assessment": {
+          "kind": "Accepted",
+          "validators": [
+            "00000000-0000-4000-8000-000000000004"
+          ]
+        },
+        "lifecycle": {
+          "kind": "Active"
+        }
+      }
+    },
+    {
+      "view": "ekr.graph.Assertions",
+      "contains": {
+        "assertion_id": "00000000-0000-4000-8000-000000000408",
+        "assessment": {
+          "kind": "Accepted",
+          "validators": [
+            "00000000-0000-4000-8000-000000000004"
+          ]
+        },
+        "lifecycle": {
+          "kind": "Active"
+        }
+      }
+    },
+    {
+      "view": "ekr.graph.Assertions",
+      "contains": {
+        "assertion_id": "00000000-0000-4000-8000-000000000409",
+        "assessment": {
+          "kind": "Accepted",
+          "validators": [
+            "00000000-0000-4000-8000-000000000004"
+          ]
+        },
+        "lifecycle": {
+          "kind": "Active"
+        }
+      }
+    },
+    {
+      "view": "ekr.graph.Assertions",
+      "contains": {
+        "assertion_id": "00000000-0000-4000-8000-000000000410",
+        "assessment": {
+          "kind": "Accepted",
+          "validators": [
+            "00000000-0000-4000-8000-000000000004"
+          ]
+        },
+        "lifecycle": {
+          "kind": "Active"
+        }
+      }
+    },
+    {
+      "view": "ekr.graph.Assertions",
+      "contains": {
+        "assertion_id": "00000000-0000-4000-8000-000000000411",
+        "assessment": {
+          "kind": "Accepted",
+          "validators": [
+            "00000000-0000-4000-8000-000000000004"
+          ]
+        },
+        "lifecycle": {
+          "kind": "Active"
+        }
+      }
+    },
+    {
+      "view": "ekr.graph.Assertions",
+      "contains": {
+        "assertion_id": "00000000-0000-4000-8000-000000000412",
+        "assessment": {
+          "kind": "Accepted",
+          "validators": [
+            "00000000-0000-4000-8000-000000000004"
+          ]
+        },
+        "lifecycle": {
+          "kind": "Active"
+        }
+      }
+    },
+    {
+      "view": "ekr.graph.Assertions",
+      "counts": {
+        "at_least": 12,
+        "at_most": 12
+      }
+    },
+    {
+      "view": "ekr.graph.SettledAssertions",
+      "counts": {
+        "at_least": 12,
+        "at_most": 12
+      }
+    },
+    {
+      "view": "ekr.kernel.Revisions",
+      "contains": {
+        "number": 1
+      }
+    }
+  ]
+}
