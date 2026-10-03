@@ -1,0 +1,1007 @@
+   Compiling ekr v0.0.27 (<worktree>/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 5.11s
+     Running tests/conformance.rs (<build>/target/debug/deps/conformance-e05118f9d6a767b7)
+
+running 7 tests
+test the_fixture_manifest_names_only_admitted_scenarios ... ok
+test every_ess_pin_site_names_one_release ... ok
+72 admitted scenarios: {
+    "ekr.kernel.AnswerAttention/outcome/answered",
+    "ekr.kernel.AnswerAttention/outcome/refused",
+    "ekr.kernel.ApplyUpgrade/outcome/answered",
+    "ekr.kernel.ApplyUpgrade/outcome/refused",
+    "ekr.kernel.Commit/outcome/committed",
+    "ekr.kernel.Commit/outcome/retained-commit",
+    "ekr.kernel.Commit/outcome/stale",
+    "ekr.kernel.Commit/outcome/transaction-not-found",
+    "ekr.kernel.Commit/outcome/wrong-state",
+    "ekr.kernel.Explain/outcome/explained",
+    "ekr.kernel.Explain/outcome/not-found",
+    "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/committed",
+    "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/stale",
+    "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Propose/proposed",
+    "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/rejected",
+    "ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/validated",
+    "ekr.kernel.GraphTransaction/state/Committed/refuses/ekr.kernel.Validate",
+    "ekr.kernel.GraphTransaction/state/Proposed/refuses/ekr.kernel.Commit",
+    "ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Commit",
+    "ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Validate",
+    "ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Commit",
+    "ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Validate",
+    "ekr.kernel.GraphTransaction/state/Validated/refuses/ekr.kernel.Validate",
+    "ekr.kernel.GraphTransaction/transition/commit/by/ekr.kernel.Commit/committed",
+    "ekr.kernel.GraphTransaction/transition/reject/by/ekr.kernel.Validate/rejected",
+    "ekr.kernel.GraphTransaction/transition/stale/by/ekr.kernel.Commit/stale",
+    "ekr.kernel.GraphTransaction/transition/validate/by/ekr.kernel.Validate/validated",
+    "ekr.kernel.ListAnswers/outcome/answered",
+    "ekr.kernel.ListAttention/outcome/answered",
+    "ekr.kernel.PreviewUpgrade/outcome/answered",
+    "ekr.kernel.PreviewUpgrade/outcome/refused",
+    "ekr.kernel.Propose/outcome/malformed",
+    "ekr.kernel.Propose/outcome/misattributed",
+    "ekr.kernel.Propose/outcome/proposed",
+    "ekr.kernel.Seed/outcome/already-seeded",
+    "ekr.kernel.Seed/outcome/invalid-seed",
+    "ekr.kernel.Seed/outcome/retained-seed",
+    "ekr.kernel.Seed/outcome/seeded",
+    "ekr.kernel.ShowAttention/outcome/answered",
+    "ekr.kernel.ShowAttention/outcome/refused",
+    "ekr.kernel.Snapshot/outcome/not-found",
+    "ekr.kernel.Snapshot/outcome/taken",
+    "ekr.kernel.Validate/outcome/rejected",
+    "ekr.kernel.Validate/outcome/revision-not-found",
+    "ekr.kernel.Validate/outcome/transaction-not-found",
+    "ekr.kernel.Validate/outcome/validated",
+    "ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names",
+    "ekr.kernel/authored/a-node-created-without-an-alias-gains-one-and-commits",
+    "ekr.kernel/authored/a-proposal-is-stored-as-its-canonical-record",
+    "ekr.kernel/authored/a-reused-evidence-id-is-rejected-by-name",
+    "ekr.kernel/authored/a-widening-of-an-edge-type-no-version-declares-is-rejected-by-name",
+    "ekr.kernel/authored/a-widening-that-adds-no-type-is-rejected-by-name",
+    "ekr.kernel/authored/a-widening-to-a-type-no-version-declares-is-rejected-by-name",
+    "ekr.kernel/authored/an-alias-a-node-of-the-type-holds-is-rejected-by-name",
+    "ekr.kernel/authored/an-alias-for-a-node-no-revision-holds-is-rejected-by-name",
+    "ekr.kernel/authored/an-assertion-citing-evidence-no-revision-holds-is-rejected-by-name",
+    "ekr.kernel/authored/an-attachment-of-evidence-no-revision-holds-is-rejected-by-name",
+    "ekr.kernel/authored/an-attachment-to-a-retracted-assertion-is-rejected-by-name",
+    "ekr.kernel/authored/an-attachment-to-a-superseded-assertion-is-rejected-by-name",
+    "ekr.kernel/authored/an-attachment-to-an-assertion-no-revision-holds-is-rejected-by-name",
+    "ekr.kernel/authored/an-edge-type-widened-to-a-new-target-type-takes-edges-to-it",
+    "ekr.kernel/authored/an-edge-type-widening-that-removes-an-end-is-rejected-by-name",
+    "ekr.kernel/authored/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name",
+    "ekr.kernel/authored/each-committed-assertion-is-explained-from-its-own-commit",
+    "ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it",
+    "ekr.kernel/authored/evidence-added-and-attached-to-a-held-assertion-commits",
+    "ekr.kernel/authored/evidence-already-attached-is-rejected-by-name",
+    "ekr.kernel/authored/evidence-an-assertion-already-cites-is-rejected-by-name",
+    "ekr.kernel/authored/one-alias-added-twice-in-a-transaction-is-rejected-by-name",
+    "ekr.kernel/authored/rejections-list-every-planted-issue-by-its-basis-revision",
+    "ekr.kernel/authored/snapshot-at-a-past-revision-reports-that-revision",
+    "ekr.kernel/authored/snapshot-without-a-revision-reports-the-newest",
+}
+test spec_and_conform_checks_refuse_an_ess_that_is_not_the_pinned_release ... ok
+test the_committed_suite_is_the_complete_inventory_the_baseline_counts ... ok
+sqlite provider: selected 72 total 72 passed 62 failed 0 error 0 unsupported 10 skipped 0 execution Failed conformance Failed report <build>/target/ekr-conformance/sqlite/report.json
+  unsupported ekr.kernel.AnswerAttention/outcome/answered
+  unsupported ekr.kernel.AnswerAttention/outcome/refused
+  unsupported ekr.kernel.ApplyUpgrade/outcome/answered
+  unsupported ekr.kernel.ApplyUpgrade/outcome/refused
+  passed ekr.kernel.Commit/outcome/committed
+  passed ekr.kernel.Commit/outcome/retained-commit
+  passed ekr.kernel.Commit/outcome/stale
+  passed ekr.kernel.Commit/outcome/transaction-not-found
+  passed ekr.kernel.Commit/outcome/wrong-state
+  passed ekr.kernel.Explain/outcome/explained
+  passed ekr.kernel.Explain/outcome/not-found
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/committed
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/stale
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Propose/proposed
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/rejected
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/validated
+  passed ekr.kernel.GraphTransaction/state/Committed/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/state/Proposed/refuses/ekr.kernel.Commit
+  passed ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Commit
+  passed ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Commit
+  passed ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/state/Validated/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/transition/commit/by/ekr.kernel.Commit/committed
+  passed ekr.kernel.GraphTransaction/transition/reject/by/ekr.kernel.Validate/rejected
+  passed ekr.kernel.GraphTransaction/transition/stale/by/ekr.kernel.Commit/stale
+  passed ekr.kernel.GraphTransaction/transition/validate/by/ekr.kernel.Validate/validated
+  unsupported ekr.kernel.ListAnswers/outcome/answered
+  unsupported ekr.kernel.ListAttention/outcome/answered
+  unsupported ekr.kernel.PreviewUpgrade/outcome/answered
+  unsupported ekr.kernel.PreviewUpgrade/outcome/refused
+  passed ekr.kernel.Propose/outcome/malformed
+  passed ekr.kernel.Propose/outcome/misattributed
+  passed ekr.kernel.Propose/outcome/proposed
+  passed ekr.kernel.Seed/outcome/already-seeded
+  passed ekr.kernel.Seed/outcome/invalid-seed
+  passed ekr.kernel.Seed/outcome/retained-seed
+  passed ekr.kernel.Seed/outcome/seeded
+  unsupported ekr.kernel.ShowAttention/outcome/answered
+  unsupported ekr.kernel.ShowAttention/outcome/refused
+  passed ekr.kernel.Snapshot/outcome/not-found
+  passed ekr.kernel.Snapshot/outcome/taken
+  passed ekr.kernel.Validate/outcome/rejected
+  passed ekr.kernel.Validate/outcome/revision-not-found
+  passed ekr.kernel.Validate/outcome/transaction-not-found
+  passed ekr.kernel.Validate/outcome/validated
+  passed ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names
+  passed ekr.kernel/authored/a-node-created-without-an-alias-gains-one-and-commits
+  passed ekr.kernel/authored/a-proposal-is-stored-as-its-canonical-record
+  passed ekr.kernel/authored/a-reused-evidence-id-is-rejected-by-name
+  passed ekr.kernel/authored/a-widening-of-an-edge-type-no-version-declares-is-rejected-by-name
+  passed ekr.kernel/authored/a-widening-that-adds-no-type-is-rejected-by-name
+  passed ekr.kernel/authored/a-widening-to-a-type-no-version-declares-is-rejected-by-name
+  passed ekr.kernel/authored/an-alias-a-node-of-the-type-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-alias-for-a-node-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-assertion-citing-evidence-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-of-evidence-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-to-a-retracted-assertion-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-to-a-superseded-assertion-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-to-an-assertion-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-edge-type-widened-to-a-new-target-type-takes-edges-to-it
+  passed ekr.kernel/authored/an-edge-type-widening-that-removes-an-end-is-rejected-by-name
+  passed ekr.kernel/authored/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name
+  passed ekr.kernel/authored/each-committed-assertion-is-explained-from-its-own-commit
+  passed ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it
+  passed ekr.kernel/authored/evidence-added-and-attached-to-a-held-assertion-commits
+  passed ekr.kernel/authored/evidence-already-attached-is-rejected-by-name
+  passed ekr.kernel/authored/evidence-an-assertion-already-cites-is-rejected-by-name
+  passed ekr.kernel/authored/one-alias-added-twice-in-a-transaction-is-rejected-by-name
+  passed ekr.kernel/authored/rejections-list-every-planted-issue-by-its-basis-revision
+  passed ekr.kernel/authored/snapshot-at-a-past-revision-reports-that-revision
+  passed ekr.kernel/authored/snapshot-without-a-revision-reports-the-newest
+
+thread 'the_sqlite_provider_passes_every_admitted_kernel_scenario' (1203963) panicked at crates/ekr/tests/conformance.rs:172:5:
+unavailable scenarios:
+ekr.kernel.AnswerAttention/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.AnswerAttention/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.AnswerAttention`
+
+observed:
+  cannot expose the command `ekr.kernel.AnswerAttention`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.AnswerAttention/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.AnswerAttention/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.kernel.AnswerAttention/refused`
+
+observed:
+  cannot expose establishing `ekr.kernel.AnswerAttention/refused`: the kernel target knows no precondition for that branch
+ekr.kernel.ApplyUpgrade/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ApplyUpgrade/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.ApplyUpgrade`
+
+observed:
+  cannot expose the command `ekr.kernel.ApplyUpgrade`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.ApplyUpgrade/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ApplyUpgrade/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.kernel.ApplyUpgrade/refused`
+
+observed:
+  cannot expose establishing `ekr.kernel.ApplyUpgrade/refused`: the kernel target knows no precondition for that branch
+ekr.kernel.ListAnswers/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ListAnswers/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.ListAnswers`
+
+observed:
+  cannot expose the command `ekr.kernel.ListAnswers`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.ListAttention/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ListAttention/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.ListAttention`
+
+observed:
+  cannot expose the command `ekr.kernel.ListAttention`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.PreviewUpgrade/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.PreviewUpgrade/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.PreviewUpgrade`
+
+observed:
+  cannot expose the command `ekr.kernel.PreviewUpgrade`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.PreviewUpgrade/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.PreviewUpgrade/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.kernel.PreviewUpgrade/refused`
+
+observed:
+  cannot expose establishing `ekr.kernel.PreviewUpgrade/refused`: the kernel target knows no precondition for that branch
+ekr.kernel.ShowAttention/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ShowAttention/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.ShowAttention`
+
+observed:
+  cannot expose the command `ekr.kernel.ShowAttention`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.ShowAttention/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ShowAttention/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.kernel.ShowAttention/refused`
+
+observed:
+  cannot expose establishing `ekr.kernel.ShowAttention/refused`: the kernel target knows no precondition for that branch
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test the_sqlite_provider_passes_every_admitted_kernel_scenario ... FAILED
+file provider: selected 72 total 72 passed 62 failed 0 error 0 unsupported 10 skipped 0 execution Failed conformance Failed report <build>/target/ekr-conformance/file/report.json
+  unsupported ekr.kernel.AnswerAttention/outcome/answered
+  unsupported ekr.kernel.AnswerAttention/outcome/refused
+  unsupported ekr.kernel.ApplyUpgrade/outcome/answered
+  unsupported ekr.kernel.ApplyUpgrade/outcome/refused
+  passed ekr.kernel.Commit/outcome/committed
+  passed ekr.kernel.Commit/outcome/retained-commit
+  passed ekr.kernel.Commit/outcome/stale
+  passed ekr.kernel.Commit/outcome/transaction-not-found
+  passed ekr.kernel.Commit/outcome/wrong-state
+  passed ekr.kernel.Explain/outcome/explained
+  passed ekr.kernel.Explain/outcome/not-found
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/committed
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Commit/stale
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Propose/proposed
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/rejected
+  passed ekr.kernel.GraphTransaction/invariant/after/ekr.kernel.Validate/validated
+  passed ekr.kernel.GraphTransaction/state/Committed/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/state/Proposed/refuses/ekr.kernel.Commit
+  passed ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Commit
+  passed ekr.kernel.GraphTransaction/state/Rejected/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Commit
+  passed ekr.kernel.GraphTransaction/state/Stale/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/state/Validated/refuses/ekr.kernel.Validate
+  passed ekr.kernel.GraphTransaction/transition/commit/by/ekr.kernel.Commit/committed
+  passed ekr.kernel.GraphTransaction/transition/reject/by/ekr.kernel.Validate/rejected
+  passed ekr.kernel.GraphTransaction/transition/stale/by/ekr.kernel.Commit/stale
+  passed ekr.kernel.GraphTransaction/transition/validate/by/ekr.kernel.Validate/validated
+  unsupported ekr.kernel.ListAnswers/outcome/answered
+  unsupported ekr.kernel.ListAttention/outcome/answered
+  unsupported ekr.kernel.PreviewUpgrade/outcome/answered
+  unsupported ekr.kernel.PreviewUpgrade/outcome/refused
+  passed ekr.kernel.Propose/outcome/malformed
+  passed ekr.kernel.Propose/outcome/misattributed
+  passed ekr.kernel.Propose/outcome/proposed
+  passed ekr.kernel.Seed/outcome/already-seeded
+  passed ekr.kernel.Seed/outcome/invalid-seed
+  passed ekr.kernel.Seed/outcome/retained-seed
+  passed ekr.kernel.Seed/outcome/seeded
+  unsupported ekr.kernel.ShowAttention/outcome/answered
+  unsupported ekr.kernel.ShowAttention/outcome/refused
+  passed ekr.kernel.Snapshot/outcome/not-found
+  passed ekr.kernel.Snapshot/outcome/taken
+  passed ekr.kernel.Validate/outcome/rejected
+  passed ekr.kernel.Validate/outcome/revision-not-found
+  passed ekr.kernel.Validate/outcome/transaction-not-found
+  passed ekr.kernel.Validate/outcome/validated
+  passed ekr.kernel/authored/a-committed-transaction-row-carries-every-record-it-names
+  passed ekr.kernel/authored/a-node-created-without-an-alias-gains-one-and-commits
+  passed ekr.kernel/authored/a-proposal-is-stored-as-its-canonical-record
+  passed ekr.kernel/authored/a-reused-evidence-id-is-rejected-by-name
+  passed ekr.kernel/authored/a-widening-of-an-edge-type-no-version-declares-is-rejected-by-name
+  passed ekr.kernel/authored/a-widening-that-adds-no-type-is-rejected-by-name
+  passed ekr.kernel/authored/a-widening-to-a-type-no-version-declares-is-rejected-by-name
+  passed ekr.kernel/authored/an-alias-a-node-of-the-type-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-alias-for-a-node-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-assertion-citing-evidence-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-of-evidence-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-to-a-retracted-assertion-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-to-a-superseded-assertion-is-rejected-by-name
+  passed ekr.kernel/authored/an-attachment-to-an-assertion-no-revision-holds-is-rejected-by-name
+  passed ekr.kernel/authored/an-edge-type-widened-to-a-new-target-type-takes-edges-to-it
+  passed ekr.kernel/authored/an-edge-type-widening-that-removes-an-end-is-rejected-by-name
+  passed ekr.kernel/authored/an-evidence-payload-that-does-not-hash-to-its-entry-is-rejected-by-name
+  passed ekr.kernel/authored/each-committed-assertion-is-explained-from-its-own-commit
+  passed ekr.kernel/authored/evidence-added-after-the-seed-commits-with-the-assertion-citing-it
+  passed ekr.kernel/authored/evidence-added-and-attached-to-a-held-assertion-commits
+  passed ekr.kernel/authored/evidence-already-attached-is-rejected-by-name
+  passed ekr.kernel/authored/evidence-an-assertion-already-cites-is-rejected-by-name
+  passed ekr.kernel/authored/one-alias-added-twice-in-a-transaction-is-rejected-by-name
+  passed ekr.kernel/authored/rejections-list-every-planted-issue-by-its-basis-revision
+  passed ekr.kernel/authored/snapshot-at-a-past-revision-reports-that-revision
+  passed ekr.kernel/authored/snapshot-without-a-revision-reports-the-newest
+
+thread 'the_file_provider_passes_every_admitted_kernel_scenario' (1203961) panicked at crates/ekr/tests/conformance.rs:172:5:
+unavailable scenarios:
+ekr.kernel.AnswerAttention/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.AnswerAttention/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.AnswerAttention`
+
+observed:
+  cannot expose the command `ekr.kernel.AnswerAttention`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.AnswerAttention/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.AnswerAttention/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.kernel.AnswerAttention/refused`
+
+observed:
+  cannot expose establishing `ekr.kernel.AnswerAttention/refused`: the kernel target knows no precondition for that branch
+ekr.kernel.ApplyUpgrade/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ApplyUpgrade/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.ApplyUpgrade`
+
+observed:
+  cannot expose the command `ekr.kernel.ApplyUpgrade`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.ApplyUpgrade/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ApplyUpgrade/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.kernel.ApplyUpgrade/refused`
+
+observed:
+  cannot expose establishing `ekr.kernel.ApplyUpgrade/refused`: the kernel target knows no precondition for that branch
+ekr.kernel.ListAnswers/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ListAnswers/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.ListAnswers`
+
+observed:
+  cannot expose the command `ekr.kernel.ListAnswers`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.ListAttention/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ListAttention/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.ListAttention`
+
+observed:
+  cannot expose the command `ekr.kernel.ListAttention`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.PreviewUpgrade/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.PreviewUpgrade/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.PreviewUpgrade`
+
+observed:
+  cannot expose the command `ekr.kernel.PreviewUpgrade`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.PreviewUpgrade/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.PreviewUpgrade/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.kernel.PreviewUpgrade/refused`
+
+observed:
+  cannot expose establishing `ekr.kernel.PreviewUpgrade/refused`: the kernel target knows no precondition for that branch
+ekr.kernel.ShowAttention/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ShowAttention/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.kernel.ShowAttention`
+
+observed:
+  cannot expose the command `ekr.kernel.ShowAttention`: the kernel target answers only ekr-kernel's commands
+ekr.kernel.ShowAttention/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.kernel.ShowAttention/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.kernel.ShowAttention/refused`
+
+observed:
+  cannot expose establishing `ekr.kernel.ShowAttention/refused`: the kernel target knows no precondition for that branch
+test the_file_provider_passes_every_admitted_kernel_scenario ... FAILED
+test each_injected_kernel_defect_fails_exactly_its_named_scenarios ... ok
+
+failures:
+
+failures:
+    the_file_provider_passes_every_admitted_kernel_scenario
+    the_sqlite_provider_passes_every_admitted_kernel_scenario
+
+test result: FAILED. 5 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.38s
+
+error: test failed, to rerun pass `-p ekr --test conformance`
+     Running tests/conformance_integrate.rs (<build>/target/debug/deps/conformance_integrate-c1bd565829c128c3)
+
+running 5 tests
+test the_provenance_records_the_integrate_synthesis ... ok
+test the_committed_suite_is_the_complete_integrate_inventory ... ok
+Sqlite provider: selected 18 total 18 passed 2 failed 0 error 0 unsupported 16 skipped 0
+
+thread 'the_sqlite_provider_passes_every_admitted_integrate_scenario' (1218261) panicked at crates/ekr/tests/conformance_integrate.rs:283:5:
+unavailable scenarios:
+ekr.integrate.ApplySchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ApplySchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ApplySchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.ApplySchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ApplySchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ApplySchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ApplySchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ApplySchemaProposal/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.ApproveSchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ApproveSchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ApproveSchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.ApproveSchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ApproveSchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ApproveSchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ApproveSchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ApproveSchemaProposal/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.DiscoverSchemaGaps/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.DiscoverSchemaGaps/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.DiscoverSchemaGaps`
+
+observed:
+  cannot expose the command `ekr.integrate.DiscoverSchemaGaps`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ImportInterpretation/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ImportInterpretation/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ImportInterpretation`
+
+observed:
+  cannot expose the command `ekr.integrate.ImportInterpretation`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ImportInterpretation/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ImportInterpretation/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ImportInterpretation/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ImportInterpretation/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.ListInterpretations/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ListInterpretations/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ListInterpretations`
+
+observed:
+  cannot expose the command `ekr.integrate.ListInterpretations`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.RejectSchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.RejectSchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.RejectSchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.RejectSchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.RejectSchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.RejectSchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.RejectSchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.RejectSchemaProposal/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.ShowInterpretation/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ShowInterpretation/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ShowInterpretation`
+
+observed:
+  cannot expose the command `ekr.integrate.ShowInterpretation`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ShowInterpretation/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ShowInterpretation/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ShowInterpretation/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ShowInterpretation/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.ShowSchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ShowSchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ShowSchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.ShowSchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ShowSchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ShowSchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ShowSchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ShowSchemaProposal/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.SubmitSchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.SubmitSchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.SubmitSchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.SubmitSchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.SubmitSchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.SubmitSchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.SubmitSchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.SubmitSchemaProposal/refused`: the integrate target knows no precondition for that branch
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test the_sqlite_provider_passes_every_admitted_integrate_scenario ... FAILED
+File provider: selected 18 total 18 passed 2 failed 0 error 0 unsupported 16 skipped 0
+
+thread 'the_file_provider_passes_every_admitted_integrate_scenario' (1218258) panicked at crates/ekr/tests/conformance_integrate.rs:283:5:
+unavailable scenarios:
+ekr.integrate.ApplySchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ApplySchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ApplySchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.ApplySchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ApplySchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ApplySchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ApplySchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ApplySchemaProposal/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.ApproveSchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ApproveSchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ApproveSchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.ApproveSchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ApproveSchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ApproveSchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ApproveSchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ApproveSchemaProposal/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.DiscoverSchemaGaps/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.DiscoverSchemaGaps/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.DiscoverSchemaGaps`
+
+observed:
+  cannot expose the command `ekr.integrate.DiscoverSchemaGaps`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ImportInterpretation/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ImportInterpretation/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ImportInterpretation`
+
+observed:
+  cannot expose the command `ekr.integrate.ImportInterpretation`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ImportInterpretation/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ImportInterpretation/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ImportInterpretation/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ImportInterpretation/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.ListInterpretations/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ListInterpretations/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ListInterpretations`
+
+observed:
+  cannot expose the command `ekr.integrate.ListInterpretations`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.RejectSchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.RejectSchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.RejectSchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.RejectSchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.RejectSchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.RejectSchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.RejectSchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.RejectSchemaProposal/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.ShowInterpretation/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ShowInterpretation/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ShowInterpretation`
+
+observed:
+  cannot expose the command `ekr.integrate.ShowInterpretation`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ShowInterpretation/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ShowInterpretation/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ShowInterpretation/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ShowInterpretation/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.ShowSchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ShowSchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.ShowSchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.ShowSchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.ShowSchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.ShowSchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.ShowSchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.ShowSchemaProposal/refused`: the integrate target knows no precondition for that branch
+ekr.integrate.SubmitSchemaProposal/outcome/answered [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.SubmitSchemaProposal/outcome/answered
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out invoking `ekr.integrate.SubmitSchemaProposal`
+
+observed:
+  cannot expose the command `ekr.integrate.SubmitSchemaProposal`: the integrate target answers only ekr-integrate's commands
+ekr.integrate.SubmitSchemaProposal/outcome/refused [unsupported]
+    ESS-CF-TARGET
+
+scenario:
+  ekr.integrate.SubmitSchemaProposal/outcome/refused
+
+rule:
+  the target can carry out what a scenario asks of it
+
+expected:
+  the target can carry out forcing the external outcome `ekr.integrate.SubmitSchemaProposal/refused`
+
+observed:
+  cannot expose establishing `ekr.integrate.SubmitSchemaProposal/refused`: the integrate target knows no precondition for that branch
+test the_file_provider_passes_every_admitted_integrate_scenario ... FAILED
+test the_integrate_target_answers_both_branches_of_apply_extraction ... ok
+
+failures:
+
+failures:
+    the_file_provider_passes_every_admitted_integrate_scenario
+    the_sqlite_provider_passes_every_admitted_integrate_scenario
+
+test result: FAILED. 3 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+error: test failed, to rerun pass `-p ekr --test conformance_integrate`
+error: 2 targets failed:
+    `-p ekr --test conformance`
+    `-p ekr --test conformance_integrate`

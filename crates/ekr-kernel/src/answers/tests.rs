@@ -524,6 +524,9 @@ fn publish_and_reopen<S: RevisionLog + ObjectStore + Initialize>(
     assert_eq!(full.version, version);
     assert_eq!(full.head().graph().unwrap(), after.graph.as_ref());
     assert_eq!(full.answers.values().collect::<Vec<_>>(), vec![&record]);
+    if kind == m::ClaimCorrectionKind::CorrectTime {
+        legacy_timestamp_replay(&reopened.authority, &history, &record, &root);
+    }
     // Re-address the changed object and occurrence, so content hashing alone cannot catch the
     // forgery. Full replay must independently reconstruct the signed input and resulting record.
     for pointer in [
@@ -602,6 +605,50 @@ fn publish_and_reopen<S: RevisionLog + ObjectStore + Initialize>(
                 .unwrap(),
             record
         );
+    }
+}
+fn legacy_timestamp_replay(
+    authority: &crate::KernelAuthority,
+    history: &ekr_store::RetainedHistory,
+    record: &ekr_core::contract_data::EkrKernelHumanAnswerRecord,
+    root: &ekr_graph::Root,
+) {
+    // These were accepted String spellings in answer format /1 before ESS 0.52. The signed
+    // correction bytes and ordinary transaction are unchanged: only the retained JSON differs.
+    for (text, accepted) in [
+        ("2000-01-01T00:00:00.000Z", true),
+        ("2000-01-01T00:00:00+00:00", true),
+        ("2000-01-01T01:00:00.000+01:00", true),
+        ("2000-01-01T00:00:00.001Z", false),
+        ("2000-01-01T00:00:00.000001Z", false),
+        ("not-a-time", false),
+    ] {
+        let mut value = serde_json::to_value(record).unwrap();
+        assert_eq!(
+            serde_json::to_vec(&value).unwrap(),
+            super::durable::bytes(record).unwrap()
+        );
+        value["corrections"][0]["valid_from"] = text.into();
+        let data = serde_json::to_vec(&value).unwrap();
+        let address = ContentHash::of_bytes(&data);
+        let mut historical = history.clone();
+        let occurrence = historical.occurrences.last_mut().unwrap();
+        let mut object = historical.objects[&occurrence.event.record_hash].clone();
+        object.bytes = std::sync::Arc::new(data.clone());
+        object.metadata.content_hash = address;
+        object.metadata.byte_len = data.len() as u64;
+        historical.objects.insert(address, object);
+        occurrence.event.record_hash = address;
+        let replayed = authority.reconstruct_in_full(&historical);
+        if accepted {
+            assert_eq!(replayed.unwrap().unwrap().head().root, *root, "{text}");
+            assert_eq!(
+                *historical.objects[&address].bytes, data,
+                "historical bytes changed"
+            );
+        } else {
+            assert!(replayed.is_err(), "admitted changed correction: {text}");
+        }
     }
 }
 #[test]

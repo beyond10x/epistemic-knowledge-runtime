@@ -7,12 +7,11 @@ use crate::read::{ReadError, Reader};
 use crate::transport::{Request, Transport};
 
 /// Builds an import using the original adapter's source-key encoding and UUID derivation.
-/// The payload is retained byte for byte. Capture time uses the generated contract's RFC 3339
-/// string; the runtime checks it before retaining anything.
+/// The payload is retained byte for byte. Capture time uses the generated RFC 3339 timestamp.
 pub fn observation_import(
     source: String,
     source_native_id: Option<String>,
-    captured_at: String,
+    captured_at: crate::contracts::EssTimestamp,
     kind: crate::contracts::EkrGraphObservationKind,
     payload: &[u8],
 ) -> EkrObserveObservationImport {

@@ -58,7 +58,7 @@ fn typed_observation_import_retries_and_reads_through_a_real_session() {
         let input = observation_import(
             "manual".into(),
             Some("health-1".into()),
-            "1970-01-01T00:00:00.017Z".into(),
+            serde_json::from_value(serde_json::json!("1970-01-01T00:00:00.017Z")).unwrap(),
             serde_json::from_str("\"FeedItem\"").unwrap(),
             payload,
         );

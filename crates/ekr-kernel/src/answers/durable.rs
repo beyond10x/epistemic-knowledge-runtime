@@ -24,6 +24,36 @@ pub(super) fn bytes(value: &impl Serialize) -> Result<Vec<u8>, StoreError> {
 pub(super) fn decode<T: DeserializeOwned>(value: &[u8]) -> Result<T, StoreError> {
     serde_json::from_slice(value).map_err(error)
 }
+// Answer format /1 retained the supplied correction-bound spelling. ESS 0.52 parses those
+// fields into instants, so its serializer can shorten fractional seconds or a zero offset.
+// Reconstruct the original /1 encoding only for these two fields. Every other field, JSON
+// ordering and byte remains subject to the original canonical-record comparison. The signed
+// correction codec already commits to millisecond instants, independently of their spelling.
+fn replay_bytes(
+    record: &EkrKernelHumanAnswerRecord,
+    retained: &[u8],
+) -> Result<Vec<u8>, StoreError> {
+    let mut expected = serde_json::to_value(record).map_err(error)?;
+    let original: serde_json::Value = decode(retained)?;
+    for (index, correction) in record.corrections.iter().enumerate() {
+        for (name, bound) in [
+            ("valid_from", &correction.valid_from),
+            ("valid_to", &correction.valid_to),
+        ] {
+            if let EssPresence::Present(bound) = bound {
+                let text = original["corrections"][index][name]
+                    .as_str()
+                    .ok_or_else(|| error("answer-correction-time"))?;
+                replay::require(
+                    crate::incubation_document::wire_timestamp(text)? == *bound,
+                    "answer-correction-time",
+                )?;
+                expected["corrections"][index][name] = text.into();
+            }
+        }
+    }
+    bytes(&expected)
+}
 fn hash(value: ContentHash) -> Box<EkrKernelContentHash> {
     Box::new(EkrKernelContentHash(value.to_string()))
 }
@@ -47,8 +77,15 @@ fn basis(value: &m::ReviewBasis) -> EkrKernelReviewBasis {
         effects_digest: Box::new(EkrKernelContentHash(value.effects_digest.0.clone())),
     }
 }
-fn correction(value: &m::ClaimCorrection) -> EkrKernelClaimCorrection {
-    EkrKernelClaimCorrection {
+fn correction(value: &m::ClaimCorrection) -> Result<EkrKernelClaimCorrection, StoreError> {
+    let bound = |value: &Option<ekr_core::contracts::primitives::Timestamp>| {
+        value
+            .as_ref()
+            .map(|v| crate::incubation_document::wire_timestamp(&v.0))
+            .transpose()
+            .map(presence)
+    };
+    Ok(EkrKernelClaimCorrection {
         kind: Box::new(match value.kind {
             m::ClaimCorrectionKind::Choose => EkrKernelClaimCorrectionKind::V0,
             m::ClaimCorrectionKind::CorrectTime => EkrKernelClaimCorrectionKind::V1,
@@ -57,9 +94,9 @@ fn correction(value: &m::ClaimCorrection) -> EkrKernelClaimCorrection {
         }),
         assertion_id: Box::new(EkrGraphAssertionId(value.assertion_id.0 .0.clone())),
         reason: value.reason.clone(),
-        valid_from: presence(value.valid_from.as_ref().map(|v| v.0.clone())),
-        valid_to: presence(value.valid_to.as_ref().map(|v| v.0.clone())),
-    }
+        valid_from: bound(&value.valid_from)?,
+        valid_to: bound(&value.valid_to)?,
+    })
 }
 pub(super) fn replacements(record: &EkrKernelHumanAnswerRecord) -> Vec<m::ClaimReplacement> {
     record
@@ -90,7 +127,8 @@ pub(super) fn input(
             .corrections
             .iter()
             .map(|v| review::correction_from_document(v))
-            .collect(),
+            .collect::<Result<_, _>>()
+            .map_err(|e: m::KnowledgeRefused| error(e.reason))?,
         statement: history
             .content(
                 parsed(&record.review.statement_object_hash)?,
@@ -199,8 +237,8 @@ pub(super) fn record(
         corrections: input
             .corrections
             .iter()
-            .map(|v| Box::new(correction(v)))
-            .collect(),
+            .map(|v| correction(v).map(Box::new))
+            .collect::<Result<_, _>>()?,
         replacements: replacements
             .iter()
             .map(|v| {
@@ -262,10 +300,13 @@ pub(crate) fn replay_answer(
 ) -> Result<(), StoreError> {
     let retained = history.content(occurrence.event.record_hash, StorageClass::Canonical)?;
     let found: EkrKernelHumanAnswerRecord = decode(retained)?;
-    replay::require(bytes(&found)? == retained, "answer-record-not-canonical")?;
+    replay::require(
+        replay_bytes(&found, retained)? == retained,
+        "answer-record-not-canonical",
+    )?;
     let input = input(history, &found)?;
     let replacements = replacements(&found);
-    let at = crate::incubation_document::timestamp(&found.review.recorded_at)?;
+    let at = crate::incubation_document::timestamp_value(&found.review.recorded_at)?;
     let transaction_id = found.transaction_id.0.parse().map_err(error)?;
     let evidence_id = found.statement_evidence.0.parse().map_err(error)?;
     let revision_id = found.revision_id.0.parse().map_err(error)?;
@@ -295,7 +336,7 @@ pub(crate) fn replay_answer(
         at,
     )?;
     replay::require(
-        bytes(&expected)? == retained
+        replay_bytes(&expected, retained)? == retained
             && occurrence.event.payload == payload(&expected, &root)?
             && !state.revision_ids.contains(&revision_id),
         "answer-record-disagrees",

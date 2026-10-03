@@ -156,8 +156,7 @@ impl<S: RevisionLog + ObjectStore + ObservationRetention + IncubationRetention> 
         let (blockers, receipts) = gaps(&projection, &ontology, &version, basis);
         let created_at =
             time::OffsetDateTime::from_unix_timestamp_nanos(i128::from(at.millis()) * 1_000_000)
-                .map_err(error)?
-                .format(&time::format_description::well_known::Rfc3339)
+                .map(EssTimestamp)
                 .map_err(error)?;
         let record = EkrIntegrateRetainedInterpretation {
             version: Box::new(version),
@@ -242,7 +241,8 @@ impl<S: RevisionLog + ObjectStore + ObservationRetention + IncubationRetention> 
                 if *record.root.space != EkrGraphSpace::V1 {
                     return Err(error("retained root is not transient"));
                 }
-                let created_at = super::incubation_document::timestamp(&record.root.created_at)?;
+                let created_at =
+                    super::incubation_document::timestamp_value(&record.root.created_at)?;
                 let document =
                     self.checked_document(&record.interpretation.document, created_at)?;
                 let root = ekr_graph::GraphRoot {

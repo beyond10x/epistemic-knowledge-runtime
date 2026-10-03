@@ -178,7 +178,7 @@ pub(super) fn render(runtime: &Runtime) -> Result<Vec<u8>, String> {
             ekr_core::contract_data::EkrKernelAnswerOutcome::V3 => "Unresolved",
         };
         write!(page, "<article id=\"answer-{}\"><h3>{outcome}</h3><p>Reviewed by {} · {} · revision {revision}</p><pre>{}</pre><p><a href=\"/evidence/{evidence}\">Human statement evidence</a></p><details><summary>Corrections and effective times</summary><pre>{}</pre></details><details><summary>Signed decision and provenance</summary><pre>{}</pre></details></article>",
-            escaped(&answer.answer_id.0), escaped(&answer.review.operator.authentication_subject), escaped(&answer.review.recorded_at), excerpt(statement), document(&answer.corrections)?, document(&answer)?).unwrap();
+            escaped(&answer.answer_id.0), escaped(&answer.review.operator.authentication_subject), escaped(answer.review.recorded_at.0.format(&time::format_description::well_known::Rfc3339).map_err(|error| error.to_string())?), excerpt(statement), document(&answer.corrections)?, document(&answer)?).unwrap();
     }
     page.push_str("</main></html>");
     Ok(page.into_bytes())

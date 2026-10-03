@@ -20,11 +20,8 @@ fn validate(input: &EkrObserveObservationImport) -> Result<ObservationId, StoreE
         .0
         .parse()
         .map_err(|_| StoreError::Document("observation-identity".into()))?;
-    let _ = time::OffsetDateTime::parse(
-        &input.observation.captured_at,
-        &time::format_description::well_known::Rfc3339,
-    )
-    .map_err(|_| StoreError::Document("observation-captured-at".into()))?;
+    crate::incubation_document::timestamp_text(&input.observation.captured_at)
+        .map_err(|_| StoreError::Document("observation-captured-at".into()))?;
     let source_native_id = match &input.key.source_native_id {
         EssPresence::Absent => None,
         EssPresence::Present(value) => Some(value.clone()),

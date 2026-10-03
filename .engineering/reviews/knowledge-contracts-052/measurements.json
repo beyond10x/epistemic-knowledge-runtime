@@ -1,0 +1,240 @@
+{
+  "format": "ekr.released-contract-checkpoint/1",
+  "base_revision": "1929510ed53cbfc74807a6d13d489f39d0f444e5",
+  "ess": {
+    "version": "0.52.0",
+    "source_revision": "4d6a4ecafc0feb4e11e4bee777b19c7351fa3647",
+    "binary_sha256": "7c0f35fd2c2365c2390113f756eba1275ea25902d04f7ca5a8f8f6ab30395be7",
+    "release": {
+      "tag": "0.52.0",
+      "archive": "ess-0.52.0-x86_64-unknown-linux-gnu.tar.gz",
+      "archive_sha256": "54ae56c63135afc9d8da12e36ef3dcc3d6c4ec8fdc6c2c30fb34bd2d8dc8a5ce"
+    }
+  },
+  "specification": {
+    "system": "ekr",
+    "specification_version": "v1",
+    "source_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146",
+    "contract_digest": "b3aecc34f60f0ce8f8908536c64e38d6497f7a61baffe2b2c753efbc70236b8c"
+  },
+  "generation": {
+    "total": 702,
+    "dispositions": {
+      "generated": 652,
+      "obligation": 39,
+      "refused": 11
+    }
+  },
+  "reports": {
+    "answer-file-no-op.report.json": {
+      "counts": {
+        "error": 0,
+        "failed": 2,
+        "passed": 0,
+        "skipped": 0,
+        "total": 2,
+        "unsupported": 0
+      },
+      "execution": "failed",
+      "conformance": "failed",
+      "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146"
+    },
+    "answer-file-persisted.report.json": {
+      "counts": {
+        "error": 0,
+        "failed": 0,
+        "passed": 2,
+        "skipped": 0,
+        "total": 2,
+        "unsupported": 0
+      },
+      "execution": "passed",
+      "conformance": "passed",
+      "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146"
+    },
+    "answer-sqlite-no-op.report.json": {
+      "counts": {
+        "error": 0,
+        "failed": 2,
+        "passed": 0,
+        "skipped": 0,
+        "total": 2,
+        "unsupported": 0
+      },
+      "execution": "failed",
+      "conformance": "failed",
+      "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146"
+    },
+    "answer-sqlite-persisted.report.json": {
+      "counts": {
+        "error": 0,
+        "failed": 0,
+        "passed": 2,
+        "skipped": 0,
+        "total": 2,
+        "unsupported": 0
+      },
+      "execution": "passed",
+      "conformance": "passed",
+      "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146"
+    },
+    "file-discard.report.json": {
+      "counts": {
+        "error": 0,
+        "failed": 3,
+        "passed": 0,
+        "skipped": 0,
+        "total": 3,
+        "unsupported": 0
+      },
+      "execution": "failed",
+      "conformance": "failed",
+      "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146"
+    },
+    "file-retained.report.json": {
+      "counts": {
+        "error": 0,
+        "failed": 0,
+        "passed": 3,
+        "skipped": 0,
+        "total": 3,
+        "unsupported": 0
+      },
+      "execution": "passed",
+      "conformance": "passed",
+      "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146"
+    },
+    "kernel-file-report.json": {
+      "counts": {
+        "error": 0,
+        "failed": 0,
+        "passed": 62,
+        "skipped": 0,
+        "total": 72,
+        "unsupported": 10
+      },
+      "execution": "failed",
+      "conformance": "failed",
+      "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146"
+    },
+    "kernel-sqlite-report.json": {
+      "counts": {
+        "error": 0,
+        "failed": 0,
+        "passed": 62,
+        "skipped": 0,
+        "total": 72,
+        "unsupported": 10
+      },
+      "execution": "failed",
+      "conformance": "failed",
+      "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146"
+    },
+    "sqlite-discard.report.json": {
+      "counts": {
+        "error": 0,
+        "failed": 3,
+        "passed": 0,
+        "skipped": 0,
+        "total": 3,
+        "unsupported": 0
+      },
+      "execution": "failed",
+      "conformance": "failed",
+      "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146"
+    },
+    "sqlite-retained.report.json": {
+      "counts": {
+        "error": 0,
+        "failed": 0,
+        "passed": 3,
+        "skipped": 0,
+        "total": 3,
+        "unsupported": 0
+      },
+      "execution": "passed",
+      "conformance": "passed",
+      "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146"
+    },
+    "upgrade-file-no-op.report.json": {
+      "counts": {
+        "error": 0,
+        "failed": 3,
+        "passed": 0,
+        "skipped": 0,
+        "total": 3,
+        "unsupported": 0
+      },
+      "execution": "failed",
+      "conformance": "failed",
+      "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146"
+    },
+    "upgrade-file-persisted.report.json": {
+      "counts": {
+        "error": 0,
+        "failed": 0,
+        "passed": 3,
+        "skipped": 0,
+        "total": 3,
+        "unsupported": 0
+      },
+      "execution": "passed",
+      "conformance": "passed",
+      "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146"
+    },
+    "upgrade-sqlite-no-op.report.json": {
+      "counts": {
+        "error": 0,
+        "failed": 3,
+        "passed": 0,
+        "skipped": 0,
+        "total": 3,
+        "unsupported": 0
+      },
+      "execution": "failed",
+      "conformance": "failed",
+      "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146"
+    },
+    "upgrade-sqlite-persisted.report.json": {
+      "counts": {
+        "error": 0,
+        "failed": 0,
+        "passed": 3,
+        "skipped": 0,
+        "total": 3,
+        "unsupported": 0
+      },
+      "execution": "passed",
+      "conformance": "passed",
+      "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146"
+    },
+    "views-file-report.json": {
+      "counts": {
+        "error": 0,
+        "failed": 0,
+        "passed": 78,
+        "skipped": 0,
+        "total": 78,
+        "unsupported": 0
+      },
+      "execution": "passed",
+      "conformance": "passed",
+      "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146"
+    },
+    "views-sqlite-report.json": {
+      "counts": {
+        "error": 0,
+        "failed": 0,
+        "passed": 78,
+        "skipped": 0,
+        "total": 78,
+        "unsupported": 0
+      },
+      "execution": "passed",
+      "conformance": "passed",
+      "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146"
+    }
+  },
+  "complete_task_check": false,
+  "independent_review": false
+}

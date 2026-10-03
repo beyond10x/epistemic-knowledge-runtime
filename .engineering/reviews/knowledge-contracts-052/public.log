@@ -1,0 +1,26 @@
+   Compiling ekr v0.0.27 (<worktree>/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 1.69s
+     Running tests/adversary_p1_15_ess_pin.rs (<build>/target/debug/deps/adversary_p1_15_ess_pin-c1bbb2c5136c80b5)
+
+running 2 tests
+test task_spec_check_admits_the_pinned_release ... ok
+test task_refuses_an_ess_that_is_not_the_pinned_release ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s
+
+     Running tests/adversary_p1_15_ess_pin_r2.rs (<build>/target/debug/deps/adversary_p1_15_ess_pin_r2-a3001473b497ae6b)
+
+running 2 tests
+test no_caller_runs_task_with_force ... ok
+test task_force_skips_the_ess_guard_which_is_accepted_only_while_no_caller_forces ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/knowledge_cli.rs (<build>/target/debug/deps/knowledge_cli-6538a297b4d84a19)
+
+running 2 tests
+test observe_is_a_nested_command_and_schema_keeps_its_existing_surface ... ok
+test typed_observation_import_retries_and_reads_through_a_real_session ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+

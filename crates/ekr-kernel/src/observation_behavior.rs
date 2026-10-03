@@ -63,10 +63,10 @@ fn presence<T>(value: Option<T>) -> wire::EssPresence<T> {
     value.map_or(wire::EssPresence::Absent, wire::EssPresence::Present)
 }
 
-fn record(value: &wire::EkrGraphObservationRecord) -> graph::ObservationRecord {
+fn record(value: &wire::EkrGraphObservationRecord) -> Result<graph::ObservationRecord, StoreError> {
     use graph::ObservationKind as K;
     use wire::EkrGraphObservationKind as W;
-    graph::ObservationRecord {
+    Ok(graph::ObservationRecord {
         observation_id: graph::ObservationId(primitives::Uuid(value.observation_id.0.clone())),
         source: value.source.clone(),
         source_native_id: optional(&value.source_native_id),
@@ -81,13 +81,17 @@ fn record(value: &wire::EkrGraphObservationRecord) -> graph::ObservationRecord {
             W::V7 => K::MessageBatch,
         },
         content_hash: kernel::ContentHash(value.content_hash.0.clone()),
-        captured_at: primitives::Timestamp(value.captured_at.clone()),
-    }
+        captured_at: primitives::Timestamp(crate::incubation_document::timestamp_text(
+            &value.captured_at,
+        )?),
+    })
 }
-fn wire_record(value: graph::ObservationRecord) -> wire::EkrGraphObservationRecord {
+fn wire_record(
+    value: graph::ObservationRecord,
+) -> Result<wire::EkrGraphObservationRecord, StoreError> {
     use graph::ObservationKind as K;
     use wire::EkrGraphObservationKind as W;
-    wire::EkrGraphObservationRecord {
+    Ok(wire::EkrGraphObservationRecord {
         observation_id: Box::new(wire::EkrGraphObservationId(value.observation_id.0 .0)),
         source: value.source,
         source_native_id: presence(value.source_native_id),
@@ -102,8 +106,8 @@ fn wire_record(value: graph::ObservationRecord) -> wire::EkrGraphObservationReco
             K::MessageBatch => W::V7,
         }),
         content_hash: Box::new(wire::EkrKernelContentHash(value.content_hash.0)),
-        captured_at: value.captured_at.0,
-    }
+        captured_at: crate::incubation_document::wire_timestamp(&value.captured_at.0)?,
+    })
 }
 fn key(value: &wire::EkrObserveObservationIdempotencyKey) -> observe::ObservationIdempotencyKey {
     observe::ObservationIdempotencyKey {
@@ -132,8 +136,16 @@ impl<S: RevisionLog + ObjectStore + ObservationRetention> ImportObservationBehav
         &mut self,
         input: observe::ImportObservation,
     ) -> Result<observe::ImportObservationOutcome, UnmetObligation> {
+        let observation = match wire_record(input.document.observation) {
+            Ok(record) => record,
+            Err(error) => {
+                return Ok(observe::ImportObservationOutcome::Refused {
+                    error: self.refusal(error),
+                })
+            }
+        };
         let input = wire::EkrObserveObservationImport {
-            observation: Box::new(wire_record(input.document.observation)),
+            observation: Box::new(observation),
             key: Box::new(wire_key(input.document.key)),
             payload: ekr_core::bytes::encode(&input.document.payload),
         };
@@ -170,10 +182,14 @@ impl<S: RevisionLog + ObjectStore + ObservationRetention> ListObservationsBehavi
         &mut self,
         _: observe::ListObservations,
     ) -> Result<observe::ListObservationsOutcome, UnmetObligation> {
-        match self.commit.retained_observation_records() {
+        match self
+            .commit
+            .retained_observation_records()
+            .and_then(|records| records.iter().map(record).collect::<Result<Vec<_>, _>>())
+        {
             Ok(records) => Ok(observe::ListObservationsOutcome::Listed {
                 observations_listed: observe::ObservationsListed {
-                    observations: records.iter().map(record).collect(),
+                    observations: records,
                 },
             }),
             Err(error) => Err(self.failed(error, "ekr.observe.ListObservations")),
@@ -196,7 +212,7 @@ impl<S: RevisionLog + ObjectStore + ObservationRetention> ShowObservationBehavio
             .and_then(|id| self.commit.retained_observation(id))
             .and_then(|held| {
                 Ok(observe::RetainedObservationRead {
-                    observation: record(&held.observation),
+                    observation: record(&held.observation)?,
                     key: key(&held.key),
                     payload: decode_payload(&held.payload)?,
                 })
@@ -221,7 +237,7 @@ pub(super) fn import<S: RevisionLog + ObjectStore + ObservationRetention>(
     let mut behavior = Behavior::new(commit, at);
     let result = behavior.import_observation(observe::ImportObservation {
         document: observe::ObservationImport {
-            observation: record(&input.observation),
+            observation: record(&input.observation)?,
             key: key(&input.key),
             payload: decode_payload(&input.payload)?,
         },
@@ -258,11 +274,11 @@ pub(super) fn list<S: RevisionLog + ObjectStore + ObservationRetention>(
     let observe::ListObservationsOutcome::Listed {
         observations_listed,
     } = behavior.finish(result)?;
-    Ok(observations_listed
+    observations_listed
         .observations
         .into_iter()
         .map(wire_record)
-        .collect())
+        .collect()
 }
 pub(super) fn show<S: RevisionLog + ObjectStore + ObservationRetention>(
     commit: &Commit<S>,
@@ -276,7 +292,7 @@ pub(super) fn show<S: RevisionLog + ObjectStore + ObservationRetention>(
         observe::ShowObservationOutcome::Shown { observation_shown } => {
             let retained = observation_shown.retained;
             Ok(wire::EkrObserveRetainedObservationRead {
-                observation: Box::new(wire_record(retained.observation)),
+                observation: Box::new(wire_record(retained.observation)?),
                 key: Box::new(wire_key(retained.key)),
                 payload: ekr_core::bytes::encode(&retained.payload),
             })

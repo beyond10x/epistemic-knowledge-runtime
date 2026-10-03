@@ -597,7 +597,7 @@ use ekr_sdk::knowledge::{observation_import, Knowledge};
 let input = observation_import(
     "manual".into(),
     Some("health-entry-1".into()),
-    "2026-10-03T00:00:00Z".into(),
+    serde_json::from_value(serde_json::json!("2026-10-03T00:00:00Z"))?,
     serde_json::from_str("\"FeedItem\"")?,
     b"Project health: on track\n",
 );
@@ -608,7 +608,7 @@ assert_eq!(receipt.observation_id, repeated.observation_id);
 ```
 
 The builder reuses the observation source key and hashes the exact payload bytes. Capture time
-is an RFC 3339 string. Repeat the same input for an idempotent retry; changing metadata under an
+is a generated timestamp serialized as RFC 3339. Repeat the same input for an idempotent retry; changing metadata under an
 existing key is refused. `observations()` lists retained metadata and `observation(id)` returns
 the record and its exact payload encoded as base64.
 

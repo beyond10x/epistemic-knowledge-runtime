@@ -1025,7 +1025,12 @@ impl ConformanceTarget for ViewsTarget {
         let scenario = guard
             .as_mut()
             .ok_or_else(|| unavailable("executing a command", "no scenario is open"))?;
-        let control = scenario.control.take();
+        // Named stores describe complete authored fixtures, including their absent nodes and
+        // revisions. ESS 0.52 emits external controls in those timelines too; applying a
+        // generated branch's replacement fixture would erase the authored state. Establish
+        // generated preconditions only for the generic "store" placeholder. Named stores run
+        // unchanged through the real handler, whose result the runner checks.
+        let control = scenario.control.take().filter(|_| store == "store");
         if control.is_some() && scenario.stores.contains_key(&store) {
             return Err(unavailable(
                 "establishing an external outcome",

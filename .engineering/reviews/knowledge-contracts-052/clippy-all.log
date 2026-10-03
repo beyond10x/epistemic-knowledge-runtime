@@ -1,0 +1,11 @@
+    Checking ekr v0.0.27 (<worktree>/crates/ekr)
+    Checking ekr-graph v0.0.27 (<worktree>/crates/ekr-graph)
+    Checking ekr-kernel v0.0.27 (<worktree>/crates/ekr-kernel)
+    Checking ekr-sdk v0.0.27 (<worktree>/crates/ekr-sdk)
+    Checking ekr-ontology v0.0.27 (<worktree>/crates/ekr-ontology)
+    Checking ekr-core v0.0.27 (<worktree>/crates/ekr-core)
+    Checking ekr-integrate v0.0.27 (<worktree>/crates/ekr-integrate)
+    Checking xtask v0.0.27 (<worktree>/xtask)
+    Checking ekr-store v0.0.27 (<worktree>/crates/ekr-store)
+    Checking ekr-observe v0.0.27 (<worktree>/crates/ekr-observe)
+    Finished `dev` profile [unoptimized] target(s) in 1m 08s

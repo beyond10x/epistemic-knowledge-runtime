@@ -1,0 +1,71 @@
+{
+  "release": {
+    "url": "https://github.com/beyond10x/ess/releases/tag/0.52.0",
+    "tag": "0.52.0",
+    "is_draft": false,
+    "is_prerelease": false,
+    "published_at": "2026-10-03T10:29:28Z",
+    "source_revision": "4d6a4ecafc0feb4e11e4bee777b19c7351fa3647",
+    "tag_object": "1505db0575102d482db70c17093685e07d937562"
+  },
+  "assets": [
+    {
+      "name": "ess-0.52.0-aarch64-apple-darwin.tar.gz",
+      "digest": "sha256:bd05c9ad03b64097150af0dca7fb1c81ca80c99b870ab1bbf51a29d72f46f468",
+      "size": 21955899,
+      "url": "https://github.com/beyond10x/ess/releases/download/0.52.0/ess-0.52.0-aarch64-apple-darwin.tar.gz",
+      "state": "uploaded"
+    },
+    {
+      "name": "ess-0.52.0-aarch64-unknown-linux-gnu.tar.gz",
+      "digest": "sha256:b8e2e14319ffdf40aa7932f5980b1701e662fb37f34f6d45980d539918ed87b1",
+      "size": 23819149,
+      "url": "https://github.com/beyond10x/ess/releases/download/0.52.0/ess-0.52.0-aarch64-unknown-linux-gnu.tar.gz",
+      "state": "uploaded"
+    },
+    {
+      "name": "ess-0.52.0-x86_64-apple-darwin.tar.gz",
+      "digest": "sha256:1fa1d8fec5571b7352852c34c575e9f78f1d9684d8395f71df5df5aab4deaa70",
+      "size": 23645359,
+      "url": "https://github.com/beyond10x/ess/releases/download/0.52.0/ess-0.52.0-x86_64-apple-darwin.tar.gz",
+      "state": "uploaded"
+    },
+    {
+      "name": "ess-0.52.0-x86_64-unknown-linux-gnu.tar.gz",
+      "digest": "sha256:54ae56c63135afc9d8da12e36ef3dcc3d6c4ec8fdc6c2c30fb34bd2d8dc8a5ce",
+      "size": 24637484,
+      "url": "https://github.com/beyond10x/ess/releases/download/0.52.0/ess-0.52.0-x86_64-unknown-linux-gnu.tar.gz",
+      "state": "uploaded"
+    },
+    {
+      "name": "SHA256SUMS",
+      "digest": "sha256:12cb957df4f1469a4f0177b8b4aac744b6a88b12c46279b441e420126f5276e2",
+      "size": 428,
+      "url": "https://github.com/beyond10x/ess/releases/download/0.52.0/SHA256SUMS",
+      "state": "uploaded"
+    }
+  ],
+  "runs": [
+    {
+      "conclusion": "success",
+      "databaseId": 37116586535,
+      "headSha": "4d6a4ecafc0feb4e11e4bee777b19c7351fa3647",
+      "status": "completed",
+      "workflowName": "Release record"
+    },
+    {
+      "conclusion": "success",
+      "databaseId": 37116372757,
+      "headSha": "4d6a4ecafc0feb4e11e4bee777b19c7351fa3647",
+      "status": "completed",
+      "workflowName": "Shared source gates"
+    },
+    {
+      "conclusion": "success",
+      "databaseId": 37116372637,
+      "headSha": "4d6a4ecafc0feb4e11e4bee777b19c7351fa3647",
+      "status": "completed",
+      "workflowName": "Release preparation"
+    }
+  ]
+}

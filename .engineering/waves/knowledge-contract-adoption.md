@@ -1,6 +1,6 @@
 # Knowledge contract adoption
 
-The operator's 2026-10-03 execution request authorizes implementation of this scoped prerequisite. AEP implementing skill 0.19.1. Unit story:adopt-generated-knowledge-contracts serves vision:o2. Stage: implementation under verification; final release pin pending. No feature implementation story is complete.
+The operator's 2026-10-03 execution request authorizes implementation of this scoped prerequisite. AEP implementing skill 0.19.1. Unit story:adopt-generated-knowledge-contracts serves vision:o2. Stage: ESS 0.52.0 pinned and regenerated; full conformance bindings and complete gate remain open. No feature implementation story is complete.
 
 The active-story waves command selected story:adopt-generated-knowledge-contracts with no collisions, unassessed stories or cycles. Its current typed scope corrects the inferred CI path to .github/workflows/correctness.yml and includes README.md and the CLI story-contract/conformance guards. The story is the authoritative path inventory. The single unit serializes all shared product/gate edits; upstream ESS work occurs independently in its own repository. Coordinator owns every AEP write.
 
@@ -13,3 +13,15 @@ Development generation uses upstream candidate 126c2b3905d0f4279086b9d3030096147
 Implementation scope: generated semantic workspace plus generated serde data library, legitimate generated-ID/dependency guards, existing wire-alias readers, Rust/clap regeneration drift check and tool/conformance pins. Red-first tests must catch modified/missing/extra generated files, not merely compare the helper with itself. No hand-copied domain models, false HTTP components, softened conformance execution baseline, or ignored report obligations.
 
 Commits will record generated contracts, adapters/guards, drift gate and actual verification evidence. Root integrates and publishes bot commits after review; no worktree is retired without published recovery proof.
+
+## Released generator adoption checkpoint (2026-10-03)
+
+The coordinator resumed this owned tree at integration 1929510ed53cbfc74807a6d13d489f39d0f444e5 after preserving and reconciling duplicate synchronized edits. Builds use the owned tmpfs target, one compiler job, no debug information or incremental compilation.
+
+Verified ESS 0.52.0 at 4d6a4ecafc0feb4e11e4bee777b19c7351fa3647, the released Linux archive and executable digests, and exact release workflows. Both generated trees pass exact regeneration and synthesis compilation without the development-candidate flag. The Cargo libraries, lock, CI archive, local guards, README and conformance provenance now name that release. The old ESS publication hold above is historical; this task made no ESS release changes.
+
+Typed timestamp adapters preserve millisecond validation and old answer-record correction spellings during full replay; the regression fails when the compatibility comparison is removed. Public observation construction now takes the generated timestamp type. Existing authored scenarios also require controls that retain their explicitly prepared fixtures; the corrected target observes real handler results.
+
+The current complete inventories require 72 kernel, 78 views and 18 integrate scenarios per provider, with zero unavailable allowed. All original kernel and extraction scenarios pass; ten new kernel and sixteen new integrate command branches remain unsupported in those component targets. All 78 views scenarios pass on both providers. No floor was lowered or new scenario removed to hide these gaps. Named A/B/C real and inert-target conformance remains green. See .engineering/reviews/knowledge-contracts-052 for actual reports, release metadata and test logs.
+
+This is a local implementation checkpoint, not independent review, completed adoption, feature acceptance or the full task check. Finish the new component bindings, D–F, both demonstrations, independent review and complete gates before undrafting PR64.

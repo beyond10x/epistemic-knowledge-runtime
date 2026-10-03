@@ -51,7 +51,7 @@ impl VerifiedRead {
             convert::<Root>(&answer.result) == Some(coordinate.root)
                 && answer.revision_id.0 == coordinate.revision_id.to_string()
                 && answer.event_id.0 == coordinate.event_id.to_string()
-                && crate::incubation_document::timestamp(&answer.review.recorded_at).ok()
+                && crate::incubation_document::timestamp_value(&answer.review.recorded_at).ok()
                     == Some(coordinate.committed_at),
             "answer-coordinate-disagrees",
         )?;
