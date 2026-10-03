@@ -2,7 +2,7 @@
 format: aep.planning-md/3
 id: story:resolve-knowledge-question
 kind: story
-status: draft
+status: active
 title: C. Resolve a knowledge question
 relations:
 - decomposes: epic:p4-operator-surface
@@ -20,7 +20,10 @@ scope:
   path: crates/ekr-store
 - confidence: inferred
   path: crates/ekr-views
-revision: 7
+revision: 10
+transitions:
+- {from: "draft", to: "proposed", at: "2026-10-03T10:06:10Z", actor: "agent:codex-ekr-knowledge", revision: 9, decided_on: {"recorded":{"approval":1}}}
+- {from: "proposed", to: "active", at: "2026-10-03T10:06:10Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
 ---
 ## Outcome
 
@@ -42,3 +45,12 @@ Contract source commit 07604bf1a5e6c19ef86b78846dc99a603f3d2bfb, spec_digest 29e
 
 The operator supplied and explicitly requested execution of the knowledge inbox/schema learning plan on 2026-10-03. This story scopes that accepted intent; its draft status does not imply implementation exists. Shared kernel, CLI, specification and gate edits are serialized.
 
+## Serialized development after the inbox checkpoint
+
+The accepted operator instruction covers the complete knowledge inbox and schema-learning plan. Continue C serially from the published B runtime checkpoint; B's final acceptance remains open for the public provisioning demonstration, released generator and final gate. Preserve that dependency and do not label it complete merely to start development. The same remaining release requirements apply to C.
+
+Start by deriving ordinary graph corrections from the existing generated ClaimCorrection contract and the actual dispute question. Choosing a supported claim retracts its directly competing claims, retaining equal/disjoint claims; choosing mutually conflicting claims or both choosing and retracting one claim is refused. Explicit retraction affects only its named active disputed claim. A time correction supersedes the old assertion with a freshly minted assertion, keeping its original support and adding the human statement. Unresolved leaves claims unchanged. Every effect is deterministic and must later be bound to the exact signed review and revalidated at publication. This first pure derivation slice grants no approval, writes no store and does not establish the final command's acceptance.
+
+Verified source surfaces: crates/ekr-kernel/src/attention.rs supplies immutable question basis and competing claims; human_review.rs verifies independent reviewer signatures; transaction.rs already declares evidence addition, retraction and supersession; apply.rs preserves lifecycle/history and recomputes disputes. Reuse these rather than invent another mutation path. Subsequent work must add generated transport and immutable answer records through ESS before their runtime code, publish only after kernel validation, implement durable retry/replay and changed-basis refusal, and expose CLI/SDK/history with real conformance on both providers.
+
+Keep one managed C unit and one active build lane. No new agent dispatch or independent-review claim; all source eventually joins the existing PR. Raw evidence remains outside disposable outputs; no persistent compiler cache is started under the resource limit.
