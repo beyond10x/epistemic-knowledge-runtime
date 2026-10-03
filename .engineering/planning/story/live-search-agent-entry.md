@@ -37,7 +37,11 @@ scope:
 - confidence: cited
   path: crates/ekr/src/cli/view.rs
 - confidence: cited
+  path: crates/ekr/src/cli/viewer/index.html
+- confidence: cited
   path: crates/ekr/tests/adversary_agent_guidance.rs
+- confidence: cited
+  path: crates/ekr/tests/adversary_viewer_compact.rs
 - confidence: cited
   path: crates/ekr/tests/agent_cli.rs
 - confidence: inferred
@@ -54,7 +58,7 @@ scope:
   path: docs/cli.md
 - confidence: inferred
   path: xtask/src
-revision: 18
+revision: 19
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T09:01:36Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T09:01:37Z", actor: "agent:codex", revision: 5}
