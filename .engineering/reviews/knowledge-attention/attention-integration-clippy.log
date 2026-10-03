@@ -1,0 +1,9 @@
+    Checking ekr-graph v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-inbox-20261003/crates/ekr-graph)
+    Checking ekr-sdk v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-inbox-20261003/crates/ekr-sdk)
+    Checking ekr-store v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-inbox-20261003/crates/ekr-store)
+    Checking ekr-integrate v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-inbox-20261003/crates/ekr-integrate)
+    Checking ekr-kernel v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-inbox-20261003/crates/ekr-kernel)
+    Checking ekr-observe v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-inbox-20261003/crates/ekr-observe)
+    Checking ekr-views v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-inbox-20261003/crates/ekr-views)
+    Checking ekr v0.0.27 (<home>/.local/state/worktree/trees/b10x/epistemic-knowledge-runtime/ekr-knowledge-inbox-20261003/crates/ekr)
+    Finished `dev` profile [unoptimized] target(s) in 36.35s

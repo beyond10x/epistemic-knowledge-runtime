@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T08:50:57Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:show-disputed-knowledge",
+  "kind": "story",
+  "revision": 17,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Combined integration member formatting, workspace all-targets Clippy and selected public-surface tests at cf61c330addc409ff32106c18ba00fd1a9e71213; completed target logs retained; full gate remains outstanding",
+    "reference": ".engineering/reviews/knowledge-attention/integration-verification.txt"
+  }
+}

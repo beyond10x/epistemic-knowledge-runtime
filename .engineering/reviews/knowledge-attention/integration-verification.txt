@@ -1,0 +1,12 @@
+checked_commit=cf61c330addc409ff32106c18ba00fd1a9e71213
+selected_tests={"passed":75,"failed":0,"ignored":0}
+test_groups=5
+workspace_all_targets_clippy=passed
+member_format_check=passed
+full_task_check=not_run
+
+The retained test log contains successful terminal summaries for every selected target. The original process handle was unavailable after context recovery; no exit code is invented. These checks ran on the combined integration tree with unchanged product source. No independent review or final conformance is claimed.
+
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  attention-integration-format.log
+c9e9f625223afa597636a79a88f4d563a2444f3ffd2137817312017e266e1581  attention-integration-clippy.log
+05cd8f36124b41cc08451f8ea6db9b627f12b4ff74f47204a1784418c7bfd60e  attention-integration-tests.log
