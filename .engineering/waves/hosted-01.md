@@ -104,3 +104,32 @@ base `3fef957a5b`; target `/dev/shm/ekr-search-entry-target`; scratch
 after freezing the PostgreSQL candidate, with only one of its builds active at once. Route
 wiring and a complete gate wait for HTTP integration. Preflight: 20 GiB filesystem free and
 18 GiB shared-memory free; all targets remain checkout-specific.
+
+## Combined gate findings and remaining acceptance
+
+The search unit is integrated at f878be7af. Its independent review is
+`review-result:search-entry-final-1`. Full gate attempts retained under
+`<cache>/ekr-hosted-runtime/release-gate` found a read-only cleanup test assuming eager
+admission, a queue regression against the unchanged 64-stream viewer case, and the SDK
+returning a URL for an absent store after lazy admission. The first two corrections passed
+their focused tests and reviews. SDK startup compatibility is still being corrected; the
+original missing-store case remains the regression contract.
+
+Checking the remaining packages exposed two public-entry-point guards that had not placed
+the new PostgreSQL constructors. The commit-authority guard classifies these as functions
+that publish no occurrence. The runtime-context guard now calls both constructors, including
+read and write opens, with absent configuration references in entered and running Tokio
+contexts, proving refusal before configuration or provider access. Reviews are
+`review-result:hosted-store-guard-final-1` and `review-result:hosted-context-guard-final-1`;
+both disclose the reviewer's earlier provider implementation authorship.
+
+The corrected remaining-package run at cc1c43db6 reports 359 passed, 0 failed and 3 ignored across 84 completed runners.
+Workspace doc tests, benchmark compilation, rustdoc, vendor checks, specification validation,
+conformance freshness, planning validation and site validation also exited zero. These are
+partial integration results; a full combined run after the SDK correction and required checks
+on the published head remain mandatory before release.
+
+The current combined build target is `<cache>/ekr-hosted-runtime/postgres-target`, on disk
+after shared-memory quota failures. Earlier HTTP/search targets were reclaimed only after
+their owners confirmed all builds and reviews had stopped. Source trees and retained evidence
+remain managed and intact. The SDK correction uses its own bounded target.
