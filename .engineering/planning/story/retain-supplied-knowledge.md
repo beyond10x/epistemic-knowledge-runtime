@@ -8,6 +8,7 @@ relations:
 - decomposes: epic:p2-observation-layer
 - serves: vision:o2
 - derived_from: release-plan:knowledge-inbox-schema-learning
+- depends_on: story:adopt-generated-knowledge-contracts
 scope:
 - confidence: inferred
   path: crates/ekr

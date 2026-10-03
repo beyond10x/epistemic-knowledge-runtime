@@ -12,7 +12,7 @@ relations:
 - derived_from: epic:p3-incubation-integration
 - derived_from: epic:p4-operator-surface
 - derived_from: epic:p5-frontier-schema-scheduler
-revision: 3
+revision: 4
 ---
 ## Intent and authorization
 
@@ -61,3 +61,9 @@ The supplied plan says four critic perspectives were examined locally and spawni
 ## Upstream issue
 
 Exact baseline synthesis failures are recorded in https://github.com/beyond10x/ess/issues/400, created and read back as b10x-bot[bot]. The retained JSON reports preserve the complete diagnostics and source/contract digests for both releases. Local assessment must verify the existing enum name/wire idiom before proposing new naming syntax.
+
+## Authenticated human proof refinement
+
+Security source inspection found current --host/EKR_HOST configured IDs provide attribution only, no proof of a human decision. The accepted human-approval boundary therefore requires signed exact-content proofs, not trusting request identity. Contract commit 195edf5d7d adds generated named Ed25519 proof/trust-policy/host-binding documents and retained relations. Independent trust setup remains outside agent-controlled requests, including existing-store enrollment; arbitrary requester keys cannot authorize themselves. Human signing keys are not runtime/SDK inputs.
+
+Final ESS0.51 validation:9 files valid. Final synthesized provenance: spec_digest6e6b51b6bd6e58fd549ea5d5d5562997e603f9e0012f19b9285bfadec393cabc; contract_digesta0934f66cde7acd61a5a40778b7848f6896e36e413fcc19560b8f9a78863f051;115 scenarios,0 authored. These supersede earlier source digests for future runtime generation. Signature verification, independent trust provisioning, exact basis/predecessor checks and both-provider replay are explicit unexecuted implementation obligations. No claim of conformance follows from validation or generated data compilation.
