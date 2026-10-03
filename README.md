@@ -20,8 +20,9 @@ What they proved necessary and how their data enters this runtime is written dow
 
 ## Status
 
-0.0.28 is the latest release: the kernel, the typed graph and ontology, the store and the `ekr`
-binary, with the user documentation and schema evolution, and the executable specifications of the
+The [latest release](https://github.com/beyond10x/epistemic-knowledge-runtime/releases/latest)
+includes the kernel, the typed graph and ontology, the store and the `ekr` binary,
+with user documentation, schema evolution, and the executable specifications of the
 graph projection, observation and integration domains. Product crates: `ekr-core`,
 `ekr-kernel`, `ekr-ontology`, `ekr-graph`, `ekr-store`, `ekr-views`, `ekr-observe`,
 `ekr-integrate`, `ekr-sdk`, and the `ekr` binary.
@@ -33,7 +34,7 @@ separate owner credentials, and copy an existing SQLite store into the empty des
 `ekr view` and `ekr mcp-http` support explicit listeners behind your private routing and
 authentication service. See [hosted PostgreSQL](docs/cli.md#hosted-postgresql).
 
-| works in 0.0.28 | not in 0.0.28 |
+| available | not yet supported |
 |---|---|
 | a schema of node types, edge types, typed properties, lifecycles and named operations, declared in the seed | `MergeEntity`, refused as `unsupported-operation` |
 | in a store seeded under validation profile v2, the schema grows after seeding: a committed transaction adds a node or edge type, or adds or redeclares a property, and each change is a new schema version; see [Evolve the schema](docs/cli.md#evolve-the-schema) | moving a store seeded under profile v1, the example host's, to v2: it keeps the seed's schema |
@@ -42,7 +43,8 @@ authentication service. See [hosted PostgreSQL](docs/cli.md#hosted-postgresql).
 | file and SQLite storage, with the kernel's executable specification passing on both | ingestion, the incubation forest, schema discovery from evidence and maintenance: later phases of [`docs/roadmap.md`](docs/roadmap.md) |
 | hosted PostgreSQL with verified TLS, bounded connection pools and a preserving initial copy from SQLite | PostgreSQL source copies and atomic incremental suffix publication |
 | read-only HTTP MCP, explicit viewer listeners, Host/Origin admission and health/readiness checks | built-in login, authentication or public routing |
-| `/find`: a search-first browser page with revision-pinned graph and evidence links, without JavaScript or graph dependencies | natural-language answering and full-text evidence search |
+| `/find`: name and alias search with live results while typing, revision-pinned graph and evidence links, and an ordinary GET form when scripting is disabled; local Rust/WASM assets need no graph libraries | natural-language answering and full-text evidence search |
+| search-page links to `/agent-guide.md` and `/llms.txt`; operators advertise an explicit MCP address with `view --mcp-url` | automatic client registration or authentication supplied by connection guidance |
 | the ESS specifications of `ekr.views` (the graph projection `ekr.graph-projection/1` and the overview, neighbourhood, node, search and timeline reads, with their own conformance suite), `ekr.observe` and `ekr.integrate` in `systems/ekr/`; `ekr view` serves them to a read-only graph viewer on 127.0.0.1, and `ekr resolve` resolves a typed reference to a node, a new-node proposal or an ambiguity | polling a source and persisting observations: `ekr-observe` maps a JSONL file to observations but stores nothing |
 | validation profile v3: profile v2 plus a refusal of any `CreateNode` or `CreateEdge` whose id an earlier revision held, such as a deleted edge's (`identity-previously-held`) | the same refusal under profiles v1 and v2: they still admit a reused id |
 | `ekr session`: one long-lived process serves the store verbs (`resolve`, `propose`, `validate`, `commit`, `snapshot`, `head` and others) as JSON lines over one opened store, each answer the one-shot verb's document, and the `ekr.views` reads (`overview`, `search`, `describe`, `expand`, `timeline`, `changes`) as `ekr view` serves them; it starts before a store exists, and `--create` seeds one; see [`ekr session`](docs/cli.md#ekr-session) | `snapshot` without rebuilding what it answers: about 0.7 s at 4,127 nodes and 57 commits; `explain` there costs about 0.5 s CPU in a session and about 4 s one-shot, almost all of it opening the store |
@@ -93,7 +95,7 @@ ekr explain 00000000-0000-4000-8000-000000000501            # the assertion, its
 
 | read | for |
 |---|---|
-| [`docs/overview.md`](docs/overview.md) | new to EKR: the pipeline from seed to explained assertion in diagrams, the transaction lifecycle, and what 0.0.28 has versus what is planned |
+| [`docs/overview.md`](docs/overview.md) | new to EKR: the pipeline from seed to explained assertion in diagrams, the transaction lifecycle, and current capabilities versus planned work |
 | [`docs/guide.md`](docs/guide.md) | a task-oriented walk through a real store: record, change and explain claims, handle `Stale` and `Rejected`, exit codes, reading output, scripting |
 | [`docs/schema-evolution.md`](docs/schema-evolution.md) | growing the schema under validation profile v2, schema versions, `ekr ontology --at`, and every refusal on the way |
 | [`docs/cli.md`](docs/cli.md) | the CLI reference: configuration, every verb, the seed and transaction formats, how to design a schema, a worked example from schema to committed assertion, and the common refusals |

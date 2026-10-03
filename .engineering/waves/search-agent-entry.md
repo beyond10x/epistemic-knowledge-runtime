@@ -165,3 +165,40 @@ unit report records formatting, package Clippy and text scanning as green. Root
 reviewed the exact diff, and the worker released its unit lease and idle target.
 This correction is integrated here. Freeze this combined source for a fresh full
 gate; no previous partial result is a completed release gate.
+
+## Local gate and required CI discrepancy
+
+The complete local Taskfile gate passed on frozen source
+`24f7714475c363701c93b07bf6782cc5ce46d9bf`. The private `release-gate/final-report.md`
+combines preserved same-source executions; it is not an uninterrupted-run claim.
+Its ledger names every exit, the required real browser and TLS PostgreSQL inputs,
+explicit ignored tests, and earlier capacity interruptions. No prerequisite skip
+was reported. The story remains active because local success is not the release gate's
+only requirement.
+
+Draft pull request [69](https://github.com/beyond10x/epistemic-knowledge-runtime/pull/69)
+was published after the integration's pre-PR guards passed, allowing required CI to run
+alongside the remaining local gate. This supersedes the earlier blanket wait-before-publication
+wording above; no merge or release was authorized by those partial results.
+The required correctness job failed the existing sidebar-scroll case both initially
+and in its one unchanged-source retry. Before restoration the offsets were `[120,40]`;
+after restoration they were `[137,40]`. The local compact target passed, so the release
+remains pending diagnosis rather than treating local success as a substitute.
+
+`task:sidebar-scroll-ci-parity` records the exact failure, owns the focused diagnosis,
+and inherits the newly recorded compact-test/graph-page scope from this story. Its
+separate managed tree allows investigation without changing the frozen validation source.
+Do not relax the assertion, change browsers merely to pass, or claim a speculative fix.
+The required CI evidence is
+[run 37122410085](https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/37122410085).
+
+The completed original unit source is recoverable from the published integration branch.
+Its separate review merge history was archived through the worktree CLI; both source
+trees were retired through reviewed exact-id garbage collection after checking that
+no active gate used them. The active external target and all small receipts remain.
+The coordinator and focused diagnostic tree remain active.
+
+Release documentation now describes live search, no-script submission and static agent
+guidance without stale hardcoded status versions. These documentation and planning
+updates follow the frozen runtime gate; their affected checks and final required CI
+must pass before publication as a release.

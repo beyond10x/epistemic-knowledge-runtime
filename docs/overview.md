@@ -2,7 +2,7 @@
 
 This page is for a reader who is new to the Epistemic Knowledge Runtime (EKR). It explains what the
 runtime keeps, how a change travels from a proposal to a committed revision, and where the project
-is going. It then says which parts release 0.0.28 has and which are still plans.
+is going. It then separates current capabilities from planned work.
 
 Two pages go further. [The `ekr` guide](guide.md) walks through the same pipeline with a real store,
 command by command. [Schema evolution](schema-evolution.md) shows how the schema grows after seeding.
@@ -184,7 +184,7 @@ itself tidy: it consolidates, decays and forgets. The central sentence of the de
 integrate is itself information*
 ([design § 1](epistemic-knowledge-runtime-design.md#1-executive-summary), [§ 25](epistemic-knowledge-runtime-design.md#25-failure-to-integrate-as-information)).
 
-The diagram marks what exists in 0.0.28 (solid, green) and what is planned (dashed, grey).
+The diagram marks current capabilities (solid, green) and planned work (dashed, grey).
 
 ```mermaid
 flowchart TB
@@ -212,9 +212,9 @@ flowchart TB
   CC -.-> MT
 ```
 
-### What exists in 0.0.28 and what is planned
+### Current capabilities and planned work
 
-| capability | design | 0.0.28 | planned in |
+| capability | design | current implementation | planned in |
 |---|---|---|---|
 | typed schema: node types, edge types, eleven value kinds, lifecycles and named operations | § 11–12, § 87 | yes, declared in the seed | P1 (done) |
 | propose, validate, commit, with the operator and the validator kept apart | § 19–20, § 91 | yes | P1 (done) |
@@ -227,6 +227,7 @@ flowchart TB
 | file and SQLite providers, replay from the seed | § 34 | yes | P1 (done) |
 | hosted PostgreSQL and preserving initial SQLite copy | § 105 | yes, with verified TLS and separate schema/application authority | incremental suffix publication remains follow-on |
 | explicit viewer listeners and read-only HTTP MCP | § 106 | yes, bounded transport and store readiness | external authentication remains operator-owned |
+| search entry and agent connection guidance | [CLI reference](cli.md#ekr-view) | `/find` updates name and alias results while typing, retains an ordinary GET form without scripting, and links to static `/agent-guide.md` and `/llms.txt`; MCP addresses are explicitly configured | natural-language answering and full-text evidence search remain follow-on |
 | schema changes as transactions: add a node type or an edge type, add or redeclare a property | § 26, § 95 | yes, under validation profile v2, one schema-only transaction at a time | moved ahead of P5 |
 | moving a v1 store to v2, mixed schema and data transactions, removing a type or a property | § 95 | no | "a later milestone" (§ 95) |
 | evidence in the seed, pasted as byte lists or read from files with `ekr seed --evidence` | § 16 | yes | P1 (done); files since 0.0.6 |

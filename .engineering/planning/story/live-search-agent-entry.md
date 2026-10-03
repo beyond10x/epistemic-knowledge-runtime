@@ -16,6 +16,8 @@ scope:
   path: Cargo.lock
 - confidence: inferred
   path: Cargo.toml
+- confidence: cited
+  path: README.md
 - confidence: inferred
   path: Taskfile.yml
 - confidence: inferred
@@ -56,9 +58,11 @@ scope:
   path: crates/ekr/tests/view_page.rs
 - confidence: cited
   path: docs/cli.md
+- confidence: cited
+  path: docs/overview.md
 - confidence: inferred
   path: xtask/src
-revision: 19
+revision: 20
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T09:01:36Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T09:01:37Z", actor: "agent:codex", revision: 5}
