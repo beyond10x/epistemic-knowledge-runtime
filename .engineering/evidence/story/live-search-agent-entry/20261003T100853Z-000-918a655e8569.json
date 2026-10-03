@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T10:08:53Z",
+  "actor": "agent:codex",
+  "artifact": "story:live-search-agent-entry",
+  "kind": "story",
+  "revision": 8,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Static checkpoint 63f508cad: corrected view_cli 18 passed; retained independent adversary_agent_guidance 4 passed; package all-target clippy exited 0. Earlier compatibility agent_cli 29 passed, docs_cli 18 passed, view_page 36 passed with one existing ignored screenshot exporter. Live typing and full workspace gate not executed.",
+    "reference": "private unit receipts: view-cli-corrected.log, adversary-integrated.log, clippy-package.log, compatibility.log"
+  }
+}

@@ -29,7 +29,9 @@ native plugin role types; that dispatch adaptation is explicit.
 Coordinator: managed `ekr-search-agents`, branch `agent/search-agents`.
 Unit: managed `ekr-search-agents-unit`, branch `agent/search-agents-unit`, based on opening
 commit `7e71751e2`; tested static checkpoint `798b7d5fc776143390da5e4f0a6114bef86cc800`,
-not pushed or integrated. Unit lease ended and its build target is idle.
+not pushed or integrated. Follow-up checkpoint `63f508cad432fea986af8696a5e3e98bb904252c`
+retains the independent tests and corrects the exact CLI-option expectation; it is also
+not pushed or integrated. The source binary is unchanged by these test-only commits.
 Review: managed `ekr-search-agents-review`, branch `review/static-agent-guidance`, test-only
 checkpoint `b73f1118f7c3bb457f485351fa579fb75184a8f2` above the static implementation.
 The bounded review found no issues; its four additional process tests and the existing
@@ -79,6 +81,22 @@ against its failing released baseline. Formatting and changed-file text scans pa
 Current candidate patch SHA-256: `53121522f000294f700560bf5b23305f7f5e7f0d9ea81d607ad8a67594769952`.
 Candidate executable SHA-256: `ff550d7740bbb60e4174321a00fbd280721759d5310ded48288a46aa4e6d44de`.
 The small report, baseline/treatment outputs and complete patch remain in task-owned scratch.
-No JavaScript was authored. Browser-language decision, remaining compatibility and lint checks,
-review of eventual browser changes, full gate, source release and managed cleanup remain
-outstanding. This is a partial review checkpoint, not a completed story or release.
+No JavaScript was authored. Browser-language decision, review of eventual browser changes,
+full gate, source release and managed cleanup remain outstanding. This is a partial review
+checkpoint, not a completed story or release.
+
+## Compatibility checkpoint
+
+The broader static compatibility run passed agent_cli (29), docs_cli (18) and view_page
+(36, with the existing ignored manual screenshot exporter). view_cli initially passed 17
+and failed its exact option-list assertion because the two documented guidance flags were
+new. The expectation now names both flags without weakening the assertion; its complete
+target rerun passed all 18 cases. The independent adversary file was retained in the unit,
+and its Cargo target passed all four cases. Package all-target Clippy exited zero with
+warnings denied; formatting and changed-file privacy scans passed.
+
+The private unit receipts preserve the initial failing run and corrected run separately:
+compatibility.log, view-cli-corrected.log, adversary-integrated.log and clippy-package.log,
+with individual process exits. These focused runs reused the existing small unit target;
+no full workspace build was started while machine capacity was below the build floor.
+This does not prove live-browser typing or the complete repository gate.

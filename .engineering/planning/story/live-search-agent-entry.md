@@ -32,7 +32,7 @@ scope:
   path: crates/ekr/tests/view_page.rs
 - confidence: cited
   path: docs/cli.md
-revision: 8
+revision: 9
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T09:01:36Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T09:01:37Z", actor: "agent:codex", revision: 5}
@@ -66,4 +66,8 @@ Require a real browser for the acceptance lane and controlled response ordering 
 
 ## Static guidance review checkpoint
 
-Static implementation checkpoint 798b7d5fc776143390da5e4f0a6114bef86cc800 passes 16 search-page cases and the unchanged three-case real HTTP/CLI probe that failed on the released baseline. The independent bounded review added four std-only process cases in crates/ekr/tests/adversary_agent_guidance.rs (cited scope): corrupt-store separation, request admission, URL bounds/escaping and explicit startup readiness. Its seven-case combined process run passed, no findings; review-result:static-agent-entry-review-1 preserves the report. These are static-half checks, not live typing or full story acceptance. Compatibility/lint/full gate remain outstanding, and the browser-language decision remains pending. No source release or deployment is claimed.
+The static implementation at 798b7d5fc776143390da5e4f0a6114bef86cc800 passed the focused search-page target and the unchanged HTTP/CLI probe that failed on the released baseline. review-result:static-agent-entry-review-1 preserves the independent bounded review with no findings.
+
+Follow-up unit checkpoint 63f508cad432fea986af8696a5e3e98bb904252c retains the independent review tests and updates the exact CLI-option expectation for the documented guidance flags. The corrected complete view_cli target, retained adversary_agent_guidance target and package all-target Clippy pass. The recorded test_result identifies each receipt and its precise counts, including the earlier failing expectation and existing ignored screenshot exporter. These test-only commits do not change the previously tested source binary.
+
+Live typing, browser acceptance, full workspace gate, source release and deployment remain outstanding. No custom JavaScript is authorized. Rust/WASM remains permitted; a bounded packaging assessment is checking whether the existing single-command tagged CLI installation can preserve embedded browser assets without authored JavaScript or an extra mandatory end-user toolchain. This is a partial checkpoint, not a completed story.
