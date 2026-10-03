@@ -66,4 +66,19 @@ are recorded before source publication.
 Real PostgreSQL with verified TLS and distinct schema/application authority; preserving source
 snapshot, all logical revision roots and evidence bytes; interrupted copy refusal; credential
 redaction; compatible File/SQLite and SDK behavior. Exact case names are in the story.
-Run the full repository gate before integration; capture each step's exit and report skips.
+Run the full repository gate on combined integration before merging to the base; capture each
+step's exit and report skips. Individual units first pass their affected-package gates and review.
+
+## Search entry unit
+
+`story:search-first-viewer-entry` delivers the already requested search-oriented browser entry
+as Rust-rendered `/find` with an ordinary GET form, bounded results and evidence/graph links.
+It reuses existing search semantics and adds no scripts or external graph dependency to the
+entry page. This avoids treating transport delivery as fulfillment of the separate UI request.
+The full graph viewer and JSON search API remain compatible.
+
+New renderer/test files may be prepared independently; `view.rs` and CLI docs integrate only
+after the HTTP unit. The active-scope selection output is retained at
+`<cache>/ekr-hosted-runtime/serving/active-waves.json`; these three hosted units deliberately
+share integration surfaces and are sequenced, not asserted disjoint. Other backlog items remain
+out of scope. Worktree and build identities will be recorded before this unit is dispatched.
