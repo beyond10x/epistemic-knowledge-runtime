@@ -466,6 +466,59 @@ fn the_seed_builder_files_every_record_under_its_id_inside_the_graph_document_en
 }
 
 #[test]
+fn schema_builder_cites_inline_support_without_admitting_other_data_operations() {
+    let operator = AgentId::mint();
+    let addition = example(OperationKind::AddEvidence, operator);
+    let Operation::AddEvidence(ref value) = addition else {
+        unreachable!()
+    };
+    let support = value.evidence.id;
+    let document = TransactionBuilder::new(operator)
+        .push(example(OperationKind::DefineNodeType, operator))
+        .push(addition)
+        .build()
+        .expect("schema declarations may carry cited inline evidence under knowledge/2");
+    assert_eq!(document.transaction.evidence, BTreeSet::from([support]));
+    let yaml = document.to_yaml().unwrap();
+    let parsed = kernel_reads(&yaml);
+    assert_eq!(parsed.transaction().evidence, BTreeSet::from([support]));
+    assert!(parsed.transaction().schema_version.is_some());
+    schema_accepts(sdk::TRANSACTION_FORMAT, &yaml);
+    assert!(matches!(
+        TransactionBuilder::new(operator)
+            .push(example(OperationKind::DefineNodeType, operator))
+            .push(example(OperationKind::AddEvidence, operator))
+            .push(example(OperationKind::DeleteEdge, operator))
+            .build(),
+        Err(DocumentError::MixedSchemaTransaction)
+    ));
+}
+
+#[test]
+fn schema_builder_cites_retained_support_and_refuses_it_on_data_transactions() {
+    let operator = AgentId::mint();
+    let retained = EvidenceId::mint();
+    let document = TransactionBuilder::new(operator)
+        .with_schema_evidence([retained, retained])
+        .push(example(OperationKind::DefineNodeType, operator))
+        .build()
+        .unwrap();
+    let yaml = document.to_yaml().unwrap();
+    assert_eq!(
+        kernel_reads(&yaml).transaction().evidence,
+        BTreeSet::from([retained])
+    );
+    schema_accepts(sdk::TRANSACTION_FORMAT, &yaml);
+    assert!(matches!(
+        TransactionBuilder::new(operator)
+            .with_schema_evidence([retained])
+            .push(example(OperationKind::AddEvidence, operator))
+            .build(),
+        Err(DocumentError::MixedSchemaTransaction)
+    ));
+}
+
+#[test]
 fn the_readers_refuse_the_one_key_json_form_of_a_tag_so_the_sdk_writes_tags() {
     let operator = AgentId::mint();
     let document = TransactionBuilder::new(operator)

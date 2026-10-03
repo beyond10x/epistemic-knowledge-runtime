@@ -1,0 +1,3 @@
+    Finished `dev` profile [unoptimized] target(s) in 0.10s
+     Running `<build>/target/debug/xtask contracts-check --ess <cache>/ess-052/ess-0.52.0-x86_64-unknown-linux-gnu/ess`
+generated contracts: both complete artifact trees match; synthesized workspace compiles

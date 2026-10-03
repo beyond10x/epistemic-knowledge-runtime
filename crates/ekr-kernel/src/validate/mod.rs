@@ -151,7 +151,10 @@ impl Pipeline {
                 Box::new(Reference),
                 Box::new(Types),
                 Box::new(Cardinality),
-                Box::new(schema::SchemaOntology { lineage }),
+                Box::new(schema::SchemaOntology {
+                    lineage,
+                    schema_evidence: false,
+                }),
                 Box::new(Provenance),
                 Box::new(Authorization { actor }),
             ],
@@ -175,11 +178,41 @@ impl Pipeline {
                 Box::new(structural::IdentityStructural {
                     held,
                     reviewed_withdrawals: None,
+                    schema_evidence: false,
                 }),
                 Box::new(Reference),
                 Box::new(Types),
                 Box::new(Cardinality),
-                Box::new(schema::SchemaOntology { lineage }),
+                Box::new(schema::SchemaOntology {
+                    lineage,
+                    schema_evidence: false,
+                }),
+                Box::new(Provenance),
+                Box::new(Authorization { actor }),
+            ],
+        }
+    }
+
+    /// Knowledge/2 preserves identity history and admits explicitly supported schema changes.
+    pub(crate) fn knowledge_evidence(
+        actor: AgentId,
+        lineage: BTreeSet<SchemaVersionId>,
+        held: HeldIdentities,
+    ) -> Self {
+        Self {
+            validators: vec![
+                Box::new(structural::IdentityStructural {
+                    held,
+                    reviewed_withdrawals: None,
+                    schema_evidence: true,
+                }),
+                Box::new(reference::SchemaEvidenceReference),
+                Box::new(Types),
+                Box::new(Cardinality),
+                Box::new(schema::SchemaOntology {
+                    lineage,
+                    schema_evidence: true,
+                }),
                 Box::new(Provenance),
                 Box::new(Authorization { actor }),
             ],
@@ -199,11 +232,15 @@ impl Pipeline {
                 Box::new(structural::IdentityStructural {
                     held,
                     reviewed_withdrawals: Some(withdrawals),
+                    schema_evidence: false,
                 }),
                 Box::new(Reference),
                 Box::new(Types),
                 Box::new(Cardinality),
-                Box::new(schema::SchemaOntology { lineage }),
+                Box::new(schema::SchemaOntology {
+                    lineage,
+                    schema_evidence: false,
+                }),
                 Box::new(Provenance),
                 Box::new(Authorization { actor }),
             ],

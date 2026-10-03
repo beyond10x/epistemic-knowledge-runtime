@@ -130,7 +130,7 @@ fn exercise<S: RevisionLog + ObjectStore + Initialize>(
         })
         .unwrap();
     let added = kernel.read(None).unwrap().explain(ordinary_id).unwrap();
-    assert!(added.links.iter().any(|link| matches!(link, ekr_kernel::ExplanationLink::Validation(v) if v.validation_profile == ValidationProfileV1::knowledge(context().validator))));
+    assert!(added.links.iter().any(|link| matches!(link, ekr_kernel::ExplanationLink::Validation(v) if v.validation_profile == ValidationProfileV1::knowledge_evidence(context().validator))));
     assert_eq!(captured.explain(chosen).unwrap(), expected);
     drop(kernel);
     let reopened = open(Some(human.binding));

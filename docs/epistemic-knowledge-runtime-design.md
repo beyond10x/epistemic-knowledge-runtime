@@ -5766,3 +5766,65 @@ and valid-to spellings after checking their instants, and compares the complete 
 bytes. Every other field and the ordinary derived transaction remain independently checked.
 The signature codec already binds correction times as millisecond instants; its domain, bytes,
 verification and material-basis rules do not change. No historical record is rewritten.
+
+## 105.14 Schema evidence under a reviewed authority version (2026-10-03)
+
+Knowledge authority /2 pairs `ekr.knowledge-deterministic/2` with `ekr.knowledge-apply/2`.
+An explicit reviewed transition can activate it from an original seed profile or knowledge/1.
+The preview binds the active predecessor, stream prefix, head, contradictions and pending
+validations. Applying it invalidates those validations; previously admitted decisions replay
+under their original profile. Knowledge/1 remains available to replay and cannot silently gain
+new admission rules. Neither knowledge profile can replace the original seed anchor.
+
+A schema transaction's evidence manifest names the retained sources supporting its declarations.
+It may also carry AddEvidence entries, all of which must be cited in that manifest. The existing
+provenance checks verify their source and payload bytes. Supporting IDs resolve against canonical
+evidence plus those additions, never against the manifest itself. Every other data operation
+remains mixed and refused. Ordinary data manifests retain their assertion/attachment equality
+rule. A schema transaction with no supporting evidence remains representable; proposal application
+must separately enforce the reviewed proposal's required support.
+
+Schema history associates the committed version with that immutable transaction's manifest.
+No evidence field is added to historical ontology encodings, and no prior root is recomputed
+under new rules. `schema_support_survives_file_reopen_and_full_replay` and its SQLite counterpart
+hold the positive/negative admission and kernel history contract.
+`native_knowledge_one_upgrades_without_rewriting_its_rejection_or_roots` opens native stores
+actually written by the previous implementation, verifies their original roots and rejection,
+invalidates the old pending validation and repeats full replay after the reviewed transition.
+CLI/SDK/viewer history presentation and the named ESS scenario remain delivery acceptance work;
+these focused kernel cases do not establish their conformance.
+
+## 105.15 Schema evidence read presentation (2026-10-03)
+
+The ESS-generated `ekr.views.SchemaEvidenceEntry` carries the introducing revision, schema
+version, transaction identity and its sorted evidence identities. The kernel's verified schema
+history is projected into this shared type; the CLI, typed SDK and viewer do not define parallel
+copies of that record. `ekr ontology --at N` includes entries through N in `supporting_evidence`;
+the graph projection and overview include them under `schema.supporting_evidence`. Empty lists
+are omitted so earlier stores retain their previous read bytes. Seed evidence is never attributed
+to a schema transaction.
+
+The Rust-rendered inbox adds a Schema evidence history section with escaped retained excerpts
+and links to the complete evidence bytes. It creates no browser write capability.
+`cli::ontology::tests::schema_change_exposes_supporting_evidence` constructs changes through the
+typed SDK, commits them through the real kernel, then checks CLI/SDK decoding, projection,
+overview and escaped inbox output after normal and full replay on both providers. It also selects
+earlier revisions after later commits to exclude future citations. This implementation test does
+not replace the separately required authored ESS scenario or full delivery gate.
+
+Verified replay retains every authority boundary, so explanation selects the profile active at
+the retained validation's basis revision. Keeping only the latest transition loses the earlier
+knowledge/1 boundary after a second upgrade and incorrectly compares its validation with the seed
+profile. The native knowledge/1 regression now commits an ordinary assertion before upgrading,
+then checks that both current and historical explanations still identify knowledge/1 after normal
+and full replay. Checkpoints preceding any upgrade start with no extra boundaries; checkpoints
+covering upgrades still require authority replay. No persisted profile, record or root changes.
+
+The authored ESS scenario `schema-change-exposes-supporting-evidence` now drives an SDK-built
+schema proposal through ordinary validation and commit. `GraphProjected` exposes the exact
+generated schema citation entries from its rendered document, making loss of those entries
+observable independently of aggregate counts. The scenario checks literal retained and inline
+evidence identities, earlier revisions and the original root after reopening with full replay on
+both providers. An inert target and a production mutation that drops citations both fail this
+scenario; restored code passes. The broader component inventory and full integrated gate remain
+separate requirements.

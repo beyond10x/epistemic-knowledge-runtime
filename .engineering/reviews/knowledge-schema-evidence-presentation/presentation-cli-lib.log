@@ -1,0 +1,81 @@
+   Compiling ekr-core v0.0.27 (<unit>/crates/ekr-core)
+   Compiling ekr-ontology v0.0.27 (<unit>/crates/ekr-ontology)
+   Compiling ekr-graph v0.0.27 (<unit>/crates/ekr-graph)
+   Compiling ekr-store v0.0.27 (<unit>/crates/ekr-store)
+   Compiling ekr-integrate v0.0.27 (<unit>/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 (<unit>/crates/ekr-kernel)
+   Compiling ekr-views v0.0.27 (<unit>/crates/ekr-views)
+   Compiling ekr-sdk v0.0.27 (<unit>/crates/ekr-sdk)
+   Compiling ekr v0.0.27 (<unit>/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 7.65s
+     Running unittests src/lib.rs (<build>/target/debug/deps/ekr-36f1557db15e028e)
+
+running 65 tests
+test cli::inbox::tests::retained_text_never_becomes_active_html ... ok
+test cli::review_host::tests::generated_binding_refuses_wrong_tenant_unknown_fields_and_invalid_hashes ... ok
+test cli::review_host::tests::protected_chain_checks_every_owner_mode_kind_and_size_before_reading ... ok
+test cli::session::tests::the_divergence_guard_finds_a_partial_provider_message_match ... ok
+test cli::view::tests::a_busy_reply_is_a_503_like_every_other ... ok
+test cli::view::tests::a_failed_load_is_not_kept_and_a_kept_one_is_not_loaded_again ... ok
+test cli::view::tests::a_head_is_read_to_its_end_and_never_past_it ... ok
+test cli::view::tests::a_head_is_refused_once_its_deadline_has_passed_whatever_the_bytes_so_far ... ok
+test cli::view::tests::a_projection_query_is_nothing_or_exactly_one_revision ... ok
+test cli::view::tests::a_malformed_short_or_oversized_head_is_refused ... ok
+test cli::view::tests::a_query_is_known_names_once_each_with_percent_decoded_values ... ok
+test cli::view::tests::a_revision_is_loaded_once_and_served_from_memory_after ... ok
+test cli::view::tests::a_stream_past_its_deadline_writes_nothing ... ok
+test cli::view::tests::a_timed_out_read_is_the_late_refusal ... ok
+test cli::session::tests::no_cli_source_holds_a_string_literal_naming_divergence ... ok
+test cli::view::tests::beyond_the_limit_the_revision_used_longest_ago_goes ... ok
+test cli::view::tests::a_stream_is_the_meta_chunk_then_a_chunk_per_256_records_then_the_end ... ok
+test cli::view::tests::a_stream_stops_at_the_first_write_that_fails ... ok
+test cli::view::tests::every_reply_is_nosniff_no_store_and_close_with_no_cookie_or_cors_header ... ok
+test cli::view::tests::in_flight_is_capped_and_released_on_drop ... ok
+test cli::view::tests::on_port_80_a_host_without_a_port_is_its_own ... ok
+test cli::view::tests::only_one_host_naming_this_server_is_its_own ... ok
+test cli::view::tests::only_the_declared_routes_exist ... ok
+test cli::view::tests::the_page_header_policy_is_the_meta_policy_and_refuses_framing ... ok
+test cli::view::tests::utf8_bytes_are_text_and_any_other_bytes_are_an_octet_stream ... ok
+test conformance::tests::a_commit_receipt_projects_the_identities_it_created ... ok
+test host::tests::capabilities_and_ordered_profile_checks_keep_their_real_list_syntax ... ok
+test host::tests::capability_duplicates_are_detected_after_json_escape_decoding ... ok
+test host::tests::complete_host_preserves_the_actual_nested_authority ... ok
+test host::tests::complete_json_and_utf8_are_required ... ok
+test cli::view::tests::every_bounded_read_on_an_unseeded_store_is_not_seeded_after_its_bounds ... ok
+test host::tests::dates_are_midnight_utc_with_leap_and_pre_epoch_controls ... ok
+test host::tests::decoded_agent_duplicates_refuse_before_the_repeated_agent ... ok
+test host::tests::duplicate_outer_fields_refuse_before_decoding_the_repeated_value ... ok
+test host::tests::escaped_duplicate_nested_fields_are_refused_before_their_values ... ok
+test host::tests::escaped_names_and_values_are_decoded_without_normalizing_the_carrier ... ok
+test host::tests::every_named_struct_requires_json_object_syntax ... ok
+test host::tests::format_uses_a_json_string_and_not_an_externally_tagged_enum_object ... ok
+test host::tests::invalid_calendars_and_noncanonical_date_spellings_refuse ... ok
+test host::tests::host_parsing_preserves_canonical_identity_spelling ... ok
+test host::tests::nested_unknown_fields_are_refused_by_the_existing_kernel_carriers ... ok
+test host::tests::overflowing_and_noncanonical_decimal_selectors_refuse ... ok
+test host::tests::parsing_does_not_invent_semantic_authority_or_namespace_rules ... ok
+test host::tests::required_outer_fields_cannot_be_missing_null_or_unknown ... ok
+test host::tests::the_envelope_format_is_exact ... ok
+test host::tests::valid_time_decimals_retain_the_full_core_timestamp_range ... ok
+test cli::view::tests::an_unframed_stream_is_the_chunked_streams_lines_bare_and_unterminated ... ok
+test host::tests::required_fields_of_nested_carriers_cannot_be_missing_or_null ... ok
+test cli::session::ocel_tests::in_process_ocel_returns_engine_counts_with_its_document_and_leaves_the_next_stderr_empty ... ok
+test cli::attention::tests::answer_json_is_bounded_and_null_bounds_are_refused_before_kernel_admission ... ok
+test cli::session::tests::a_held_store_is_checked_without_a_store_open_and_reopened_once_per_replacement ... ok
+test cli::session::tests::a_session_started_before_its_store_holds_the_store_another_process_created ... ok
+test cli::session::tests::a_session_follows_a_file_store_replaced_inside_its_directory ... ok
+test cli::session::tests::a_session_request_checks_the_store_only_for_a_store_verb_and_opens_it_only_when_replaced ... ok
+test cli::mcp::tests::a_call_checks_the_store_without_opening_it_and_a_replacement_reopens_it_once ... ok
+test cli::view::tests::a_request_checks_the_store_without_opening_it_and_a_replacement_reopens_it_once ... ok
+test cli::view::tests::a_file_store_replaced_inside_its_directory_is_answered_after_one_reopen ... ok
+test cli::session::tests::a_session_reads_its_transactions_only_while_it_tracks_a_proposal ... ok
+test cli::upgrade::tests::sdk_upgrade_uses_the_real_session_kernel_and_exact_external_signature ... ok
+test cli::view::tests::disputed_inbox_renders_both_claims_and_retained_evidence_after_reopen ... ok
+test cli::extraction::tests::the_verbs_write_requests_are_only_propose_validate_and_commit ... ok
+test cli::session::tests::a_session_never_answers_from_a_sqlite_store_overwritten_in_place ... ok
+test cli::session::tests::a_views_verb_keeps_its_index_until_the_store_is_replaced_and_none_of_the_replaced_one ... ok
+test cli::attention::tests::sdk_answer_and_history_use_real_session_signature_validation_and_replay ... ok
+test cli::ontology::tests::schema_change_exposes_supporting_evidence ... ok
+
+test result: ok. 65 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
+

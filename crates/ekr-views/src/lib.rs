@@ -65,7 +65,11 @@ mod quality;
 mod query;
 mod roles;
 mod sample;
+mod schema_evidence;
 mod timeline;
+
+pub use ekr_core::contract_data::EkrViewsSchemaEvidenceEntry as SchemaEvidenceEntry;
+pub use schema_evidence::schema_evidence;
 
 pub use changes::{
     ChangesError, ChangesListed, ChangesRequest, SinceKind, SinceMalformed, CHANGES_FORMAT,
@@ -110,7 +114,7 @@ pub const FORMAT: &str = "ekr.graph-projection/1";
 /// What one render returned, counted over the document: `ekr.views.GraphProjected`.
 ///
 /// Every field is a function of the document's bytes, so this is as deterministic as they are.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct GraphProjected {
     /// `meta.revision`.
     pub revision: u64,
@@ -143,7 +147,11 @@ pub struct GraphProjected {
     pub retained_evidence: u64,
     /// The lowercase hex SHA-256 of the document's exact bytes.
     pub projection_hash: String,
+    /// Exact generated entries in `schema.supporting_evidence`.
+    pub supporting_evidence: Vec<SchemaEvidenceEntry>,
 }
+// Generated entries contain only integer revisions and string identities.
+impl Eq for GraphProjected {}
 
 /// One rendered projection.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -244,6 +252,8 @@ pub struct LoadedRevision {
     /// The ontology of every schema version some listed revision is valid against, with the
     /// first listed revision valid against it.
     pub schemas: BTreeMap<SchemaVersionId, (RevisionNumber, Ontology)>,
+    /// Cited evidence from schema transactions through the selected revision.
+    pub supporting_evidence: Vec<SchemaEvidenceEntry>,
     /// The content hashes, among the projected evidence's, whose bytes the store holds.
     pub retained: BTreeSet<ContentHash>,
 }
@@ -295,6 +305,7 @@ pub fn load(runtime: &Runtime, at: Option<RevisionNumber>) -> Result<LoadedRevis
         )));
     }
 
+    let supporting_evidence = schema_evidence(&read)?;
     let mut revisions = Vec::new();
     let mut schemas: BTreeMap<SchemaVersionId, (RevisionNumber, Ontology)> = BTreeMap::new();
     let mut previous: Option<(ContentHash, SchemaVersionId)> = None;
@@ -331,6 +342,7 @@ pub fn load(runtime: &Runtime, at: Option<RevisionNumber>) -> Result<LoadedRevis
         graph: read.graph,
         revisions,
         schemas,
+        supporting_evidence,
         retained: read.retained_evidence,
     })
 }

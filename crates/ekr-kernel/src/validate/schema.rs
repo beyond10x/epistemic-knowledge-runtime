@@ -51,9 +51,15 @@ pub(crate) const fn is_schema_change<V: ValueSpace>(operation: &GraphOperation<V
 
 /// The operations of `tx` as the ontology's changes, in the order written, or `None` if any
 /// operation is of another kind, or a `ModifyProperty` in the ownerless P1 shape.
-pub(crate) fn changes<V: ValueSpace>(tx: &GraphTransaction<V>) -> Option<Vec<SchemaChange>> {
+pub(crate) fn changes<V: ValueSpace>(
+    tx: &GraphTransaction<V>,
+    schema_evidence: bool,
+) -> Option<Vec<SchemaChange>> {
     tx.operations
         .iter()
+        .filter(|operation| {
+            !(schema_evidence && matches!(operation, GraphOperation::AddEvidence(_)))
+        })
         .map(|operation| match operation {
             GraphOperation::DefineNodeType(declared) => {
                 Some(SchemaChange::DefineNodeType((**declared).clone()))
@@ -81,6 +87,15 @@ pub(crate) fn changes<V: ValueSpace>(tx: &GraphTransaction<V>) -> Option<Vec<Sch
         .collect()
 }
 
+/// A schema change with no data operations other than inline supporting evidence.
+pub(crate) fn supported_shape<V: ValueSpace>(tx: &GraphTransaction<V>) -> bool {
+    tx.operations.iter().any(is_schema_change)
+        && tx
+            .operations
+            .iter()
+            .all(|op| is_schema_change(op) || matches!(op, GraphOperation::AddEvidence(_)))
+}
+
 /// Every schema version id on the lineage of the given ontologies: each one's own id and its
 /// parent's. The kernel holds every committed revision's ontology, so the ontologies of revisions
 /// seed through `n` name every version from the seed to the one current at `n`.
@@ -102,6 +117,7 @@ pub(crate) fn lineage<'a>(
 pub(crate) struct SchemaOntology {
     /// Every schema version id already on the lineage of the snapshot validated against.
     pub(crate) lineage: BTreeSet<SchemaVersionId>,
+    pub(crate) schema_evidence: bool,
 }
 
 impl Validator for SchemaOntology {
@@ -129,7 +145,12 @@ impl Check for SchemaOntology {
             .check(graph, tx, candidate)
             .err()
             .unwrap_or_default();
-        issues.extend(admission(graph.graph(), tx, &self.lineage));
+        issues.extend(admission(
+            graph.graph(),
+            tx,
+            &self.lineage,
+            self.schema_evidence,
+        ));
         finish(issues)
     }
 }
@@ -139,8 +160,9 @@ fn admission(
     graph: &CanonicalGraph,
     tx: &GraphTransaction,
     lineage: &BTreeSet<SchemaVersionId>,
+    schema_evidence: bool,
 ) -> Vec<ValidationIssue> {
-    let (Some(version), Some(changes)) = (tx.schema_version, changes(tx)) else {
+    let (Some(version), Some(changes)) = (tx.schema_version, changes(tx, schema_evidence)) else {
         return Vec::new();
     };
     let prior = &graph.ontology;

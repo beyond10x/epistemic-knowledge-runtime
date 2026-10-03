@@ -160,8 +160,8 @@
     }
   },
   "provenance": {
-    "contract_digest": "b3aecc34f60f0ce8f8908536c64e38d6497f7a61baffe2b2c753efbc70236b8c",
-    "spec_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146",
+    "contract_digest": "1156942f269e6e4ef491bc151de186bdd43b08754f822f8d88caa825382dcd7b",
+    "spec_digest": "7edcefdeed5694edaa4ba44768d7a681da14fe2bb22dac6ba7c2b980c4d7f5eb",
     "specification_version": "v1",
     "suite_version": "ess-conformance/19",
     "system": "ekr"
@@ -51353,11 +51353,27 @@
       "source": [
         {
           "kind": "type",
+          "name": "ekr.graph.EvidenceId"
+        },
+        {
+          "kind": "type",
           "name": "ekr.kernel.ContentHash"
         },
         {
           "kind": "type",
           "name": "ekr.kernel.RevisionNumber"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.kernel.TransactionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.ontology.SchemaVersionId"
+        },
+        {
+          "kind": "type",
+          "name": "ekr.views.SchemaEvidenceEntry"
         },
         {
           "kind": "type",
@@ -51640,6 +51656,9 @@
             "schema_versions": {
               "holds": "primitive",
               "kind": "integer"
+            },
+            "supporting_evidence": {
+              "holds": "list"
             },
             "transactions": {
               "holds": "primitive",

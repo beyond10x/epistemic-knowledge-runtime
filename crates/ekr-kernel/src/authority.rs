@@ -109,10 +109,27 @@ impl ValidationProfileV1 {
         )
     }
 
+    /// Reviewed knowledge authority with supporting evidence for schema transactions.
+    /// Knowledge/1 remains immutable for replay; seed anchors cannot select either version.
+    #[must_use]
+    pub fn knowledge_evidence(validator: AgentId) -> Self {
+        Self::with(
+            validator,
+            "ekr.knowledge-deterministic/2",
+            "ekr.knowledge-apply/2",
+        )
+    }
+
+    /// Whether schema manifests may cite retained or inline supporting evidence.
+    #[must_use]
+    pub fn supports_schema_evidence(&self) -> bool {
+        *self == Self::knowledge_evidence(self.validator)
+    }
+
     /// Whether deterministic assessment recomputation is active.
     #[must_use]
     pub fn disputes(&self) -> bool {
-        *self == Self::knowledge(self.validator)
+        *self == Self::knowledge(self.validator) || self.supports_schema_evidence()
     }
     /// Validation profile v1 for a host-selected validator: the P1 profile, which refuses the
     /// three schema kinds.

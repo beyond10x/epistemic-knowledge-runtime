@@ -479,6 +479,7 @@ impl Index {
             revisions,
             unrecorded_nodes,
             unrecorded_edges,
+            supporting_evidence: loaded.supporting_evidence.clone(),
         })
     }
 

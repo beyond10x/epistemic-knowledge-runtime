@@ -237,15 +237,19 @@ let seeded = session.request(&Request::new(["seed", "-"]).with_stdin(seed.to_yam
 push reads `.push(draft.into())`. `!DeleteEdge` carries only an `EdgeId`, which has no such
 conversion: push `Operation::DeleteEdge(edge_id)`. The proposer is the host's `context.operator`.
 
-`TransactionBuilder::build` fills in what the kernel checks against the operations: the `evidence`
-list is exactly the set the `!AddAssertion`s cite and the `!AttachEvidence`s attach, and a schema
-change names a minted `schema_version` (`TransactionBuilder::with_schema_version` sets a given
-one). It refuses:
+`TransactionBuilder::build` fills in what the kernel checks against the operations. For data
+transactions, the `evidence` list is exactly the set the `!AddAssertion`s cite and the
+`!AttachEvidence`s attach. A schema change names a minted `schema_version`
+(`TransactionBuilder::with_schema_version` sets a given one). After the store's reviewed
+knowledge/2 upgrade, schema changes may cite retained evidence selected with
+`.with_schema_evidence([evidence_id])` and carry inline `!AddEvidence` operations, which the
+builder cites automatically. The kernel validates all supporting evidence before admission.
+The builder refuses:
 
 | refusal | when |
 |---|---|
 | `DocumentError::EmptyTransaction` | the transaction has no operation |
-| `DocumentError::MixedSchemaTransaction` | it mixes schema changes and data operations, which every profile refuses |
+| `DocumentError::MixedSchemaTransaction` | it mixes schema changes with data operations other than `!AddEvidence`, or supplies schema evidence without a schema change |
 | `DocumentError::Limit` | the document is past one of the ten limits ([below](#the-ten-limits)) |
 | `DocumentError::Yaml` | the YAML writer refused a value |
 
@@ -622,6 +626,11 @@ seed a store nor create a canonical revision. Store migration currently refuses 
 these independent streams before publishing a destination, to prevent a partial copy.
 
 ## Typed reads
+
+`Reader::ontology(at)` exposes schema history citations in `supporting_evidence`, and the
+overview exposes the same records in `schema.supporting_evidence`. Each `SchemaEvidenceEntry`
+is the ESS-generated record containing the introducing revision, schema version, transaction
+and evidence identities. Selecting a past revision excludes later schema support.
 
 `ekr_sdk::read::Reader` sends a read over any transport (a `ProcessSession`, a `&mut` one, a
 recording or a replay) and returns a typed value instead of a `Reply`:

@@ -75,6 +75,8 @@ pub(crate) struct ReplayState {
     pub(crate) answers:
         BTreeMap<RevisionNumber, ekr_core::contract_data::EkrKernelHumanAnswerRecord>,
     pub(crate) upgraded_authority: Option<AuthorityStateV1>,
+    /// Every verified authority boundary; explanations may cite validations from any epoch.
+    pub(crate) authority_changes: BTreeMap<RevisionNumber, AuthorityStateV1>,
     pub(crate) transition: Option<ekr_core::contract_data::EkrKernelAuthorityTransitionRecord>,
     pub(crate) assessment_validators: BTreeMap<ekr_core::AssertionId, BTreeSet<AgentId>>,
     pub(crate) seed: SeedResultV1,
@@ -679,7 +681,9 @@ pub(crate) fn validate(
                 .map(|(_, revision)| &*revision.ontology),
         )
     };
-    let pipeline = if anchor.validation_profile.keeps_identities() {
+    let pipeline = if anchor.validation_profile.supports_schema_evidence() {
+        Pipeline::knowledge_evidence(validator, lineage(), held.at(prior.root.revision))
+    } else if anchor.validation_profile.keeps_identities() {
         Pipeline::identity_keeping(validator, lineage(), held.at(prior.root.revision))
     } else if anchor.validation_profile.admits_schema_changes() {
         Pipeline::schema_evolving(validator, lineage())
@@ -1041,6 +1045,7 @@ impl KernelAuthority {
             let state = ReplayState {
                 answers: BTreeMap::new(),
                 upgraded_authority: None,
+                authority_changes: BTreeMap::new(),
                 transition: None,
                 assessment_validators: BTreeMap::new(),
                 held,

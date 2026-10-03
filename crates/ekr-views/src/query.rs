@@ -607,6 +607,8 @@ pub(crate) struct OverviewSchema {
     pub(crate) revisions: Vec<OverviewRevision>,
     pub(crate) unrecorded_nodes: u64,
     pub(crate) unrecorded_edges: u64,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub(crate) supporting_evidence: Vec<crate::SchemaEvidenceEntry>,
 }
 
 #[derive(Clone, Debug, Serialize)]

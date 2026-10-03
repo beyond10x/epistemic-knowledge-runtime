@@ -311,3 +311,73 @@ fn human_answers_conform_after_reopen_and_full_replay() {
 fn every_answer_scenario_detects_an_inert_target() {
     run_answers(true);
 }
+
+fn run_schema(no_op: bool) {
+    let input = select(
+        "schema-suite.json",
+        ["ekr.kernel/authored/schema-change-exposes-supporting-evidence"],
+    );
+    let selected = input.selected();
+    let mut failures = Vec::new();
+    for provider in [Provider::File, Provider::Sqlite] {
+        let work = tempfile::tempdir().unwrap();
+        let target = upgrade_target::UpgradeTarget::schema(provider, work.path(), no_op);
+        let started = u64::try_from(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis(),
+        )
+        .unwrap();
+        let run = Runner::new(
+            RunnerConfig::default(),
+            AdvancingClock::new(started, 1),
+            Ids::for_suite(selected.suite()),
+        )
+        .run_admitted(selected, &target);
+        let report = CountReport::from_run(&run, selected).unwrap();
+        let json = report.to_canonical_json().unwrap();
+        eprintln!("{provider:?} schema no-op={no_op}: {json}");
+        if let Some(directory) = std::env::var_os("EKR_KNOWLEDGE_REPORT_DIR") {
+            let directory = PathBuf::from(directory);
+            std::fs::create_dir_all(&directory).unwrap();
+            let name = format!(
+                "schema-{}-{}",
+                if provider == Provider::File {
+                    "file"
+                } else {
+                    "sqlite"
+                },
+                if no_op { "no-op" } else { "persisted" }
+            );
+            std::fs::write(directory.join(format!("{name}.report.json")), &json).unwrap();
+            std::fs::write(
+                directory.join(format!("{name}.suite-input.json")),
+                input.document().to_canonical_json().unwrap(),
+            )
+            .unwrap();
+            std::fs::write(
+                directory.join(format!("{name}.run.json")),
+                serde_json::to_vec_pretty(&run.report()).unwrap(),
+            )
+            .unwrap();
+        }
+        let counts = report.counts();
+        if counts.total != 1
+            || counts.error + counts.unsupported + counts.skipped != 0
+            || counts.passed != u64::from(!no_op)
+            || counts.failed != u64::from(no_op)
+        {
+            failures.push(format!("{provider:?}: {:#?}", run.report()));
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+#[test]
+fn schema_change_exposes_supporting_evidence() {
+    run_schema(false);
+}
+#[test]
+fn schema_evidence_scenario_detects_an_inert_target() {
+    run_schema(true);
+}

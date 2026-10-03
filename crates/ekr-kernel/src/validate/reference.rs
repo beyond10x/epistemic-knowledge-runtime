@@ -67,6 +67,45 @@ const UNRESOLVED_GRAPH_ROOT: &str = "unresolved-graph-root";
 /// Validator 2: reference existence.
 pub struct Reference;
 
+/// Knowledge/2 additionally resolves a schema transaction's explicit support manifest.
+pub(crate) struct SchemaEvidenceReference;
+
+impl Validator for SchemaEvidenceReference {
+    fn name(&self) -> ValidatorName {
+        ValidatorName::Reference
+    }
+    fn validate(
+        &self,
+        graph: &GraphSnapshot<'_>,
+        tx: &GraphTransaction,
+    ) -> Result<(), Vec<ValidationIssue>> {
+        self.check(graph, tx, &Candidate::of(graph, tx))
+    }
+}
+impl Check for SchemaEvidenceReference {
+    fn check<'g>(
+        &self,
+        graph: &GraphSnapshot<'g>,
+        tx: &GraphTransaction,
+        candidate: &Candidate<'g>,
+    ) -> Result<(), Vec<ValidationIssue>> {
+        let mut issues = Reference
+            .check(graph, tx, candidate)
+            .err()
+            .unwrap_or_default();
+        if super::schema::supported_shape(tx) {
+            let known = Known::of(graph, tx, candidate);
+            for evidence in &tx.evidence {
+                if !known.holds_evidence(evidence) {
+                    issues.push(issue(tx, ValidatorName::Reference, UNRESOLVED_EVIDENCE,
+                        format!("schema supporting evidence {evidence} is not retained by canonical state, and no AddEvidence of the transaction adds it")));
+                }
+            }
+        }
+        finish(issues)
+    }
+}
+
 impl Validator for Reference {
     fn name(&self) -> ValidatorName {
         ValidatorName::Reference
