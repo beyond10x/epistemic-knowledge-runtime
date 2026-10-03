@@ -1,0 +1,16 @@
+   Compiling ekr-store v0.0.27 (<review-retention-worktree>/crates/ekr-store)
+    Finished `test` profile [unoptimized] target(s) in 1.19s
+     Running tests/proposal_review_retention.rs (<owned-build-lane>/target/debug/deps/proposal_review_retention-44a573d0e6d9cd63)
+
+running 8 tests
+test changed_proof_policy_statement_or_duplicated_fields_refuse_before_append ... ok
+test missing_or_changed_proposal_and_stale_predecessor_leave_no_review_or_orphan_bytes ... ok
+test concurrent_decision_identity_reuse_across_proposals_has_one_winner ... ok
+test decision_and_review_identities_are_independently_unique_across_proposals ... ok
+test concurrent_identical_reviews_deduplicate ... ok
+test concurrent_distinct_decisions_have_one_winner ... ok
+test all_review_bytes_are_promoted_and_stronger_retention_survives ... ok
+test exact_retry_after_later_decision_and_reopen_returns_original ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+

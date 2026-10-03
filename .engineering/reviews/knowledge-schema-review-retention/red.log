@@ -1,0 +1,79 @@
+   Compiling ekr-store v0.0.27 (<review-retention-worktree>/crates/ekr-store)
+    Finished `test` profile [unoptimized] target(s) in 3.03s
+     Running tests/proposal_review_retention.rs (<owned-build-lane>/target/debug/deps/proposal_review_retention-44a573d0e6d9cd63)
+
+running 8 tests
+test missing_or_changed_proposal_and_stale_predecessor_leave_no_review_or_orphan_bytes ... FAILED
+test exact_retry_after_later_decision_and_reopen_returns_original ... FAILED
+test changed_proof_policy_statement_or_duplicated_fields_refuse_before_append ... FAILED
+test decision_and_review_identities_are_independently_unique_across_proposals ... FAILED
+test all_review_bytes_are_promoted_and_stronger_retention_survives ... FAILED
+test concurrent_decision_identity_reuse_across_proposals_has_one_winner ... FAILED
+test concurrent_distinct_decisions_have_one_winner ... FAILED
+test concurrent_identical_reviews_deduplicate ... FAILED
+
+failures:
+
+---- missing_or_changed_proposal_and_stale_predecessor_leave_no_review_or_orphan_bytes stdout ----
+
+thread 'missing_or_changed_proposal_and_stale_predecessor_leave_no_review_or_orphan_bytes' (2274724) panicked at crates/ekr-store/tests/proposal_review_retention.rs:131:9:
+assertion `left == right` failed
+  left: Err(Document("not implemented"))
+ right: Err(Conflict)
+
+---- exact_retry_after_later_decision_and_reopen_returns_original stdout ----
+
+thread 'exact_retry_after_later_decision_and_reopen_returns_original' (2274723) panicked at crates/ekr-store/tests/proposal_review_retention.rs:74:22:
+called `Result::unwrap()` on an `Err` value: Document("not implemented")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- changed_proof_policy_statement_or_duplicated_fields_refuse_before_append stdout ----
+
+thread 'changed_proof_policy_statement_or_duplicated_fields_refuse_before_append' (2274718) panicked at crates/ekr-store/tests/proposal_review_retention.rs:221:18:
+called `Result::unwrap()` on an `Err` value: Document("not implemented")
+
+---- decision_and_review_identities_are_independently_unique_across_proposals stdout ----
+
+thread 'decision_and_review_identities_are_independently_unique_across_proposals' (2274722) panicked at crates/ekr-store/tests/proposal_review_retention.rs:248:14:
+called `Result::unwrap()` on an `Err` value: Document("not implemented")
+
+---- all_review_bytes_are_promoted_and_stronger_retention_survives stdout ----
+
+thread 'all_review_bytes_are_promoted_and_stronger_retention_survives' (2274717) panicked at crates/ekr-store/tests/proposal_review_retention.rs:296:18:
+called `Result::unwrap()` on an `Err` value: Document("not implemented")
+
+---- concurrent_decision_identity_reuse_across_proposals_has_one_winner stdout ----
+
+thread 'concurrent_decision_identity_reuse_across_proposals_has_one_winner' (2274719) panicked at crates/ekr-store/tests/proposal_review_retention.rs:352:9:
+assertion `left == right` failed: [Err(Document("not implemented")), Err(Document("not implemented"))]
+  left: 0
+ right: 1
+
+---- concurrent_distinct_decisions_have_one_winner stdout ----
+
+thread 'concurrent_distinct_decisions_have_one_winner' (2274720) panicked at crates/ekr-store/tests/proposal_review_retention.rs:352:9:
+assertion `left == right` failed: [Err(Document("not implemented")), Err(Document("not implemented"))]
+  left: 0
+ right: 1
+
+---- concurrent_identical_reviews_deduplicate stdout ----
+
+thread 'concurrent_identical_reviews_deduplicate' (2274721) panicked at crates/ekr-store/tests/proposal_review_retention.rs:352:9:
+assertion `left == right` failed: [Err(Document("not implemented")), Err(Document("not implemented"))]
+  left: 0
+ right: 1
+
+
+failures:
+    all_review_bytes_are_promoted_and_stronger_retention_survives
+    changed_proof_policy_statement_or_duplicated_fields_refuse_before_append
+    concurrent_decision_identity_reuse_across_proposals_has_one_winner
+    concurrent_distinct_decisions_have_one_winner
+    concurrent_identical_reviews_deduplicate
+    decision_and_review_identities_are_independently_unique_across_proposals
+    exact_retry_after_later_decision_and_reopen_returns_original
+    missing_or_changed_proposal_and_stale_predecessor_leave_no_review_or_orphan_bytes
+
+test result: FAILED. 0 passed; 8 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p ekr-store --test proposal_review_retention`
