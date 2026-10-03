@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T10:02:26Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:show-disputed-knowledge",
+  "kind": "story",
+  "revision": 22,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Combined product formatter, workspace Clippy, CLI conformance and native upgrade crash checks",
+    "reference": ".engineering/reviews/knowledge-upgrade-integrated/README.md"
+  }
+}

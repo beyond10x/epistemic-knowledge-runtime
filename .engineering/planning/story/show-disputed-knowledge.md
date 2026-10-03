@@ -34,7 +34,7 @@ scope:
   path: generated
 - confidence: cited
   path: systems/ekr
-revision: 21
+revision: 22
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T04:51:02Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T04:51:02Z", actor: "agent:codex-ekr-knowledge", revision: 11, decided_on: {"recorded":{"approval":1}}}
@@ -160,3 +160,13 @@ EKR native Runtime Sqlite, no-op=false 0.0.27: {"error":0,"failed":0,"passed":3,
 Focused surface executions measured from retained logs: [{"suite":"kernel","groups":2,"passed":19,"failed":0,"ignored":0},{"suite":"cli","groups":6,"passed":136,"failed":0,"ignored":0}]. Workspace Clippy passed in the unit. Root-local production mutations in property conflicts, relation conflicts, value equality, time overlap, cardinality and historical reads each failed their intended scenario on both providers. Restored-source runs passed; inert and discarded-state controls failed every selected scenario as required. This is not independent review.
 
 A private tmpfs target with one compiler job avoids new persistent build storage. The combined-tree fmt check exposed existing generator output that rustfmt would rewrite; no generated source was hand-edited. Combined-tree Clippy and cross-crate checks are running. Released generator adoption, generated formatting reconciliation, native process-crash verification, the disputed viewer demonstration, C-F, end-to-end demonstrations and the complete task check remain required. Evidence: .engineering/reviews/knowledge-upgrade-conformance/README.md and .engineering/reviews/knowledge-upgrade-surface/README.md.
+
+## Integrated crash and disputed-viewer verification
+
+Source commit fb91394a2f0667c6172487b6fa1cf37e4c09ba1d integrates the signed upgrade transport, native process-kill tests and inspected disputed inbox. The combined product format task, workspace all-target Clippy and cross-crate checks passed. Executed Rust result groups measured from retained logs: {"integrated-viewer-cross-crate":[{"passed":62,"failed":0,"ignored":0},{"passed":29,"failed":0,"ignored":0},{"passed":7,"failed":0,"ignored":0},{"passed":18,"failed":0,"ignored":0},{"passed":12,"failed":0,"ignored":0},{"passed":14,"failed":0,"ignored":0}],"integrated-crash-kernel":[{"passed":6,"failed":0,"ignored":0},{"passed":5,"failed":0,"ignored":0}]}.
+
+Correction to the preceding checkpoint: the generic cargo fmt --all invocation included generated dependency libraries. The repository already owns the correct product-member formatter in xtask/src/format.rs, invoked by Taskfile.yml. That actual gate passed; no generated-formatting change is required or authorized by this result. Fresh generated artifacts matched byte for byte with the documented ownership-journal exclusion. Released-generator acceptance remains separate.
+
+Actual child process kills at native publication boundaries recovered the exact elected signed-upgrade receipt on file and SQLite, with unchanged historical replay and no duplicate retry revision. The retained review states the limits: no mid-fsync/WAL or power-loss claim. The public inbox route test reopens both native stores, checks competing claims and linked evidence bytes, rejects query writes and escapes HTML input. Relation targets now include readable canonical names; the regression was observed red first. Firefox inspection of the saved real route response confirms the disputed page layout. This is not a live root-provisioned child CLI/HTTP demonstration or independent review.
+
+Evidence: .engineering/reviews/knowledge-upgrade-integrated/; .engineering/reviews/knowledge-native-crash/; .engineering/reviews/knowledge-disputed-viewer/. The public host-provisioning demonstration, released ESS adoption, C-F, both complete end-to-end demonstrations, independent review and full task check remain outstanding. The existing PR stays a development draft until complete scope is verified. No ESS release or held-bundle ownership changed.

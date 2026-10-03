@@ -1,0 +1,49 @@
+{
+  "source_commit": "fb91394a2f0667c6172487b6fa1cf37e4c09ba1d",
+  "counts": {
+    "integrated-viewer-cross-crate": [
+      {
+        "passed": 62,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "passed": 29,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "passed": 7,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "passed": 18,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "passed": 12,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "passed": 14,
+        "failed": 0,
+        "ignored": 0
+      }
+    ],
+    "integrated-crash-kernel": [
+      {
+        "passed": 6,
+        "failed": 0,
+        "ignored": 0
+      },
+      {
+        "passed": 5,
+        "failed": 0,
+        "ignored": 0
+      }
+    ]
+  }
+}
