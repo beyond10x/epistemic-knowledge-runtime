@@ -4,12 +4,15 @@ id: release-plan:knowledge-inbox-schema-learning
 kind: release-plan
 status: draft
 title: Knowledge inbox and evidence-led schema learning
+refs:
+- provider: github
+  reference: '64'
 relations:
 - derived_from: epic:p2-observation-layer
 - derived_from: epic:p3-incubation-integration
 - derived_from: epic:p4-operator-surface
 - derived_from: epic:p5-frontier-schema-scheduler
-revision: 2
+revision: 3
 ---
 ## Intent and authorization
 

@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T00:00:35Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "release-plan:knowledge-inbox-schema-learning",
+  "kind": "release-plan",
+  "revision": 3,
+  "change": {
+    "change": "evidence",
+    "kind": "verification",
+    "source": "ESS 0.51.0 validate and compile; independent targeted source review",
+    "reference": "commit:07604bf1a5e6c19ef86b78846dc99a603f3d2bfb; spec_digest:29e2f5d0af0bb99248bb46d0dc1f538dedab7d5d209ca07c0fce5d0ac60a1a4e; .engineering/reviews/knowledge-inbox-prerequisite/contracts-review.md; NOT runtime conformance"
+  }
+}

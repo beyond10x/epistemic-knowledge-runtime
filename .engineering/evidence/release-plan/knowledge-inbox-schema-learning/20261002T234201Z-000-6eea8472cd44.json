@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-02T23:42:01Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "release-plan:knowledge-inbox-schema-learning",
+  "kind": "release-plan",
+  "revision": 2,
+  "change": {
+    "change": "evidence",
+    "kind": "verification",
+    "source": "Baseline ESS validation succeeds; Rust synthesis returns target failure on both pinned and installed tools",
+    "reference": ".engineering/reviews/knowledge-inbox-prerequisite"
+  }
+}
