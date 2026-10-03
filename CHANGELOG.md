@@ -4,6 +4,20 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 
 ## [Unreleased]
 
+## [0.0.29] — 2026-10-03
+
+### Fixed
+
+- Retained-evidence links reuse the viewer's already verified revision index instead
+  of replaying that revision from the seed on every request. Historical membership,
+  store replacement checks and the existing verified payload read remain in place.
+  Loading a revision for the first time still performs its normal admission work.
+
+### Compatibility
+
+- No store format, copy protocol, provider or HTTP deadline changes. Existing stores
+  supported by 0.0.28 remain readable without another copy.
+
 ## [0.0.28] — 2026-10-03
 
 ### Added

@@ -114,7 +114,7 @@ The proposal-stage verb returned these lists (before the selected story moved ac
 - Build: `<cache>/b10x-target/epistemic-knowledge-runtime`, used by only one checkout at a time as repository AGENTS.md permits; no concurrent compiler, tests or documentation readers share it.
 - Scratch: `<cache>/ekr-evidence-cache/unit`; coordinator/full-gate evidence: `<cache>/ekr-evidence-cache/gate`.
 - Native agent runs the `aep:implementor` procedure, then a separate native agent runs `aep:adversary`; plugin agent types are not exposed by this harness. Root owns all planning writes and release actions.
-- Stage: scoped and accepted; red-first work not started. Base: `20c31fd1af508ed00477f4308e00d3b09ab88fb3`.
+- Stage: unit `557937e5b9a40f847b75205f494233473901a237` passed its focused gate; independent adversary in managed `ekr-evidence-cache-review` is running. Base: `20c31fd1af508ed00477f4308e00d3b09ab88fb3`.
 - Estimated focused build storage from the scoper: 2–3 GiB, not a measurement. Prior full-gate build cost was measured separately; monitor actual growth and retain the 10 GiB free-space floor. Debug info and incremental compilation disabled, two build jobs.
 - Authorization covers the unit commit, integration/closing commits, verified base publication and a separately gated corrective release. No consumer data, paid extraction or unrelated work enters this wave.
 
@@ -128,3 +128,9 @@ Filesystem     1024-blocks      Used Available Capacity Mounted on
 ## Required evidence
 
 Actual viewer request seam fails before the fix and passes after it by seed-replay count, exact payload and refusal checks. Existing package suite and formatter/lint pass. Independent adversary checks cache invalidation, historical membership, unavailable payload and response compatibility. Full combined gate plus required CI precede upstream release. Each step retains its own exit; ignored/skipped cases are explicit. Native harness token/tool accounting is reported only if available, never estimated.
+
+## Unit handoff
+
+The implementor report at `<cache>/ekr-evidence-cache/unit/report.md` records the deterministic replay regression red then green, exact retained bytes, historical membership and replacement refusal. Its affected gate reports 230 passed, zero failed and one existing manual screenshot ignore. The broader package run was deliberately interrupted with observed exit 143; it is not a gate pass. Root will run the full workspace gate after independent review. A pre-existing raw File payload overwrite discrepancy remains separately tracked as `task:held-file-payload-overwrite`; this patch does not change provider trust semantics.
+
+The native agent thread limit refused a new adversary thread. The existing independent scoping/documentation worker now runs the adversary procedure in its own review tree; it did not implement the viewer change. Shared build ownership is exclusive to that review until explicit handoff. Corrective release candidate version is 0.0.29; neither this version preparation nor unit success is release acceptance.
