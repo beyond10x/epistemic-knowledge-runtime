@@ -11,6 +11,8 @@ scope:
 - confidence: inferred
   path: .github/workflows/correctness.yml
 - confidence: inferred
+  path: CHANGELOG.md
+- confidence: inferred
   path: Cargo.lock
 - confidence: inferred
   path: Cargo.toml
@@ -52,7 +54,7 @@ scope:
   path: docs/cli.md
 - confidence: inferred
   path: xtask/src
-revision: 13
+revision: 15
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T09:01:36Z", actor: "agent:codex", revision: 4}
 - {from: "proposed", to: "active", at: "2026-10-03T09:01:37Z", actor: "agent:codex", revision: 5}
@@ -108,3 +110,7 @@ References: Cargo build-script OUT_DIR/native dependency contract, https://doc.r
 The disposable smoke passed: actual Chromium ran Rust's wasm-bindgen start function through the untouched pinned Deno-target generated loader. The module changed a DOM marker that was absent from the initial HTML; HTML, JavaScript module and processed WASM all returned 200 under default-src none, script-src self wasm-unsafe-eval, connect-src self, object-src none and base-uri none. No inline bootstrap, authored JavaScript or general unsafe-eval was used. All smoke processes ended. The retained private report is wasm-smoke/report.md, with commands, Rust source, lockfile, browser DOM and request log.
 
 Proceed with Rust browser implementation under the existing scope. This result proves the automatic browser loader only. Native build.rs generation through the cli-support API, native-only installation, reproducible artifact comparison and actual search interaction remain required gates; none is inferred from the loader smoke.
+
+## Release preparation
+
+The coordinator prepared the next source version and its changelog while the implementation completes verification in its own tree. This is an unreleased candidate: independent browser review, integration, the full repository gate, exact-head required checks, annotated tag and published release readback remain required. Nothing in this preparation changes a consumer deployment or supplies missing authentication.
