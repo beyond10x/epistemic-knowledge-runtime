@@ -1,5 +1,14 @@
 domain: ekr.store
 
+# Hosted provider operational contract (2026-10-03): PostgreSQL reuses the same
+# retained events, objects and kernel admission as native providers. Schema setup
+# is explicit; hosted application open uses verified TLS and bounded connections.
+# Initial cross-provider copy captures one consistent SQLite image before inventory,
+# preserves all logical revision roots and retained evidence, and cannot be read as
+# complete until admitted replay and equivalence checks finish. Configuration is a
+# provider input, not a knowledge entity. Acceptance is currently unexecuted:
+# story:hosted-postgres-snapshot names the required real-provider cases.
+
 summary: >-
   Persistence through eventlog. A committed revision is an event; the graph is a fold; snapshots
   are eventlog snapshots; bytes are content-addressed and carry a storage class that decides their
