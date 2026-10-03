@@ -56,6 +56,7 @@ pub mod snapshot;
 mod verified;
 
 pub use eventlog::remove_read_only_copies;
+pub use eventlog::HumanDecisionRetention;
 pub use eventlog::IncubationRetention;
 pub use eventlog::ObservationRetention;
 pub use eventlog::ProposalReviewRetention;

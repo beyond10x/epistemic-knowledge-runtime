@@ -481,3 +481,21 @@ fn answer_metadata_is_generated_checked_and_version_four_only() {
     undeclared["self_approved"] = true.into();
     assert!(serde_json::from_value::<ekr_graph::AnswerOccurrence>(undeclared).is_err());
 }
+
+#[test]
+fn shared_human_identity_envelope_is_explicit_and_preserves_old_event_bytes() {
+    for (index, mut event) in every_variant().into_iter().enumerate() {
+        let original = serde_json::to_vec(&event).unwrap();
+        let old_hash = ContentHash::of(&event);
+        let old_format = event.format.clone();
+        event.format = "ekr.revision-event/5".into();
+        assert_eq!(event.supported(), index >= 6);
+        if index >= 6 {
+            assert_eq!(event.schema_version(), 5);
+        }
+        event.format = old_format;
+        assert_eq!(serde_json::to_vec(&event).unwrap(), original);
+        assert_eq!(ContentHash::of(&event), old_hash);
+        assert!(event.supported());
+    }
+}

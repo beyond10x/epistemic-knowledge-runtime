@@ -137,7 +137,7 @@ impl<S: AtomicBlobEventStore> ProposalReviewRetention for EventlogStore<S> {
         for event in self.read_all(&stream, MAX_READ_LIMIT)? {
             // Future application markers need a physical cursor independent of the latest human
             // predecessor. Until their format is implemented, unknown events fail closed.
-            if event.name != RECORDED || event.schema_version != 1 {
+            if event.name != RECORDED || ![1, 2].contains(&event.schema_version) {
                 return Err(invalid("review envelope"));
             }
             let record: EkrIntegrateRetainedProposalReview =
@@ -147,13 +147,23 @@ impl<S: AtomicBlobEventStore> ProposalReviewRetention for EventlogStore<S> {
             {
                 return Err(invalid("proposal mismatch"));
             }
-            for key in identity_keys(&record) {
+            let keys = identity_keys(&record);
+            for key in keys
+                .iter()
+                .take(if event.schema_version == 1 { 2 } else { 1 })
+            {
                 if !identities.insert(key.clone()) {
                     return Err(invalid("duplicate identity"));
                 }
-                if self.review_identity(&key)?.as_ref() != Some(&record) {
+                if self.review_identity(key)?.as_ref() != Some(&record) {
                     return Err(invalid("identity binding mismatch"));
                 }
+            }
+            if event.schema_version == 2
+                && self.human_binding(&record.decision.decision_id)?.as_ref()
+                    != Some(&*record.decision)
+            {
+                return Err(invalid("shared human-decision-binding mismatch"));
             }
             if !proofs.insert(record.decision.proof_digest.0.clone()) {
                 return Err(invalid("duplicate proof digest"));
@@ -209,6 +219,7 @@ impl<S: AtomicBlobEventStore> ProposalReviewRetention for EventlogStore<S> {
                     return Err(StoreError::PublicationInputConflict);
                 }
             }
+            let binding = self.new_human_binding(&record.decision)?;
             let latest = held
                 .last()
                 .map(|previous| hash(&previous.decision.proof_digest.0))
@@ -224,9 +235,10 @@ impl<S: AtomicBlobEventStore> ProposalReviewRetention for EventlogStore<S> {
                 } else {
                     Expected::Exact(held.len() as u64)
                 },
-                events: vec![NewEvent::new(RECORDED, 1, data.clone())?],
+                events: vec![NewEvent::new(RECORDED, 2, data.clone())?],
             }];
-            for key in &keys {
+            appends.push(binding);
+            for key in keys.iter().take(1) {
                 appends.push(StreamAppend {
                     stream: StreamId::new(self.tenant.clone(), IDENTITIES, key)?,
                     expected: Expected::NoStream,
