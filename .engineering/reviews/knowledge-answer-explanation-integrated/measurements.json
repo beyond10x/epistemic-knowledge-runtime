@@ -1,0 +1,20 @@
+{
+  "unit": "563d87e37d40cf690f2c76922dab6511400cafcf",
+  "integration": "6130e18980220a377cd811eb68e4c2484a033229",
+  "observed_at": "2026-10-03T13:05:37Z",
+  "source_identical": true,
+  "provenance": {
+    "system": "ekr",
+    "specification_version": "v1",
+    "source_digest": "16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146",
+    "contract_digest": "b3aecc34f60f0ce8f8908536c64e38d6497f7a61baffe2b2c753efbc70236b8c"
+  },
+  "rows": [
+    {
+      "status": "ok",
+      "passed": 2,
+      "failed": 0,
+      "ignored": 0
+    }
+  ]
+}

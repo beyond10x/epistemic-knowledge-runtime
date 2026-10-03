@@ -30,7 +30,7 @@ scope:
   path: generated
 - confidence: cited
   path: systems/ekr
-revision: 21
+revision: 22
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T10:06:10Z", actor: "agent:codex-ekr-knowledge", revision: 9, decided_on: {"recorded":{"approval":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T10:06:10Z", actor: "agent:codex-ekr-knowledge", revision: 10, decided_on: {"recorded":{"approval":1}}}
@@ -114,3 +114,13 @@ Unit 1fe6b449dbb645339fa09c678ec08b4c6d7e4599, integrated at dae49b3df6ec8c53c7a
 The SDK test commits evidenced competing claims, upgrades under independently provisioned trust, signs externally, resolves the question, rejects forgery/altered inputs, retries without sampling time, filters retained history and repeats after full replay on both file and SQLite. Bounded input and read-only subprocess/session cases pass. Unit results: 98 selected tests plus 2 real-session cases passed, zero failures/ignores; workspace all-target Clippy and xtask fmt --check passed. The integrated source matches the unit byte-for-byte, and both real-session cases passed on the integration tree. Reports: .engineering/reviews/knowledge-answer-surface/ and .engineering/reviews/knowledge-answer-surface-integrated/. Current ESS source digest remains f91b8100f4d52e92766331c01c931d876f7ec64be4fe1d83c6351f9d3f48420b, contract digest 873319d08748c75f4bb7d3d8f106756f1c677236ed294ead950d1eb8f1df8c48.
 
 This supersedes the earlier missing-public-transport checkpoint. It is root-local evidence, not independent review or completed C acceptance. Next complete explanation provenance and read-only viewer answer history, native crash coverage and named C conformance. D–F, released generator adoption, both end-to-end demonstrations and full task check remain required before PR64 completion.
+
+## Reviewed explanation and visible history checkpoint
+
+Unit 563d87e37d40cf690f2c76922dab6511400cafcf, integrated at 6130e18980220a377cd811eb68e4c2484a033229, implements the generated ExplainedAnswer/HumanAnswer link and read-only viewer history. ESS validated before implementation, then the generator produced and the contract checker independently verified both complete artifact trees and compiled the synthesized workspace. Current source digest 16f0bcba9385e76553b16321dba10f073fcbbf1d53cc29a9a686cf2a907b6146, contract digest b3aecc34f60f0ce8f8908536c64e38d6497f7a61baffe2b2c753efbc70236b8c. The development generator is unchanged; its 11 caller-identity refusals remain runtime obligations, and published-release adoption remains open.
+
+Explanations retain exact answer records and human-statement evidence, including uncertainty and chosen claims without lifecycle changes, and follow temporal replacement links in both directions without changing original intervals. Snapshots and explanations now recognize authority-transition and answer revision records and select the authority profile active at a validation's original basis; seed authority remains separately bound to original history. Two red runs exposed the ordinary-receipt-only and original-authority-only assumptions before their correction.
+
+Both-provider tests cover all four correction kinds, history/reopen/full replay, exact record/evidence addresses, immutable earlier captures, forged answer coordinates and an ordinary assertion after upgrade. Existing explanation regression targets passed 25 executions, final changed-case/adversary_x6_x targets 10 (one repeated case), CLI/documentation/public-surface/read-only/story targets 81 and the SDK/session cases 2. All final results have zero failures/ignores; workspace all-target Clippy and xtask fmt --check passed. The integration source is byte-identical and its two real-session cases passed. A headless-browser screenshot of the real File-provider fixture was visually inspected; SQLite passed the same renderer assertions. This is a synthetic legal-name fixture, not either required end-to-end schema-learning demonstration. Evidence: .engineering/reviews/knowledge-answer-explanation/ and .engineering/reviews/knowledge-answer-explanation-integrated/.
+
+Explanation provenance and rendered answer history are implemented. Next complete native crash coverage and the named C human-resolution/material-review conformance scenarios. This remains root-local evidence, not independent review or completed C acceptance. D–F, released generator adoption, both end-to-end demonstrations and full task check still gate PR64 completion.

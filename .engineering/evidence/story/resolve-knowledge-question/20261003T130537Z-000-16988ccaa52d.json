@@ -1,0 +1,13 @@
+{
+  "at": "2026-10-03T13:05:37Z",
+  "actor": "agent:codex-ekr-knowledge",
+  "artifact": "story:resolve-knowledge-question",
+  "kind": "story",
+  "revision": 22,
+  "change": {
+    "change": "evidence",
+    "kind": "test_result",
+    "source": "Both-provider reviewed explanation regressions, SDK/session/viewer checks, generated-contract drift and compilation, Clippy and format",
+    "reference": ".engineering/reviews/knowledge-answer-explanation-integrated/measurements.json"
+  }
+}

@@ -1,0 +1,19 @@
+   Compiling ekr-contract-data v0.0.0 ($WORKTREE/generated/ekr-contract-data)
+   Compiling ekr-types v1.0.0 ($WORKTREE/generated/ekr-contracts/crates/ekr-types)
+   Compiling ekr-core v0.0.27 ($WORKTREE/crates/ekr-core)
+   Compiling ekr-ontology v0.0.27 ($WORKTREE/crates/ekr-ontology)
+   Compiling ekr-graph v0.0.27 ($WORKTREE/crates/ekr-graph)
+   Compiling ekr-store v0.0.27 ($WORKTREE/crates/ekr-store)
+   Compiling ekr-integrate v0.0.27 ($WORKTREE/crates/ekr-integrate)
+   Compiling ekr-kernel v0.0.27 ($WORKTREE/crates/ekr-kernel)
+   Compiling ekr-views v0.0.27 ($WORKTREE/crates/ekr-views)
+   Compiling ekr-sdk v0.0.27 ($WORKTREE/crates/ekr-sdk)
+   Compiling ekr v0.0.27 ($WORKTREE/crates/ekr)
+    Finished `test` profile [unoptimized] target(s) in 49.34s
+     Running unittests src/lib.rs ($BUILD/target/debug/deps/ekr-7281d7560f073b95)
+
+running 2 tests
+test cli::attention::tests::answer_json_is_bounded_and_null_bounds_are_refused_before_kernel_admission ... ok
+test cli::attention::tests::sdk_answer_and_history_use_real_session_signature_validation_and_replay ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 62 filtered out; finished in 0.21s
