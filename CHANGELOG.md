@@ -26,6 +26,11 @@ Every change a user of the runtime sees, per release. Unreleased work sits at th
 - Search ranking, result limits, revision-pinned graph and evidence links, store
   formats and the read-only MCP tool set are unchanged.
 
+### Fixed
+
+- Restoring the graph viewer's left sidebar preserves its scroll position when
+  text wraps at the scrollbar boundary.
+
 ## [0.0.29] — 2026-10-03
 
 ### Fixed

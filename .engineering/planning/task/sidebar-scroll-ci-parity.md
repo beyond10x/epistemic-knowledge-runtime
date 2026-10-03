@@ -9,7 +9,7 @@ relations:
 - informed_by: story:live-search-agent-entry
 - serves: vision:o5
 - decomposes: story:live-search-agent-entry
-revision: 4
+revision: 5
 transitions:
 - {from: "draft", to: "proposed", at: "2026-10-03T12:49:30Z", actor: "agent:codex", revision: 2, decided_on: {"recorded":{"test_result":1}}}
 - {from: "proposed", to: "active", at: "2026-10-03T12:49:30Z", actor: "agent:codex", revision: 3, decided_on: {"recorded":{"test_result":1}}}
@@ -43,3 +43,13 @@ Commit 45d327b3cff4f6435ff2a222834d7b4796f412ca corrects a separately reproduced
 The original scroll case passes locally with the CI image's documented browser version, including in a cached Ubuntu browser-testing image. This is not full runner parity: actual rendered fonts differ across those local environments and the CI font is still unknown. Browser version alone was not sufficient to reproduce the failure. Native CDP metadata is captured only after a mismatch by default; explicitly enabled rich observations are a separate probe because reading layout before collapse may affect timing.
 
 Ranked predictions to test against actual CI metadata: font or scrollbar geometry changes the left content size; deferred rendering or scroll anchoring moves the sampled position; focus restoration causes native scrolling. None is established as the cause. The next required CI run carries the preserved assertion and failure diagnostics. A pass after observation changes is not automatically proof of a product fix, and no CSS correction has been made speculatively.
+
+## Reproduction and narrow correction
+
+The next required CI run on 889b5cc596709244850539bb331d4cea5cdc691d failed the same exact assertion: https://github.com/beyond10x/epistemic-knowledge-runtime/actions/runs/37125584047. Its failure metadata identifies actual DejaVu Sans rendering and a wrapped roles line. A native-CDP font probe reproduced that failure locally. Changing only the left sidebar's declarative overflow anchoring made the same assertion pass; no forced scroll restoration was introduced.
+
+A permanently narrow roles line did not reproduce the failure. The durable regression instead calibrates text against the measured content widths with and without the scrollbar, verifies the actual one-line and wrapped preconditions, and completes those observations before assigning scroll positions. The unchanged equality then fails against the original CSS and passes after disabling anchoring only on the left sidebar. Private diagnostic receipts retain both runs and the failed alternate probe. This supports an anchoring correction in that context; the intermediate hidden-layout sequence is inferred rather than directly observed.
+
+The original compact case remains unchanged. The additional scenario reuses its existing JavaScript expressions verbatim; all new calibration behavior is Rust/native CDP. No new JavaScript expression, tolerance, skip or post-toggle scroll reset is introduced. Independent read-only review found no behavioral must-fix and noted that disabling anchoring also affects dynamic updates within that sidebar. Keep the scope left-only.
+
+Focused integration checks and the next required CI run remain outstanding. This local red/green result does not yet establish a release or deployment.
