@@ -597,6 +597,7 @@ version = "0.0.27"
 dependencies = [
  "ekr-core",
  "ekr-graph",
+ "ekr-integrate",
  "ekr-ontology",
  "ekr-store",
  "eventlog-core",

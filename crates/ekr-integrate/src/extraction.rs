@@ -563,6 +563,19 @@ impl ExtractionDocument {
     /// # Errors
     /// The first [`ExtractionRefusal`] the [module](self) documentation lists under checking.
     pub fn check(&self, store: &Ontology) -> Result<(), ExtractionRefusal> {
+        self.check_inner(store, false)
+    }
+
+    /// Checks local interpretation shape and evidence references. Observation sources are
+    /// permitted here; their retained bytes and admissibility must be checked by the kernel.
+    /// This grants no authority to integrate a fact or publish a canonical transaction.
+    /// # Errors
+    /// Invalid declarations, references, values, evidence identity or payload digest.
+    pub fn check_incubation(&self, local: &Ontology) -> Result<(), ExtractionRefusal> {
+        self.check_inner(local, true)
+    }
+
+    fn check_inner(&self, store: &Ontology, incubation: bool) -> Result<(), ExtractionRefusal> {
         use ExtractionRefusalCode as Code;
 
         let held = Names::of_store(store);
@@ -719,7 +732,9 @@ impl ExtractionDocument {
             if !ids.insert(id) {
                 return Err(refusal(Code::DuplicateIdentity, id.to_string()));
             }
-            if !matches!(item.evidence.source, EvidenceSource::HumanStatement { .. }) {
+            if !matches!(item.evidence.source, EvidenceSource::HumanStatement { .. })
+                && !(incubation && matches!(item.evidence.source, EvidenceSource::Observation(_)))
+            {
                 return Err(refusal(
                     Code::ExtractionEvidenceKindUnsupported,
                     id.to_string(),

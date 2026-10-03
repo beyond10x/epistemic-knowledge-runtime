@@ -13,62 +13,15 @@
 //! - an id derived from [`ObservationIdempotencyKey`], so the same record always yields the same
 //!   id (design § 56).
 //!
-//! Nothing here persists or deduplicates an observation, and no evidence cites one yet: that
-//! waits on `decision-blocker:observation-retention-path`. Evidence itself now enters after the
-//! seed through the kernel's `AddEvidence` operation (`decision-blocker:evidence-entry-after-seed`,
-//! option 1), which admits `HumanStatement` evidence only until an observation is retained. There
-//! is no source adapter and no checkpoint.
+//! This adapter maps records; the kernel's `import_observation` operation independently retains
+//! observations through `ekr-store` without a canonical revision. Both use the unchanged key
+//! implementation re-exported here from `ekr-core`. Retention does not itself admit an evidence
+//! interpretation into canonical state. There is no live source connector or source checkpoint.
 
-use ekr_core::{Canonical, ContentHash, Encoder, ObservationId, Timestamp};
+pub use ekr_core::ObservationIdempotencyKey;
+use ekr_core::{ContentHash, Timestamp};
 use ekr_graph::{Observation, ObservationContent};
 use serde::Deserialize;
-use uuid::Builder;
-
-/// What identifies the source record an observation was made from:
-/// `ekr.observe.ObservationIdempotencyKey`, `systems/ekr/domains/observe.yaml:45-56`.
-///
-/// Design § 56: source identity, source-native id, content hash. Two observations of one source
-/// record carry equal keys, and so equal ids. `source` and `source_native_id` mean what the fields
-/// of that name on [`Observation`] mean.
-///
-/// The key identifies the record's bytes: `content_hash` is taken over the whole line,
-/// `captured_at` included, so the same text under a different timestamp is a different record
-/// with a different id.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ObservationIdempotencyKey {
-    /// The source, by the name the runtime knows it as.
-    pub source: String,
-    /// The identifier the source itself uses for the record, where it has one.
-    pub source_native_id: Option<String>,
-    /// The content address of the record's bytes.
-    pub content_hash: ContentHash,
-}
-
-impl Canonical for ObservationIdempotencyKey {
-    /// The three fields in declaration order, structural and untagged.
-    fn encode(&self, out: &mut Encoder) {
-        self.source.encode(out);
-        out.option(self.source_native_id.as_ref());
-        self.content_hash.encode(out);
-    }
-}
-
-impl ObservationIdempotencyKey {
-    /// The observation id this key determines.
-    ///
-    /// The first sixteen bytes of the key's value address, [`ContentHash::of`], marked as a
-    /// custom (version 8) UUID: not a minted UUIDv7, because it is derived and must not claim to
-    /// carry a creation time. The builder overwrites 6 of those 128 bits with the version and
-    /// variant, so the id carries 122 bits of the hash. Equal keys give equal ids; a key that
-    /// differs in any field gives a different one unless SHA-256 collides in those 122 bits.
-    #[must_use]
-    pub fn observation_id(&self) -> ObservationId {
-        let address = ContentHash::of(self);
-        let mut leading = [0_u8; 16];
-        leading.copy_from_slice(&address.as_bytes()[..16]);
-        ObservationId::from_uuid(Builder::from_custom_bytes(leading).into_uuid())
-    }
-}
 
 /// One JSONL line as the fixture format writes it.
 #[derive(Deserialize)]

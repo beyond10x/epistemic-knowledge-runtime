@@ -30,6 +30,8 @@ pub mod decode;
 pub mod generated_identity;
 pub mod hash;
 pub mod identity;
+pub mod observation;
+pub use observation::ObservationIdempotencyKey;
 
 /// Generated serde documents; serde alone does not validate domain constraints.
 pub use ekr_contract_data as contract_data;

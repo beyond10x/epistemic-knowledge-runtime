@@ -480,7 +480,11 @@ fn unknown_semantic_members_of_ontology_records_are_refused() {
     edge.target_types.insert(subject);
     document.edge_types.push(edge);
     let serialized = serde_json::to_value(&document).unwrap();
-    let valid = serde_yaml_ng::to_string(&serialized).unwrap();
+    // Decode JSON text into YAML values rather than serializing JSON Number's
+    // arbitrary-precision private serde map into the YAML fixture.
+    let yaml_value: serde_yaml_ng::Value =
+        serde_yaml_ng::from_str(&serde_json::to_string(&serialized).unwrap()).unwrap();
+    let valid = serde_yaml_ng::to_string(&yaml_value).unwrap();
     assert_eq!(
         Ontology::from_yaml(&valid).unwrap(),
         Ontology::load(document.clone()).unwrap()
@@ -513,7 +517,9 @@ fn unknown_semantic_members_of_ontology_records_are_refused() {
             .as_object_mut()
             .unwrap()
             .insert(field.into(), serde_json::json!({"requested": "effect"}));
-        let yaml = serde_yaml_ng::to_string(&input).unwrap();
+        let yaml_value: serde_yaml_ng::Value =
+            serde_yaml_ng::from_str(&serde_json::to_string(&input).unwrap()).unwrap();
+        let yaml = serde_yaml_ng::to_string(&yaml_value).unwrap();
         match Ontology::from_yaml(&yaml) {
             Ok(_) => discarded.push(format!("{path}/{field}")),
             Err(OntologyError::Syntax(message)) => assert!(message.contains(field), "{message}"),

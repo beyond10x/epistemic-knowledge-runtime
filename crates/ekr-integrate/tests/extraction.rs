@@ -33,6 +33,19 @@ fn example() -> String {
     read("../ekr/src/cli/examples/extraction.yaml")
 }
 
+#[test]
+fn incubation_shape_check_does_not_expand_canonical_evidence_admission() {
+    let mut document = ExtractionDocument::from_yaml(&example()).unwrap();
+    let store = store();
+    document.evidence[0].evidence.source =
+        ekr_graph::EvidenceSource::Observation(ekr_core::ObservationId::mint());
+    assert!(document.check_incubation(&store).is_ok());
+    assert_eq!(
+        document.check(&store).unwrap_err().code,
+        ExtractionRefusalCode::ExtractionEvidenceKindUnsupported
+    );
+}
+
 /// The ontology of the store `ekr example ekr-seed/2` seeds.
 fn store() -> Ontology {
     let seed: Value = serde_yaml_ng::from_str(&read("../ekr/src/cli/examples/seed.yaml"))

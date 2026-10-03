@@ -10,6 +10,7 @@ rust-version.workspace = true
 [dependencies]
 ekr-core.workspace = true
 ekr-graph.workspace = true
+ekr-integrate.workspace = true
 ekr-ontology.workspace = true
 ekr-store.workspace = true
 schemars = { version = "1.2", optional = true }
@@ -17,6 +18,7 @@ serde.workspace = true
 serde_json.workspace = true
 serde_yaml_ng.workspace = true
 thiserror.workspace = true
+time = { workspace = true, features = ["parsing", "formatting"] }
 
 [dev-dependencies]
 eventlog-core.workspace = true
@@ -24,7 +26,6 @@ eventlog-file.workspace = true
 eventlog-sqlite.workspace = true
 proptest.workspace = true
 tempfile.workspace = true
-time.workspace = true
 tokio.workspace = true
 trybuild.workspace = true
 

@@ -1,0 +1,126 @@
+{
+  "arrange": [],
+  "assert": [],
+  "domain": "ekr.observe",
+  "scenario": "observation-retry-is-idempotent",
+  "summary": "Run each command against a reopened native provider; compare retained bytes and typed records.",
+  "timeline": [
+    {
+      "actor": "ekr.observe.KnowledgeSupplier",
+      "at": "2026-10-03T00:00:00Z",
+      "command": "ekr.observe.ImportObservation",
+      "events": [
+        {
+          "event": "ekr.observe.ImportObservationResult",
+          "payload": {}
+        }
+      ],
+      "input": {
+        "document": {
+          "key": {
+            "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
+            "source": "manual",
+            "source_native_id": "health-1"
+          },
+          "observation": {
+            "captured_at": "2026-10-03T00:00:00Z",
+            "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
+            "kind": "FeedItem",
+            "observation_id": "4ad1617c-d649-82e8-acb7-a20dda7f190f",
+            "source": "manual",
+            "source_native_id": "health-1"
+          },
+          "payload": "UHJvamVjdCBoZWFsdGg6IGFtYmVyCg=="
+        }
+      },
+      "outcome": "answered"
+    },
+    {
+      "actor": "ekr.observe.KnowledgeSupplier",
+      "at": "2026-10-03T00:00:01Z",
+      "command": "ekr.observe.ImportObservation",
+      "events": [
+        {
+          "event": "ekr.observe.ImportObservationResult",
+          "payload": {}
+        }
+      ],
+      "input": {
+        "document": {
+          "key": {
+            "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
+            "source": "manual",
+            "source_native_id": "health-1"
+          },
+          "observation": {
+            "captured_at": "2026-10-03T00:00:00Z",
+            "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
+            "kind": "FeedItem",
+            "observation_id": "4ad1617c-d649-82e8-acb7-a20dda7f190f",
+            "source": "manual",
+            "source_native_id": "health-1"
+          },
+          "payload": "UHJvamVjdCBoZWFsdGg6IGFtYmVyCg=="
+        }
+      },
+      "outcome": "answered"
+    },
+    {
+      "actor": "ekr.observe.KnowledgeSupplier",
+      "at": "2026-10-03T00:00:02Z",
+      "command": "ekr.observe.ListObservations",
+      "events": [
+        {
+          "event": "ekr.observe.ObservationsListed",
+          "payload": {
+            "observations": [
+              {
+                "captured_at": "2026-10-03T00:00:00Z",
+                "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
+                "kind": "FeedItem",
+                "observation_id": "4ad1617c-d649-82e8-acb7-a20dda7f190f",
+                "source": "manual",
+                "source_native_id": "health-1"
+              }
+            ]
+          }
+        }
+      ],
+      "input": {},
+      "outcome": "listed"
+    },
+    {
+      "actor": "ekr.observe.KnowledgeSupplier",
+      "at": "2026-10-03T00:00:03Z",
+      "command": "ekr.observe.ShowObservation",
+      "events": [
+        {
+          "event": "ekr.observe.ObservationShown",
+          "payload": {
+            "retained": {
+              "key": {
+                "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
+                "source": "manual",
+                "source_native_id": "health-1"
+              },
+              "observation": {
+                "captured_at": "2026-10-03T00:00:00Z",
+                "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
+                "kind": "FeedItem",
+                "observation_id": "4ad1617c-d649-82e8-acb7-a20dda7f190f",
+                "source": "manual",
+                "source_native_id": "health-1"
+              },
+              "payload": "UHJvamVjdCBoZWFsdGg6IGFtYmVyCg=="
+            }
+          }
+        }
+      ],
+      "input": {
+        "observation_id": "4ad1617c-d649-82e8-acb7-a20dda7f190f"
+      },
+      "outcome": "shown"
+    }
+  ],
+  "type": "ess-scenario/1"
+}

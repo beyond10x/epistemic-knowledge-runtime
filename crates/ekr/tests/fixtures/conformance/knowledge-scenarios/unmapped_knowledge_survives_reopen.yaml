@@ -1,0 +1,246 @@
+{
+  "arrange": [],
+  "assert": [],
+  "domain": "ekr.integrate",
+  "scenario": "unmapped-knowledge-survives-reopen",
+  "summary": "Run each command against a reopened native provider; compare retained bytes and typed records.",
+  "timeline": [
+    {
+      "actor": "ekr.observe.KnowledgeSupplier",
+      "at": "2026-10-03T00:00:00Z",
+      "command": "ekr.observe.ImportObservation",
+      "events": [
+        {
+          "event": "ekr.observe.ImportObservationResult",
+          "payload": {}
+        }
+      ],
+      "input": {
+        "document": {
+          "key": {
+            "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
+            "source": "manual",
+            "source_native_id": "health-1"
+          },
+          "observation": {
+            "captured_at": "2026-10-03T00:00:00Z",
+            "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
+            "kind": "FeedItem",
+            "observation_id": "4ad1617c-d649-82e8-acb7-a20dda7f190f",
+            "source": "manual",
+            "source_native_id": "health-1"
+          },
+          "payload": "UHJvamVjdCBoZWFsdGg6IGFtYmVyCg=="
+        }
+      },
+      "outcome": "answered"
+    },
+    {
+      "actor": "ekr.integrate.KnowledgeProposer",
+      "at": "2026-10-03T00:00:01Z",
+      "command": "ekr.integrate.ImportInterpretation",
+      "events": [
+        {
+          "event": "ekr.integrate.ImportInterpretationResult",
+          "payload": {}
+        }
+      ],
+      "input": {
+        "document": {
+          "entities": [
+            {
+              "aliases": [
+                "fixture-project"
+              ],
+              "node_type": "Project"
+            }
+          ],
+          "evidence": [
+            {
+              "evidence": {
+                "confidence_bp": 7500,
+                "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
+                "extracted_by": "00000000-0000-4000-8000-000000000101",
+                "id": "00000000-0000-4000-8000-000000000401",
+                "observed_at": "2026-10-03T00:00:00Z",
+                "source": {
+                  "kind": "Observation",
+                  "observation": "4ad1617c-d649-82e8-acb7-a20dda7f190f"
+                }
+              },
+              "payload": "UHJvamVjdCBoZWFsdGg6IGFtYmVyCg=="
+            }
+          ],
+          "facts": [
+            {
+              "kind": "Property",
+              "value": {
+                "evidence": [
+                  "00000000-0000-4000-8000-000000000401"
+                ],
+                "property": "health",
+                "subject": {
+                  "aliases": [
+                    "fixture-project"
+                  ],
+                  "node_type": "Project"
+                },
+                "value": {
+                  "canonical_bytes": "DwAAAAAGAAAAAAAAAAVhbWJlcg==",
+                  "kind": "String"
+                }
+              }
+            }
+          ],
+          "local_schema": {
+            "edge_types": [],
+            "node_types": [
+              {
+                "abstract_type": false,
+                "name": "Project",
+                "parents": [],
+                "properties": [
+                  {
+                    "cardinality": "One",
+                    "name": "health",
+                    "required": false,
+                    "value": {
+                      "value_kind": "String"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "observations": [
+            "4ad1617c-d649-82e8-acb7-a20dda7f190f"
+          ],
+          "root_id": "00000000-0000-4000-8000-000000001002",
+          "version": {
+            "interpretation_id": "00000000-0000-4000-8000-000000001001",
+            "version": 1
+          }
+        },
+        "payload": "ewogICJlbnRpdGllcyI6IFsKICAgIHsKICAgICAgImFsaWFzZXMiOiBbCiAgICAgICAgImZpeHR1cmUtcHJvamVjdCIKICAgICAgXSwKICAgICAgIm5vZGVfdHlwZSI6ICJQcm9qZWN0IgogICAgfQogIF0sCiAgImV2aWRlbmNlIjogWwogICAgewogICAgICAiZXZpZGVuY2UiOiB7CiAgICAgICAgImNvbmZpZGVuY2VfYnAiOiA3NTAwLAogICAgICAgICJjb250ZW50X2hhc2giOiAiOWQxZGRiN2UwYWFjZDNkNGY4NzE2Yjk4MTJmM2Y5OGQxNjA2NGQxOWY4NGZlODlkODY0NzM1ZThkNWQ2MWZmNCIsCiAgICAgICAgImV4dHJhY3RlZF9ieSI6ICIwMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDAxMDEiLAogICAgICAgICJpZCI6ICIwMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDA0MDEiLAogICAgICAgICJvYnNlcnZlZF9hdCI6ICIyMDI2LTEwLTAzVDAwOjAwOjAwWiIsCiAgICAgICAgInNvdXJjZSI6IHsKICAgICAgICAgICJraW5kIjogIk9ic2VydmF0aW9uIiwKICAgICAgICAgICJvYnNlcnZhdGlvbiI6ICI0YWQxNjE3Yy1kNjQ5LTgyZTgtYWNiNy1hMjBkZGE3ZjE5MGYiCiAgICAgICAgfQogICAgICB9LAogICAgICAicGF5bG9hZCI6ICJVSEp2YW1WamRDQm9aV0ZzZEdnNklHRnRZbVZ5Q2c9PSIKICAgIH0KICBdLAogICJmYWN0cyI6IFsKICAgIHsKICAgICAgImtpbmQiOiAiUHJvcGVydHkiLAogICAgICAidmFsdWUiOiB7CiAgICAgICAgImV2aWRlbmNlIjogWwogICAgICAgICAgIjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMDQwMSIKICAgICAgICBdLAogICAgICAgICJwcm9wZXJ0eSI6ICJoZWFsdGgiLAogICAgICAgICJzdWJqZWN0IjogewogICAgICAgICAgImFsaWFzZXMiOiBbCiAgICAgICAgICAgICJmaXh0dXJlLXByb2plY3QiCiAgICAgICAgICBdLAogICAgICAgICAgIm5vZGVfdHlwZSI6ICJQcm9qZWN0IgogICAgICAgIH0sCiAgICAgICAgInZhbHVlIjogewogICAgICAgICAgImNhbm9uaWNhbF9ieXRlcyI6ICJEd0FBQUFBR0FBQUFBQUFBQUFWaGJXSmxjZz09IiwKICAgICAgICAgICJraW5kIjogIlN0cmluZyIKICAgICAgICB9CiAgICAgIH0KICAgIH0KICBdLAogICJsb2NhbF9zY2hlbWEiOiB7CiAgICAiZWRnZV90eXBlcyI6IFtdLAogICAgIm5vZGVfdHlwZXMiOiBbCiAgICAgIHsKICAgICAgICAiYWJzdHJhY3RfdHlwZSI6IGZhbHNlLAogICAgICAgICJuYW1lIjogIlByb2plY3QiLAogICAgICAgICJwYXJlbnRzIjogW10sCiAgICAgICAgInByb3BlcnRpZXMiOiBbCiAgICAgICAgICB7CiAgICAgICAgICAgICJjYXJkaW5hbGl0eSI6ICJPbmUiLAogICAgICAgICAgICAibmFtZSI6ICJoZWFsdGgiLAogICAgICAgICAgICAicmVxdWlyZWQiOiBmYWxzZSwKICAgICAgICAgICAgInZhbHVlIjogewogICAgICAgICAgICAgICJ2YWx1ZV9raW5kIjogIlN0cmluZyIKICAgICAgICAgICAgfQogICAgICAgICAgfQogICAgICAgIF0KICAgICAgfQogICAgXQogIH0sCiAgIm9ic2VydmF0aW9ucyI6IFsKICAgICI0YWQxNjE3Yy1kNjQ5LTgyZTgtYWNiNy1hMjBkZGE3ZjE5MGYiCiAgXSwKICAicm9vdF9pZCI6ICIwMDAwMDAwMC0wMDAwLTQwMDAtODAwMC0wMDAwMDAwMDEwMDIiLAogICJ2ZXJzaW9uIjogewogICAgImludGVycHJldGF0aW9uX2lkIjogIjAwMDAwMDAwLTAwMDAtNDAwMC04MDAwLTAwMDAwMDAwMTAwMSIsCiAgICAidmVyc2lvbiI6IDEKICB9Cn0="
+      },
+      "outcome": "answered"
+    },
+    {
+      "actor": "ekr.integrate.KnowledgeProposer",
+      "at": "2026-10-03T00:00:02Z",
+      "command": "ekr.integrate.ListInterpretations",
+      "events": [
+        {
+          "event": "ekr.integrate.ListInterpretationsResult",
+          "payload": {
+            "interpretations": [
+              {
+                "document_digest": "76d74e0891f79ebe128fd2e60354f20da16b36594cd3e4813428d6e4c436d5d9",
+                "interpretation_id": "00000000-0000-4000-8000-000000001001",
+                "version": 1
+              }
+            ]
+          }
+        }
+      ],
+      "input": {},
+      "outcome": "answered"
+    },
+    {
+      "actor": "ekr.integrate.KnowledgeProposer",
+      "at": "2026-10-03T00:00:03Z",
+      "command": "ekr.integrate.ShowInterpretation",
+      "events": [
+        {
+          "event": "ekr.integrate.ShowInterpretationResult",
+          "payload": {
+            "document": {
+              "entities": [
+                {
+                  "aliases": [
+                    "fixture-project"
+                  ],
+                  "node_type": "Project"
+                }
+              ],
+              "evidence": [
+                {
+                  "evidence": {
+                    "confidence_bp": 7500,
+                    "content_hash": "9d1ddb7e0aacd3d4f8716b9812f3f98d16064d19f84fe89d864735e8d5d61ff4",
+                    "extracted_by": "00000000-0000-4000-8000-000000000101",
+                    "id": "00000000-0000-4000-8000-000000000401",
+                    "observed_at": "2026-10-03T00:00:00Z",
+                    "source": {
+                      "kind": "Observation",
+                      "observation": "4ad1617c-d649-82e8-acb7-a20dda7f190f"
+                    }
+                  },
+                  "payload": "UHJvamVjdCBoZWFsdGg6IGFtYmVyCg=="
+                }
+              ],
+              "facts": [
+                {
+                  "kind": "Property",
+                  "value": {
+                    "evidence": [
+                      "00000000-0000-4000-8000-000000000401"
+                    ],
+                    "property": "health",
+                    "subject": {
+                      "aliases": [
+                        "fixture-project"
+                      ],
+                      "node_type": "Project"
+                    },
+                    "value": {
+                      "canonical_bytes": "DwAAAAAGAAAAAAAAAAVhbWJlcg==",
+                      "kind": "String"
+                    }
+                  }
+                }
+              ],
+              "local_schema": {
+                "edge_types": [],
+                "node_types": [
+                  {
+                    "abstract_type": false,
+                    "name": "Project",
+                    "parents": [],
+                    "properties": [
+                      {
+                        "cardinality": "One",
+                        "name": "health",
+                        "required": false,
+                        "value": {
+                          "value_kind": "String"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "observations": [
+                "4ad1617c-d649-82e8-acb7-a20dda7f190f"
+              ],
+              "root_id": "00000000-0000-4000-8000-000000001002",
+              "version": {
+                "interpretation_id": "00000000-0000-4000-8000-000000001001",
+                "version": 1
+              }
+            }
+          }
+        }
+      ],
+      "input": {
+        "version": {
+          "document_digest": "76d74e0891f79ebe128fd2e60354f20da16b36594cd3e4813428d6e4c436d5d9",
+          "interpretation_id": "00000000-0000-4000-8000-000000001001",
+          "version": 1
+        }
+      },
+      "outcome": "answered"
+    }
+  ],
+  "type": "ess-scenario/1"
+}

@@ -585,6 +585,42 @@ the batcher added to it. If a commit's outcome is unknown (above) and `ekr trans
 as committed, mark the entries its groups cite with `EvidenceSet::mark_committed`, or rebuild the
 set with `EvidenceSet::from_store`, so no later run adds them again.
 
+## Retaining supplied knowledge
+
+`ekr_sdk::knowledge::Knowledge` uses the same transport to retain observations and local
+interpretations independently of canonical transactions. Its inputs and results come from
+`ekr_sdk::contracts`, generated from the ESS domains.
+
+```rust
+use ekr_sdk::knowledge::{observation_import, Knowledge};
+
+let input = observation_import(
+    "manual".into(),
+    Some("health-entry-1".into()),
+    "2026-10-03T00:00:00Z".into(),
+    serde_json::from_str("\"FeedItem\"")?,
+    b"Project health: on track\n",
+);
+let mut knowledge = Knowledge::new(&mut session);
+let receipt = knowledge.import_observation(&input)?;
+let repeated = knowledge.import_observation(&input)?;
+assert_eq!(receipt.observation_id, repeated.observation_id);
+```
+
+The builder reuses the observation source key and hashes the exact payload bytes. Capture time
+is an RFC 3339 string. Repeat the same input for an idempotent retry; changing metadata under an
+existing key is refused. `observations()` lists retained metadata and `observation(id)` returns
+the record and its exact payload encoded as base64.
+
+`import_interpretation(&EkrIntegrateInterpretationImport)` takes a typed document and its exact
+JSON bytes encoded as base64. The runtime checks local declarations, references, retained source
+evidence and the immutable version before publication. Vocabulary gaps produce inspectable
+blockers and parked receipts. `interpretations()` lists version coordinates;
+`interpretation(&version)` reads the document, blockers and receipts with its exact digest.
+Rejected interpretations do not remove their retained observations. These operations neither
+seed a store nor create a canonical revision. Store migration currently refuses stores containing
+these independent streams before publishing a destination, to prevent a partial copy.
+
 ## Typed reads
 
 `ekr_sdk::read::Reader` sends a read over any transport (a `ProcessSession`, a `&mut` one, a

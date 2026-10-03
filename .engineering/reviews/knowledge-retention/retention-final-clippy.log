@@ -1,0 +1,13 @@
+    Blocking waiting for file lock on build directory
+   Compiling ring v0.17.14
+    Checking ekr-core v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-retention-20261003/crates/ekr-core)
+    Checking ekr-ontology v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-retention-20261003/crates/ekr-ontology)
+    Checking ekr-sdk v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-retention-20261003/crates/ekr-sdk)
+    Checking ekr-graph v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-retention-20261003/crates/ekr-graph)
+    Checking ekr-store v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-retention-20261003/crates/ekr-store)
+    Checking ekr-integrate v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-retention-20261003/crates/ekr-integrate)
+    Checking ekr-kernel v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-retention-20261003/crates/ekr-kernel)
+    Checking ekr-observe v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-retention-20261003/crates/ekr-observe)
+    Checking ekr-views v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-retention-20261003/crates/ekr-views)
+    Checking ekr v0.0.27 (<worktrees>/epistemic-knowledge-runtime/ekr-knowledge-retention-20261003/crates/ekr)
+    Finished `dev` profile [unoptimized] target(s) in 4m 56s

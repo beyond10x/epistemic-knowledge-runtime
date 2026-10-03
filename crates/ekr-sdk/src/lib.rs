@@ -10,6 +10,7 @@ pub mod checks;
 pub mod document;
 pub mod evidence;
 pub mod extraction;
+pub mod knowledge;
 pub mod read;
 pub mod reply;
 pub mod resolve;
