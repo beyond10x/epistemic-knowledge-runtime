@@ -7,6 +7,7 @@ use search_page::{render, EvidenceLink, Page, SearchResult, State};
 
 fn page<'a>(query: &'a str, state: State<'a>) -> Page<'a> {
     Page {
+        guide_url: "/agent-guide.md",
         query,
         revision: Some(7),
         requested_revision: None,
@@ -115,6 +116,7 @@ fn blank_no_match_and_unavailable_states_explain_the_next_action() {
     assert!(empty.contains("No matches"));
     assert!(empty.contains("Try part of a name or an alias"));
     let unavailable = render(&Page {
+        guide_url: "/agent-guide.md",
         query: "saved query",
         revision: None,
         requested_revision: Some(12),
@@ -190,6 +192,9 @@ mod live {
             command
         }
         fn new(seeded: bool) -> Self {
+            Self::configured(seeded, &[])
+        }
+        fn configured(seeded: bool, options: &[&str]) -> Self {
             static NEXT: AtomicUsize = AtomicUsize::new(0);
             let path = std::env::temp_dir().join(format!(
                 "ekr-search-{}-{}",
@@ -219,6 +224,7 @@ mod live {
             }
             let mut child = world
                 .command(&["view", "--port", "0"])
+                .args(options)
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
@@ -240,14 +246,22 @@ mod live {
             world
         }
         fn get(&self, path: &str) -> (u16, String, String) {
+            self.request("GET", path, &self.authority, "")
+        }
+        fn request(
+            &self,
+            method: &str,
+            path: &str,
+            host: &str,
+            extra: &str,
+        ) -> (u16, String, String) {
             let mut stream = TcpStream::connect(&self.authority).unwrap();
             stream
                 .set_read_timeout(Some(Duration::from_secs(60)))
                 .unwrap();
             write!(
                 stream,
-                "GET {path} HTTP/1.1\r\nHost: {}\r\n\r\n",
-                self.authority
+                "{method} {path} HTTP/1.1\r\nHost: {host}\r\n{extra}\r\n"
             )
             .unwrap();
             let mut response = String::new();
@@ -289,6 +303,196 @@ mod live {
             }
             let _ = std::fs::remove_dir_all(&self.path);
         }
+    }
+
+    #[test]
+    fn agent_guidance_survives_missing_store_without_inventing_an_endpoint() {
+        let world = World::new(false);
+        let (status, _, page) = world.get("/find");
+        assert_eq!(status, 503);
+        assert!(page.contains("Connect an agent"));
+        assert!(page.contains("href=\"/agent-guide.md\""));
+        assert!(page.contains("rel=\"describedby\" href=\"/llms.txt\""));
+        for path in ["/agent-guide.md", "/llms.txt"] {
+            let (status, headers, body) = world.get(path);
+            assert_eq!(status, 200, "{path}: {body}");
+            assert!(headers.contains("Content-Type: text/markdown; charset=utf-8"));
+            assert!(headers.contains("Cache-Control: no-store"));
+            assert!(headers.contains("X-Content-Type-Options: nosniff"));
+            assert!(body.starts_with("# EKR"));
+            assert!(body.contains("not configured"));
+            assert!(!body.contains(&format!("http://{}/mcp", world.authority)));
+            assert!(!body.contains("Alice"));
+        }
+        let (_, _, discovery) = world.get("/llms.txt");
+        assert!(discovery.contains("\n> "));
+        assert!(discovery.contains("\n## "));
+        assert!(discovery.contains("[Agent connection guide](/agent-guide.md)"));
+        assert!(!world.path.join("store").exists());
+    }
+
+    #[test]
+    fn agent_guidance_keeps_authority_method_and_body_admission_without_store() {
+        let world = World::new(false);
+        for path in ["/agent-guide.md", "/llms.txt"] {
+            assert_eq!(
+                world
+                    .request("GET", path, "unapproved.example.invalid", "")
+                    .0,
+                421
+            );
+            assert_eq!(world.request("POST", path, &world.authority, "").0, 405);
+            assert_eq!(
+                world
+                    .request("GET", path, &world.authority, "Content-Length: 1\r\n")
+                    .0,
+                413
+            );
+        }
+        assert!(!world.path.join("store").exists());
+    }
+
+    #[test]
+    fn agent_connection_metadata_is_explicit_and_escaped_in_html_and_markdown() {
+        let endpoint = "https://agent.example.invalid/mcp?label=one&other='two'(three)";
+        let guide = "https://docs.example.invalid/guide?label=one&other='two'(three)";
+        let world = World::configured(false, &["--mcp-url", endpoint, "--agent-guide-url", guide]);
+        let (_, _, page) = world.get("/find");
+        assert!(page.contains(
+            "href=\"https://docs.example.invalid/guide?label=one&amp;other=&#39;two&#39;(three)\""
+        ));
+        let (status, _, markdown) = world.get("/agent-guide.md");
+        assert_eq!(status, 200);
+        assert!(markdown.contains(endpoint));
+        assert!(markdown.contains("Streamable HTTP"));
+        assert!(markdown.contains("read-only"));
+        let (_, _, discovery) = world.get("/llms.txt");
+        assert!(discovery
+            .contains("https://docs.example.invalid/guide?label=one&other='two'%28three%29"));
+        assert!(!discovery.contains("[Agent connection guide](https://docs.example.invalid/guide?label=one&other='two'(three))"));
+        assert!(!world.path.join("store").exists());
+    }
+
+    #[test]
+    fn agent_metadata_survives_reopening_a_replaced_store() {
+        let guide = "https://docs.example.invalid/guide";
+        let endpoint = "https://agent.example.invalid/mcp";
+        let world = World::configured(true, &["--mcp-url", endpoint, "--agent-guide-url", guide]);
+        world.commit_assertion();
+        let (status, _, before) = world.get("/find?q=Alice");
+        assert_eq!(status, 200);
+        assert!(before.contains("Revision 1"));
+        let replacement = World::new(true);
+        for suffix in ["", "-wal", "-shm"] {
+            let source = world.path.join(format!("store{suffix}"));
+            if source.exists() {
+                std::fs::rename(source, world.path.join(format!("previous{suffix}"))).unwrap();
+            }
+        }
+        for suffix in ["", "-wal", "-shm"] {
+            let source = replacement.path.join(format!("store{suffix}"));
+            if source.exists() {
+                std::fs::rename(source, world.path.join(format!("store{suffix}"))).unwrap();
+            }
+        }
+        let (status, _, after) = world.get("/find?q=Alice");
+        assert_eq!(status, 200, "{after}");
+        assert!(after.contains("Revision 0"));
+        assert!(after.contains(&format!("href=\"{guide}\"")));
+        let (status, _, markdown) = world.get("/agent-guide.md");
+        assert_eq!(status, 200);
+        assert!(markdown.contains(endpoint));
+    }
+
+    #[test]
+    fn agent_guide_names_the_actual_read_only_mcp_tools() {
+        let world = World::new(true);
+        let mut child = world
+            .command(&["mcp"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/list\"}\n")
+            .unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let response: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+        let tools = response["result"]["tools"].as_array().unwrap();
+        assert!(!tools.is_empty());
+        let (status, _, guide) = world.get("/agent-guide.md");
+        assert_eq!(status, 200);
+        for tool in tools {
+            let name = tool["name"].as_str().unwrap();
+            assert!(
+                guide.contains(&format!("`{name}`")),
+                "guide omits advertised tool {name}"
+            );
+            assert_eq!(tool["annotations"]["readOnlyHint"], true);
+        }
+    }
+
+    #[test]
+    fn agent_endpoint_preserves_ipv6_and_the_local_guide_default() {
+        let endpoint = "http://[::1]:8801/mcp";
+        let world = World::configured(false, &["--mcp-url", endpoint]);
+        let (_, _, page) = world.get("/find");
+        assert!(page.contains("href=\"/agent-guide.md\""));
+        let (status, _, markdown) = world.get("/llms.txt");
+        assert_eq!(status, 200);
+        assert!(markdown.contains("[MCP endpoint](http://[::1]:8801/mcp)"));
+        assert!(markdown.contains("[Agent connection guide](/agent-guide.md)"));
+    }
+
+    #[test]
+    fn agent_urls_refuse_unsafe_configuration_before_announcing_a_listener() {
+        let world = World::new(false);
+        let credentials = [
+            "https://",
+            "user",
+            ":",
+            "secret",
+            "@agent.example.invalid/mcp",
+        ]
+        .concat();
+        for flag in ["--mcp-url", "--agent-guide-url"] {
+            for url in [
+                "javascript:alert(1)",
+                "data:text/html,test",
+                "//agent.example.invalid/mcp",
+                credentials.as_str(),
+                "https://agent.example.invalid/\nInjected",
+                "https://agent.example.invalid/\tpath",
+                "https://agent.example.invalid\\@other.invalid/",
+                "https:///missing-host",
+                "https://agent.example.invalid:99999/mcp",
+                "https://agent.example.invalid/%GG",
+                "https://agent.example.invalid/unfinished%",
+                "https://agent.example.invalid/`code`",
+                "https://agent.example.invalid/<tag>",
+            ] {
+                let output = world
+                    .command(&["view", "--port", "0", flag, url])
+                    .output()
+                    .unwrap();
+                assert!(
+                    !output.status.success(),
+                    "{flag} unexpectedly accepted unsafe URL"
+                );
+                assert!(output.stdout.is_empty());
+                assert!(String::from_utf8_lossy(&output.stderr).contains(flag));
+            }
+        }
+        assert!(!world.path.join("store").exists());
     }
 
     #[test]

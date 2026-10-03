@@ -37,6 +37,7 @@
 //! (`session.rs`).
 
 mod agent;
+mod agent_help;
 mod code_names;
 mod commit;
 mod explain;
@@ -431,7 +432,8 @@ pub enum Command {
     /// `{"url": "http://127.0.0.1:<port>/"}` as one JSON line, then serves `GET /`,
     /// `GET /projection[?revision=N]`, `GET /roles[?revision=N]`, `GET /overview`,
     /// `GET /expand` (streamed NDJSON), `GET /node/<node id>`, `GET /search` and
-    /// `GET /evidence/<evidence id>`.
+    /// `GET /evidence/<evidence id>`. `GET /find` is the plain search entry;
+    /// `GET /agent-guide.md` and `GET /llms.txt` serve static agent guidance without store reads.
     #[command(after_help = SEE)]
     View {
         /// The port to listen on; 0 picks a free one.
@@ -446,6 +448,12 @@ pub enum Command {
         /// Admit a seeded complete store before announcing the URL; fail if it is unavailable.
         #[arg(long)]
         require_ready: bool,
+        /// Advertise this absolute HTTP(S) MCP endpoint; does not start or discover a server.
+        #[arg(long, value_parser = agent_help::url)]
+        mcp_url: Option<String>,
+        /// Link to this absolute HTTP(S) operator guide instead of the local agent guide.
+        #[arg(long, value_parser = agent_help::url)]
+        agent_guide_url: Option<String>,
     },
     /// Serve the JSON verbs over one opened store: one JSON request per line on stdin, one JSON
     /// answer per line on stdout, until end of input.
@@ -934,9 +942,16 @@ fn dispatch(
             bind,
             allow_host,
             require_ready,
+            mcp_url,
+            agent_guide_url,
         } => {
             let store = source.configured("view")?;
-            view::run(&store, bind, port, allow_host, require_ready).map(Printed::Text)
+            let help = agent_help::Config {
+                mcp_url,
+                guide_url: agent_guide_url
+                    .unwrap_or_else(|| agent_help::Config::default().guide_url),
+            };
+            view::run(&store, bind, port, allow_host, require_ready, help).map(Printed::Text)
         }
         Command::McpHttp {
             port,
