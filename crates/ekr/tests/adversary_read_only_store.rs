@@ -392,8 +392,8 @@ fn ekr_view_on_a_read_only_file_store_removes_its_copy_when_terminated() {
     // Binding precedes lazy store admission. Prove it serves the store before
     // checking that the private copy is held and then cleaned up on termination.
     let authority = url
-        .trim()
-        .strip_prefix("http://")
+        .split_whitespace()
+        .find_map(|part| part.strip_prefix("http://"))
         .unwrap()
         .trim_end_matches('/');
     let mut request = std::net::TcpStream::connect(authority).unwrap();
